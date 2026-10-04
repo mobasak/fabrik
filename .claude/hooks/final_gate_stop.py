@@ -346,12 +346,39 @@ def _failure_cites_session(
 
 
 # Tools whose input.file_path marks a file THIS session authored/edited. Bash
-# heredoc writes are invisible here — under-detection is the fail-open direction.
+# heredoc writes are invisible here — under-detection is the fail-open direction; the
+# sixth cause alone also reads the session's own commits (`_session_authorship`).
 _EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 
 
+# The line `git commit` prints for the commit it just made — `[<branch> <sha>] <subject>`, with
+# `(root-commit)` or `detached HEAD` inside the brackets in those states (`cherry-pick` and `revert`
+# print it too, and those are commits the session made). It is read from the result of ANY of the
+# session's Bash calls, and the command text is never parsed: three review rounds each found a
+# shell shape a regex misread (a mention, a quoted string, a heredoc's stray quote, a `"$(…)"`
+# capture). What attributes a sha is a fact git reports instead — the commit was CREATED while that
+# call ran (`_commit_files` bounds its committer time by the call's start and its result), so a
+# sibling's commit a command merely displays, made before the call started, is never claimed.
+_COMMIT_LINE = re.compile(r"^\[[^\]\n]*? ([0-9a-f]{7,64})\] ", re.M)
+_COMMIT_LINE_RAW = re.compile(r" [0-9a-f]{7,64}\] ")  # the same shape inside a JSON-escaped line
+
+
 def _session_files(transcript_path: str, root: Path) -> dict[str, int]:
-    """Root-relative path → unix ts of this session's LAST Edit/Write to it.
+    """Root-relative path → unix ts of this session's LAST Edit/Write to it — the first half of
+    `_session_authorship`, for the callers that need only that."""
+    return _session_authorship(transcript_path, root)[0]
+
+
+def _session_authorship(
+    transcript_path: str, root: Path
+) -> tuple[dict[str, int], list[tuple[str, int, int]]]:
+    """(files, commits) from ONE pass over the transcript.
+
+    `files` — root-relative path → unix ts of this session's LAST Edit/Write to it.
+    `commits` — `(sha, started, ended)` for each `[<branch> <sha>]` line a Bash call of this session
+    printed: the call's start and its result's timestamp (0 = unreadable, which attributes nothing). Bash-written files are
+    invisible to `files` (W-ea06749b); a commit the session made names them, and the sixth cause
+    reads it as a second authorship source once `_commit_files` has checked it was made in that call.
 
     Parsed from the session transcript (JSONL). Fail-open: any parse problem →
     empty dict (the commit check then never blocks). Only paths INSIDE root count
@@ -363,10 +390,21 @@ def _session_files(transcript_path: str, root: Path) -> dict[str, int]:
     import datetime as _dt
 
     files: dict[str, int] = {}
+    commits: list[tuple[str, int, int]] = []
+    bash_calls: dict[str, int] = {}  # Bash call id → the call's start
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
-                if '"tool_use"' not in line:
+                is_use = '"tool_use"' in line
+                # a result is parsed only when its raw text already holds a commit-line shape:
+                # tool results are most of a transcript's bytes, and json cost is the hook's budget
+                is_result = (
+                    not is_use
+                    and bash_calls
+                    and '"tool_result"' in line
+                    and _COMMIT_LINE_RAW.search(line) is not None
+                )
+                if not (is_use or is_result):
                     continue  # cheap pre-filter before json cost
                 try:
                     entry = json.loads(line)
@@ -385,11 +423,33 @@ def _session_files(transcript_path: str, root: Path) -> dict[str, int]:
                     except ValueError:
                         ts = 0
                 for item in content:
-                    if (
-                        isinstance(item, dict)
-                        and item.get("type") == "tool_use"
-                        and item.get("name") in _EDIT_TOOLS
-                    ):
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("type") == "tool_result":
+                        started = bash_calls.get(str(item.get("tool_use_id") or ""))
+                        if started is None:
+                            continue  # not a Bash call of this session
+                        body = item.get("content")
+                        if isinstance(body, list):
+                            body = "\n".join(
+                                str(b.get("text") or "") for b in body if isinstance(b, dict)
+                            )
+                        # the entry's own `toolUseResult.stdout` too: a long result can be
+                        # shortened in `content`, and the commit line comes LAST, after the hooks
+                        raw = entry.get("toolUseResult")
+                        stdout = raw.get("stdout") if isinstance(raw, dict) else None
+                        for text in (body, stdout):
+                            if isinstance(text, str):
+                                for m in _COMMIT_LINE.finditer(text):
+                                    if (m.group(1), started, ts) not in commits:
+                                        commits.append((m.group(1), started, ts))
+                        continue
+                    if item.get("type") != "tool_use":
+                        continue
+                    if item.get("name") == "Bash":
+                        bash_calls[str(item.get("id") or "")] = ts
+                        continue
+                    if item.get("name") in _EDIT_TOOLS:
                         fp = (item.get("input") or {}).get("file_path")
                         if not fp:
                             continue
@@ -400,8 +460,8 @@ def _session_files(transcript_path: str, root: Path) -> dict[str, int]:
                         key = str(rel)
                         files[key] = max(files.get(key, 0), ts)
     except Exception:
-        return {}
-    return files
+        return {}, []
+    return files, commits
 
 
 def _last_commit_ts(root: Path, rel: str) -> int:
@@ -902,27 +962,34 @@ def session_unpushed(
 
 # Spontaneous-work review checkpoint (operator, 2026-08-29). "Spontaneous" is mechanically
 # decidable: every /fabrik-* command opens a run record (corpus predicate 5, gate-enforced), so a
-# session that authored CODE files with NO record at all is record-less BY CONSTRUCTION — plain-chat
-# work. Commanded work exempts itself; docs-only sessions never fire. The remedy is the light
-# /fabrik-review-scoped (same convergence spine, minutes not hours); heavy surfaces escalate to the
-# full /fabrik-review per its own contract.
-_CODE_EXTS = frozenset(
-    {
-        ".py",
-        ".sh",
-        ".ts",
-        ".tsx",
-        ".js",
-        ".jsx",
-        ".yaml",
-        ".yml",
-        ".toml",
-        ".sql",
-        ".go",
-        ".rs",
-        ".json",
-    }
-)
+# session that authored files with NO record at all is record-less BY CONSTRUCTION — plain-chat
+# work. Commanded work exempts itself. The remedy is the light /fabrik-review-scoped (same
+# convergence spine, minutes not hours); heavy surfaces escalate to the full /fabrik-review per its
+# own contract.
+#
+# EVERY authored path counts, docs and config included (W-ea06749b). The cause used to count only
+# a code-suffix allowlist, and its comment said "docs-only sessions never fire" — while CLAUDE.md
+# § Orient step 0 says a change with no code surface still takes /fabrik-review-scoped. A session at
+# trade-intelligence pushed `docs/OPERATIONS.md`, `.env.example` and `.gitignore` with no review and
+# nothing objected; the operator ruled it "not acceptable … it must be prevented". An allowlist
+# also exempts every file type nobody thought to list, so the filter is inverted: what is exempt is
+# NAMED, and everything else is reviewed by default.
+# Exempt: the shared-append ledgers (`_ROUTINE_GOVERNANCE` — every session writes them, and the
+# ordinary flow writes the CHANGELOG entry AFTER the review closes) and `.fabrik/` machine state
+# (work items, plan locks — written by tools, not authored). A path inside a linked worktree is
+# judged by its in-worktree name, so `.claude/worktrees/<name>/CHANGELOG.md` is exempt like the
+# main checkout's.
+# ⚠️ COBRA (D-253): the cheapest way past this is to put substantive prose into an exempt ledger;
+# the ledgers are read by every review that touches the change, and nothing cheaper is offered.
+_REVIEW_EXEMPT_PREFIXES = (".fabrik/",)
+_WORKTREE_PREFIX = re.compile(r"\.claude/worktrees/[^/]+/")
+
+
+def _review_exempt(path: str) -> bool:
+    """Is this root-relative path one the sixth cause never counts? The ONE place the rule lives."""
+    m = _WORKTREE_PREFIX.match(path)
+    rel = path[m.end() :] if m else path
+    return rel in _ROUTINE_GOVERNANCE or rel.startswith(_REVIEW_EXEMPT_PREFIXES)
 
 
 # The covered-window LEDGER was born at ff887758 (2026-09-06 19:56:08 +0300). Edits older than
@@ -1179,12 +1246,85 @@ def _unreviewed_spontaneous(
     return len(_unreviewed_spontaneous_files(rec, authored, session_floor, sid))
 
 
+def _commit_files(root: Path, commits: list[tuple[str, int, int]], floor: float) -> dict[str, int]:
+    """Path → committer time, over the commits the session's own Bash calls printed.
+
+    A printed sha counts only when git says the commit was CREATED while a call that printed it
+    ran — committer time inside `[started − skew, ended + skew]` of ANY such call — and at or after
+    `floor`. That
+    window is what makes it this session's commit and not a sibling's that the call merely
+    displayed (`cat` of a log, `git log`, a hook echoing another repo's commit): those were made
+    before the call began. A call whose start or end is UNREADABLE (0) attributes nothing: here
+    unknown must mean "not mine", because a wrong claim BLOCKS a session for work it never did
+    (round 4 — a timestamp-less call that ran `git log` claimed a commit three hours old). That is
+    the fail-open direction, the opposite of the Edit side's "unknown is not covered", which asks
+    a different question about work that IS this session's. ONE git call for every sha
+    (`--ignore-missing`, so a sha this repo lacks drops out instead of failing the call),
+    NUL-delimited so any path reads raw; a merge lists no files. Any git failure or timeout is
+    `{}`: the cause keeps its Edit-only behaviour rather than disarming. RESIDUE: a commit made
+    while the call ran by ANOTHER session and printed by this one is claimed — it needs both a
+    concurrent sibling commit and a command of ours that prints its `[branch sha]` line."""
+    # EVERY call that printed a sha is kept: the commit is this session's when ANY of them brackets
+    # it — the call that made it — however many later calls re-display the same line (round 5)
+    spans: dict[str, list[tuple[int, int]]] = {}
+    for sha, started, ended in commits:
+        if started and ended and ended + _CLOCK_SKEW_TOLERANCE_S >= floor:
+            spans.setdefault(sha, []).append((started, ended))
+    if not spans:
+        return {}
+    try:
+        r = _git_by(
+            root,
+            time.monotonic() + 5.0,
+            "log",
+            "--no-walk=unsorted",
+            "--ignore-missing",
+            "--no-renames",
+            "-z",
+            "--name-only",
+            "--format=%x00%H%x00%ct",
+            *sorted(spans),
+        )
+    except Exception:
+        return {}
+    if r.returncode != 0:
+        return {}
+    out: dict[str, int] = {}
+    state, full, ct = "start", "", 0
+    for field in r.stdout.split("\0"):
+        if state == "start":
+            if field:
+                continue
+            state = "sha"
+        elif state == "sha":
+            full, state = field, "ct"
+        elif state == "ct":
+            ct, state = (int(field) if field.isdigit() else 0), "files"
+        else:
+            if not field:
+                state = "sha"  # the NUL that opens the next commit
+                continue
+            path = field.lstrip("\n")
+            calls = next((v for sha, v in spans.items() if full.startswith(sha)), None)
+            if not path or calls is None or ct < floor:
+                continue
+            # a call that began after the commit only DISPLAYED it; one that ended before it, too
+            if not any(
+                started - _CLOCK_SKEW_TOLERANCE_S <= ct <= ended + _CLOCK_SKEW_TOLERANCE_S
+                for started, ended in calls
+            ):
+                continue
+            out[path] = max(out.get(path, 0), ct)
+    return out
+
+
 def _unreviewed_spontaneous_files(
     rec: object,
     authored: dict[str, int],
     session_floor: float,
     sid: str | None = None,
     root: Path | None = None,
+    commits: list[tuple[str, int, int]] | None = None,
 ) -> list[str]:
     """The same question as `_unreviewed_spontaneous`, answered with the FILE LIST.
 
@@ -1197,13 +1337,70 @@ def _unreviewed_spontaneous_files(
     floor = _sixth_cause_floor(session_floor)
     windows = _review_windows(rec if isinstance(rec, dict) else None, sid)
     windows += _first_review_base_case(rec, floor)
-    named = _surface_reviewed(rec, authored, sid)  # once per stop, not once per file
+    # The second authorship source (W-ea06749b): files a commit THIS session made names — written
+    # through Bash, so the Edit scan never saw them. Read first, so a running review's `--surface`
+    # exempts them by name exactly as it exempts an Edit-written file (T5.2).
+    committed = _commit_files(root, commits, floor) if commits and root is not None else {}
+    named = _surface_reviewed(rec, {**committed, **authored}, sid)  # once per stop, not per file
     scoped = {f: ts for f, ts in _this_sessions_edits(authored, floor).items() if f not in named}
     names = _unreviewed_code_file_names(scoped, windows)
     if names and root is not None:
         withdrawn = _withdrawn_edits(root, names, floor)  # ONE call for every name (two git runs)
         names = [f for f in names if f not in withdrawn]
+    # A commit-only file is judged by the commit instant against every window WIDENED by a grace
+    # after its close: the edit → review → close → commit flow commits after the close, so the
+    # strict per-edit test would block it, while "any window before the commit" (the first cut)
+    # passed the reported session whole — it had run commands earlier that afternoon and committed
+    # 46 minutes and more after the last one closed. Measured over 14 days of transcripts: 380 of
+    # 382 commit-derived files fell inside a window, the other 2 at 10 and 29 minutes after a close.
+    # ⚠️ RESIDUE, stated: a Bash-written file committed within the grace of ANY close passes, and
+    # so does one committed by plumbing, by `git commit -q`, by a script that prints no
+    # `[branch sha]` line (`merge_request.py`, `release_cut.py` — merges list no files anyway), or
+    # by a BACKGROUND Bash call, whose output arrives later and outside that call's own result, or
+    # by a call whose timestamps are unreadable. The one OVER-claim: a sibling's commit made WHILE
+    # one of our calls ran and printed by it (`_commit_files`).
+    # ⚠️ COBRA (D-253): the cheapest way past this is to commit within the grace of an unrelated
+    # command's close; it costs a command run, and the block names the files it means.
+    extra = [
+        f
+        for f, ct in committed.items()
+        if f not in scoped
+        and f not in named
+        and not _review_exempt(f)
+        and not any(lo <= ct <= hi + _COMMIT_GRACE_S for lo, hi in windows)
+    ]
+    names = sorted(set(names) | set(extra))
+    if names and root is not None:
+        ignored = _ignored_paths(root, names)  # not shipped work: no diff a review could read
+        names = [f for f in names if f not in ignored]
     return names
+
+
+# How long after a window's close a commit of that window's work may land (W-ea06749b) — see
+# `_unreviewed_spontaneous_files`.
+_COMMIT_GRACE_S = 1800.0
+
+
+def _ignored_paths(root: Path, names: list[str]) -> set[str]:
+    """The names git IGNORES — not shipped work, so no diff-scoped review can read them, and a
+    block on them could only be cleared by a review that looks at nothing (W-ea06749b: once docs
+    count, an Edit to `.env` or a scratch note under an ignored directory would block). One
+    `check-ignore --stdin -z` call; a tracked file is never reported (git's own rule). Any git
+    failure ignores nothing."""
+    try:
+        r = subprocess.run(
+            ["git", "check-ignore", "--stdin", "-z"],
+            cwd=root,
+            input="\0".join(names) + "\0",
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except Exception:
+        return set()
+    if r.returncode not in (0, 1):  # 1 = nothing ignored
+        return set()
+    return {f for f in r.stdout.split("\0") if f}
 
 
 def _withdrawn_edits(root: Path, names: list[str], floor: float) -> set[str]:
@@ -1482,8 +1679,9 @@ def _unreviewed_code_files(
     authored: dict[str, int],
     windows: list[tuple[float, float]] | tuple[float, float] | None,
 ) -> int:
-    """Code files this session authored OUTSIDE every covered window — the ones no command's
-    contract has reviewed. An edit with no parseable timestamp (ts == 0, `_session_files`)
+    """Files this session authored OUTSIDE every covered window — the ones no command's contract
+    has reviewed; every path but the `_review_exempt` ones (W-ea06749b — the name is kept for its
+    callers, the rule is no longer about code). An edit with no parseable timestamp (ts == 0, `_session_files`)
     COUNTS: unknown is not covered (A-F10). A single window (the pre-P1-1 shape) is accepted.
 
     The COUNT is `len()` of the names, never a second traversal — see
@@ -1497,10 +1695,8 @@ def _unreviewed_code_file_names(
 ) -> list[str]:
     """The names behind the count, sorted — so the block can say WHICH files it means.
 
-    Two readers, one traversal: a count computed separately from the list it describes is two
+    Every path counts except the `_review_exempt` ones (W-ea06749b). Two readers, one traversal: a count computed separately from the list it describes is two
     implementations of one rule, and the stale one reads exactly like the current one."""
-    from pathlib import PurePosixPath
-
     if windows is None:
         wins: list[tuple[float, float]] = []
     elif isinstance(windows, tuple):
@@ -1509,7 +1705,7 @@ def _unreviewed_code_file_names(
         wins = list(windows)
     out: list[str] = []
     for f, ts in authored.items():
-        if PurePosixPath(f).suffix.lower() not in _CODE_EXTS:
+        if _review_exempt(f):
             continue
         if not isinstance(ts, (int, float)) or ts == 0:
             out.append(f)
@@ -3420,11 +3616,12 @@ def main(argv: list[str]) -> int:
         # committed everything and then narrates instead of dispatching).
         transcript_p = str(data.get("transcript_path") or "")
         authored_map: dict[str, int] = {}
+        own_commits: list[tuple[str, int, int]] = []
         if transcript_p:
             try:
-                authored_map = _session_files(transcript_p, root)
+                authored_map, own_commits = _session_authorship(transcript_p, root)
             except Exception:
-                authored_map = {}
+                authored_map, own_commits = {}, []
         # `waived` collects stalls a sanctioned marker waved through; `warned` collects
         # causes whose anti-trap cap was exhausted this turn. Both are read only at the
         # exits, so nothing is emitted before the decision is actually made.
@@ -3574,7 +3771,7 @@ def main(argv: list[str]) -> int:
                 # SAFE direction (a higher floor drops more, never fewer, ancient edits).
                 _floor = _baseline_floor(sid)
                 _unreviewed_files = _unreviewed_spontaneous_files(
-                    _rec, authored_map, _floor, sid, root
+                    _rec, authored_map, _floor, sid, root, own_commits
                 )
                 _unreviewed = len(_unreviewed_files)
                 v_action, v_att = decide_review(_unreviewed, v_att)
@@ -3593,11 +3790,16 @@ def main(argv: list[str]) -> int:
                                 "decision": "block",
                                 "reason": (
                                     f"UNREVIEWED SPONTANEOUS WORK (attempt {v_att}/{CAP}). This "
-                                    f"session authored {_unreviewed} code file(s) — edited "
+                                    f"session authored {_unreviewed} file(s) — docs and config "
+                                    "included, the shared ledgers and `.fabrik/` state excepted; "
+                                    "edited or committed by this session "
                                     f"{_edit_age_phrase()}, or carrying no readable timestamp, "
                                     "which counts because unknown is not covered — and OUTSIDE every "
                                     "command run's covered window (before the first started, "
-                                    "between runs, or after the last closed) — plain-chat work "
+                                    "between runs, or after the last closed; a file only a "
+                                    "commit of yours names is allowed "
+                                    f"{int(_COMMIT_GRACE_S // 60)} minutes after a close) — "
+                                    "plain-chat work "
                                     "that skipped every review contract. "
                                     + _named_files_phrase(_unreviewed_files)
                                     + "Run "

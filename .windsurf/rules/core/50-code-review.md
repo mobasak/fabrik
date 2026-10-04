@@ -73,7 +73,7 @@ The gates above are mechanical. The **review commands** are the adversarial pass
 code-changing chunk of work gets one:
 
 - **`/fabrik-review-scoped`** — diff-scoped, minutes. The default for spontaneous / plain-chat
-  changes. (The Stop hook BLOCKS a code-editing session that never opened a review record.)
+  changes. (The Stop hook BLOCKS an editing session that never opened a review record — docs and config included, the shared ledgers excepted.)
 - **`/fabrik-review`** — the full command. Escalate to it for: a new mechanism outside the `/fabrik-task` lane (one that is reversible, trips none of the lane table's row-5 module tests (CLAUDE.md § Orient step 0) and settles no trade-off stays there — D-315; one on a governance-sync path or any heavy surface escalates HERE whatever its size), a governance-sync path, any
   gate/hook/enforcement path, auth/schema/migrations/concurrency, >5 files, anything the owner
   asked for by name, or a scoped review whose SECOND consecutive round CONFIRMS defects

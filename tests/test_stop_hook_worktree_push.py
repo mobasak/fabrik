@@ -91,6 +91,22 @@ def _drive(monkeypatch, tmp_path: Path, proj: Path) -> str:
         {"type": "assistant", "message": {"content": [{"type": "text", "text": "Committed."}]}},
     ]
     tr.write_text("\n".join(json.dumps(e) for e in entries) + "\n", encoding="utf-8")
+    # A closed command covering the note, so the SIXTH cause (which reviews every file since
+    # W-ea06749b, `.txt` included) stays out of these push-law probes.
+    runs = tmp_path / "runs"
+    runs.mkdir(exist_ok=True)
+    (runs / "sidwt.json").write_text(
+        json.dumps(
+            {
+                "command": "fabrik-review-scoped",
+                "state": "done",
+                "started_epoch": 1.0,
+                "updated_ts": time.time() + 120,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(runs))
     payload = {"cwd": str(proj), "session_id": "sidwt", "transcript_path": str(tr)}
     monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
     out = io.StringIO()

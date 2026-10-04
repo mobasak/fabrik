@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The Stop hook asks for a review of docs, config and Bash-written commits too (2026-10-04)
+
+- The "unreviewed spontaneous work" cause in `.claude/hooks/final_gate_stop.py` now counts every file a session authors.
+  - It used to count only a list of code suffixes, so `.md`, `.env.example`, `.gitignore`, `Dockerfile` and `.html` never counted, although CLAUDE.md § Orient step 0 says such changes still take `/fabrik-review-scoped`.
+  - Still exempt: the shared ledgers (`CHANGELOG.md`, `docs/DECISIONS.md`, `INDEX.md` and the others every session appends to), `.fabrik/` machine state, and git-ignored files, which are not shipped and which no diff-scoped review can read.
+- The session's own commits are now a second source of authorship.
+  - Files written through Bash used to be invisible.
+  - The commit is identified by a `[branch sha]` line one of its Bash calls printed, counted only when git dates the commit inside that call.
+  - Such a file counts when the commit lands more than 30 minutes after every command run closed.
+  - Measured over 14 days of transcripts: 380 of 382 commit-only files fell inside a run, and the other 2 landed 10 and 29 minutes after one closed.
+- Reported by trade-intelligence (mail 01M3QCYB7JKX): three unreviewed commits passed. That repo's operator ruled it "not acceptable … it must be prevented".
+- W-ea06749b.
+
 ### Fixed — the SaaS launch checklist points at the abuse pack instead of restating it (2026-10-04)
 - `saas/88-saas-launch-checklist.md` § Abuse Prevention no longer names the synchronous `store_registration_metadata` call as the `registration_ip` write; it points at `saas/87-abuse-detection.md` § Where It Goes step 3 (the write after the signup's `201`). The FingerprintJS line drops its version literal and points at saas/87 § Layer 3 for which majors are open (W-bb20735b).
 - New `tests/test_saas_launch_pack.py` pins both pointers and reads their targets (seen red against the previous checklist text).
