@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the hub test suite's red groups, each at its cause (2026-10-04)
+- `tests/test_state.py` reloaded three fabrik modules under a fake root and never reloaded them back, so later tests saw paths in a deleted tmp dir; it now does, graded by the new `tests/test_state_restores_modules.py`. This also cured `tests/enforcement/test_pack_reachability.py`'s three order-dependent failures. The test now also expects `target_vps`, which `save()` has written since June (W-019e468b).
+- `tests/test_health_summary.py` and `tests/test_epic_order.py` no longer treat `tmp_path` as empty: conftest's autouse isolation pins create six directories in it.
+- `docs/DECISIONS.md`: 27 short rows repaired from their own text (D-561, chosen by an Opus + Fable panel), so `tests/test_decisions_table_shape.py` passes; its stale docstring now matches its asserts. The advisory ratchet's false positives are filed to infra (W-61380819).
+
 ### Fixed — the autonomy ladder can park work that is not due yet (2026-10-04)
 After D-558 an item due on a later date, or waiting on an outside event, could only end an agent's turn on a `BLOCKED:` line: the Stop hook kept pushing it. Tags now PARK an item: `hold`, `waits-<slug>` (until removed) and `waits-YYYY-MM-DD` (until that UTC date). A parked item leaves the claim, held-claim and owned rungs and `work.py next`; a session holding a parked item's claim is told to release it; a malformed dated tag or a bare `waits-` is refused when written. `runtime` stays an assignment hold only, so a `runtime` task assigned by hand is pushed again. `work.py queue` and the Stop result count parked items.
 
