@@ -527,6 +527,29 @@ def test_warn_only_registrations_are_read_off_the_gate(tmp_path: Path) -> None:
     )
 
 
+def test_a_check_with_one_blocking_registration_is_not_advisory(tmp_path: Path) -> None:
+    """check_doc_index's shape: warn_only in one tier, blocking in another. The blocking
+    row is what the audit must judge, so the name is never declared advisory."""
+    gate = _gate_with(
+        tmp_path,
+        'run_optional_check("scripts/enforcement/check_twice.py", "T1", warn_only=True)\n'
+        'run_optional_check("scripts/enforcement/check_twice.py", "T2", advisory=True)\n'
+        'run_optional_check("scripts/enforcement/check_quiet.py", "Q", warn_only=True)',
+    )
+    assert la.discover_warn_only_checks(gate) == {"check_quiet"}
+
+
+def test_a_warn_only_row_outside_the_enforcement_dir_is_not_counted(tmp_path: Path) -> None:
+    """Same population as `_REGISTERED`: a sysadmin script registered warn_only is not a
+    gate check the canary ratchet accounts for."""
+    gate = _gate_with(
+        tmp_path,
+        'run_optional_check("scripts/sysadmin/install_user_hooks.py", "H", warn_only=True)\n'
+        'run_optional_check("scripts/enforcement/check_quiet.py", "Q", warn_only=True)',
+    )
+    assert la.discover_warn_only_checks(gate) == {"check_quiet"}
+
+
 def test_an_unparseable_gate_declares_no_row_advisory(tmp_path: Path) -> None:
     """Fail in the STRICT direction: unknown means blocking, never excused."""
     gate = tmp_path / "final_gate.py"

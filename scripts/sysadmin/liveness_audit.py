@@ -1008,28 +1008,39 @@ def discover_warn_only_checks(gate: Path) -> set[str]:
     advisory. Any parse failure returns the EMPTY set — every row then reads as blocking,
     which is the strict direction (it can accuse a real advisory of being inert; it can
     never excuse a real inert check).
+
+    Same population as `_REGISTERED` (scripts/enforcement/ only), and a check counts as
+    advisory only when EVERY one of its registrations is `warn_only=True`: check_doc_index
+    is warn_only in Tier 1 (`--untracked-only`) yet blocks in the Tier-2 completion gate,
+    and keying on the name alone hid that blocking row behind the Tier-1 label.
     """
     try:
         tree = ast.parse(read_text(gate))
     except (OSError, SyntaxError, ValueError):
         return set()
-    names: set[str] = set()
+    warn: set[str] = set()
+    blocking: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         func = node.func
         if not (isinstance(func, ast.Name) and func.id == "run_optional_check"):
             continue
+        if not node.args:
+            continue
+        first = node.args[0]
+        if not (
+            isinstance(first, ast.Constant)
+            and isinstance(first.value, str)
+            and first.value.startswith("scripts/enforcement/")
+        ):
+            continue
         declared = any(
             kw.arg == "warn_only" and isinstance(kw.value, ast.Constant) and kw.value.value is True
             for kw in node.keywords
         )
-        if not declared or not node.args:
-            continue
-        first = node.args[0]
-        if isinstance(first, ast.Constant) and isinstance(first.value, str):
-            names.add(Path(first.value).stem)
-    return names
+        (warn if declared else blocking).add(Path(first.value).stem)
+    return warn - blocking
 
 
 # ── Shared canary fixture bodies (kept out of the table so the table stays readable) ──
@@ -1159,6 +1170,9 @@ _README_OK = "# Project\n\n## Overview\n\nx\n\n## Quick Start\n\nx\n\n## Documen
 #           deliberately passes neither). The canary still goes
 #           RED — it runs with `strict` — so this key documents the ROW, not the check, and
 #           is what justifies its `warn_only=True` registration.
+# "dormant": the canary arms the rule through a policy seam ("env") that the gate's real
+#           invocation never sets, so the ROW cannot red today by ruling, not by defect. The
+#           value names the ruling; the vacuity detail repeats it beside every red.
 #
 # The compose/env fixtures are the ones tests/test_check_activation_anti_vacuity.py already
 # proved RED; reused rather than reinvented so the two agree by construction.
@@ -1353,6 +1367,13 @@ CANARIES: dict[str, dict[str, Any]] = {
         "git": "commit",
         "timeout": 120,
         "args": ["{fixture}/.fabrik/subagent-ledger.jsonl"],
+        # the check's own test seam re-arms Layer 1 so the rule cannot rot while it stands down
+        "env": {"FABRIK_POOL_POLICY": "on"},
+        "dormant": (
+            "the pool policy is OFF (`_POOL_POLICY_ON = False`, D-181/D-182): Layer 1 stands "
+            "down and final_gate passes no FABRIK_POOL_POLICY override, so the real row cannot "
+            "red until an operator ruling turns the pool back on"
+        ),
         "base": {"libs/subagents/__init__.py": "PLACEHOLDER = 1\n"},
         "staged": {f"src/mod_{i}.py": f"VALUE = {i}\n" for i in range(12)},
         "clean": {
@@ -1530,6 +1551,165 @@ CANARIES: dict[str, dict[str, Any]] = {
         },
         "expect": "a doc left carrying template placeholders after its trigger fired",
     },
+    # ── ledgers, corpus and advisory diagnostics (W-45d1e850) ──────────────────────
+    "check_certification_coverage": {
+        "form": "cwd",
+        "args": ["--project-root", "{fixture}"],
+        "clean": {
+            "docs/development/certifications/2026-01-01-cert-canary/2026-01-01-cert-canary.md": "# Cert canary\n\n## Test Board\n\n| TC01 | thing |\n"
+        },
+        "files": {
+            "docs/development/certifications/2026-01-01-cert-canary/2026-01-01-cert-canary.md": "# Cert canary\n\n## Ticket Board\n\n| TC01 | thing |\n"
+        },
+        "expect": "a cert board spine carrying the forbidden `## Ticket Board` heading (mix-up: /fabrik-execute-plan's dispatcher would dispatch it to coding agents)",
+    },
+    "check_command_corpus": {
+        "form": "copy",
+        "clean": {"commands/_sources/x.md": "# X\n\n{{include:run-record}}\n\nBody.\n"},
+        "files": {"commands/_sources/x.md": "# X\n\nBody.\n"},
+        "expect": "a command source that opens no run record (no {{include:run-record}} and no bespoke start block) — predicate 5",
+    },
+    "check_decisions_unique": {
+        "form": "cwd",
+        "clean": {
+            "docs/DECISIONS.md": "# Decisions\n\n| ID | When | Who | What | Why | Where |\n|---|---|---|---|---|---|\n| D-001 | 2026-01-01 | x | thing | reason | path |\n"
+        },
+        "files": {
+            "docs/DECISIONS.md": "# Decisions\n\n| ID | When | Who | What | Why | Where |\n|---|---|---|---|---|---|\n| D-001 | 2026-01-01 | x | thing | reason | path |\n| D-001 | 2026-01-02 | y | thing2 | reason2 | path2 |\n"
+        },
+        "expect": "a duplicate decision id across two rows in the ledger table",
+    },
+    "check_governance_tables": {
+        "form": "copy",
+        "strict": True,
+        "row_warn_only": "returns `1 if opts.strict else 0` (check_governance_tables.py main()); final_gate passes --strict nowhere",
+        "clean": {"CLAUDE.md": "# Project\n\n| Rule | Detail |\n|---|---|\n| Something | fine |\n"},
+        "files": {
+            "CLAUDE.md": "# Project\n\n| Rule | Detail |\n|---|---|\n| Something | a | pipe | without | escape |\n"
+        },
+        "expect": "an unescaped `|` makes a governance table row render past its header width",
+    },
+    "check_citations_resolve": {
+        "form": "root",
+        "warn_only": "check_citations_resolve.main() returns 0 on every branch — advisory by contract, the findings are the product",
+        "args": ["--quiet"],
+        "base": {"src/a.py": "x = 1\n"},
+        "clean": {"docs/reference/x.md": "# X\n\nSee src/a.py:1 for details.\n"},
+        "files": {"docs/reference/x.md": "# X\n\nSee src/a.py:100 for details.\n"},
+        "expect": "a path:line citation past the file's last line (BEYOND-EOF)",
+    },
+    "check_feedback_duty": {
+        "form": "cwd",
+        "warn_only": "check_feedback_duty.main() returns 0 on every branch, both exception handlers included",
+        "args": ["--runs", "{fixture}/runs"],
+        "clean": {
+            "runs/abc12345.json": '{"state": "done", "command": "/fabrik-task", "updated_at": "2026-10-04T00:00:00+00:00", "feedback": "none"}\n'
+        },
+        "files": {
+            "runs/abc12345.json": '{"state": "done", "command": "/fabrik-task", "updated_at": "2026-10-04T00:00:00+00:00"}\n'
+        },
+        "expect": "a closed run record with no `feedback` key at all (unstated)",
+    },
+    "check_frozen_chain": {
+        "form": "cwd",
+        "warn_only": "check_frozen_chain.main() has a single `return 0` — findings are the product, never a red exit",
+        "base": {
+            "docs/data-contract.md": "# Data Contract\n\n**Status:** FROZEN **Version:** v2\n\n## Body\n\ntext\n"
+        },
+        "clean": {
+            "docs/flows.md": "# Flows\n\n**Status:** FROZEN **Version:** v2\n\nPins data-contract.md **v2**.\n\n## Body\n\ntext\n"
+        },
+        "files": {
+            "docs/flows.md": "# Flows\n\n**Status:** FROZEN **Version:** v2\n\nPins data-contract.md **v1**.\n\n## Body\n\ntext\n"
+        },
+        "expect": "flows.md's header pins data-contract.md@v1 while data-contract.md's own header is at v2 (a stale pin)",
+    },
+    "check_pack_reachability": {
+        "form": "cwd",
+        "timeout": 90,
+        "warn_only": "check_pack_reachability.main() returns 0 on every branch and has no flag that changes it ('Exit code: always 0 once the run completes (advisory)')",
+        "args": ["--project-root", "{fixture}", "--types", "file-worker"],
+        "files": {
+            ".windsurf/rules/core/zz-canary.md": '---\nactivation: glob\nglobs: ["**/zzz-nonexistent-dir/**"]\napplies_to: ["file-worker"]\ndescription: canary pack whose globs cannot reach file-worker\n---\n\nbody\n'
+        },
+        "expect": "a pack's applies_to claims file-worker but its globs match zero emitted paths",
+    },
+    "check_plan_lock_release": {
+        "form": "cwd",
+        "warn_only": "check_plan_lock_release.main() and _emit() return 0 on every branch, the outer `except Exception` included ('ADVISORY BY CONTRACT')",
+        "args": ["--project-root", "{fixture}"],
+        "files": {
+            ".fabrik/plan-locks/2026-01-01-plan-canary.json": '{"status": "active"}\n',
+            "docs/development/plans/2026-01-01-plan-canary.md": "# Plan\n\nStatus: SHIPPED\n",
+        },
+        "expect": "a non-terminal lock whose plan already reads a finished Status (LIKELY STALE LOCK)",
+    },
+    "check_review_hygiene": {
+        "form": "gitcwd",
+        "warn_only": "check_review_hygiene.main() returns 0 and its __main__ wrapper turns any exception into sys.exit(0) ('NO failing exit path')",
+        "clean": {
+            "docs/development/reviews/r-canary.md": "# Review -- canary\n\n| Class | Status |\n| --- | --- |\n| fail-open | CLEAN |\n"
+        },
+        "files": {
+            "docs/development/reviews/r-canary.md": "# Review -- canary\n\n| Class | Status |\n| --- | --- |\n| fail-open | CLEAN | extra |\n"
+        },
+        "expect": "a receipt table row whose cell count overflows its header (raw-pipe)",
+    },
+    "check_rivals_dossier": {
+        "form": "root",
+        "warn_only": "check_rivals_dossier.main() returns 0 on every branch, argparse's SystemExit included ('ADVISORY BY CONTRACT')",
+        "clean": {
+            "docs/reference/rivals/test-market.md": "**rivals:** 3\n**scanned:** 2026-01-01\n"
+        },
+        "files": {
+            "docs/reference/rivals/test-market.md": "**rivals:** 0\n**scanned:** 2026-01-01\n"
+        },
+        "expect": "a rivals dossier whose header reads **rivals:** 0 (FAILED-SCAN)",
+    },
+    "check_routing_policy": {
+        "form": "copy",
+        "warn_only": "check_routing_policy.main() takes no argv and returns 0 ('EXIT 0 DELIBERATELY'); no flag changes it",
+        "base": {
+            "libs/__init__.py": "",
+            "libs/subagents/__init__.py": "TASK_KINDS = frozenset({'review'})\n",
+            "libs/subagents/select.py": "def _synced_ranking():\n    return {'review': ['test-model']}\n",
+        },
+        "clean": {
+            "scripts/kilo-benchmarks/rank_task_subagents.py": "OPERATOR_DENY = {}\nOPERATOR_DENY_ALWAYS = frozenset()\n\n\ndef _allowed(model):\n    return True\n"
+        },
+        "files": {
+            "scripts/kilo-benchmarks/rank_task_subagents.py": "OPERATOR_DENY = {'review': ('test-model',)}\nOPERATOR_DENY_ALWAYS = frozenset()\n\n\ndef _allowed(model):\n    return True\n"
+        },
+        "expect": "a routable model that the operator's own OPERATOR_DENY forbids",
+    },
+    "check_rule_grounding": {
+        "form": "cwd",
+        "warn_only": "check_rule_grounding.main() returns 0 on every branch — SystemExit, any Exception, nothing examined, findings printed",
+        "args": ["--root", "{fixture}"],
+        "files": {
+            "docs/development/plans/2026-09-01-plan-canary.md": "# Plan\n\nStatus: CONVERGED\n\n## Phase A\n\nAll done, no digest here.\n"
+        },
+        "expect": "a CONVERGED plan with no Constraints Digest section",
+    },
+    "check_spec_convergence": {
+        "form": "cwd",
+        "warn_only": "check_spec_convergence.main() returns 0 on every branch — SystemExit, any Exception, nothing examined, findings printed",
+        "args": ["--root", "{fixture}"],
+        "files": {
+            "docs/superpowers/specs/2026-09-01-spec-canary.md": "# Spec\n\nStatus: CONVERGED\n\nNo residual mentions, no url, purely prose.\n"
+        },
+        "expect": "a CONVERGED spec with no cited source and no residual-unknowns section",
+    },
+    "check_trigger_routing": {
+        "form": "cwd",
+        "warn_only": "check_trigger_routing.main() returns 0 on every branch, the mis-routed WARN branch included",
+        "args": ["--sources", "{fixture}/commands/_sources", "--skills", "{fixture}/skills"],
+        "base": {"skills/fabrik-review/.keep": ""},
+        "files": {
+            "commands/_sources/x.md": 'description: TRIGGER — EN: "review this thing"; TR: "placeholder" — Stage: utility\n'
+        },
+        "expect": "an advertised trigger phrase that resolves to a DIFFERENT command",
+    },
 }
 
 # Registered checks a FIXTURE cannot reach, with the reason. Reported as UNKNOWN with the
@@ -1562,6 +1742,12 @@ UNREACHABLE: dict[str, str] = {
         "needs mutmut installed AND FABRIK_MUTMUT set, and would then run a full mutation "
         "campaign inside the audit; it has no `return 1` at all — every branch of `_main()` "
         "and the fail-soft wrapper returns 0 — registered warn_only=True"
+    ),
+    "check_vendored_drift": (
+        "reads the absolute literals HUB = Path('/opt/fabrik') and OPT = Path('/opt') with no "
+        "--root and no env override, and scans the real /opt siblings — a fixture would have to "
+        "plant a fake repo under /opt itself; and it has no `return 1` at all (both returns are "
+        "`return 0`) — registered warn_only=True"
     ),
 }
 
@@ -1823,6 +2009,8 @@ def proof_vacuity(repo_root: Path) -> dict[str, Any]:
                     " — but the GATE ROW cannot: it is registered warn_only=True because "
                     f"the check {canary['row_warn_only']}"
                 )
+            if canary.get("dormant"):
+                detail += f" — only through the canary's policy seam: {canary['dormant']}"
         elif blocking:
             # The defect this whole proof exists for: a row that claims to block and cannot.
             spoke = (

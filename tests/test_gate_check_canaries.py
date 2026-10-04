@@ -168,6 +168,21 @@ def test_every_declared_advisory_row_is_a_check_that_really_cannot_fail() -> Non
     )
 
 
+def test_a_dormant_canary_rides_a_policy_that_is_still_off() -> None:
+    """A `dormant` canary goes red only through a seam the gate never sets — true today
+    because the pool policy is OFF (D-181/D-182). The day the policy turns back on, the real
+    row can red again and the note becomes false: this fails, telling you to drop it."""
+    dormant = sorted(n for n, c in la.CANARIES.items() if c.get("dormant"))
+    assert dormant == ["check_subagent_flywheel"], dormant
+    canary = la.CANARIES["check_subagent_flywheel"]
+    assert canary.get("env", {}).get("FABRIK_POOL_POLICY") == "on", canary.get("env")
+    source = (ENFORCEMENT / "check_subagent_flywheel.py").read_text(encoding="utf-8")
+    assert "\n_POOL_POLICY_ON = False\n" in source, (
+        "the pool policy is ON again — check_subagent_flywheel's real gate row can red, so "
+        "drop its `dormant` note and its FABRIK_POOL_POLICY env from CANARIES"
+    )
+
+
 def test_unreachable_entries_name_a_real_check_and_carry_a_reason() -> None:
     for name, why in la.UNREACHABLE.items():
         assert (ENFORCEMENT / f"{name}.py").is_file(), f"{name} is not a check script"
@@ -195,6 +210,12 @@ NEUTERS: dict[str, tuple[str, str]] = {
     "check_doc_index": (
         "        if p not in index_text and base not in index_text:",
         "        if False:",
+    ),
+    "check_certification_coverage": ("        if FORBIDDEN_HEADING in text:", "        if False:"),
+    "check_command_corpus": ('            "{{include:run-record}}" not in body', "            False"),
+    "check_decisions_unique": (
+        "    return {i: n for i, n in Counter(ids).items() if n > 1}",
+        "    return {}",
     ),
 }
 
