@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T00:12:31.147190Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-160e6afa",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "resolve ARG defaults from the Dockerfile and strip docker.io/library/ in _image_ref; decide FROM scratch (compliant final stage or a distinct low row); red-first tests beside tests/test_audit_all_projects_base_image.py",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "audit_all_projects reads three valid base-image shapes as critical: FROM scratch (a minimal final stage), FROM ${ARG} (an ARG-templated base) and a registry-prefixed name (docker.io/library/python:3.14-slim-trixie) — pre-existing at HEAD, kept out of W-f7882a97"
+}
