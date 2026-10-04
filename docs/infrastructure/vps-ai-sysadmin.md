@@ -744,21 +744,17 @@ The system prompt defines:
 
 Complete recipe. Assumes fresh Ubuntu 24.04 with Docker, the `fabrik` Docker network, and the monitoring stack (`/opt/monitoring/compose.yaml`) already deployed via `scripts/bootstrap/bootstrap-vps.sh` + manual hub setup.
 
-### Step 1: Install Node.js + Claude Code
+### Step 1: Install Claude Code
 
 ```bash
-# Node.js (required by Claude Code)
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# Claude Code
-sudo npm install -g @anthropic-ai/claude-code
+# Native installer, as the sudoer (no Node.js; never a global npm install as root — core/90-bootstrap-scripts.md Rule 3)
+curl -fsSL https://claude.ai/install.sh | bash
+sudo ln -sfn "$HOME/.local/bin/claude" /usr/local/bin/claude  # systemd's default PATH
 claude --version  # should print version
 
-# Authenticate (interactive — must be done manually)
-claude auth login
-# Opens URL → authorize in browser → paste code → done
-# Uses Max subscription — no API key needed
+# Authenticate headlessly: on your dev machine run `claude setup-token`, then put the token in
+# CLAUDE_CODE_OAUTH_TOKEN in /opt/fabrik/.env.sysadmin (the bot unit's EnvironmentFile).
+# Uses the Max subscription — no API key needed.
 ```
 
 ### Step 2: Install Python dependency

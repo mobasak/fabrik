@@ -100,7 +100,7 @@ fi
 REMOTE="$1"        # e.g. root@10.20.30.40 or ozgur@vps2.greencloudvps.com
 SPOKE_NAME="$2"    # e.g. vps2
 
-# Spoke-name validation: lowercase alphanum + dashes, starts with 'vps' followed by digits
+# Spoke-name validation: exactly 'vps' followed by one or more digits (vps2, vps10)
 if [[ ! "$SPOKE_NAME" =~ ^vps[0-9]+$ ]]; then
     echo "ERROR: spoke name must match ^vps[0-9]+$ (e.g. vps2, vps10). Got: $SPOKE_NAME" >&2
     exit 2
@@ -178,6 +178,19 @@ hub() {
 # Pre-flight checks (always run, even in --verify)
 # ---------------------------------------------------------------------------
 
+# The flags this run was given, rebuilt from their variables: the top-level parser
+# shifts every argument away, so "$@" inside a function never holds them. Prints
+# each flag followed by one space, and NOTHING when there are none (printf with an
+# empty array would still print its format once).
+_rerun_flags() {
+    local f=()
+    $DRY_RUN && f+=(--dry-run)
+    $VERIFY && f+=(--verify)
+    $SKIP_MESH && f+=(--skip-mesh)
+    $SKIP_DNS && f+=(--skip-dns)
+    if ((${#f[@]})); then printf '%s ' "${f[@]}"; fi
+}
+
 preflight() {
     log "preflight checks ..."
 
@@ -186,9 +199,9 @@ preflight() {
     # SAFE-RERUN TRAP (added 2026-06-07 after a DR drill walked straight into
     # this). On a freshly provisioned VPS the script is called as root@<ip>.
     # step_01 disables root login (correctly). On a subsequent re-run with
-    # the same root@<ip> argv, the SSH preflight will fail — and three quick
-    # retries trip fail2ban (default 3-failure threshold within 10min),
-    # locking the operator out for 10min. We catch this case BEFORE
+    # the same root@<ip> argv, the SSH preflight will fail — and a few quick
+    # retries trip fail2ban (package default: 5 failures within 10 min),
+    # locking the operator out for 10 min. We catch this case BEFORE
     # triggering the ban by:
     #   a) trying root@<host>
     #   b) on auth failure, trying ozgur@<host> (the sudoer step_00 creates)
@@ -207,9 +220,11 @@ preflight() {
             err "step_01 has already run on this host (root login disabled)."
             err ""
             err "Re-run as the sudoer:"
-            err "  $0 $(printf "'%s' " "$@" 2>/dev/null) ozgur@${host_part} ${SPOKE_NAME}"
+            local flags
+            flags="$(_rerun_flags)"
+            err "  $0 ${flags}ozgur@${host_part} ${SPOKE_NAME}"
             err ""
-            err "Stopping now — additional root@<ip> retries WILL trip fail2ban (default 3 failures / 10 min) and lock you out."
+            err "Stopping now — additional root@<ip> retries WILL trip fail2ban (package default: 5 failures / 10 min) and lock you out."
             return 1
         fi
         err "cannot SSH to ${REMOTE}. Confirm: (a) the host is reachable, (b) your SSH key is in the new VPS's authorized_keys, (c) the user exists."
@@ -336,12 +351,20 @@ step_01_harden_ssh() {
     # AND verified it works. So disabling root SSH entirely (matching vps1's
     # posture) is safe — we always have the sudoer to fall back on. This is
     # the correct, strict posture: 'PermitRootLogin no' (not prohibit-password).
-    remote "sudo sed -i \
-        -e 's/^#*PermitRootLogin.*/PermitRootLogin no/' \
-        -e 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' \
-        /etc/ssh/sshd_config && \
-        sudo systemctl reload ssh 2>/dev/null || sudo systemctl reload sshd"
-    ok "step 01 done — root SSH disabled, password auth disabled"
+    # sshd keeps the FIRST value it reads and reads sshd_config.d/*.conf before
+    # the main file, so a cloud image's 50-cloud-init.conf beats a 99- drop-in
+    # or a sed on sshd_config: harden in 01- and assert the EFFECTIVE value
+    # (core/90-bootstrap-scripts.md Rule 1, W-1c322b9e).
+    # sshd keywords are case-insensitive, hence -i on both probes.
+    remote 'sudo grep -qiE "^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/\*\.conf" /etc/ssh/sshd_config' \
+        || { err "step 01: /etc/ssh/sshd_config has no Include for sshd_config.d — the drop-in would be ignored"; return 1; }
+    remote 'sudo mkdir -p /etc/ssh/sshd_config.d && sudo rm -f /etc/ssh/sshd_config.d/99-fabrik-hardening.conf && printf "%s\n" "PermitRootLogin no" "PasswordAuthentication no" "PubkeyAuthentication yes" | sudo tee /etc/ssh/sshd_config.d/01-fabrik-hardening.conf >/dev/null && sudo chmod 644 /etc/ssh/sshd_config.d/01-fabrik-hardening.conf' \
+        || { err "step 01: could not write /etc/ssh/sshd_config.d/01-fabrik-hardening.conf"; return 1; }
+    remote 'eff=$(sudo sshd -T) && printf "%s\n" "$eff" | grep -qiE "^permitrootlogin[[:space:]]+no[[:space:]]*$" && printf "%s\n" "$eff" | grep -qiE "^passwordauthentication[[:space:]]+no[[:space:]]*$"' \
+        || { err "step 01: sshd -T does not report permitrootlogin no + passwordauthentication no — a drop-in that sorts before 01- overrides it"; return 1; }
+    remote 'sudo systemctl reload ssh 2>/dev/null || sudo systemctl reload sshd' \
+        || { err "step 01: sshd reload failed — the hardening is written but not live until sshd restarts"; return 1; }
+    ok "step 01 done — root SSH disabled, password auth disabled (effective, per sshd -T)"
 }
 
 step_02_install_firewall_fail2ban() {
@@ -841,7 +864,8 @@ run_verify() {
     log "verify mode: read-only inspection of ${REMOTE} (${SPOKE_NAME} at ${SPOKE_MESH_IP})"
 
     echo "--- SSH posture ---"
-    remote 'grep -E "^(PermitRootLogin|PasswordAuthentication)" /etc/ssh/sshd_config' || true
+    # The EFFECTIVE values (a drop-in that sorts first overrides the main file), not a grep of sshd_config
+    remote "sudo sshd -T | grep -Ei '^(permitrootlogin|passwordauthentication) '" || true
 
     echo "--- UFW status ---"
     remote 'sudo ufw status' 2>/dev/null || warn "UFW not installed"
@@ -893,9 +917,9 @@ step_14_install_sysadmin_pack() {
     # peer-protocol-aware /wake endpoint (Phase 3). This step installs the
     # systemd unit, cron file, scripts, env template, and the rendered
     # canonical sysadmin prompt with this host's substitutions baked in.
-    log "step 14: install AI sysadmin pack (Node.js + Claude CLI + python-telegram-bot + systemd unit + cron + scripts)"
+    log "step 14: install AI sysadmin pack (Claude CLI + python-telegram-bot + systemd unit + cron + scripts)"
     if $DRY_RUN; then
-        dim "    [dry-run] would install Node.js 22 + @anthropic-ai/claude-code globally,"
+        dim "    [dry-run] would install Claude Code with the native installer (+ /usr/local/bin symlink),"
         dim "             install python-telegram-bot==22.7 (system Python),"
         dim "             scp bot.py + 5 cron scripts + system-prompt.txt + peer-protocol.md to spoke,"
         dim "             write rendered systemd unit + cron file + .env.sysadmin template"
@@ -905,9 +929,11 @@ step_14_install_sysadmin_pack() {
     # ── Spoke deps discovered LIVE 2026-06-06 (now baked in) ──────────
     #
     # The sysadmin bot needs:
-    #   1. The `claude` binary on PATH (bot.py spawns it via subprocess).
-    #      Claude Code ships via npm; npm needs Node.js. NodeSource 22.x is
-    #      the official channel.
+    #   1. The `claude` binary on systemd's default PATH (bot.py spawns it via
+    #      subprocess). The native installer is the documented route (it keeps
+    #      itself updated and needs no Node.js); it installs under the sudoer's
+    #      ~/.local/bin, so step 14a symlinks it into /usr/local/bin, as
+    #      bootstrap-hub.sh step_03 does. Never a global npm install as root (Rule 3).
     #   2. `python-telegram-bot==22.7` in system Python (the bot doesn't
     #      use a venv — it's a systemd unit running /usr/bin/python3 -m).
     #      Ubuntu 24.04 enforces PEP 668, so --break-system-packages is
@@ -925,16 +951,18 @@ step_14_install_sysadmin_pack() {
     # unexpected token `telegram.__version__'"). Knowing it's installed is
     # sufficient — operator can query the version manually if needed.
 
-    log "    step 14a: install Node.js 22 + Claude Code CLI"
+    log "    step 14a: install Claude Code CLI (native installer)"
     remote 'if command -v claude >/dev/null; then \
         echo "Claude Code already installed"; \
     else \
-        if ! command -v node >/dev/null || ! node --version | grep -qE "^v2[2-9]\."; then \
-            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null 2>&1 && \
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs; \
-        fi && \
-        sudo npm install -g --silent @anthropic-ai/claude-code 2>&1 | tail -3; \
+        curl -fsSL https://claude.ai/install.sh | bash && \
+        test -x "$HOME/.local/bin/claude" && \
+        sudo ln -sfn "$HOME/.local/bin/claude" /usr/local/bin/claude; \
     fi'
+    # The pipe's status is bash's, so a failed download "succeeds": the test -x above keeps
+    # the symlink from pointing at nothing, and this check fails the step (the bot needs claude).
+    remote 'claude --version' \
+        || { err "step 14a: claude --version failed — the install did not land (an exit 137 is the OOM killer: add swap and re-run)"; return 1; }
 
     log "    step 14b: install python-telegram-bot==22.7 (system Python)"
     remote 'if python3 -c "import telegram" 2>/dev/null; then \
@@ -1214,7 +1242,8 @@ main() {
     log ""
     log "manual finish required (operator action, can't be automated):"
     log "    1. fill in TELEGRAM_BOT_TOKEN + TELEGRAM_OWNER_ID in /opt/fabrik/.env.sysadmin"
-    log "    2. ssh ${SPOKE_NAME} 'claude' on the spoke (device-flow OAuth handshake)"
+    log "    2. on your dev machine run 'claude setup-token', then put the token in"
+    log "       CLAUDE_CODE_OAUTH_TOKEN in /opt/fabrik/.env.sysadmin on the spoke (headless auth)"
     log "    3. ssh ${SPOKE_NAME} 'sudo systemctl enable --now vps-sysadmin-bot.service aro-wake.service'"
     log "    4. send a test Telegram message; expect a [${SPOKE_NAME}] reply"
     log "    5. from the hub, curl http://10.99.0.\${spoke_ip_last_octet}:8201/health → expect 200"

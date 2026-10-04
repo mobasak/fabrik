@@ -309,6 +309,7 @@ ALLOWLIST: dict[str, str] = {
     "src/fabrik/cli.py": "config: imports FABRIK_ROOT (ticket DO-NOT — scaffold.py/cli.py follow without edits)",
     "src/fabrik/scaffold.py": "config: imports FABRIK_ROOT (ticket DO-NOT — scaffold.py/cli.py follow without edits)",
     "src/fabrik/dev_tools.py": "config: `from .config import FABRIK_ROOT`",
+    "src/fabrik/audit.py": "config: READS config.FABRIK_ROOT/.fabrik/state/<id>.json for target_vps; its only subprocess is the read-only `ssh <vps> <probe>` audit — no write under the hub root",
     "src/fabrik/drivers/prometheus.py": "config: local `from fabrik.config import FABRIK_ROOT` inside its writer",
     "src/fabrik/orchestrator/gpu_metrics.py": "config: `from fabrik.config import FABRIK_ROOT`",
     "src/fabrik/orchestrator/gpu_rent.py": "config: `from fabrik.config import FABRIK_ROOT`",
