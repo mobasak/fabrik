@@ -6,13 +6,19 @@
 TRANSCRIPT SHAPE READ: one JSON object per line in ``<root>/<project-dir>/*.jsonl`` (a one-level
 glob — a subagent's inline transcript row, ``isSidechain`` truthy, lives inside the same file and
 is skipped, never counted as the parent session's own turn). Only a top-level key ``"type"`` ==
-``"assistant"`` entry whose ``"message"`` is an object counts as a TURN; its text is every block
-of ``"message"."content"`` (a list) whose own ``"type"`` == ``"text"``, joined in order (a bare
-string ``content`` — some older rows — is read as-is). Every other entry shape — ``"user"``,
-``"attachment"``, ``"queue-operation"``, a textless (tool-use/thinking-only) assistant row —
-contributes NOTHING: a line inside one of those counts for nothing, on purpose (a NEXT: written
-by the OPERATOR, inside a quoted mail body, or a tool result must never be read as the agent's
-own). A row's identity — the transcript row's own top-level ``uuid`` (unique per JSONL row: Claude
+``"assistant"`` entry whose ``"message"`` is an object is a ROW the census reads; its text is
+every block of ``"message"."content"`` (a list) whose own ``"type"`` == ``"text"``, joined in
+order (a bare string ``content`` — some older rows — is read as-is). A main-thread ``"user"`` row
+with content (text or an image, no ``tool_result`` block) ends a TURN — that is where Stop fired —
+unless the turn is still mid-tool (the last assistant row carried a ``tool_use`` block, or a tool
+result came since); an ``[Request interrupted by user`` row ends the turn WITHOUT judging it (no
+Stop fired). A user row's own text is never read as a NEXT.
+Every other entry shape — a tool-result ``"user"`` row, ``"attachment"``, ``"queue-operation"``,
+a textless (tool-use/thinking-only) assistant row — contributes NOTHING: a line inside one of
+those counts for nothing, on purpose (a NEXT: written by the OPERATOR, inside a quoted mail body,
+or a tool result must never be read as the agent's own). A turn's FINAL text is its last
+assistant text row with list content — the one the Stop harvest judges
+(``thread_anchor._final_message_text``, which skips a bare-string row). A row's identity — the transcript row's own top-level ``uuid`` (unique per JSONL row: Claude
 Code writes one row per content BLOCK, and every block of one API message shares that message's
 ``message.id``, so keying on ``message.id`` alone would silently drop a NEXT: line living in a
 message's LATER block), falling back to ``(message.id, the row's own extracted text)`` only when
@@ -20,31 +26,38 @@ message's LATER block), falling back to ``(message.id, the row's own extracted t
 same row written twice, or copied verbatim — keeping its uuid — into a resumed session's file)
 contributes nothing to any count, the second time it is met.
 
-A NEXT: LINE is one line of a turn's text — after ``str.strip()``, and OUTSIDE a fenced code
-block (a line matching ```` ``` ```` or ``~~~``, any leading blockquote/whitespace, toggles the
-fence; a NEXT: inside stays unread) — that starts with the literal ``"NEXT:"`` (the rule the
-2026-09-25 fleet measurement used; deliberately simpler than ``thread_anchor._next_values``'s
-markdown/quote handling). Its value is classified with ``work.classify_next`` (T05a), imported by
-path from ``scripts/work.py`` beside this script — the harvest and the census share one
+A NEXT: LINE is one value ``thread_anchor._next_values`` reads from a turn's text — the
+harvest's own reader, so the census counts exactly the lines the harvest can turn into items:
+bold (``**NEXT:**``), bulleted (``- NEXT:``) and quoted (``> NEXT:``) footers count, a NEXT:
+inside a closed fenced block does not, and a quoted value counts only in a ROW with no unquoted
+one; a row's operative value is its LAST one. Its value is classified with
+``work.classify_next`` (T05a), imported by path from ``scripts/work.py`` beside this script — the harvest and the census share one
 classifier so they never disagree about a line. A ``"hold"`` verdict is split for REPORTING
 (never for the store) by its own leading word into ``none``, ``blocked``, or — anything else,
 including a mid-line ``operator decision`` — ``operator-decision``.
 
 Four measurements, one line each (plus a closing ``skipped:`` line, never a silent zero):
 
-1. Classes — every NEXT: line of every turn, classified, with the session denominator.
+1. Classes — every NEXT: line of every row, classified, with the session denominator: the
+   transcripts in the window that carry at least one main-thread assistant text row (a user-only
+   or sidechain-only file is not a session; headless ``-p`` sessions are).
 2. Distinct — the count of distinct ``free-text`` values (normalised whitespace).
-3. Sessions per repo — a session whose transcript's LAST turn carrying a NEXT: line ends on a
-   ``free-text`` value ``thread_anchor._is_anchor`` accepts (``scripts/thread_anchor.py:465``,
-   imported by path from ``Path(__file__).resolve().parents[1]``, the way
+3. Sessions per repo — a session at least one of whose turns ENDED on a NEXT the harvest keeps:
+   the operative value of the turn's final text, cut to the 300 characters the register judges,
+   is ``free-text`` and ``thread_anchor._is_anchor`` accepts it (the spec's "ended at least one
+   turn on a free-text NEXT the register accepts"; ``thread_anchor`` imported by path from ``Path(__file__).resolve().parents[1]``, the way
    ``scripts/thread_anchor.py:245-270`` loads ``work.py``) — grouped by repo, the Claude Code
    project directory's name (every non-alphanumeric character becomes ``-``) with a leading
    ``-opt-`` stripped.
 4. ``--repo <path>`` — the store's Validation V5 reading: PASS when the repo's open ``kind: next``
    items whose ``next_at`` reads between 1 day in the future (clock skew) and 7 days in the past
-   number no more than measurement 3's count for that repo, AND the repo shows more than 0 live
-   claims (``work._live_claims``); an item hidden by a closed marker in ANOTHER tree
-   (``work._closed_ids``) is never counted; else FAIL naming whichever bound missed; a repo with
+   number no more than measurement 3's count, AND the repo shows more than 0 live claims
+   (``work._live_claims``). Both sides cover the same trees — the main checkout and every
+   registered worker tree under its ``.claude/worktrees/`` (``work._workers``; harness
+   ``agent-<hex>`` trees and scratch worktrees elsewhere are out): items are read from each tree's
+   store and counted once per id, sessions are summed over ``<main>`` and every
+   ``<main>--claude-worktrees-<tree>`` project directory; an item hidden by a closed marker in
+   ANOTHER tree (``work._closed_ids``) is never counted; else FAIL naming whichever bound missed; a repo with
    no store prints ``V5: no store in <path>``.
 
 No write anywhere, no network. Exit 0 always except a bad argument (argparse's 2) — including a
@@ -110,8 +123,9 @@ def _work() -> ModuleType:
 
 def _thread_anchor() -> ModuleType:
     """``scripts/thread_anchor.py``, imported by path once per process (its own ``_work()``
-    loader, ``scripts/thread_anchor.py:245-270``, is the pattern this mirrors) — only its
-    ``_is_anchor`` is used; loading it never touches ``work.py`` a second time."""
+    loader, ``scripts/thread_anchor.py:245-270``, is the pattern this mirrors) — its
+    ``_next_values`` and ``_is_anchor`` are used; loading it never touches ``work.py`` a second
+    time."""
     global _THREAD_ANCHOR, _THREAD_ANCHOR_ERR
     if _THREAD_ANCHOR is not None:
         return _THREAD_ANCHOR
@@ -150,28 +164,6 @@ def _classify_for_report(work_mod: ModuleType, value: str) -> str:
 
 _CLASS_ORDER = ("names-item", "none", "operator-decision", "blocked", "free-text")
 
-# A fenced code block's opening/closing line — leading blockquote/whitespace tolerated so a
-# quoted turn's fence is still recognised. A NEXT: line inside one is never read (item 8).
-_FENCE_LINE_RE = re.compile(r"^[ \t>]*(?:```|~~~)")
-
-
-def _extract_next_lines(text: str) -> list[str]:
-    """Every NEXT: line's value, in order, from one turn's joined text, OUTSIDE any fenced code
-    block — a line whose ``str.strip()`` starts with the literal ``"NEXT:"``. Deliberately no
-    markdown/quote handling beyond the fence toggle (module docstring)."""
-    out = []
-    in_fence = False
-    for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
-        if _FENCE_LINE_RE.match(line):
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            continue
-        s = line.strip()
-        if s.startswith("NEXT:"):
-            out.append(s[len("NEXT:") :].strip())
-    return out
-
 
 def _assistant_text(entry: dict[str, Any]) -> str:
     """Every text block of one ``"type": "assistant"`` transcript row, joined in order; empty
@@ -184,6 +176,63 @@ def _assistant_text(entry: dict[str, Any]) -> str:
         return ""
     return "\n".join(
         str(b.get("text") or "") for b in content if isinstance(b, dict) and b.get("type") == "text"
+    )
+
+
+_INTERRUPT_MARK = "[Request interrupted by user"
+
+
+def _user_row(entry: dict[str, Any]) -> str | None:
+    """What a main-thread ``"user"`` row is: ``"tool_result"`` (the middle of a turn),
+    ``"interrupt"`` (Claude Code's ``[Request interrupted by user`` marker — the turn was cut
+    short and no Stop fired), ``"content"`` (text or an image — typed by the operator or injected
+    by Claude Code), or None (not a user row, or an empty one). Whether a ``"content"`` row ENDS a
+    turn depends on the row before it, not on the row itself (``_scan``)."""
+    if entry.get("type") != "user":
+        return None
+    msg = entry.get("message")
+    content = msg.get("content") if isinstance(msg, dict) else None
+    if isinstance(content, str):
+        text = content
+    elif isinstance(content, list):
+        kinds = {b.get("type") for b in content if isinstance(b, dict)}
+        if "tool_result" in kinds:
+            return "tool_result"
+        if not kinds:
+            return None
+        text = " ".join(
+            str(b.get("text") or "")
+            for b in content
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
+        if not text.strip():
+            return "content"  # an image or another non-text block
+    else:
+        return None
+    if not text.strip():
+        return None
+    return "interrupt" if text.lstrip().startswith(_INTERRUPT_MARK) else "content"
+
+
+def _qualifies(work_mod: ModuleType, anchor_mod: ModuleType, turn_final: str) -> bool:
+    """Whether one turn ENDED on a NEXT the harvest keeps as a ``next`` item: the operative value
+    of the turn's final text, cut to the 300 characters the register judges, is ``free-text`` and
+    ``thread_anchor._is_anchor`` accepts it."""
+    values = anchor_mod._next_values(turn_final) if turn_final else []
+    if not values:
+        return False
+    final_value = " ".join(values[-1][:300].split())
+    return work_mod.classify_next(final_value) == "free-text" and bool(
+        anchor_mod._is_anchor(final_value)
+    )
+
+
+def _asks_for_tool(entry: dict[str, Any]) -> bool:
+    """Whether an assistant row carries a ``tool_use`` block — the turn goes on after it."""
+    msg = entry.get("message")
+    content = msg.get("content") if isinstance(msg, dict) else None
+    return isinstance(content, list) and any(
+        isinstance(b, dict) and b.get("type") == "tool_use" for b in content
     )
 
 
@@ -230,6 +279,7 @@ class _Scan:
         "free_text_values",
         "sessions_total",
         "repo_sessions",
+        "dir_sessions",
         "skipped_files",
         "skipped_lines",
     )
@@ -239,6 +289,9 @@ class _Scan:
         self.free_text_values: set[str] = set()
         self.sessions_total = 0
         self.repo_sessions: Counter[str] = Counter()
+        # the same count keyed by the RAW project-directory name: display names collapse
+        # (/opt/x and /x both show as "x"), so V5 keys on the raw name
+        self.dir_sessions: Counter[str] = Counter()
         self.skipped_files = 0
         self.skipped_lines = 0
 
@@ -255,7 +308,8 @@ def _scan(root: Path, since_days: int, work_mod: ModuleType, anchor_mod: ModuleT
     if not root.is_dir():
         return result
     cutoff = time.time() - since_days * 86400
-    seen: set[str] = set()
+    seen: dict[str, Path] = {}  # row identity -> the file that met it first
+    files: list[tuple[float, Path]] = []
     for path in sorted(root.glob("*/*.jsonl")):
         try:
             if not path.is_file():
@@ -265,52 +319,84 @@ def _scan(root: Path, since_days: int, work_mod: ModuleType, anchor_mod: ModuleT
         except OSError:
             result.skipped_files += 1
             continue
-        if mtime < cutoff:
-            continue
+        if mtime >= cutoff:
+            files.append((mtime, path))
+    # oldest first: a resumed session's file, which copies the original's rows, is written after
+    # the original, so the original meets a shared row first and keeps its turns
+    for _mtime, path in sorted(files):
         repo = _display_repo(path.parent.name)
-        last_turn_next_lines: list[str] = []
+        counted = False
+        qualifies = False
+        met_here: set[str] = set()
+        turn_final = ""  # the current turn's last main-thread assistant text: what Stop harvests
+        # Stop fires when the assistant ENDS its turn, so a user row ends a turn unless the turn is
+        # still mid-tool — the last assistant row asked for a tool, or a tool result came since:
+        # rows Claude Code injects mid-turn (a loaded skill, a command re-invocation) follow a tool
+        # result, while Stop-hook feedback, a peer message and the operator's next prompt follow
+        # the assistant's last row (measured 2026-10-04 over the 7-day window: every isMeta skill
+        # row sat after a tool result or another user row)
+        mid_tool = False
         try:
             with path.open("rb") as fh:
-                result.sessions_total += 1
                 for raw in fh:
                     try:
                         entry = json.loads(raw)
                     except Exception:  # noqa: BLE001 - any parse failure is one skipped line
                         result.skipped_lines += 1
                         continue
-                    if not isinstance(entry, dict) or entry.get("type") != "assistant":
+                    if not isinstance(entry, dict) or entry.get("isSidechain"):
                         continue
-                    if entry.get("isSidechain"):
+                    kind = _user_row(entry)
+                    if kind == "tool_result":
+                        mid_tool = True
                         continue
+                    if kind == "interrupt":
+                        # no Stop fired, so the harvest never judged this turn: drop its text
+                        turn_final = ""
+                        mid_tool = False
+                        continue
+                    if kind == "content":
+                        if not mid_tool:
+                            qualifies = qualifies or _qualifies(work_mod, anchor_mod, turn_final)
+                            turn_final = ""
+                        continue
+                    if entry.get("type") != "assistant":
+                        continue
+                    mid_tool = _asks_for_tool(entry)
                     text = _assistant_text(entry)
                     if not text.strip():
                         continue
                     identity = _row_identity(entry, text)
                     if identity is not None:
-                        if identity in seen:
+                        first = seen.setdefault(identity, path)
+                        if first != path:
+                            # a copied row belongs to another file's turn: never judge it here,
+                            # and never let an earlier row stand in as this turn's final text
+                            turn_final = ""
                             continue
-                        seen.add(identity)
-                    next_lines = _extract_next_lines(text)
-                    for raw_value in next_lines:
+                        if identity in met_here:
+                            continue  # the same row written twice in this file: counted once
+                        met_here.add(identity)
+                    if not counted:
+                        # a session is a transcript with a main-thread assistant text row of its own
+                        result.sessions_total += 1
+                        counted = True
+                    msg = entry.get("message")
+                    if isinstance(msg, dict) and isinstance(msg.get("content"), list):
+                        # the harvest's _final_message_text reads list content only
+                        turn_final = text
+                    for raw_value in anchor_mod._next_values(text):
                         value = " ".join(raw_value.split())
                         cls = _classify_for_report(work_mod, value)
                         result.class_counts[cls] += 1
                         if cls == "free-text":
                             result.free_text_values.add(value)
-                    if next_lines:
-                        # overwritten only by a turn that itself carries a NEXT: line — a later
-                        # textless (or duplicate) turn must never erase an earlier one (item 1)
-                        last_turn_next_lines = next_lines
         except OSError:
             result.skipped_files += 1
             continue
-        if last_turn_next_lines:
-            # the register (and so the harvest) judges only the first 300 characters
-            final_value = " ".join(last_turn_next_lines[-1][:300].split())
-            if work_mod.classify_next(final_value) == "free-text" and anchor_mod._is_anchor(
-                final_value
-            ):
-                result.repo_sessions[repo] += 1
+        if qualifies or _qualifies(work_mod, anchor_mod, turn_final):
+            result.repo_sessions[repo] += 1
+            result.dir_sessions[path.parent.name] += 1
     return result
 
 
@@ -341,27 +427,45 @@ _V5_WINDOW_S = 7 * 86400
 
 def _v5_line(repo_arg: str, scan: _Scan, work_mod: ModuleType) -> str:
     """Validation V5: PASS when the repo's open ``kind: next`` items due within the window number
-    no more than measurement 3's session count for that repo, AND the repo shows a live claim."""
+    no more than measurement 3's session count for that repo, AND the repo shows a live claim.
+    Both sides cover the same trees: the main checkout and every registered worker tree under its
+    ``.claude/worktrees/`` (``work._workers``) — a worktree session harvests into its OWN tree's
+    store until the branch merges, so items are read from each tree and counted once per id.
+    When git cannot list the trees, ``--repo``'s own tree is read as the main checkout (fail-soft:
+    the census is advisory, and the PASS/FAIL line still prints the bound it compared)."""
     root = work_mod.repo_root(repo_arg)
     if root is None or not work_mod.has_store(root):
         return f"V5: no store in {repo_arg}"
-    closed = work_mod._closed_ids(root)
+    main = work_mod._worktrees(root)[0].resolve()
     now = time.time()
-    open_next = 0
-    for item in work_mod._iter_items(root):
-        if item.get("kind") != "next" or item.get("status") != "open":
-            continue
-        if item.get("id") in closed:
-            continue
-        at = work_mod._parse_iso(str(item.get("next_at") or ""))
-        if at is None:
-            continue
-        delta = now - at.timestamp()
-        if -_V5_SKEW_S <= delta <= _V5_WINDOW_S:
-            open_next += 1
+    # one id, several copies (a worker forks with master's items): a close in ANY tree is final
+    # (closure is terminal, and work.py's shared closed marker hides it in every tree), while the
+    # window is judged on the FRESHEST next_at — a stale fork-time copy must not veto a live one
+    closed_ids: set[str] = set()
+    latest_at: dict[str, float] = {}
+    for tree in [main, *work_mod._workers(main).values()]:
+        try:
+            closed = work_mod._closed_ids(tree)
+            items = list(work_mod._iter_items(tree))
+        except work_mod.WorkError:
+            continue  # e.g. registered but deleted (prunable): git cannot read it, nothing to count
+        for item in items:
+            if item.get("kind") != "next":
+                continue
+            item_id = str(item.get("id"))
+            if item.get("status") != "open" or item_id in closed:
+                closed_ids.add(item_id)
+                continue
+            at = work_mod._parse_iso(str(item.get("next_at") or ""))
+            if at is not None:
+                latest_at[item_id] = max(latest_at.get(item_id, at.timestamp()), at.timestamp())
+    open_next = sum(
+        1
+        for item_id, at in latest_at.items()
+        if item_id not in closed_ids and -_V5_SKEW_S <= now - at <= _V5_WINDOW_S
+    )
     live_claims = len(work_mod._live_claims(root))
-    repo_name = _display_repo(_dir_name_for_path(root))
-    sessions = scan.repo_sessions.get(repo_name, 0)
+    sessions = _repo_sessions(main, scan, work_mod)
     if open_next <= sessions and live_claims > 0:
         # the bound is printed on PASS too: a vacuous 0 <= 0 and a real 3 <= 3 are different readings
         return (
@@ -371,6 +475,28 @@ def _v5_line(repo_arg: str, scan: _Scan, work_mod: ModuleType) -> str:
     if live_claims == 0:
         return f"V5: FAIL — {live_claims} live claims"
     return f"V5: FAIL — {open_next} open next item(s) > {sessions} qualifying session(s)"
+
+
+def _repo_sessions(main: Path, scan: _Scan, work_mod: ModuleType) -> int:
+    """Measurement 3's count for the main checkout ``main`` and every worktree under its
+    ``.claude/worktrees/`` — hub work runs in linked worktrees whose transcripts live under their
+    own project directories (``<main's name>--claude-worktrees-<tree>``). Keyed by name, not by
+    ``git worktree list``: a tree removed inside the window keeps its transcripts, and the same
+    transcripts must give the same reading. A tree's name must be a valid worker name (what
+    ``work._workers`` accepts on the items side); harness trees (``agent-<hex>``) are left out — no
+    Stop hook harvests a subagent — and so is a scratch worktree outside ``.claude/worktrees/``."""
+    base = _dir_name_for_path(main)
+    prefix = base + "--claude-worktrees-"
+    return sum(
+        count
+        for name, count in scan.dir_sessions.items()
+        if name == base
+        or (
+            name.startswith(prefix)
+            and work_mod._valid_name(name[len(prefix) :])
+            and not work_mod._HARNESS_RE.fullmatch(name[len(prefix) :])
+        )
+    )
 
 
 def _default_root() -> Path:

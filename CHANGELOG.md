@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — next_census measures what Validation V5 means (2026-10-04)
+
+`scripts/sysadmin/next_census.py` now counts the way the Stop harvest and spec 2026-09-25 § V5 count:
+- NEXT lines are read with the harvest's own `thread_anchor._next_values`, so bold, bulleted and quoted footers count.
+- A session qualifies when any of its turns ended on an accepted free-text NEXT, judged on that turn's final list-content text. A turn ends where Stop fired: a user row while the turn is not mid-tool; an interrupted turn is never judged.
+- The session denominator counts only transcripts with an assistant text row of their own.
+- V5 compares the main checkout's open `next` items and those of its worker trees under `.claude/worktrees/` with the sessions run in those same trees. An id is closed when any tree's copy is closed, and is in the window by its freshest `next_at`.
+- A deleted-but-registered worker tree is skipped instead of crashing the run.
+
+Line totals from before 2026-10-04 are not comparable. W-a9de5fb3.
+
 ### Fixed — rivals_run.py is mypy-clean, and three command citations name real rule-pack headings (2026-10-04)
 `scripts/rivals_run.py` reused the name `cell` for a string and then for a dict lookup, which mypy reported on HEAD; the second binding is now `entry` (rendered output unchanged). `/fabrik-release` cited `00-domain-mobile-app.md` "§ updates" and `80-mobile.md` "§ distribution", and `/fabrik-vision` cited `67-file-api.md` "§ KVKK + Article 7(3)" — none of them a heading; each now names the real heading. W-5d4ed90f, W-7e75d679; full /fabrik-review CONVERGED in 2 passes (confirmed 2 → 0).
 
