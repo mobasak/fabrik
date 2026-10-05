@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T18:44:28.827607Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-fe46fb1e",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read-only: check whether live vps1 /opt/monitoring/compose.yaml carries 320479 (infra/vps1/monitoring/compose.yaml:115 does; the retired specs/infrastructure/monitoring-stack.yaml:103 at commit 766d284ab has the correct ($$|/)); if live, fix in the operator window (VPS write) and correct the mirror; if not, correct the mirror only",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "vps"
+  ],
+  "title": "node-exporter mount-points-exclude regex reads (320479|/) — a shell $$ expanded to a PID — in the vps1 monitoring compose mirror"
+}

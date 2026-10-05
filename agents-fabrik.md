@@ -220,7 +220,7 @@ Every compose service MUST declare `deploy.resources.limits.memory` to prevent O
 
 ## Observability & Alerting
 
-All monitoring services run as standalone Docker Compose stacks under `/opt/monitoring/` (Prometheus, Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor, Pushgateway). `/opt/prometheus/` was removed — the whole stack now lives under `/opt/monitoring/`. Local source: `specs/infrastructure/monitoring-stack.yaml` + `configs/` in Fabrik repo.
+All monitoring services run as standalone Docker Compose stacks under `/opt/monitoring/` (Prometheus, Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor, Pushgateway). `/opt/prometheus/` was removed — the whole stack now lives under `/opt/monitoring/`. Repo-of-record (a mirror of live `/opt/monitoring/compose.yaml`; nothing deploys from it): the Fabrik hub repo's `infra/vps1/monitoring/compose.yaml` + `configs/`.
 
 ### Notification chains
 

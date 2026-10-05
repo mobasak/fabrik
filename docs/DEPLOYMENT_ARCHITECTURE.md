@@ -178,13 +178,14 @@ Deployed once when bootstrapping the VPS; not touched by normal `fabrik apply` o
 
 | File | Deploys | Current state |
 |---|---|---|
-| `specs/infrastructure/monitoring-stack.yaml` | Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor (all in monitoring stack compose) + Prometheus standalone (`/opt/prometheus/compose.yaml`). Config: `/opt/monitoring/configs/prometheus/prometheus.yml`. Reload: hot-reload via `POST /-/reload` from inside the prometheus container, fallback to `docker restart <the prometheus container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8) (`drivers/prometheus.py::_reload_prometheus`). | ✅ deployed |
 | `specs/infrastructure/authelia.yaml` | Authelia (SSO/2FA forward-auth) | ✅ deployed |
 | `specs/infrastructure/apprise.yaml` | Apprise (notifications gateway) | ✅ deployed |
 | `specs/infrastructure/browserless.yaml` | Browserless (headless Chrome) | ✅ deployed |
 | `specs/infrastructure/gotenberg.yaml` | Gotenberg (HTML/Office → PDF) | ✅ deployed |
 | `specs/infrastructure/meilisearch.yaml` | MeiliSearch | ✅ deployed |
 | `specs/infrastructure/n8n.yaml` | n8n (workflow automation) | ✅ deployed |
+
+The hub monitoring stack is **not a spec** and never passes through `fabrik apply`: it is a hand-maintained Compose stack at `/opt/monitoring/compose.yaml` on vps1 (prometheus, grafana, alertmanager, loki, promtail, node-exporter, cadvisor, pushgateway, postgres-exporter, redis-exporter), mirrored in the repo at `infra/vps1/monitoring/compose.yaml` (nothing deploys from `infra/` — `infra/README.md`). Config: `/opt/monitoring/configs/prometheus/prometheus.yml`. Reload: hot-reload via `POST /-/reload` from inside the prometheus container, fallback to `docker restart <the prometheus container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8) (`drivers/prometheus.py::_reload_prometheus`).
 
 ### 3.2 Service specs — `specs/services/`
 
