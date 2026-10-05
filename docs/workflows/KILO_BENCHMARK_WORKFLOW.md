@@ -34,8 +34,8 @@ The hub's steps that touch the catalog, in `daily_refresh.sh` order:
 ## The boot hook
 
 `scripts/wsl_startup_hook.sh` runs once per WSL boot day. It runs no producer step and never calls
-`deliver_to_fabrik`: the six-script Kilo agent workflow it used to run left with the engine, and its
-"OpenRouter category routing" block is now a subshell that only `cd`s. It does run the hub ranker
+`deliver_to_fabrik`: the six-script Kilo agent workflow and the OpenRouter category routing it used to run left
+with the engine, and the empty routing block is removed. It does run the hub ranker
 (without the pause gate), the contract oracle, the heartbeat check, the autocommit and the warn-only
 pack freshness check below, all under the shared lockfile above.
 
