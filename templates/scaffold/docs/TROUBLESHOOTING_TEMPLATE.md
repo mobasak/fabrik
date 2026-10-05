@@ -42,7 +42,7 @@ curl -s http://localhost:$PORT/health | jq .
 
 | Failing dependency | Fix |
 |--------------------|-----|
-| `postgres: timeout` | Verify `DATABASE_URL` in `.env`. Test: `psql "$(pgurl "$DATABASE_URL")"` (`pgurl` is under Debug Commands) |
+| `postgres: timeout` | Verify `DATABASE_URL` in `.env`. Test: `u=$(pgurl "$DATABASE_URL") && psql "$u"` (define `pgurl` first: Debug Commands) |
 | `redis: timeout` | Verify `REDIS_URL` in `.env`. Is Redis running? `docker compose ps` |
 | All dependencies down | Service started before dependencies. Restart: `docker compose restart` |
 
@@ -95,8 +95,11 @@ docker compose logs <service-name> --tail=100
 
 # Database connection test
 # psql reads libpq URIs only: pgurl drops a SQLAlchemy driver (+asyncpg, +psycopg) and maps ?ssl= to ?sslmode=
-pgurl() { printf '%s\n' "$1" | sed -e 's#^\(postgres[a-z]*\)+[a-z0-9_]*://#\1://#' -e 's/\([?&]\)ssl=/\1sslmode=/'; }
-psql "$(pgurl "$DATABASE_URL")" -c "SELECT 1"
+# (other asyncpg-only query keys, e.g. prepared_statement_cache_size, still need removing by hand).
+# Define it first; `u=$(pgurl ...) &&` stops on an empty or unset variable instead of psql falling back
+# to the local default database.
+pgurl() { [ -n "$1" ] || { echo "pgurl: empty DSN" >&2; return 1; }; b=${1%%\?*}; q=${1#"$b"}; printf '%s%s\n' "$(printf %s "$b" | sed 's#^\(postgres[a-z]*\)+[a-z0-9_]*://#\1://#')" "$(printf %s "$q" | sed 's/\([?&]\)ssl=/\1sslmode=/g')"; }
+u=$(pgurl "$DATABASE_URL") && psql "$u" -c "SELECT 1"
 
 # Port check
 lsof -i :$PORT

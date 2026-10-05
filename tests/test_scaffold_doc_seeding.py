@@ -386,43 +386,64 @@ def test_governance_template_names_adopt():
 
 
 def test_no_template_runs_psql_on_a_driver_dsn():
-    """Every seeded libpq call on DATABASE_URL / DATABASE_URL_OWNER goes through pgurl (or names it on
-    the next line): the rule pack mandates postgresql+asyncpg://, which libpq reads as a database NAME,
-    and an asyncpg ?ssl= that libpq refuses (01M464NPPB). Scans every template file and scaffold.py."""
+    """Every seeded libpq call on DATABASE_URL / DATABASE_URL_OWNER reaches the variable only through
+    pgurl: the rule pack mandates postgresql+asyncpg://, which libpq reads as a database NAME, and an
+    asyncpg ?ssl= that libpq refuses (01M464NPPB). Scans every template file and scaffold.py."""
     import re
 
-    call = re.compile(r"\b(psql|pg_dump|pg_isready|pg_restore)\b.*\$\{?DATABASE_URL(_OWNER)?\b")
+    call = re.compile(r"\b(psql|pg_dump|pg_isready|pg_restore)\b")
+    var = re.compile(r"\$\{?DATABASE_URL(_OWNER)?\b")
+    via_pgurl = re.compile(r'pgurl "\$\{?DATABASE_URL(_OWNER)?\}?"')
+    scaffold_py = REPO_ROOT / "src" / "fabrik" / "scaffold.py"
     subjects = [p for p in sorted((REPO_ROOT / "templates").rglob("*")) if p.is_file()]
-    subjects.append(REPO_ROOT / "src" / "fabrik" / "scaffold.py")
+    subjects.append(scaffold_py)
     hits = []
     for p in subjects:
         lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
         for n, line in enumerate(lines):
-            nxt = lines[n + 1] if n + 1 < len(lines) else ""
-            # the search half of a .replace() that REMOVES a call is not a seeded call
-            prev_opens_replace = n > 0 and lines[n - 1].rstrip().endswith(".replace(")
-            if prev_opens_replace:
+            if not (call.search(line) and var.search(via_pgurl.sub("", line))):
                 continue
-            if call.search(line) and "pgurl" not in line and "pgurl" not in nxt:
-                hits.append(f"{p.relative_to(REPO_ROOT)}:{n + 1}: {line.strip()}")
+            if p == scaffold_py:
+                prev = lines[n - 1].rstrip() if n else ""
+                nxt = lines[n + 1] if n + 1 < len(lines) else ""
+                if prev.endswith(
+                    ".replace("
+                ):  # the search half of a .replace() that REMOVES a call
+                    continue
+                if (
+                    line.lstrip(" '\"").startswith("--") and "pgurl" in nxt
+                ):  # SQL header + its pointer
+                    continue
+            hits.append(f"{p.relative_to(REPO_ROOT)}:{n + 1}: {line.strip()}")
     assert hits == [], hits
 
 
 def test_pgurl_rewrites_a_driver_dsn_for_libpq():
-    """The seeded pgurl helper, run by POSIX sh (dash), yields a URI libpq accepts."""
+    """Both seeded pgurl copies, run by POSIX sh (dash), yield a libpq URI and refuse an empty DSN."""
     import subprocess
 
-    text = (REPO_ROOT / "templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md").read_text(
-        encoding="utf-8"
-    )
-    definition = next(ln for ln in text.splitlines() if ln.startswith("pgurl()"))
+    defs = {
+        name: next(
+            ln
+            for ln in (REPO_ROOT / "templates/scaffold/docs" / name)
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if ln.startswith("pgurl()")
+        )
+        for name in ("TROUBLESHOOTING_TEMPLATE.md", "CONFIGURATION_TEMPLATE.md")
+    }
+    assert len(set(defs.values())) == 1, "the two pgurl copies drifted"
+    definition = next(iter(defs.values()))
     cases = {
-        "postgresql+asyncpg://shop:pw@10.99.0.1:5432/shop?ssl=require": (
-            "postgresql://shop:pw@10.99.0.1:5432/shop?sslmode=require"
+        "postgresql+asyncpg://shop@10.99.0.1:5432/shop?ssl=require": (
+            "postgresql://shop@10.99.0.1:5432/shop?sslmode=require"
         ),
-        "postgresql+psycopg://u@h/d?application_name=x&ssl=prefer": (
-            "postgresql://u@h/d?application_name=x&sslmode=prefer"
+        "postgresql+psycopg://u@h/d?application_name=x&ssl=prefer&ssl=disable": (
+            "postgresql://u@h/d?application_name=x&sslmode=prefer&sslmode=disable"
         ),
+        "postgres+asyncpg://u@h/d": "postgres://u@h/d",
+        "postgresql+asyncpg:///db?host=/var/run/postgresql": "postgresql:///db?host=/var/run/postgresql",
+        "postgresql://u:a&ssl=x@h/my&ssl=db": "postgresql://u:a&ssl=x@h/my&ssl=db",
         "postgresql://u:p+asyncpg@h/d": "postgresql://u:p+asyncpg@h/d",
     }
     for dsn, want in cases.items():
@@ -433,3 +454,7 @@ def test_pgurl_rewrites_a_driver_dsn_for_libpq():
             check=True,
         ).stdout.strip()
         assert out == want, (dsn, out)
+    empty = subprocess.run(
+        ["sh", "-c", definition + '\nu=$(pgurl "") && echo RAN'], capture_output=True, text=True
+    )
+    assert empty.returncode != 0 and "RAN" not in empty.stdout

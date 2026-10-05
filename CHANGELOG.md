@@ -10,10 +10,12 @@ All notable changes to this project will be documented in this file.
 scaffold and `fabrik apply` write plain `postgresql://`) got nothing useful: libpq does not recognise the scheme and
 takes the whole string as a database NAME on the local socket, and an asyncpg `?ssl=` is refused outright
 (brand-identiy-creator, 01M464NPPB). Both docs now define a POSIX `pgurl()` (drops any `+driver`, maps `ssl=` to
-`sslmode=`) and every call runs `psql "$(pgurl "$DATABASE_URL")"`; the generated `db/schema.sql` headers point at it.
-`tests/test_scaffold_doc_seeding.py` refuses a psql/pg_dump/pg_isready/pg_restore call on either variable without
-`pgurl` in any template file or `src/fabrik/scaffold.py`, and runs the helper under `sh`. Projects already scaffolded
-keep their old docs.
+`sslmode=` in the query string only, refuses an empty DSN) and every call runs `u=$(pgurl "$DATABASE_URL") && psql "$u"`,
+so an unset variable stops instead of psql falling back to the local default database; the generated `db/schema.sql`
+headers point at it. Other asyncpg-only query keys still need removing by hand.
+`tests/test_scaffold_doc_seeding.py` refuses a psql/pg_dump/pg_isready/pg_restore line that reaches either variable
+other than through `pgurl "$VAR"`, in any template file or `src/fabrik/scaffold.py`, and runs both helper copies
+under `sh`. Projects already scaffolded keep their old docs.
 
 ### Changed — `CROWDLEX_*` keys are the fleet's own youtube API, filed as internal config (2026-10-05)
 `scripts/service_catalog.json` listed `crowdlex` and `crowdlex_internal` as `unidentified`, so brand-identiy-creator's
