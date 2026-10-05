@@ -301,7 +301,8 @@ you read"), and handle-now applies to the digest like any finding mail. Watermar
 The same job carries two more riders: `scripts/sysadmin/rules_currency_watch.py` (mails infra when a pack's
 pinned runtime falls behind) and `scripts/sysadmin/vps_script_drift.py` (W-c792a205 — mails fleet when a VPS is
 not running the hub's committed scripts; its own daily stamp, so a retrying collector never runs it hourly,
-written only when the check returned a verdict (exit 0-2), so a crashed check retries the next hour;
+written by the script itself (`--stamp`) only when it reached a verdict, so a crashed or missing check retries
+the next hour;
 `docs/infrastructure/vps-ai-sysadmin.md` § Knowledge Sync). No rider's status reaches the job: the collector's
 own exit status alone decides its stamp (`weekly_catchup.sh` captures it before the riders run).
 

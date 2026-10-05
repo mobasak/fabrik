@@ -673,7 +673,7 @@ checkout, on master, when the rider runs it; never the working tree) against
 read the file) lines. Exit: 0 clean · 1 any difference · 2 a host unreachable · 3 the check itself failed.
 Tier 1 — the cron template's targets, what they call, the bot, the two audit scripts and autoheal — drives
 the mail; every other file under `scripts/sysadmin/` is shown but never mailed. It rides the hub's daily
-`weekly_catchup.sh kaizen_collect_v2.py` run with its own daily stamp (written on exit 0-2, so a failed check
+`weekly_catchup.sh kaizen_collect_v2.py` run with its own daily stamp (written by the script itself, `--stamp`, only when it reached a verdict, so a failed check
 retries the next hour), and with `--mail` it mails **fleet** (`ack: required`) once per distinct tier-1 drift, again every 7
 days while the drift persists, and once when a host has been unreachable on 3 consecutive runs. Run it by hand
 with `python3 scripts/sysadmin/vps_script_drift.py` from the hub. Its mail is the cue to run this sync with the

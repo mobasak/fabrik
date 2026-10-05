@@ -374,7 +374,11 @@ def _catchup_env(tmp: Path, collector_rc: int, drift_rc: int = 1) -> tuple[dict,
         ("vps_script_drift.py", drift_rc),
     ):
         (sysadmin / name).write_text(
-            f"import sys\nopen({str(log)!r}, 'a').write({name!r} + '\\n')\nsys.exit({rc})\n"
+            f"import sys, pathlib\nopen({str(log)!r}, 'a').write({name!r} + '\\n')\n"
+            # the real script touches --stamp only on a verdict (exit 0-2)
+            f"if {rc} < 3 and '--stamp' in sys.argv:\n"
+            "    pathlib.Path(sys.argv[sys.argv.index('--stamp') + 1]).touch()\n"
+            f"sys.exit({rc})\n"
         )
     home = tmp / "home"
     home.mkdir()
@@ -423,7 +427,19 @@ def test_drift_rider_failure_withholds_stamp(tmp_path):
     )
     assert r.returncode == 0, r.stdout + r.stderr
     assert not (state / "daily-vps_script_drift.stamp").exists()
-    assert "vps_script_drift.py FAILED (rc=3)" in r.stderr
+    assert "vps_script_drift.py reached no verdict (rc=3)" in r.stderr
+
+
+def test_drift_rider_missing_script_withholds_stamp(tmp_path):
+    # python exits 2 for a missing file: verdict-shaped, but the check never ran.
+    env, state = _catchup_env(tmp_path, collector_rc=0)
+    (Path(env["FABRIK_ROOT"]) / "scripts/sysadmin/vps_script_drift.py").unlink()
+    r = subprocess.run(
+        ["bash", str(CATCHUP), "kaizen_collect_v2.py"], env=env, capture_output=True, text=True
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert not (state / "daily-vps_script_drift.stamp").exists()
+    assert "reached no verdict (rc=2)" in r.stderr
 
 
 # ── Behaviour 8: REMOTE_CMD itself, run by a real shell; malformed input never crashes ───────────
@@ -578,3 +594,22 @@ def test_mail_body_names_renudge_days(tmp_path):
     drift = remote_listing({"scripts/sysadmin/claude_rotate.py": ("644", "old\n")})
     run(make_env(tmp_path, root, {"vps": drift}, now=1000), "--mail")
     assert f"every {_module().RENUDGE_DAYS} days" in mails(tmp_path)[0]["body"]
+
+
+def test_stamp_written_only_on_a_verdict(tmp_path):
+    root = make_hub(tmp_path)
+    stamp = tmp_path / "s" / "drift.stamp"
+    env = make_env(tmp_path, root, {"vps": None})
+    assert run(env, "--stamp", str(stamp)).returncode == 2
+    assert stamp.exists()  # unreachable is a verdict
+    stamp.unlink()
+    env["FABRIK_ROOT"] = str(tmp_path / "no-such-hub")
+    assert run(env, "--stamp", str(stamp)).returncode == 3
+    assert not stamp.exists()
+
+
+def test_short_modes_parse():
+    # `stat -c %a` drops leading zeros: 044 prints "44", 000 prints "0".
+    d = _module()
+    got = d.parse_listing(f"44 {_md5('x')} /opt/fabrik/a\n0 {_md5('y')} /opt/fabrik/b\n")
+    assert got == {"a": ("44", _md5("x")), "b": ("0", _md5("y"))}

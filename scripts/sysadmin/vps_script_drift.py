@@ -27,7 +27,10 @@ Lines: ``DRIFT <host> <path>`` (content differs) · ``MISSING <host> <path>`` (c
 · ``MODE <host> <path>`` (committed executable, host copy lacks owner-exec — the 2026-09-05 shape)
 · ``UNREADABLE <host> <path>`` (present, but the host could not read it or lacks stat/md5sum — unverified).
 Exit: 0 clean (every host reached, nothing differs) · 1 any difference, either tier · 2 any host unreachable
-· 3 the check itself failed (git, state, an unexpected error) — the rider then leaves its stamp and retries.
+· 3 the check itself failed (git, state, an unexpected error).
+``--stamp <path>`` touches <path> only when the run reached one of the verdicts 0-2. The rider keys its daily
+stamp on that file and never on the exit code, because Python itself exits 2 for a missing script and 1 for a
+syntax error, and both look like verdicts.
 
 ``--mail`` (watermark JSON at ``FABRIK_DRIFT_STATE``, default ``~/.claude/state/vps-script-drift.json``):
 the fleet signature is the sorted tier-1 lines of every host; an unreachable host keeps its previous lines, so
@@ -92,7 +95,7 @@ REMOTE_CMD = (
     "[ -e " + AUTOHEAL_REMOTE + " ] && sh -c '" + _LIST_FILES + "' sh " + AUTOHEAL_REMOTE + "; true"
 )
 UNREADABLE = ("", "")
-_MODE_RE = re.compile(r"[0-7]{3,4}")
+_MODE_RE = re.compile(r"[0-7]{1,4}")  # `stat -c %a` drops leading zeros: mode 044 prints "44"
 _MD5_RE = re.compile(r"[0-9a-f]{32}")
 
 
@@ -393,11 +396,16 @@ def _load_state(path: Path) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
+    stamp = args[args.index("--stamp") + 1] if "--stamp" in args[:-1] else None
     try:
-        return run(mail="--mail" in args)
+        rc = run(mail="--mail" in args)
     except Exception:  # noqa: BLE001 — any failure of the check itself is exit 3, distinct from a verdict
         traceback.print_exc()
         return 3
+    if stamp:
+        Path(stamp).parent.mkdir(parents=True, exist_ok=True)
+        Path(stamp).touch()
+    return rc
 
 
 if __name__ == "__main__":
