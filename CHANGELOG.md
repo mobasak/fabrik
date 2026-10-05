@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — audit action `admin.job_requeued` for an operator re-running a tenant's work (2026-10-05)
+
+- Pack `core/app-audit-log` § `admin.*` gains `admin.job_requeued` (`details {job_kind, from_status, reason}`, target `job`, job_id or the requeued record itself), the generic row for operator re-runs of billed pipeline work (trade-intelligence 01M3QTXJ, D-584).
+
 ### Fixed — `decisions.py --check` resolves a hub-side supersede pointer against the hub ledger (2026-10-05)
 
 - A project row reading `supersedes D-048 (hub-side)` names the hub's row; once the project minted its own D-048 the check went green on an unrelated row. A pointer marked `(hub-side)` is now resolved against the hub ledger, never a local id, so it can neither false-resolve nor hide a dangling pointer; a bare pointer is still checked locally (trade-intelligence 01M3QTN2).

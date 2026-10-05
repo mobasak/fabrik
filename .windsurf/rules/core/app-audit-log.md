@@ -145,6 +145,7 @@ audit trace.
 | `admin.user_deleted` | Admin hard-deleted a user | `{admin_user_id, reason}` | `user`, user_id |
 | `admin.api_key_created` | An API key was issued | `{key_prefix, scopes}` (never the key) | `api_key`, key_id |
 | `admin.api_key_revoked` | An API key was revoked | `{reason}` | `api_key`, key_id |
+| `admin.job_requeued` | An operator requeues a tenant's stuck or failed work, which may re-spend its credits (never the worker's own retry, which is not an audit event) | `{job_kind, from_status, reason}` | `job`, job_id (or the requeued record itself, e.g. `lead_list_item`, item_id) |
 
 ### `gdpr.*` and `consent.*` — privacy-rights events
 
