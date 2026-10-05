@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: Handled 01M3QSG19X + 01M3QSGN9V. D-050 (worktree-agent-3 e6f2b120, merging to main via agent-1) supersedes D-007 with its substance unchanged and names the hub's rule as \"the hub's rule 48\", with no `supersedes D-0NN` adjacency."
 }
