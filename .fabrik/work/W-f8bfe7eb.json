@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T07:40:11.704010Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f8bfe7eb",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-spec — fleet mail 01M3QG6GG5NQNVG5MZE6SAME1G is the evidence; W-ffd390d2 (alert hook) is the detection half; the repro is CLAUDE_CONFIG_DIR=~/.claude-fleet/<slug> claude -p ok --output-format json → api_error_status 403",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "title": "rotation capability probe: claude_rotate.py's eligibility check (usage reading + refresh ping) passes an account that refuses every inference with 403 oauth_org_not_allowed (a billing lapse — mob, ob 2026-09-29/30); _validated_pick named it successor and no tick flipped away from it. Spec the prevention half: probe-on-flip vs per-tick, claude -p (full CLI, fires hooks) vs a minimal OAuth messages call (undocumented contract — ground it first), the quota cost, and auto-park on the refusal"
+}
