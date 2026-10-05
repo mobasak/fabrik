@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the VPS drift check compares the two audit checklists the security and backup jobs read (2026-10-06)
+`weekly-security.sh` and `monthly-backup-verify.sh` hand Claude `docs/infrastructure/audit-prompts/03-security-hardening.md`
+and `06-backup-disaster-recovery.md` through a fail-open `[ -f ] && cat`, so a missing or stale copy on a host degraded
+the report without any error, and `scripts/sysadmin/vps_script_drift.py` never looked. The two files are now tier 1
+(`AUDIT_CHECKLISTS`): listed by name in the remote `find` and mailed on DRIFT or MISSING. Two graders in
+`tests/test_vps_script_drift.py`, each red on the pre-change script (W-ce71bcd2).
+
 ### Fixed — the cron drift check reads a cron line the way cron and sh do (2026-10-05)
 `scripts/sysadmin/vps_script_drift.py` counted a path that never runs: one after an unescaped `%` (cron feeds the rest
 of the line to stdin, even inside shell quotes), or one in a trailing comment that contains an apostrophe (the old

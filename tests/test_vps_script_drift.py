@@ -46,6 +46,8 @@ FILES = {
     "scripts/sysadmin/hub_only_kaizen.py": ("print('hub only')\n", False),
     "scripts/audit/03-security.sh": ("#!/bin/sh\n", True),
     "scripts/audit/06-backup.sh": ("#!/bin/sh\n", True),
+    "docs/infrastructure/audit-prompts/03-security-hardening.md": ("# security\n", False),
+    "docs/infrastructure/audit-prompts/06-backup-disaster-recovery.md": ("# backup\n", False),
     "scripts/vps-autoheal.sh": ("#!/bin/sh\nheal\n", True),
 }
 
@@ -243,6 +245,20 @@ def test_autoheal_compared(tmp_path):
     r = run(env)
     assert r.returncode == 1
     assert "DRIFT vps3 scripts/vps-autoheal.sh" in r.stdout
+
+
+def test_audit_checklist_drift_mailed(tmp_path):
+    # W-ce71bcd2: weekly-security.sh and monthly-backup-verify.sh hand Claude these checklists through a
+    # fail-open `[ -f ] && cat`, so a stale or missing one degrades the report silently — tier 1, mailed.
+    root = make_hub(tmp_path)
+    sec = "docs/infrastructure/audit-prompts/03-security-hardening.md"
+    bak = "docs/infrastructure/audit-prompts/06-backup-disaster-recovery.md"
+    env = make_env(tmp_path, root, {"vps2": remote_listing({sec: ("644", "# old\n"), bak: None})})
+    r = run(env, "--mail")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert f"DRIFT vps2 {sec}" in r.stdout
+    assert f"MISSING vps2 {bak}" in r.stdout
+    assert len(mails(tmp_path)) == 1
 
 
 # ── Behaviour 2: tier 2 is shown, never mailed ───────────────────────────────────────────────────
@@ -506,6 +522,22 @@ def test_remote_cmd_real_shell(tmp_path):
     assert got["scripts/sysadmin/plain.py"] == ("644", _md5("plain\n"))
     assert got["scripts/vps-autoheal.sh"] == ("755", _md5("#!/bin/sh\nheal\n"))
     assert not any("__pycache__" in k or k.endswith("link.sh") for k in got), got
+
+
+def test_remote_cmd_lists_the_two_checklists_only(tmp_path):
+    # The checklists are named one by one: another audit-prompts file is never listed, and a host without
+    # the directory (test_remote_cmd_real_shell) still lists everything else.
+    host, cmd = _host_tree(tmp_path)
+    prompts = host / "opt/fabrik/docs/infrastructure/audit-prompts"
+    prompts.mkdir(parents=True)
+    (prompts / "03-security-hardening.md").write_text("# security\n")
+    (prompts / "01-full-system-audit.md").write_text("# not read by cron\n")
+    r = subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60)
+    got = _parse(host, r.stdout)
+    key = "docs/infrastructure/audit-prompts/03-security-hardening.md"
+    assert got[key][1] == _md5("# security\n"), r.stdout
+    assert not any(k.endswith("01-full-system-audit.md") for k in got), got
+    assert "scripts/sysadmin/plain.py" in got, got
 
 
 def test_remote_cmd_unreadable_file(tmp_path):
