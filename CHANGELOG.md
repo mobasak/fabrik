@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a phase review receipt named by letter (`phase-A`) satisfies `command_run.py step` (2026-10-05)
+
+- Plans label phases A/B/C, but the phase gate accepted only `phase-<N>`; letter N (A = 1) now counts as phase N, bounded so `phase-AB` names neither, and the refusal names both forms (trade-intelligence 01M3QPRY). A test that read the real hub reviews dir was made hermetic.
+
 ### Changed — the per-prompt work block names three of your claims, then a count (2026-10-05)
 
 - `work.py prompt_block` lists at most three of the session's own claims, by priority, then `… and N more of your claims`; a session holding 117 claims went from 29,221 to 2,442 bytes per prompt (fleet 01M3QJKE, D-583).

@@ -2872,6 +2872,28 @@ def test_the_phase_gate_accepts_the_dispatcher_mode_ticket_artifact(tmp_path) ->
     assert cr._phase_review_exists(str(tmp_path), 1), "a D4 ticket artifact must satisfy the gate"
 
 
+def test_a_letter_named_phase_receipt_satisfies_its_number_only(tmp_path) -> None:
+    """trade-intelligence 01M3QPRY: plans label phases A/B/C, so `…-phase-A-review.md` is the
+    natural receipt; it must count as phase 1 — and never as phase 2, nor `phase-AB` as either."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cr_gate_letter", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+
+    d = tmp_path / "docs" / "development" / "reviews"
+    d.mkdir(parents=True)
+    (d / "2026-09-29-plan-1-ui-phase-A-review.md").write_text("review\n", encoding="utf-8")
+    assert cr._phase_review_exists(str(tmp_path), 1)
+    assert not cr._phase_review_exists(str(tmp_path), 2)
+    (d / "2026-09-29-plan-1-ui-phase-A-review.md").unlink()
+    (d / "notes-phase-ab-review.md").write_text("review\n", encoding="utf-8")
+    assert not cr._phase_review_exists(str(tmp_path), 1)
+    assert not cr._phase_review_exists(str(tmp_path), 2)
+    (d / "x-phase-b-review.md").write_text("review\n", encoding="utf-8")
+    assert cr._phase_review_exists(str(tmp_path), 2)
+
+
 def test_the_phase_gate_still_requires_some_artifact(tmp_path) -> None:
     """The precision side: loosening the pattern must not make the gate vacuous."""
     import importlib.util
@@ -4873,9 +4895,10 @@ def test_the_phase_gate_refusal_names_the_stem_and_states_the_bound_only_when_in
         "x",
         "--surface",
         "docs/development/plans/2026-09-12-plan-2-mail-triage.md phase B",
+        cwd=run_dir,  # hermetic: the hub's own reviews dir holds this plan's phase-A receipt
     )
     (run_dir / "docs" / "development" / "reviews").mkdir(parents=True)
-    r = _cr(run_dir, "step", "--phase", "2", "--title", "B")
+    r = _cr(run_dir, "step", "--phase", "2", "--title", "B", cwd=run_dir)
     assert r.returncode == 2, r.stdout + r.stderr
     assert "`2026-09-12-plan-2-mail-triage-T<id>-review.md`" in r.stderr, r.stderr
     assert "<plan>" not in r.stderr and "unknown start" not in r.stderr, r.stderr
