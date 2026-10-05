@@ -1,6 +1,6 @@
 # Plan — fabrik-mail auto-reply loop-safety (the four guards + `--auto`)
 
-Status: CONVERGED
+Status: EXECUTED (2026-10-06, D-601 — every phase shipped: the four guards, `--auto` and `should-reply` in scripts/mail.py, the env caps in .env.example and docs/CONFIGURATION.md, both fabrik-mail docs; its first review docs/development/reviews/2026-08-22-plan-1-fabrik-mail-loop-safety-review.md ended on a pass that fixed one defect, so the closing whole-plan review docs/development/reviews/2026-10-06-fabrik-mail-loop-safety-closing-review.md ran: confirmed 1 → 2 → 0, fixing a no-from fail-open (fdfff3f6f) and its doc gap (4e80ebe49); two fail-closed identity limits under HUB_BEATS filed as W-19b57b9a; was CONVERGED)
 Date: 2026-08-22
 Owner: infra (build) — spec by fleet (`docs/superpowers/specs/2026-08-15-fabrik-mail-loop-safety-design.md`,
 CONVERGED b886ce5b; build assigned via mail `01M02SV4498PHFBG3SM8KN1TR9`, acked)
