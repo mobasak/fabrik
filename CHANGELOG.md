@@ -11,8 +11,10 @@ fabrik-autoheal — over one BatchMode ssh each, and reports `DRIFT`, `MISSING`,
 2026-09-05 `detect_reversals.py` outage) and `UNREADABLE`; exit 3 means the check itself failed. It never
 pushes. A daily rider on `weekly_catchup.sh kaizen_collect_v2.py` runs it with `--mail`: fleet is mailed once per
 distinct drift of the executed tier, again every 7 days while it persists, and once when a host stays unreachable for
-3 runs. The same edit fixes `weekly_catchup.sh`: `rc=$?` after `esac` read the last rider's `|| true`, so a failing
-collector still wrote its success stamp; the collector's own status now decides it.
+3 runs; the script writes the rider's daily stamp itself (`--stamp`) only when it reached a verdict, so a missing or
+crashed check retries the next hour. The same edit fixes `weekly_catchup.sh`: `rc=$?` after `esac` read the last
+rider's `|| true`, so a failing collector still wrote its success stamp; the collector's own status now decides it.
+Decision row D-592.
 
 ### Fixed — watchdog Tier-D docstring and CONFIGURATION.md payments worker match the code (2026-10-05)
 `WatchdogDriver._gate_tier_d`'s docstring said a missing git remote fails the apply loudly; the raise is caught by

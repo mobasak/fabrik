@@ -176,7 +176,7 @@ def committed_files(root: Path) -> dict[str, tuple[str, bool]]:
         size = int(header[2])
         body = raw[header_end + 1 : header_end + 1 + size]
         pos = header_end + 1 + size + 1
-        out[path] = (hashlib.md5(body).hexdigest(), mode == "100755")  # noqa: S324 — fingerprint only
+        out[path] = (hashlib.md5(body, usedforsecurity=False).hexdigest(), mode == "100755")
     return out
 
 
