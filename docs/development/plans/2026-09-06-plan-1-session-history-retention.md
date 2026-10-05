@@ -13,9 +13,9 @@ transport to vps1 and has NEVER RUN — no `~/.claude/archive/manifest.jsonl` ex
 reached any archive.
 Date: 2026-09-06 (revised 2026-10-05)
 Owner: fleet
-Spec: `docs/superpowers/specs/2026-09-05-session-history-retention-design.md` (CONVERGED, md5
-`9bf26fd7f744155ab541c23650fd8205`, D-142, commit `2814df66`; § Where the cold archive lives is
-superseded by D-565 and carries a pointer to it)
+Spec: `docs/superpowers/specs/2026-09-05-session-history-retention-design.md` (CONVERGED 2026-09-06,
+D-142; partially superseded by D-565 — it now carries a header note and markers at every passage
+the revision changed; md5 `b081e65a081a1dc05a8e53a7b78bb544` after those markers)
 
 ## Why the phase order is a safety property, not a preference
 

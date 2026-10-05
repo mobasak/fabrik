@@ -6,6 +6,13 @@ Owner: fleet (box-local infrastructure / DR)
 Trigger: operator, this session — "now we must fix this properly", after 11 project dirs were
 emptied on 2026-09-03 by a manual ~28 GB disk cleanup and the loss surfaced days later.
 
+> **Partially superseded 2026-10-05 by D-565** (`docs/DECISIONS.md`): the archive ships DIRECT from
+> this machine to the Backblaze B2 bucket `wsl-ozgur` with rclone — nothing goes through vps1 or
+> Backrest — and the pruner (Approach A's prune tiers, build-order gate 3) is DEFERRED behind a
+> three-part tripwire. Affected here: § Approach A's tier table, § Where the cold archive lives,
+> Open unknown 0c, § The build order, § Next. The current route is
+> `docs/development/plans/2026-09-06-plan-1-session-history-retention.md` (revision 2026-10-05).
+
 ## The finding that reframes the problem
 
 The operator's opening framing was "transcripts have no backup". Measured, it is worse and also
@@ -129,6 +136,9 @@ convenience layer that follows whatever is on disk.
 
 ### A — Cold archive as the store of record, index as a mirror (RECOMMENDED)
 
+> **2026-10-05 (D-565):** the archive half stands; the prune tiers in the table below are DEFERRED —
+> local transcripts are kept (D-470's 3650-day retention) so session-recall can still search them.
+
 Four tiers, and the order is a safety property, not a preference:
 
 | Tier | What | Retention | Cleared by |
@@ -212,10 +222,11 @@ fidelity that 4.45–6.08x compression preserves for a fifth of the space.
 
 ## Where the cold archive lives — corrected after reading the fleet's actual backup topology
 
-> **SUPERSEDED 2026-10-05 by D-565:** the archive ships DIRECT from this machine to the Backblaze
-> B2 bucket `wsl-ozgur` (rclone), not through vps1 and Backrest — the VPS fleet's storage is
-> limited and this machine is mostly up (operator). The table below is the 2026-09-06 reasoning,
-> kept as history; the plan's revision carries the current route.
+> **SUPERSEDED 2026-10-05 by D-565** (`docs/DECISIONS.md`): the archive ships DIRECT from this
+> machine to the Backblaze B2 bucket `wsl-ozgur` (rclone), not through vps1 and Backrest — the VPS
+> fleet's storage is limited and this machine is mostly up (operator). Everything in THIS section —
+> the table, the open sub-question and the transport note — is the 2026-09-06 reasoning, kept as
+> history; the current route is `docs/development/plans/2026-09-06-plan-1-session-history-retention.md`.
 
 ⚠️ **The first version of this table was wrong, and wrong in the same way as this document's two
 earlier retractions: it asserted a property of the fleet without reading the config.** It called
@@ -278,7 +289,7 @@ with a matching sha256. That round trip is what the word "lossless" is doing in 
    index is a mirror this spec has just demoted, so the policy must not depend on it to decide what
    to delete.
 
-0c. **RESOLVED this run — where the archive lives:** vps1 + Backrest (59 GB free, container up,
+0c. **[superseded 2026-10-05 by D-565 — B2 direct; see the header]** **RESOLVED this run — where the archive lives:** vps1 + Backrest (59 GB free, container up,
    $0), with Cloudflare R2 ($0 at our size, zero egress) as the named escalation. See the costing
    table above.
 
@@ -347,6 +358,9 @@ grep -rn session_recall scripts/dr_*.sh -> no match; no pg_dump in crontab
 
 ## The build order, and what must not ship without a grader
 
+> **Superseded 2026-10-05 by D-565:** gates 1 and 2 now run against the B2 bucket directly (no vps1,
+> no Backrest), and gate 3 — the pruner — is DEFERRED; the plan's revision carries the current gates.
+
 Nothing in this document is executable yet, which is the honest status: it is a design, and every
 number in it is a measurement rather than a test. Three gates, in order, and the order is the
 safety property:
@@ -369,6 +383,8 @@ orphan-reclaim trap (01M1SPW1KKNXKKKM8MSVT6RHQ9, ack required). That hazard is l
 not wait on this spec.
 
 ## Next
+
+> **Superseded 2026-10-05:** the plan exists and was revised (D-565, D-569); the pruner below is deferred.
 
 `/fabrik-plan-after-chat` to turn this CONVERGED design into a phased plan. Gate 1 (transport +
 archive) is non-destructive and may be built at the operator's word; **no deletion ships before
