@@ -2154,6 +2154,7 @@ _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (Postgr
 -- Apply once after the DB is provisioned, as the database OWNER (the WHOLE file is one
 -- transaction; any error aborts it):
 --   psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql
+-- (a postgresql+asyncpg:// or ?ssl= DSN: pass it through pgurl, docs/TROUBLESHOOTING.md § Debug Commands)
 -- (Fabrik runs NO automatic migrations — you apply this yourself.) Keep BEGIN/COMMIT
 -- out of this file: an inner COMMIT would end psql -1's transaction early.
 --
@@ -3431,6 +3432,7 @@ APP_AUDIT_LOG_DIR = FABRIK_LIB_DIR / "app-audit-log"
 _SCHEMA_APPLY_HEADER = (
     "-- Apply as the database OWNER (the WHOLE file is one transaction; any error aborts it):\n"
     '--   psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql\n'
+    "-- (a postgresql+asyncpg:// or ?ssl= DSN: pass it through pgurl, docs/TROUBLESHOOTING.md § Debug Commands)\n"
     "-- Never through DATABASE_URL: that is the app's non-owner role, which cannot CREATE.\n"
     "-- Keep BEGIN/COMMIT out of this file — an inner COMMIT would end psql -1's transaction.\n"
 )

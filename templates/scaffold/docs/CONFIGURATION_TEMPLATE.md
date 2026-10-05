@@ -30,7 +30,7 @@ curl http://localhost:$PORT/health
 |----------|---------|-------------|
 | `PORT` | *(see .env.example)* | Service port. Auto-assigned by scaffold, registered in `PORTS.md`. |
 | `DATABASE_URL` | *(injected by `fabrik apply`)* | The app's PostgreSQL connection — the non-owner `<db>_app` role once the spec's `shape.database_url_app_role` is `true`. No default in code. |
-| `DATABASE_URL_OWNER` | *(injected by `fabrik apply`)* | The database OWNER. Only `db/schema.sql` (`psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql`), migrations, runtime DDL and the audit-log retention/verification jobs use it. No default in code. |
+| `DATABASE_URL_OWNER` | *(injected by `fabrik apply`)* | The database OWNER. Only `db/schema.sql` (`psql -1 -v ON_ERROR_STOP=1 "$(pgurl "$DATABASE_URL_OWNER")" -f db/schema.sql`, `pgurl` under Debug commands), migrations, runtime DDL and the audit-log retention/verification jobs use it. No default in code. |
 
 <!-- Add project-specific required vars. Delete both DSN rows if not using a database. -->
 
@@ -183,12 +183,14 @@ cat PORTS.md
 |---------|-------|-----|
 | Config validation failed | Missing required env var | Check `.env` against `.env.example` |
 | Port already in use | Another service on same port | Check `PORTS.md`, pick next available |
-| Database unreachable | Wrong `DATABASE_URL` or network | Verify: `psql "${DATABASE_URL/+asyncpg/}"` |
+| Database unreachable | Wrong `DATABASE_URL` or network | Verify: `psql "$(pgurl "$DATABASE_URL")"` (`pgurl` under Debug commands) |
 | Service starts but unhealthy | Dependency not ready | Check `/health` response for failing deps |
 
 ```bash
 # Debug commands
-psql "${DATABASE_URL/+asyncpg/}"  # Test DB connection (drops SQLAlchemy's +asyncpg)
+# psql reads libpq URIs only: pgurl drops a SQLAlchemy driver (+asyncpg, +psycopg) and maps ?ssl= to ?sslmode=
+pgurl() { printf '%s\n' "$1" | sed -e 's#^\(postgres[a-z]*\)+[a-z0-9_]*://#\1://#' -e 's/\([?&]\)ssl=/\1sslmode=/'; }
+psql "$(pgurl "$DATABASE_URL")"  # Test DB connection
 lsof -i :$PORT                  # Check port availability
 grep -vE '^#|^$' .env      # Show active env vars
 ```

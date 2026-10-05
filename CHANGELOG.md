@@ -4,13 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — scaffold debug commands run `psql` on a libpq DSN, not SQLAlchemy's `+asyncpg` one (2026-10-05)
-`templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` and `CONFIGURATION_TEMPLATE.md` seeded `psql $DATABASE_URL`
-in four places. The python rule pack mandates `DATABASE_URL=postgresql+asyncpg://…`, which libpq rejects as an
-invalid URI, so the seeded command failed in every project that followed the rule (brand-identiy-creator,
-01M464NPPB). All four now run `psql "${DATABASE_URL/+asyncpg/}"`, a no-op on a plain DSN, and
-`tests/test_scaffold_doc_seeding.py::test_no_template_runs_psql_on_a_driver_dsn` refuses a bare `psql $DATABASE_URL`
-in any template.
+### Fixed — seeded `psql` calls go through a `pgurl` helper, so a `postgresql+asyncpg://` DSN works (2026-10-05)
+`templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` and `CONFIGURATION_TEMPLATE.md` seeded `psql $DATABASE_URL` and
+`psql "$DATABASE_URL_OWNER"`. A project that writes its DSN in the rule-pack form (`postgresql+asyncpg://`; Fabrik's own
+scaffold and `fabrik apply` write plain `postgresql://`) got nothing useful: libpq does not recognise the scheme and
+takes the whole string as a database NAME on the local socket, and an asyncpg `?ssl=` is refused outright
+(brand-identiy-creator, 01M464NPPB). Both docs now define a POSIX `pgurl()` (drops any `+driver`, maps `ssl=` to
+`sslmode=`) and every call runs `psql "$(pgurl "$DATABASE_URL")"`; the generated `db/schema.sql` headers point at it.
+`tests/test_scaffold_doc_seeding.py` refuses a psql/pg_dump/pg_isready/pg_restore call on either variable without
+`pgurl` in any template file or `src/fabrik/scaffold.py`, and runs the helper under `sh`. Projects already scaffolded
+keep their old docs.
 
 ### Changed — `CROWDLEX_*` keys are the fleet's own youtube API, filed as internal config (2026-10-05)
 `scripts/service_catalog.json` listed `crowdlex` and `crowdlex_internal` as `unidentified`, so brand-identiy-creator's
