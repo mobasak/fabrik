@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "pack core/60-watchdog.md: Tier-D now has a third prerequisite, snapshot storage (STORAGE_BACKEND + that backend's keys), enforced at apply (D-451)"
 }

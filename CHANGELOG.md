@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the watchdog packs name every Tier-D apply-time prerequisite (2026-10-05)
+
+- `core/60-watchdog` and `core/self-healing` now state the git remote, app HEALTHCHECK and snapshot-storage (`STORAGE_BACKEND` + keys) checks `fabrik apply` runs for Tier D, and what each miss does (fleet 01M3Q82V, D-579).
+
 ### Fixed — review commands can launch their seat workflow from any project (2026-10-05)
 
 - `.claude/workflows/fabrik-review-loop.js` and `scripts/review_loop_ledger.py` are now synced to every project; the review commands launch the session's own copy instead of `/opt/fabrik/...` (which the Workflow tool refused outside the hub), and every fallback covers a tool that cannot load it (iterative_image_editor 01M3Q4Q1, D-577). Also corrects a corpus grader left stale by a56a844fb (`import httpx, dotenv`).
