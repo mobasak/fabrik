@@ -82,3 +82,60 @@ def test_scaffolded_python_project_passes_its_own_lint_and_types(tmp_path, proje
         if r.returncode != 0:
             failures[label] = (r.stdout + r.stderr).strip()[-2000:]
     assert failures == {}, (project_type, RUFF, failures)
+
+
+@requires_fabrik_env
+@pytest.mark.parametrize("project_type", ["saas-skeleton", "static-site", "office-extension"])
+def test_scaffolded_server_backend_passes_its_own_lint_and_types(tmp_path, project_type):
+    """W-1c722f35: the saas family's server/ backend ships the same vendored scrubber; ruff and mypy
+    read the NEAREST pyproject.toml, so server/ needs its own exclusion or it lints upstream code."""
+    assert RUFF, f"ruff is neither beside {sys.executable} nor on PATH"
+    create_project(
+        name="gate-clean",
+        project_type=project_type,
+        description="server backend passes its own gate",
+        base=tmp_path,
+        generate_spec=False,
+    )
+    server = tmp_path / "gate-clean" / "server"
+    pkg = Path("src") / "gate_clean"
+    vendored = pkg / "glitchtip_init.py"
+    assert (server / vendored).is_file() and (server / "pyproject.toml").is_file()
+    own = sorted(
+        str(f.relative_to(server)) for d in ("src", "tests") for f in (server / d).rglob("*.py")
+    )
+    assert str(vendored) in own, own
+    checks = {
+        "ruff check <server .py>": [RUFF, "check", *own],
+        "ruff check <vendored file>": [RUFF, "check", str(vendored)],
+        "ruff format --check <server .py>": [RUFF, "format", "--check", *own],
+        "mypy server/src/<pkg>": [
+            sys.executable,
+            "-m",
+            "mypy",
+            "--config-file=pyproject.toml",
+            str(pkg),
+        ],
+    }
+    failures = {}
+    for label, argv in checks.items():
+        r = _run(argv, server)
+        if r.returncode != 0:
+            failures[label] = (r.stdout + r.stderr).strip()[-2000:]
+    assert failures == {}, (project_type, RUFF, failures)
+
+
+@requires_fabrik_env
+def test_make_lint_types_src_not_the_whole_tree(tmp_path):
+    """W-1c722f35: `mypy .` walked scripts/enforcement (hub-synced, duplicate module names) and was
+    red on a fresh project; lint and gate-lean type `src`, as the completion gate does."""
+    create_project(
+        name="gate-clean",
+        project_type="python-api",
+        description="make lint types src",
+        base=tmp_path,
+        generate_spec=False,
+    )
+    makefile = (tmp_path / "gate-clean" / "Makefile").read_text()
+    assert "mypy ." not in makefile, makefile
+    assert makefile.count("mypy src") == 2, makefile

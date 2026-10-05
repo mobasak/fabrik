@@ -36,14 +36,14 @@ test:
 
 lint:
 	ruff check .
-	mypy .
+	mypy src
 
 format:
 	ruff format .
 	ruff check --fix .
 
 gate-lean:
-	@.venv/bin/ruff check . --fix && .venv/bin/ruff format . && .venv/bin/mypy .
+	@.venv/bin/ruff check . --fix && .venv/bin/ruff format . && .venv/bin/mypy src
 
 # ============================================================
 # Docker (parity check)

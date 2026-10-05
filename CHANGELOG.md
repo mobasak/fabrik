@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a scaffolded saas server/ passes the gate it ships into; make lint types src (2026-10-06)
+saas-skeleton, static-site and office-extension emitted a `server/` backend with no `pyproject.toml`, so ruff and
+mypy linted the vendored `glitchtip_init.py` and `fastapi_user_auth` under default rules, and the hub-authored server
+bodies carried 18 ruff findings, format drift and 3 mypy errors. `src/fabrik/scaffold.py` now writes
+`server/pyproject.toml` from the one template's `[tool.ruff]` / `[tool.mypy]` tables (both vendored modules excluded)
+and the five body constants are cleaned at source; `templates/scaffold/docker/Makefile.python`'s `lint` and
+`gate-lean` type `src` instead of `.` (which walked the hub-synced `scripts/enforcement/`). Graders in
+`tests/test_scaffold_output_passes_gate.py`, red on the pre-change code (W-1c722f35).
+
 ### Fixed — account rotation consumes the soonest-resetting quota first and rides each account to its exact cap (2026-10-06)
 `scripts/sysadmin/claude_rotate.py` (and its byte-identical `scripts/aro-wake/` twin) flipped the active account away as
 soon as either window reached 85% (the 2026-09-06 drain-band relief), to any sibling under 85 — sarp at weekly 85 of cap
