@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T20:48:44.376180Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-762f69ab",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure which synced .py files the gate's format leg never sees; decide whether the sync or the gate should format-check the synced set",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "final_gate's ruff-format scope does not cover every governance-synced file (fleet finding 01M46GJZ SYSTEMIC point: check_lint_ratchet.py shipped unformatted to every project)"
+}

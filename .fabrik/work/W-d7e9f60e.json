@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-04T08:01:14.995986Z",
+  "created": "2026-10-05T21:23:27.188384Z",
   "creator": "infra",
   "evidence": "",
-  "id": "W-f154f3f3",
+  "id": "W-d7e9f60e",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M3T2C7MXR23FHDYPN6PWQS0T",
+    "mail": "01M46Z5KCR6VRXTHMY3XRKHSMQ",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "infra",
   "priority": 2,
   "status": "done",
-  "title": "WHAT: scripts/work.py has no honest way to close an OPEN item that another item's commit resolved."
+  "title": "branch: worktree-intel"
 }
