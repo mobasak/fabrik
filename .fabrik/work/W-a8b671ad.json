@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: five machinery defects hit during one /fabrik-plan-after-chat + /fabrik-plan-review run in a linked worktree (trade-intelligence, agent-2, branch worktree-agent-2, 2026-09-30)."
 }
