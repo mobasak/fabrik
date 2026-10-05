@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "tryton-crm (agent-2): the work I did and the multi-agent friction I hit, working as one of 3 agents in one repo, 2026-09-29 to 09-30"
 }

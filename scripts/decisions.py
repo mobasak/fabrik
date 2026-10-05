@@ -12,7 +12,8 @@ Usage:
     python3 scripts/decisions.py <term> --root /opt
     python3 scripts/decisions.py --check           # mechanical integrity: every
                                                    # `supersedes D-NNN` pointer must resolve
-                                                   # to an existing row id in the same ledger,
+                                                   # to an existing row id in the same ledger
+                                                   # (a `(hub-side)` one in the hub's ledger),
                                                    # and no id appears on two rows;
                                                    # exit 1 on a dangling pointer or duplicate
 
@@ -36,7 +37,15 @@ from pathlib import Path
 # Case-insensitive + normalized to upper in _rows(): a lowercase-minted `| d-003 |` row
 # must not be invisible to the integrity checks (review 2026-08-30).
 ROW_RE = re.compile(r"^\|\s*(D-\d+)\s*\|", re.IGNORECASE)
-SUPERSEDES_RE = re.compile(r"supersedes\s+(D-\d+)", re.IGNORECASE)
+# A pointer marked `(hub…)` names the HUB ledger's row (a project relaying a hub decision:
+# `supersedes D-048 (hub-side)`), so it is resolved against the hub ledger, never this one — a
+# local id of the same number would otherwise "resolve" it to an unrelated row (trade-intelligence
+# 01M3QTN2). `(?!\d)` is load-bearing: without it the failed lookahead backtracks `\d+` and
+# extracts `D-04` from `D-048 (hub-side)`. COBRA (D-253): the cheap dodge for a real dangling
+# pointer is to append `(hub-side)`; the hub-ledger resolve below is what makes that fail too.
+SUPERSEDES_RE = re.compile(r"supersedes\s+(D-\d+)(?!\d)(?!\s*\(hub\b)", re.IGNORECASE)
+HUB_SUPERSEDES_RE = re.compile(r"supersedes\s+(D-\d+)(?!\d)\s*\(hub\b", re.IGNORECASE)
+HUB_LEDGER = Path(__file__).resolve().parent.parent / "docs" / "DECISIONS.md"
 # The merge-owner row grammar, shared byte for byte with `docs_updater.py` and the fleet-synced
 # `.claude/hooks/session_orient.py` (pinned by tests/test_session_orient_hook.py). A changed owner
 # is a NEW row whose what-cell OPENS a supersedes clause (this ledger's own law), so that prefix is
@@ -272,7 +281,13 @@ def _query(root: Path, term: str) -> None:
 
 def _check(root: Path) -> int:
     bad = 0
-    for repo, path in _ledgers(root):
+    ledgers = _ledgers(root)
+    # the hub ledger: the scanned root's `fabrik` repo when present, else this script's own repo. A
+    # MISSING hub ledger checks no hub-side pointer; an unreadable or empty one flags every one
+    # (fail closed — `_rows` reads it as no rows)
+    hub_path = next((p for repo, p in ledgers if repo == "fabrik"), HUB_LEDGER)
+    hub_ids = {rid for rid, _ in _rows(hub_path)} if hub_path.is_file() else None
+    for repo, path in ledgers:
         rows = _rows(path)
         ids = {rid for rid, _ in rows}
         seen: set[str] = set()
@@ -287,10 +302,19 @@ def _check(root: Path) -> int:
                 bad += 1
             seen.add(rid)
         for rid, cells in rows:
-            for target in SUPERSEDES_RE.findall(" ".join(cells)):
+            text = " ".join(cells)
+            for target in SUPERSEDES_RE.findall(text):
                 target = target.upper()  # the IGNORECASE capture preserves source case
                 if target not in ids:
                     _say(f"DANGLING: {repo} {rid} supersedes {target} which has no row in {path}")
+                    bad += 1
+            for target in HUB_SUPERSEDES_RE.findall(text):
+                target = target.upper()
+                if hub_ids is not None and target not in hub_ids:
+                    _say(
+                        f"DANGLING: {repo} {rid} supersedes {target} (hub-side), which has no row "
+                        f"in the hub ledger {hub_path}"
+                    )
                     bad += 1
     if bad:
         _say(

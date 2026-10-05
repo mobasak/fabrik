@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T09:21:37.373002Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ea1a9081",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one clause in both contracts at the next governance-template edit; full /fabrik-review (synced surface)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "The binding ledger rule (CLAUDE.md § Behavior decision-ledger bullet and templates/governance/CLAUDE.md:130) does not name the cross-ledger supersede grammar `supersedes D-NNN (hub-side)` that decisions.py --check now resolves against the hub ledger; only docs/reference/decision-ledger.md does. A project agent superseding a hub row reads only its synced CLAUDE.md (1 such row in 51 ledgers today)"
+}

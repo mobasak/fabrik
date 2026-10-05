@@ -332,7 +332,7 @@ Agent-Role: subagent
 Agent-Phase: B
 Agent-Task: 5
 Agent-Context: GDPR schema migration + Flask consent routes
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude <model> <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -347,7 +347,7 @@ Agent-Role: orchestrator
 Agent-Phase: B
 Agent-Context: merged 3 subagent branches, ran phase gate + review
 Conflicts-Resolved: 0
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude <model> <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -360,7 +360,7 @@ feat(scope): Phase D — File Cache
 Agent-Role: orchestrator
 Agent-Phase: D
 Agent-Context: inline execution, no subagents (low complexity)
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude <model> <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -373,7 +373,7 @@ fix(scope): Phase B review — null guard in audit_log.record_event
 Agent-Role: review-fix
 Agent-Phase: B
 Agent-Context: fixed CONFIRMED finding from /fabrik-review — missing None check on target_id
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude <model> <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -853,7 +853,7 @@ Agent-Role: subagent
 Agent-Phase: {X}
 Agent-Task: {N}
 Agent-Context: {one-line summary of what you did}
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude <model> <noreply@anthropic.com>
 EOF
   )"
 
@@ -1049,7 +1049,7 @@ Agent-Role: orchestrator
 Agent-Phase: {X}
 Agent-Context: merged {N} subagent branches, ran phase gate
 Conflicts-Resolved: {count}
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude <model> <noreply@anthropic.com>
 EOF
    )"
    ```

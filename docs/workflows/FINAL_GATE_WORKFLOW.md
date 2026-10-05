@@ -127,7 +127,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 | Check | Tool | Timeout | Required |
 |-------|------|---------|----------|
 | **ruff** | Lint check (no fix) | 120s | ✅ Yes |
-| **mypy** | Type checking | 300s | ✅ Yes |
+| **mypy** | Type checking | 300s | ⚠️ Best-effort |
 | **bandit** | Security scanner | 180s | ⚠️ Best-effort |
 | **semgrep** | SAST rules | 30s | ⚠️ Best-effort |
 | **yaml** | YAML syntax | — | ✅ Yes |
@@ -214,7 +214,7 @@ second declaration could drift from the first (T12.8, 01M23CRZZ).
 own `.github/workflows/*` run pytest — OR the repo carries `.fabrik/run-pytest`**. ⚠️ The marker exists because the workflow-scan signal INVERTS during a CI cutover: deleting the workflows disarms local pytest instead of relocating it. A repo retiring its workflows MUST touch the marker. Rationale: the gate must be equivalent to what CI will reject —
 an agent must not reach `status:success` and still push test-failing code. A repo whose CI doesn't run pytest is skipped (no CI red to prevent;
 the hub's own suite is far past the 900s budget — never run it inside a completion gate). Graceful skips:
-one of the three `_why` reasons (`:1356-1370`) → `pytest (NOT RUN)`; exit 5 → the separate `pytest (NO TESTS COLLECTED)` row (`:1300-1303`). Via the CLI a missing pytest never reaches these rows — the `REQUIRED_TOOLS` probe aborts at `status: "setup-error"` (`:2932-2948`) first (pytest must import under the selected interpreter, ruff must resolve as a binary, `:81`), which leaves the `pytest (NOT RUN) — pytest is not installed` branch at `:1296-1298` unreachable.
+one of the three `_why` reasons (`:1356-1370`) → `pytest (NOT RUN)`; exit 5 → the separate `pytest (NO TESTS COLLECTED)` row (`:1300-1303`). Via the CLI a missing pytest never reaches these rows — the `REQUIRED_TOOLS` probe aborts at `status: "setup-error"` (`:2932-2949`) first (pytest must import under the selected interpreter, ruff must resolve as a binary, `:81`), which leaves the `pytest (NOT RUN) — pytest is not installed` branch at `:1296-1298` unreachable.
 
 **What the pytest leg PRINTS, and what each line means** (read these before writing prose about the mechanism):
 
@@ -1076,7 +1076,7 @@ python -m bandit -r src/
 
 **Fix:** Install missing tool:
 ```bash
-/opt/<project>/.venv/bin/pip install bandit semgrep sqlfluff vulture
+/opt/<project>/.venv/bin/pip install mypy bandit semgrep sqlfluff vulture
 ```
 
 **Note:** These are best-effort; missing tools are skipped.

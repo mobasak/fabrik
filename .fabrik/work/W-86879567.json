@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: request one new row in the closed audit action vocabulary — `admin.lead_reenrich_requested` — in .windsurf/rules/core/app-audit-log.md § `admin.*` (the pack is synced; the project cannot add it, check_synced_unmodified.py blocks the local edit, and the pack's own rule at :79 says \"add it here"
 }

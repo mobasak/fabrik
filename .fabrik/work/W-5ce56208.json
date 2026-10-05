@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T11:47:49.687125Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5ce56208",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Stop hook DoD-uncommitted cause blocks a sync-path change while its own running review-family record names it in --surface (4 blocks during W-4c7edc74's review); stand it down for files in a running review's --surface, as the sixth cause already does (_surface_reviewed)"
+}

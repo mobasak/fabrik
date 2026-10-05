@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: check_convergence.py grades the \"last Pass row must read confirmed: 0\" flip rule only for plan SETS; a MONOLITH plan flips CONVERGED with a non-zero closing row and no finding."
 }

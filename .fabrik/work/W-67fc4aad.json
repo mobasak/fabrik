@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T09:49:25.911134Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-67fc4aad",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure fleet fire rate of counting .xml + tryton.cfg under a tryton_modules/ segment, then decide (W-2af4ec55 follow-up, tryton-crm 01M3QVX8)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "check_doc_sync: Tryton module data (.xml views/menus/access, tryton.cfg) owes no CHANGELOG entry — CODE_EXTENSIONS is still an allowlist"
+}

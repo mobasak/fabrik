@@ -967,6 +967,29 @@ def test_executed_citation_must_be_plan_relevant_not_any_quiet_review(tmp_path):
     assert cc._check_executed_plan(root, plan) == []
 
 
+def test_a_monolith_executed_jump_is_held_to_the_closing_row(tmp_path):
+    """01M3Q9CX, review B-2: a monolith going DRAFT→EXECUTED never passes `_check_plan`, so the
+    EXECUTED path grades its closing row too, as it already did for a spine."""
+    import scripts.enforcement.check_convergence as cc
+
+    root = tmp_path
+    (root / "docs/development/plans").mkdir(parents=True)
+    (root / "docs/development/reviews").mkdir(parents=True)
+    plan = root / "docs/development/plans/2026-01-01-plan-9-widget.md"
+    review = root / "docs/development/reviews/2026-01-01-plan-9-widget-review.md"
+    review.write_text("# validation\n## Phase verdicts\nPass 4 | found: 0 | fixed: 0 | EXIT\n")
+    head = (
+        "# Plan: widget\n\nStatus: EXECUTED\n\n"
+        "Whole-plan validation: `docs/development/reviews/2026-01-01-plan-9-widget-review.md`.\n\n"
+        "## Pass Ledger\n\n| Pass 1 | sonnet×1 | found: 2, confirmed: 2, fixed: 2 |\n"
+    )
+    plan.write_text(head + "| Pass 2 | sonnet×1 | found: 1, confirmed: 1, fixed: 1 |\n")
+    assert any(cc.CLOSING_ROW_REFUSAL in f for f in cc._check_executed_plan(root, plan))
+
+    plan.write_text(head + "| Pass 2 | sonnet×1 | found: 0, confirmed: 0, fixed: 0 |\n")
+    assert cc._check_executed_plan(root, plan) == []
+
+
 def test_executed_single_unrelated_citation_also_fails(tmp_path):
     """Round-2: even with exactly ONE citation, an unrelated quiet review must not
     satisfy the EXECUTED flip — the stem rule is unconditional (retro-safe: all
@@ -1336,6 +1359,34 @@ def test_a_rederivation_row_satisfies_the_flip(tmp_path):
     )
     fails = cc._check_plan(tmp_path, p)
     assert not any("re-deriv" in f for f in fails), fails
+
+
+def test_a_monolith_flip_whose_last_pass_row_is_not_confirmed_zero_is_refused(tmp_path):
+    """trade-intelligence 01M3Q9CX: the closing-row rule lived in the spine-set path only, so a
+    MONOLITH plan flipped CONVERGED on a closing row that still confirmed a defect."""
+    cc = _cc()
+    p = tmp_path / "2026-08-29-plan-4-x.md"
+    p.write_text(
+        _min_converged_plan(
+            "| Pass 1 | sonnet×1 | method: citation — found: 2, confirmed: 2, fixed: 2 |\n"
+            "| Pass 2 | sonnet×1 | method: re-derivation — found: 1, confirmed: 1, fixed: 1 |"
+        )
+    )
+    fails = cc._check_plan(tmp_path, p)
+    assert any(cc.CLOSING_ROW_REFUSAL in f for f in fails), fails
+
+
+def test_a_monolith_flip_whose_last_pass_row_reads_confirmed_zero_passes_the_rule(tmp_path):
+    cc = _cc()
+    p = tmp_path / "2026-08-29-plan-5-x.md"
+    p.write_text(
+        _min_converged_plan(
+            "| Pass 1 | sonnet×1 | method: citation — found: 2, confirmed: 2, fixed: 2 |\n"
+            "| Pass 2 | sonnet×1 | method: re-derivation — found: 0, confirmed: 0, fixed: 0 |"
+        )
+    )
+    fails = cc._check_plan(tmp_path, p)
+    assert not any(cc.CLOSING_ROW_REFUSAL in f for f in fails), fails
 
 
 def test_a_fence_quoted_rederivation_row_does_not_satisfy(tmp_path):

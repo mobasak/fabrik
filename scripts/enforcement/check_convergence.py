@@ -127,9 +127,11 @@ CONVERGED = _ConvergedSearch()
 _REDERIVATION_ROW = re.compile(
     r"\b(?:pass|round)\b[^\n]*\bmethod\W{0,4}\s*:?\s*\*{0,2}\s*re-?deriv", re.I
 )
-# The CLOSING-ROW rule (D-206, the review-family adoption plan, Phase C): once a spine's Pass
-# Ledger carries a `confirmed:` counter, the LAST Pass-headed row must read `confirmed: 0` — a
-# CONVERGED claim over a ledger whose closing round confirmed defects is refused. A Pass-headed
+# The CLOSING-ROW rule (D-206, the review-family adoption plan, Phase C): once a plan's Pass
+# Ledger — a spine's or a monolith's (trade-intelligence 01M3Q9CX; 0 of 44 fleet CONVERGED
+# monoliths refused, measured 2026-10-05) — carries a `confirmed:` counter, the LAST Pass-headed
+# row must read `confirmed: 0` — a CONVERGED (or EXECUTED) claim over a ledger whose closing
+# round confirmed defects is refused. A Pass-headed
 # row is `| Pass …` at line start, INDENTED rows included (a ledger nested under a list item is
 # still a ledger; `^\|` was proven blind to them) and blockquoted rows excluded (quoted content —
 # the `_blank_quoted` policy). Per row, code spans are masked first (a cell that QUOTES a
@@ -701,6 +703,12 @@ def _check_plan(root: Path, path: Path) -> list[str]:
             "RE-DERIVE every count/enumeration/anchor from its primary source (a row naming "
             "`method: re-derivation`), not re-verify citations; run it, then record it"
         )
+    if not _is_spine(path):
+        # the spine path grades it inside _check_spine_set; a MONOLITH flip is held to the same
+        # closing row (trade-intelligence 01M3Q9CX: it was wired into the set path only)
+        closing = _closing_row_fail(text)
+        if closing:
+            fails.append(closing)
     out = [f"{rel}: {x}" for x in fails]
     if _is_spine(path):
         # Runs on BOTH claim paths (a dual CONVERGED+EXECUTED claim would double
@@ -1061,6 +1069,11 @@ def _check_executed_plan(
         # second one). READ-budget findings are dropped here — end-of-execution
         # growth is SIZING-DEFECT calibration data, not a flip blocker (BC 9).
         fails += [f for f in _check_spine_set(root, path, text) if "READ budget" not in f]
+    else:
+        # a monolith's DRAFT→EXECUTED jump must not skip the closing row either (01M3Q9CX)
+        closing = _closing_row_fail(text)
+        if closing:
+            fails.append(f"{rel}: {closing}")
     cited = REVIEW_CITE.findall(text)
     if not cited:
         return fails + [

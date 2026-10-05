@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "the 4 UserPromptSubmit hooks re-inject the same ~10 KB on every prompt — send only what changed"
 }

@@ -2641,7 +2641,8 @@ def main() -> int:
         if not PLAN_DIR_NAME_RE.match(target.name):
             print(
                 f"✗ --plan-dir {args.plan_dir} is not a dated plan directory "
-                "(YYYY-MM-DD-plan-<slug>/)"
+                "(YYYY-MM-DD-plan-<slug>/) — a scratch or pin copy keeps the set's dated "
+                "directory name, because the spine is the file of the same stem"
             )
             return 1
         if not args.allow_external and not _is_plans_layout(target):

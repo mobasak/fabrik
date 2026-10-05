@@ -3,7 +3,9 @@ D1, D4, D6, V3, V4).
 
 ``prompt_block`` prints, in order: the unnamed-window line (D6), the obligation lines (D1), the
 awaiting items, this session's claims, one ``on it:`` line per OTHER session holding live claims
-(D4), and the ready count — every live claim exactly once. Every test runs against a throwaway git
+(D4), and the ready count — every live claim once, this session's own past
+``PROMPT_CLAIM_LINES`` folded into one count line and its claims on items not in this tree named on
+one line (D-583). Every test runs against a throwaway git
 repo under ``tmp_path`` with an explicit env — never the hub's own store, ``/opt/fabrik-mail`` or
 ``~/.claude/state``.
 """
@@ -226,6 +228,89 @@ def test_a_live_claim_on_a_resolved_or_closed_item_prints_no_claim_line(tmp_path
         f"{work._iso(work._claim_end(mine_claim))})",
         f"work: on it: S2 (fleet) — {theirs}",
     ], block
+
+
+# ── this session's claims are capped (D-583, fleet 01M3QJKE) ───────────────────────────────
+
+
+def _own_claim_lines(block: str) -> list[str]:
+    return [ln for ln in block.splitlines() if ln.startswith("work: your claim — ")]
+
+
+def test_more_than_three_own_claims_show_the_three_first_by_priority_and_a_count(
+    tmp_path, env, monkeypatch
+):
+    """117 claims made a 29 KB block on every prompt. The three shown are the Stop hook's order
+    (priority), NOT the first ids — so the urgent ones are staged LAST by id."""
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    repo = _repo(tmp_path, env)
+    work = _work_module()
+    ids = sorted(_make(work, repo, f"t{i}") for i in range(5))
+    for low in ids[:2]:
+        item = work._read_item(repo, low)
+        item["priority"] = 3
+        work._write_item(repo, item)
+    for item_id in ids:
+        _claim(work, repo, item_id, "S1", agent="infra")
+    other = _make(work, repo, "theirs")
+    _claim(work, repo, other, "S2", agent="fleet")
+    lines = work.prompt_block(repo, "S1").splitlines()
+    shown = [ln.split(" — ")[1].split(":")[0] for ln in _own_claim_lines("\n".join(lines))]
+    assert sorted(shown) == ids[2:], lines  # the priority-2 three; created order within them
+    count = "work: … and 2 more of your claims — `python3 scripts/work.py ready` lists them"
+    assert lines[3] == count, lines  # straight after the three claim lines, before `on it:`
+    assert lines[4] == f"work: on it: S2 (fleet) — {other}", lines
+
+
+def test_exactly_four_own_claims_show_three_and_one_more(tmp_path, env, monkeypatch):
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    repo = _repo(tmp_path, env)
+    work = _work_module()
+    for i in range(4):
+        _claim(work, repo, _make(work, repo, f"t{i}"), "S1", agent="infra")
+    block = work.prompt_block(repo, "S1")
+    assert len(_own_claim_lines(block)) == 3, block
+    assert "work: … and 1 more of your claims" in block, block
+
+
+def test_three_own_claims_show_all_three_and_no_count_line(tmp_path, env, monkeypatch):
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    repo = _repo(tmp_path, env)
+    work = _work_module()
+    for i in range(3):
+        _claim(work, repo, _make(work, repo, f"t{i}"), "S1", agent="infra")
+    block = work.prompt_block(repo, "S1")
+    assert len(_own_claim_lines(block)) == 3 and "more of your claims" not in block, block
+
+
+def test_a_claim_on_a_resolved_item_is_not_in_the_count(tmp_path, env, monkeypatch):
+    """The count reads the same filtered set the claim lines do: a lease its close failed to end
+    on a done item is neither a line nor a count."""
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    repo = _repo(tmp_path, env)
+    work = _work_module()
+    for i in range(3):
+        _claim(work, repo, _make(work, repo, f"t{i}"), "S1", agent="infra")
+    _claim(work, repo, _make(work, repo, "done one", status="done"), "S1", agent="infra")
+    block = work.prompt_block(repo, "S1")
+    assert len(_own_claim_lines(block)) == 3 and "more of your claims" not in block, block
+
+
+def test_a_claim_on_an_item_missing_from_this_tree_is_named_never_counted(
+    tmp_path, env, monkeypatch
+):
+    """Review W-1: `ready` lists only items in this tree, so a claim on a missing item counted into
+    "N more" made the pointer false — and its stub sorted first, hiding a real claim."""
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    repo = _repo(tmp_path, env)
+    work = _work_module()
+    for i in range(4):
+        _claim(work, repo, _make(work, repo, f"t{i}"), "S1", agent="infra")
+    _claim(work, repo, "W-ffffffff", "S1", agent="infra")
+    block = work.prompt_block(repo, "S1")
+    assert "W-ffffffff" not in "\n".join(_own_claim_lines(block)), block
+    assert "work: … and 1 more of your claims" in block, block
+    assert "work: your claims on items not in this tree — W-ffffffff" in block, block
 
 
 # ── a non-string session is compared as a string in both loops ──────────────────────────────

@@ -4026,8 +4026,9 @@ def _fit_ids(head: str, ids: list[str]) -> str:
 
 
 def _on_it_lines(claims: dict[str, dict], session: str) -> list[str]:
-    """One ``on it:`` line per OTHER session holding live claims (spec D4), so every live claim
-    the ``your claim`` lines leave out appears here once. A live claim always has a session
+    """One ``on it:`` line per OTHER session holding live claims (spec D4), so every OTHER
+    session's live claim appears here once (the caller's own beyond ``PROMPT_CLAIM_LINES`` are its
+    count line). A live claim always has a session
     (``_is_live``), so the line is keyed by it alone."""
     groups: dict[str, list[tuple[str, dict]]] = {}
     for item_id, claim in claims.items():
@@ -4044,10 +4045,14 @@ def _on_it_lines(claims: dict[str, dict], session: str) -> list[str]:
     return lines
 
 
+PROMPT_CLAIM_LINES = 3  # this session's claims named per prompt; the rest are one count line
+
+
 def prompt_block(repo: Path | str, session: str) -> str:
     """Read-only, no lock, the caller's own tree, in order: the unnamed-window line (spec D6), the
     obligation lines (D1), every awaiting-operator item with its question, ``session``'s live
-    claims, one ``on it:`` line per other session's live claims (D4), and the ready count — or ""
+    claims (the first ``PROMPT_CLAIM_LINES`` by priority, then a count line, then one line naming any
+    claim on an item not in this tree), one ``on it:`` line per other session's live claims (D4), and the ready count — or ""
     when all of them are empty. A store-less repo is "" whatever the window's name."""
     with _hook_git_budget():
         try:
@@ -4079,13 +4084,29 @@ def prompt_block(repo: Path | str, session: str) -> str:
                 also = ", ".join(str(i) for i in it.get("alt_ids") or [] if i)
                 also = f" (also asked as {also})" if also else ""
                 lines.append(f"work: awaiting operator — {it['id']}{ground}: {question}{also}")
-            for item_id, claim in sorted(shown.items()):
-                if session and _claim_session(claim) == session:
-                    title = by_id.get(item_id, {}).get("title") or "(not in this tree)"
-                    lines.append(
-                        f"work: your claim — {item_id}: {title} "
-                        f"(token {claim.get('token')}, lease until {_iso(_claim_end(claim))})"
-                    )
+            # Capped (fleet 01M3QJKE): one hub session held 117 claims, a 29 KB block re-sent on
+            # every prompt. The lines shown use the Stop hook's sort (`_by_priority`) — a
+            # lease end cannot rank them, `_renew_claims` stamps every claim of a session alike —
+            # and the count line keeps the rest visible (COBRA: a hidden claim stays counted).
+            own_ids = [i for i, c in shown.items() if session and _claim_session(c) == session]
+            # ranked and counted from items IN this tree — `ready` lists only those, so the count
+            # line's pointer holds; a claim on an item missing here is named on its own line
+            own = _by_priority([by_id[i] for i in own_ids if i in by_id])
+            elsewhere = sorted(i for i in own_ids if i not in by_id)
+            for it in own[:PROMPT_CLAIM_LINES]:
+                claim = shown[str(it["id"])]
+                title = it.get("title") or ""
+                lines.append(
+                    f"work: your claim — {it['id']}: {title} "
+                    f"(token {claim.get('token')}, lease until {_iso(_claim_end(claim))})"
+                )
+            if len(own) > PROMPT_CLAIM_LINES:
+                lines.append(
+                    f"work: … and {len(own) - PROMPT_CLAIM_LINES} more of your claims — "
+                    "`python3 scripts/work.py ready` lists them"
+                )
+            if elsewhere:
+                lines.append(_fit_ids("work: your claims on items not in this tree — ", elsewhere))
             lines.extend(_on_it_lines(shown, session))
             ready = len(_ready_from(items, closed, claims))
             if ready:

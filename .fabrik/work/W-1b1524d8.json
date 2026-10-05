@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Re: 01M3QJKE, amended scope — keep the QUOTA line on every prompt; de-duplicate only the big repeated blocks"
 }

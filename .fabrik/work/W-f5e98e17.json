@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "the rotation's health check cannot see a server-side \"organization has disabled Claude subscription access\" refusal — it kept ob as the next account while ob refused every Claude Code call"
 }

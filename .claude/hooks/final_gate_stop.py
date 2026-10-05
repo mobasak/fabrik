@@ -634,6 +634,127 @@ def _run_record_raw(sid: str) -> dict | None:
         return None
 
 
+# W-4c7edc74: the run-record cause stands down while the run's own background seats are in
+# flight. Both halves are required — the dispatch stamp alone is the agent's own claim
+# (`command_run.py dispatch --seats N` with nothing launched); the transcript alone has no time
+# bound (a seat that never returns). The window is the stamp's 25 minutes, the same one sibling
+# sessions reserve those seats for (dispatch_headroom.py SIBLING_FRESH_S).
+_SEAT_STAMP_FRESH_S = 25 * 60
+# Measured 2026-10-05 on a 1.39 GB hub transcript: the last 8 MB covered ~103 minutes, 4x the
+# stamp window; a launch older than the tail is invisible, which leaves the old block in place.
+_SEAT_TAIL_BYTES = 8 * 1024 * 1024
+_NOTIFY_RE = re.compile(r"<task-id>([^<\s]+)</task-id>.*?<status>([^<\s]+)</status>", re.S)
+
+
+def _line_age_s(obj: dict, now: float) -> float:
+    """Seconds since a transcript line's ISO ``timestamp``; +inf when absent or unparseable."""
+    import datetime as _dt
+
+    ts = obj.get("timestamp")
+    if not isinstance(ts, str):
+        return math.inf
+    try:
+        return now - _dt.datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return math.inf
+
+
+def _seats_in_flight(rec: dict, transcript_path: str) -> bool:
+    """True when this run's dispatched background seats are verifiably still running.
+
+    The stamp (``rec["dispatch"]``) must be live: a dict, not released, ``seats`` a positive
+    int, ``ts`` finite and at most 25 minutes old, and its ``round`` equal to the record's
+    current round count (recording a round closes the stamp). The transcript tail must show a
+    background Agent launched (``toolUseResult.status == "async_launched"``) or resumed
+    (``toolUseResult.resumedAgentId``) at most 25 minutes ago, with no later task notification
+    for that id. Only
+    ``user`` lines' structured ``toolUseResult`` counts as a launch — Bash or Read output
+    quoting the launch text carries no such field; notifications come from ``queue-operation``
+    enqueue lines, ``attachment`` lines and task-notification ``user`` lines, so an assistant
+    message quoting either never counts. Anything unreadable, absent or malformed returns False — the old block.
+
+    Cheapest way past it (D-253): stamp ``dispatch --seats 1`` and launch a real background
+    Agent that does not report, again every 25 minutes — each launch is a real seat costing
+    real quota, which costs more than finishing or closing the run.
+    """
+    try:
+        d = rec.get("dispatch")
+        if not isinstance(d, dict) or d.get("released"):
+            return False
+        seats, ts = d.get("seats"), d.get("ts")
+        if isinstance(seats, bool) or not isinstance(seats, int) or seats <= 0:
+            return False
+        if isinstance(ts, bool) or not isinstance(ts, (int, float)) or not math.isfinite(ts):
+            return False
+        age = time.time() - float(ts)
+        if age > _SEAT_STAMP_FRESH_S or age < -_CLOCK_SKEW_TOLERANCE_S:
+            return False
+        if d.get("round") != len(rec.get("rounds") or []):
+            return False
+        if not transcript_path:
+            return False
+        with open(transcript_path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - _SEAT_TAIL_BYTES))
+            raw = f.read().decode("utf-8", errors="replace")
+        lines = raw.splitlines()
+        if size > _SEAT_TAIL_BYTES and lines:
+            lines = lines[1:]  # the first line of a mid-file slice is almost surely partial
+        running: set[str] = set()
+        now = time.time()
+        for line in lines:
+            if not any(k in line for k in ("async_launched", "resumedAgentId", "<task-id>")):
+                continue
+            try:
+                obj = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(obj, dict):
+                continue
+            kind = obj.get("type")
+            text = None
+            if kind == "user":
+                tur = obj.get("toolUseResult")
+                if isinstance(tur, dict):
+                    aid = None
+                    if tur.get("status") == "async_launched":
+                        # an Agent seat carries `agentId`; the review-loop Workflow (the mandated
+                        # review fan-out) carries `taskId` with taskType `local_workflow`. Any other
+                        # async task (a background Bash) is not a seat and never counts.
+                        aid = tur.get("agentId") or (
+                            tur.get("taskId") if tur.get("taskType") == "local_workflow" else None
+                        )
+                    aid = aid or tur.get("resumedAgentId")
+                    # each seat is bounded by its OWN launch/resume line too: `dispatch` re-dates
+                    # the stamp, so a seat that never returns must not ride later stamps
+                    if (
+                        isinstance(aid, str)
+                        and aid
+                        and _line_age_s(obj, now) <= _SEAT_STAMP_FRESH_S
+                    ):
+                        running.add(aid)
+                origin = obj.get("origin")
+                content = (obj.get("message") or {}).get("content")
+                if isinstance(origin, dict) and origin.get("kind") == "task-notification":
+                    text = content if isinstance(content, str) else None
+                if text is None:
+                    continue
+            elif kind == "queue-operation" and obj.get("operation") == "enqueue":
+                text = obj.get("content")
+            elif kind == "attachment" and isinstance(obj.get("attachment"), dict):
+                text = obj["attachment"].get("prompt")
+            elif kind != "user":
+                continue
+            if isinstance(text, str):
+                for aid, status in _NOTIFY_RE.findall(text):
+                    if status not in ("running", "in_progress"):
+                        running.discard(aid)
+        return bool(running)
+    except Exception:
+        return False
+
+
 def _run_block_reason(rec: dict, attempt: int) -> str:
     cmd = rec.get("command") or "?"
     cur, total = rec.get("phase") or 1, rec.get("phases") or "?"
@@ -4003,6 +4124,19 @@ def main(argv: list[str]) -> int:
             g, c, s_att, p_att, r_att, v_att, m_att = _read_counters(counter)
             run = _run_record(sid)
             run_active = bool(run) and (run or {}).get("state") == "running"
+            # W-4c7edc74: only the run-record BLOCK stands down while the run's own seats are in
+            # flight; `run_active` keeps gating the other causes (the coordinator cause below must
+            # not fire mid-review just because the seats are out).
+            seats_out = run_active and _seats_in_flight(run or {}, transcript_p)
+            run_blocks = run_active and not seats_out
+            if seats_out:
+                _kaizen(
+                    "stop_block",
+                    ev_sid,
+                    cause="run-record",
+                    outcome="stood_down",
+                    command=str((run or {}).get("command") or "?"),
+                )
             # FLOORED, not the lifetime set — see `_baseline_floor`
             ahead = _ahead_of_upstream(
                 root,
@@ -4012,7 +4146,7 @@ def main(argv: list[str]) -> int:
             p_action, p_att = decide_stall(bool(ahead), p_att)
             if p_action == "block_stall":
                 counter.write_text(
-                    f"{g},{c},{s_att if stall else 0},{p_att},{r_att if run_active else 0},{v_att},"
+                    f"{g},{c},{s_att if stall else 0},{p_att},{r_att if run_blocks else 0},{v_att},"
                     f"{m_att}"
                 )
                 if _has_upstream(root):
@@ -4070,7 +4204,7 @@ def main(argv: list[str]) -> int:
                 # FIFTH cause, last word: a command run still in flight. It applies
                 # regardless of tree state — an agent that committed, pushed and
                 # narrated nothing can still be abandoning /fabrik-review at round 3.
-                r_action, r_att = decide_stall(run_active, r_att)
+                r_action, r_att = decide_stall(run_blocks, r_att)
                 if r_action == "block_stall":
                     counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att},{m_att}")
                     _kaizen(
@@ -4253,7 +4387,7 @@ def main(argv: list[str]) -> int:
                 _kaizen_pass(ev_sid, transcript_p, waived, warned, decision_ground)
                 return 0
             counter.write_text(
-                f"{g},{c},{s_att},{p_att},{r_att if run_active else 0},{v_att},{m_att}"
+                f"{g},{c},{s_att},{p_att},{r_att if run_blocks else 0},{v_att},{m_att}"
             )
             kind, snippet = stall  # type: ignore[misc]
             if kind == "final-block-incomplete":

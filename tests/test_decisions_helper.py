@@ -121,6 +121,86 @@ def test_check_flags_a_duplicate_row_id_and_exits_1(tmp_path, capsys):
     assert "DUPLICATE" in out and "D-002" in out
 
 
+def test_a_hub_side_supersede_pointer_is_never_resolved_against_this_ledger(tmp_path, capsys):
+    """trade-intelligence 01M3QTN2: `supersedes D-048 (hub-side)` names the HUB's row; once the
+    project minted its own D-048 the check went green on an unrelated row. A hub-marked pointer is
+    resolved against the hub ledger, never a local id; a bare pointer is still checked locally."""
+    ledger = (
+        "# Decisions\n\n"
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| D-048 | 2026-09-30 | agent | ui-design re-frozen | v9 | ui |\n"
+        "| D-007 | 2026-09-08 | operator | supersedes D-048 (hub-side) · adopt hub rules | sync | r |\n"
+        "| D-006 | 2026-09-07 | agent | supersedes D-099: a bare pointer | x | y |\n"
+    )
+    _repo(tmp_path, "tau", ledger)
+    _repo(  # hermetic: the hub ledger is this root's `fabrik`, never the real hub's
+        tmp_path,
+        "fabrik",
+        "# Decisions\n\n| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+        "| D-048 | 2026-09-01 | infra | a hub rule | x | y |\n",
+    )
+    assert dec._check(tmp_path) == 1
+    out = capsys.readouterr().out
+    assert "D-006 supersedes D-099" in out and "D-048" not in out, out
+    # the pointer is never extracted, so no local D-048 can resolve it …
+    assert dec.SUPERSEDES_RE.findall("supersedes D-048 (hub-side) · x") == []
+    # … and without a local D-048 it is not a false DANGLING either
+    (tmp_path / "tau" / "docs" / "DECISIONS.md").write_text(
+        ledger.replace(
+            "| D-048 | 2026-09-30 | agent | ui-design re-frozen | v9 | ui |\n", ""
+        ).replace(
+            "| D-006 | 2026-09-07 | agent | supersedes D-099: a bare pointer | x | y |\n", ""
+        ),
+        encoding="utf-8",
+    )
+    assert dec._check(tmp_path) == 0, capsys.readouterr().out
+
+
+def test_a_hub_side_pointer_resolves_against_the_hub_ledger_never_a_local_id(tmp_path, capsys):
+    """Review C1 (the cobra): `(hub-side)` must not be a free pass. It resolves against the hub
+    ledger (the `fabrik` repo under the scanned root): present there, clean; absent, DANGLING."""
+    hub = (
+        "# Decisions\n\n| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+        "| D-048 | 2026-09-01 | infra | a hub rule | x | y |\n"
+    )
+    _repo(tmp_path, "fabrik", hub)
+    proj = (
+        "# Decisions\n\n| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+        "| D-002 | 2026-09-30 | agent | supersedes D-099 (hub-side) · bogus | x | y |\n"
+        "| D-001 | 2026-09-30 | agent | supersedes D-048 (Hub-side) · real | x | y |\n"
+    )
+    _repo(tmp_path, "proj", proj)
+    assert dec._check(tmp_path) == 1
+    out = capsys.readouterr().out
+    assert "D-002 supersedes D-099 (hub-side)" in out and "D-048" not in out, out
+    # a word that merely starts with "hub" is not the marker
+    assert dec.SUPERSEDES_RE.findall("supersedes D-048 (hubspot sync)") == ["D-048"]
+
+
+def test_with_no_fabrik_repo_under_the_root_the_script_s_own_hub_ledger_is_read(
+    tmp_path, capsys, monkeypatch
+):
+    """Review N2: a `--root` holding no `fabrik` repo falls back to HUB_LEDGER (the script's repo)."""
+    hub = tmp_path / "hub" / "DECISIONS.md"
+    hub.parent.mkdir()
+    hub.write_text(
+        "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+        "| D-010 | 2026-09-01 | infra | a hub rule | x | y |\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(dec, "HUB_LEDGER", hub)
+    proj = (
+        "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+        "| D-002 | 2026-09-30 | agent | supersedes D-011 (hub-side) · missing | x | y |\n"
+        "| D-001 | 2026-09-30 | agent | supersedes D-010 (hub-side) · present | x | y |\n"
+    )
+    _repo(tmp_path / "root", "proj", proj)
+    assert dec._check(tmp_path / "root") == 1
+    out = capsys.readouterr().out
+    assert "D-002 supersedes D-011 (hub-side)" in out and "D-010" not in out, out
+
+
 def test_check_resolves_a_lowercase_supersedes_target(tmp_path, capsys):
     """`supersedes d-001` (lowercase, captured case-preserved by the IGNORECASE regex)
     must resolve against the uppercase `| D-001 |` row — not report a false DANGLING."""
@@ -487,7 +567,12 @@ def test_a_trailing_provenance_comment_is_not_mistaken_for_the_where() -> None:
     actually serves across 49 ledgers.
     """
     cells = [
-        "D-900", "2026-09-16", "who", "what", "why it", "docs/x.md",
+        "D-900",
+        "2026-09-16",
+        "who",
+        "what",
+        "why it",
+        "docs/x.md",
         "<!-- renumbered from D-039: id collision -->",
     ]
     six = dec._six(cells)

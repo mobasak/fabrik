@@ -16,6 +16,55 @@ core/85 and saas/95 as the fleet contract (infra mail 01M44Y86AE).
 
 ### Changed — session transcripts archive straight to Backblaze B2 from this machine (2026-10-05)
 `scripts/sysadmin/archive_transcripts.py` no longer rsyncs to vps1 for Backrest: it uploads the zstd archive and its manifest to the B2 bucket `wsl-ozgur` with rclone (D-565). Every rclone call passes one helper whose verbs are an allow-list (`copy`, `copyto`, `lsf`) and which refuses `--delete*`/`--b2-hard-delete` by option name; the key reaches rclone only through the child's environment, read from the `SESSION_ARCHIVE_*` lines of `/opt/fabrik/.env`. Unchanged transcripts are skipped by size and mtime, hard-linked twins are archived once, a lock serialises runs, and `--remote-count`/`--fetch` serve restores. A daily systemd user timer (`scripts/sysadmin/systemd/`, installed by `install_session_archive_timer.sh`) runs the growth sampler then the archiver. Docs: `docs/workstation/session-history-retention.md`.
+### Fixed — the WIP net fsyncs what it writes, so a crash cannot leave zero-byte objects (2026-10-05)
+- `scripts/wip_backup.sh` now runs every git call with `core.fsync=objects,reference`, appended to any `GIT_CONFIG_*` the caller set. Git 2.43's default, `committed,-loose-object`, fsyncs neither loose objects nor refs. An unclean WSL shutdown during a run on 2026-09-25 left web-ecommerce-factory with 123 zero-byte objects and 50 zero-byte `refs/wip` files, and every later push there died in `pack-objects` (web-ecommerce-factory 01M3RRQJ, W-dbb3073f). A full real run takes 43 s against the 15-minute cadence. `docs/workstation/wip-backup-safety-net.md` gains the repair recipe and the fleet check.
+
+### Fixed — three factual errors in the governance sources, the gate message they copied, and a mypy leg that failed instead of skipping (2026-10-05)
+- Prompt audit § A (`docs/reference/prompt-audit-2026-10-05.md`, W-2cfa7b8e):
+  - **Gate setup-error message and the template remedy copied from it.** `scripts/final_gate.py` now says which probe failed: `ruff` is checked as a binary (from `.venv`, then PATH), `pytest` as an import under the gate's interpreter. Its fix line now gives a remedy that works: install into `.venv`. It used to say "invoke the gate with one that has it", which changes nothing, because the gate runs `.venv/bin/python` whenever `.venv` exists. Without a `.venv`, it now says to create one first. `templates/governance/CLAUDE.md` § Orient item 1 now gives the same remedy and names `pytest`.
+  - **A missing mypy was a red, not a skip.** `python -m mypy` exits 1 when mypy is not installed, so a `.venv` without mypy failed the gate, although both contracts say an absent tool is skipped. The mypy leg now gets the labelled `mypy (NOT INSTALLED — skipped)` row that bandit already had (`_mypy_row`).
+  - **A broken tool install read as an absent one.** Every "No module named <tool>" check (bandit ×2, pytest, sqlfluff, vulture, mypy) was a bare substring test, so `No module named mypy.__main__` (package present but broken) became a green NOT INSTALLED skip. They now share `_module_absent`, which matches only the bare module name. `docs/workflows/FINAL_GATE_WORKFLOW.md` lists mypy as best-effort and adds it to the install line.
+  - **Gate auto-stage sentence.** "After the gate auto-stages on success, `git reset` then re-add only your files" is gone from both contracts. A bare gate run re-stages only the paths that were already staged when it started.
+  - **Trailer examples.** Every `Co-Authored-By: Claude Opus 5` example now reads `Claude <model>`, a placeholder with no model name: both contracts, `fabrik-command-improve`, `fabrik-execute-plan` ×6, and `core/40-documentation`.
+  - **Moved cites.** The contracts' `final_gate.py` line cites moved by one line, and their test pins moved with them.
+
+### Fixed — Stop hook no longer blocks every turn while a review's seats run (2026-10-05)
+- `.claude/hooks/final_gate_stop.py` (fleet-synced): the `COMMAND STILL RUNNING` cause stands down while the live run record carries a fresh `command_run.py dispatch` stamp for its current round (≤ 25 min) AND the transcript's last 8 MB holds a seat launch (an Agent `async_launched` agentId, a Workflow `local_workflow` taskId, or a resume) at most 25 min old with no completion notification yet (queue-operation, attachment or task-notification shapes). Every failure reads as "no seats" and the old block applies. The counter does not advance while it stands down, a `stood_down` kaizen event is logged, and the coordinator cause stays exempt for the whole running record (tryton-crm 01M3QJCV item 3: ~30 "still waiting" turns in one run; W-4c7edc74). Tests: 16 in `tests/test_final_gate_stop_hook.py`, 1 in `tests/test_stop_hook_coordinator.py`; 10 mutations each killed.
+
+### Changed — seat briefs ban package-manager verbs (2026-10-05)
+- `commands/_fragments/subagents-core.md` (21 commands): the D8 seat-brief paragraph now bans `uv run`, `uv sync`, `uv add`, `uv lock`, `pip install`, `uv pip install` — `uv run` syncs by default and a worktree's `.venv` is normally a symlink to the shared one (trade-intelligence 2026-09-30: one seat's `uv run pytest` upgraded 37 packages and reddened mypy for three agents). Seats run Python as `.venv/bin/python …` (`python3 …` with no `.venv`) and the gate only as `final_gate.py --check`, which for a seat overrides every rule-pack instruction to go through `uv` (`10-python`, `45-testing-strategy`, `50-code-review`; pack-side mirror: W-54b0e523).
+
+### Fixed — check_doc_sync counts code wherever the layout puts it (2026-10-05)
+- `scripts/enforcement/check_doc_sync.py`: the CHANGELOG row (ERROR) keyed on a five-directory allowlist (`src/`, `scripts/`, `templates/`, `.factory/`, `.github/`), so code in `tryton_modules/`, `apps/`, `server/` or at the root never owed an entry — 300 of 3,837 recent fleet commits shipped code that way with the gate green (tryton-crm 01M3QVX8). Any code file (now also `.mjs`, `.cjs`, `.mts`) counts unless it is test-shaped or under a top-level `docs/`. Test-shaped skips match whole path segments or basenames — `tests/`, `__tests__/`, `__mocks__/`, `e2e/`, a plural `*-tests`/`tests-*` dir, `conftest.py`, `test_*` — so `contests/`, `billing_e2e/`, `watchdog-test/`, `ab_test/` and `check_test_coverage.py` stay code. Graders in `tests/test_check_doc_sync.py`, red on the old rule; receipt `docs/development/reviews/2026-10-05-check-doc-sync-significant-code-review.md`.
+
+### Added — audit action `admin.job_requeued` for an operator re-running a tenant's work (2026-10-05)
+
+- Pack `core/app-audit-log` § `admin.*` gains `admin.job_requeued` (`details {job_kind, from_status, reason}`, target `job`, job_id or the requeued record itself), the generic row for operator re-runs of billed pipeline work (trade-intelligence 01M3QTXJ, D-584).
+
+### Fixed — `decisions.py --check` resolves a hub-side supersede pointer against the hub ledger (2026-10-05)
+
+- A project row reading `supersedes D-048 (hub-side)` names the hub's row; once the project minted its own D-048 the check went green on an unrelated row. A pointer marked `(hub-side)` is now resolved against the hub ledger, never a local id, so it can neither false-resolve nor hide a dangling pointer; a bare pointer is still checked locally (trade-intelligence 01M3QTN2).
+
+### Fixed — a phase review receipt named by letter (`phase-A`) satisfies `command_run.py step` (2026-10-05)
+
+- Plans label phases A/B/C, but the phase gate accepted only `phase-<N>`; letter N (A = 1) now counts as phase N, bounded so `phase-AB` names neither, and the refusal names both forms (trade-intelligence 01M3QPRY). A test that read the real hub reviews dir was made hermetic.
+
+### Changed — the per-prompt work block names three of your claims, then a count (2026-10-05)
+
+- `work.py prompt_block` lists at most three of the session's own claims, by priority, then `… and N more of your claims`; a session holding 117 claims went from 29,221 to 2,442 bytes per prompt (fleet 01M3QJKE, D-583).
+
+### Fixed — /fabrik-ui-design names a history path the doc-sprawl gate admits (2026-10-05)
+
+- `/fabrik-ui-design` and `/fabrik-ui-design-review` now split contract history into `docs/archive/ui-design-history.md`; the old path directly under `docs/` was refused by `check_doc_sprawl.py` (tryton-crm 01M3QE8Y, D-582).
+
+### Fixed — plan-review friction: the in-artifact ledger md5 and the scratch plan-dir name (2026-10-05)
+
+- `term-edit` (17 commands) now says how to check a pin when the Pass Ledger lives in the artifact: delete the previous row and the pin must hash to that row's end hash; `check_plan_tickets --plan-dir` names the remedy for a non-dated scratch copy (iterative_image_editor 01M3QA5R, D-581).
+
+### Fixed — a monolith plan's CONVERGED flip is held to the closing-row rule (2026-10-05)
+
+- `check_convergence.py` now refuses a monolith plan newly flipping CONVERGED (`_check_plan`) or EXECUTED (`_check_executed_plan`) whose last counter Pass row does not read `confirmed: 0`, as it already did for plan sets (trade-intelligence 01M3Q9CX). Fleet census: 0 of 44 CONVERGED and 3 of 281 EXECUTED monoliths end on a nonzero row; all three are already settled, so none reddens.
+
 ### Fixed — merge requests no longer refuse a branch whose src/ holds a stdlib-named package (2026-10-05)
 
 - `merge_request.py` step (c)'s touched-tests fallback places the merged `src` (or the tree root for a package-style `src/`) after the stdlib via a `sitecustomize` shim, ignores the caller's `PYTHONPATH`, and prefers the main checkout's `.venv` python; `.fabrik/merge-tests` is unchanged (web-ecommerce-factory 01M453XP, D-580).
@@ -59,6 +108,9 @@ The unpushed cause counted any commit that shared a file with this session's edi
 
 ### Fixed — `work.py migrate-backlog` no longer turns empty sections and template placeholders into open work (2026-10-05)
 Migration made every empty `## ` section heading ("Later" in 17 stores) and the scaffold template's own sections and `[Item]` placeholder rows into OPEN items. A fresh scaffold got 6 junk items, two of them with a phantom owner, `resource`. A closed entry whose untagged title starts with `✅ CLOSED —` also migrated as open. A row is now dropped only when its body is blank, structure or template boilerplate. Any heading with real content, such as a "Now" table with real rows, still migrates. An untagged title whose first word is a status marker now resolves. Measured over 28 backlogs: 33 rows dropped, none with content, and 4 rows correctly resolved. Decision D-566; reported by tryton-crm (mail 01M3PJXN).
+
+### Changed — products serving other users stay on the subscription lane, by operator ruling (2026-10-05)
+- The operator ruled that user-facing products keep calling Claude through `claude -p` on the Max subscription rather than a paid API key, accepting the enforcement risk Anthropic's terms state. ai/50-agentic's auth boundary drops the interim rule that held new user-facing `claude -p` calls for the operator and states the ruling; ai/60-code points at it; `tests/test_agentic_pack.py` pins the ruling and checks that the cited D-id has a ledger row. D-585.
 
 ### Changed — the universal-watchdog plan is superseded; the project watchdog prompt stays optional (2026-10-05)
 - `docs/development/plans/2026-07-06-plan-1-universal-watchdog.md` is SUPERSEDED, never executed: the watchdog is already on by default (D-052, D-108) and the project prompt shipped as the optional, fail-soft `watchdog.project_system_prompt_file`. The Opus+Fable panel retired the mandatory, gate-enforced prompt, which would have turned nearly every one of the 47 synced projects red. D-571. `docs_updater.parse_plan_status` now reads SUPERSEDED exactly (a "never executed" rationale had graded 2 of the 5 superseded plans EXECUTED), and PLANS.md is regenerated.

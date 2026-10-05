@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "work store lost a live operator-dispatched program — three mechanism gaps (work.py migrate owner, NEXT:none unchecked, duplicate items)"
 }

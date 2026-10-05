@@ -947,6 +947,14 @@ def _phase_review_exists(
         re.I,
     )
     phase_pat = re.compile(rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)", re.I)
+    # /fabrik-plan-after-chat labels phases with LETTERS (`## Phase A — …`), so the natural receipt
+    # is `…-phase-A-review.md` (trade-intelligence 01M3QPRY): letter N (A = 1) counts as phase N,
+    # spelled out as `phase` and bounded by a non-alphanumeric so `phase-AB` names neither
+    letter_pat = (
+        re.compile(rf"(?:^|[^0-9a-z])phase[-_ ]?{chr(64 + phase)}(?:[^0-9a-z]|$)", re.I)
+        if isinstance(phase, int) and 1 <= phase <= 26
+        else None
+    )
     # the plan id may be a letter-suffixed number (`plan-2a`, `plan-2v2`) or a WORD slug
     # (`plan-deploy-…`: 21 of the 110 dated-plan stems that are direct children of
     # /opt/*/docs/development/plans carry no number — 18 repos, 2026-09-13) — the escape keys
@@ -962,7 +970,8 @@ def _phase_review_exists(
             if not f.is_file():
                 continue
             is_ticket = bool(ticket.search(f.name))
-            if not (is_ticket or phase_pat.search(f.name)):
+            phase_named = phase_pat.search(f.name) or (letter_pat and letter_pat.search(f.name))
+            if not (is_ticket or phase_named):
                 continue
             try:
                 # NON-EMPTY: `touch` created a complete silent bypass. This still binds
@@ -4507,7 +4516,9 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                     f"REFUSED — phase {prev} has no review artifact under "
                     "docs/development/reviews/, so there is nothing for the review gate to "
                     "read. Emit it as either shape: PHASE mode a filename containing "
-                    f"`phase-{prev}`{_since_label(rec)}, DISPATCHER mode "
+                    f"`phase-{prev}`"
+                    + (f" (or `phase-{chr(64 + prev)}`)" if 1 <= prev <= 26 else "")
+                    + f"{_since_label(rec)}, DISPATCHER mode "
                     + (
                         f"`{_plan_stem(rec)}-T<id>-review.md` (the plan stem read from --surface, "
                         "any age)"

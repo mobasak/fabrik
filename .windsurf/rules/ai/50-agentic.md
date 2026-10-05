@@ -60,9 +60,9 @@ Last content verification: 2026-10-02
   building products or services, including with the Agent SDK, should use an API key, and Anthropic does not permit
   routing requests through Free, Pro or Max credentials on behalf of their users, reserving the right to enforce that
   without notice. The operator's own development and automation through the unmodified CLI is the closest fit to that
-  ordinary use; how far it stretches is part of W-ee2156db. Until the operator
-  rules on W-ee2156db, a new `claude -p` call that answers another user's request is the operator's decision before it
-  is built, never a default. `claude -p` draws from the plan's usage limits today; a planned move to a separate monthly
+  ordinary use. Products that answer other users' requests stay on the subscription lane too (operator ruling D-585,
+  2026-10-05), the operator accepting the enforcement risk the terms state; an API key is never a default, and moving a
+  product to one is metered spend, so it takes a new operator ruling. `claude -p` draws from the plan's usage limits today; a planned move to a separate monthly
   credit was paused on 2026-06-15.
 - **Parallel fan-out** (graders, finders, reconcilers) runs as native subagents per core/62-using-subagents.md.
 
