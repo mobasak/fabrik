@@ -2283,6 +2283,29 @@ def test_an_unknown_active_reset_never_preempts(monkeypatch, capsys):
     assert flips == [], (flips, capsys.readouterr().out)
 
 
+def test_a_live_probe_that_reveals_a_later_reset_does_not_preempt(monkeypatch, capsys):
+    """Pass-1 review (slice A): `_validated_pick` replaces a cached candidate's windows with its live
+    probe. A cache that read "resets tomorrow" can probe live as "resets in five days" — later than
+    the active account. Flipping there anyway would flip straight back next tick; the sooner test is
+    re-run on the verified row."""
+    flips = []
+    _relief_rows_base(monkeypatch, flips, active="a")
+    stale = _live("b@ocoron.com", "b", 5.0, 20.0, w_reset=DAY)
+    stale["source"] = "cache"
+    rows = [_live("a@ocoron.com", "a", 10.0, 30.0, w_reset=2 * DAY), stale]
+
+    def probe(accts, excluded, **kw):
+        if "b@ocoron.com" in excluded:
+            return None
+        stale["seven_day"] = {"utilization": 20.0, "resets_at_epoch": NOW + 5 * DAY}
+        stale["source"] = "live"
+        return ("b", "b@ocoron.com")
+
+    monkeypatch.setattr(cr, "_validated_pick", probe)
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert flips == [], (flips, capsys.readouterr().out)
+
+
 def test_no_probe_when_nobody_resets_sooner(monkeypatch, capsys):
     """Design critique 2026-10-06 (LOW): the steady state — the active account already resets
     soonest — must not cost a live probe (or its log line) every tick."""
