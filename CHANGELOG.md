@@ -44,6 +44,14 @@ All notable changes to this project will be documented in this file.
 - On trade-intelligence's real tree it keeps 20 of 20 comments, where HEAD kept 17, and leaves both plan sets collapsed. A second run is a no-op.
 - 7 graders. Follow-up W-3efb9553 covers `--only` and plan-set directories.
 
+### Fixed — the cron drift check reads a cron line the way cron and sh do (2026-10-05)
+`scripts/sysadmin/vps_script_drift.py` counted a path that never runs: one after an unescaped `%` (cron feeds the rest
+of the line to stdin, even inside shell quotes), or one in a trailing comment that contains an apostrophe (the old
+strip skipped any line with a quote, so such a comment could hide a dropped job). Two passes now read the line as cron
+and sh do: cron cuts at the first `%` not escaped by a backslash (`\\%` is a live `%`); sh then starts a comment at a
+word-starting `#` (line start, after an unescaped space, tab or operator such as `;`) that is neither quoted nor
+backslash-escaped. A quoted env name (`"FOO"=`) is an environment line. Regression rows in `tests/test_vps_script_drift.py` (W-9b910755, W-bef69841).
+
 ### Added — the VPS drift check compares each host's installed cron file with the template (2026-10-05)
 `/etc/cron.d/vps-sysadmin` is rendered by bootstrap step 14 on a spoke and was hand-built on the hub;
 `scripts/sync-vps-sysadmin.sh` never writes it, so a `sysadmin-cron.template` edit stayed inert and invisible.

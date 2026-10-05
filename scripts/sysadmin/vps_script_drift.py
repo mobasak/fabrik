@@ -161,15 +161,47 @@ def template_targets(root: Path) -> list[str]:
 # Only hub scripts: /usr/local/bin/fabrik-autoheal may be scheduled outside this file on a live host, and a
 # redirect target or a quote is not a scheduled path.
 _CRON_PATH_RE = re.compile(r"/opt/fabrik/scripts/[^\s>|;&\"'`(),:]+")
-# PATH=, SHELL=, MAILTO=: an environment line carries no job
-_CRON_ENV_RE = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*=")  # cron allows spaces around =
-# cron hands the command to sh, where a whitespace-preceded # starts a comment: a path after it never runs
-_CRON_TAIL_COMMENT_RE = re.compile(r"\s#.*$")
+# PATH=, SHELL=, MAILTO=: an environment line carries no job (cron allows spaces around = and a quoted name)
+_CRON_ENV_RE = re.compile(r"""^\s*(["']?)[A-Za-z_][A-Za-z0-9_]*\1\s*=""")
 
 
-def _strip_tail_comment(line: str) -> str:
-    """Drop a trailing shell comment, unless the line quotes something: a # inside quotes is data."""
-    return line if ('"' in line or "'" in line) else _CRON_TAIL_COMMENT_RE.sub("", line)
+def _command_part(line: str) -> str:
+    """The part of a cron line that sh runs, in two passes as cron and sh read it.
+
+    cron: the first % not escaped by a backslash becomes a newline and the rest is the command's stdin
+    (crontab(5)) — shell quotes mean nothing to cron, and a backslash escapes the next character, so ``\\\\%``
+    is an escaped backslash followed by a live %. sh: a # that begins a word (line start, after an unescaped space, tab or
+    operator) and is not quoted or backslash-escaped starts a comment; a backslash escapes the next character
+    outside quotes and inside double quotes, never inside single quotes."""
+    escaped = False
+    for i, c in enumerate(line):
+        if c == "%" and not escaped:
+            line = line[:i]
+            break
+        escaped = c == "\\" and not escaped
+    quote = ""
+    escaped = False
+    word_start = (
+        True  # an escaped or quoted character is part of a word, so a # after it is literal
+    )
+    for i, c in enumerate(line):
+        if escaped:
+            escaped = False
+            word_start = False
+        elif c == "\\" and quote != "'":
+            escaped = True
+            word_start = False
+        elif quote:
+            if c == quote:
+                quote = ""
+        elif c in "\"'":
+            quote = c
+            word_start = False
+        elif c == "#" and word_start:
+            return line[:i]
+        else:
+            word_start = c in " \t;|&()<>"  # sh's blanks are space and tab only
+    return line
 
 
 def cron_paths(text: str) -> set[str]:
@@ -180,7 +212,7 @@ def cron_paths(text: str) -> set[str]:
         m
         for line in text.split("\n")
         if line.strip() and not line.lstrip().startswith("#") and not _CRON_ENV_RE.match(line)
-        for m in _CRON_PATH_RE.findall(_strip_tail_comment(line))
+        for m in _CRON_PATH_RE.findall(_command_part(line))
         if "{{" not in m  # a templated path cannot match a rendered one
     }
 

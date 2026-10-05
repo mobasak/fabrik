@@ -827,12 +827,40 @@ def test_cron_paths_ignores_env_lines_comments_and_templated_paths():
         "0 1 * * * root /opt/fabrik/scripts/{{HOST_NAME}}/x.sh\n"
         "0 2 * * * root /opt/fabrik/scripts/sysadmin/a.sh,/opt/fabrik/scripts/sysadmin/b.sh\n"
         "0 3 * * * root /opt/fabrik/scripts/sysadmin/c.sh # was /opt/fabrik/scripts/sysadmin/old.sh\n"
+        "0 4 * * * root /opt/fabrik/scripts/sysadmin/d.sh # it's done, was /opt/fabrik/scripts/sysadmin/old2.sh\n"
+        "0 5 * * * root cat % /opt/fabrik/scripts/sysadmin/stdin-only.sh\n"
+        '0 9 * * * root echo "a\\" # b" /opt/fabrik/scripts/sysadmin/real.sh\n'
+        '0 9 * * * root echo \\" # /opt/fabrik/scripts/sysadmin/old3.sh\n'
+        "0 9 * * * root /opt/fabrik/scripts/sysadmin/e.sh;#/opt/fabrik/scripts/sysadmin/old4.sh\n"
+        "0 9 * * * root echo a\\\\% /opt/fabrik/scripts/sysadmin/stdin2.sh\n"
+        "0 9 * * * root echo 50\\% /opt/fabrik/scripts/sysadmin/r2.sh\n"
+        "0 9 * * * root echo a#b /opt/fabrik/scripts/sysadmin/h.sh\n"
+        # a # after an escaped character is mid-word, never a comment (sh prints ;#… and a #…)
+        "0 9 * * * root echo \\;#/opt/fabrik/scripts/sysadmin/esc1.sh\n"
+        "0 9 * * * root echo \\|#/opt/fabrik/scripts/sysadmin/esc2.sh\n"
+        "0 9 * * * root echo a\\ #b /opt/fabrik/scripts/sysadmin/esc3.sh\n"
+        "0 9 * * * root echo a\\\t#/opt/fabrik/scripts/sysadmin/esc4.sh\n"
+        "0 9 * * * root echo a\x0c#/opt/fabrik/scripts/sysadmin/esc5.sh\n"
+        '0 7 * * * root echo "50%" /opt/fabrik/scripts/sysadmin/after-quoted-pct.sh\n'
+        "0 6 * * * root /opt/fabrik/scripts/sysadmin/r.sh 50\\% done\n"
+        '"FOO"=/opt/fabrik/scripts/sysadmin/z.sh\n'
     )
     assert d.cron_paths(text) == {
         "/opt/fabrik/scripts/sysadmin/a.sh",
         "/opt/fabrik/scripts/sysadmin/b.sh",
         "/opt/fabrik/scripts/sysadmin/c.sh",
+        "/opt/fabrik/scripts/sysadmin/d.sh",
+        "/opt/fabrik/scripts/sysadmin/e.sh",
+        "/opt/fabrik/scripts/sysadmin/esc1.sh",
+        "/opt/fabrik/scripts/sysadmin/esc2.sh",
+        "/opt/fabrik/scripts/sysadmin/esc3.sh",
+        "/opt/fabrik/scripts/sysadmin/esc4.sh",
+        "/opt/fabrik/scripts/sysadmin/esc5.sh",
+        "/opt/fabrik/scripts/sysadmin/h.sh",
         "/opt/fabrik/scripts/sysadmin/q.sh",
+        "/opt/fabrik/scripts/sysadmin/r.sh",
+        "/opt/fabrik/scripts/sysadmin/r2.sh",
+        "/opt/fabrik/scripts/sysadmin/real.sh",
     }
 
 

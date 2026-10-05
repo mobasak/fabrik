@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T21:05:35.302209Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1462ad6d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "extend _command_part with a substitution-depth stack for $( and backtick, and widen _CRON_ENV_RE to cron's load_env name grammar (cronie env.c), each graded against dash/cron; found by the W-9b910755 closing pass, out of that change's scope",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "vps"
+  ],
+  "title": "vps_script_drift cron_paths: quotes inside $(...) within double quotes are not tracked, and env names with characters outside [A-Za-z0-9_] read as jobs"
+}
