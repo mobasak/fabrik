@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — two dead command fragments, grounding-research and grounding-rules-cite (2026-10-05)
+- Neither fragment is `{{include:}}`d by any command. The 2026-08 shrink audit kept them because their text was inlined, under the version markers `n3k-research-clause v1` and `rule-grounding-cite v1`, into the orchestrator workflow docs. Those docs were retired on 2026-09-05 and now sit only in `docs/orchestrator/_retired/`, so the fragments have no live consumer. The retired copies keep their inlined text. Two notes: D-041's enforcement column still names `grounding-research.md` (ledger rows are immutable). The fix-first rule it carried lives on in CLAUDE.md's MCP FIX-FIRST bullet, and the fragment, never included, enforced nothing. `commands/_sources/fabrik-epics-review.md` keeps its own reworded copy of the Constraints-Digest citation rule as an independent text. The kaizen shrink audit carries a superseding note. W-a0c1281c, W-38637b66.
+
 ### Removed — the WSL boot hook's empty OpenRouter routing block (2026-10-05)
 - `scripts/wsl_startup_hook.sh` ran an OpenRouter category-routing subshell that only `cd`d (its scripts moved to /opt/ai-model-catalog/engine), and header item 5 still said it classified models and injected routes. The block, its kill-switch test and the header item are gone, and the header now lists all 16 steps in the order the body runs them (it had the ranker 7 places early and four steps missing). `tests/integration/test_routing_failover.sh` tested a copy of that block and called no live code, so it is removed too. DATA_SYNC_WORKFLOW's boot-hook step table, KILO_BENCHMARK_WORKFLOW's boot-hook paragraph and wsl-environment.md now match the hook, including dropping `sync_projects.py`, which the hook stopped running on 2026-09-29; BENCHMARK_SOURCES no longer cites a hook step number. W-39b1c993.
 
