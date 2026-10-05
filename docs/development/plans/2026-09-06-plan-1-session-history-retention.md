@@ -15,7 +15,7 @@ Date: 2026-09-06 (revised 2026-10-05)
 Owner: fleet
 Spec: `docs/superpowers/specs/2026-09-05-session-history-retention-design.md` (CONVERGED 2026-09-06,
 D-142; partially superseded by D-565 — it now carries a header note and markers at every passage
-the revision changed; md5 `b081e65a081a1dc05a8e53a7b78bb544` after those markers)
+the revision changed; md5 `1a2218dec048bf08e810e94443cc86bd` after those markers)
 
 ## Why the phase order is a safety property, not a preference
 
