@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the fabrik-mail loop-safety plan is EXECUTED and archived after a closing review (2026-10-06)
+- `docs/development/plans/2026-08-22-plan-1-fabrik-mail-loop-safety.md` had shipped every phase, but its only review ended on a pass that still fixed a defect. A closing whole-plan `/fabrik-review` (`docs/development/reviews/2026-10-06-fabrik-mail-loop-safety-closing-review.md`, confirmed 1 → 2 → 0) found the no-from fail-open fixed above and the matching doc gap, and recorded two fail-closed limits as W-19b57b9a. The plan now reads EXECUTED and is in `docs/development/plans/archived/`; PLANS.md is regenerated. D-601, W-0cd0363f.
+
 ### Fixed — an auto-reply to a parent with no sender was allowed (2026-10-06)
 - `scripts/mail.py::should_auto_reply` read the parent's `from:` with a default of an empty string. An empty sender never equalled the replier, so the self-guard was skipped, and the per-sender rate count matched no file, so the reply went through. A parent with a missing or blank `from:` now HOLDs ("parent has no from"), like the existing unparseable-parent HOLD. `tests/test_mail.py::test_auto_guard_holds_a_parent_with_no_sender` fails without the fix. Found by the closing whole-plan review of the loop-safety plan (W-0cd0363f).
 

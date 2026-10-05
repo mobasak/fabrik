@@ -7,7 +7,7 @@ All feature/execution/design plans live in `docs/development/plans/`.
 ---
 
 <!-- AUTO-GENERATED:PLANS:START -->
-<!-- AUTO-GENERATED:PLANS v1 | 2026-10-06T00:36 -->
+<!-- AUTO-GENERATED:PLANS v1 | 2026-10-06T02:01 -->
 <!-- Phase: epic rows = the epic's position in scripts/epic_order.py phased_order() (1 = no upstream dependency; `cycle` = dependency cycle, see `epic_order.py --check`); plan rows = Board progress, checked/total task boxes (`-` = no boxes). Owner: the leading name token of a plan's **Owner:** line / a spine's Owner: header, or an epic's frontmatter `owner`; `—` = untagged (`--adopt` fills it). Regenerate: python scripts/docs_updater.py --sync -->
 <!-- Merge owner: infra | source: D-453 -->
 | Epic/Plan | Owner | Status | Phase |
@@ -28,7 +28,6 @@ All feature/execution/design plans live in `docs/development/plans/`.
 | [2026-08-11-plan-deploy-tryton-crm.md](plans/2026-08-11-plan-deploy-tryton-crm.md) | — | SUPERSEDED | - |
 | [2026-08-14-plan-1-doc-sprawl-non-vacuous.md](plans/2026-08-14-plan-1-doc-sprawl-non-vacuous.md) | infra | EXECUTED | - |
 | [2026-08-15-plan-1-login-once-credentials.md](plans/2026-08-15-plan-1-login-once-credentials/2026-08-15-plan-1-login-once-credentials.md) | — | EXECUTED | - |
-| [2026-08-22-plan-1-fabrik-mail-loop-safety.md](plans/2026-08-22-plan-1-fabrik-mail-loop-safety.md) | infra | CONVERGED | - |
 | [2026-08-25-plan-2-payments-ingest-role.md](plans/2026-08-25-plan-2-payments-ingest-role.md) | fleet | CONVERGED | - |
 | [2026-08-27-plan-1-certification-denominator.md](plans/2026-08-27-plan-1-certification-denominator.md) | — | EXECUTED | 1/10 |
 | [2026-08-31-plan-deploy-tryton-crm.md](plans/2026-08-31-plan-deploy-tryton-crm.md) | — | EXECUTED | - |
