@@ -83,6 +83,26 @@ def test_a_broken_dotenv_is_reported_and_the_rows_carry_on(tmp_path):
     assert "verify_prod_parity: .env not loaded (UnicodeDecodeError" in r.stderr, r.stderr
 
 
+def test_a_nul_byte_in_the_dotenv_is_reported_and_the_rows_carry_on(tmp_path):
+    """os.environ refuses a value holding a NUL byte with ValueError, which used to escape the
+    stub and stop the whole parity run (tryton-crm 01M44BTHQQZ8, web-ecommerce-factory 01M44D5FP670)."""
+    proj = _project(tmp_path)
+    (proj / ".env").write_bytes(b"ZZ_PARITY_FROM_DOTENV=a\x00b\n")
+    r = _run(_PROBE, proj)
+    assert "verify_prod_parity: .env not loaded (ValueError" in r.stderr, r.stderr
+    assert r.stdout.split()[-1] == "True", r.stdout
+
+
+def test_a_dotenv_that_loads_nothing_is_reported(tmp_path):
+    """load_env() returns False for a file that sets no variable (or without python-dotenv): the
+    rows then read only the real environment, and the operator is told."""
+    proj = _project(tmp_path)
+    (proj / ".env").write_text("# nothing set here\n")
+    r = _run(_COUNTING, proj, str(proj))
+    assert r.stdout.split() == ["1", "True"], r.stdout
+    assert "verify_prod_parity: .env loaded nothing" in r.stderr, r.stderr
+
+
 def test_the_stub_loads_the_project_env_once_and_a_real_variable_wins(tmp_path):
     proj = _project(tmp_path)
     env = {"PATH": "/usr/bin:/bin", "ZZ_PARITY_REAL": "from-environment"}

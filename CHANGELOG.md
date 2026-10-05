@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the parity stub survives a NUL byte in `.env` and says when `.env` loads nothing (2026-10-05)
+`templates/scaffold/scripts/verify_prod_parity.py` caught only `OSError` / `UnicodeDecodeError` from `load_env()`.
+A NUL byte in a value makes `os.environ` raise `ValueError: embedded null byte`, which escaped and stopped the whole
+parity run. It is now reported on stderr like the other two and the rows carry on. When `load_env()` returns
+`False` (the file sets no variable, or python-dotenv is missing) the stub now says so instead of continuing silently
+against the real environment only. Found by tryton-crm (01M44BTHQQZ8) and web-ecommerce-factory (01M44D5FP670); D-563.
+Graders in `tests/test_parity_stub_loads_env.py`, both red on the old template. Scaffolded projects own their copy and
+keep the old one until they take this change by hand (W-0a890331).
+
 ### Fixed — `scripts/tests/test_gather_envs.py` passes under a plain pytest run (2026-10-05)
 48 of its tests failed unless `FABRIK_POOL_POLICY=on` was exported: since D-181/D-182 (acffe9c1d)
 `classify_services.main()` returns before dispatching while the pool is OFF, and the classifier tests drive the

@@ -120,12 +120,20 @@ def _health_probe() -> Any | None:
     if load_env is not None and not _ENV_LOADED and dotenv.is_file():
         _ENV_LOADED = True
         try:
-            load_env(str(dotenv))
-        except (OSError, UnicodeDecodeError) as exc:
+            loaded = load_env(str(dotenv))
+        except (OSError, UnicodeDecodeError, ValueError) as exc:
+            # ValueError: a NUL byte in a value, which os.environ refuses ("embedded null byte")
             print(
                 f"verify_prod_parity: .env not loaded ({type(exc).__name__}: {exc})",
                 file=sys.stderr,
             )
+        else:
+            if not loaded:
+                print(
+                    "verify_prod_parity: .env loaded nothing (it sets no variable, or python-dotenv "
+                    "is not installed), so rows that read it see only the real environment",
+                    file=sys.stderr,
+                )
     return health_probe
 
 
