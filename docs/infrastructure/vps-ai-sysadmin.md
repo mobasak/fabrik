@@ -662,6 +662,10 @@ bash scripts/sync-vps-sysadmin.sh
 | `scripts/vps_apply_limits.sh` | same path | Memory limits + alias script |
 | `scripts/generate_vps_inventory.py` | same path | Inventory auto-generator |
 
+The table is the hub (vps1). The spokes vps2/vps3 receive `scripts/sysadmin/*`, `scripts/audit/*` and
+`docs/infrastructure/audit-prompts/*` — the files their own cron jobs read (`weekly-security.sh`,
+`monthly-backup-verify.sh`) — and bootstrap step 14 installs the same set on a new spoke (W-922fbee1).
+
 **Is the fleet running what the hub committed? — the drift check (W-c792a205).** The sync is manual, so a
 hub edit to an executed script stays inert until someone runs it (2026-09-05: six days, and
 `detect_reversals.py` failed 1,597 times on a lost exec bit). `scripts/sysadmin/vps_script_drift.py` is the
