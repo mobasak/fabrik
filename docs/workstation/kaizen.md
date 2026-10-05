@@ -298,6 +298,12 @@ inbox addressed to **infra** — an AGENT is the reader (operator ruling: "i don
 you read"), and handle-now applies to the digest like any finding mail. Watermarked
 (`~/.claude/state/feedback-relay.watermark`), at-most-once per verdict, non-fatal to the collector.
 
+The same job carries two more riders: `scripts/sysadmin/rules_currency_watch.py` (mails infra when a pack's
+pinned runtime falls behind) and `scripts/sysadmin/vps_script_drift.py` (W-c792a205 — mails fleet when a VPS is
+not running the hub's committed scripts; its own daily stamp, so a retrying collector never runs it hourly;
+`docs/infrastructure/vps-ai-sysadmin.md` § Knowledge Sync). Every rider is `|| true`; the collector's own exit
+status alone decides its stamp (`weekly_catchup.sh` captures it before the riders run).
+
 ## The ACT half — the loop that EDITS the corpus (D-234; shipped at D-254 + D-256)
 
 The relay above is a READER: it mails verdicts to an agent. It changes nothing by itself, and 157
@@ -383,4 +389,5 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/kaizen_collect.py`
 - `scripts/sysadmin/kaizen_collect_v2.py`
 - `scripts/sysadmin/kaizen_digest.py`
+- `scripts/sysadmin/vps_script_drift.py`
 <!-- END related-scripts -->

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T13:17:00.513052Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-73feca74",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "extend scripts/sysadmin/vps_script_drift.py (W-c792a205) to compare the set of /opt/fabrik paths in the remote cron file against the template's targets (paths, not bytes — per-host minutes differ)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "/etc/cron.d/vps-sysadmin on each host is only rewritten by bootstrap, so a sysadmin-cron.template edit is as inert as the script edits W-c792a205 detects"
+}

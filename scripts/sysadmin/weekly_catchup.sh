@@ -90,6 +90,10 @@ case "$JOB" in
         # into derived facts, series and the kaizen-log row. Replaced the retired
         # weekly kaizen_metrics.py (scripts/sysadmin/archived/, M0 operator ruling).
         cd "$ROOT" && "$PY" scripts/sysadmin/kaizen_collect_v2.py --daily
+        # The collector's OWN status decides the stamp: `rc=$?` after `esac` reads the arm's
+        # LAST command, which used to be a rider's `|| true`, so a failing collector still
+        # stamped (W-c792a205). Captured here, restored by the arm's final `(exit …)`.
+        job_rc=$?
         # RIDER (D-055, non-fatal): relay persisted FEEDBACK verdict texts from command
         # closes to the fabrik inbox (--to-agent infra) so an AGENT reads and handles
         # them — the operator does not read dashboards. Watermarked inside the relay,
@@ -100,6 +104,15 @@ case "$JOB" in
         # (the answer to "what happens in one year"). Watermarked per upstream
         # release; silent on network blips.
         "$PY" "$ROOT/scripts/sysadmin/rules_currency_watch.py" || true
+        # RIDER (W-c792a205, non-fatal): read-only VPS script drift check — mails fleet when a
+        # host is not running the hub's committed scripts. Its OWN daily stamp keeps it at one
+        # ssh round per day even while a failing collector retries hourly.
+        DRIFT_STAMP="$STATE/daily-vps_script_drift.stamp"
+        if [ ! -f "$DRIFT_STAMP" ] || [ $(( $(date +%s) - $(stat -c %Y "$DRIFT_STAMP") )) -ge "$DAILY" ]; then
+            "$PY" "$ROOT/scripts/sysadmin/vps_script_drift.py" --mail || true
+            touch "$DRIFT_STAMP"
+        fi
+        (exit "$job_rc")
         ;;
     kaizen_outcomes.py)
         # The nightly fleet-health sweep (T07 outcome tier): clean HEAD worktrees,

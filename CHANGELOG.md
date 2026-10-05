@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — read-only VPS script drift check, and the kaizen collector's stamp no longer hides its failures (2026-10-05)
+`scripts/sysadmin/vps_script_drift.py` (W-c792a205) compares master's committed `HEAD` with what vps, vps2 and vps3
+execute — `scripts/sysadmin/`, the two cron-called audit scripts and fabrik-autoheal — over one BatchMode ssh each,
+and reports `DRIFT`, `MISSING` and `MODE` (lost exec bit, the 2026-09-05 `detect_reversals.py` outage). It never
+pushes. A daily rider on `weekly_catchup.sh kaizen_collect_v2.py` runs it with `--mail`: fleet is mailed once per
+distinct drift of the executed tier, again every 7 days while it persists, and once when a host stays unreachable for
+3 runs. The same edit fixes `weekly_catchup.sh`: `rc=$?` after `esac` read the last rider's `|| true`, so a failing
+collector still wrote its success stamp; the collector's own status now decides it.
+
 ### Fixed — watchdog Tier-D docstring and CONFIGURATION.md payments worker match the code (2026-10-05)
 `WatchdogDriver._gate_tier_d`'s docstring said a missing git remote fails the apply loudly; the raise is caught by
 `_nonfatal`, so the rest of the deploy completes, the watchdog is a failed registrar (`fabrik apply` exits 2,

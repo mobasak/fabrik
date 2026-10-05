@@ -662,6 +662,21 @@ bash scripts/sync-vps-sysadmin.sh
 | `scripts/vps_apply_limits.sh` | same path | Memory limits + alias script |
 | `scripts/generate_vps_inventory.py` | same path | Inventory auto-generator |
 
+**Is the fleet running what the hub committed? — the drift check (W-c792a205).** The sync is manual, so a
+hub edit to an executed script stays inert until someone runs it (2026-09-05: six days, and
+`detect_reversals.py` failed 1,597 times on a lost exec bit). `scripts/sysadmin/vps_script_drift.py` is the
+read-only detector, never a push. It compares master's committed `HEAD` (not the working tree) against
+`/opt/fabrik/scripts/sysadmin/`, the two cron-called audit scripts and `/usr/local/bin/fabrik-autoheal` on
+`vps`, `vps2` and `vps3`, one `ssh -o BatchMode=yes` session each, and prints `DRIFT` (content differs),
+`MISSING` (absent on the host) and `MODE` (the host copy lost its exec bit) lines. Tier 1 — the cron
+template's targets, what they call, the bot, the two audit scripts and autoheal — drives the exit code
+(0 clean · 1 drift · 2 a host unreachable) and the mail; every other file under `scripts/sysadmin/` is shown
+but never mailed. It rides the hub's daily `weekly_catchup.sh kaizen_collect_v2.py` run with its own daily
+stamp, and with `--mail` it mails **fleet** (`ack: required`) once per distinct tier-1 drift, again every 7
+days while the drift persists, and once when a host has been unreachable on 3 consecutive runs. Run it by hand
+with `python3 scripts/sysadmin/vps_script_drift.py` from the hub. Its mail is the cue to run this sync with the
+operator's go; DRIFT can also mean a host is running uncommitted code that someone synced from a dirty tree.
+
 **What is NOT synced (intentionally):**
 - Root `CLAUDE.md` — that's for WSL Claude Code (development), not VPS sysadmin
 - `.env` files — secrets stay per-environment
@@ -1040,4 +1055,5 @@ means updating this page in the same change. This list is generated from those h
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
 - `scripts/sysadmin/bot.py`
+- `scripts/sysadmin/vps_script_drift.py`
 <!-- END related-scripts -->
