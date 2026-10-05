@@ -1034,6 +1034,11 @@ step_14_install_sysadmin_pack() {
     rsync -a "${AUDIT_SOURCE:-/opt/fabrik/scripts/audit/}" "${tmpdir}/audit/"
     rsync -a "${AUDIT_PROMPTS_SOURCE:-/opt/fabrik/docs/infrastructure/audit-prompts/}" "${tmpdir}/audit-prompts/"
 
+    # scp merges into an existing /tmp/<name> on the spoke, and an aborted earlier run never reaches the
+    # chain's rm -rf below — clear the staging names first so stale files are never installed.
+    remote "rm -rf /tmp/sysadmin /tmp/audit /tmp/audit-prompts" \
+        || { err "step 14: could not clear the /tmp staging dirs on the spoke"; return 1; }
+
     # scp the rendered files + the sysadmin tree to /tmp on the spoke,
     # then sudo-move into place with correct ownership/mode.
     scp -q -r "${tmpdir}/vps-sysadmin-bot.service" \
