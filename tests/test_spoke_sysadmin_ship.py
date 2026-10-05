@@ -138,9 +138,10 @@ def test_an_unreachable_spoke_does_not_stop_the_others(tmp_path):
     )
 
 
-def _step_14(tmp_path: Path) -> tuple[list[str], Path]:
+def _step_14(tmp_path: Path, fail_remote: str = "") -> tuple[list[str], Path, int]:
     """Run step 14 with ``remote`` and ``scp`` stubbed: the programs it sends to the spoke, in order, and the directory
-    holding what it scp'd (the step's own trap deletes its staging dir, so the stub copies at call time)."""
+    holding what it scp'd (the step's own trap deletes its staging dir, so the stub copies at call time), and the
+    step's exit status. A ``remote`` call whose program starts with ``fail_remote`` returns 1."""
     staged = tmp_path / "staged"
     staged.mkdir()
     remote_log = tmp_path / "remote"
@@ -152,17 +153,19 @@ def _step_14(tmp_path: Path) -> tuple[list[str], Path]:
             f"SYSADMIN_SOURCE={ROOT}/scripts/sysadmin/",
             f"AUDIT_SOURCE={ROOT}/scripts/audit/",
             f"AUDIT_PROMPTS_SOURCE={ROOT}/docs/infrastructure/audit-prompts/",
-            f"remote() {{ printf '%s\\0' \"$*\" >> {remote_log}; return 0; }}",
+            f"remote() {{ printf '%s\\0' \"$*\" >> {remote_log}; "
+            + (f'case "$*" in "{fail_remote}"*) return 1;; esac; ' if fail_remote else "")
+            + "return 0; }",
             # scp's last argument is the destination; copy every source into the capture dir as it would land in /tmp
             f'scp() {{ local a=(); for x in "$@"; do case "$x" in -*) ;; *) a+=("$x");; esac; done; '
             f'unset "a[${{#a[@]}}-1]"; cp -r "${{a[@]}}" {staged}/; printf "SCP\\0" >> {remote_log}; }}',
             _function(BOOT / "bootstrap-vps.sh", "step_14_install_sysadmin_pack"),
-            "step_14_install_sysadmin_pack",
+            'step_14_install_sysadmin_pack; printf "rc=%s" "$?"',
         ]
     )
     # the program goes on stdin, as tests/test_bootstrap_scripts_sshd.py does: conftest's fleet guard reads a
     # `-c` string's command names, and here `scp` is a shell function and `rsync` copies between local directories
-    subprocess.run(
+    run = subprocess.run(
         ["bash", "-s"],
         input=script.encode(),
         env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path)},
@@ -170,15 +173,18 @@ def _step_14(tmp_path: Path) -> tuple[list[str], Path]:
         check=True,
         timeout=60,
     )
-    return [c for c in remote_log.read_text().split("\0") if c], staged
+    rc = int(run.stdout.decode().rsplit("rc=", 1)[1])
+    return [c for c in remote_log.read_text().split("\0") if c], staged, rc
 
 
 def test_bootstrap_step_14_ships_what_spoke_cron_reads(tmp_path):
-    calls, staged = _step_14(tmp_path)
+    calls, staged, rc = _step_14(tmp_path)
+    assert rc == 0
     scp_at = calls.index("SCP")
     # scp merges into an existing /tmp/<name>; the staging names are cleared on the spoke before the copy
     assert any(
-        "rm -rf" in c and "/tmp/audit " in f"{c} " and "/tmp/audit-prompts" in c
+        "rm -rf" in c
+        and all(f" {n} " in f" {c} " for n in ("/tmp/sysadmin", "/tmp/audit", "/tmp/audit-prompts"))
         for c in calls[:scp_at]
     ), calls[:scp_at]
     installs = [c for c in calls if c != "SCP"]
@@ -202,6 +208,13 @@ def test_bootstrap_step_14_ships_what_spoke_cron_reads(tmp_path):
         assert f"/opt/fabrik/{d}" in install.split("chown -R ozgur:ozgur", 1)[1].split("&&")[0], (
             f"/opt/fabrik/{d} is created but never chowned to the sync user"
         )
+
+
+def test_a_failed_staging_clear_stops_step_14_before_the_copy(tmp_path):
+    """If the spoke's /tmp staging cannot be cleared, step 14 fails and copies nothing (stale files never install)."""
+    calls, _, rc = _step_14(tmp_path, fail_remote="rm -rf /tmp/sysadmin")
+    assert rc != 0, "a failed staging clear was swallowed"
+    assert "SCP" not in calls, calls
 
 
 def test_a_failed_install_rsync_fails_step_14s_remote_command(tmp_path):
