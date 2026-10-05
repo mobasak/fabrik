@@ -968,16 +968,6 @@
       "SESSION_RECALL_TEST"
     ]
   },
-  "crowdlex": {
-    "category": "infra-platform",
-    "cost": "self-host",
-    "capability": "the fleet's own youtube project (Crowdlex): its api service is container crowdlex-api on the fabrik net, port 8031 (PORTS.md, /opt/youtube/compose.yaml); CROWDLEX_INTERNAL_* keys match this prefix too",
-    "url": "https://crowdlex.com",
-    "status": "active",
-    "match": [
-      "CROWDLEX"
-    ]
-  },
   "session_recall_indexer": {
     "category": "unidentified",
     "cost": "?",

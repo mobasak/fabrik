@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure on master; attribute with git log -S on the pool-cost print; fix at the root with the owning beat",
+  "next": "cause found by review seat (2026-10-05): classify_services.py:39-58 reads the live pool policy (OFF, D-181) and the module never sets the FABRIK_POOL_POLICY seam; with FABRIK_POOL_POLICY=on the file gives 183 passed. Fix: an autouse fixture in scripts/tests/test_gather_envs.py setting FABRIK_POOL_POLICY=on, seen red first",
   "note": "",
   "owner": "",
   "priority": 2,

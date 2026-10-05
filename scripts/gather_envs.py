@@ -205,6 +205,7 @@ INTERNAL_PREFIX = (
     "EXPO_",
     "PROXY_",
     "OCORON_COM_",
+    "CROWDLEX",  # the youtube project's API (container crowdlex-api, PORTS.md 8031), not a vendor
 )
 SERVICE_SHAPE_RE = re.compile(r"_(API_KEY|API_TOKEN|API_URL|API_BASE|BASE_URL|APIKEY)S?$", re.I)
 
