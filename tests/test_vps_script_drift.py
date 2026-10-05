@@ -818,10 +818,12 @@ def test_remote_cmd_unreadable_cron_file(tmp_path):
     assert d.parse_cron(out) == ["CRON-UNREADABLE"], out
 
 
-def test_cron_paths_ignores_env_lines_dirs_and_templated_paths():
+def test_cron_paths_ignores_env_lines_comments_and_templated_paths():
     d = _module()
     text = (
         "PATH=/opt/fabrik/scripts/sysadmin:/usr/bin:/bin\n"
+        "SHELL = /opt/fabrik/scripts/sysadmin/sh\n"
+        '0 4 * * * root echo "a #b" /opt/fabrik/scripts/sysadmin/q.sh\n'
         "0 1 * * * root /opt/fabrik/scripts/{{HOST_NAME}}/x.sh\n"
         "0 2 * * * root /opt/fabrik/scripts/sysadmin/a.sh,/opt/fabrik/scripts/sysadmin/b.sh\n"
         "0 3 * * * root /opt/fabrik/scripts/sysadmin/c.sh # was /opt/fabrik/scripts/sysadmin/old.sh\n"
@@ -830,6 +832,7 @@ def test_cron_paths_ignores_env_lines_dirs_and_templated_paths():
         "/opt/fabrik/scripts/sysadmin/a.sh",
         "/opt/fabrik/scripts/sysadmin/b.sh",
         "/opt/fabrik/scripts/sysadmin/c.sh",
+        "/opt/fabrik/scripts/sysadmin/q.sh",
     }
 
 
@@ -848,3 +851,16 @@ def test_cron_unverified_mail_says_recheck(tmp_path):
     assert r.returncode == 1, r.stdout + r.stderr
     body = mails(tmp_path)[0]["body"]
     assert "CRONUNREADABLE/CRONUNVERIFIED" in body, body
+
+
+def test_remote_cmd_failed_redirect_is_unreadable(tmp_path):
+    """A redirect that fails after the regular-file test passed (the file vanished): CRON-UNREADABLE, not CRON-END."""
+    d = _module()
+    good = tmp_path / "vps-sysadmin"
+    good.write_text("*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py\n")
+    _host, cmd = _host_tree(tmp_path)
+    cmd = cmd.replace(d.CRON_REMOTE, str(good))
+    assert cmd.count("} < " + str(good)) == 1, cmd
+    cmd = cmd.replace("} < " + str(good), "} < " + str(tmp_path / "gone"))
+    out = subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60).stdout
+    assert d.parse_cron(out) == ["CRON-UNREADABLE"], out

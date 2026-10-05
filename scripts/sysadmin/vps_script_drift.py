@@ -162,9 +162,14 @@ def template_targets(root: Path) -> list[str]:
 # redirect target or a quote is not a scheduled path.
 _CRON_PATH_RE = re.compile(r"/opt/fabrik/scripts/[^\s>|;&\"'`(),:]+")
 # PATH=, SHELL=, MAILTO=: an environment line carries no job
-_CRON_ENV_RE = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*=")
+_CRON_ENV_RE = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*=")  # cron allows spaces around =
 # cron hands the command to sh, where a whitespace-preceded # starts a comment: a path after it never runs
 _CRON_TAIL_COMMENT_RE = re.compile(r"\s#.*$")
+
+
+def _strip_tail_comment(line: str) -> str:
+    """Drop a trailing shell comment, unless the line quotes something: a # inside quotes is data."""
+    return line if ('"' in line or "'" in line) else _CRON_TAIL_COMMENT_RE.sub("", line)
 
 
 def cron_paths(text: str) -> set[str]:
@@ -175,7 +180,7 @@ def cron_paths(text: str) -> set[str]:
         m
         for line in text.split("\n")
         if line.strip() and not line.lstrip().startswith("#") and not _CRON_ENV_RE.match(line)
-        for m in _CRON_PATH_RE.findall(_CRON_TAIL_COMMENT_RE.sub("", line))
+        for m in _CRON_PATH_RE.findall(_strip_tail_comment(line))
         if "{{" not in m  # a templated path cannot match a rendered one
     }
 
