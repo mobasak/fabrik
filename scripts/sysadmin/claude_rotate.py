@@ -3264,9 +3264,9 @@ def _flip_active(
             "to": slug,
             "at_pct": at_pct,
             "via": "switch" if manual else "tick",
-            # trip / relief / repair / dead-chain — `at_pct` alone no longer says what fired
-            # (native reader R9: a relief flip ledgers the hottest window of an account that
-            # tripped nothing, in the same shape as a trip)
+            # trip / perishable / repair / dead-chain (relief until 2026-10-06) — `at_pct` alone
+            # does not say what fired (native reader R9: a non-trip flip ledgers the hottest window
+            # of an account that tripped nothing, in the same shape as a trip)
             "kind": kind or ("switch" if manual else "trip"),
         }
     )
@@ -3491,11 +3491,10 @@ def _flip_candidate_verdict(
     # OPERATOR RULE (2026-09-02): never rotate to an account that has no 5h session budget. A
     # weekly reading alone proves nothing about the session window, and a sibling near its own
     # session wall would be flipped to and flipped away from on the next tick.
-    # Default = the drain threshold: a target at/over it would be advisory-flagged the moment it
-    # became active, so "has 5h budget" and "not yet draining" are ONE line, not two knobs.
-    session_max = _env_float(
-        "ROTATE_TARGET_SESSION_MAX_PCT", _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
-    )
+    # Default = the session trip line (operator ruling 2026-10-06: "it should switch to next
+    # available but weekly reset closest account. there should not be 85% at all") — available
+    # means below its own walls, so the drain band no longer narrows the target set.
+    session_max = _env_float("ROTATE_TARGET_SESSION_MAX_PCT", threshold)
     if utils["five_hour"] is None:
         return slug, utils, "no session reading — 5h budget unproven"
     if utils["five_hour"] > session_max:
@@ -3615,9 +3614,9 @@ def _validated_pick(
             exclude.add(email)
             continue
         # the VERIFIED reading replaces the cache in the shared row: every later reader of this
-        # tick (the relief band test, the advisory leg) sees what the probe saw — a rosy cache
-        # (10/10) whose live probe read 20/88 was relief-flipped to as "headroom" (native reader
-        # R3, 2026-09-07)
+        # tick (the advisory leg, the preemption's verdict) sees what the probe saw — a rosy cache
+        # (10/10) whose live probe read 20/88 was flipped to as "headroom" (native reader R3,
+        # 2026-09-07)
         for k in ("five_hour", "seven_day"):
             if isinstance(windows.get(k), dict):
                 row[k] = windows[k]
@@ -4367,12 +4366,14 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
     rotation queue in the picker's order, who returns when (the tick's own two-bucket rule), the
     next relief the tick would name, the hold and its promised resume, and the last flip."""
     thr = _rotate_threshold()
-    band = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
+    band = _env_float(
+        "ROTATE_DRAIN_THRESHOLD", 85.0
+    )  # display only (`in_drain_band`), never a flip
     # the picker's own session bar (`_flip_candidate_verdict`: ROTATE_TARGET_SESSION_MAX_PCT,
-    # default the drain band) — the first cut compared the SESSION window against the trip
+    # default the session trip line since 2026-10-06) — the first cut compared the SESSION window against the trip
     # threshold, so a row spent past the bar but under the trip read `unavailable` (non-author
     # pass over 58041dbd + the strict-bar grader, 2026-09-07)
-    session_bar = _env_float("ROTATE_TARGET_SESSION_MAX_PCT", band)
+    session_bar = _env_float("ROTATE_TARGET_SESSION_MAX_PCT", thr)
     active_email = next(
         (str(r.get("email")) for r in accounts if active_slug in (r.get("slugs") or [])), None
     )
@@ -4840,8 +4841,8 @@ def _fleet_measured(accounts: list[dict], picture: dict) -> int:
 # runway instead, the lines land where the wall actually is — RED exactly AT the cap (99 on a
 # 99-cap account, 95 on a 95-cap one, 100 uncapped) and AMBER five points before it — and mean the
 # same thing everywhere: AMBER is the warning, RED is arrival.
-# ⚠️ ROTATION IS UNTOUCHED. `ROTATE_DRAIN_THRESHOLD` (85) still gates the relief flip leg, the
-# flip-target bar and the successor hysteresis; `ROTATE_URGENT_DRAIN_PCT` (90) still arms the
+# ⚠️ ROTATION IS UNTOUCHED. `ROTATE_DRAIN_THRESHOLD` (85) takes no part in flips since the 2026-10-06
+# ruling (neither trigger nor target bar) and only paces warnings; `ROTATE_URGENT_DRAIN_PCT` (90) still arms the
 # fleet-exhausted stamp. Those govern WHEN THE POINTER MOVES, not what an agent is told, and
 # raising them would stop the tick rotating until an account is nearly spent and then flip it onto
 # another that already is. The separation is the whole point of this change.
@@ -6154,11 +6155,9 @@ def _next_session_relief(
         wr = _dateable_ts(wk.get("resets_at_epoch"))
         su = _usable_ts(fh.get("utilization"))
         # The PICKER's bar, not the drain threshold: `_flip_candidate_verdict` refuses a target
-        # whose session is over ROTATE_TARGET_SESSION_MAX_PCT (85), so relief promised from the
-        # 85-95 band named an instant at which nothing was pickable (closing review P3-2).
-        session_bar = _env_float(
-            "ROTATE_TARGET_SESSION_MAX_PCT", _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
-        )
+        # whose session is over ROTATE_TARGET_SESSION_MAX_PCT (default the trip line), so relief
+        # promised past that bar named an instant at which nothing was pickable (closing review P3-2).
+        session_bar = _env_float("ROTATE_TARGET_SESSION_MAX_PCT", _rotate_threshold())
         # STRICT, like the picker (`utils["five_hour"] > session_max`): at exactly the bar the
         # picker takes the account now, so it is not waiting on anything (R5)
         session_spent = su is not None and su > session_bar
@@ -6629,9 +6628,9 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     with headroom and every agent keeps working. The "reach a checkpoint before the wall"
     advisory is TRUE only when the account agents are ACTUALLY using is walled and this tick
     could not relieve it (no successor with headroom, or the operator's pause held the flip).
-    (Trips are dwell-exempt since 2026-09-03, D-104, and so are drain-band relief flips since
-    2026-09-07, R2 — the branch is reachable through the pause, or when relief refused every
-    candidate.) A flip merely held while a headroom sibling exists is NOT exhaustion, so it is
+    (Trips are dwell-exempt since 2026-09-03, D-104, and so are perishable-first preemptions —
+    the branch is reachable through the pause, or when no candidate qualified.) A flip merely
+    held, or not yet due, while a headroom sibling exists is NOT exhaustion, so it is
     suppressed. Firing per-account on every ≥85%
     crossing was both spam — 10 near-identical mails on 2026-08-25, trade-intelligence 01M0YAB2 —
     and a false alarm. Fire once on entry to the walled state; suppress while it persists (the
@@ -6667,8 +6666,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             _close_wall_episode_without_stamp(str(row["email"]), now, "relief")
         return
     # Relief IS coming when a headroom successor exists AND rotation is not paused: the active
-    # account is walled only because the flip is held by the transient 30-min dwell, not because
-    # the fleet is out of quota. Firing here would reintroduce the exact false alarm this change
+    # account is walled only because its flip is not yet due (it rides to its own line since the
+    # 2026-10-06 ruling) or is held by the dwell, not because the fleet is out of quota. Firing here would reintroduce the exact false alarm this change
     # removed — the hysteresis window (a flip, then the new active burns to ≥threshold inside the
     # dwell while a sibling still has headroom; the reachable state test_fleet_tick_flips_at_
     # threshold's second tick sets up). The operator's PAUSE is the exception: it deliberately

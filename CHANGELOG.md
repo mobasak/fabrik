@@ -60,7 +60,10 @@ soon as either window reached 85% (the 2026-09-06 drain-band relief), to any sib
 its exact cap. The relief leg is replaced by perishable-first preemption: the active account is left before its
 `caps.json` cap or the 98 session line only for a validated sibling whose weekly reset is sooner; an unknown active
 reset, or an account a trip flip just left, never preempts. Tests in `tests/test_claude_rotate_v2.py` and
-`tests/test_claude_fleet.py`; fixtures that relied on relief to flip at 96 now sit above the real 98 line.
+`tests/test_claude_fleet.py`; fixtures that relied on relief to flip at 96 now sit above the real 98 line. Follow-up
+the same night (operator: "there should not be 85% at all"): the flip-target session bar
+(`ROTATE_TARGET_SESSION_MAX_PCT`) defaults to the 98 trip line instead of the 85 drain band, so the next account is the
+soonest-resetting one below its own cap and session line; `ROTATE_DRAIN_THRESHOLD` now only paces warnings.
 
 ### Fixed — the VPS drift check compares the two audit checklists the security and backup jobs read (2026-10-06)
 `weekly-security.sh` and `monthly-backup-verify.sh` hand Claude `docs/infrastructure/audit-prompts/03-security-hardening.md`

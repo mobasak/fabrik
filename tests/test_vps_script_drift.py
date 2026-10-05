@@ -258,7 +258,9 @@ def test_audit_checklist_drift_mailed(tmp_path):
     assert r.returncode == 1, r.stdout + r.stderr
     assert f"DRIFT vps2 {sec}" in r.stdout
     assert f"MISSING vps2 {bak}" in r.stdout
-    assert len(mails(tmp_path)) == 1
+    sent = mails(tmp_path)
+    assert len(sent) == 1
+    assert sec in sent[0]["body"] and bak in sent[0]["body"], sent[0]["body"]
 
 
 # ── Behaviour 2: tier 2 is shown, never mailed ───────────────────────────────────────────────────
@@ -531,11 +533,14 @@ def test_remote_cmd_lists_the_two_checklists_only(tmp_path):
     prompts = host / "opt/fabrik/docs/infrastructure/audit-prompts"
     prompts.mkdir(parents=True)
     (prompts / "03-security-hardening.md").write_text("# security\n")
+    (prompts / "06-backup-disaster-recovery.md").write_text("# backup\n")
     (prompts / "01-full-system-audit.md").write_text("# not read by cron\n")
     r = subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60)
     got = _parse(host, r.stdout)
     key = "docs/infrastructure/audit-prompts/03-security-hardening.md"
     assert got[key][1] == _md5("# security\n"), r.stdout
+    bak = "docs/infrastructure/audit-prompts/06-backup-disaster-recovery.md"
+    assert got[bak][1] == _md5("# backup\n"), r.stdout
     assert not any(k.endswith("01-full-system-audit.md") for k in got), got
     assert "scripts/sysadmin/plain.py" in got, got
 
