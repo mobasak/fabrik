@@ -65,8 +65,12 @@ would silently drop them:
    every registry-obligated key doc (`docs/SERVICES.md`, `docs/RESILIENCE.md`,
    `docs/CONFIGURATION.md`, `docs/DEPLOYMENT.md`, `docs/FEATURES.md` — only the ones this
    `project.yaml::type` actually obligates). ≥14 days behind = flagged stale.
-3. **Stub sentinels.** Grep those same key docs for unfilled seed placeholders: `[Project Name]`,
-   `[TBD…]`, a literal `**Last Updated:** YYYY-MM-DD`.
+3. **Stub sentinels.** Run `python3 /opt/fabrik/scripts/fleet_doc_audit.py --repo .` and read its `stubs:`
+   line — the hub audit's own probe, never a hand list. It reports `<DOC>.md (template text left: p%)` for a doc
+   left as its scaffold template (at least half of some version of that template is still in it, and template
+   text is at least half of the doc), else `<DOC>.md (<n>)` for the seed sentinels it still holds (`[Project
+   Name]`, `[TBD…]`, a literal `**Last Updated:** YYYY-MM-DD`, `[… — fill in]`, `[purpose]`). No `/opt/fabrik`
+   on this box: grep the docs for those five sentinels and say the template check was skipped.
 4. **Untracked key docs.** An obligated doc that exists on disk but `git ls-files` doesn't know about is
    its own failure mode — never folded into the staleness day-count.
 5. **Spec `shape:` vs code truth.** For every `specs/services/*.yaml`, check each `shape:` flag against

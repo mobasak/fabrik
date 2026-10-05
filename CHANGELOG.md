@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a doc left as its scaffold template reads as a stub, in the weekly audit and /fabrik-catchup (2026-10-05)
+- `scripts/fleet_doc_audit.py` flags a doc left as its scaffold template: at least half of some git version of that template is still in it (read through the scaffold's own seed substitutions), and template text is at least half of the doc. It reports `<DOC>.md (template text left: p%)`. The three hand-picked sentinels missed every seeded doc, because seeding replaces two of them. The sentinels now run over every templated doc too, plus the seeded `[… — fill in]`/`[purpose]` fill-in tokens. `--repo PATH` audits one project and writes nothing. Every git call ignores an inherited `GIT_DIR`, and both outputs say so when the hub's template history cannot be read. Fleet on 2026-10-05: 158 template-left docs plus 15 fill-in SERVICES docs, across 37 of 43 projects (D-593).
+- `/fabrik-catchup` probe 3 runs `fleet_doc_audit.py --repo .` instead of keeping its own sentinel list (brand-identiy-creator 01M4664J).
+
 ### Fixed — review loop credits a composite ledger-id echo, never a wrong claim (2026-10-05)
 - `.claude/workflows/fabrik-review-loop.js` (fleet-synced) matched each closing seat's `ledger_status` id against the claim ledger exactly. A seat that echoed `S-L1 · S-O27` therefore left every fully re-verified claim "not re-verified", and the slice never closed (fabrik-lib 01M3RX9J, W-7afacefb).
 - A report now counts for a ledger id when its id-shaped tokens name exactly ONE of the slice's ledger ids. Tokens are split on every character an id cannot hold, so `S-L10` never counts as `S-L1`.
