@@ -170,14 +170,18 @@ def test_auth_boundary() -> None:
     assert re.search(r"ordinary, individual use", auth) and "API key" in auth, (
         "the auth boundary no longer states Anthropic's terms for products serving other users"
     )
-    assert re.search(r"on behalf of their users", auth) and re.search(r"decision before it is built", auth), (
-        "the auth boundary lost the terms' prohibition or its interim rule"
+    assert re.search(r"on behalf of their users", auth) and re.search(r"enforcement risk", auth), (
+        "the auth boundary lost the terms' prohibition or the risk the operator's ruling accepts"
     )
-    assert re.search(r"\b(?:never|not) (?:as )?a default\b", auth), "the interim rule no longer says it is never a default"
-    items = re.findall(r"\bW-[0-9a-f]{8}\b", auth)
-    assert items, "the auth boundary no longer cites the open operator item"
-    for item in items:
-        assert (ROOT / ".fabrik" / "work" / f"{item}.json").is_file(), f"the auth boundary cites a missing item: {item}"
+    assert re.search(r"API key is never (?:a|the) default", auth) and re.search(r"\bnew (?:operator )?ruling\b", auth), (
+        "the auth boundary no longer says an API key is never a default and moving to one is the operator's call"
+    )
+    assert not re.search(r"\bW-[0-9a-f]{8}\b", auth), "the auth boundary cites a work item instead of the ruling"
+    rulings = re.findall(r"\bD-\d{3,}\b", auth)
+    assert rulings, "the auth boundary no longer cites the operator's ruling"
+    ledger = (ROOT / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
+    for d in rulings:
+        assert re.search(rf"^\| {d} \|", ledger, re.MULTILINE), f"the auth boundary cites a ruling with no ledger row: {d}"
     assert re.search(r"paused on 2026-06-15", auth), "the paused credit change is no longer dated"
 
 
