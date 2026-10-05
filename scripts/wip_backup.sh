@@ -52,11 +52,16 @@ ROOT="${WIP_BACKUP_ROOT:-/opt}"
 # `batch` keeps the hardening at one flush per command: per-object fsync made
 # `add -A` of 3000 new files 22x slower (0.6 s → 13.6 s; batch 1.9 s).
 # A non-numeric inherited count would abort the whole run under `set -u`
-# (bash reads it as an unset variable name); git rejects such a count anyway,
-# so it is replaced, the same shape as the two validations below.
+# (bash reads it as an unset variable name), and `08` is an octal error. Git
+# itself accepts ` 1`, `+1` and `01`, so those are normalised (the caller's
+# pairs kept); a non-number is replaced with 0. A count that promises pairs
+# the caller never set breaks git on every call, with or without this script.
 _fsync_n="${GIT_CONFIG_COUNT:-0}"
+_fsync_n="${_fsync_n#"${_fsync_n%%[! ]*}"}"
+_fsync_n="${_fsync_n#+}"
 case "$_fsync_n" in
-    ''|*[!0-9]*|0[0-9]*) _fsync_n=0 ;;
+    ''|*[!0-9]*) _fsync_n=0 ;;
+    *) _fsync_n=$((10#$_fsync_n)) ;;
 esac
 export "GIT_CONFIG_KEY_${_fsync_n}=core.fsync" "GIT_CONFIG_VALUE_${_fsync_n}=objects,reference"
 export "GIT_CONFIG_KEY_$((_fsync_n + 1))=core.fsyncMethod" "GIT_CONFIG_VALUE_$((_fsync_n + 1))=batch"

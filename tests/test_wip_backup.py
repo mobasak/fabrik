@@ -2698,8 +2698,8 @@ def test_every_git_call_hardens_loose_objects_and_refs(tmp_path: Path) -> None:
 
 def test_a_malformed_inherited_config_count_cannot_abort_the_net(tmp_path: Path) -> None:
     """W-dbb3073f review: `$((abc + 1))` under `set -u` aborts the whole run before any
-    repo is snapshotted; `08` is an octal error. Either must fall back, never crash."""
-    for bad in ("abc", "08"):
+    repo is snapshotted. A count git itself rejects must fall back to 0, never crash."""
+    for bad in ("abc", "1x"):
         root = tmp_path / f"opt-{bad}"
         repo = _seed_repo(root, "proj")
         (repo / "dirty.txt").write_text("wip\n")
@@ -2717,3 +2717,25 @@ def test_a_malformed_inherited_config_count_cannot_abort_the_net(tmp_path: Path)
         )
         assert proc.returncode == 0, (bad, proc.stderr)
         assert "snapshotted" in proc.stdout, (bad, proc.stdout)
+
+
+def test_a_count_git_accepts_keeps_the_callers_pair(tmp_path: Path) -> None:
+    """Git accepts ` 1`, `+1` and `01` as GIT_CONFIG_COUNT; the guard must keep the caller's
+    pair for them, never overwrite slot 0. The snapshot's author shows `user.name`."""
+    for count in (" 1", "+1", "01"):
+        root = tmp_path / f"opt{count.strip().replace('+', 'p')}"
+        repo = _seed_repo(root, "proj")
+        (repo / "dirty.txt").write_text("wip\n")
+        env = {
+            "PATH": "/usr/bin:/bin",
+            "WIP_BACKUP_ROOT": str(root),
+            "HOME": str(root),
+            "GIT_CONFIG_COUNT": count,
+            "GIT_CONFIG_KEY_0": "user.name",
+            "GIT_CONFIG_VALUE_0": "caller",
+        }
+        proc = subprocess.run(
+            ["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=60
+        )
+        assert proc.returncode == 0, (count, proc.stderr)
+        assert _git(repo, "log", "-1", "--format=%an", "refs/wip/autobackup") == "caller", count
