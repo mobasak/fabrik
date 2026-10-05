@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the WIP net fsyncs what it writes, so a crash cannot leave zero-byte objects (2026-10-05)
+- `scripts/wip_backup.sh` now runs every git call with `core.fsync=objects,reference`, appended to any `GIT_CONFIG_*` the caller set. Git 2.43's default, `committed,-loose-object`, fsyncs neither loose objects nor refs. An unclean WSL shutdown during a run on 2026-09-25 left web-ecommerce-factory with 123 zero-byte objects and 50 zero-byte `refs/wip` files, and every later push there died in `pack-objects` (web-ecommerce-factory 01M3RRQJ, W-dbb3073f). A full real run takes 43 s against the 15-minute cadence. `docs/workstation/wip-backup-safety-net.md` gains the repair recipe and the fleet check.
+
 ### Fixed — three factual errors in the governance sources, the gate message they copied, and a mypy leg that failed instead of skipping (2026-10-05)
 - Prompt audit § A (`docs/reference/prompt-audit-2026-10-05.md`, W-2cfa7b8e):
   - **Gate setup-error message and the template remedy copied from it.** `scripts/final_gate.py` now says which probe failed: `ruff` is checked as a binary (from `.venv`, then PATH), `pytest` as an import under the gate's interpreter. Its fix line now gives a remedy that works: install into `.venv`. It used to say "invoke the gate with one that has it", which changes nothing, because the gate runs `.venv/bin/python` whenever `.venv` exists. Without a `.venv`, it now says to create one first. `templates/governance/CLAUDE.md` § Orient item 1 now gives the same remedy and names `pytest`.

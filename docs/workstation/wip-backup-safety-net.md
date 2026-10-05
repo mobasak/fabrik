@@ -91,3 +91,14 @@ never the whole snapshot.
 like SIGTERM — but SIGKILL cannot be trapped and can leave one behind. Sweep exactly those two
 prefixes by hand; never delete `/tmp/wip-backup.lock` (that just lets a concurrent `flock -n` run
 early) or `/tmp/wip-backup.log` (the forensic record of what already ran).
+
+**Crash durability (W-dbb3073f):** every git call the script makes runs with `core.fsync=objects,reference`
+(exported as `GIT_CONFIG_*`, appended to any the caller set). Git's own default, `committed,-loose-object`,
+fsyncs neither loose objects nor refs, and an unclean WSL shutdown during a run on 2026-09-25 left
+web-ecommerce-factory with 123 zero-byte loose objects and 50 zero-byte `refs/wip/*` files. Git reads a
+zero-byte object as present-but-corrupt, so every later push there died in `pack-objects`
+(`fatal: bad object …`), while `git push --dry-run` stayed clean. If it recurs, the repair loses
+nothing, because a zero-byte file holds no content. List them (`find .git/objects .git/refs -type f -empty`)
+and save the list. Then delete those files. Re-fetch the real objects (`git fetch origin '+refs/wip/*:refs/remotes/origin-wip/*'`).
+Finally run `git fsck`. A fleet check is `find /opt/*/.git/objects /opt/*/.git/refs -type f -empty`.
+Commits agents make themselves still run on git's default; this setting covers only the snapshotter.

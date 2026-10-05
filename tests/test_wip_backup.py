@@ -2638,3 +2638,34 @@ def test_live_ids_file_vanishing_mid_reap_loop_reaps_nothing(tmp_path: Path) -> 
         ).returncode
         == 0
     ), "and must still be present on origin too"
+
+
+def test_every_git_call_hardens_loose_objects_and_refs(tmp_path: Path) -> None:
+    """W-dbb3073f: git's default core.fsync (`committed,-loose-object`) fsyncs neither
+    loose objects nor refs, and an unclean WSL shutdown mid-run left 123 zero-byte
+    objects and 50 zero-byte refs/wip files in web-ecommerce-factory, breaking every
+    push there. Every git call the net makes must run with both components hardened."""
+    root = tmp_path / "opt"
+    repo = _seed_repo(root, "proj")
+    (repo / "dirty.txt").write_text("wip\n")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "fsync.log"
+    (bin_dir / "git").write_text(
+        "#!/usr/bin/env bash\n"
+        f'echo "$1 $(/usr/bin/git config --get core.fsync)" >> "{log}"\n'
+        'exec /usr/bin/git "$@"\n'
+    )
+    (bin_dir / "git").chmod(0o755)
+    proc = subprocess.run(
+        ["bash", str(SCRIPT)],
+        env={"PATH": f"{bin_dir}:/usr/bin:/bin", "WIP_BACKUP_ROOT": str(root), "HOME": str(root)},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr
+    calls = log.read_text().splitlines()
+    assert any(c.startswith("write-tree ") for c in calls), calls
+    unhardened = [c for c in calls if not c.endswith(" objects,reference")]
+    assert unhardened == [], unhardened
