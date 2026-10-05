@@ -3410,6 +3410,45 @@ def _cache_trust_s() -> float:
     )
 
 
+def _recently_tripped_off(row: dict, now: float) -> bool:
+    """True when the newest ``kind: trip`` flip AWAY from this account is younger than both of its
+    windows' current starts (``resets_at - 5h`` / ``- 7d``): neither has reset since the trip, so the
+    reading the trip projected past its line still stands. The perishable-first preemption skips such
+    an account; the trip leg itself never asks. An unreadable ledger reads True (no preemption —
+    fail closed); no trip on record reads False. Windows without a usable reset count as not reset."""
+    slugs = set(row.get("slugs") or [])
+    if not slugs:
+        return False
+    try:
+        lines = (_rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
+    except FileNotFoundError:
+        return False
+    except _STATE_DIR_ERRORS:
+        return True
+    trip_ts = None
+    for line in reversed(lines):
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if (
+            isinstance(e, dict)
+            and e.get("event") == "flip"
+            and e.get("kind", "trip") == "trip"
+            and e.get("from") in slugs
+        ):
+            trip_ts = _usable_ts(e.get("ts"))
+            break
+    if trip_ts is None or trip_ts > now:
+        return False
+    for key, length in (("five_hour", 5 * 3600.0), ("seven_day", 7 * 86400.0)):
+        w = row.get(key)
+        reset = _usable_ts(w.get("resets_at_epoch") if isinstance(w, dict) else None)
+        if reset is not None and reset - length > trip_ts:
+            return False  # this window started after the trip: fresh budget, a target again
+    return True
+
+
 def _flip_candidate_verdict(
     row: dict, threshold: float
 ) -> tuple[str | None, dict[str, float | None], str | None]:
@@ -5749,66 +5788,63 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     ordinary_trip = session_trip or (cap is None and weekly_trip)
     cap_trip = cap is not None and weekly_trip
     if not (ordinary_trip or cap_trip):
-        # DRAIN-BAND RELIEF (operator directive 2026-09-06, incident 23:01-23:17 +03): the
-        # advisory leg lifts the fleet-exhausted hold the moment a successor becomes eligible,
-        # but this leg flipped only when the ACTIVE account tripped — so every released session
-        # resumed on mob@ at session 93 / weekly 97 (cap 99) while ozgurbasak@ sat at 0 / 19 for
-        # sixteen minutes ("mob did not switch to ozgurbasak"). Relief that arrives on a sibling
-        # IS a flip trigger when the active account is in the drain band: it moves to a validated
-        # successor that is BELOW the drain threshold on both windows (strictly fresher — the
-        # hysteresis that prevents ping-pong), under the ordinary dwell (this is relief, not a wall).
-        drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
-        if hot >= drain_thr and not _switch_paused():
-            # COST: up to ONE HTTP usage probe per CACHED candidate per in-band tick (no
-            # `claude -p` on this path) — the walk-down below excludes every candidate it
-            # rejects, so the bound is the fleet size, and a successful relief moves the pointer
-            # off the band. The advisory leg's own pick call is unchanged.
-            exclude = {row["email"]}
-            relief = None
-            for _ in range(len(accounts)):  # explicit bound; every iteration excludes an email
-                # walk DOWN the ranking (native reader R1): the band test lives outside
-                # `_validated_pick`, so an in-band candidate ranked first (perishable-first) used
-                # to block relief for good with no fall-through — the incident, verbatim
-                pick = _validated_pick(accounts, exclude, verbose=True)
-                if pick is None:
-                    break
-                slug, email = pick
-                prow = next((r for r in accounts if r.get("email") == email), None) or {}
-                # the successor's utils through the SAME verdict the picker applied — it carries
-                # the rolled-over cache rescue (scoped review F1)
-                _ps, putils, _pr = _flip_candidate_verdict(prow, threshold)
-                fv, wv = putils.get("five_hour"), putils.get("seven_day")
-                # BOTH windows readable and below the band (R7: a missing weekly failed OPEN)
-                if (
-                    isinstance(fv, (int, float))
-                    and isinstance(wv, (int, float))
-                    and max(fv, wv) < drain_thr
-                ):
-                    relief = (slug, email, max(float(fv), float(wv)))
-                    break
-                exclude.add(email)
-            if relief is not None:
-                slug, email, top = relief
-                # DWELL-EXEMPT (native reader R2): a dwell-held relief left the advisory leg
-                # lifting the hold onto the drained pointer for up to 30 min — the incident
-                # through another door. The strict-both-windows hysteresis already guarantees the
-                # new active is out of the band, so relief flips cannot chain without FRESH burn
-                # on the new active (a later hop caused by real use is a legitimate flip, not a
-                # bounce); the dwell bought nothing here.
-                if _flip_active(slug, at_pct=hot, ignore_dwell=True, kind="relief"):
-                    print(
-                        f"tick: drain-band relief — active {row['email']} at {hot:.0f}% "
-                        f"(≥ drain {drain_thr:.0f}%) while {email} is at {top:.0f}% "
-                        f"— flipped -> {email} ({slug})"
-                    )
-                    _tick_telegram(
-                        f"relief: {email} is at {top:.0f}% — flipped the fleet pointer off "
-                        f"{row['email']} ({hot:.0f}%, drain band)"
-                    )
-                    return
-                print(
-                    f"tick: drain-band relief flip {row['email']} -> {slug} withheld (see stderr)"
+        # PERISHABLE-FIRST PREEMPTION (operator ruling 2026-10-06, replacing the 2026-09-06 drain-band
+        # relief): "consume them according to closest weekly reset time first", never rotating "too soon
+        # without reaching their exact caps". The drain band flipped the active account away at 85% to
+        # any sibling under 85 — sarp at weekly 85 of cap 95 went to can, whose weekly reset was days
+        # later, abandoning ten points. Now the active account is left before its own cap or session
+        # wall ONLY for the picker's top validated candidate (perishable-first, every exclusion applied)
+        # among the siblings whose weekly window resets strictly SOONER than the active one's: that
+        # quota perishes first. Monotonic in reset time, so no ping-pong — the account it lands on
+        # resets sooner than the one it left, which therefore never ranks ahead of it. Dwell-exempt.
+        # Three guards (design critique 2026-10-06):
+        #  * an unknown active reset (missing/unreadable/past) is NOT "far" — no preemption that tick
+        #    (fail closed: one bad read must not cost two flips and two cache rebuilds);
+        #  * an account a TRIP flip just left is not a target until one of its windows has reset since
+        #    that trip — the projected trip leaves it a burn-width below its line, and preempting back
+        #    would blind the projection (`_tick_burn` keeps one slot) and walk it into the wall;
+        #  * only the sooner-reset siblings reach `_validated_pick`, so a steady tick where the active
+        #    account already resets soonest costs no probe and no log line.
+        # COBRA (D-253): the cheapest way to look compliant is a sibling whose reset reads sooner only
+        # because its cache is stale — a past reset counts as unknown, never as sooner.
+        if not _switch_paused():
+            now = _now()
+
+            def _future_reset(r: dict) -> float | None:
+                w = r.get("seven_day")
+                ts = _usable_ts(w.get("resets_at_epoch") if isinstance(w, dict) else None)
+                return ts if ts is not None and ts > now else None
+
+            a_reset = _future_reset(row)
+            if a_reset is not None:
+                excluded = {row["email"]}
+                for r in accounts:
+                    r_reset = _future_reset(r)
+                    if r_reset is None or r_reset >= a_reset or _recently_tripped_off(r, now):
+                        excluded.add(str(r.get("email")))
+                pick = (
+                    _validated_pick(accounts, excluded, verbose=True)
+                    if len(excluded) < len(accounts)
+                    else None
                 )
+                if pick is not None:
+                    slug, email = pick
+                    prow = next((r for r in accounts if r.get("email") == email), None) or {}
+                    p_reset = _future_reset(prow)
+                    if _flip_active(slug, at_pct=hot, ignore_dwell=True, kind="perishable"):
+                        print(
+                            f"tick: perishable-first — {email} weekly resets "
+                            f"{_fmt_reset_clock(p_reset)}, before active {row['email']} "
+                            f"({_fmt_reset_clock(a_reset)}) — flipped -> {email} ({slug})"
+                        )
+                        _tick_telegram(
+                            f"perishable-first: {email}'s weekly quota resets sooner than "
+                            f"{row['email']}'s — flipped the fleet pointer to it"
+                        )
+                        return
+                    print(
+                        f"tick: perishable-first flip {row['email']} -> {slug} withheld (see stderr)"
+                    )
         proj = max(burn.values())
         print(
             f"tick: active {row['email']} at {hot:.0f}%"

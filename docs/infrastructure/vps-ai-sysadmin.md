@@ -671,7 +671,8 @@ hub edit to an executed script stays inert until someone runs it (2026-09-05: si
 `detect_reversals.py` failed 1,597 times on a lost exec bit). `scripts/sysadmin/vps_script_drift.py` is the
 read-only detector, never a push. It compares the committed `HEAD` of the hub checkout it runs in (the main
 checkout, on master, when the rider runs it; never the working tree) against
-`/opt/fabrik/scripts/sysadmin/`, the two cron-called audit scripts and `/usr/local/bin/fabrik-autoheal` on
+`/opt/fabrik/scripts/sysadmin/`, the two cron-called audit scripts and the two checklists they read
+(`audit-prompts/03-security-hardening.md`, `06-backup-disaster-recovery.md`), and `/usr/local/bin/fabrik-autoheal` on
 `vps`, `vps2` and `vps3`, one `ssh -o BatchMode=yes` session each, and prints `DRIFT` (content differs),
 `MISSING` (absent on the host), `MODE` (the host copy lost its exec bit) and `UNREADABLE` (the host could not
 read the file) lines. The same session reads the host's `/etc/cron.d/vps-sysadmin` — which the sync never
@@ -681,7 +682,7 @@ does not, or the file is absent), `CRONEXTRA` (the host schedules a hub script t
 `CRONUNREADABLE`, `CRONUNVERIFIED` (the listing was cut short) (W-73feca74). Fixing a cron difference means
 reinstalling that one file, rendered with the host's minute slots — never re-running bootstrap step 14 whole on a
 live host, which also overwrites `.env.sysadmin`. Exit: 0 clean · 1 any difference · 2 a host unreachable · 3 the check itself failed.
-Tier 1 — the cron template's targets, what they call, the bot, the two audit scripts, autoheal and every cron line — drives
+Tier 1 — the cron template's targets, what they call, the bot, the two audit scripts and their checklists, autoheal and every cron line — drives
 the mail; every other file under `scripts/sysadmin/` is shown but never mailed. It rides the hub's daily
 `weekly_catchup.sh kaizen_collect_v2.py` run with its own daily stamp (written by the script itself, `--stamp`, only when it reached a verdict, so a failed check
 retries the next hour), and with `--mail` it mails **fleet** (`ack: required`) once per distinct tier-1 drift, again every 7

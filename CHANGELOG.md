@@ -50,6 +50,22 @@ All notable changes to this project will be documented in this file.
 - On trade-intelligence's real tree it keeps 20 of 20 comments, where HEAD kept 17, and leaves both plan sets collapsed. A second run is a no-op.
 - 7 graders. Follow-up W-3efb9553 covers `--only` and plan-set directories.
 
+### Fixed — account rotation consumes the soonest-resetting quota first and rides each account to its exact cap (2026-10-06)
+`scripts/sysadmin/claude_rotate.py` (and its byte-identical `scripts/aro-wake/` twin) flipped the active account away as
+soon as either window reached 85% (the 2026-09-06 drain-band relief), to any sibling under 85 — sarp at weekly 85 of cap
+95 went to can, whose weekly window reset days later. Operator ruling: consume by closest weekly reset, each account to
+its exact cap. The relief leg is replaced by perishable-first preemption: the active account is left before its
+`caps.json` cap or the 98 session line only for a validated sibling whose weekly reset is sooner; an unknown active
+reset, or an account a trip flip just left, never preempts. Tests in `tests/test_claude_rotate_v2.py` and
+`tests/test_claude_fleet.py`; fixtures that relied on relief to flip at 96 now sit above the real 98 line.
+
+### Fixed — the VPS drift check compares the two audit checklists the security and backup jobs read (2026-10-06)
+`weekly-security.sh` and `monthly-backup-verify.sh` hand Claude `docs/infrastructure/audit-prompts/03-security-hardening.md`
+and `06-backup-disaster-recovery.md` through a fail-open `[ -f ] && cat`, so a missing or stale copy on a host degraded
+the report without any error, and `scripts/sysadmin/vps_script_drift.py` never looked. The two files are now tier 1
+(`AUDIT_CHECKLISTS`): listed by name in the remote `find` and mailed on DRIFT or MISSING. Two graders in
+`tests/test_vps_script_drift.py`, each red on the pre-change script (W-ce71bcd2).
+
 ### Fixed — the cron drift check reads a cron line the way cron and sh do (2026-10-05)
 `scripts/sysadmin/vps_script_drift.py` counted a path that never runs: one after an unescaped `%` (cron feeds the rest
 of the line to stdin, even inside shell quotes), or one in a trailing comment that contains an apostrophe (the old

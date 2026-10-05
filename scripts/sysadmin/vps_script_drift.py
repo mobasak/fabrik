@@ -16,7 +16,8 @@ What it compares
     work is committed (production is running uncommitted code). Committed symlinks are not compared.
   * Tier 1 drives the signature and the mail: every ``/opt/fabrik/scripts/sysadmin/<f>`` the
     cron template names, ``TIER1_DEPENDENCIES`` (what those targets call, plus the bot), the two audit scripts
-    cron calls (``AUDIT_TARGETS``) and ``scripts/vps-autoheal.sh`` (deployed as fabrik-autoheal).
+    cron calls (``AUDIT_TARGETS``), the two checklists they read (``AUDIT_CHECKLISTS``) and
+    ``scripts/vps-autoheal.sh`` (deployed as fabrik-autoheal).
   * Tier 2 is every other committed file under ``scripts/sysadmin/``: printed and counted, never mailed —
     it churns daily and most of it never runs on a VPS. A tier-2 difference still makes the exit 1.
   * Per host, ONE read-only ``ssh -o BatchMode=yes`` session prints ``<mode> <md5> <path>`` per regular file
@@ -84,6 +85,12 @@ TIER1_DEPENDENCIES = (
 )
 # weekly-security.sh:20 and monthly-backup-verify.sh:28 run these with sudo bash.
 AUDIT_TARGETS = ("scripts/audit/03-security.sh", "scripts/audit/06-backup.sh")
+# ...and hand Claude these checklists (weekly-security.sh:24, monthly-backup-verify.sh:32). Their
+# `[ -f ] && cat` fails open: a missing or stale checklist degrades the report without an error.
+AUDIT_CHECKLISTS = (
+    "docs/infrastructure/audit-prompts/03-security-hardening.md",
+    "docs/infrastructure/audit-prompts/06-backup-disaster-recovery.md",
+)
 RENUDGE_DAYS = 7
 UNREACHABLE_RUNS = 3
 SSH_TIMEOUT = 60
@@ -97,7 +104,9 @@ _LIST_FILES = (
     'else printf "UNREADABLE - %s\\n" "$f"; fi; done'
 )
 REMOTE_CMD = (
-    "find /opt/fabrik/scripts/sysadmin /opt/fabrik/scripts/audit -type f "
+    "find /opt/fabrik/scripts/sysadmin /opt/fabrik/scripts/audit "
+    + " ".join(REMOTE_BASE + c for c in AUDIT_CHECKLISTS)
+    + " -type f "
     "! -path '*/__pycache__/*' ! -name '*.pyc' -exec sh -c '"
     + _LIST_FILES
     + "' sh {} + 2>/dev/null; "
@@ -247,7 +256,11 @@ def compare_cron(host: str, expected: set[str], remote: list[str] | None) -> lis
 
 def tier1_paths(root: Path) -> list[str]:
     return sorted(
-        set(template_targets(root)) | set(TIER1_DEPENDENCIES) | set(AUDIT_TARGETS) | {AUTOHEAL_REPO}
+        set(template_targets(root))
+        | set(TIER1_DEPENDENCIES)
+        | set(AUDIT_TARGETS)
+        | set(AUDIT_CHECKLISTS)
+        | {AUTOHEAL_REPO}
     )
 
 
@@ -264,6 +277,7 @@ def committed_files(root: Path) -> dict[str, tuple[str, bool]]:
             "--",
             "scripts/sysadmin",
             *AUDIT_TARGETS,
+            *AUDIT_CHECKLISTS,
             AUTOHEAL_REPO,
         ],
         capture_output=True,

@@ -2670,7 +2670,7 @@ def test_fleet_flip_tick_moves_zero_credential_bytes(tmp_path, monkeypatch):
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
     _fake_oauth(
         monkeypatch,
-        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+        usages={"tok-seo": _usage_blob(98.5, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
     )
     _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
@@ -2881,7 +2881,7 @@ def test_flip_validates_a_cached_candidate_before_flipping(
             }
         )
     )
-    usages = {"tok-a": _usage_blob(96.0, 50.0), "tok-c": _usage_blob(20.0, 20.0)}
+    usages = {"tok-a": _usage_blob(98.5, 50.0), "tok-c": _usage_blob(20.0, 20.0)}
     if live_probe == "walled":
         usages["tok-b"] = _usage_blob(100.0, 100.0)  # the rosy cache hid a wall
     calls = _fake_oauth(monkeypatch, usages=usages)  # live_probe=None: tok-b probe returns None
@@ -3283,7 +3283,7 @@ def test_a_parked_account_with_no_weekly_reading_is_still_never_picked(
     _fake_oauth(
         monkeypatch,
         usages={
-            "tok-seo": _usage_blob(96.0, 50.0),  # active, over threshold
+            "tok-seo": _usage_blob(98.5, 50.0),  # active, over threshold
             "tok-intel": _usage_blob(40.0, 60.0),  # ob: usable
             "tok-mob": _usage_blob(0.0, None),  # parked, session read, weekly MISSING
         },
@@ -3419,7 +3419,7 @@ def test_cap_walled_candidate_is_excluded_even_when_best_by_weekly(tmp_path, mon
     _fake_oauth(
         monkeypatch,
         usages={
-            "tok-seo": _usage_blob(96.0, 50.0),  # active, over threshold
+            "tok-seo": _usage_blob(98.5, 50.0),  # active, over threshold
             "tok-intel": _usage_blob(10.0, 20.0),  # ob: best weekly, but 20 ≥ cap 15
             "tok-mob": _usage_blob(10.0, 60.0),  # worse weekly, uncapped
         },
@@ -3452,7 +3452,7 @@ def test_a_parked_account_is_never_picked_even_at_zero_usage(tmp_path, monkeypat
     _fake_oauth(
         monkeypatch,
         usages={
-            "tok-seo": _usage_blob(96.0, 50.0),  # active, over threshold
+            "tok-seo": _usage_blob(98.5, 50.0),  # active, over threshold
             "tok-intel": _usage_blob(40.0, 60.0),  # ob: usable, worse on both windows
             "tok-mob": _usage_blob(0.0, 0.0),  # parked: fresh reset, best on both windows
         },
@@ -3551,7 +3551,7 @@ def test_corrupt_caps_json_warns_and_rotation_proceeds_uncapped(tmp_path, monkey
     (fleet / "caps.json").write_text("{broken")
     _fake_oauth(
         monkeypatch,
-        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+        usages={"tok-seo": _usage_blob(98.5, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
     )
     _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
@@ -3677,7 +3677,7 @@ def test_live_reverify_applies_the_same_churn_exclusion_as_the_selector(
     _fake_oauth(
         monkeypatch,
         usages={
-            "tok-seo": _usage_blob(96.0, 50.0),  # active, over threshold
+            "tok-seo": _usage_blob(98.5, 50.0),  # active, over threshold
             "tok-intel": _usage_blob(97.0, 50.0),  # live truth: session 97 ≥ threshold
             "tok-mob": _usage_blob(10.0, 60.0),  # live truth: clean
         },
@@ -3776,7 +3776,7 @@ def test_selector_excludes_a_candidate_at_exactly_its_cap(tmp_path, monkeypatch,
     _fake_oauth(
         monkeypatch,
         usages={
-            "tok-seo": _usage_blob(96.0, 50.0),  # active, over threshold
+            "tok-seo": _usage_blob(98.5, 50.0),  # active, over threshold
             "tok-intel": _usage_blob(10.0, 15.0),  # ob: weekly 15 == cap 15 exactly
             "tok-mob": _usage_blob(10.0, 60.0),  # worse weekly, uncapped
         },
@@ -5234,15 +5234,22 @@ def test_the_self_scheduled_sleep_is_a_courtesy_and_the_relay_is_the_mechanism()
     )
 
 
-# ── drain-band relief flip (operator directive 2026-09-06; incident 23:01-23:17 +03) ───────────
-def _drain_relief_fleet(tmp_path, monkeypatch, active, successor, cap=99):
+# ── perishable-first, ride to the exact cap (operator ruling 2026-10-06; replaced the 2026-09-06
+# drain-band relief, which flipped an active account away at 85% to any sibling under 85) ─────────
+_SOONER = "2027-01-21T00:00:00+00:00"  # a day before the fixture's default weekly reset
+
+
+def _drain_relief_fleet(tmp_path, monkeypatch, active, successor, cap=99, successor_reset=None):
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
     (fleet / "caps.json").write_text(json.dumps({"sarp@ocoron.com": cap}))
-    _fake_oauth(
-        monkeypatch, usages={"tok-seo": _usage_blob(*active), "tok-intel": _usage_blob(*successor)}
+    succ = (
+        _usage_blob(*successor, weekly_reset=successor_reset)
+        if successor_reset
+        else _usage_blob(*successor)
     )
+    _fake_oauth(monkeypatch, usages={"tok-seo": _usage_blob(*active), "tok-intel": succ})
     _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
     monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
@@ -5250,69 +5257,68 @@ def _drain_relief_fleet(tmp_path, monkeypatch, active, successor, cap=99):
     return fleet
 
 
-def test_relief_on_a_sibling_flips_the_pointer_off_an_active_in_the_drain_band(
-    tmp_path, monkeypatch, capsys
-):
-    """The incident: mob@ at session 93 / weekly 97 (cap 99) is not TRIPPED, so the flip leg said
-    "no flip" for sixteen minutes while ozgurbasak@ sat at 0 / 19 — every session released by the
-    hold resumed on the drained account. Relief on a sibling IS a flip when the active is in the
-    drain band and the successor is below it on both windows."""
+def test_an_active_in_the_old_drain_band_rides_to_its_cap(tmp_path, monkeypatch, capsys):
+    """sarp@ at session 93 / weekly 97 (cap 99) has not tripped; ob@ sits at 0 / 19 with the SAME
+    weekly reset. The old relief leg flipped here and abandoned sarp's last points; now it stays."""
     fleet = _drain_relief_fleet(tmp_path, monkeypatch, active=(93.0, 97.0), successor=(0.0, 19.0))
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+    assert os.readlink(fleet / "active") == "seo", out
+    assert "flipped" not in out and "no flip" in out, out
+
+
+def test_an_active_at_its_cap_still_flips_perishable_first(tmp_path, monkeypatch, capsys):
+    """The trip leg is untouched: weekly 99.2 of cap 99 flips to the fresh sibling."""
+    fleet = _drain_relief_fleet(tmp_path, monkeypatch, active=(50.0, 99.2), successor=(0.0, 19.0))
     capsys.readouterr()
     assert cr._cmd_tick() == 0
     out = capsys.readouterr().out
     assert os.readlink(fleet / "active") == "intel", out
-    assert "drain-band relief" in out and "flipped -> ob@ocoron.com (intel)" in out, out
-    lines = (tmp_path / "state" / "rotate-ledger.jsonl").read_text().splitlines()
-    flip = next(e for e in map(json.loads, lines) if e.get("event") == "flip")
-    assert (flip["from"], flip["to"]) == ("seo", "intel")
-    # …and the NEXT tick does not bounce back: the fresh active (0/19) is below the band, and the
-    # drained account is refused as a target (session 93 > the picker's 85 bar) — no ping-pong
+
+
+def test_a_sooner_reset_sibling_preempts_end_to_end_and_does_not_bounce(
+    tmp_path, monkeypatch, capsys
+):
+    """sarp@ at 60 / 50 is far from any wall, but ob@'s weekly window resets a day sooner: its quota
+    perishes first, so the pointer moves now. The next tick does not bounce back — sarp@ resets
+    later, so it never ranks ahead of the account it was left for."""
+    fleet = _drain_relief_fleet(
+        tmp_path, monkeypatch, active=(60.0, 50.0), successor=(0.0, 19.0), successor_reset=_SOONER
+    )
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+    assert os.readlink(fleet / "active") == "intel", out
+    assert "perishable-first" in out and "flipped -> ob@ocoron.com (intel)" in out, out
     capsys.readouterr()
     assert cr._cmd_tick() == 0
     out2 = capsys.readouterr().out
     assert os.readlink(fleet / "active") == "intel", out2
-    assert "drain-band relief" not in out2 and "flipped" not in out2, out2
+    assert "flipped" not in out2, out2
 
 
-def test_relief_flip_needs_a_successor_below_the_drain_threshold_on_both_windows(
+def test_a_sooner_reset_sibling_without_session_budget_does_not_preempt(
     tmp_path, monkeypatch, capsys
 ):
-    """Hysteresis: a successor at weekly 87 is itself in the band — flipping to it would flip
-    back next tick. No drain-band flip; the ordinary trip rule still governs."""
-    fleet = _drain_relief_fleet(tmp_path, monkeypatch, active=(93.0, 97.0), successor=(30.0, 87.0))
+    """ob@ resets sooner but sits at session 90 — over the picker's 5h target bar: no target."""
+    fleet = _drain_relief_fleet(
+        tmp_path, monkeypatch, active=(60.0, 50.0), successor=(90.0, 19.0), successor_reset=_SOONER
+    )
     capsys.readouterr()
     assert cr._cmd_tick() == 0
     out = capsys.readouterr().out
     assert os.readlink(fleet / "active") == "seo", out
-    assert "drain-band relief" not in out
 
 
-def test_an_active_below_the_drain_band_never_relief_flips(tmp_path, monkeypatch, capsys):
-    fleet = _drain_relief_fleet(tmp_path, monkeypatch, active=(60.0, 50.0), successor=(0.0, 19.0))
-    capsys.readouterr()
-    assert cr._cmd_tick() == 0
-    assert os.readlink(fleet / "active") == "seo"
-
-
-def test_an_active_in_the_drain_band_with_no_eligible_sibling_stays_put(
+def test_preemption_flips_within_the_dwell_and_is_ledgered_as_perishable(
     tmp_path, monkeypatch, capsys
 ):
-    """Scoped review F8: the moved fixtures left "in the band, nobody to flip to" untested. The
-    sibling is itself in the band on its weekly, so it is not below-drain on both windows."""
-    fleet = _drain_relief_fleet(tmp_path, monkeypatch, active=(93.0, 97.0), successor=(20.0, 88.0))
-    capsys.readouterr()
-    assert cr._cmd_tick() == 0
-    out = capsys.readouterr().out
-    assert os.readlink(fleet / "active") == "seo", out
-    assert "drain-band relief" not in out and "no flip" in out, out
-
-
-def test_relief_flips_even_within_the_dwell_of_the_last_flip(tmp_path, monkeypatch, capsys):
-    """Native reader R2 (HIGH), end to end: a flip five minutes ago used to hold the relief while the
-    advisory leg lifted the hold — every released session landed on the drained account for up to
-    30 min. Relief is dwell-exempt; the ledger row is `kind: relief`."""
-    fleet = _drain_relief_fleet(tmp_path, monkeypatch, active=(93.0, 97.0), successor=(0.0, 19.0))
+    """A flip five minutes ago does not hold the preemption (the reset order cannot ping-pong); the
+    ledger row is `kind: perishable`."""
+    fleet = _drain_relief_fleet(
+        tmp_path, monkeypatch, active=(60.0, 50.0), successor=(0.0, 19.0), successor_reset=_SOONER
+    )
     ledger = tmp_path / "state" / "rotate-ledger.jsonl"
     ledger.parent.mkdir(exist_ok=True)
     ledger.write_text(
@@ -5333,12 +5339,8 @@ def test_relief_flips_even_within_the_dwell_of_the_last_flip(tmp_path, monkeypat
     out = capsys.readouterr().out
     assert os.readlink(fleet / "active") == "intel", out
     rows = [json.loads(ln) for ln in ledger.read_text().splitlines()]
-    # by EVENT, not by position: the fleet tick also appends its own `tick` row now (D-201, the
-    # burst sample), so "the last row" is no longer "the flip". Both production readers already
-    # filtered by event name — `_last_event_ts` and the picture's last-flip scan — which is why
-    # this was a test-only assumption and not a defect.
     flips = [r for r in rows if r.get("event") == "flip"]
-    assert flips and flips[-1]["kind"] == "relief", rows[-3:]
+    assert flips and flips[-1]["kind"] == "perishable", rows[-3:]
     assert (flips[-1]["from"], flips[-1]["to"]) == ("seo", "intel"), flips[-1]
 
 
