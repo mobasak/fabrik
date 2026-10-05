@@ -235,7 +235,7 @@ mechanical exclusion that keeps `--queue` honest, and it carries the commit sha 
 ```
 Agent-Role: primary
 Agent-Context: command-improve <command> · rows <ts,…> · expects <series> <direction>
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude <model> <noreply@anthropic.com>
 ```
 
 `rows` lists the `ts` values from step 1 — every verdict this edit answers, no more. `expects` names

@@ -116,7 +116,7 @@ fix(worker): handle OOM exit code -9 in poll_worker
 
 Agent-Role: primary
 Agent-Context: added OOM detection to _handle_crashed_job, triggers alert
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude <model> <noreply@anthropic.com>
 ```
 
 **Verify after committing:** `git log -1 --format='%(trailers:key=Agent-Role,valueonly)'` — empty output means the block did not parse (invisible in `git show`).

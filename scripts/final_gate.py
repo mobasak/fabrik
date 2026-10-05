@@ -1129,7 +1129,7 @@ def run_static_checks(
     if (PROJECT_ROOT / "pyproject.toml").exists():
         mypy_target = detect_src_package()
         code, out = run_mypy_with_recovery(mypy_target, timeout=30)
-        results.append(("mypy", code == 0, out if code != 0 else ""))
+        results.append(_mypy_row(code, out))
     else:
         results.append(("mypy", True, "(no pyproject.toml, skipping)"))
 
@@ -1139,7 +1139,7 @@ def run_static_checks(
             [PYTHON, "-m", "bandit", "-ll", "-x", "tests/", "-r", "src/"],
             timeout=TIMEOUTS["bandit"],
         )
-        if "No module named bandit" in out:
+        if _module_absent(out, "bandit"):
             results.append(("bandit (NOT INSTALLED — skipped)", True, _skip_note("bandit")))
         else:
             results.append(("bandit", code == 0, out if code != 0 else ""))
@@ -1176,7 +1176,7 @@ def run_static_checks(
             ],
             timeout=TIMEOUTS["bandit"],
         )
-        if "No module named bandit" in out:
+        if _module_absent(out, "bandit"):
             results.append(
                 ("bandit scripts/ (NOT INSTALLED — skipped)", True, _skip_note("bandit"))
             )
@@ -1293,7 +1293,7 @@ def run_static_checks(
             [PYTHON, "-m", "pytest", "tests/", "-x", "-q", "--color=no", "-p", "no:cacheprovider"],
             timeout=TIMEOUTS["pytest"],
         )
-        if "No module named pytest" in out:
+        if _module_absent(out, "pytest"):
             results.append(
                 ("pytest (NOT RUN)", True, "pytest is not installed in this interpreter")
             )
@@ -1378,7 +1378,7 @@ def run_static_checks(
                 [PYTHON, "-m", "sqlfluff", "lint", "--dialect", "postgres"] + sql_files,
                 timeout=TIMEOUTS["sqlfluff"],
             )
-            if "No module named sqlfluff" in out:
+            if _module_absent(out, "sqlfluff"):
                 results.append(("sqlfluff (NOT INSTALLED — skipped)", True, _skip_note("sqlfluff")))
             else:
                 results.append(("sqlfluff-lint", code == 0, out if code != 0 else ""))
@@ -1389,7 +1389,7 @@ def run_static_checks(
 
     # Vulture
     code, out = run_cmd(_vulture_argv())
-    if "No module named vulture" in out:
+    if _module_absent(out, "vulture"):
         results.append(("vulture (NOT INSTALLED — skipped)", True, _skip_note("vulture")))
     else:
         results.append(("vulture", code == 0, out if code != 0 else ""))
@@ -2933,10 +2933,11 @@ def main() -> int:
     if missing:
         import json  # local, matching this file's existing idiom at 3 other sites
 
+        error, fix = _setup_error(missing)
         payload = {
             "status": "setup-error",
-            "error": f"the selected interpreter ({PYTHON}) cannot import {missing!r}",
-            "fix": f"install {missing} into that interpreter, or invoke the gate with one that has it",
+            "error": error,
+            "fix": fix,
             "note": "this is NOT a verdict on your tree — the gate refused to guess",
         }
         if args.json:
@@ -3214,6 +3215,48 @@ def _is_hub() -> bool:
         return code == 0 and bool(common) and Path(common[0]).resolve().parent == hub
     except Exception:
         return False
+
+
+def _setup_error(missing: str) -> tuple[str, str]:
+    """(error, fix) for a missing required tool, naming the probe that actually failed.
+
+    ruff is probed as the resolved BINARY, so "cannot import" was false for it; and with a
+    `.venv` present `PYTHON` is the venv interpreter whichever Python invoked the gate, so
+    "invoke the gate with one that has it" changed nothing (W-2cfa7b8e).
+    """
+    if missing == "ruff":
+        return (
+            f"ruff is not runnable (resolved as {RUFF})",
+            "install ruff into .venv, or put it on PATH",
+        )
+    if VENV_PYTHON.exists():
+        fix = f"install {missing} into .venv — the gate runs .venv/bin/python whenever .venv exists"
+    else:
+        fix = f"create .venv (python3 -m venv .venv) and install {missing} into it"
+    return (f"the selected interpreter ({PYTHON}) cannot import {missing!r}", fix)
+
+
+def _mypy_row(code: int, out: str) -> tuple[str, bool, str]:
+    """The mypy result row: an absent mypy is a LABELLED skip, as bandit's is, never a red.
+
+    `PYTHON -m mypy` exits 1 with "No module named mypy" when the interpreter lacks it, which the
+    leg read as a type-check failure while the contracts say an absent tool is skipped
+    (W-2cfa7b8e). The skip row stays visible: its name carries " (NOT INSTALLED", which the
+    advisory set and `skipped_checks` both read.
+    """
+    if code != 0 and _module_absent(out, "mypy"):
+        return ("mypy (NOT INSTALLED — skipped)", True, _skip_note("mypy"))
+    return ("mypy", code == 0, out if code != 0 else "")
+
+
+def _module_absent(out: str, module: str) -> bool:
+    """True when `python -m <module>` failed because the module is NOT INSTALLED.
+
+    A bare substring test also matched "No module named mypy.__main__" (a package present but
+    broken) and "No module named mypy_extensions" (another module), turning a broken toolchain
+    into a green NOT INSTALLED skip (W-2cfa7b8e). The name must end there: no word char or dot.
+    """
+    return re.search(rf"No module named {re.escape(module)}(?![\w.])", out) is not None
 
 
 if __name__ == "__main__":
