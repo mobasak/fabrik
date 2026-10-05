@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-05T07:42:21.203405Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "290e9d83ef13f5b0b234a2b10dae6ba6bf6338cd",
   "id": "W-4c7edc74",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "title": "Stop hook COMMAND STILL RUNNING blocks every end-of-turn while a review's background seats run (tryton-crm 01M3QJCV item 3: ~30 'still waiting' turns in one /fabrik-ui-design run; reproduced in the hub 2026-10-05). Direction: stand down while command_run.py dispatch's seat stamp is live AND a background Agent task is in flight; cobra: a stale stamp or a never-returning seat must not hold the session forever (bound by the 25-minute stamp)"
 }
