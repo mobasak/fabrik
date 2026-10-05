@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the per-prompt work block names three of your claims, then a count (2026-10-05)
+
+- `work.py prompt_block` lists at most three of the session's own claims, by priority, then `… and N more of your claims`; a session holding 117 claims went from 29,221 to 2,442 bytes per prompt (fleet 01M3QJKE, D-583).
+
 ### Fixed — /fabrik-ui-design names a history path the doc-sprawl gate admits (2026-10-05)
 
 - `/fabrik-ui-design` and `/fabrik-ui-design-review` now split contract history into `docs/archive/ui-design-history.md`; the old path directly under `docs/` was refused by `check_doc_sprawl.py` (tryton-crm 01M3QE8Y, D-582).

@@ -257,9 +257,12 @@ D4, D6):
   giving a name — `work: this window has no agent name — owned items cannot reach it; run python3
   scripts/whoami_agent.py --as <name>`; the obligation lines above; every
   `awaiting-operator` item with its question (and, once retired by D5, `(also asked as <id>)`); this
-  session's own live claims — `work: your claim — <id>: <title> (token …, lease until …)`; one `on it:`
-  line per OTHER session holding a live claim, so every live claim in the repo is visible to every
-  session, not only its own — `work: on it: <session short id> (<agent or "unnamed">) — W-xxxx, W-yyyy`;
+  session's own live claims — the first three by priority (the Stop hook's order) as `work: your claim —
+  <id>: <title> (token …, lease until …)`, then `work: … and N more of your claims` naming
+  `work.py ready` (D-583; one session held 117 claims, a 29 KB block on every prompt), and
+  `work: your claims on items not in this tree — <ids>` for any claim `ready` cannot list; one `on it:`
+  line per OTHER session holding a live claim, so every live claim in the repo is counted for every
+  session — `work: on it: <session short id> (<agent or "unnamed">) — W-xxxx, W-yyyy`;
   and the ready count.
 - **`status`'s distributor lines (D4).** `UNOWNED` — open items with no owner (a `next` item is never
   counted; it is nobody's to own); `CLAIMS` — one line per session holding a live claim, flagged `— over

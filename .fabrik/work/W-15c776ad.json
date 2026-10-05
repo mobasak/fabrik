@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T08:14:20.866599Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-15c776ad",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "work the held mails down meanwhile (the Stop hook names them one at a time); spec the claim policy",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "One hub session holds 114 claimed-but-unacked mail items: 111 claimed in one hour (2026-10-04T08, the autonomy ladder's mail.py claim per mail), and _renew_claims (work.py:945-953) re-stamps every claim of the session on every write, so none ever expires; the claimed mails sit in the archive, invisible to other agents' mail.py list. Decide: renew only the claim acted on, refuse a mail claim past N held, or a requeue rung for a claim held >24 h with no reply (each changes fence semantics — D-253 pass)"
+}
