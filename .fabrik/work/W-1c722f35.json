@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T16:57:17.349053Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1c722f35",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide with infra (gate owner) whether the gate lints server/; if yes, emit server/pyproject.toml with the same extend-exclude/force-exclude/mypy override and extend tests/test_scaffold_output_passes_gate.py; fix the Makefile lint target to mypy src/<pkg>",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Scaffold: the server/ backends of saas-skeleton, static-site and office-extension ship the vendored glitchtip_init.py with no ruff/mypy config, and final_gate never lints server/ (mypy skipped green, ruff roots scripts/ src/); also make lint runs mypy . and fails on scripts/enforcement duplicate module names"
+}

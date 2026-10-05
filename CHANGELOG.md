@@ -12,8 +12,10 @@ no exclusion for it. The template now excludes it from ruff with `force-exclude 
 name, which a plain `extend-exclude` ignores) and gives it a mypy `ignore_errors` override. The same measurement
 found three more defects in hub-authored output: the generated `tests/test_glitchtip_no_secret_leak.py` (ARG002 ×2,
 SIM105) and `internal_auth.py` / `logger.py` failing `ruff format --check`. All are fixed at their generators, and
-`tests/test_scaffold_output_passes_gate.py` scaffolds a python-api project and runs the four tools on it. Existing
-projects need the two pyproject blocks added by hand.
+`tests/test_scaffold_output_passes_gate.py` scaffolds python-api and python-api-gpu and runs the four checks with the
+project's own `.venv` tools when present. Existing projects need the two pyproject blocks added by hand. Not covered:
+the `server/` backends of saas-skeleton, static-site and office-extension, which have no ruff/mypy config and which
+the gate does not lint (W-1c722f35).
 
 ### Fixed — seeded `psql` calls go through a `pgurl` helper, so a `postgresql+asyncpg://` DSN works (2026-10-05)
 `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` and `CONFIGURATION_TEMPLATE.md` seeded `psql $DATABASE_URL` and
