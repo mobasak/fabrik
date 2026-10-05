@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T19:35:53.546272Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-cbe91e86",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M45TNGQ94YP3K5W6CZJ4464S",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: work store lost a live operator-dispatched program — three mechanism gaps (your 01M3RPH0MCDZVNR7Y2TPJ1Q6B4)"
+}
