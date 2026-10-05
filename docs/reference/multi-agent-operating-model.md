@@ -180,6 +180,21 @@ The Stop hook holds the owner's turn while a request waits unclaimed or a record
 half: a named agent's window merges nothing and removes nothing — push the branch and send the
 request.
 
+Reading a sibling's branch before or after a merge: the two-dot `git diff <base> <branch>` shows
+every base commit the branch predates in reverse (added lines as DELETIONS), the same shape a silent
+revert takes. Read what the branch itself changes with the three-dot `git diff <base>...<branch>`
+(from the merge base), and what a merge did with `git diff <base before> <merge commit>`
+(tryton-crm 01M3QJGF item 4).
+
+A checkout with more than one writer has one more hazard. While its hooks run, pre-commit
+(`staged_files_only.py`) resets every tracked file to the index (`git checkout -- .`), then
+re-applies the unstaged changes from a patch in its cache (default `~/.cache/pre-commit/`). For
+that window a sibling's unstaged edits are gone from disk. A sibling write to a tracked file inside
+the window makes the commit fail (the hooks report modified files), and if the re-apply then
+conflicts, EVERY tracked-file write made inside the window is discarded and only the patch survives
+(tryton-crm 01M3QJGF item 3; W-7fd7c566). This is one more reason only the merge owner writes the
+main checkout.
+
 ## Locks — `.fabrik/plan-locks/`, per working tree (§ Live locks, D-117)
 
 The directory does **not** move. Each tree carries its own `.fabrik/plan-locks/`; step 7's overlap

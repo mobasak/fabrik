@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T07:46:33.688058Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7fd7c566",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: count pre-commit 'Restored changes' / 'conflicted with hook auto-fixes' lines in hub transcripts over 14 days; design only if overlaps occur",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "pre-commit's staged_files_only resets every tracked file to the index (git checkout -- .) for the duration of the commit hooks on a SHARED checkout: siblings' unstaged edits vanish from disk for the window, and a sibling write inside the window is discarded when the patch re-apply conflicts (pre_commit/staged_files_only.py:79-96; tryton-crm 01M3QJGF item 3). Measure how often hub commits overlap sibling writes, then design (commit hooks in a temp index/worktree?)"
+}
