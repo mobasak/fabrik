@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a synced enforcement check shipped unformatted; a test now grades all of them (2026-10-05)
+- `scripts/enforcement/check_lint_ratchet.py` carried a stray blank line (since c2bd9b6c1). The hub gate formats only the files a change touches, and a project gate ignores the synced directory, so nothing graded the shipped copy, and a whole-tree `ruff format --check` in a scaffolded project tripped on it (fleet's finding, mail 01M46GJZ2E). The file is reformatted, and `tests/test_synced_enforcement_is_formatted.py` runs `ruff format --check` on all 78 `scripts/enforcement/*.py` by name; it fails on the unfixed file.
+
 ### Removed — two dead command fragments, grounding-research and grounding-rules-cite (2026-10-05)
 - Neither fragment is `{{include:}}`d by any command. The 2026-08 shrink audit kept them because their text was inlined, under the version markers `n3k-research-clause v1` and `rule-grounding-cite v1`, into the orchestrator workflow docs. Those docs were retired on 2026-09-05 and now sit only in `docs/orchestrator/_retired/`, so the fragments have no live consumer. The retired copies keep their inlined text. Two notes: D-041's enforcement column still names `grounding-research.md` (ledger rows are immutable). The fix-first rule it carried lives on in CLAUDE.md's MCP FIX-FIRST bullet, and the fragment, never included, enforced nothing. `commands/_sources/fabrik-epics-review.md` keeps its own reworded copy of the Constraints-Digest citation rule as an independent text. The kaizen shrink audit carries a superseding note. W-a0c1281c, W-38637b66.
 
