@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T09:16:34.400755Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5d874033",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M42Y32MRN62927Y2WQHM9ZK4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: gpu-rent fix at fabrik-lib main 2699cc9a. A vendored gpu-rent older than that lets MAX_DAILY_GPU_COST=nan|inf, a nan|inf max_cost_usd, or a non-finite tracker total disable a GPU spend guard (any comparison against nan is False), so rent()/rented() reach the provider with no cap."
+}

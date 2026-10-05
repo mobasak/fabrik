@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T07:41:33.160630Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-9443574e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M42D6QNMGXHA4HF1PZ52BYQW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: decision-gate is built, reviewed and vendorable. Vendor it from fabrik-lib main at 0464cc81. This answers your request 01M40N12HT0PB1QCGSKZG3YZNX (\"i want it to be implemented and ready to be used according to use cases you have listed\")."
+}

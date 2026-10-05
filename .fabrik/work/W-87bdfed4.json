@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T18:52:59.849091Z",
+  "creator": "intel",
+  "evidence": "ea43f949dcee04b0d5275116b18619d1073fd5ff",
+  "id": "W-87bdfed4",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "run scripts/kilo-benchmarks/tests/ with PYTHONPATH=<worktree>/src, read each failure, fix at the cause or re-freeze the goldens only where the delivery pause is the reason",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "tests"
+  ],
+  "title": "scripts/kilo-benchmarks/tests/test_golden_parity.py and test_autocommit_freshness_wiring.py: 10 tests red, identical at HEAD (pre-existing) — likely the paused block delivery (D-430/D-554) left golden markers stale (found in W-61380819)"
+}

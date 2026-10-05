@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-30T08:48:59.644004Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "0b58098c4f0603b832a0238a04d531b44e2a292c",
   "id": "W-bb20735b",
   "kind": "backlog",
   "legacy": false,
@@ -11,13 +11,13 @@
     "plan": "",
     "spec": ""
   },
-  "next": "at saas/88's next touch: reword the FingerprintJS licence version-free, and point the registration_ip write at saas/87 \u00a7 Where it goes step 3 (the async write after the 201), not the sync module call",
+  "next": "at saas/88's next touch: reword the FingerprintJS licence version-free, and point the registration_ip write at saas/87 § Where it goes step 3 (the async write after the 201), not the sync module call",
   "note": "",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "rules"
   ],
-  "title": "saas/88-saas-launch-checklist \u00a7 Abuse Prevention drifted from saas/87 (2026-09-30): the 'MIT-licensed again since v5' tool-version literal, and :83 names the sync store_registration_metadata as the registration_ip write"
+  "title": "saas/88-saas-launch-checklist § Abuse Prevention drifted from saas/87 (2026-09-30): the 'MIT-licensed again since v5' tool-version literal, and :83 names the sync store_registration_metadata as the registration_ip write"
 }

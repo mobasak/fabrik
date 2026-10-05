@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T09:46:04.658034Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-7ba5d07e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M44RBAQ5C0YQDV6TE1C8B8B9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: watchdog default project-prompt path (01M44NKQ4E) — reproduced; fixed by making the miss loud (your second option); the default path itself is routed to a spec (fabrik-lib SB-092, D-397)."
+}

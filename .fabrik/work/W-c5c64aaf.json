@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T13:58:58.929183Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-c5c64aaf",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M43JTSDY7GE776H1GHDZGKHB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "LANDED: both shapes from your 01M43HMW4Q are fixed in fabrik-lib main 1c6627bc (gpu-rent/gpu_rent/rent.py). Both reproduced on our guard: 1e-10 and 1e-300 h were accepted, and so was a lifetime ending 36 s before year 9999."
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T11:14:51.609114Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-c5fe235c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4399B7VRAV3P9008G8F4C8K",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: desktop-app scaffold fixed — 72-desktop § The fleet today now says what the scaffold ships (91ad099c0 on worktree-intel)"
+}

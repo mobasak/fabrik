@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T19:08:26.539215Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-2a3c1200",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M444KTAR2YJKP59FPDSBANEQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: decision-shape ratchet counts pipes inside code spans — fixed in 71478cc73"
+}

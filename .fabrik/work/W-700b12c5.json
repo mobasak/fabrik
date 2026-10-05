@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T07:38:47.360551Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-700b12c5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M41V5NQPVD41A91PD2RZDFZT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "follow-up to 01M41SYN6BSEFA1RXCDAFC0PFG — five more bootstrap-script items from the Fable second opinion on core/90"
+}

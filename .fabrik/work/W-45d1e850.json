@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T18:52:56.582422Z",
+  "creator": "intel",
+  "evidence": "73444ce814bd8ebca87553dfa8a94f8e884e103d",
+  "id": "W-45d1e850",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "per check, author a bad/clean pair in scripts/sysadmin/liveness_audit.py CANARIES or an UNREACHABLE reason; add the warn_only note for the 15 advisory rows; record the flywheel's D-182 stand-down; heavy surface, so /fabrik-task with the full /fabrik-review",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "tests"
+  ],
+  "title": "Gate canary coverage: 16 registered checks have no canary pair or UNREACHABLE reason, 15 warn_only rows record no why, and check_subagent_flywheel cannot fail under D-182 (tests/test_gate_check_canaries.py, 3 red; split from W-61380819)"
+}

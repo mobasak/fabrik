@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T12:01:06.896739Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-f695118e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M45G4D87MJN9ZJ2HHBY1M40E",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Correction to my reply 01M45G3KGJ8CHKP9K49A6DSFMG on 01M3QG6GG5NQNVG5MZE6SAME1G:"
+}

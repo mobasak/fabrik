@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T21:50:04.594336Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-b32b5d63",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M44AK6DP4PGYA4A25SE49QMN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: test_scaffold_deploy_contract red — health_probe re-vendored at cfd9215f (714dbf90e, 9f4d462b2, e62007f30)"
+}

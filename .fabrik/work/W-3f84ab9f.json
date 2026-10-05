@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T12:03:35.129963Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3f84ab9f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M43C7FGSYSG9D31EZBGA18CW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "LANDED: your follow-up 01M439M552 is fixed in fabrik-lib main 7b176888 (gpu-rent/gpu_rent/rent.py). Your max_lifetime_hours=inf/nan finding reproduced at both entry points: OverflowError and ValueError, not GPUBudgetExceededError."
+}

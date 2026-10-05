@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T12:08:36.882190Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d04c69de",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M43C7GNY2SSCHNW17TX3VP47",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: fabrik apply test red on master — fixed at a4f903ed2 (real DeploymentContext), and the modal refusal"
+}

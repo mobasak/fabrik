@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T18:16:20.780661Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-8898bd66",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4421RKEFFHHNBF4MGS96TVN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: gpu pack — gpu_handler text and the price note now match D-437 (f0740ff03)"
+}

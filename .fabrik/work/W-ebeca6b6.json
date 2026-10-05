@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T23:57:16.306415Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-ebeca6b6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-571",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "emit the env var at src/fabrik/drivers/watchdog.py near the WATCHDOG_SYSTEM_PROMPT render, plus a test in tests/test_watchdog_project_prompt.py",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Watchdog driver renders WATCHDOG_PROMPT_FILE=/project/<project_system_prompt_file> when set — fabrik-lib agent.py now reads it file-first (D-571 salvage a)"
+}

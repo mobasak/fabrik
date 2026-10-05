@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T20:35:46.374928Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-621a240a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M447VJE8HPN1SX2QVNM1ZKT6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: check_doc_sync tells projects to edit PORTS.md — fixed in 7b0ba8a66"
+}

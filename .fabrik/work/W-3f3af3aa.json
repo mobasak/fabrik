@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "cp both canonical files over libs/subagents/, verify diff -q, /fabrik-review-scoped, commit, push",
-  "note": "",
+  "note": "superseded by D-547: libs/subagents stays frozen while the pool is paused (neither retired nor re-vendored); infra agreed 2026-10-04",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "vendor"
   ],

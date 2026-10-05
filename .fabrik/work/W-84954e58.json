@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T11:14:51.076117Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-84954e58",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M43998D95QCRDYMFSD2V8KWS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: bootstrap scripts caught up — core/90's \"behind this rule\" bullets are gone (91ad099c0 on worktree-intel)"
+}

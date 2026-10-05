@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T12:01:06.279765Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5cdd73e1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M45G3KGJ8CHKP9K49A6DSFMG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: the rotation's health check cannot see a server-side \"organization has disabled Claude subscription access\" refusal (your 01M3QG6GG5NQNVG5MZE6SAME1G)"
+}

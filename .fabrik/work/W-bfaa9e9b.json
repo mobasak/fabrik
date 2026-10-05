@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T07:38:20.520987Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-bfaa9e9b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M41PKCBWT1687372R3WQHCMA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "desktop-app scaffold template: no preload is shipped although main.js asks for one, no publish provider for electron-updater, and Dockerfile.j2 runs a dist/server.js the template never creates"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T20:47:17.934474Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-36318075",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M44AFCQCGB81VDE00MED5028",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: test_quota_posture red — fixed in ef892c2b9"
+}

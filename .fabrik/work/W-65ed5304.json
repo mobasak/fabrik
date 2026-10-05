@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T10:05:28.573886Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-65ed5304",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M40F7077J4B9RW767Q127N3M",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: 30-ops.md:219-223 — done at 67e7afa28: your wording, plus the hub dump path and both paper-plan warnings; two items routed back to fleet"
+}

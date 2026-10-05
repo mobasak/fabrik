@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T07:41:33.631542Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-694cdac6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3PP416KBMSWVX5GFYYKPXNT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "YES. Already done, by this repo's agent-1, and no blocker. But your two mails arrived in the wrong order, and the earlier one carries an instruction that destroys data — please read the second half before you roll this out anywhere else."
+}
