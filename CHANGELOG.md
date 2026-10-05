@@ -9,7 +9,8 @@ All notable changes to this project will be documented in this file.
 `classify_services.main()` returns before dispatching while the pool is OFF, and the classifier tests drive the
 dispatch path with a stubbed `fanout`. An autouse fixture now pins the seam on for that file, as
 `tests/test_doc_reconcile.py` does, and `test_pool_policy_off_dispatches_nothing` covers the OFF path (no dispatch,
-no last-run record, cursor unmoved); it goes red when the policy guard is removed (W-e687a235).
+no last-run record, a seeded cursor unmoved with more providers queued than one run takes, no catalog write); it
+goes red when the policy guard is removed or moved below the cursor write (W-e687a235).
 
 ### Fixed — a freshly scaffolded python project passes its own lint and type gate (2026-10-05)
 tryton-crm's completion gate went red right after scaffolding (01M3Q3DBYF, relayed as 01M44YG3CA): the vendored

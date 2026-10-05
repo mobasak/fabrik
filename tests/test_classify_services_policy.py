@@ -1,6 +1,6 @@
 """D-181/D-182: `scripts/classify_services.py` — the daily chain's paid pool step — never dispatches
-while the committed pool policy is OFF (the cursor is not moved either: the gate sits before
-argparse, so no flag reaches the dispatch)."""
+while the committed pool policy is OFF (the cursor is not moved either: the gate sits after
+argparse, so --help and a bad flag still behave, and before any read or write)."""
 
 import importlib.util
 import sys
