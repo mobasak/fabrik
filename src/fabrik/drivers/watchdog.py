@@ -608,10 +608,14 @@ class WatchdogDriver:
         Mutates ``rctx.auto_code_fix`` to False when a prerequisite the spec
         validator can't see is unmet, so the build falls back to the default
         escalate-only entrypoint instead of an autonomous loop that can't be
-        safely rolled back. Two checks:
+        safely rolled back. Three checks:
 
-        - **git remote** (hard): autonomous push needs a clone source. Missing
-          it is an operator error → fail the apply loudly (not a silent degrade).
+        - **git remote** (hard for the watchdog): autonomous push needs a clone
+          source, so a missing one raises. The raise does NOT abort the apply:
+          ``_provision_watchdog`` hands it to ``_nonfatal``, so the deploy
+          completes without the watchdog, the watchdog is recorded as a failed
+          registrar, and ``fabrik apply`` exits 2 instead of printing the green
+          banner (not a silent degrade).
         - **app HEALTHCHECK** (degrade): without one, ``verify_health`` is a
           no-op so auto-rollback can't fire (R-B). Refuse Tier-D → escalate-only.
         - **snapshot storage** (degrade): the sidecar stores a pre-apply snapshot

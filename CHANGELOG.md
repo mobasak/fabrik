@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — watchdog Tier-D docstring and CONFIGURATION.md payments worker match the code (2026-10-05)
+`WatchdogDriver._gate_tier_d`'s docstring said a missing git remote fails the apply loudly; the raise is caught by
+`_nonfatal`, so the deploy completes without the watchdog, records a failed registrar and `fabrik apply` exits 2
+(infra review, mail 01M455G9). `docs/CONFIGURATION.md` § Payments webhook ingest now describes the fulfilment worker
+as fabrik-lib D-337's own scoped `NOBYPASSRLS` login scoped by `app.tenant_id`, not the tenant role (infra mail
+01M44Y86AE).
+
 ### Changed — session transcripts archive straight to Backblaze B2 from this machine (2026-10-05)
 `scripts/sysadmin/archive_transcripts.py` no longer rsyncs to vps1 for Backrest: it uploads the zstd archive and its manifest to the B2 bucket `wsl-ozgur` with rclone (D-565). Every rclone call passes one helper whose verbs are an allow-list (`copy`, `copyto`, `lsf`) and which refuses `--delete*`/`--b2-hard-delete` by option name; the key reaches rclone only through the child's environment, read from the `SESSION_ARCHIVE_*` lines of `/opt/fabrik/.env`. Unchanged transcripts are skipped by size and mtime, hard-linked twins are archived once, a lock serialises runs, and `--remote-count`/`--fetch` serve restores. A daily systemd user timer (`scripts/sysadmin/systemd/`, installed by `install_session_archive_timer.sh`) runs the growth sampler then the archiver. Docs: `docs/workstation/session-history-retention.md`.
 ### Fixed — merge requests no longer refuse a branch whose src/ holds a stdlib-named package (2026-10-05)
