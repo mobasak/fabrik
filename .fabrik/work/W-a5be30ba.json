@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T00:48:35.225581Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a5be30ba",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M44QXGG7656PBEJJ9VWXSZRV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop hook sixth cause can't be cleared by the review that reviewed the file (final_gate_stop.py)"
+}

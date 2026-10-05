@@ -70,8 +70,8 @@ literally has two rules it cannot both satisfy, and files a false positive on wh
 carve-out: `BaseSettings` governs a SERVICE's config surface (a `Settings` object, DB/Redis DSNs,
 secrets). A **vendored fabrik-lib module** has no settings object by design — it reads its own knobs
 with bare `os.getenv("KEY", "default")`, which is `35-security-auth`'s mandate being satisfied, not this
-one being violated. Live false positive: `health-probe/health_probe.py:55`
-(`float(os.getenv("HEALTH_PROBE_TIMEOUT", "12"))`), reported by fabrik-lib `01M15081Q5`. A rule that
+one being violated. Live false positive: `health-probe/health_probe.py::_timeout_from_env`
+(`os.getenv("HEALTH_PROBE_TIMEOUT")`), reported by fabrik-lib `01M15081Q5`. A rule that
 fires on a legitimate pattern gets `# noqa`'d into uselessness — which costs more than the rule was
 worth.
 

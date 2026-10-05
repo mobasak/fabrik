@@ -271,8 +271,8 @@ section's text read by two seats; the union IS the pass. Size and stamp it at TH
 `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices opus=N,sonnet=N` prints the seats, each
 slice's refuter counted by its model token (never dispatch past `SEATS: 0` — read its reason line for what binds,
 the box, a cap, or your own invocation, and re-run it once that clears), `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, then ONE
-`Workflow` call — `Workflow({scriptPath: "/opt/fabrik/.claude/workflows/fabrik-review-loop.js", args: {pass: 1,
-surface, base_sha, digest, pins_dir, scratch_dir, brief, slices}})`, each slice `{name, files: [its ticket files,
+`Workflow` call — `Workflow({scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js", args: {pass: 1,
+surface, base_sha, digest, pins_dir, scratch_dir, brief, slices}})` (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree), each slice `{name, files: [its ticket files,
 or the monolith], scope: "<the sections it owns>", models: ["opus"] | ["sonnet"], priority}` and a cited-fact
 slice `agent: "fabrik-researcher"` (contract: `docs/reference/review-loop-workflow.md`): one fresh refuter per
 slice EXECUTES every candidate and returns the command and output, and ONE ledger comes back. Read it into a file
@@ -284,7 +284,7 @@ partition the three-seat floor stands down (D-208, D-218). Every later pass is a
 `pass: 2|3` and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json
 --ids <the confirmed ids>` — the round-1 seats re-verifying their OWN slices over the fix diff plus one hop, the
 tickets and sections whose tokens cite the edited step (D-335) — plus the hygiene script on the re-pin. When the
-`Workflow` tool is absent the seats go out through the `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. (This replaces the old GREENFIELD-monolith exemption: a monolith that
+`Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached) the seats go out through the `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. (This replaces the old GREENFIELD-monolith exemption: a monolith that
 modifies or wires into EXISTING code still owes its author-blind pass (live proof: a ~40-line monolith's
 author nearly converged solo; the author-blind finder returned a CONFIRMED-HIGH invalidating the plan's core
 mechanism — every anchor was real, the defect was the author's inference) — and a plan SET always partitions

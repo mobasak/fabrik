@@ -134,7 +134,7 @@ persists across rounds:
 not capped and nothing is refused on the budget: past it, a non-terminal round report ADVISES the close — `handoff`
 with the failing slices and their claims named. `round --slices A:12/12,B:5/6` stores the per-slice claim ledger
 (`verified/claims` per round-1 slice; a malformed value, `verified > claims`, a zero-claim slice or a repeated name is
-refused, rc 2; a later round that OMITS the ledger after an earlier round stated it is `⛔ NOT TERMINAL` and `done`
+refused, rc 2; a later round that OMITS the ledger, or any slice ANY earlier round stated, is `⛔ NOT TERMINAL` and `done`
 refuses it — the omission is the gate's cobra, written down in `_parse_slices`). A round that
 states slices is TERMINAL only when every slice's ledger is verified — a quiet, all-classes-clean round with a slice at
 `5/6` prints `⛔ NOT TERMINAL — slice B has 1 open claim … its owning seat's next pass is owed`. `done` refuses (rc 1)
@@ -217,9 +217,12 @@ genuinely halted review.
 
 ### The covered window, the route-up before the record, and the `done`-closed escalation
 
-A review-family `done` covers every code edit since the previous AGENT-closed record — `REVIEW_FAMILY`
-(`fabrik-review` + `fabrik-review-scoped`) is that reach-back set, and only `done` reaches back: a
-`blocked` or `handoff` reviewed nothing and caps the window. Two consequences the review-family pass-3 plan
+A review-family `done` covers the session's work: a non-nested close with a readable ledger reaches back
+to the session's EARLIEST covered window and stamps `first_review_reach` there, so an edit made before a
+non-review command (`/fabrik-plan-review`, `/fabrik-spec`) is covered too (D-574); a nested review, or a
+ledger holding a pair it cannot read, keeps the latest-close reach. `REVIEW_FAMILY` (`fabrik-review` +
+`fabrik-review-scoped`) is that reach-back set, and only `done` reaches back: a `blocked` or `handoff`
+reviewed nothing and caps the window. Two consequences the review-family pass-3 plan
 wrote into `/fabrik-review-scoped` (2026-09-12): (1) a change that trips its step-1 trigger BEFORE any
 record exists routes up at once — the heavy review starts with `--surface "ROUTED-UP: step 1 — …"` and
 its `done` covers the pre-start edits, no scoped record in between; (2) a scoped review whose SECOND

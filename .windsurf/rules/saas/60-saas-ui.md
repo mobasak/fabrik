@@ -343,7 +343,7 @@ All user-facing text follows the resolved system's verbal identity (for ocoron, 
 - Adding a language: copy `public/i18n/en.json` → `public/i18n/<lang>.json`, AI-translate, then validate:
   - `python scripts/validate_i18n.py` — Level 1: structural checks (missing keys, placeholder mismatches, empty values). Free, instant.
   - `python scripts/validate_i18n.py --validate <lang>` — Level 2 + 3 (back-translation, native-speaker critique) shell out to the Kilo CLI and a `kilo/…` model, a toolchain the fleet has retired (D-364) — never make them a gate; Level 1 is the gate. Review a new locale by hand (or with `claude -p`) until the validator is ported.
-  - Full i18n kit (validate script, `_context.json`, snippets, JS loader): `templates/i18n-kit/` (hub — the copy `scaffold.py` seeds; `templates/scaffold/i18n-kit/` is an older, divergent copy).
+  - Full i18n kit (validate script, `_context.json`, snippets, JS loader): `templates/i18n-kit/` (hub — the copy `scaffold.py` seeds).
 - Locale-aware formatting: use `formatDate()`, `formatNumber()`, `formatCurrency()` from `useI18n()` — never hardcode date/number formats.
 - For RTL support, multilingual rules, and formatting rules see `design-system-template.md` § Multilingual and RTL + § Date, Time, Currency, and Number Formatting.
 - See `templates/i18n-kit/docs/multilingual-plan.md` (hub — the copy `scaffold.py` actually seeds; landed in projects as `docs/reference/multilingual-plan.md`) for the full architecture, key naming convention, and anti-patterns.

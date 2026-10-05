@@ -1972,7 +1972,9 @@ def _merge_owner(repo: Path) -> str:
 # fenced blocks — is BODY of the row above, kept in its text; a body runs to the next ROW line,
 # never to the next `- `. A row-start line that fails to parse (an untagged `## `) still becomes an
 # item with an empty owner (contract row 2); non-row text before the first row, or belonging to no
-# row, is never an item.
+# row, is never an item. D-566 narrows the `## ` case: a row whose body is empty or template
+# boilerplate is dropped by `_is_structural_row` when it is an untagged, unresolved `## ` section or a
+# template placeholder row — a row with any real body line is never dropped.
 #
 # `docs_updater.classify_backlog_row` decides whether an UNTAGGED row NEEDS a tag (`--adopt`'s own
 # job): its "skip" verdict fires equally on an already-tagged, resolved, or non-row line — the
@@ -1992,6 +1994,9 @@ _RESOLVED_STATUS_WORDS = ("RESOLVED", "CLOSED", "DONE", "LANDED", "MOOT", "DRILL
 _STATUS_OR_CHECK_RE = re.compile(r"✅|\b(?:" + "|".join(_RESOLVED_STATUS_WORDS) + r")\b")
 _STATUS_AFTER_RE = re.compile(r"^[ \t:,\-—]{0,4}(?:\d{4}-\d{2}-\d{2}|in D-\d+)")
 _STATUS_BEFORE_DASH_RE = re.compile(r"—[ \t]*$")
+# D-566: an uppercase status word that opens an untagged title is a status only when a separator
+# follows it — `CLOSED — x`, `RESOLVED (D-044) — x`, `DONE:` — never `CLOSED-door policy`, `MOOT court`.
+_FIRST_WORD_SEPARATOR_RE = re.compile(r"^[ \t*_~]*(?:—|:|\(|,|\d{4}-\d{2}-\d{2}|$)")
 # A-O19/A-O27: a status word this close behind PARTIALLY/PARTLY/NOT never resolves the row on its
 # own — hyphen- and whitespace-tolerant ("PARTIALLY-CLOSED", "NOT DONE").
 _NEGATION_PREFIX_RE = re.compile(r"\b(?:PARTIALLY|PARTLY|NOT)[ \t-]*$", re.I)
@@ -2018,6 +2023,38 @@ _CROSS_TAG_SPACED_RE = re.compile(
     r"[a-z0-9-]{1,32}[ \t]*[/+→][ \t]*[^\]\n]{0,60}$"
 )
 _LEGEND_HEADER = ("Tag", "Agent", "Beat")
+# W-02a0f674: the scaffold template's own body lines (templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md),
+# stripped. A row whose body holds nothing but these, blanks, `---`, comments and table separators carries
+# no content — migrating it made "Later", "Activation" and two `[Item]` placeholders OPEN items in every
+# scaffolded store. `tests/test_work_migrate.py` pins this set to the template, so a template edit fails
+# the suite instead of migrating silently into every new project.
+_TEMPLATE_PLACEHOLDER_LINES = frozenset(
+    {
+        "| Effort | Item | Why Priority | Ready When |",
+        "| **M** | [Feature/Refactor] | [1-liner value] | [Specific trigger] |",
+        "| **S** | [Small hardening/refactor] | [1-liner value] | [Specific trigger] |",
+        "- [ ] **[Item]**: [Brief description]. Blocked by [resource/trigger].",
+        "- ⚠️ **[System X]**: Avoid [Library A]; use [Library B]. Prior attempt failed due to [Z].",
+        "- 💡 **[Pattern Insight]**: [Lesson to preserve regarding architecture or logic.]",
+        "Items move to active development when:",
+        "1. **Focus window opens** — a block of 4+ hours of uninterrupted time is identified.",
+        "2. **Resource/budget availability** — external tools, APIs, or budget tiers become accessible.",
+        '3. **Measurable failure** — a "functional but fragile" component produces a real incident',
+        "(link the TROUBLESHOOTING.md entry); prevention is promoted to a plan at the second occurrence.",
+    }
+)
+_LIST_MARKER_RE = re.compile(r"^(?:[-*][ \t]+(?:\[[ xX]\][ \t]+)?)")
+
+
+def _sans_list_marker(line: str) -> str:
+    """A line with its leading bullet/checkbox marker removed — a bullet row's ``title_line`` holds
+    only its content, the template holds the whole line; both are compared through this."""
+    return _LIST_MARKER_RE.sub("", line.strip())
+
+
+_TEMPLATE_PLACEHOLDER_CONTENT = frozenset(_sans_list_marker(x) for x in _TEMPLATE_PLACEHOLDER_LINES)
+_TABLE_SEPARATOR_RE = re.compile(r"^\|[\s:|-]+\|$")
+_RULE_LINE_RE = re.compile(r"^-{3,}$")
 
 
 def _looks_bracket_led(content: str) -> bool:
@@ -2064,7 +2101,8 @@ def _row_is_resolved(
     a strike. Otherwise ``✅`` and an uppercase WHOLE word (``\\b``-bounded, A-O17) from
     RESOLVED/CLOSED/DONE/LANDED/MOOT/DRILLED/SHIPPED are scanned together for a STATUS POSITION —
     followed (after optional spaces/punctuation) by a date or ``in D-<n>``, sitting AFTER the tag
-    span as its first word (never before it — A-O17), following an em dash, or — for a TABLE row
+    span as its first word (never before it — A-O17), as the FIRST word of an untagged title on a row
+    with no checkbox (D-566), following an em dash, or — for a TABLE row
     only (``is_table=True``, A-O25) — sitting as the first token of ANY cell (right after a ``|``).
     A bare mid-sentence occurrence ("a CLOSED review's edits", "file 5, DONE", "the ✅ row") is NOT
     resolved. Two negations, each checked PER MARKER rather than once for the whole title: a word
@@ -2086,10 +2124,19 @@ def _row_is_resolved(
             and ws >= tag_span[1]
             and bool(re.fullmatch(r"[\s*_~]*", title_line[tag_span[1] : ws]))
         )
+        # W-02a0f674: an UNTAGGED title's first word is a status position too (`✅ CLOSED — …`),
+        # but never on an unchecked checkbox, whose open box outranks the marker.
+        first_word_untagged = (
+            tag_span is None
+            and not checkbox
+            and bool(re.fullmatch(r"[\s*_~]*", title_line[:ws]))
+            and (m.group(0) == "✅" or bool(_FIRST_WORD_SEPARATOR_RE.match(title_line[we:])))
+        )
         resolves = (
             bool(_STATUS_AFTER_RE.match(title_line[we:]))
             or (is_table and bool(_STATUS_AFTER_PIPE_RE.search(title_line[:ws])))
             or first_word_after_tag
+            or first_word_untagged
             or bool(_STATUS_BEFORE_DASH_RE.search(title_line[:ws]))
         )
         if not resolves:
@@ -2273,7 +2320,14 @@ def _scan_backlog_rows(text: str) -> list[dict]:
                         # the same Item lookup --adopt uses (case-insensitive, W-77e00147)
                         item_idx = du._backlog_item_header_index(names)
                         if item_idx is None:
-                            item_idx = 1
+                            # no Item column: the first NON-EMPTY column that is not the tag
+                            # column — the old fixed `1` titled tryton-crm's `Gap | Measured | … |
+                            # Owner` rows by their measurement and a `Lane | Owner | …` table by its
+                            # owner tag; a blank first cell must not blank a row with content later
+                            item_idx = next(
+                                (k for k, c in enumerate(cells) if k != tag_idx and c.strip()),
+                                len(cells),
+                            )
                         title_src = cells[item_idx] if item_idx < len(cells) else line
                         start(
                             "table",
@@ -2359,7 +2413,62 @@ def _scan_backlog_rows(text: str) -> list[dict]:
         i += 1
 
     finish()
-    return rows
+    return [row for row in rows if not _is_structural_row(row)]
+
+
+def _body_is_empty(row: dict) -> bool:
+    """W-02a0f674: True when every line of the row after its own first line is structure or template
+    boilerplate — blank, `---`, an HTML comment, a table separator, or a `_TEMPLATE_PLACEHOLDER_LINES`
+    line. Anything else is content, and a row holding content is never dropped (migration runs once per
+    repo, so a dropped line would be lost for good)."""
+    in_comment = False
+    for raw in row["text"].split("\n")[1:]:
+        line, in_comment = _strip_comments(raw, in_comment)
+        if (
+            not line
+            or _RULE_LINE_RE.match(line)
+            or _TABLE_SEPARATOR_RE.match(line)
+            or _sans_list_marker(line) in _TEMPLATE_PLACEHOLDER_CONTENT
+        ):
+            continue
+        return False
+    # A comment still open at the row's end never closed: its "content" is unjudgeable, and migration
+    # runs once — keep the row rather than drop text behind a typo (review r2).
+    return not in_comment
+
+
+def _strip_comments(raw: str, in_comment: bool) -> tuple[str, bool]:
+    """``raw`` with every HTML-comment span removed (a comment may open or close mid-line, or span
+    lines), stripped, plus whether a comment is still open at its end. Text OUTSIDE a span is kept,
+    so `<!-- note --> real text` is judged on `real text`, never skipped whole."""
+    out: list[str] = []
+    rest = raw
+    while rest:
+        if in_comment:
+            end = rest.find("-->")
+            if end < 0:
+                return " ".join(out).strip(), True
+            rest, in_comment = rest[end + 3 :], False
+        else:
+            start = rest.find("<!--")
+            if start < 0:
+                out.append(rest)
+                break
+            out.append(rest[:start])
+            rest, in_comment = rest[start + 4 :], True
+    return " ".join(out).strip(), in_comment
+
+
+def _is_structural_row(row: dict) -> bool:
+    """D-566 (W-02a0f674), superseding Decision R's "a `## ` heading (any)" for one case: a row is structure, not
+    work, when its body is empty AND it is either an untagged, unresolved `## ` section heading or a row
+    whose own line is a template placeholder. A heading with real body content — a "Now" table holding
+    real rows, a project's own constraints — still migrates, exactly as before."""
+    if not _body_is_empty(row):
+        return False
+    if row["shape"] == "heading2" and not row["owner"] and not row["resolved"]:
+        return True
+    return _sans_list_marker(row["title_line"]) in _TEMPLATE_PLACEHOLDER_CONTENT
 
 
 def _row_digest(text: str, ordinal: int) -> str:

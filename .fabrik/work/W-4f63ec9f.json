@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T19:14:19.313661Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4f63ec9f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "status": "open",
+  "title": "sync_enforcement_to_projects.py: the enforcement copy (:2027-2050) has no orphan pruning, so a check removed from the hub stays in every project; and the vendored-dir comment at :2052 says 'recursive flat copy' though the code preserves paths (review of the DATA_SYNC line, 2026-10-04)"
+}

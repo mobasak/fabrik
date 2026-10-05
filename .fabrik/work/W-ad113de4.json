@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "check_frozen_chain.py is fail-open: a consumer whose header names its input without a bold **vN** pin is never checked"
 }

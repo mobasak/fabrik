@@ -7373,3 +7373,40 @@ document.
 - **Where it lives.** `docs/development/reviews/2026-09-16-plan-1-quota-posture-review.md` (Pass
   Ledger Delta 17–23), `docs/DECISIONS.md` (D-278), `tests/conftest.py` (`_private_monkeypatch`),
   `scripts/sysadmin/claude_rotate.py` (`_usable_ts`, `_rearm_wall_stamp`).
+
+## A canary is a test with a clock in it — a dated fixture ages out of a windowed check, and "it printed something extra" is not "it printed the rule" (2026-10-04)
+
+- **What happened.** W-45d1e850 added 15 gate canaries. The `check_feedback_duty` pair hard-coded
+  `"updated_at": "2026-10-04..."`; the check counts closes within `WINDOW_DAYS = 14`, so on
+  2026-10-19 the bad tree would have printed nothing and the canary would have read the row DEAD. The
+  Fable design critic found it by executing the fixture with three stamps. Separately, the old
+  warn_only assertion ("the bad output minus the clean output is non-empty") passed on census lines
+  such as `Examined 1 pack(s)`, which print whether or not the rule fires. Five new canaries had no
+  clean tree, so any census line passed.
+- **Mechanism.** A fixture body is frozen at authoring time, while the check reads `now`. A
+  difference between two trees proves that the trees differ, not that the rule spoke.
+- **How to apply.** (1) Leave timestamps out of fixtures when the check counts an absent one as
+  in-window, or compute them; `test_no_canary_fixture_carries_a_timestamp_that_ages_out` refuses an
+  ISO stamp in any canary body. (2) Assert the rule's OWN words (`speaks`) in the bad output and
+  their absence in the clean output; never assert a byte difference.
+- **Where it lives.** `scripts/sysadmin/liveness_audit.py` (`CANARIES`, the `speaks` key),
+  `tests/test_gate_check_canaries.py`, `docs/DECISIONS.md` (D-564),
+  `docs/development/reviews/2026-10-04-gate-canary-coverage-review.md`.
+
+## An exception list is a second golden — it needs the golden's guards, and every entry must leave each run with a verdict (2026-10-05)
+
+- **What happened.** W-87bdfed4's oracle was red on 12 blocks of one filed upstream regression. The panel ruled
+  for a registry of known collapses instead of re-freezing (D-567). The first registry passed every new test, and
+  the scoped review still found 12 defects in it. Several registered keys reached no comparison branch: one frozen
+  None, one frozen absent, and one gitignored and unobservable. They rode the OK line's suffix while checked by
+  nothing. The loader also accepted a floor of all zeros, one off the golden's shape, a duplicate key and an
+  invented D-id. A round-1 fix that added exit 3 then left both production alerts telling the operator to
+  re-snapshot, which is the one action the registry exists to prevent.
+- **Mechanism.** An exception list re-checks keys against its own data. That data is a second golden, without the
+  golden's version, key-set and non-vacuity guards. Each branch that consults it is a place a key can fall through.
+- **How to apply.** (1) Track a `touched` set, and turn any registered key that no branch reached into drift.
+  (2) Give the exception file the golden's format guards, and refuse what it cannot check. (3) When a fix changes an
+  exit code or an output line, grep every caller before the fix lands.
+- **Where it lives.** `scripts/kilo-benchmarks/tests/capture_golden.py` (`load_known_collapses`, `verify`),
+  `tests/golden/known_collapses.json`, `docs/DECISIONS.md` (D-567),
+  `docs/development/reviews/2026-10-05-golden-known-collapses-review.md`.

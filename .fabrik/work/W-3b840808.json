@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "The Stop hook's deferral check and the DECISION-block harvest interact to CORRUPT the work board: following the hook's own instruction created a duplicate operator gate."
 }

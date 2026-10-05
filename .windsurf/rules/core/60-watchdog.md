@@ -109,7 +109,7 @@ DB-mutating actions that are impossible by default.
 
 **Tier D** — code-remediation, **off by default**, opt-in like B/C and **human-gated**. This is the only tier that can change running code, and it never does so silently.
 
-**Enable:** `watchdog: { auto_code_fix: true }` in the spec **plus** an injected `deploy_adapter` + `test_cmd` (the `code_fix_window_sec` silence window defaults to 300 s — `WatchdogConfig` in `src/fabrik/spec_loader.py`, D-378 — see below). Absent → Tier D is unavailable and code-class incidents behave exactly as today (Tier C escalate / `propose_fix_prs`).
+**Enable:** `watchdog: { auto_code_fix: true }` in the spec **plus** an injected `deploy_adapter` + `test_cmd` (the `code_fix_window_sec` silence window defaults to 300 s — `WatchdogConfig` in `src/fabrik/spec_loader.py`, D-378 — see below). Absent → Tier D is unavailable and code-class incidents behave exactly as today (Tier C escalate / `propose_fix_prs`). `fabrik apply` then checks three more prerequisites (`WatchdogDriver._gate_tier_d`): a **git remote** (`watchdog.project_git_remote`, else the spec's `source.repository`) — missing skips the watchdog sidecar entirely: the rest of the deploy completes, the watchdog is recorded as a failed registrar and the CLI reports it; an **app-container HEALTHCHECK** — missing degrades Tier D to escalate-only with an ERROR at apply, because auto-rollback-on-health would be blind; and **snapshot storage** in `/opt/<id>/.env` — `STORAGE_BACKEND=b2` with `B2_KEY_ID`, `B2_APPLICATION_KEY` and `B2_BUCKET_NAME`, or `STORAGE_BACKEND=supabase` with `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `SUPABASE_BUCKET` — missing degrades Tier D to escalate-only with an ERROR at apply, because the sidecar refuses every apply it cannot snapshot first (D-451; `/opt/fabrik/docs/CONFIGURATION.md` § Tier-D snapshot storage).
 
 | Action | What | Guards |
 |---|---|---|
@@ -153,7 +153,7 @@ unattended-deploy pipeline, not a supervised one. Prefer denial-on-silence where
 
 - **No response within `code_fix_window_sec`** (default **300 s**, spec range 60–3600; D-378) → treated as approval and applied. A fix that silence can auto-apply has already passed the tests, the secret scan and the blast-radius guard; it deploys only after a pre-apply snapshot marker is recorded, and rolls back to the previous code ref when post-apply health (or the opt-in golden check) regresses — so the default is short. Rollback catches a health regression and, where a golden file covers it, a known-answer regression; a wrong fix that passes both is never caught, so a project that wants a longer human review sets the field explicitly. It IS the operator-bound terminal (see [self-healing](self-healing.md) acceptance checklist), not a fully-autonomous layer.
 
-Every apply/rollback is written to the `deploys` table (and the approval to `approvals`); post-apply health VERIFY failing triggers automatic rollback. Tier-D requires the `auto_code_fix` opt-in **plus** an injected `deploy_adapter` + `test_cmd`; absent any of these, code-class incidents stay Tier C.
+Every apply/rollback is written to the `deploys` table (and the approval to `approvals`); post-apply health VERIFY failing triggers automatic rollback. Tier-D requires the `auto_code_fix` opt-in **plus** an injected `deploy_adapter` + `test_cmd`, and an apply that passed the git-remote, HEALTHCHECK and snapshot-storage checks above; absent any of these, code-class incidents stay Tier C.
 
 ---
 

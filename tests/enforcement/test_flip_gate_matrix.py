@@ -19,11 +19,13 @@ asserted on disk and kept in the plan's receipt.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import os
 import shutil
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -77,6 +79,64 @@ MATRIX: list[tuple[str, str, str, str]] = [
         "--strict-exempt; a CONVERGED's ERROR fails validate_conventions)",
     ),
 ]
+
+
+@contextlib.contextmanager
+def _import_state_restored():
+    """Snapshot `sys.modules` and `sys.path`; on exit, drop what was added and put back what was
+    removed or replaced."""
+    modules = dict(sys.modules)
+    path = list(sys.path)
+    try:
+        yield
+    finally:
+        for name in [n for n in sys.modules if n not in modules]:
+            del sys.modules[name]
+        sys.modules.update(modules)
+        sys.path[:] = path
+
+
+_ENF_BASELINE: dict[str, object] = {}
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _enf_import_baseline():
+    """The import state this file must hand back, taken when its FIRST test starts (after
+    collection, so other files' import-time loads and inserts are already counted): how many times
+    the gate dir sits on `sys.path`, and the exact module object behind every gate sibling already
+    loaded — the object a later file's test patches."""
+    _ENF_BASELINE["path_count"] = sys.path.count(str(ENF))
+    _ENF_BASELINE["siblings"] = {
+        p.stem: sys.modules[p.stem] for p in ENF.glob("*.py") if p.stem in sys.modules
+    }
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _restore_import_state():
+    """`_load` purges every gate sibling from `sys.modules` and prepends to `sys.path` — on purpose,
+    for the mutant proofs — but nothing put either back, so every LATER test file in the session
+    imported fresh copies of those siblings: a test that patched its own handle on one (e.g.
+    tests/test_check_doc_stubs.py's `check_doc_sync._staged`) patched an object the gate no longer
+    used, and the gate went silent (W-61380819). Keep the isolation inside each test; restore after."""
+    with _import_state_restored():
+        yield
+
+
+def test_the_import_restore_undoes_a_load_style_purge():
+    """The mechanism the fixture rests on: a `_load`-style purge of a sibling and a `sys.path`
+    insert are both undone on exit, and the restored entry is the SAME object (a later test's patch
+    on its own handle must reach the module the gate imports)."""
+    sibling = next(n for n in ("check_doc_sync", "check_plans", "os") if n in sys.modules)
+    before = sys.modules[sibling]
+    marker = "/nonexistent/flip-gate-probe"
+    with _import_state_restored():
+        sys.modules.pop(sibling)
+        sys.modules["flip_gate_probe_added"] = types.ModuleType("flip_gate_probe_added")
+        sys.path.insert(0, marker)
+    assert sys.modules[sibling] is before
+    assert "flip_gate_probe_added" not in sys.modules
+    assert marker not in sys.path
 
 
 def _load(name: str, enf: Path = ENF):
@@ -388,3 +448,22 @@ def test_load_resolves_a_gates_sibling_imports_from_the_enforcement_dir_under_te
 def test_every_matrix_row_names_a_gate_that_exists():
     for gate, _invocation, _tree, _marker in MATRIX:
         assert (ENF / gate).is_file(), gate
+
+
+def test_no_load_leaks_past_its_own_test():
+    """Runs LAST in this file. Every `_load` above inserts the gate dir on `sys.path` and purges the
+    gate siblings from `sys.modules`; the autouse restore must have undone both when its test ended.
+    Without the restore, or with it no longer autouse, or restoring only one half, this fails, and
+    that leak is what silenced later test files' gates in a full run (W-61380819). The siblings
+    check needs siblings loaded before this file runs (a full or directory run loads them at
+    collection); run alone, that half has nothing to compare and only the path half bites."""
+    assert sys.path.count(str(ENF)) == _ENF_BASELINE["path_count"], (
+        f"{sys.path.count(str(ENF))} copies of {ENF} on sys.path vs "
+        f"{_ENF_BASELINE['path_count']} at this file's first test"
+    )
+    # the half that silenced tests/test_check_doc_stubs.py: a sibling purged by `_load` and never put
+    # back is re-imported fresh, and a later test's patch on its own handle misses the gate
+    swapped = sorted(
+        name for name, mod in _ENF_BASELINE["siblings"].items() if sys.modules.get(name) is not mod
+    )
+    assert not swapped, f"gate siblings not restored to the same module object: {swapped}"

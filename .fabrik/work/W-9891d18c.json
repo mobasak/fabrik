@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-review-scoped's Workflow launch cannot run from a project worktree — the tool refuses the hub script path"
 }

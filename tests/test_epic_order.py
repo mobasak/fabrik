@@ -58,6 +58,13 @@ def _write_epic(
     )
 
 
+def _files(d: Path) -> list[Path]:
+    # FILES only: conftest's autouse pins create their isolation dirs (sound-locks, isolated-opt,
+    # isolated-command-runs, ...) under the same tmp_path, and a byte snapshot that reads every
+    # entry raised IsADirectoryError on them (W-61380819)
+    return sorted(p for p in d.iterdir() if p.is_file())
+
+
 def _owner_line(path: Path) -> str | None:
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("owner:"):
@@ -88,15 +95,15 @@ def test_assign_is_byte_idempotent(tmp_path):
     _write_epic(tmp_path / "e2.md", 2)
 
     assert main(["--epics-dir", str(tmp_path), "--assign", "alpha,beta"]) == 0
-    before = {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())}
-    mtimes_before = {p.name: p.stat().st_mtime_ns for p in sorted(tmp_path.iterdir())}
+    before = {p.name: p.read_bytes() for p in _files(tmp_path)}
+    mtimes_before = {p.name: p.stat().st_mtime_ns for p in _files(tmp_path)}
 
     assert main(["--epics-dir", str(tmp_path), "--assign", "alpha,beta"]) == 0
-    after = {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())}
+    after = {p.name: p.read_bytes() for p in _files(tmp_path)}
 
     assert before == after
     # not written at all the second time around (mtime proves it, not just content)
-    mtimes_after = {p.name: p.stat().st_mtime_ns for p in sorted(tmp_path.iterdir())}
+    mtimes_after = {p.name: p.stat().st_mtime_ns for p in _files(tmp_path)}
     assert mtimes_before == mtimes_after
 
 
@@ -657,13 +664,13 @@ def test_assign_rejects_invalid_name_before_any_write(tmp_path):
     # file — including the first phase's "ok" — is touched.
     _write_epic(tmp_path / "e1.md", 1)
     _write_epic(tmp_path / "e2.md", 2, deps="[1]")
-    before = {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())}
+    before = {p.name: p.read_bytes() for p in _files(tmp_path)}
 
     with pytest.raises(SystemExit) as exc_info:
         main(["--epics-dir", str(tmp_path), "--assign", r"ok,\1bad,alsook"])
 
     assert exc_info.value.code == 2
-    after = {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())}
+    after = {p.name: p.read_bytes() for p in _files(tmp_path)}
     assert after == before, "a file was written despite the invalid name"
 
 
@@ -837,7 +844,7 @@ def test_assign_refuses_cleanly_on_dependency_cycle(tmp_path, capsys):
         "---\n",
         encoding="utf-8",
     )
-    before = {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())}
+    before = {p.name: p.read_bytes() for p in _files(tmp_path)}
 
     rc = main(["--epics-dir", str(tmp_path), "--assign", "alpha"])
 
@@ -845,7 +852,7 @@ def test_assign_refuses_cleanly_on_dependency_cycle(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "ASSIGN: REFUSED" in out
     assert "cycle" in out.lower()
-    after = {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())}
+    after = {p.name: p.read_bytes() for p in _files(tmp_path)}
     assert after == before
 
 

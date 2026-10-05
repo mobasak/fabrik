@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-w91066339"
+  ],
   "title": "Session-history retention plan is HALF built: Phase 0 (899bfb1a6) and Phase A (a1647928b) shipped 2026-09-06; Phase B (prove the restore) and Phase C (the pruner) never started — resume them or supersede"
 }

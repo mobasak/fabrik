@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: wontfix",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "check_review_coverage has no path for a declared, operator-imposed finder waiver — a solo review can never close"
 }

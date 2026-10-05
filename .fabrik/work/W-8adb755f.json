@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T23:56:49.652527Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8adb755f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M44GPRTVBVSCQRFPY5QGGFX5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_run.py round vs /fabrik-plan-review closing-pass rule (tryton-crm, 2026-10-05)."
+}

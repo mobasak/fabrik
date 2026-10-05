@@ -18,8 +18,8 @@ Synchronizes Fabrik governance + enforcement files to all `/opt/*` projects, ens
 > gate** when a project's copy drifts from the `/opt/fabrik` source). To change a
 > synced file: edit the canonical copy in `/opt/fabrik`, re-sync, and **only** if
 > the change is correct for ALL projects. Otherwise propose it upstream — never
-> fork it locally. (`PORTS.md` is seeded then project-owned, so it is exempt from
-> the drift check.)
+> fork it locally. (`PORTS.md` is the hub's port registry and a project's copy is a read-only synced
+> reference — D-380; a port is allocated by asking the hub, never by editing the copy.)
 >
 > **When you modify the synced set, edit `fabrik_synced_manifest.py` only** — the
 > three consumers derive from it. The tables below mirror those lists.
@@ -55,7 +55,7 @@ Synchronizes Fabrik governance + enforcement files to all `/opt/*` projects, ens
 |------|----------|
 | `docs/reference/long-command-monitoring.md` | Long command monitoring system documentation |
 | `docs/reference/technology-stack-decision-guide.md` | Stack selection guide |
-| `PORTS.md` | Port allocations (seed; project-owned thereafter — exempt from drift check) |
+| `PORTS.md` | The hub's port registry — a project's copy is read-only and overwritten by the sync (D-380) |
 | `docs/operations/fabrik-lifecycle.md` | Runtime behavior & data safety |
 | `docs/PROJECT_CATALOG.md` → `docs/reference/opt-project-catalog.md` | The `/opt` project inventory ("what exists, so a project can wire to a sibling instead of rebuilding"). Renamed from `BUSINESS_MODEL.md` 2026-07-11 — that path is each project's own *monetization* doc, and the old sync target was clobbering it; now synced to a reference path that never collides. |
 | `docs/reference/mobile-responsive-testing-guide.md` | Mobile/responsive testing guide |
@@ -126,6 +126,7 @@ All files in `scripts/enforcement/` are recursively synced (`ENFORCEMENT_DIR`, `
 | `.claude/hooks/final_gate_stop.py` | Claude Code stop-hook enforcing `final_gate` green as the definition of done |
 | `.claude/hooks/skill_router.py` | UserPromptSubmit router — suggests the owning `/fabrik-*` skill for bare-prose requests |
 | `.claude/hooks/session_orient.py` | SessionStart ORIENT block — binds the synced CLAUDE.md, surfaces MEMORY.md state, names session-recall + the enforcement mesh |
+| `.claude/workflows/fabrik-review-loop.js` | Not a hook — the review-family commands' seat launcher, loaded as `Workflow({scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js"})`; the Workflow tool reads only the session's own tree, so the hub path was refused in projects (iterative_image_editor 01M3Q4Q1) |
 | `.windsurf/hooks.json` | Cascade hook configuration — **DORMANT**: no live runtime consumes it (Cascade retired); synced as a template for a future non-Claude tool, never counted as active enforcement |
 
 Synced verbatim to project root (`AGENT_HOOK_FILES`, `fabrik_synced_manifest.py`) — path/cwd-agnostic: the Claude Code hook resolves its project via `${CLAUDE_PROJECT_DIR}` + stdin cwd, the Cascade hook commands self-locate via `git rev-parse`. This is what makes every project — existing and future — enforce `final_gate` green as the definition of done.

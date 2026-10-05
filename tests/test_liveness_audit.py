@@ -378,19 +378,28 @@ def test_weekly_catchup_runs_the_coroner_daily(tmp_path: Path) -> None:
     stamp touched on success, fresh stamp is a quiet no-op."""
     for sub in ("locks", "events", "runs"):
         (tmp_path / sub).mkdir()
-    env = {  # MINIMAL, never the parent environment (the B-2/B-10 class, FD6/FD8); the interpreter is the tree's own `.venv`, not a pinned live path (B65-9, FF1)
+    # The script's root links only `scripts/` and `src/`, so it has NO `.venv`: the interpreter
+    # is the one running this suite (FABRIK_PY), never a pinned live path (B65-9, FF1), and a
+    # missing or empty FABRIK_PY fails rc 127 on EVERY tree rather than only where `.venv` is
+    # absent (a throwaway merge worktree, where it refused merge 01M44C5K).
+    root = tmp_path / "root"
+    root.mkdir()
+    for sub in ("scripts", "src"):
+        (root / sub).symlink_to(REPO_ROOT / sub, target_is_directory=True)
+    env = {  # MINIMAL, never the parent environment (the B-2/B-10 class, FD6/FD8)
         k: os.environ[k] for k in ("PATH", "LANG", "LC_ALL", "TMPDIR") if k in os.environ
     }
     env.update(
         HOME=str(tmp_path),
-        FABRIK_ROOT=str(REPO_ROOT),
+        FABRIK_ROOT=str(root),
+        FABRIK_PY=sys.executable,
         FABRIK_NO_AUTOLOAD="1",
         ALERT_ENABLED="0",
         CLAUDE_SOUND_LOCKDIR=str(tmp_path / "locks"),
         KAIZEN_EVENTS_DIR=str(tmp_path / "events"),
         COMMAND_RUN_DIR=str(tmp_path / "runs"),
     )
-    script = REPO_ROOT / "scripts" / "sysadmin" / "weekly_catchup.sh"
+    script = root / "scripts" / "sysadmin" / "weekly_catchup.sh"
     argv = ["bash", str(script), "kaizen_coroner.py"]
     first = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=120)
     assert first.returncode == 0, first.stdout + first.stderr
@@ -527,6 +536,53 @@ def test_warn_only_registrations_are_read_off_the_gate(tmp_path: Path) -> None:
     )
 
 
+def test_a_check_with_one_blocking_registration_is_not_advisory(tmp_path: Path) -> None:
+    """check_doc_index's shape: warn_only in one tier, blocking in another. The blocking
+    row is what the audit must judge, so the name is never declared advisory."""
+    gate = _gate_with(
+        tmp_path,
+        'run_optional_check("scripts/enforcement/check_twice.py", "T1", warn_only=True)\n'
+        'run_optional_check("scripts/enforcement/check_twice.py", "T2", advisory=True)\n'
+        'run_optional_check("scripts/enforcement/check_quiet.py", "Q", warn_only=True)',
+    )
+    assert la.discover_warn_only_checks(gate) == {"check_quiet"}
+
+
+def test_a_warn_only_row_on_a_blocking_check_still_owes_its_reason(tmp_path: Path) -> None:
+    """The other population: a warn_only label added to a SECOND row of a blocking check
+    must still surface for a recorded reason, or a downgrade hides behind the blocking row."""
+    gate = _gate_with(
+        tmp_path,
+        'run_optional_check("scripts/enforcement/check_secrets.py", "S", advisory=True)\n'
+        'run_optional_check("scripts/enforcement/check_secrets.py", "S lean", warn_only=True)',
+    )
+    assert la.discover_warn_only_checks(gate) == set()
+    assert la.discover_warn_only_rows(gate) == {"check_secrets"}
+
+
+def test_a_non_literal_warn_only_row_owes_a_reason_and_reads_blocking(tmp_path: Path) -> None:
+    """`warn_only=FLAG` may be a warn_only row: it owes a reason (rows) and is never excused
+    as advisory (checks) — the strict direction on both sides."""
+    gate = _gate_with(
+        tmp_path,
+        'run_optional_check("scripts/enforcement/check_flag.py", "F", warn_only=FLAG)\n'
+        'run_optional_check("scripts/enforcement/check_off.py", "O", warn_only=False)',
+    )
+    assert la.discover_warn_only_rows(gate) == {"check_flag"}
+    assert la.discover_warn_only_checks(gate) == set()
+
+
+def test_a_warn_only_row_outside_the_enforcement_dir_is_not_counted(tmp_path: Path) -> None:
+    """Same population as `_REGISTERED`: a sysadmin script registered warn_only is not a
+    gate check the canary ratchet accounts for."""
+    gate = _gate_with(
+        tmp_path,
+        'run_optional_check("scripts/sysadmin/install_user_hooks.py", "H", warn_only=True)\n'
+        'run_optional_check("scripts/enforcement/check_quiet.py", "Q", warn_only=True)',
+    )
+    assert la.discover_warn_only_checks(gate) == {"check_quiet"}
+
+
 def test_an_unparseable_gate_declares_no_row_advisory(tmp_path: Path) -> None:
     """Fail in the STRICT direction: unknown means blocking, never excused."""
     gate = tmp_path / "final_gate.py"
@@ -567,6 +623,44 @@ def test_the_same_check_registered_as_a_blocking_row_is_still_inert(
     found = next(f for f in la.proof_vacuity(tmp_path)["findings"] if f["id"] == "check_quiet")
     assert found["verdict"] == "DEAD" and found["reason_class"] == "inert", found
     assert "can never go red" in found["detail"]
+
+
+@pytest.mark.parametrize("registration", ["", ", warn_only=True"], ids=["blocking", "advisory"])
+def test_a_dormant_row_that_goes_red_is_unknown_never_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, registration: str
+) -> None:
+    """The flywheel's shape: the rule reds only through a seam the gate never sets, so the
+    row cannot block today. LIVE would claim teeth it lacks; DEAD would call a ruling a
+    defect. And with the rule broken (green under the seam) it is DEAD as usual — on a
+    blocking and an advisory registration alike."""
+    enforcement = tmp_path / "scripts" / "enforcement"
+    enforcement.mkdir(parents=True, exist_ok=True)
+    (enforcement / "check_seam.py").write_text(
+        "import os, sys\n"
+        "from pathlib import Path\n"
+        "armed = os.environ.get('SEAM') == 'on'\n"
+        "sys.exit(1 if armed and list(Path.cwd().rglob('*.yaml')) else 0)\n",
+        encoding="utf-8",
+    )
+    _gate_with(
+        tmp_path, f'run_optional_check("scripts/enforcement/check_seam.py", "S"{registration})'
+    )
+    canary = {
+        "form": "cwd",
+        "env": {"SEAM": "on"},
+        "dormant": "SEAM is off by ruling",
+        "files": {"compose.yaml": "x: 1\n"},
+        "expect": "a yaml file",
+    }
+    monkeypatch.setattr(la, "CANARIES", {"check_seam": canary})
+    monkeypatch.setattr(la, "UNREACHABLE", {})
+    found = next(f for f in la.proof_vacuity(tmp_path)["findings"] if f["id"] == "check_seam")
+    assert found["verdict"] == "UNKNOWN", found
+    assert "SEAM is off by ruling" in found["detail"]
+
+    monkeypatch.setattr(la, "CANARIES", {"check_seam": {**canary, "env": {"SEAM": "off"}}})
+    found = next(f for f in la.proof_vacuity(tmp_path)["findings"] if f["id"] == "check_seam")
+    assert found["verdict"] == "DEAD", found
 
 
 def test_a_declared_advisory_row_that_says_nothing_is_dead(

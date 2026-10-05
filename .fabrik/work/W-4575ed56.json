@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
-  "owner": "infra",
+  "note": "mail ack: wontfix",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "The scaffold's GlitchTip template does not pass the completion gate it is distributed into."
 }

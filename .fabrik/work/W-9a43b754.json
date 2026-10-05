@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "scripts/work.py is synced fleet-wide but its reference docs/reference/work-tracking.md is not — 41 repos have the tool and 0 have its manual"
 }

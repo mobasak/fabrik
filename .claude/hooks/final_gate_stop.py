@@ -42,6 +42,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 CAP = 3  # consecutive blocked stops before letting it stop anyway (anti-trap)
@@ -710,7 +711,13 @@ def _edit_age_phrase() -> str:
     return f"within the last {int(s)}s"
 
 
-def _commit_is_mine(touched: set[str], distinctive: set[str], authored: set[str]) -> bool:
+def _commit_is_mine(
+    touched: set[str],
+    distinctive: set[str],
+    authored: set[str],
+    agents: frozenset[str] = frozenset(),
+    me: Callable[[], str | None] | None = None,
+) -> bool:
     """Is this commit attributable to THIS session?
 
     Two ways, and the second exists because the first alone caused a regression. A commit that
@@ -737,9 +744,22 @@ def _commit_is_mine(touched: set[str], distinctive: set[str], authored: set[str]
     being told to push someone's already-committed docs and losing our own commit off-box, the
     contract is unambiguous about which is worse.
     """
-    if touched & distinctive:
-        return True
-    return bool(touched) and touched <= _ROUTINE_GOVERNANCE and bool(touched & authored)
+    by_files = bool(touched & distinctive) or (
+        bool(touched) and touched <= _ROUTINE_GOVERNANCE and bool(touched & authored)
+    )
+    if not by_files or not agents or me is None or touched <= authored:
+        # a commit of ONLY this session's own files stays mine whatever its trailer says: the
+        # trailer is hand-typed and a mis-signed day is a known class (D-034), so it may veto
+        # only the shape the defect is — a MIXED commit carrying a file this session never edited
+        return by_files
+    # W-851b6f3a (fabrik-lib 01M3PNNY): a sibling's MIXED commit — one file this session also
+    # edited plus their own — matched on the file overlap. The commit's `Agent-Name` trailer names
+    # its author; when it names a DIFFERENT agent than this session's, it is not ours. A commit
+    # with no trailer, or a session whose name does not resolve, keeps the file rule: the push law
+    # is never silenced on a guess. The name is resolved lazily, only for a commit that both
+    # carries a trailer and matched by files, so the common range still costs one subprocess.
+    mine = me()
+    return not mine or mine.strip().casefold() in agents
 
 
 def _git_by(root: Path, deadline: float, *args: str) -> subprocess.CompletedProcess[str]:
@@ -805,6 +825,38 @@ def _worktree_base(root: Path, deadline: float) -> str | None:
         return None
 
 
+# W-851b6f3a: each commit's `Agent-Name` trailer values, read in the SAME `git log` call (a
+# 0x01 byte separates them from the sha; a trailer value never carries one).
+_AGENT_FIELD = "%x01%(trailers:key=Agent-Name,valueonly,unfold,separator=%x2C)"
+_AGENT_FIELD_RE = re.compile(r"[\s,]*(?:[A-Za-z0-9-]{1,32}(?:[\s,]+|\Z))*")
+
+
+def _trailer_agents(field: str) -> frozenset[str]:
+    """The casefolded `Agent-Name` values after the 0x01 in a `<sha>\x01<names>` log field.
+
+    The WHOLE field must be names of whoami's own shape (`whoami_agent.py::_NAME_RE`) separated
+    by commas or whitespace; anything else (an unparsed format placeholder on an old git, folding
+    debris) yields NO names, so the file rule decides — never a veto built on garbage."""
+    _, _, names = field.strip("\n").partition("\x01")
+    if not _AGENT_FIELD_RE.fullmatch(names):
+        return frozenset()
+    return frozenset(n.casefold() for n in re.split(r"[,\s]+", names) if n)
+
+
+_SESSION_AGENT: dict[tuple[str, str], str | None] = {}
+
+
+def _session_agent(root: Path, sid: str) -> str | None:
+    """This session's agent name from `whoami_agent.py --who`, resolved once per hook run; None
+    when it does not resolve (the caller then keeps file attribution)."""
+    key = (str(root), sid)
+    if key not in _SESSION_AGENT:
+        _SESSION_AGENT[key] = _resolve_line(
+            _WHOAMI_ARGV, root, {**os.environ, "CLAUDE_CODE_SESSION_ID": sid}
+        )
+    return _SESSION_AGENT[key]
+
+
 def _unpushed_log(root: Path, fmt: str, timeout: float = 30) -> str | None:
     """`git log -z --no-renames --name-only --format=<fmt> <base>..HEAD` stdout; None = no base.
 
@@ -840,7 +892,11 @@ def _has_upstream(root: Path, timeout: float = 30) -> bool:
         return True
 
 
-def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | None:
+def _ahead_of_upstream(
+    root: Path,
+    authored: set[str] | None = None,
+    me: Callable[[], str | None] | None = None,
+) -> int | None:
     """Commits on the current branch not on its push base that THIS SESSION authored; None =
     indeterminate (no base / any git error — indeterminate never blocks). The base is
     `_unpushed_log`'s: the upstream when set, else — in a linked worktree — the main checkout's
@@ -891,17 +947,18 @@ def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | No
         # named `a"b.py` gave 0. `-z` emits every path raw and `%x00%H` delimits each commit with a
         # NUL, so both classes close on the delimiter git already provides instead of on a
         # heuristic. It also makes a sha256-object repo a non-question.
-        stdout = _unpushed_log(root, "%x00%H")
+        stdout = _unpushed_log(root, "%x00%H" + _AGENT_FIELD)
         if stdout is None:
             return None
         mine = 0
         touched: set[str] = set()
+        agents: frozenset[str] = frozenset()
         expect_sha = True
         started = False
         for field in stdout.split("\0"):
             if not field:
                 # the NUL that opens each commit: bank the previous one
-                if started and _commit_is_mine(touched, distinctive, authored):
+                if started and _commit_is_mine(touched, distinctive, authored, agents, me):
                     mine += 1
                 touched = set()
                 expect_sha = True
@@ -909,11 +966,12 @@ def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | No
             if expect_sha:
                 expect_sha = False
                 started = True
-                continue  # the sha itself is not a path
+                agents = _trailer_agents(field)
+                continue  # the sha (and its trailer field) is not a path
             path = field.lstrip("\n")
             if path:
                 touched.add(path)
-        if started and _commit_is_mine(touched, distinctive, authored):
+        if started and _commit_is_mine(touched, distinctive, authored, agents, me):
             mine += 1
         return mine
     except Exception:
@@ -1521,8 +1579,8 @@ def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, floa
     writer's shapes — round 2 of this change's own review found the previous paragraph describing
     neither: a durable reach on the record or any parked frame, positive, finite, not beyond the
     clock-skew tolerance, and no ledger pair starting before it. Everything else — `done` only, a
-    review-family command only, an empty ledger only — is the WRITER's gate on setting the field at
-    all (`command_run.py`), and is graded there. This side adds a window, never rewrites a pair, and
+    review-family command only, not nested, a readable ledger, earliest wins — is the WRITER's gate
+    on setting the field at all (`command_run.py`), and is graded there. This side adds a window, never rewrites a pair, and
     reads no `command` or `state` of its own."""
     if not isinstance(rec, dict):
         return []
@@ -1585,9 +1643,10 @@ def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, floa
 # (executed: `decide_review(1, 3)` -> `('allow_warn_review', 0)`), so the status quo was not three
 # blocks but three blocks per stop-cycle for the session's whole life — a block that cries wolf is
 # one agents learn to warn through, which is its own hollowing-out. This is a widening of a PROXY
-# (edit timestamp vs covered window), not a fix of the predicate; the predicate fix is on the
-# writer side — `command_run.py` stamps `first_review_reach` only when the ledger was EMPTY, so a
-# session whose first command run was not a review can never cover its pre-first-command work.
+# (edit timestamp vs covered window), not a fix of the predicate. The writer side now stamps
+# `first_review_reach` at the EARLIEST window's start on every non-nested review `done` with a
+# readable ledger (fleet 01M44QXGG7656PBEJJ9VWXSZRV), so a session whose first command was not a
+# review covers its pre-first-command work at its next review; this window bounds what remains.
 # ⚠️ THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): wait a day, or end three
 # turns and let it warn through — neither of which reviews anything. That is why the block NAMES
 # the window and the files: an agent who waits it out should at least have to read what it was.
@@ -3470,6 +3529,7 @@ def _detect_stall(
             judged=judged,
             escalation=escalation,
             waived=waived,
+            root=root,
         )
     except Exception as e:
         # Fail open — but never SILENTLY (review finding: a MemoryError-disabled
@@ -3486,10 +3546,13 @@ def _deferral_stall(
     judged: tuple[str, tuple[bool, str]] | None,
     escalation: re.Match[str] | None,
     waived: list[tuple[str, str]] | None,
+    root: Path | None = None,
 ) -> tuple[str, str] | None:
     """The DEFERRAL check on a final message: a DECISION block decides it when one is present
     (well-formed → no stall; malformed → itself a deferral, spec § C2), else D1-D4. Interactive
-    sessions only; `BLOCKED:` exempts globally and is recorded as a waiver."""
+    sessions only; `BLOCKED:` exempts globally and is recorded as a waiver. A D1 `NEXT:` line
+    that only POINTS at gates already on the board (`_boarded_gates`) is waived as
+    `boarded-gate`, and the rest of the message is judged again without that line."""
     if _is_headless(transcript_path):
         return None
     hit: tuple[str, str] | None
@@ -3504,6 +3567,18 @@ def _deferral_stall(
         hit = ("block", why)
     else:
         hit = _deferral_match(text)
+        # At most one pass per NEXT: line: each waiver removes the line it waived.
+        for _ in range(_DEFER_TAIL_LINES):
+            if hit is None or hit[0] != "D1" or root is None:
+                break
+            span = _full_line(text, hit[1])
+            gates = _boarded_gates(root, text[span[0] : span[1]]) if span else None
+            if not span or not gates:
+                break
+            if waived is not None:
+                waived.append(("boarded-gate", ",".join(gates)))
+            text = text[: span[0]] + text[span[1] :]
+            hit = _deferral_match(text)
     if hit is None:
         return None
     # The DEFERRAL's own exemption is the escalation HEADER (`_DEFER_BLOCKED_RE`), narrower than
@@ -3513,6 +3588,78 @@ def _deferral_stall(
             waived.append(("blocked-escalation", escalation.group(0)))
         return None
     return f"deferral:{hit[0]}", hit[1]
+
+
+_ITEM_ID_RE = re.compile(r"\bW-[0-9a-f]{8}\b")
+
+
+def _full_line(text: str, snippet: str) -> tuple[int, int] | None:
+    """The span of the LAST line of ``text`` holding ``snippet`` (D1's stripped line, cut at 200
+    chars) — D1 reads the tail, so the last occurrence is the one it matched — or None."""
+    fences = _fence_spans(text)
+    at = text.rfind(snippet) if snippet else -1
+    # never a quoted copy: D1 itself skips a NEXT: line inside a quoting fence
+    while at >= 0 and any(lo <= at < hi for lo, hi in fences):
+        at = text.rfind(snippet, 0, at)
+    if at < 0:
+        return None
+    le = text.find("\n", at)
+    return text.rfind("\n", 0, at) + 1, len(text) if le == -1 else le
+
+
+def _boarded_gates(root: Path, line: str) -> list[str] | None:
+    """The W-ids on a D1 `NEXT:` line when EVERY one is an operator gate still on the board —
+    an item in this repo's work store whose status is `awaiting-operator` and which no closed
+    marker hides — else None (tryton-crm 01M3Q4HZ: the hook's own remedy, "end with a DECISION
+    block", re-minted a boarded gate as a duplicate; the D-558 panel ruled the pointer legal).
+
+    The store is the one the harvest writes for this cwd (`_repo_argv`): `<toplevel>/.fabrik/
+    work`, closed markers under `<git common dir>/fabrik-work/closed` (`work.py::_closed_dir`).
+    A marker hides the gate whatever its age — stricter than `work.py::_closed_ids`, and the cost
+    is only today's D1. Fail-closed: no id, no store, any unreadable or non-awaiting id → None.
+    ⚠️ COBRA (D-253): the cheapest pass is naming an UNRELATED old awaiting gate to dodge a new
+    decision. No cheaper than today's verbatim re-paste of an old block (it attaches by hash);
+    every id must resolve, D2-D4 are judged again without the line, the waiver is recorded as
+    `boarded-gate` for `stop_mine.py`, and the named gate sits on its addressee's awaiting list.
+    An item must carry the harvest's shape (`kind: decision`, a `block_digest`); a hand-written
+    file forging all three fields still passes — no cheaper than writing a fake DECISION block,
+    which the harvest boards for real and the operator then sees."""
+    ids = list(dict.fromkeys(_ITEM_ID_RE.findall(line)))
+    if not ids:
+        return None
+    try:
+
+        def _git(arg: str) -> Path | None:
+            r = subprocess.run(
+                ["git", "rev-parse", "--path-format=absolute", arg],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            out = r.stdout.strip()
+            return Path(out) if r.returncode == 0 and out else None
+
+        top, common = _git("--show-toplevel"), _git("--git-common-dir")
+        if top is None or common is None:
+            return None
+        store, closed = top / ".fabrik" / "work", common / "fabrik-work" / "closed"
+        for item_id in ids:
+            item = json.loads((store / f"{item_id}.json").read_text(encoding="utf-8"))
+            # the HARVEST's shape, not a hand-written `{"status": …}` (review round 1, Sonnet F1)
+            if not (
+                isinstance(item, dict)
+                and item.get("status") == "awaiting-operator"
+                and item.get("kind") == "decision"
+                and isinstance(item.get("block_digest"), str)
+                and item["block_digest"]
+            ):
+                return None
+            if (closed / f"{item_id}.json").exists():
+                return None
+        return ids
+    except Exception:
+        return None
 
 
 def _repo_argv(ta: Path | None, cwd: object) -> list[str]:
@@ -3666,7 +3813,10 @@ def _deferral_reason(kind: str, snippet: str, attempt: int) -> str:
         "The next step is yours if the plan, the rules, the ledger or the code decide it — do "
         "it now. If a human is genuinely needed, end with a DECISION block (CLAUDE.md § FINAL "
         "OUTPUT): `DECISION NEEDED (ground: gate|underivable|owned)` with its four lines — "
-        "Question · Why it is yours · Options · Recommendation — written unfenced. A `BLOCKED:` "
+        "Question · Why it is yours · Options · Recommendation — written unfenced; or, if the "
+        "gate is already on the board, name its open awaiting item by id (`NEXT: operator "
+        "decision — W-<id>`) — never re-state a boarded gate, the harvest mints a duplicate. "
+        "A `BLOCKED:` "
         "escalation exempts only in its format: `BLOCKED: <what> — searched: <sources> — "
         "missing: <need>`."
     )
@@ -3855,7 +4005,9 @@ def main(argv: list[str]) -> int:
             run_active = bool(run) and (run or {}).get("state") == "running"
             # FLOORED, not the lifetime set — see `_baseline_floor`
             ahead = _ahead_of_upstream(
-                root, set(_this_sessions_edits(authored_map, _baseline_floor(sid)))
+                root,
+                set(_this_sessions_edits(authored_map, _baseline_floor(sid))),
+                lambda: _session_agent(root, sid),
             )
             p_action, p_att = decide_stall(bool(ahead), p_att)
             if p_action == "block_stall":
@@ -4277,7 +4429,7 @@ def main(argv: list[str]) -> int:
             # the SAME scoped question as the block site — a bare call now answers None
             # (indeterminate) and would reset this streak on every unrelated gate/commit
             # block, restarting the 3-attempt ladder in the trapping direction
-            f"{push_attempts if _ahead_of_upstream(root, set(_this_sessions_edits(authored_map, _baseline_floor(sid)))) else 0},"
+            f"{push_attempts if _ahead_of_upstream(root, set(_this_sessions_edits(authored_map, _baseline_floor(sid))), lambda: _session_agent(root, sid)) else 0},"
             f"{run_attempts if _run_live else 0},{review_attempts},{merge_attempts}"
         )
         if action == "block_commit":

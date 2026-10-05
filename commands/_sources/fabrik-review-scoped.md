@@ -118,8 +118,8 @@ proportionate answer.
    technique (`core/62`:65) — three readers of the same one-unit diff on different angles,
    `dispatch_headroom.py --units 1`; a multi-file diff partitions by file and sizes by `--units <N>`.
    **They run as ONE `Workflow` call on the review-loop script, its seats in parallel** (chunk 6b; contract:
-   `docs/reference/review-loop-workflow.md`) — `Workflow({scriptPath: "/opt/fabrik/.claude/workflows/fabrik-review-loop.js",
-   args: {pass: 1, surface, base_sha, digest, pins_dir, scratch_dir, brief, slices}})`, each unit a slice
+   `docs/reference/review-loop-workflow.md`) — `Workflow({scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js",
+   args: {pass: 1, surface, base_sha, digest, pins_dir, scratch_dir, brief, slices}})` (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree), each unit a slice
    `{name, files, scope: "<the unit>", models: ["sonnet", "haiku"]}` and the unit holding the riskiest hunk
    `models: ["sonnet", "haiku", "opus"]`, so a one-unit diff is exactly the three-reader floor; the script unions
    each unit's readers and one refuter per unit EXECUTES every candidate, returning the command and its output.
@@ -131,7 +131,7 @@ proportionate answer.
    (D-335); a unit with none is not re-dispatched, and the round-1 count is the ceiling. **The partition rule of
    `/fabrik-review` (`--slices`, two cheap finders per slice — D-344) never applies here** — this command's
    escape hatch for a surface that needs it is routing UP, not partitioning down. Stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` — the `SEATS:` it printed plus one refuter per unit (the stamp is what sibling sessions subtract; step 4's `round --seats` closes it) — and adjudicated as a union (D-186 — a lone reader is not a round; this command's own
-   measurement is why) (measured on one diff: 1 seat found 0, 3 seats found 0 / 5 / 0, and the 5 held a real fail-open two self-sweeps had read past — web-ecommerce-factory 01M1RAAX, 2026-09-05). It must have RETURNED: a seat that was dispatched and died is not a reader, and its absence is not a clean round (the ledger prints it `NO RESULT`). When the `Workflow` tool is absent the seats go out through the `Agent` tool in ONE message with the same briefs, and the close's `--evidence` names `shape: agent-tool`. The pool form of this floor is kept below for re-enable (D-181):
+   measurement is why) (measured on one diff: 1 seat found 0, 3 seats found 0 / 5 / 0, and the 5 held a real fail-open two self-sweeps had read past — web-ecommerce-factory 01M1RAAX, 2026-09-05). It must have RETURNED: a seat that was dispatched and died is not a reader, and its absence is not a clean round (the ledger prints it `NO RESULT`). When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached) the seats go out through the `Agent` tool in ONE message with the same briefs, and the close's `--evidence` names `shape: agent-tool`. The pool form of this floor is kept below for re-enable (D-181):
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
    a read-only `fanout("review", …, mode="read_only")` over the diff (cents, no Claude quota, and it
    records to the flywheel) or a single native `fabrik-reviewer`. It must have RETURNED: a finder

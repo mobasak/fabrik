@@ -218,3 +218,35 @@ def test_the_cobra_path_is_written_down_where_the_next_reader_finds_it():
     )
     body = src.split("def find_rows_outside_the_table")[1].split('"""')[1]
     assert "cobra-effect" in body and "cheapest" in body.lower(), body[-400:]
+
+
+_SHAPE_HEAD = "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+
+
+def test_a_pipe_inside_a_code_span_is_not_a_cell_boundary():
+    """intel 01M4405E: D-285, D-303, D-305, D-372, D-423 and D-558 carry `a|b` inside code spans and
+    were reported malformed though each has six cells — the counter must agree with
+    tests/test_decisions_table_shape.py, which strips code spans and `\\|` before counting."""
+    from scripts.enforcement.check_decisions_unique import malformed_ids
+
+    ok = (
+        _SHAPE_HEAD + "| D-900 | 2026-10-04 | infra | ran `a|b|c` and a\\|b | a reason | `x.py` |\n"
+    )
+    short = _SHAPE_HEAD + "| D-901 | 2026-10-04 | infra | what | why |\n"
+    assert malformed_ids(ok) == {}
+    assert "D-901" in malformed_ids(short)
+
+
+def test_a_cell_of_only_punctuation_reads_as_empty():
+    """intel's addendum: `—` in why/where is the one-character padding the docstring warns about."""
+    from scripts.enforcement.check_decisions_unique import malformed_ids
+
+    for filler in ("—", "-", " — ", "…", "n/a"):
+        row = f"| D-902 | 2026-10-04 | infra | what | {filler} | `x.py` |\n"
+        got = malformed_ids(_SHAPE_HEAD + row)
+        if filler == "n/a":
+            assert got == {}, (
+                "a word, however thin, is content — the line is drawn at no word at all"
+            )
+        else:
+            assert "D-902" in got, filler

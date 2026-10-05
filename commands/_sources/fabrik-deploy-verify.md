@@ -258,8 +258,9 @@ product.** Skipped only by Phase 0 step 4 (`NOT-RUN (no FROZEN contract)`).
      /tmp/health_probe <leg>:/app/libs/"`, then `ssh <vps> "docker exec <leg> python scripts/verify_prod_parity.py
      --json --site container" > <run>/container.json`. The container's own env (`DATABASE_URL`, `REDIS_URL`,
      the compose network) is what makes these rows resolvable — that is why they live there. **The leg
-     container must carry the comparator's runtime deps** — `libs/health_probe` imports `python-dotenv` at
-     module level (and `psycopg`/`redis` for the rows that use them); an image without them dies on import, and
+     container must carry the comparator's runtime deps** — `libs/health_probe` imports `httpx` at module
+     level, `psycopg2`/`redis` inside their rows (a missing one fails that row), and `python-dotenv` for the
+     `.env` load (without it the leg sees only the container's own env); an image without `httpx` dies on import, and
      the leg reads UNVERIFIABLE for every row. An `ImportError` in `container.json` is that, not a product FAIL:
      route it to the project (add the dep to the leg service's Dockerfile), never to a rollback. A `docker
      exec` that dies with `executable file not found` (`python` absent — every Node image) is the OTHER class:

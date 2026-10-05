@@ -1035,17 +1035,55 @@ def _preflight(
     return merged, snap, True
 
 
+# The touched-tests fallback carries the merged ``src`` through this shim rather than a PYTHONPATH
+# entry: every PYTHONPATH entry precedes the stdlib, so a project package named like a stdlib
+# module (``src/copy/``) shadowed it and no test ran. The shim puts ``src`` after the stdlib but
+# before site-packages (where an editable install of the main checkout lives), and rides the env
+# into every child process the tests spawn.
+_SITECUSTOMIZE = """\
+import os, site, sys
+_here = os.path.dirname(os.path.abspath(__file__))
+sys.path[:] = [p for p in sys.path if os.path.abspath(p or ".") != _here]
+_src = os.environ.get("FABRIK_MERGE_SRC", "")
+if _src:
+    _site = set(site.getsitepackages())
+    if site.ENABLE_USER_SITE:
+        _site.add(site.getusersitepackages())
+    sys.path[:] = [p for p in sys.path if p != _src]
+    _at = next((i for i, p in enumerate(sys.path) if p in _site), len(sys.path))
+    sys.path.insert(_at, _src)
+del sys.modules["sitecustomize"]
+try:
+    import sitecustomize  # noqa: F401 — chain to the interpreter's own (Debian, a venv)
+except ImportError:
+    pass
+"""
+
+
+def _fallback_env(wt: Path, shim: Path) -> dict:
+    """The fallback's env: the shim ALONE on ``PYTHONPATH`` — the caller's entries would precede the
+    stdlib and could name the main checkout's own ``src``, so the import root comes from the
+    throwaway, never the caller. It is the throwaway's ``src``, or its root when ``src`` is itself
+    a package (imported as ``src.x``)."""
+    root = wt if (wt / "src" / "__init__.py").exists() else wt / "src"
+    return {**os.environ, "PYTHONPATH": str(shim), "FABRIK_MERGE_SRC": str(root)}
+
+
 def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -> str:
     """(c): the OWNER's command — ``.fabrik/merge-tests`` read from the BASE, never the branch —
-    else pytest over the merged ``tests/`` files the diff touched; the throwaway's ``src`` first
-    on ``PYTHONPATH``. A red test refuses."""
+    with the throwaway's ``src`` first on ``PYTHONPATH`` (a contract owner commands rely on; one
+    whose ``src`` holds a stdlib-named package runs ``env -u PYTHONPATH …`` itself). Else pytest
+    over the merged ``tests/`` files the diff touched, under the main checkout's ``.venv`` python
+    when it has one, the merged ``src`` placed after the stdlib by the shim above. A red test
+    refuses."""
     res = _run(["git", "show", f"{old}:.fabrik/merge-tests"], GIT_TIMEOUT_S, cwd=ctx.main)
-    pythonpath = os.pathsep.join(
-        p for p in (str(wt / "src"), os.environ.get("PYTHONPATH", "")) if p
-    )
-    env = {**os.environ, "PYTHONPATH": pythonpath}
     if res.returncode == 0 and res.stdout.strip():
+        pythonpath = os.pathsep.join(
+            p for p in (str(wt / "src"), os.environ.get("PYTHONPATH", "")) if p
+        )
+        env = {**os.environ, "PYTHONPATH": pythonpath}
         argv, label = ["sh", "-e", "-c", res.stdout], ".fabrik/merge-tests (base copy)"
+        run = _run(argv, TEST_TIMEOUT_S, cwd=wt, env=env)
     else:
         touched = [
             p
@@ -1057,11 +1095,13 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         ]
         if not touched:
             return "no owner tests ran (no .fabrik/merge-tests, no touched tests/)"
-        argv, label = (
-            [sys.executable, "-m", "pytest", "-q", *touched],
-            f"pytest {' '.join(touched)}",
-        )
-    run = _run(argv, TEST_TIMEOUT_S, cwd=wt, env=env)
+        venv = ctx.main / ".venv" / "bin" / "python"
+        py = str(venv) if os.access(venv, os.X_OK) else sys.executable
+        label = f"pytest {' '.join(touched)} under {py}"
+        with tempfile.TemporaryDirectory(prefix="merge-shim-") as shim:
+            Path(shim, "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
+            env = _fallback_env(wt, Path(shim))
+            run = _run([py, "-m", "pytest", "-q", *touched], TEST_TIMEOUT_S, cwd=wt, env=env)
     if run.returncode != 0:
         tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
         raise RefusedError(f"owner tests red ({label}, exit {run.returncode}): {tail}")

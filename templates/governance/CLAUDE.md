@@ -567,7 +567,7 @@ session (the first item it names that is open, ready, not a `next` item and held
 `mail.py claim` run in the mailbox's own repo creates the mail's item, and `mail.py ack` there closes it.
 `NEXT: none — terminal` stays legal and nothing counts, scores or rewards items (hub D-392, hub D-394).
 
-**⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block**, written unfenced — a fenced example, like the two below, never exempts a turn:
+**⚠️ `NEXT: operator decision` HAS A BAR — it was the contract's only UNGUARDED exit, which is exactly why it gets abused.** Compare the three sanctioned `NEXT:` values: `BLOCKED:` has three named causes and a required format; a named command obliges you to RUN it; `operator decision` is legitimate only behind a **DECISION block**, written unfenced — a fenced example, like the two below, never exempts a turn. A gate ALREADY on the board (the prompt's `work: awaiting operator — W-<id>` line) is pointed at by that id instead — `NEXT: operator decision — W-<id>`, every id an open awaiting item — and never re-stated, because a re-stated block mints a duplicate gate:
 
 ```
 DECISION NEEDED (ground: gate|underivable|owned)

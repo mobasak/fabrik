@@ -13,7 +13,8 @@ Cascade post_cascade_response surfaces it, Kilo runs it as its mandated final st
 Severity:
 - ERROR (blocks): tight code↔doc links — CHANGELOG, CONFIGURATION, db/schema.sql.
 - WARN (advisory): fuzzy links — INDEX (file add/remove), QUICKSTART (API routes),
-  FEATURES (shape), PORTS (compose), SERVICES (compose), OPERATIONS (compose),
+  FEATURES (shape), PORTS (compose; in a project, the hub-registry route — D-380),
+  SERVICES (compose), OPERATIONS (compose),
   RESILIENCE (retry/backoff patterns).
 
 Consolidates: check_changelog, check_configuration_md, check_index_md (touch), and
@@ -112,7 +113,10 @@ def _is_tracked(path: str) -> bool:
     try:
         return (
             subprocess.run(
-                ["git", "ls-files", "--error-unmatch", path],
+                # `:(top)` anchors the repo-root-relative path at the top level: a plain pathspec
+                # resolves against the cwd, so a gate run from a subdirectory read the hub's
+                # tracked PORTS.md as untracked (review of the D-380 warning, 2026-10-04)
+                ["git", "ls-files", "--error-unmatch", "--", f":(top){path}"],
                 capture_output=True,
                 timeout=10,
             ).returncode
@@ -470,7 +474,16 @@ def main(argv: list[str] | None = None) -> int:
         warnings.append("Service shape/spec changed but docs/FEATURES.md not updated (check it).")
     compose_changed = any(Path(f).name in {"compose.yaml", "compose.yml"} for f in staged)
     if compose_changed and "PORTS.md" not in staged_set:
-        warnings.append("compose changed but PORTS.md not updated (update if a port changed).")
+        # D-380: a TRACKED PORTS.md is the hub's own registry; an untracked one is a project's
+        # read-only synced copy that the next forced sync overwrites, so never ask for a local edit.
+        if _is_tracked("PORTS.md"):
+            warnings.append("compose changed but PORTS.md not updated (update if a port changed).")
+        else:
+            warnings.append(
+                "compose changed — if a port changed, PORTS.md here is a synced copy of the hub "
+                "registry (D-380): ask the hub with `python3 scripts/mail.py send --to fabrik "
+                "--to-agent fleet --kind request` (the body on stdin), never edit the copy."
+            )
     # SERVICES ← compose service added/removed (new worker, sidecar, etc.).
     if compose_changed and "docs/SERVICES.md" not in staged_set:
         warnings.append("compose service changed but docs/SERVICES.md not updated (check it).")

@@ -2346,7 +2346,9 @@ def test_the_deploy_triad_reads_the_frozen_contract_before_the_deploy_not_after(
     for text in (plan, deploy):
         assert "verify_prod_parity.py --header" in text
         assert "BLOCKED: parity contract DRAFT" in text
-    assert "import dotenv" in plan  # Phase 2 proves the leg image can run the comparator
+    assert (
+        "import httpx, dotenv" in plan
+    )  # Phase 2 proves the leg image runs the comparator (a56a844fb)
     assert (
         "parity contract re-frozen" in deploy
     )  # plan-version ≠ checkout-version is a review re-entry

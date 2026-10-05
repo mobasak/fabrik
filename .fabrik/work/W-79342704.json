@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T22:29:44.414455Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-79342704",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reword the template line to '`--kind reply --re` replies are exempt', full review (sync path), one commit",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "templates/governance/CLAUDE.md:433 says threaded --re replies are exempt from --to-agent; mail.py:1042 exempts only --kind reply with --re — reword to match (tryton-crm 01M3PJXN)"
+}

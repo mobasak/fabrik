@@ -221,8 +221,8 @@ stamp it at THIS point: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.
 (the researcher seats and each slice's refuter counted inside `opus=`/`sonnet=` by their model token —
 `--slices` knows only opus/sonnet/haiku, and `--mechanical` is inert under it; never dispatch past `SEATS: 0` —
 read its reason line for what binds (the box, a cap, or your own invocation) and re-run it once that clears), then `python3 scripts/command_run.py dispatch --seats <n>`
-BEFORE they go out, then ONE `Workflow` call — `Workflow({scriptPath: "/opt/fabrik/.claude/workflows/fabrik-review-loop.js",
-args: {pass: 1, surface, base_sha, digest, pins_dir, scratch_dir, brief, slices}})`, each slice
+BEFORE they go out, then ONE `Workflow` call — `Workflow({scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js",
+args: {pass: 1, surface, base_sha, digest, pins_dir, scratch_dir, brief, slices}})` (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree), each slice
 `{name, files: [the spec], scope: "<the sections it owns>", models: ["opus"] | ["sonnet"], priority}` and a
 cited-fact slice `agent: "fabrik-researcher"` (contract: `docs/reference/review-loop-workflow.md`): each slice's
 seat finds, one fresh refuter per slice EXECUTES every candidate (the live fetch, for a researcher slice) and
@@ -235,7 +235,7 @@ round --seats <n> --findings <found> --confirmed <confirmed> --slices <name>:<ve
 a NEW `Workflow` call with `pass: 2|3` and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next
 <scratch>/pass-<n>.json --ids <the confirmed ids>` — the round-1 seats re-verifying their OWN slices over the fix
 diff plus one hop (D-335), never a fresh seat sized by the fix; a researcher seat re-fetches only the facts on its
-ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent the seats go out through the
+ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached) the seats go out through the
 `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. Opus stays yours for
 the adjudication, the decide-clean and the md5-verified close.
 

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T19:48:18.980829Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6956aa14",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4468X8CDY7WCKVJQEDBS80A",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "test_quota_posture red on master-era code: the hook and command_run disagree on ' /fabrik-review'; plus two stray seat dirs in /opt/fabrik"
+}

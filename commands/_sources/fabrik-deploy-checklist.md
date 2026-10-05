@@ -122,8 +122,8 @@ Write `scripts/verify_prod_parity.py` to the seeded template's shape:
   service>"` beside `SITES` — the container that can reach the database and the internal network. A
   DB-free bridge in front of a stateful backend (tryton-crm: the FastAPI app has no psycopg by design; the
   leg runs in `trytond`) is a common shape, and the runner reads this from `--header` rather than assuming.
-  That container must carry a Python interpreter AND the comparator's runtime deps (`python-dotenv` at
-  least) — read the leg service's Dockerfile before siting a row there. A Node image has no `python` at
+  That container must carry a Python interpreter AND the comparator's runtime deps (`httpx` at
+  module level, `python-dotenv` for the `.env` load) — read the leg service's Dockerfile before siting a row there. A Node image has no `python` at
   all — `node-api` and `file-api` ship one (`Dockerfile.node`), so does `docusaurus` (its `Dockerfile.j2`);
   those projects site their DB/redis rows on the hub or host leg, or declare a Python sidecar as the leg —
   never the app container, where every row would read UNVERIFIABLE at the first verify run.
