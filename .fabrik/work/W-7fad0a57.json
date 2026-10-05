@@ -1,0 +1,26 @@
+{
+  "block_digest": "5e29bdcdf73746ed4952f06893253ff1e54d4e59f83f2f535d2e1d93675f2731",
+  "blocked_by": [],
+  "created": "2026-10-05T07:46:39.362010Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-7fad0a57",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "e6221f577849502f967c83e6ae56b25c4fc3892b822d13d3ad3d61fd3758eb33"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve the converged Promtail → Alloy design at `docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md` so it can go to planning?",
+  "status": "awaiting-operator",
+  "title": "Do you approve the converged Promtail → Alloy design at `docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md` so it can go to planning?"
+}
