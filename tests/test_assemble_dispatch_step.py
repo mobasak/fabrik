@@ -1170,7 +1170,7 @@ _MAIL_TRIAGE_PHASE_A = {
     ),
     "fabrik-doc-converge.md": ("project-local `docs/reference/<name>.md`",),  # T2.13 (01M1V443G)
     "fabrik-ui-design.md": (
-        "Split history (retired screens, superseded versions) into `docs/ui-design-history.md`",
+        "Split history (retired screens, superseded versions) into `docs/archive/ui-design-history.md`",
     ),  # T2.11 (01M25G1BN)
     "fabrik-ui-design-review.md": ("the review's first finding is the split",),  # T2.11 twin
     "fabrik-decommission.md": ("`command grep -rn` across `/opt/*`",),  # T2.21

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-ui-design names a history path the doc-sprawl gate admits (2026-10-05)
+
+- `/fabrik-ui-design` and `/fabrik-ui-design-review` now split contract history into `docs/archive/ui-design-history.md`; the old path directly under `docs/` was refused by `check_doc_sprawl.py` (tryton-crm 01M3QE8Y, D-582).
+
 ### Fixed — plan-review friction: the in-artifact ledger md5 and the scratch plan-dir name (2026-10-05)
 
 - `term-edit` (17 commands) now says how to check a pin when the Pass Ledger lives in the artifact: delete the previous row and the pin must hash to that row's end hash; `check_plan_tickets --plan-dir` names the remedy for a non-dated scratch copy (iterative_image_editor 01M3QA5R, D-581).

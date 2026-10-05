@@ -67,7 +67,7 @@ one of two ways and **state which**:
   against `design-system-template.md` § The design-system.md contract** — every section present, every colour
   slot valued in both modes, the § Contrast table recomputed with the WCAG formula (never trusted as stated);
   author only what it lacks, on top of those brand tokens. Author it **lean** — enough to design and
-  build against, NOT a 1,850-line clone. **Size ceiling: 25,000 tokens (about 1,100 lines) per contract file — the Read tool's page cap; above it every reader sees a PARTIAL view. Split history (retired screens, superseded versions) into `docs/ui-design-history.md` and keep the live contract under the ceiling (01M25G1BN, 01M2803TM).** Its shape is `design-system-template.md` § The design-system.md contract, and the structure is inherited from that template by reference, never copied (the brand tokens come from BIC),
+  build against, NOT a 1,850-line clone. **Size ceiling: 25,000 tokens (about 1,100 lines) per contract file — the Read tool's page cap; above it every reader sees a PARTIAL view. Split history (retired screens, superseded versions) into `docs/archive/ui-design-history.md` and keep the live contract under the ceiling (01M25G1BN, 01M2803TM).** Its shape is `design-system-template.md` § The design-system.md contract, and the structure is inherited from that template by reference, never copied (the brand tokens come from BIC),
   but keep it minimal: **color/surface/text tokens · typography (heading/body/mono) · spacing scale · motion
   tokens · the core component list (Button, Input, Card, Table, Modal, Toast, …) · the enriched states every
   component handles (loading/empty/error/permission-denied/success/partial/disabled) · WCAG 2.2 AA baseline ·
