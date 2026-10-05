@@ -1,7 +1,7 @@
 # final_gate pytest leg takes TEST_DATABASE_URL from the project's env files (W-e93160e3)
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = 63199ef4f878f2d2232ef4c1057723116c2b25ce; `git diff HEAD -- scripts/final_gate.py tests/test_final_gate_test_database_url.py tests/test_final_gate_advisory_display.py docs/workflows/FINAL_GATE_WORKFLOW.md` + 1 untracked file(s) md5 ba6e2bcf2815cc90695c02b09fd3f39d (40475 bytes)
+**Surface:** `git rev-parse HEAD` = 173ac039ef87d69569a5a641ac995cea2b287e45; range tip 173ac039ef87d69569a5a641ac995cea2b287e45; `git diff 63199ef4f..173ac039e -- scripts/final_gate.py tests/test_final_gate_test_database_url.py tests/test_final_gate_advisory_display.py docs/workflows/FINAL_GATE_WORKFLOW.md` md5 1cf3119b0dddbb51efeb1eaefccc5107 (40859 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/final_gate.py`, `tests/test_final_gate_test_database_url.py`, `tests/test_final_gate_advisory_display.py`, `docs/workflows/FINAL_GATE_WORKFLOW.md`
 **Lane:** fabrik-task
 
@@ -145,6 +145,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 | Pass 2 | native sonnet×2 + haiku×2 | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0 | re-verification of each seat's ledger over the round-1 fix diff plus one hop on a read-only pin |
 | Pass 3 | native sonnet×1 + haiku×1 | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | slice A only: the strip line and the redaction branch re-executed on pin3 |
 | Pass 4 | native sonnet×1 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the slice-A seat re-ran its round-3 leak proof (diff line, tuple, dict, f-string) and the one-letter mangling project on pin4, plus two over-redaction probes |
+| Pass 5 | native haiku×1 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the slice-B seat re-ran the test file three times on pin4 and killed every new test with three mutants (bare replace, last-dot strip, no short-password branch) |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
