@@ -81,7 +81,7 @@ def _cron_block(cron) -> str:
     if cron is None:
         return "CRON-ABSENT\n"
     text = TEMPLATE if cron is _SYNCED else cron
-    lines = [ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
+    lines = text.splitlines()
     return "".join(f"CRON {ln}\n" for ln in lines)
 
 
@@ -271,7 +271,9 @@ def test_clean_exits_zero(tmp_path):
     env = make_env(tmp_path, root, {"vps": remote_listing(), "vps2": remote_listing()})
     r = run(env, "--mail")
     assert r.returncode == 0, r.stdout + r.stderr
-    assert not any(x.startswith(("DRIFT", "MISSING", "MODE")) for x in r.stdout.splitlines())
+    assert not any(
+        x.startswith(("DRIFT", "MISSING", "MODE", "CRON")) for x in r.stdout.splitlines()
+    )
     assert not state.exists() or json.loads(state.read_text()).get("signature") in (None, "")
     assert mails(tmp_path) == []
 
@@ -701,6 +703,8 @@ def test_remote_cmd_cron_half_real_shell(tmp_path):
     cmd = cmd.replace(d.CRON_REMOTE, str(cron))
     out = subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60).stdout
     assert d.parse_cron(out) == [
+        "# a comment naming /opt/fabrik/scripts/sysadmin/old.sh",
+        "   # an indented comment",
         "SHELL=/bin/sh",
         "*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py >> /var/log/x.log 2>&1",
     ], out
@@ -711,3 +715,35 @@ def test_remote_cmd_cron_half_real_shell(tmp_path):
     cron.unlink()
     out = subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60).stdout
     assert d.parse_cron(out) is None, out
+
+
+def test_cron_reference_is_the_committed_template(tmp_path):
+    """An uncommitted template edit in the hub checkout is not the hub's cron set."""
+    root = make_hub(tmp_path)
+    tpl = root / "scripts/bootstrap/templates/sysadmin-cron.template"
+    tpl.write_text(tpl.read_text() + _RETIRED)
+    env = make_env(tmp_path, root, {"vps": remote_listing()})
+    r = run(env)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_cron_file_unreadable_reported(tmp_path):
+    root = make_hub(tmp_path)
+    listing = remote_listing(cron="").rstrip("\n") + "\nCRON-UNREADABLE\n"
+    env = make_env(tmp_path, root, {"vps": listing})
+    r = run(env)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "CRONUNREADABLE vps /etc/cron.d/vps-sysadmin" in r.stdout
+    assert "CRONMISSING" not in r.stdout
+
+
+def test_cron_autoheal_and_quotes_not_misread(tmp_path):
+    """fabrik-autoheal may be scheduled outside this file, and a quoted path is the same path."""
+    root = make_hub(tmp_path)
+    cron = (
+        '*/15 * * * * root bash -c "/opt/fabrik/scripts/sysadmin/proactive-check.sh" >> /var/log/x.log 2>&1\n'
+        "*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py >> /opt/fabrik/logs/r.log 2>&1\n"
+    )
+    env = make_env(tmp_path, root, {"vps": remote_listing(cron=cron)})
+    r = run(env)
+    assert r.returncode == 0, r.stdout + r.stderr

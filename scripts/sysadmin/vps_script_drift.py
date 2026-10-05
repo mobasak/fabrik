@@ -26,10 +26,12 @@ What it compares
 Lines: ``DRIFT <host> <path>`` (content differs) · ``MISSING <host> <path>`` (committed, absent on the host)
 · ``MODE <host> <path>`` (committed executable, host copy lacks owner-exec — the 2026-09-05 shape)
 · ``UNREADABLE <host> <path>`` (present, but the host could not read it or lacks stat/md5sum — unverified)
-· ``CRONMISSING <host> <path>`` / ``CRONEXTRA <host> <path>`` (W-73feca74: the host's ``/etc/cron.d/vps-sysadmin``,
-  written only by bootstrap step 14, schedules a different SET of hub paths than the template's non-comment lines —
-  paths, never bytes, since minutes differ per host; ``CRONMISSING <host> /etc/cron.d/vps-sysadmin`` when the
-  file is absent or unreadable). Cron lines are tier 1. The cron user and schedule are not compared.
+· ``CRONMISSING <host> <path>`` / ``CRONEXTRA <host> <path>`` (W-73feca74: the host's ``/etc/cron.d/vps-sysadmin``
+  — rendered by bootstrap step 14 on a spoke, by hand on the hub, never by the sync — schedules a different SET of
+  ``/opt/fabrik/scripts/`` paths than the COMMITTED template's non-comment lines; paths, never bytes, since minutes
+  differ per host; ``CRONMISSING <host> /etc/cron.d/vps-sysadmin`` when the file is absent, ``CRONUNREADABLE`` when
+  it cannot be read). Cron lines are tier 1. Not compared: the cron user, the schedule, and
+  ``/usr/local/bin/fabrik-autoheal`` (a live host may schedule it outside this file).
 Exit: 0 clean (every host reached, nothing differs) · 1 any difference, either tier · 2 any host unreachable
 · 3 the check itself failed (git, state, an unexpected error).
 ``--stamp <path>`` touches <path> only when the run reached one of the verdicts 0-2. The rider keys its daily
@@ -65,7 +67,8 @@ HOSTS_DEFAULT = ("vps", "vps2", "vps3")
 TEMPLATE = Path("scripts/bootstrap/templates/sysadmin-cron.template")
 AUTOHEAL_REPO = "scripts/vps-autoheal.sh"
 AUTOHEAL_REMOTE = "/usr/local/bin/fabrik-autoheal"
-# Written only by bootstrap step 14 from TEMPLATE; sync-vps-sysadmin.sh never touches it (W-73feca74).
+# Rendered from TEMPLATE by bootstrap step 14 on a spoke, by hand on the hub; sync-vps-sysadmin.sh never
+# touches it, so a template edit is inert until someone reinstalls it (W-73feca74).
 CRON_REMOTE = "/etc/cron.d/vps-sysadmin"
 REMOTE_BASE = "/opt/fabrik/"
 # What the cron targets call (claude-run.sh:18,58; claude-keepalive-rotate.sh:27; proactive-check.sh's
@@ -99,12 +102,10 @@ REMOTE_CMD = (
     + _LIST_FILES
     + "' sh {} + 2>/dev/null; "
     "[ -e " + AUTOHEAL_REMOTE + " ] && sh -c '" + _LIST_FILES + "' sh " + AUTOHEAL_REMOTE + "; "
-    # the installed cron file: its non-comment lines, each prefixed CRON, or one CRON-ABSENT line
-    "if [ -r "
-    + CRON_REMOTE
-    + ' ]; then grep -v "^[[:space:]]*#" '
-    + CRON_REMOTE
-    + ' | sed "s/^/CRON /"; '
+    # the installed cron file: every line prefixed CRON (comments are filtered in Python, one function for both
+    # sides), or one CRON-ABSENT / CRON-UNREADABLE line
+    "if [ -e " + CRON_REMOTE + " ]; then if [ -r " + CRON_REMOTE + " ]; then "
+    'sed "s/^/CRON /" ' + CRON_REMOTE + "; else echo CRON-UNREADABLE; fi; "
     "else echo CRON-ABSENT; fi; true"
 )
 UNREADABLE = ("", "")
@@ -125,9 +126,19 @@ def _state_path() -> Path:
     return Path(os.environ.get("FABRIK_DRIFT_STATE") or default)
 
 
+def template_text(root: Path) -> str:
+    """The COMMITTED cron template (HEAD), never the working tree: a sibling's uncommitted edit is not the hub's."""
+    return subprocess.run(
+        ["git", "-C", str(root), "show", f"HEAD:{TEMPLATE.as_posix()}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+
 def template_targets(root: Path) -> list[str]:
     """Repo paths of every executable the cron template names (comments included — a path is a path)."""
-    text = (root / TEMPLATE).read_text(encoding="utf-8")
+    text = template_text(root)
     out = {
         f"scripts/sysadmin/{m}"
         for m in re.findall(r"/opt/fabrik/scripts/sysadmin/([^\s>|;]+)", text)
@@ -137,7 +148,9 @@ def template_targets(root: Path) -> list[str]:
     return sorted(out)
 
 
-_CRON_PATH_RE = re.compile(r"(?:/opt/fabrik|/usr/local/bin)/[^\s>|;&]+")
+# Only hub scripts: /usr/local/bin/fabrik-autoheal may be scheduled outside this file on a live host, and a
+# redirect target or a quote is not a scheduled path.
+_CRON_PATH_RE = re.compile(r"/opt/fabrik/scripts/[^\s>|;&\"'`()]+")
 
 
 def cron_paths(text: str) -> set[str]:
@@ -149,20 +162,26 @@ def cron_paths(text: str) -> set[str]:
         for line in text.splitlines()
         if line.strip() and not line.lstrip().startswith("#")
         for m in _CRON_PATH_RE.findall(line)
+        if "{{" not in m  # a templated path cannot match a rendered one
     }
 
 
 def parse_cron(text: str) -> list[str] | None:
-    """REMOTE_CMD's cron half -> the host's active cron lines, or None when the file is absent or unreadable."""
+    """REMOTE_CMD's cron half -> the host's cron lines (comments included), None when the file is absent, or
+    ["CRON-UNREADABLE"] when it exists but cannot be read."""
     lines = text.splitlines()
     if "CRON-ABSENT" in lines:
         return None
+    if "CRON-UNREADABLE" in lines:
+        return ["CRON-UNREADABLE"]
     return [ln[len("CRON ") :] for ln in lines if ln.startswith("CRON ")]
 
 
 def compare_cron(host: str, expected: set[str], remote: list[str] | None) -> list[str]:
     if remote is None:
         return [f"CRONMISSING {host} {CRON_REMOTE}"]
+    if remote == ["CRON-UNREADABLE"]:
+        return [f"CRONUNREADABLE {host} {CRON_REMOTE}"]
     got = cron_paths("\n".join(remote))
     return [f"CRONMISSING {host} {p}" for p in sorted(expected - got)] + [
         f"CRONEXTRA {host} {p}" for p in sorted(got - expected)
@@ -329,8 +348,10 @@ def _drift_body(tier1: list[str], tier2_count: int, unreachable: list[str]) -> s
         "Deploying is the operator-approved run of scripts/sync-vps-sysadmin.sh (a VPS write; it pushes the main",
         "checkout's working tree wholesale, so check for sibling WIP first). DRIFT can also mean a host is running",
         "uncommitted code that someone synced. MODE means the host copy lost its exec bit (cron cannot run it).",
-        f"CRONMISSING/CRONEXTRA mean the host's {CRON_REMOTE} schedules a different set of hub paths than",
-        "scripts/bootstrap/templates/sysadmin-cron.template; only bootstrap step 14 rewrites that file (a VPS write).",
+        f"CRONMISSING/CRONEXTRA mean the host's {CRON_REMOTE} schedules a different set of hub scripts than",
+        "scripts/bootstrap/templates/sysadmin-cron.template. Reinstall THAT FILE ONLY (a VPS write): render the",
+        "template with the host's two minute slots (the sed in bootstrap-vps.sh step 14) and `sudo install -m 644",
+        "-o root -g root` it — never re-run step 14 whole on a live host: it also overwrites .env.sysadmin.",
         f"This mail repeats every {RENUDGE_DAYS} days while the same drift persists.",
     ]
     return "\n".join(lines) + "\n"
@@ -341,7 +362,7 @@ def run(mail: bool) -> int:
     hosts = os.environ.get("FABRIK_DRIFT_HOSTS", " ".join(HOSTS_DEFAULT)).split()
     expected = committed_files(root)
     tier1 = set(tier1_paths(root))
-    cron_expected = cron_paths((root / TEMPLATE).read_text(encoding="utf-8"))
+    cron_expected = cron_paths(template_text(root))
     state_file = _state_path()
     state = _load_state(state_file)
     # A host dropped from FABRIK_DRIFT_HOSTS leaves the state with it.
