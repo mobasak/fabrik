@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "wip_backup.sh left 123 zero-byte objects and 50 zero-byte refs/wip files here; every push from web-ecommerce-factory fails"
 }
