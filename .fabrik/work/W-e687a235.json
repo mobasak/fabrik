@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T15:03:22.482969Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e687a235",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "cause found by review seat (2026-10-05): classify_services.py:39-58 reads the live pool policy (OFF, D-181) and the module never sets the FABRIK_POOL_POLICY seam; with FABRIK_POOL_POLICY=on the file gives 183 passed. Fix: an autouse fixture in scripts/tests/test_gather_envs.py setting FABRIK_POOL_POLICY=on, seen red first",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "scripts/tests/test_gather_envs.py: 48 of 152 tests fail on worktree-fleet HEAD 2d66fc215 (first: test at :890 expects 'pool cost this run: $0.0300' on stdout, gets nothing)"
+}

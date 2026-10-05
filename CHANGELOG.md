@@ -27,6 +27,15 @@ All notable changes to this project will be documented in this file.
 - On trade-intelligence's real tree it keeps 20 of 20 comments, where HEAD kept 17, and leaves both plan sets collapsed. A second run is a no-op.
 - 7 graders. Follow-up W-3efb9553 covers `--only` and plan-set directories.
 
+### Changed — `CROWDLEX_*` keys are the fleet's own youtube API, filed as internal config (2026-10-05)
+`scripts/service_catalog.json` listed `crowdlex` and `crowdlex_internal` as `unidentified`, so brand-identiy-creator's
+`/fabrik-catchup` probe could not tell `CROWDLEX_API_URL=http://crowdlex-api:8031` from a dead reference
+(01M4642DYM). `crowdlex-api` is the `container_name` of youtube's `api` service on the external `fabrik` network,
+port 8031 (`/opt/youtube/compose.yaml`, `PORTS.md`), reachable from containers on that network on the same VPS.
+Like the other fleet services, `CROWDLEX` is now an `INTERNAL_PREFIX` in `scripts/gather_envs.py` and both catalog
+entries are gone: the keys file as internal config, never as a vendor or as paid triage. `crowdlex.com` joins
+`OWN_HOST_SUFFIXES` beside `.ocoron.com`, so the youtube code's links to its own domain open no triage block either.
+
 ### Added — read-only VPS script drift check, and the kaizen collector's stamp no longer hides its failures (2026-10-05)
 `scripts/sysadmin/vps_script_drift.py` (W-c792a205) compares the hub checkout's committed `HEAD` (master, in the
 rider) with what vps, vps2 and vps3 execute — `scripts/sysadmin/`, the two cron-called audit scripts and

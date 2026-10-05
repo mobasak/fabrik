@@ -571,6 +571,28 @@ def test_host_re_skips_userinfo():
     assert ge.HOST_RE.search("https://api.vendor.com:8443/v1").group(1) == "api.vendor.com"
 
 
+def test_fleet_own_crowdlex_keys_are_internal_config(tmp_path):
+    """CROWDLEX_* names the youtube project's own API, so it files as internal config like the
+    other fleet services in INTERNAL_PREFIX — never a vendor entry and never paid triage (01M4642DYM)."""
+    secret = "x7Kq9Lm2Np4Rs6Tv8Wy0Za3Bc5De7Fg9"
+    body, stats = ge.consolidate(
+        _envs(
+            tmp_path,
+            {
+                "bic": "CROWDLEX_API_URL=http://crowdlex-api:8031\n"
+                f"CROWDLEX_INTERNAL_TOKEN={secret}\nCROWDLEX_ENABLED=false\n"
+            },
+        )
+    )
+    assert "name=crowdlex" not in body
+    internal = body.split("internal-config", 1)[1]
+    for key in ("CROWDLEX_API_URL", "CROWDLEX_INTERNAL_TOKEN", "CROWDLEX_ENABLED"):
+        assert key in internal, key
+    # ...and the project's own domain in code is never a triage block either, like .ocoron.com
+    assert ge.ignored_host("crowdlex.com") and ge.ignored_host("api.crowdlex.com")
+    assert not ge.ignored_host("notcrowdlex.com")
+
+
 def test_internal_config_name_beats_a_catalog_match_prefix(tmp_path, monkeypatch):
     """ALLOWED_ORIGINS is internal config even when a tombstone `allowed` carries match ALLOWED (G1b)."""
     monkeypatch.setattr(
