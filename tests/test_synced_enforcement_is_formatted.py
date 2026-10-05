@@ -13,21 +13,19 @@ directory with no allowlist.
 
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-# The same ruff the completion gate grades with (scripts/final_gate.py: VENV_RUFF, then PATH), so a
-# different interpreter running pytest cannot pick a ruff whose formatting disagrees. A checkout with no
-# .venv falls back to the interpreter's sibling.
-_CANDIDATES = (ROOT / ".venv" / "bin" / "ruff", Path(sys.executable).parent / "ruff")
-RUFF = next((str(c) for c in _CANDIDATES if c.exists()), None) or shutil.which("ruff")
+# The same ruff the completion gate grades with, resolved the same way (scripts/final_gate.py: VENV_RUFF,
+# else PATH), so the interpreter running pytest cannot pick a ruff whose formatting disagrees.
+_VENV_RUFF = ROOT / ".venv" / "bin" / "ruff"
+RUFF = str(_VENV_RUFF) if _VENV_RUFF.exists() else shutil.which("ruff")
 
 
 def test_every_synced_enforcement_script_is_ruff_formatted() -> None:
     files = sorted(str(p) for p in (ROOT / "scripts" / "enforcement").glob("*.py"))
     assert files, "no scripts/enforcement/*.py found — the glob regressed"
-    assert RUFF, "ruff is not installed beside this interpreter or on PATH"
+    assert RUFF, "ruff is not in .venv/bin or on PATH"
     proc = subprocess.run(
         [RUFF, "format", "--check", *files], cwd=ROOT, capture_output=True, text=True, timeout=300
     )
