@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T23:06:26.675831Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-b51d207b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M46JMS135T5PPQGAN6K1HEA0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "Re: scaffolded projects lint the vendored GlitchTip scrubber — fixed in the template (force-exclude + mypy override) with a hub grader; three more hub-authored defects fixed alongside"
+}

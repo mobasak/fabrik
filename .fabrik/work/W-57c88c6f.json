@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T22:29:17.315390Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-57c88c6f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read the None path at mail.py:1697, guard or narrow the type, and add a test if None is reachable",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "scripts/mail.py:1697 mypy union-attr: `str | None` has no .strip (pre-existing at HEAD :1689; reported by intel during W-0cd0363f)"
+}
