@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "measure whether any live fleet DSN hits one of these (grep project .env.example files for +[A-Z], ssl=true, ' '); fix only what a real DSN reaches, with a grader",
-  "note": "",
+  "note": "measured 2026-10-06: 40 /opt/*/.env.example files, 25 DSN lines — schemes only postgresql (19) and postgresql+asyncpg (6), the only query key is schema; fabrik apply writes lowercase postgresql:// (orchestrator/infrastructure.py:808, __init__.py:338) with 32-char [A-Za-z0-9] passwords (drivers/postgres.py:91-108, orchestrator/secrets.py:21) — no fleet DSN can carry an uppercase scheme, ssl=true/false, a ? in the password or a blank value; per the item's own rule (fix only what a real DSN reaches) nothing is fixed",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
   "title": "pgurl/psql scaffold helper: recorded low-severity residue from the 01M464NPPB scoped review (uppercase driver/scheme, ssl=true/false, unencoded ? in a password, whitespace-only DSN, grader blind to a psql/var split across two Python string literals)"
 }
