@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the GlitchTip deny-by-default plan set is EXECUTED and archived (2026-10-06)
+- `docs/development/plans/2026-09-05-plan-2-glitchtip-deny-by-default/` had all 4 tickets merged and a whole-plan review whose closing pass found 0 (accepted as a pre-D-206 legacy receipt, D-497), yet still read CONVERGED. After a conformance re-check (scrubber vendored, emitter copies it, rule 55 states the shape, the guard test 10/10), the spine reads EXECUTED and the set is in `docs/development/plans/archived/`. PLANS.md is regenerated. D-600, W-07314261.
+
 ### Added — `work.py done --resolved-by`: close an item another item's commit already fixed (2026-10-06)
 - `scripts/work.py`: `done <B> --resolved-by <A>` closes B with A's recorded evidence. A must read `done` in this tree, on the base branch or in a closed marker, and must record a commit SHA as evidence; a given `--evidence` must equal it. B records `resolved_by` (the root of a chain), and the closed marker carries it too. Drift class 6 now checks a done item's evidence against its `resolved_by` root. Without the flag, `done` is unchanged. W-f154f3f3, D-599, mail 01M3T2C7 (trade-intelligence: the only honest-looking path was an empty commit naming the item).
 
