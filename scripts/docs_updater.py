@@ -902,7 +902,9 @@ def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
         # VALUE is the first token. Substring fallbacks run LEGACY-first so a
         # free-text `COMPLETE — converged with baseline` stays COMPLETE (the
         # validate_plan_consistency check depends on it).
-        if first in ("converged", "draft", "planned", "executed", "blocked"):
+        # `superseded` is exact-first too: its rationale usually says "never executed",
+        # which the substring fallback below graded EXECUTED (D-571: 2 plans misgraded).
+        if first in ("converged", "draft", "planned", "executed", "blocked", "superseded"):
             status = first.upper()
         elif first in ("in-progress", "in_progress"):
             status = "IN_PROGRESS"

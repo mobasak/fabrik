@@ -397,6 +397,22 @@ def test_bc25_plain_converged_status_is_parsed(plans_env: Path) -> None:
     assert status == "CONVERGED"
 
 
+def test_a_superseded_plan_that_was_never_executed_is_not_graded_executed(
+    plans_env: Path,
+) -> None:
+    # D-571: "SUPERSEDED (…) — never executed" fell through to the substring fallback,
+    # matched "executed", and PLANS.md would have listed a retired plan as EXECUTED.
+    import scripts.docs_updater as du
+
+    p = _write(
+        plans_env,
+        "superseded-plan.md",
+        "# P\n\n**Status:** SUPERSEDED (2026-10-05, D-571) — never executed; retired\n",
+    )
+    status, _, _ = du.parse_plan_status(p)
+    assert status == "SUPERSEDED"
+
+
 # --- Review-fix regressions (Phase A adjudicated findings) --------------------------
 
 
