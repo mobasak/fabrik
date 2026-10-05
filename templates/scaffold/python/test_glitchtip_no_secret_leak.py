@@ -15,6 +15,7 @@ Capture is a Transport SUBCLASS: sentry-sdk deprecated function transports, and 
 that silently stops capturing on an SDK bump is the worst way for it to fail.
 """
 
+import contextlib
 import importlib
 import logging
 
@@ -61,6 +62,7 @@ class CaptureTransport(Transport):
         self.envelopes.append(envelope)
 
     def flush(self, timeout, callback=None):
+        del timeout, callback  # the SDK's signature; nothing is buffered here
         return None
 
     def kill(self):
@@ -87,10 +89,9 @@ def _raise_with_secrets_in_play() -> None:
         signing = request.headers.get("X-Signing-Secret")  # noqa: F841
         logging.getLogger("leak-guard").error("otp=%s", SECRETS["otp"])
         logging.getLogger("leak-guard").error("connecting to " + SECRETS["dsn_no_at"])
-        try:  # the outbound URL, key and all, travels in the transaction's http span data
+        # the outbound URL, key and all, travels in the transaction's http span data
+        with contextlib.suppress(httpx.HTTPError):
             httpx.get(f"http://127.0.0.1:1/probe?apikey={SECRETS['apikey']}", timeout=0.05)
-        except httpx.HTTPError:
-            pass
         raise RuntimeError("boom")
 
     with TestClient(app, raise_server_exceptions=False) as client:
