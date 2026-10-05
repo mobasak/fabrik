@@ -1,7 +1,7 @@
 # work.py done --resolved-by — close an item another item's commit fixed (W-f154f3f3)
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = 074b0e8c5da405811373ac641d4587e0ccf798f0; `git diff HEAD -- scripts/work.py tests/test_work_done_resolved_by.py docs/reference/work-tracking.md` + 1 untracked file(s) md5 d713896b7d2ded6913be337d4b0e5bde (20196 bytes)
+**Surface:** `git rev-parse HEAD` = c5ed3230d216197aa39cec173629bb459fd34735; range tip c5ed3230d216197aa39cec173629bb459fd34735; `git diff 22e46d5e3..c5ed3230d -- scripts/work.py tests/test_work_done_resolved_by.py docs/reference/work-tracking.md` md5 c2d6428f7002c4cdb502bcafa79381ff (21731 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/work.py`, `tests/test_work_done_resolved_by.py`, `docs/reference/work-tracking.md`
 **Lane:** fabrik-task
 
