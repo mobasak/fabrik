@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T10:56:00.978465Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2cfa7b8e",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task, full /fabrik-review (template + hub contract are sync paths); spec: docs/reference/prompt-audit-2026-10-05.md § A; then ordering-rule step 3 (W-a247f908)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Prompt-audit section A: fix 5 factual errors in the governance sources (template setup-error remedy U2-1, hub git-reset rule U1-1, drifted final_gate cites U1-5/U2-3, pinned Opus 5 trailer example U1-6/U2-2)"
+}
