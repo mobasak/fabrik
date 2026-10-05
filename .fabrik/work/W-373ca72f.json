@@ -1,0 +1,26 @@
+{
+  "block_digest": "c936036076bba2b472df08a96c1a10e10e058f08a5e2636a65343abc5a455217",
+  "blocked_by": [],
+  "created": "2026-10-04T21:49:59.247412Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-373ca72f",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "0db8207fcaacef9a29b5fdb7fae9a85410204bcf5ed623e20047c8843741210a"
+  ],
+  "next": "",
+  "note": "operator 2026-10-05: 'why not directly to Backblaze B2 repo and reachable and searchable via session recall?' · 'vps1, 2, 3 has limited storage. this machine is mostly up' · created bucket wsl-ozgur · 'save it into .env file. and update the plan to save b2 directly now proceed and finish the plan after reviewing it' — route: direct to B2 (D-565)",
+  "owner": "",
+  "priority": 2,
+  "question": "Which key should create the session-history bucket: one you make in the B2 console, or the Backrest key I'd read from vps1?",
+  "status": "done",
+  "title": "Which key should create the session-history bucket: one you make in the B2 console, or the Backrest key I'd read from vps1?"
+}

@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A heading anchor that also matches prose duplicates a block, and a seat's copy can land in the repo (2026-10-05)
+
+Revising the session-history retention plan for the B2-direct route (D-565).
+- **`text.index("## Evidence")` matched a sentence before the heading.** Phase B's step read "Embed the verbatim command output in `## Evidence`", so a splice cut from the wrong offset and duplicated a 60-line block into commit 54cbabbfb; the review's first read found it. Anchor a section edit on a whole line outside fences (`^## Evidence$`, or a heading walker that skips fenced blocks), never on a bare substring.
+- **A review seat's `cp -r <pins> t` landed in the repo root.** The brief named the copy as `<your scratch>/t`, and one seat ran it from the worktree cwd; an untracked `t/` (an older copy of the archiver) appeared beside the real tree. Briefs should spell the scratch path absolutely in the command itself, and `git status` is worth reading after every fan-out, before any commit.
+
 ## A review seat that mutates its pin, a receipt gated before it is staged, and a command line that cannot carry two commits (2026-10-02)
 
 Plan 2026-10-02-plan-1 (the /fabrik-task lane v2, 11 tickets) surfaced four process defects no ticket review was built to see.

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T07:40:20.280255Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-332b562c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md"
+  },
+  "next": "in /fabrik-plan-after-chat for docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md: anchor V4/V5 windows on step (b) explicitly, and phrase D3's file-set checks as pass conditions with the action on a stray DRIFT/ORPHAN line",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Promtail to Alloy plan: carry two wording notes from the spec review (V5's 'the switch' anchor; D3 check phrasing)"
+}

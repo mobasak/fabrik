@@ -1,0 +1,13 @@
+# Daily trigger for session-archive.service. Persistent=true: a run missed while the machine
+# was off fires when the user manager next starts (linger keeps that manager up without a login).
+[Unit]
+Description=Daily session-history archive to Backblaze B2
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=15min
+Unit=session-archive.service
+
+[Install]
+WantedBy=timers.target

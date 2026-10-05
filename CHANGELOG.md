@@ -27,6 +27,30 @@ All notable changes to this project will be documented in this file.
 - On trade-intelligence's real tree it keeps 20 of 20 comments, where HEAD kept 17, and leaves both plan sets collapsed. A second run is a no-op.
 - 7 graders. Follow-up W-3efb9553 covers `--only` and plan-set directories.
 
+### Added — read-only VPS script drift check, and the kaizen collector's stamp no longer hides its failures (2026-10-05)
+`scripts/sysadmin/vps_script_drift.py` (W-c792a205) compares the hub checkout's committed `HEAD` (master, in the
+rider) with what vps, vps2 and vps3 execute — `scripts/sysadmin/`, the two cron-called audit scripts and
+fabrik-autoheal — over one BatchMode ssh each, and reports `DRIFT`, `MISSING`, `MODE` (lost exec bit, the
+2026-09-05 `detect_reversals.py` outage) and `UNREADABLE`; exit 3 means the check itself failed. It never
+pushes. A daily rider on `weekly_catchup.sh kaizen_collect_v2.py` runs it with `--mail`: fleet is mailed once per
+distinct drift of the executed tier, again every 7 days while it persists, and once when a host stays unreachable for
+3 runs; the script writes the rider's daily stamp itself (`--stamp`) only when it reached a verdict, so a missing or
+crashed check retries the next hour. The same edit fixes `weekly_catchup.sh`: `rc=$?` after `esac` read the last
+rider's `|| true`, so a failing collector still wrote its success stamp; the collector's own status now decides it.
+Decision row D-592.
+
+### Fixed — watchdog Tier-D docstring and CONFIGURATION.md payments worker match the code (2026-10-05)
+`WatchdogDriver._gate_tier_d`'s docstring said a missing git remote fails the apply loudly; the raise is caught by
+`_nonfatal`, so the rest of the deploy completes, the watchdog is a failed registrar (`fabrik apply` exits 2,
+`deploy_router` returns 1), and a re-apply leaves an existing sidecar unchanged (infra review, mail 01M455G9).
+`docs/CONFIGURATION.md` § Payments webhook ingest now describes the fulfilment worker as fabrik-lib D-337's own
+scoped `NOBYPASSRLS` login (not yet creatable on a `fabrik apply` database, so PayTR stays off), scoped by
+`app.tenant_id` with `app.current_org` able to deny; requires `verify_service_role` plus the `pg_roles` check on
+every payments connection (D-575) and project policies for both lanes on an RLS'd `jobs` table; and points at
+core/85 and saas/95 as the fleet contract (infra mail 01M44Y86AE).
+
+### Changed — session transcripts archive straight to Backblaze B2 from this machine (2026-10-05)
+`scripts/sysadmin/archive_transcripts.py` no longer rsyncs to vps1 for Backrest: it uploads the zstd archive and its manifest to the B2 bucket `wsl-ozgur` with rclone (D-565). Every rclone call passes one helper whose verbs are an allow-list (`copy`, `copyto`, `lsf`) and which refuses `--delete*`/`--b2-hard-delete` by option name; the key reaches rclone only through the child's environment, read from the `SESSION_ARCHIVE_*` lines of `/opt/fabrik/.env`. Unchanged transcripts are skipped by size and mtime, hard-linked twins are archived once, a lock serialises runs, and `--remote-count`/`--fetch` serve restores. A daily systemd user timer (`scripts/sysadmin/systemd/`, installed by `install_session_archive_timer.sh`) runs the growth sampler then the archiver. Docs: `docs/workstation/session-history-retention.md`.
 ### Fixed — the WIP net fsyncs what it writes, so a crash cannot leave zero-byte objects (2026-10-05)
 - `scripts/wip_backup.sh` now runs every git call with `core.fsync=objects,reference`, appended to any `GIT_CONFIG_*` the caller set. Git 2.43's default, `committed,-loose-object`, fsyncs neither loose objects nor refs. An unclean WSL shutdown during a run on 2026-09-25 left web-ecommerce-factory with 123 zero-byte objects and 50 zero-byte `refs/wip` files, and every later push there died in `pack-objects` (web-ecommerce-factory 01M3RRQJ, W-dbb3073f). A full real run takes 43 s against the 15-minute cadence. `docs/workstation/wip-backup-safety-net.md` gains the repair recipe and the fleet check.
 

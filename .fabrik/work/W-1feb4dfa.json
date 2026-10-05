@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T06:35:22.484080Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1feb4dfa",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md"
+  },
+  "next": "decide with fabrik-lib whether the drop-rule action is retired or retargeted at Alloy's stage.drop; field WATCHDOG_PROMTAIL_UPDATE_URL (src/fabrik/drivers/watchdog.py:396; fabrik-lib watchdog_sidecar/actions.py:392-413)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Watchdog install_log_drop_rule posts to a Promtail update URL that no spec sets — dormant everywhere, and Promtail is being replaced by Alloy (W-aec7365b)"
+}

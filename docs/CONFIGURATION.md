@@ -106,6 +106,25 @@ New projects never needed a Coolify API token.
    python -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32)))"
    ```
 
+### Session-history archive — `SESSION_ARCHIVE_B2_*` (WSL box, D-565)
+
+**Why needed:** the daily off-site copy of this machine's Claude Code session transcripts
+(`scripts/sysadmin/archive_transcripts.py`, docs/workstation/session-history-retention.md).
+
+| Variable | Meaning |
+|---|---|
+| `SESSION_ARCHIVE_B2_BUCKET` | the bucket (`wsl-ozgur`) |
+| `SESSION_ARCHIVE_B2_BUCKET_ID` | its id — informational |
+| `SESSION_ARCHIVE_B2_ENDPOINT` | B2's S3 endpoint — informational, never passed to rclone (the native `b2` backend wants it blank) |
+| `SESSION_ARCHIVE_B2_KEY_ID` / `SESSION_ARCHIVE_B2_APPLICATION_KEY` | an application key restricted to that bucket, read + write |
+| `SESSION_ARCHIVE_B2_PREFIX` | path under the bucket, default `archive` |
+| `SESSION_ARCHIVE_ENV_FILE` | where the archiver reads every `SESSION_ARCHIVE_*` setting (key, bucket, prefix) from when the process environment lacks it or holds an empty value, default `/opt/fabrik/.env` — only `SESSION_ARCHIVE_*` lines are read |
+| `ARCHIVE_ROOT` / `ARCHIVE_AFTER_DAYS` / `ARCHIVE_MAX_FILE_MB` | local archive dir (`~/.claude/archive`), idle window in days (default 1), optional per-file ceiling |
+
+**How to get the key:** B2 console → Application Keys → Add a New Application Key, restricted to
+the bucket, read + write; put both values in `/opt/fabrik/.env` (gitignored). The `B2_*` keys
+above are the fleet backup's and cannot reach this bucket.
+
 ### Docker Hub
 
 **Why needed:** Private container images for proprietary services.
@@ -213,7 +232,11 @@ For a watchdog-enabled project with `shape.needs_database`, the postgres registr
 
 For a project with `shape.needs_payments_ingest` (vendors fabrik-lib `payments`, takes UNSIGNED-provider webhooks — iyzico has no signed org field), the postgres registrar mints a **scoped, NON-BYPASSRLS** cross-tenant ingest role and injects `PAYMENTS_INGEST_DATABASE_URL` at `fabrik apply` (hub-generated, never operator-set; minted on fresh create, preserved on re-apply — like `DATABASE_URL`). The role exists because `PgWebhookStore.resolve_org()` must read across tenants to discover *which* tenant a webhook belongs to (the tenant is the unknown being resolved), which the multi-tenant RLS model (ENABLE + FORCE) otherwise default-denies. Unlike fabrik-lib's BYPASSRLS default, this role is confined by permissive policies to ONLY the three payments tables the store touches — SELECT on `customers`/`subscriptions` and INSERT+SELECT on `webhook_events` (the SELECT half is required for `record_event`'s `INSERT … RETURNING`). A leaked DSN therefore cannot reach the app's own core tenant tables — proven at provision time: the role is `NOBYPASSRLS` and any non-payments table is `permission denied`. **Which grant path runs** depends on the project's payments install. Once it has run fabrik-lib's scoped-roles migration (fabrik-lib D-337), each apply calls the module's `payments_grant_ingest('<db>_payments_ingest')`. That call extends the ingest policies rather than replacing them, so other roles already on a policy survive. It grants SELECT on only the three columns `resolve_org` reads, never `email`, plus INSERT on the project's `jobs`. The tables resolve through the registrar session's search_path, which in a Fabrik project DB is `public`. If the payments schema is not applied yet, the apply grants nothing and logs a warning, and the next apply makes the grant. If the payments tables exist but `jobs` does not, the step fails and names `jobs`, because the function requires it. An install that predates the migration keeps the registrar's own block, which grants table-level SELECT.
 
-**Consuming-project wiring** (the project's job, NOT built by the registrar): connect ingest with `PAYMENTS_INGEST_DATABASE_URL`. To assert the wiring at boot on a payments copy re-vendored at or after fabrik-lib D-337, call `verify_service_role(conn, lane="ingest")`. It logs a "table-level SELECT" WARNING while an install is still on the legacy grant. On an older copy, check `SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname = current_user` and require BOTH false. There, `verify_service_role(conn, allow_policy_based=True)` asserts nothing, because the flag skips the only check it makes; the fulfilment WORKER does NOT use this role — it receives the resolved `org_id` in its job payload and runs as the ordinary tenant role with `SET app.current_org`. If the project's own `jobs`/queue table is under RLS, the project's migration adds its own policy for `{db}_payments_ingest` on that project-owned table. The registrar's legacy block scopes only the payments-module tables, and `payments_grant_ingest` grants the INSERT privilege on `jobs` but no policy on it. Contract to be documented fleet-wide in the multi-tenant/payments rule pack (infra hand-off).
+**Consuming-project wiring** (the project's job, NOT built by the registrar): connect ingest with `PAYMENTS_INGEST_DATABASE_URL`. To assert the wiring at boot on a payments copy re-vendored at or after fabrik-lib D-337, call `verify_service_role(conn, lane="ingest")`. It logs a "table-level SELECT" WARNING while an install is still on the legacy grant. On an older copy, check `SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname = current_user` and require BOTH false. There, `verify_service_role(conn, allow_policy_based=True)` asserts nothing, because the flag skips the only check it makes.
+
+The fulfilment WORKER does NOT use this role. Under fabrik-lib D-337 it needs its OWN scoped `LOGIN NOSUPERUSER NOBYPASSRLS` login, granted by the module's `payments_grant_fulfilment`: it claims each job across orgs, then scopes the job with `set_config('app.tenant_id', <org>, true)`. The module's tenant read, `payments_current_org_id()`, also reads `app.current_org` and denies when the two are set and disagree, so a stale `app.current_org` on the worker's connection denies the job. Never grant that lane to `<db>_app` — the request path would gain cross-org access to jobs. On a `fabrik apply` database that login does not exist yet, and no role the registrar mints can create it (all `NOCREATEROLE`), so PayTR stays off there. Its hub-side provisioning is the converged payments fulfilment-role spec (`docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md`), whose design approval is pending.
+
+Boot every payments connection — ingest now, and the worker once its login exists — with `verify_service_role(conn, lane="ingest"|"fulfilment")` AND the `pg_roles` check above (both false): this release the lane check only warns on a `BYPASSRLS` or superuser role (`.windsurf/rules/core/85-payments-billing.md:28`, D-575). If the project's own `jobs`/queue table is under RLS, the project's migration adds its own policies for BOTH lanes on that project-owned table — ingest `INSERT`, the worker `SELECT` + `UPDATE` with no tenant GUC set (`core/85-payments-billing.md:27`). The registrar's legacy block scopes only the payments-module tables, and `payments_grant_ingest` grants the INSERT privilege on `jobs` but no policy on it. The fleet-wide contract lives in `.windsurf/rules/core/85-payments-billing.md` and `.windsurf/rules/saas/95-multi-tenant-saas.md` § Admin and Maintenance Access.
 
 ### Project database DSNs — `DATABASE_URL` / `DATABASE_URL_OWNER` and `shape.database_url_app_role` (auto-injected, do NOT set by hand)
 

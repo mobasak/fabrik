@@ -24,10 +24,10 @@
     "913591c34326f0526d5b2d288f63e4cd37ca0978935dbf83070a52bb148542b2"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-05: 'why not directly to Backblaze B2 repo and reachable and searchable via session recall?' · 'vps1, 2, 3 has limited storage. this machine is mostly up' · created bucket wsl-ozgur · 'save it into .env file. and update the plan to save b2 directly now proceed and finish the plan after reviewing it' — route: direct to B2 (D-565)",
   "owner": "",
   "priority": 2,
   "question": "May I start archiving this machine's Claude session history to vps1 so the retention plan's Phase B can prove a restore from it?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May I start archiving this machine's Claude session history to vps1 so the retention plan's Phase B can prove a restore from it?"
 }

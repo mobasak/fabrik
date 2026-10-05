@@ -1,0 +1,26 @@
+{
+  "block_digest": "6012647cd92ee292a65f568cfa98bc0e9b4dadc2878e05169fe307ccf65c6415",
+  "blocked_by": [],
+  "created": "2026-10-04T21:32:24.125715Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-126df937",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "22082808a94d338783e6fbb8c59a3506960ea56b1637f48fc1d3a6a2ffe357ea"
+  ],
+  "next": "",
+  "note": "operator 2026-10-05: 'why not directly to Backblaze B2 repo and reachable and searchable via session recall?' · 'vps1, 2, 3 has limited storage. this machine is mostly up' · created bucket wsl-ozgur · 'save it into .env file. and update the plan to save b2 directly now proceed and finish the plan after reviewing it' — route: direct to B2 (D-565)",
+  "owner": "",
+  "priority": 2,
+  "question": "May I set up a direct backup from this machine to Backblaze B2, which means you create a B2 key limited to one bucket that can upload but not delete, and the compressed transcripts ship there on a timer?",
+  "status": "done",
+  "title": "May I set up a direct backup from this machine to Backblaze B2, which means you create a B2 key limited to one bucket that can upload but not delete, and the compressed transcripts ship there on a timer?"
+}

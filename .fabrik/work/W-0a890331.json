@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T22:14:12.511842Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-0a890331",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-563",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "templates/scaffold/scripts/verify_prod_parity.py _health_probe: add ValueError to the except and a stderr line when load_env returns False; graders in tests/test_parity_stub_loads_env.py (found by tryton-crm 01M44BTHQQZ8 and web-ecommerce-factory 01M44D5FP670)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "parity template: catch ValueError from a NUL byte in .env and report load_env() returning False"
+}

@@ -1,0 +1,26 @@
+{
+  "block_digest": "f8be8f5d487923f52e1699456f0e1ce4c2c24890666af7b38f5893067cea549b",
+  "blocked_by": [],
+  "created": "2026-10-04T21:28:19.880381Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-374fd6b2",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "8b01a9333bcd89f64cee69262d945136fe36c8911ca27d69fc955dcd32a7390a"
+  ],
+  "next": "",
+  "note": "operator 2026-10-05: 'why not directly to Backblaze B2 repo and reachable and searchable via session recall?' · 'vps1, 2, 3 has limited storage. this machine is mostly up' · created bucket wsl-ozgur · 'save it into .env file. and update the plan to save b2 directly now proceed and finish the plan after reviewing it' — route: direct to B2 (D-565)",
+  "owner": "",
+  "priority": 2,
+  "question": "Should this machine's session history get an off-site copy in Backblaze B2, and by which route?",
+  "status": "done",
+  "title": "Should this machine's session history get an off-site copy in Backblaze B2, and by which route?"
+}

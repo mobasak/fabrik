@@ -6,6 +6,16 @@ Owner: fleet (box-local infrastructure / DR)
 Trigger: operator, this session — "now we must fix this properly", after 11 project dirs were
 emptied on 2026-09-03 by a manual ~28 GB disk cleanup and the loss surfaced days later.
 
+> **Partially superseded 2026-10-05 by D-565** (`docs/DECISIONS.md`): the archive ships DIRECT from
+> this machine to the Backblaze B2 bucket `wsl-ozgur` with rclone — nothing goes through vps1 or
+> Backrest — and the pruner (Approach A's prune tiers, build-order gate 3) is DEFERRED behind a
+> three-part tripwire. EVERY passage below that describes the vps1/Backrest route or the pruner —
+> its prune tiers, the archive-gated delete invariant, the subagent 7-day cliff, the pool-receipt
+> rotation, the 90-day size cap — is history, not current design. Marked where it sits: § Measured
+> baseline (the sizing paragraph), § Approach A, § Where the cold archive lives, § Open unknowns (0a, 0c,
+> 1, 2), § Intake Inventory (I2, I3, I5, I9, I10, I12, I16), § The build order, § Next. The current route is
+> `docs/development/plans/2026-09-06-plan-1-session-history-retention.md` (revision 2026-10-05).
+
 ## The finding that reframes the problem
 
 The operator's opening framing was "transcripts have no backup". Measured, it is worse and also
@@ -49,6 +59,9 @@ and **4.89 GB in the first five days of September**. That is an 8x/day jump driv
 orchestration, and the 696 MB outlier sits inside it. A 90-day window therefore costs somewhere
 between ~2 GB (August's rate) and ~90 GB (September's rate). The policy must be sized by a
 measured cap, not by a projection — see § Open unknown 1.
+
+> **2026-10-05 (D-565):** the 90-day window and its cap size a pruner that is now DEFERRED; this
+> paragraph is the 2026-09-06 sizing argument.
 
 ## Two mechanisms that make naive fixes wrong
 
@@ -128,6 +141,11 @@ convenience layer that follows whatever is on disk.
 ## Approaches
 
 ### A — Cold archive as the store of record, index as a mirror (RECOMMENDED)
+
+> **2026-10-05 (D-565):** the archive half of this approach stands; everything here that deletes —
+> the prune tiers in the table, the archive-gated delete invariant, the subagent 7-day cliff and the
+> pool-receipt rotation — is DEFERRED; local transcripts are kept (D-470's 3650-day retention) so
+> session-recall can still search them.
 
 Four tiers, and the order is a safety property, not a preference:
 
@@ -212,6 +230,12 @@ fidelity that 4.45–6.08x compression preserves for a fifth of the space.
 
 ## Where the cold archive lives — corrected after reading the fleet's actual backup topology
 
+> **SUPERSEDED 2026-10-05 by D-565** (`docs/DECISIONS.md`): the archive ships DIRECT from this
+> machine to the Backblaze B2 bucket `wsl-ozgur` (rclone), not through vps1 and Backrest — the VPS
+> fleet's storage is limited and this machine is mostly up (operator). Everything in THIS section —
+> the table, the open sub-question and the transport note — is the 2026-09-06 reasoning, kept as
+> history; the current route is `docs/development/plans/2026-09-06-plan-1-session-history-retention.md`.
+
 ⚠️ **The first version of this table was wrong, and wrong in the same way as this document's two
 earlier retractions: it asserted a property of the fleet without reading the config.** It called
 vps1 "a single host" and offered Cloudflare R2 as the off-fleet escalation. Then I read
@@ -258,6 +282,9 @@ with a matching sha256. That round trip is what the word "lossless" is doing in 
 
 ## Open unknowns
 
+> **2026-10-05 (D-565):** 0a, 1 and 2 size and time a pruner that is now DEFERRED; 0c's destination is
+> superseded (B2 direct). They stand as the reasoning of 2026-09-06.
+
 0a. **RESOLVED — the 90-day window carries a SIZE CAP as policy, not a note.** Open unknown 1 says
    the window costs between ~2 GB and ~90 GB depending on whether September's rate holds. It is not
    honest to recommend a day-count while that is open, so the policy is **90 days OR a measured
@@ -273,7 +300,7 @@ with a matching sha256. That round trip is what the word "lossless" is doing in 
    index is a mirror this spec has just demoted, so the policy must not depend on it to decide what
    to delete.
 
-0c. **RESOLVED this run — where the archive lives:** vps1 + Backrest (59 GB free, container up,
+0c. **[superseded 2026-10-05 by D-565 — B2 direct; see the header]** **RESOLVED this run — where the archive lives:** vps1 + Backrest (59 GB free, container up,
    $0), with Cloudflare R2 ($0 at our size, zero egress) as the named escalation. See the costing
    table above.
 
@@ -289,6 +316,9 @@ with a matching sha256. That round trip is what the word "lossless" is doing in 
    cache; a refusing cleanup script is the heavier option and needs a fire-rate argument.
 
 ## Intake Inventory
+
+> **2026-10-05 (D-565):** I2, I3, I5, I9, I12 and I16 were met by the pruner or its size cap, now
+> DEFERRED, and I10's destination is superseded (B2 direct); the rows record the 2026-09-06 disposition.
 
 | I# | Item (anchored) | Disposition | Where |
 |---|---|---|---|
@@ -342,6 +372,10 @@ grep -rn session_recall scripts/dr_*.sh -> no match; no pg_dump in crontab
 
 ## The build order, and what must not ship without a grader
 
+> **Superseded 2026-10-05 by D-565:** gates 1 and 2 now run against the B2 bucket directly (no vps1,
+> no Backrest) — they are the plan's Gate A (archive in the bucket) and Gate B (restore proof) — and
+> gate 3, the pruner, is DEFERRED; the plan's revision carries the current gates.
+
 Nothing in this document is executable yet, which is the honest status: it is a design, and every
 number in it is a measurement rather than a test. Three gates, in order, and the order is the
 safety property:
@@ -364,6 +398,8 @@ orphan-reclaim trap (01M1SPW1KKNXKKKM8MSVT6RHQ9, ack required). That hazard is l
 not wait on this spec.
 
 ## Next
+
+> **Superseded 2026-10-05:** the plan exists and was revised (D-565, D-569); the pruner below is deferred.
 
 `/fabrik-plan-after-chat` to turn this CONVERGED design into a phased plan. Gate 1 (transport +
 archive) is non-destructive and may be built at the operator's word; **no deletion ships before

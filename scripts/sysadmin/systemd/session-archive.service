@@ -1,0 +1,23 @@
+# Session-history archive -> Backblaze B2 (docs/workstation/session-history-retention.md, D-565).
+# Installed by scripts/sysadmin/install_session_archive_timer.sh into ~/.config/systemd/user/.
+# No EnvironmentFile=: the archiver reads ONLY the SESSION_ARCHIVE_* lines of /opt/fabrik/.env
+# itself, so the hub's other secrets never enter this unit's environment.
+#
+# No After=network-online.target: the USER manager has no such target, so it would order
+# nothing. A run that starts before the network is up (the boot-time catch-up) fails with a
+# non-zero exit and is retried by Restart= below, at most 4 times in 2 hours.
+[Unit]
+Description=Archive Claude session transcripts to Backblaze B2
+StartLimitIntervalSec=2h
+StartLimitBurst=4
+
+[Service]
+Type=oneshot
+# The leading "-" ignores the sampler's exit status: it runs under set -euo pipefail, and a
+# sampler error must never skip the backup.
+ExecStartPre=-/opt/fabrik/scripts/sysadmin/sample_transcript_growth.sh
+ExecStart=/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/archive_transcripts.py
+Restart=on-failure
+RestartSec=15min
+Nice=10
+IOSchedulingClass=idle
