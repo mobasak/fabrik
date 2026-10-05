@@ -47,8 +47,10 @@ runs it today.
 How each host's stack is changed: the hub's monitoring compose is a hand-maintained standalone stack on vps1
 (`docs/reference/health-monitoring.md:45-46`; `scripts/vps_apply_limits.sh:8-10` — "The hand-composed monitoring
 and ingress stack never does" pass through `fabrik apply`), and `infra/vps1/monitoring/compose.yaml` is its
-repo-of-record (`tests/test_vps_apply_limits.py:400,416`). The only scripted hub sync is
-`scripts/sync_prometheus_to_vps.sh` (Prometheus config). Spokes are changed by re-rendering bootstrap step 11's
+repo-of-record (`tests/test_vps_apply_limits.py:400,416`). The scripted hub syncs are
+`scripts/sync_prometheus_to_vps.sh` and `scripts/sync_gatus_to_vps.sh` (`--diff` read-only, `--push` to vps1);
+both push from `FABRIK_ROOT`, default `/opt/fabrik`, the master checkout (`sync_prometheus_to_vps.sh:31`,
+`sync_gatus_to_vps.sh:35`). Spokes are changed by re-rendering bootstrap step 11's
 templates (`bootstrap-vps.sh:704-738`), which today ships exactly two files, `compose.yaml` and `promtail.yaml`.
 Two more copies of the hub compose sit in the repo — `configs/monitoring-compose.yaml:29-44` and
 `specs/infrastructure/monitoring-stack.yaml:28-38` — with no deploy role, no memory limits and missing services;
@@ -67,7 +69,7 @@ endpoint `promtail` checks `http://promtail:9080/ready` with failure-threshold 3
 (`configs/gatus/apps/observability-agents.yaml:5-14`). The memory ceiling table carries `promtail 256`
 (`scripts/vps_apply_limits.sh:56`, D-119/D-122/D-124), derived in
 `docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md` (the script's AFTER-EDIT target,
-`:2`, and "Change a number THERE first", `:14`). The boot reconciler runs a plain `docker compose up -d` per
+`:2`, and "Change a number THERE first", `:15`). The boot reconciler runs a plain `docker compose up -d` per
 stack (`scripts/systemd/fabrik-compose-boot.sh:33`).
 
 Other code that names the Promtail container, port or config: `scripts/audit/05-observability.sh:77-78,146`,
@@ -94,8 +96,9 @@ static labels, `loki.process` with `stage.json` ×2, `stage.regex`, `stage.label
 as `configs/alloy/config.alloy` (hub) and `scripts/bootstrap/templates/alloy.alloy.template` (spokes, the
 rendered output with the `{{…}}` placeholders put back — the Promtail template is not loadable YAML until
 rendered, ms-11). V1 proves the committed files equal the converter's output; after Gate S the Promtail configs
-are deleted and the Alloy files are the source. The only edits on top of the converter's output are the ones D3
-and D4 name.
+are deleted and the Alloy files are the source. The committed files carry no hand edits: D3's listen address and
+D4's storage path are `alloy run` flags in each compose `command:`, and the legacy positions path is the
+converter's own.
 
 **D2 — The switch is an ordered stop → start per host, never a parallel run.** The official migration page does
 not address gaps or duplicates (mp-02). Running Alloy alongside Promtail against a null sink (mp-04) does not fit
@@ -116,12 +119,19 @@ the `fabrik` network, no host port. Spokes: `<SPOKE_MESH_IP>:12345` on the host 
 compose template's `command:`), reachable from vps1 because UFW allows the whole mesh subnet
 (`scripts/bootstrap/bootstrap-vps.sh:404-408`). The watcher change — Prometheus job `promtail-spokes` → `alloy`
 with targets `alloy:12345` (hub, newly scraped), `10.99.0.2:12345`, `10.99.0.3:12345`; Gatus `promtail` →
-`alloy`, `http://alloy:12345/-/ready` — lands on vps1 right after vps1's own switch (Prometheus through
-`scripts/sync_prometheus_to_vps.sh`, the Gatus file copied into `/opt/monitoring/configs/gatus/apps/`), so the
-Gatus switch beats its 3 × 60 s failure threshold. While the spokes are switched first, their old
+`alloy`, `http://alloy:12345/-/ready` — is pushed with the two sync scripts run with `FABRIK_ROOT=<the branch worktree>`. Before vps1's
+step (b), two read-only checks: the two-dot `git diff master HEAD -- configs/prometheus configs/gatus` in the
+branch shows the watcher hunks and the `configs/gatus/README.md` rename and nothing else — two-dot, because the
+three-dot form diffs from the merge-base and hides what master changed since the branch point, which is exactly
+what a push from the branch would revert; and the Prometheus script's `--diff` lists only `prometheus.yml` and
+the Gatus script's only `apps/observability-agents.yaml` (the scripts' `--diff` compares per-file md5s against
+vps1, `sync_prometheus_to_vps.sh:87-101`, so it confirms the file set, not the content). Right after vps1's step (c), only the two `--push` runs remain, so the Gatus
+switch beats its 3 × 60 s failure threshold. While the spokes are switched first, their old
 `promtail-spokes` targets read `up == 0` and `ServiceUnhealthy` would fire after 2 minutes: the window opens with
 an Alertmanager silence on `job="promtail-spokes"` and closes it after the watcher change, and the per-host V8
-reads Alloy's endpoints directly until then. Every other consumer named in § What exists today moves to the
+reads Alloy's endpoints directly until then. The sysadmin bot's proactive check queries Prometheus directly
+(`scripts/sysadmin/proactive-check.sh:147-148`, `max_over_time(up[10m])==0`), so its `target_down` for a
+switched spoke is expected until the watcher change; the window's runbook names it as expected noise. Every other consumer named in § What exists today moves to the
 `alloy` name, port 12345 and Alloy's metric names (cv-04 — metric names differ) in the same change: the two
 audit scripts, the bootstrap verify filter, `vps_sync.py`'s classification sets, the inventory generator,
 `proactive-check.sh`, `bootstrap-config.sh` (D7) and `configs/gatus/README.md`; `agents-fabrik.md`,
@@ -159,8 +169,10 @@ new timestamps and Loki keeps both copies (lk-03 dedups only identical timestamp
 bounded by how long Alloy ran before the rollback, and a roll-forward after a rollback (no re-import, ms-09)
 duplicates the rollback span the same way. **Gate S** (V8 and V9 green on all three hosts for 14 days, read by
 the fleet agent) triggers a follow-up change, applied in an operator window, that removes the promtail service,
-the `promtail-positions` volume, the `.pre-alloy` files, the two Promtail configs and the `promtail 256`
-ceiling row.
+the `promtail-positions` volume, the `.pre-alloy` files and the two Promtail configs, and retires the
+`promtail 256` ceiling the way D5 adds one — the memory-limits spec row first, then `scripts/vps_apply_limits.sh`,
+the `"promtail"` entry of `tests/test_vps_apply_limits.py:402` and the `monitoring_promtail-positions` row of
+`scripts/bootstrap/bootstrap-config.sh:217`.
 
 **D7 — Image pinned, platform declared, volume classified.** `grafana/alloy:v1.20.1` (cv-01),
 `platform: linux/amd64` (cv-02), `restart: unless-stopped`, like every other monitoring service. Bootstrap's
@@ -190,8 +202,7 @@ spec, and the Loki label set — the only contract consumers read — is held id
 - **C — Fluent Bit** (and Vector, mp-12 to mp-14): lean and maintained, but no converter exists, so the stage
   chain and labels are re-authored and re-proven by hand in a new config language, and it is not the successor
   the pack names (`core/55-observability.md:54`). Panel: killed by 3 of 3 judges.
-- **D — the Docker Loki logging driver**: keeps logs in memory and drops them when Loki is unreachable (mp-11),
-  and as a driver that cannot be read locally it leaves `docker logs` to Docker's dual-logging fallback (dk-01).
+- **D — the Docker Loki logging driver**: keeps logs in memory and drops them when Loki is unreachable (mp-11).
   Cut before the panel.
 - **`alloy run --config.format=promtail`** (mp-01): runs the old YAML as a transition step. It keeps the EOL
   config format alive and still needs every change in D3 to D8, so it saves nothing over committing the
@@ -270,7 +281,7 @@ unchanged. One operator window of about 30 minutes for three hosts, and a second
 Local, before the window (the plan's build phases):
 - **V1** render `promtail.yaml.template` with fixed values, run `alloy convert` on it and on
   `configs/promtail/promtail-config.yaml`, and diff each output against the committed Alloy file (the spoke
-  template rendered with the same values), minus the D3/D4 edits.
+  template rendered with the same values); the diff is empty.
 - **V2** `alloy run` loads both configs without error in a container with no network (rendered spoke template
   included); `bash -n` on every edited bootstrap script; `docker compose config` on every edited compose file.
 - **V3** positions import on the real shape: a Promtail positions file naming a real local container log at a
@@ -288,10 +299,14 @@ Local, before the window (the plan's build phases):
 In the window, per host (read-only reads through Grafana and `docker ps`):
 - **V4** Loki label names over the 15 minutes after the switch equal the six live names (ms-05).
 - **V5** the set of `container_name` values with lines in the 15 minutes after equals the set in the 15 minutes
-  before, for that `host`.
-- **V6** no lost lines: between steps (b) and (c) of D2 the operator runs a one-shot container that prints a
-  unique marker; after (c) the marker is in Loki for that `host` within 2 minutes (a new file, so Alloy reads it
-  from its start).
+  before, for that `host` (the V6 canary writes its pre-markers 5 to 10 minutes before step (b), inside that window, so it is in both).
+- **V6** no lost and no re-shipped lines on the handover path: before step (a) of D2 the operator starts a
+  long-running canary container (no `--rm`), and 5 to 10 minutes before step (b) writes numbered pre-markers to
+  its stdout (`docker exec <canary> sh -c 'echo <pre-n> > /proc/1/fd/1'`), which Promtail ships and records in its
+  positions; between steps (b) and (c) a
+  unique marker is written the same way; after (c), within 2 minutes, Loki holds the marker exactly once and
+  each pre-marker still exactly once for that `host` — a failed import would re-read the file from its start
+  (no stored position) and ship the pre-markers a second time. The canary is removed after the battery.
 - **V7** no duplicate burst: that host's per-minute line count in the first 10 minutes stays under 3× its median
   of the hour before.
 - **V8** Alloy `/-/ready` returns 200 and `/metrics` answers, read directly (`alloy:12345` on the hub net,
@@ -328,6 +343,9 @@ After: **V9** each host's alloy container shows `OOMKilled=false` and a restart 
 | Pass | seats · axes re-checked (intake · personas · facts · vendor · approach · completeness · constraints) | counters | method | spec md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (D-sections, digest, Validation, Lifecycle, Decisions) + sonnet×1 (header, personas, grounding, intake) + sonnet×1 fabrik-researcher (external facts) · all axes | found: 25, new: 22, confirmed: 20, fixed: 20, unexecuted: 0, edits: 20 | method: citation — full pass by section; every candidate executed by the orchestrator: D8 deploy path (no repo file deploys the hub stack), read-time timestamps (grep 0), reboot after rollback (ms-10), watcher order vs `up == 0`, template not YAML, spoke step 11 ships two files, consumer and pack enumerations, ceiling-spec AFTER-EDIT, V6 cannot fail, 18 vs 19, Decisions vs D, Profile vs I8/I13, persona duties, docs sweep scope, Promtail stop flush (pt-01), mp-07, mp-08, mp-11; refuted 2 (positions keyed by labels — ms-09 shipped from the offset with no read-only error; `stop` under an inactive profile — ms-03 ran it); U1 resolved | 02e5ce54… → 729cc892… (taken with this row's md5 cell reading `(below)`; the closing pin differs by that cell alone) |
+| Pass 2 | opus×1 + sonnet×1 + sonnet×1 fabrik-researcher (the round-1 slice owners) · delta over the round-1 fix hunks + one hop | found: 13, new: 12, confirmed: 10, fixed: 10, unexecuted: 0, edits: 10 | method: re-derivation — all 20 round-1 confirmed defects re-checked closed; inside the fix hunks, executed: the sync scripts push from `FABRIK_ROOT` = master (`sync_prometheus_to_vps.sh:31`, `sync_gatus_to_vps.sh:35`) so D3 names the branch root and a `--diff` first, `sync_gatus_to_vps.sh` exists, `THERE first` is `:15`, `proactive-check.sh:147` bypasses Alertmanager, V6 tested file discovery not the handover, the Gate S list skipped the spec/test/volume rows, the committed configs carry no hand edits, the Loki driver declares `ReadLogs: true` (ld-01) so the dual-logging clause was removed, pt-01 repinned to v3.6.11, ledger rows lk-01/cv-08 re-dispositioned; refuted 1 (found ≠ new on Pass 1: 20 confirmed + 2 refuted = 22 distinct, 3 in-round re-raises); recorded 1 (health-monitoring.md:46 also says "mirror" — measured, supports the claim); 1 duplicate (the lk-01/lk-03 ledger record, folded into the ledger re-disposition); own-fix: 10 of 10, round 1 | 729cc892… → 0830c080… (taken with this cell reading `(below)` and "all 21"; corrected to 20 after the hash) |
+| Pass 3 | opus×1 + sonnet×1 + sonnet×1 fabrik-researcher (the round-1 slice owners) · delta over the round-2 fix hunks + one hop | found: 7, new: 7, confirmed: 5, fixed: 5, unexecuted: 0, edits: 5 | method: re-derivation — all 10 round-2 confirmed defects re-checked closed (V6's partial closure reopened as C2); executed: the scripts' `--diff` compares md5s against vps1 only (`sync_prometheus_to_vps.sh:87-101`), so D3's guard is a `git diff master...HEAD` over configs/prometheus and configs/gatus run before vps1's step (b) (C1, and C4 — only the pushes remain after (c)); `tail_from_end` defaults to false (cv-12), so a canary with no stored position passes V6 whether or not the import worked — V6 now ships pre-markers first and asserts each once (C2), which also keeps the canary in V5's before-set (C3); the Pass 2 row counted 13 found and 12 dispositions — new corrected to 12, the lk-01/lk-03 record a duplicate; refuted 0; recorded 2 (sync_prometheus_to_vps.sh:60 find precedence — outside the spec, the script owner's; the spoke volume `monitoring-agent_promtail-positions` is absent from bootstrap-config.sh:217 — pre-existing, one hop out, for the plan); own-fix: 5 of 5, round 2 — with round 2 at 10 of 10, two of the last three rounds are at or above two-thirds own-fix: SCOPE-GROWTH STOP — hunting suspended, the remainder round re-verifies this fixed set only | 0830c080… → 9914c2d6… (taken before the found/recorded counts were corrected from 6/1 to 7/2) |
+| Pass 4 | opus×1 + sonnet×1 (the round-1 owners of the two slices with open claims; the facts slice restated at 6/6) · remainder round under the scope-growth stop: the round-3 fixed set only | found: 5, new: 5, confirmed: 4, fixed: 4, unexecuted: 0, edits: 3 | method: re-derivation — C2, C4 and the Pass 2 recount closed; executed: the three-dot `git diff` diffs from the merge-base and showed nothing for a master-only change that the two-dot form shows (A); the branch's configs/gatus diff legitimately carries the README rename (B); each sync script lists only its own file (B, wording); pre-markers written 15 minutes or more before the switch fall outside V5's before-window (C); recorded 1 (the file-set check is forward-looking until the branch carries the change); own-fix: 4 of 4, round 3; class rewrite — D3 guard sentence and V5/V6 timing, rewritten in one batch (rule 3), so the next round is the closing round | c3944c8f… (the round-4 pin) → f5c10783… (taken with this cell reading `9914c2d6… → (below)`) |
 
 ## Intake Inventory
 
