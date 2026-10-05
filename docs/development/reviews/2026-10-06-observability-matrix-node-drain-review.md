@@ -1,7 +1,7 @@
 # 55-observability matrix pinned to the scaffolder; 12-node SIGTERM claims corrected (W-a63d61a2)
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = 86bed4f7b6015301fd1d57b3eed2a5b9ae308693; `git diff HEAD -- .windsurf/rules/core/55-observability.md .windsurf/rules/core/12-node.md .windsurf/rules/CLAIMS.yaml tests/test_observability_matrix.py` + 1 untracked file(s) md5 02318b321aaeb3083d2f74410f324301 (16700 bytes)
+**Surface:** `git rev-parse HEAD` = c4a10793bcf76ddd99638751a4a8f9537c8f0ebe; range tip 8db1ffee8265971c1d53a149360c8e7348ced2f1; `git diff edbd64164..8db1ffee8 -- .windsurf/rules/core/55-observability.md .windsurf/rules/core/12-node.md .windsurf/rules/CLAIMS.yaml tests/test_observability_matrix.py` md5 d4c54af13c204b3c74c33308e02287f1 (16961 bytes)
 **Command:** /fabrik-review · **Changed:** `.windsurf/rules/core/55-observability.md`, `.windsurf/rules/core/12-node.md`, `.windsurf/rules/CLAIMS.yaml`, `tests/test_observability_matrix.py`
 **Lane:** fabrik-task
 
