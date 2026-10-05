@@ -73,8 +73,21 @@ def make_hub(tmp: Path) -> Path:
     return root
 
 
-def remote_listing(overrides: dict[str, tuple[str, str] | None] | None = None) -> str:
-    """What a fully synced host prints: '<mode> <md5> <abs path>' per file."""
+_SYNCED = object()
+
+
+def _cron_block(cron) -> str:
+    """The cron half of a host's listing: its active cron lines as CRON lines, or CRON-ABSENT."""
+    if cron is None:
+        return "CRON-ABSENT\n"
+    text = TEMPLATE if cron is _SYNCED else cron
+    lines = text.splitlines()
+    return "".join(f"CRON {ln}\n" for ln in lines) + "CRON-END\n"
+
+
+def remote_listing(overrides: dict[str, tuple[str, str] | None] | None = None, cron=_SYNCED) -> str:
+    """What a fully synced host prints: '<mode> <md5> <abs path>' per file, then its cron lines (the template's,
+    unless ``cron`` is other text, or ``None`` for an absent cron file)."""
     overrides = overrides or {}
     out = []
     for rel, (content, exe) in FILES.items():
@@ -92,7 +105,7 @@ def remote_listing(overrides: dict[str, tuple[str, str] | None] | None = None) -
             else f"/opt/fabrik/{rel}"
         )
         out.append(f"{mode} {content_md5} {path}")
-    return "\n".join(out) + "\n"
+    return "\n".join(out) + "\n" + _cron_block(cron)
 
 
 def make_env(tmp: Path, root: Path, hosts: dict[str, str | None], now: int | None = None) -> dict:
@@ -258,7 +271,9 @@ def test_clean_exits_zero(tmp_path):
     env = make_env(tmp_path, root, {"vps": remote_listing(), "vps2": remote_listing()})
     r = run(env, "--mail")
     assert r.returncode == 0, r.stdout + r.stderr
-    assert not any(x.startswith(("DRIFT", "MISSING", "MODE")) for x in r.stdout.splitlines())
+    assert not any(
+        x.startswith(("DRIFT", "MISSING", "MODE", "CRON")) for x in r.stdout.splitlines()
+    )
     assert not state.exists() or json.loads(state.read_text()).get("signature") in (None, "")
     assert mails(tmp_path) == []
 
@@ -613,3 +628,239 @@ def test_short_modes_parse():
     d = _module()
     got = d.parse_listing(f"44 {_md5('x')} /opt/fabrik/a\n0 {_md5('y')} /opt/fabrik/b\n")
     assert got == {"a": ("44", _md5("x")), "b": ("0", _md5("y"))}
+
+
+# ── Behaviour 9: the installed cron file schedules the template's hub paths (W-73feca74) ─────────
+
+_RETIRED = "0 1 * * * root /opt/fabrik/scripts/sysadmin/retired.sh >> /var/log/x.log 2>&1\n"
+
+
+def test_cron_missing_job_reported(tmp_path):
+    root = make_hub(tmp_path)
+    cron = "".join(ln + "\n" for ln in TEMPLATE.splitlines() if "detect_reversals" not in ln)
+    env = make_env(tmp_path, root, {"vps": remote_listing(cron=cron)})
+    r = run(env)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "CRONMISSING vps /opt/fabrik/scripts/sysadmin/detect_reversals.py" in r.stdout
+
+
+def test_cron_extra_job_reported(tmp_path):
+    root = make_hub(tmp_path)
+    env = make_env(tmp_path, root, {"vps": remote_listing(cron=TEMPLATE + _RETIRED)})
+    r = run(env)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "CRONEXTRA vps /opt/fabrik/scripts/sysadmin/retired.sh" in r.stdout
+
+
+def test_cron_file_absent_reported(tmp_path):
+    root = make_hub(tmp_path)
+    env = make_env(tmp_path, root, {"vps": remote_listing(cron=None)})
+    r = run(env)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "CRONMISSING vps /etc/cron.d/vps-sysadmin" in r.stdout
+
+
+def test_cron_minutes_and_comments_ignored(tmp_path):
+    """Per-host minutes differ, env lines carry no job, and a path named only in a comment is not scheduled."""
+    root = make_hub(tmp_path)
+    cron = (
+        'SHELL=/bin/sh\nMAILTO=""\n'
+        "# 0 2 * * * root /opt/fabrik/scripts/sysadmin/retired.sh\n"
+        "*/7 * * * * root /opt/fabrik/scripts/sysadmin/proactive-check.sh >> /var/log/x.log 2>&1\n"
+        "*/3 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py >> /var/log/x.log 2>&1\n"
+        "* * * * * root /usr/local/bin/fabrik-autoheal\n"
+    )
+    env = make_env(tmp_path, root, {"vps": remote_listing(cron=cron)})
+    r = run(env)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "CRON" not in r.stdout.replace("vps_script_drift:", "")
+
+
+def test_cron_difference_is_mailed(tmp_path):
+    root = make_hub(tmp_path)
+    env = make_env(tmp_path, root, {"vps": remote_listing(cron=TEMPLATE + _RETIRED)})
+    r = run(env, "--mail")
+    assert r.returncode == 1, r.stdout + r.stderr
+    sent = mails(tmp_path)
+    assert (
+        len(sent) == 1
+        and "CRONEXTRA vps /opt/fabrik/scripts/sysadmin/retired.sh" in sent[0]["body"]
+    )
+    assert "/etc/cron.d/vps-sysadmin schedules a different set" in sent[0]["body"], sent[0]["body"]
+    assert "never re-run step 14 whole" in sent[0]["body"], sent[0]["body"]
+
+
+def test_remote_cmd_cron_half_real_shell(tmp_path):
+    d = _module()
+    host, cmd = _host_tree(tmp_path)
+    cron = host / "etc/cron.d/vps-sysadmin"
+    cron.parent.mkdir(parents=True)
+    cron.write_text(
+        "# a comment naming /opt/fabrik/scripts/sysadmin/old.sh\n"
+        "   # an indented comment\n"
+        "SHELL=/bin/sh\n"
+        "*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py >> /var/log/x.log 2>&1\n"
+    )
+    cmd = cmd.replace(d.CRON_REMOTE, str(cron))
+    out = subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60).stdout
+    assert d.parse_cron(out) == [
+        "# a comment naming /opt/fabrik/scripts/sysadmin/old.sh",
+        "   # an indented comment",
+        "SHELL=/bin/sh",
+        "*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py >> /var/log/x.log 2>&1",
+    ], out
+    assert out.rstrip().endswith("CRON-END"), out
+    assert d.cron_paths("\n".join(d.parse_cron(out))) == {
+        "/opt/fabrik/scripts/sysadmin/detect_reversals.py"
+    }
+    assert _parse(host, out), "the script listing still parses with the cron lines appended"
+    cron.unlink()
+    out = subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60).stdout
+    assert d.parse_cron(out) is None, out
+
+
+def test_cron_reference_is_the_committed_template(tmp_path):
+    """An uncommitted template edit in the hub checkout is not the hub's cron set."""
+    root = make_hub(tmp_path)
+    tpl = root / "scripts/bootstrap/templates/sysadmin-cron.template"
+    tpl.write_text(tpl.read_text() + _RETIRED)
+    env = make_env(tmp_path, root, {"vps": remote_listing()})
+    r = run(env)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_cron_file_unreadable_reported(tmp_path):
+    root = make_hub(tmp_path)
+    listing = remote_listing(cron="").rstrip("\n") + "\nCRON-UNREADABLE\n"
+    env = make_env(tmp_path, root, {"vps": listing})
+    r = run(env)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "CRONUNREADABLE vps /etc/cron.d/vps-sysadmin" in r.stdout
+    assert "CRONMISSING" not in r.stdout
+
+
+def test_cron_autoheal_and_quotes_not_misread(tmp_path):
+    """fabrik-autoheal may be scheduled outside this file, and a quoted path is the same path."""
+    root = make_hub(tmp_path)
+    cron = (
+        '*/15 * * * * root bash -c "/opt/fabrik/scripts/sysadmin/proactive-check.sh" >> /var/log/x.log 2>&1\n'
+        "*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py >> /opt/fabrik/logs/r.log 2>&1\n"
+    )
+    env = make_env(tmp_path, root, {"vps": remote_listing(cron=cron)})
+    r = run(env)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_cron_half_cut_short_is_unverified_not_every_job_missing(tmp_path):
+    """No CRON-END (a cut session, a failed reader): one CRONUNVERIFIED line, never a CRONMISSING per template job."""
+    root = make_hub(tmp_path)
+    listing = remote_listing().replace("CRON-END\n", "")
+    env = make_env(tmp_path, root, {"vps": listing})
+    r = run(env)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "CRONUNVERIFIED vps /etc/cron.d/vps-sysadmin" in r.stdout
+    assert "CRONMISSING" not in r.stdout
+
+
+def test_remote_cmd_cron_half_needs_only_shell_builtins(tmp_path):
+    """The cron half reads the file with sh builtins: a host without sed or grep still reports, and a last line
+    without a newline is kept."""
+    d = _module()
+    host, cmd = _host_tree(tmp_path)
+    cron = host / "etc/cron.d/vps-sysadmin"
+    cron.parent.mkdir(parents=True)
+    cron.write_text(
+        "*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py\n"
+        "0 3 * * 0 root /opt/fabrik/scripts/sysadmin/weekly-maintenance.sh"
+    )
+    cmd = cmd.replace(d.CRON_REMOTE, str(cron))
+    bindir = tmp_path / "shonly"
+    bindir.mkdir()
+    for tool in ("find", "stat", "sh", "md5sum"):
+        (bindir / tool).symlink_to(shutil.which(tool))
+    out = subprocess.run(
+        [shutil.which("sh"), "-c", cmd],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={"PATH": str(bindir)},
+    ).stdout
+    assert d.cron_paths("\n".join(d.parse_cron(out))) == {
+        "/opt/fabrik/scripts/sysadmin/detect_reversals.py",
+        "/opt/fabrik/scripts/sysadmin/weekly-maintenance.sh",
+    }, out
+
+
+def _cron_half(tmp: Path, target: Path) -> str:
+    d = _module()
+    _host, cmd = _host_tree(tmp)
+    cmd = cmd.replace(d.CRON_REMOTE, str(target))
+    return subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60).stdout
+
+
+def test_remote_cmd_cron_path_not_a_file_is_unreadable(tmp_path):
+    """A directory at the cron path makes the reader fail: CRONUNREADABLE, never one CRONMISSING per job."""
+    d = _module()
+    target = tmp_path / "cron-dir"
+    target.mkdir()
+    out = _cron_half(tmp_path, target)
+    assert d.parse_cron(out) == ["CRON-UNREADABLE"], out
+
+
+def test_remote_cmd_unreadable_cron_file(tmp_path):
+    if os.geteuid() == 0:
+        pytest.skip("root reads a mode-000 file")
+    d = _module()
+    target = tmp_path / "vps-sysadmin"
+    target.write_text("*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py\n")
+    target.chmod(0)
+    out = _cron_half(tmp_path, target)
+    assert d.parse_cron(out) == ["CRON-UNREADABLE"], out
+
+
+def test_cron_paths_ignores_env_lines_comments_and_templated_paths():
+    d = _module()
+    text = (
+        "PATH=/opt/fabrik/scripts/sysadmin:/usr/bin:/bin\n"
+        "SHELL = /opt/fabrik/scripts/sysadmin/sh\n"
+        '0 4 * * * root echo "a #b" /opt/fabrik/scripts/sysadmin/q.sh\n'
+        "0 1 * * * root /opt/fabrik/scripts/{{HOST_NAME}}/x.sh\n"
+        "0 2 * * * root /opt/fabrik/scripts/sysadmin/a.sh,/opt/fabrik/scripts/sysadmin/b.sh\n"
+        "0 3 * * * root /opt/fabrik/scripts/sysadmin/c.sh # was /opt/fabrik/scripts/sysadmin/old.sh\n"
+    )
+    assert d.cron_paths(text) == {
+        "/opt/fabrik/scripts/sysadmin/a.sh",
+        "/opt/fabrik/scripts/sysadmin/b.sh",
+        "/opt/fabrik/scripts/sysadmin/c.sh",
+        "/opt/fabrik/scripts/sysadmin/q.sh",
+    }
+
+
+def test_parse_cron_splits_on_newlines_only():
+    """A form feed inside a cron line is data, not a line break that could fake a CRON-ABSENT."""
+    d = _module()
+    assert d.parse_cron("CRON 0 1 * * * root echo hi\x0cCRON-ABSENT\nCRON-END\n") == [
+        "0 1 * * * root echo hi\x0cCRON-ABSENT"
+    ]
+
+
+def test_cron_unverified_mail_says_recheck(tmp_path):
+    root = make_hub(tmp_path)
+    env = make_env(tmp_path, root, {"vps": remote_listing().replace("CRON-END\n", "")})
+    r = run(env, "--mail")
+    assert r.returncode == 1, r.stdout + r.stderr
+    body = mails(tmp_path)[0]["body"]
+    assert "CRONUNREADABLE/CRONUNVERIFIED" in body, body
+
+
+def test_remote_cmd_failed_redirect_is_unreadable(tmp_path):
+    """A redirect that fails after the regular-file test passed (the file vanished): CRON-UNREADABLE, not CRON-END."""
+    d = _module()
+    good = tmp_path / "vps-sysadmin"
+    good.write_text("*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py\n")
+    _host, cmd = _host_tree(tmp_path)
+    cmd = cmd.replace(d.CRON_REMOTE, str(good))
+    assert cmd.count("} < " + str(good)) == 1, cmd
+    cmd = cmd.replace("} < " + str(good), "} < " + str(tmp_path / "gone"))
+    out = subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60).stdout
+    assert d.parse_cron(out) == ["CRON-UNREADABLE"], out

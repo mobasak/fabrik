@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-05T13:17:00.513052Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "e522770588c0a93630a75bfec98152661af702ca",
   "id": "W-73feca74",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "title": "/etc/cron.d/vps-sysadmin on each host is only rewritten by bootstrap, so a sysadmin-cron.template edit is as inert as the script edits W-c792a205 detects"
 }

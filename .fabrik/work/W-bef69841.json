@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T20:37:14.712783Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-bef69841",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "in cron_paths, cut each active line at the first unescaped % before extracting paths (crontab(5)); grader in tests/test_vps_script_drift.py; recorded by the W-73feca74 review closing pass",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "vps"
+  ],
+  "title": "vps_script_drift.cron_paths counts a path after an unescaped % on a cron line; cron passes that text as stdin, so it never runs"
+}
