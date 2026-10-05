@@ -921,7 +921,8 @@ step_14_install_sysadmin_pack() {
     if $DRY_RUN; then
         dim "    [dry-run] would install Claude Code with the native installer (+ /usr/local/bin symlink),"
         dim "             install python-telegram-bot==22.7 (system Python),"
-        dim "             scp bot.py + 5 cron scripts + system-prompt.txt + peer-protocol.md to spoke,"
+        dim "             scp the scripts/sysadmin/ tree (bot, cron scripts, system prompt, peer protocol) to spoke,"
+        dim "             + scripts/audit/ and docs/infrastructure/audit-prompts/ (the cron jobs read them),"
         dim "             write rendered systemd unit + cron file + .env.sysadmin template"
         return 0
     fi
@@ -1027,6 +1028,16 @@ step_14_install_sysadmin_pack() {
     rsync -a --exclude __pycache__ --exclude '*.pyc' \
         "${SYSADMIN_SOURCE:-/opt/fabrik/scripts/sysadmin/}" \
         "${tmpdir}/sysadmin/"
+    # The cron set above runs weekly-security.sh and monthly-backup-verify.sh on this spoke too; they
+    # read scripts/audit/*.sh and their checklists under docs/infrastructure/audit-prompts/, and the
+    # sysadmin prompt tells the bot to list both directories (W-922fbee1).
+    rsync -a "${AUDIT_SOURCE:-/opt/fabrik/scripts/audit/}" "${tmpdir}/audit/"
+    rsync -a "${AUDIT_PROMPTS_SOURCE:-/opt/fabrik/docs/infrastructure/audit-prompts/}" "${tmpdir}/audit-prompts/"
+
+    # scp merges into an existing /tmp/<name> on the spoke, and an aborted earlier run never reaches the
+    # chain's rm -rf below — clear the staging names first so stale files are never installed.
+    remote "rm -rf /tmp/sysadmin /tmp/audit /tmp/audit-prompts" \
+        || { err "step 14: could not clear the /tmp staging dirs on the spoke"; return 1; }
 
     # scp the rendered files + the sysadmin tree to /tmp on the spoke,
     # then sudo-move into place with correct ownership/mode.
@@ -1034,6 +1045,8 @@ step_14_install_sysadmin_pack() {
               "${tmpdir}/vps-sysadmin-cron" \
               "${tmpdir}/.env.sysadmin" \
               "${tmpdir}/sysadmin" \
+              "${tmpdir}/audit" \
+              "${tmpdir}/audit-prompts" \
         "${EFFECTIVE_REMOTE}:/tmp/"
 
     # Idempotency note: `cp -R src dst` nests when dst exists (creates
@@ -1044,8 +1057,13 @@ step_14_install_sysadmin_pack() {
     remote "sudo mkdir -p /opt/fabrik/scripts/sysadmin /opt/fabrik/logs /var/log && \
         sudo chown ozgur:ozgur /opt/fabrik /opt/fabrik/scripts /opt/fabrik/logs && \
         sudo rsync -a --delete /tmp/sysadmin/ /opt/fabrik/scripts/sysadmin/ && \
+        sudo mkdir -p /opt/fabrik/scripts/audit /opt/fabrik/docs/infrastructure/audit-prompts && \
+        sudo rsync -a --delete /tmp/audit/ /opt/fabrik/scripts/audit/ && \
+        sudo rsync -a --delete /tmp/audit-prompts/ /opt/fabrik/docs/infrastructure/audit-prompts/ && \
+        sudo chown ozgur:ozgur /opt/fabrik/docs /opt/fabrik/docs/infrastructure && \
+        sudo chown -R ozgur:ozgur /opt/fabrik/scripts/audit /opt/fabrik/docs/infrastructure/audit-prompts && \
         sudo chown -R ozgur:ozgur /opt/fabrik/scripts/sysadmin && \
-        sudo chmod 755 /opt/fabrik/scripts/sysadmin/*.sh /opt/fabrik/scripts/sysadmin/bot.py 2>/dev/null || true && \
+        { sudo chmod 755 /opt/fabrik/scripts/sysadmin/*.sh /opt/fabrik/scripts/sysadmin/bot.py 2>/dev/null || true; } && \
         sudo -u ozgur mkdir -p /home/ozgur/.claude/manager-accounts && \
         sudo install -m 644 -o root -g root /tmp/vps-sysadmin-bot.service /etc/systemd/system/vps-sysadmin-bot.service && \
         sudo install -m 644 -o root -g root /tmp/vps-sysadmin-cron /etc/cron.d/vps-sysadmin && \
@@ -1057,7 +1075,7 @@ step_14_install_sysadmin_pack() {
         sudo chown ozgur:ozgur /var/log/claude-keepalive.log && \
         sudo chmod 644 /var/log/claude-keepalive.log /var/log/sysadmin-proactive.log /var/log/vps-sysadmin-bot.log && \
         sudo systemctl daemon-reload && \
-        rm -rf /tmp/sysadmin /tmp/vps-sysadmin-bot.service /tmp/vps-sysadmin-cron /tmp/.env.sysadmin"
+        rm -rf /tmp/sysadmin /tmp/audit /tmp/audit-prompts /tmp/vps-sysadmin-bot.service /tmp/vps-sysadmin-cron /tmp/.env.sysadmin"
 
     # Known Issue 1 hostname fix (trio plan §2.5 + vps-complete-inventory):
     # Backrest plan-failure webhook hooks reference the Coolify-UUID-suffix

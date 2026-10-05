@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-05T13:17:00.362278Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "a1473786efaa654762d8ba3e1ecef0ba8f4c0c4a",
   "id": "W-922fbee1",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Spokes vps2/vps3 never receive scripts/audit/, so their weekly-security.sh and monthly-backup-verify.sh cron jobs call missing scripts"
 }

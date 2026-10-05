@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T19:36:29.702795Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4c4bd3cd",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-point the citation to the UFW mesh rule's current line (grep the rule text, not a line number); found by the W-922fbee1 design critique",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "docs"
+  ],
+  "title": "scripts/aro-wake/main.py:762 cites bootstrap-vps.sh:1137 for the UFW mesh rule; that line moved (now step 15's scp)"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T19:36:21.216053Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ce71bcd2",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "extend scripts/sysadmin/vps_script_drift.py AUDIT_TARGETS + REMOTE_CMD (:77, :91) to the two checklists weekly-security.sh:24 and monthly-backup-verify.sh:32 read (their [ -f ] && cat fails open on a missing file); grader in tests/test_vps_script_drift.py; found by the W-922fbee1 design critique",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "vps"
+  ],
+  "title": "vps_script_drift.py never checks docs/infrastructure/audit-prompts/*.md, which the weekly-security and monthly-backup jobs read on every host"
+}

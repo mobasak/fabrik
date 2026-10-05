@@ -8,12 +8,12 @@
 # What gets synced:
 # - docs/infrastructure/*.md (inventory, runbooks, audit prompts, plans)
 # - docs/operations/fabrik-lifecycle.md + architecture.md
-# - scripts/audit/*.sh (diagnostic scripts)
+# - scripts/audit/*.sh (diagnostic scripts) — to the spokes too, with the audit prompts
 # - scripts/sysadmin/* (bot, proactive check, system prompt)
 # - specs/services/*.yaml (deployment specs — so sysadmin knows what's deployed)
 
 set -euo pipefail
-cd /opt/fabrik
+cd "${FABRIK_ROOT:-/opt/fabrik}"
 
 echo "Syncing sysadmin knowledge to VPS..."
 
@@ -46,6 +46,14 @@ rsync -az scripts/vps_apply_limits.sh vps:/opt/fabrik/scripts/
 # same autoheal cron; a hub-only sync left their prompts to drift — fixed 2026-08-10)
 for spoke in vps2 vps3; do
   rsync -az scripts/sysadmin/ "$spoke":/opt/fabrik/scripts/sysadmin/ 2>/dev/null || echo "⚠ $spoke sysadmin sync failed"
+  # The same cron set runs weekly-security.sh and monthly-backup-verify.sh on the spokes; they read
+  # scripts/audit/*.sh and their checklists in docs/infrastructure/audit-prompts/ (W-922fbee1).
+  # -R recreates both relative paths under /opt/fabrik in one connection; --no-implied-dirs keeps it from
+  # copying this checkout's modes onto the spoke's existing parents (scripts/, docs/, docs/infrastructure/),
+  # which it creates with default modes when missing; --delete stays inside the two leaves, as step 14 does.
+  # stderr stays visible so a permission error names its cause.
+  rsync -az -R --no-implied-dirs --delete scripts/audit/ docs/infrastructure/audit-prompts/ "$spoke":/opt/fabrik/ \
+    || echo "⚠ $spoke audit sync failed — on 'Permission denied' run: ssh $spoke 'sudo chown ozgur:ozgur /opt/fabrik/scripts /opt/fabrik/docs /opt/fabrik/docs/infrastructure; sudo chown -R ozgur:ozgur /opt/fabrik/scripts/audit /opt/fabrik/docs/infrastructure/audit-prompts'"
 done
 for host in vps vps2 vps3; do
   rsync -az scripts/vps-autoheal.sh "$host":/tmp/fabrik-autoheal 2>/dev/null \
@@ -62,4 +70,5 @@ echo ""
 echo "Files synced:"
 echo "  docs/infrastructure/*, docs/reference/{fabrik-lifecycle,architecture}.md"
 echo "  scripts/audit/*, scripts/sysadmin/*, specs/services/*"
+echo "  spokes: scripts/sysadmin/*, scripts/audit/*, docs/infrastructure/audit-prompts/*"
 echo "  scripts/vps_apply_limits.sh, scripts/generate_vps_inventory.py"

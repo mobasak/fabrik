@@ -337,6 +337,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/provision_glitchtip_project.sh": "untracked: reads gitignored .env only; provisions a REMOTE GlitchTip project, no local tracked-file write",
     "scripts/provision_watchdog_ro.py": "untracked: reads gitignored .env.sysadmin only; provisions a remote target, no local tracked-file write",
     "scripts/snapshot_vps_state.py": "untracked: writes .tmp/vps-snapshot-<label>.json (gitignored `.tmp/`)",
+    "scripts/sysadmin/archive_transcripts.py": "untracked: reads the gitignored .env (SESSION_ARCHIVE_ENV_FILE); writes the archive under ~/.claude/archive and uploads it to B2, no tracked-file write",
     "scripts/sysadmin/claude_rotate.py": "untracked: rotate-ledger.jsonl under ~/.claude/state, outside the repo",
     "scripts/sysadmin/detect_reversals.py": "untracked: writes logs/lessons-pending.jsonl + logs/sysadmin-actions.jsonl (gitignored `logs/`)",
     "scripts/sysadmin/emit_mcp_project_config.py": "untracked: writes /opt/fabrik/.mcp.json (not tracked — `git ls-files .mcp.json` is empty)",
@@ -345,6 +346,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/sysadmin/quota_posture_hook.py": "untracked: quota posture state under ~/.claude, outside the repo",
     "scripts/sysadmin/selfwatch_check.py": "untracked: self-watch arm marker under ~/.claude, outside the repo (invokes selfwatch_arm.sh by path)",
     "scripts/sysadmin/send-telegram.sh": "untracked: reads gitignored .env.sysadmin only; sends to the Telegram API, no local tracked-file write",
+    "scripts/sysadmin/vps_script_drift.py": "untracked: reads the hub HEAD via git (honours $FABRIK_ROOT) and the VPS copies over ssh; its watermark lives under ~/.claude/state, no tracked-file write",
     "src/fabrik/drivers/modal_provider.py": "untracked: reads gitignored .env.sysadmin + a fixed template dir; its Modal deployment output is written into the TARGET project, not a hub-hardcoded tracked path",
     # ── other-repo: the write target is a DIFFERENT store/repo than the hub's own tree ──
     ".claude/hooks/mail_notify.py": "other-repo: writes /opt/fabrik-mail (sanctioned exception, CLAUDE.md HARD STOPS)",
@@ -354,6 +356,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/distribute_subagents.sh": "main-only: D-196 (2026-09-08) — hub-only re-vendor target for libs/subagents, never a worktree write",
     "scripts/mail.py": "other-repo: writes /opt/fabrik-mail (sanctioned exception, CLAUDE.md HARD STOPS)",
     "scripts/sync_enforcement_to_projects.py": "other-repo: distributes governance files into every downstream /opt/<project> repo",
+    "scripts/sync-vps-sysadmin.sh": "other-repo: writes to the remote VPS fleet over SSH; honours $FABRIK_ROOT for its LOCAL read side",
     "scripts/sync_gatus_to_vps.sh": "other-repo: writes to the remote VPS over SSH; already honours $FABRIK_ROOT when set for its LOCAL read side",
     "scripts/sync_prometheus_to_vps.sh": "other-repo: writes to the remote VPS over SSH; already honours $FABRIK_ROOT when set for its LOCAL read side",
     "scripts/sync_schema_to_projects.py": "other-repo: distributes schema files into every downstream /opt/<project> repo",
