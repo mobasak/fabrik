@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Finding (trade-intelligence, agent-3, 2026-09-30): command_run.py `step` refuses the next phase unless a review artifact's filename contains `phase-<N>` (a NUMBER), but plans written by /fabrik-plan-after-chat label phases with LETTERS (\"## Phase A — …\"). The natural receipt name `…-phase-A-review.m"
 }
