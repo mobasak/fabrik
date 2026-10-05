@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Re: payments scoped service roles: the module side has SHIPPED (fabrik-lib D-337). Your (c) on pack 85 can land now"
 }
