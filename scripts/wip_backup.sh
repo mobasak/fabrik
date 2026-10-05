@@ -42,15 +42,25 @@ set -u
 KEEP_DAYS=7
 LOG_PREFIX="[wip-backup]"
 ROOT="${WIP_BACKUP_ROOT:-/opt}"
-# W-dbb3073f: git's default core.fsync is `committed,-loose-object`, which
-# fsyncs neither loose objects nor refs. An unclean WSL shutdown mid-run left
-# 123 zero-byte objects and 50 zero-byte refs/wip files in web-ecommerce-factory,
-# and git reads a zero-byte object as present-but-corrupt, so every later push
-# there died in pack-objects. Harden both for EVERY git call this script makes,
+# W-dbb3073f: git's compiled default (documented as `committed,-loose-object`)
+# fsyncs neither loose objects nor refs — measured with trace2's hardware-flush
+# counter on git 2.43. An unclean WSL shutdown mid-run left 123 zero-byte
+# objects and 50 zero-byte refs/wip files in web-ecommerce-factory, and git
+# reads a zero-byte object as present-but-corrupt, so every later push there
+# died in pack-objects. Harden both for EVERY git call this script makes,
 # appended to (never replacing) any GIT_CONFIG_* the caller already set.
+# `batch` keeps the hardening at one flush per command: per-object fsync made
+# `add -A` of 3000 new files 22x slower (0.6 s → 13.6 s; batch 1.9 s).
+# A non-numeric inherited count would abort the whole run under `set -u`
+# (bash reads it as an unset variable name); git rejects such a count anyway,
+# so it is replaced, the same shape as the two validations below.
 _fsync_n="${GIT_CONFIG_COUNT:-0}"
+case "$_fsync_n" in
+    ''|*[!0-9]*|0[0-9]*) _fsync_n=0 ;;
+esac
 export "GIT_CONFIG_KEY_${_fsync_n}=core.fsync" "GIT_CONFIG_VALUE_${_fsync_n}=objects,reference"
-export GIT_CONFIG_COUNT=$((_fsync_n + 1))
+export "GIT_CONFIG_KEY_$((_fsync_n + 1))=core.fsyncMethod" "GIT_CONFIG_VALUE_$((_fsync_n + 1))=batch"
+export GIT_CONFIG_COUNT=$((_fsync_n + 2))
 # Round 9 acceptance finding 1 [H]: bounds every `git push` below so a
 # network stall can never cost a local snapshot or wedge a later repo in
 # this run under the cron's own `flock -n`. Overridable only for tests (a

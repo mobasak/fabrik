@@ -2641,31 +2641,79 @@ def test_live_ids_file_vanishing_mid_reap_loop_reaps_nothing(tmp_path: Path) -> 
 
 
 def test_every_git_call_hardens_loose_objects_and_refs(tmp_path: Path) -> None:
-    """W-dbb3073f: git's default core.fsync (`committed,-loose-object`) fsyncs neither
-    loose objects nor refs, and an unclean WSL shutdown mid-run left 123 zero-byte
-    objects and 50 zero-byte refs/wip files in web-ecommerce-factory, breaking every
-    push there. Every git call the net makes must run with both components hardened."""
+    """W-dbb3073f: git's compiled default fsyncs neither loose objects nor refs, and an
+    unclean WSL shutdown mid-run left 123 zero-byte objects and 50 zero-byte refs/wip files
+    in web-ecommerce-factory, breaking every push there. Every git call the net makes — main
+    tree, linked worktree, push, reaper — must run hardened, with the caller's own
+    GIT_CONFIG_* pair kept alongside (appended, never replaced)."""
     root = tmp_path / "opt"
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True, timeout=15)
     repo = _seed_repo(root, "proj")
+    _git(repo, "remote", "add", "origin", str(origin))
+    _exclude_path(repo, ".claude/worktrees")
+    wt = repo / ".claude" / "worktrees" / "alpha"
+    _git(repo, "worktree", "add", "-q", "-b", "proj-alpha", str(wt))
+    (wt / "change.txt").write_text("alpha\n")
     (repo / "dirty.txt").write_text("wip\n")
+    old_ts = (datetime.now(UTC) - timedelta(days=10)).strftime("%Y%m%dT%H%M%SZ")
+    _git(repo, "update-ref", f"refs/wip/bak-{old_ts}", "HEAD")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     log = tmp_path / "fsync.log"
     (bin_dir / "git").write_text(
         "#!/usr/bin/env bash\n"
-        f'echo "$1 $(/usr/bin/git config --get core.fsync)" >> "{log}"\n'
+        "f=$(/usr/bin/git config --get core.fsync); m=$(/usr/bin/git config --get core.fsyncMethod)\n"
+        "u=$(/usr/bin/git config --get user.name)\n"
+        f'echo "$1|$2|$f|$m|$u" >> "{log}"\n'
         'exec /usr/bin/git "$@"\n'
     )
     (bin_dir / "git").chmod(0o755)
+    env = {
+        "PATH": f"{bin_dir}:/usr/bin:/bin",
+        "WIP_BACKUP_ROOT": str(root),
+        "HOME": str(root),
+        "WIP_BACKUP_TMP_DIR": str(tmp_path),
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "user.name",
+        "GIT_CONFIG_VALUE_0": "caller",
+    }
     proc = subprocess.run(
-        ["bash", str(SCRIPT)],
-        env={"PATH": f"{bin_dir}:/usr/bin:/bin", "WIP_BACKUP_ROOT": str(root), "HOME": str(root)},
-        capture_output=True,
-        text=True,
-        timeout=60,
+        ["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=60
     )
     assert proc.returncode == 0, proc.stderr
-    calls = log.read_text().splitlines()
-    assert any(c.startswith("write-tree ") for c in calls), calls
-    unhardened = [c for c in calls if not c.endswith(" objects,reference")]
-    assert unhardened == [], unhardened
+    calls = [c.split("|") for c in log.read_text().splitlines()]
+    verbs = {c[0] for c in calls}
+    assert {"write-tree", "push", "update-ref"} <= verbs, verbs
+    assert any(c[0] == "worktree" for c in calls), "fixture premise: the worktree path ran"
+    assert (
+        subprocess.run(
+            ["git", "rev-parse", "-q", "--verify", f"refs/wip/bak-{old_ts}"], cwd=repo
+        ).returncode
+        != 0
+    ), "fixture premise: the reaper ran and deleted the old bak ref"
+    bad = [c for c in calls if c[2:] != ["objects,reference", "batch", "caller"]]
+    assert bad == [], bad
+
+
+def test_a_malformed_inherited_config_count_cannot_abort_the_net(tmp_path: Path) -> None:
+    """W-dbb3073f review: `$((abc + 1))` under `set -u` aborts the whole run before any
+    repo is snapshotted; `08` is an octal error. Either must fall back, never crash."""
+    for bad in ("abc", "08"):
+        root = tmp_path / f"opt-{bad}"
+        repo = _seed_repo(root, "proj")
+        (repo / "dirty.txt").write_text("wip\n")
+        proc = subprocess.run(
+            ["bash", str(SCRIPT)],
+            env={
+                "PATH": "/usr/bin:/bin",
+                "WIP_BACKUP_ROOT": str(root),
+                "HOME": str(root),
+                "GIT_CONFIG_COUNT": bad,
+            },
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert proc.returncode == 0, (bad, proc.stderr)
+        assert "snapshotted" in proc.stdout, (bad, proc.stdout)
