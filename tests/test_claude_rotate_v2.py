@@ -28,6 +28,7 @@ sys.modules["claude_rotate_v2"] = cr
 spec.loader.exec_module(cr)
 
 NOW = 1_800_000_000.0
+DAY = 86400
 
 
 def _acct(
@@ -1425,18 +1426,19 @@ def test_fleet_flip_leg_holds_below_the_line_and_flips_at_it_on_the_session_wind
                 "source": "live",
                 "valid": True,
                 "five_hour": {"utilization": 5.0, "resets_at_epoch": NOW + 3600},
-                "seven_day": {"utilization": 10.0, "resets_at_epoch": NOW + 3600},
+                # resets AFTER the active account: perishable-first preemption stays out of it
+                "seven_day": {"utilization": 10.0, "resets_at_epoch": NOW + 2 * 86400},
             },
         ]
 
-    # 84 holds, 95.2 flips: the line is 95 (see _rotate_threshold). 84 rather than 93 since
-    # D-171 (2026-09-06): at/over the drain band (85) with a strictly fresher sibling the leg
-    # RELIEF-flips — that is its own test; the trip line is probed below the band here.
-    # this fixture's state dir, so the projection adds 0 and the raw reading is what decides.
-    cr._fleet_flip_leg([], rows(84.0), threshold=cr._rotate_threshold())
+    # 93 holds, 98.2 flips: the line is 98 (see _rotate_threshold). 93 is inside the old drain
+    # band (85), which relief-flipped to a fresher sibling until the 2026-10-06 ruling — now the
+    # active account rides to its line. This fixture's state dir starts empty, so the projection
+    # adds 0 and the raw reading is what decides.
+    cr._fleet_flip_leg([], rows(93.0), threshold=cr._rotate_threshold())
     assert flips == [], capsys.readouterr().out
-    # …and 94 with the sibling IN the band (weekly 87) still holds — the trip line keeps its local
-    # power against a 90 mutant (native reader R10)
+    # …and 94 with the sibling at weekly 87 still holds — the trip line keeps its local power
+    # against a 90 mutant (native reader R10)
     in_band = rows(94.0)
     in_band[1]["seven_day"]["utilization"] = 87.0
     # forget the 84 reading first: the PROJECTED trip (reading + burn since the last probe) would
@@ -1445,7 +1447,7 @@ def test_fleet_flip_leg_holds_below_the_line_and_flips_at_it_on_the_session_wind
     cr._fleet_flip_leg([], in_band, threshold=cr._rotate_threshold())
     assert flips == [], capsys.readouterr().out
     (cr._rotate_state_dir() / "tick-last-reading.json").unlink(missing_ok=True)
-    cr._fleet_flip_leg([], rows(95.2), threshold=cr._rotate_threshold())
+    cr._fleet_flip_leg([], rows(98.2), threshold=cr._rotate_threshold())
     assert flips == ["can"], capsys.readouterr().out
 
 
@@ -1479,10 +1481,10 @@ def test_weekly_leg_trips_at_the_cap_not_at_the_session_threshold(monkeypatch, c
                 "source": "live",
                 "valid": True,
                 "five_hour": {"utilization": 5.0, "resets_at_epoch": NOW + 3600},
-                # weekly 87: IN the drain band, so the D-171 relief flip stays out of this
-                # test — the CAP rule alone decides the probes below (a trip flip never reads
-                # the successor's utils; `_validated_pick` is stubbed)
-                "seven_day": {"utilization": 87.0, "resets_at_epoch": NOW + 3600},
+                # resets AFTER the active account, so perishable-first preemption stays out of
+                # this test — the CAP rule alone decides the probes below (a trip flip never
+                # reads the successor's utils; `_validated_pick` is stubbed)
+                "seven_day": {"utilization": 87.0, "resets_at_epoch": NOW + 2 * 86400},
             },
         ]
 
@@ -2129,49 +2131,8 @@ def test_the_no_relief_message_does_not_claim_no_sibling_reports_a_reset():
     assert "no resume time can be given" in msg
 
 
-def test_drain_band_relief_reads_a_cached_successor_through_the_rolled_over_rescue(
-    monkeypatch, capsys
-):
-    """Scoped review F1: `_validated_pick` probes a cached candidate live but never writes the
-    reading back into `accounts`; raw utils read a just-reset cached sibling as 100/100 and refused
-    relief for exactly the account that had just become usable. The successor's utils go through
-    `_flip_candidate_verdict`, which applies the rolled-over rescue."""
-    flips = []
-    monkeypatch.setattr(cr, "_resolve_active", lambda: "mob")
-    monkeypatch.setattr(cr, "_now", lambda: NOW)
-    monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
-    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("oz", "oz@ocoron.com"))
-    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
-    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: None)
-    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
-    monkeypatch.setattr(cr, "_switch_paused", lambda: False)
-    rows = [
-        {
-            "email": "mob@ocoron.com",
-            "slugs": ["mob"],
-            "source": "live",
-            "valid": True,
-            "weekly_cap": 99,
-            "five_hour": {"utilization": 93.0, "resets_at_epoch": NOW + 3600},
-            "seven_day": {"utilization": 97.0, "resets_at_epoch": NOW + 86400},
-        },
-        {
-            "email": "oz@ocoron.com",
-            "slugs": ["oz"],
-            "source": "cache",
-            "valid": True,
-            "weekly_cap": 99,
-            # raw 100/100 with BOTH resets already passed — a rolled-over cache, empty by construction
-            "five_hour": {"utilization": 100.0, "resets_at_epoch": NOW - 60},
-            "seven_day": {"utilization": 100.0, "resets_at_epoch": NOW - 60},
-        },
-    ]
-    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
-    assert flips == ["oz"], capsys.readouterr().out
-
-
-def _relief_rows_base(monkeypatch, flips):
-    monkeypatch.setattr(cr, "_resolve_active", lambda: "mob")
+def _relief_rows_base(monkeypatch, flips, active="mob"):
+    monkeypatch.setattr(cr, "_resolve_active", lambda: active)
     monkeypatch.setattr(cr, "_now", lambda: NOW)
     monkeypatch.setattr(
         cr,
@@ -2199,30 +2160,135 @@ def _live(email, slug, s, w, w_reset=None, cap=99):
     }
 
 
-def test_relief_walks_past_an_in_band_candidate_ranked_first(monkeypatch, capsys):
-    """Native reader R1 (HIGH): the band test lived outside `_validated_pick`, so an in-band
-    candidate ranked first by perishable-first blocked relief for good — the incident verbatim.
-    Real `_validated_pick`, all rows live: the in-band sibling (84/86, weekly reset in 30 min) ranks
-    first; relief must walk past it to the fresh one."""
+# --- perishable-first, ride to the exact cap (operator ruling 2026-10-06, replaces the drain-band
+# relief): "consume them according to closest weekly reset time first", and never rotate "too soon
+# without reaching their exact caps". `w_reset` is seconds from NOW.
+
+
+def test_an_active_account_below_its_cap_is_never_left_for_a_later_reset_sibling(
+    monkeypatch, capsys
+):
+    """The 2026-10-05 21:56 flip, verbatim: sarp at weekly 85 of cap 95 was flipped to can (weekly
+    reset days later) by the drain band — ten points of sarp abandoned. It rides to its cap."""
+    flips = []
+    _relief_rows_base(monkeypatch, flips, active="sarp")
+    rows = [
+        _live("sarp@ocoron.com", "sarp", 59.0, 85.0, w_reset=3 * DAY, cap=95),
+        _live("can@ocoron.com", "can", 0.0, 13.0, w_reset=6 * DAY),
+    ]
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert flips == [], (flips, capsys.readouterr().out)
+
+
+def test_a_drained_active_rides_to_its_cap_however_fresh_a_later_sibling_is(monkeypatch, capsys):
+    """93/97 of cap 99 with a 0/19 sibling resetting later: no flip until the cap or the session wall."""
     flips = []
     _relief_rows_base(monkeypatch, flips)
     rows = [
         _live("mob@ocoron.com", "mob", 93.0, 97.0),
-        _live("sarp@ocoron.com", "sarp", 84.0, 86.0, w_reset=1800),
-        _live("oz@ocoron.com", "oz", 0.0, 19.0),
+        _live("oz@ocoron.com", "oz", 0.0, 19.0, w_reset=2 * DAY),
     ]
     cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
-    assert flips and flips[0][0] == "oz", (flips, capsys.readouterr().out)
+    assert flips == [], (flips, capsys.readouterr().out)
 
 
-def test_relief_is_dwell_exempt_and_ledgered_as_relief(monkeypatch, capsys):
-    """Native reader R2/R9: a dwell-held relief left the advisory leg lifting the hold onto the
-    drained pointer for up to 30 min; the ledger row names its kind."""
+def test_a_sooner_weekly_reset_sibling_preempts_the_active(monkeypatch, capsys):
+    """can (reset in 6 days) is active while ob (1.5 days) and sarp (3 days) still hold quota: ob's
+    perishes first, so the fleet moves to ob now — dwell-exempt, ledgered as its own kind."""
     flips = []
-    _relief_rows_base(monkeypatch, flips)
-    rows = [_live("mob@ocoron.com", "mob", 93.0, 97.0), _live("oz@ocoron.com", "oz", 0.0, 19.0)]
+    _relief_rows_base(monkeypatch, flips, active="can")
+    rows = [
+        _live("can@ocoron.com", "can", 46.0, 13.0, w_reset=6 * DAY),
+        _live("sarp@ocoron.com", "sarp", 59.0, 85.0, w_reset=3 * DAY, cap=95),
+        _live("ob@ocoron.com", "ob", 0.0, 85.0, w_reset=int(1.5 * DAY), cap=95),
+    ]
     cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
-    assert flips == [("oz", "relief", True)], (flips, capsys.readouterr().out)
+    assert flips == [("ob", "perishable", True)], (flips, capsys.readouterr().out)
+
+
+def test_a_sooner_sibling_without_session_budget_or_at_its_cap_does_not_preempt(
+    monkeypatch, capsys
+):
+    """Preemption goes only to a validated candidate: a sooner sibling over the 5h target bar, or at its
+    caps.json cap, is no target, and the later sibling behind it is not sooner than the active one."""
+    flips = []
+    _relief_rows_base(monkeypatch, flips, active="can")
+    rows = [
+        _live("can@ocoron.com", "can", 46.0, 13.0, w_reset=2 * DAY),
+        _live("ob@ocoron.com", "ob", 90.0, 50.0, w_reset=DAY, cap=95),
+        _live("sarp@ocoron.com", "sarp", 10.0, 95.0, w_reset=DAY, cap=95),
+        _live("oz@ocoron.com", "oz", 0.0, 10.0, w_reset=5 * DAY),
+    ]
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert flips == [], (flips, capsys.readouterr().out)
+
+
+def test_preemption_needs_a_known_future_reset(monkeypatch, capsys):
+    """A sibling whose weekly reset is unknown, or already past (a rolled-over cache), proves no
+    perishability: it never preempts an active account below its walls."""
+    flips = []
+    _relief_rows_base(monkeypatch, flips, active="can")
+    unknown = _live("oz@ocoron.com", "oz", 10.0, 19.0)
+    unknown["seven_day"] = {"utilization": 19.0, "resets_at_epoch": None}
+    rolled = _live("ob@ocoron.com", "ob", 10.0, 19.0)
+    rolled["seven_day"]["resets_at_epoch"] = NOW - 60
+    rows = [_live("can@ocoron.com", "can", 46.0, 13.0, w_reset=6 * DAY), unknown, rolled]
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert flips == [], (flips, capsys.readouterr().out)
+
+
+def _trip_ledger(from_slug, ts):
+    led = cr._rotate_state_dir() / "rotate-ledger.jsonl"
+    led.parent.mkdir(parents=True, exist_ok=True)
+    row = {"event": "flip", "ts": ts, "from": from_slug, "to": "x", "at_pct": 84.0, "kind": "trip"}
+    led.write_text(json.dumps(row) + "\n")
+
+
+def test_preemption_never_bounces_back_onto_the_account_a_trip_just_left(monkeypatch, capsys):
+    """Design critique 2026-10-06 (HIGH): the projected trip leaves A a burn-width below its line;
+    A still resets sooner, so preempting back would blind the projection and walk A into the wall.
+    No preemption onto A until one of its windows has reset since the trip."""
+    flips = []
+    _relief_rows_base(monkeypatch, flips, active="b")
+    _trip_ledger("a", NOW - 300)
+    rows = [
+        _live("b@ocoron.com", "b", 5.0, 20.0, w_reset=5 * DAY),
+        _live("a@ocoron.com", "a", 84.0, 40.0, w_reset=DAY),  # 5h window started an hour ago
+    ]
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert flips == [], (flips, capsys.readouterr().out)
+    # once A's 5h window has started AFTER the trip it holds fresh budget: preempt again
+    rows[1]["five_hour"] = {"utilization": 5.0, "resets_at_epoch": NOW + 5 * 3600 - 60}
+    _trip_ledger("a", NOW - 600)
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert flips == [("a", "perishable", True)], (flips, capsys.readouterr().out)
+
+
+def test_an_unknown_active_reset_never_preempts(monkeypatch, capsys):
+    """Design critique 2026-10-06 (MEDIUM): one unreadable weekly reading on the active account is
+    not "resets last" — no flip that tick, rather than a flip and a flip back."""
+    flips = []
+    _relief_rows_base(monkeypatch, flips, active="can")
+    can = _live("can@ocoron.com", "can", 46.0, 13.0)
+    can["seven_day"] = {"utilization": 13.0, "resets_at_epoch": None}
+    rows = [can, _live("ob@ocoron.com", "ob", 0.0, 50.0, w_reset=DAY, cap=95)]
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert flips == [], (flips, capsys.readouterr().out)
+
+
+def test_no_probe_when_nobody_resets_sooner(monkeypatch, capsys):
+    """Design critique 2026-10-06 (LOW): the steady state — the active account already resets
+    soonest — must not cost a live probe (or its log line) every tick."""
+    flips = []
+    _relief_rows_base(monkeypatch, flips, active="ob")
+    calls = []
+    monkeypatch.setattr(cr, "_validated_pick", lambda *a, **k: calls.append(a) or None)
+    rows = [
+        _live("ob@ocoron.com", "ob", 10.0, 50.0, w_reset=DAY, cap=95),
+        _live("can@ocoron.com", "can", 0.0, 13.0, w_reset=6 * DAY),
+    ]
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert flips == [] and calls == [], (flips, calls, capsys.readouterr().out)
 
 
 def test_repair_and_dead_chain_flips_are_ledgered_by_their_kind(monkeypatch, capsys):
@@ -2241,18 +2307,6 @@ def test_repair_and_dead_chain_flips_are_ledgered_by_their_kind(monkeypatch, cap
         [], [_live("oz@ocoron.com", "oz", 0.0, 19.0)], threshold=cr._rotate_threshold()
     )
     assert flips == [("oz", "repair")], (flips, capsys.readouterr().out)
-
-
-def test_relief_needs_both_windows_readable(monkeypatch, capsys):
-    """Native reader R7: a successor with no weekly reading passed the band test on its session
-    alone — fail OPEN. Both windows, or no relief."""
-    flips = []
-    _relief_rows_base(monkeypatch, flips)
-    oz = _live("oz@ocoron.com", "oz", 10.0, 19.0)
-    oz["seven_day"] = {"utilization": None, "resets_at_epoch": None}
-    rows = [_live("mob@ocoron.com", "mob", 93.0, 97.0), oz]
-    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
-    assert flips == [], (flips, capsys.readouterr().out)
 
 
 def test_a_verified_live_reading_replaces_the_cached_row(monkeypatch):
