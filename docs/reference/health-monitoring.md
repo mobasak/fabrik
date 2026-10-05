@@ -43,7 +43,7 @@ The full observability stack is deployed and operational. node-exporter + cAdvis
 | node-exporter | (internal :9100) | ✅ Running |
 
 **Compose file:** `/opt/monitoring/compose.yaml` (standalone Compose stack on vps1). Start/stop via `cd /opt/monitoring && sudo docker compose up -d` / `down`. (2026-04-17 → 2026-05-30 these services were Coolify-managed; reverted to standalone Compose on the 2026-05-30 SSH+Compose migration.)
-**Local source:** `specs/infrastructure/monitoring-stack.yaml` + `configs/` in Fabrik (mirror; production state lives in `/opt/monitoring/` on vps1)
+**Repo mirror:** `infra/vps1/monitoring/compose.yaml` + `configs/` in Fabrik (repo-of-record; nothing deploys from it — production state lives in `/opt/monitoring/` on vps1)
 
 ### Notification Chain
 

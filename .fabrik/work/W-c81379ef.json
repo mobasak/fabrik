@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "templates/node-api/defaults.yaml:14 exposes_metrics: true while templates/node-api/ carries no metrics module — the prometheus registrar adds a scrape target that will be down. Either flip the default to false or scaffold a prom-client /metrics; decide in /fabrik-task (split out of W-aec7365b / mail 01M1EQ3NCA98EF178ZY366V47T)",
-  "note": "",
+  "note": "already built: c5f2b4bdc (W-1f904e4b, 2026-10-01) scaffolds prom-client and a /metrics route in node-api src/index.js; tests/test_node_scaffold_routes.py 19 passed 2026-10-05 — filed after the fix without re-checking",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "scaffold"
   ],

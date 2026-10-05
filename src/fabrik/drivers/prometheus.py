@@ -86,7 +86,8 @@ network, and the old route — wget from the ``alertmanager`` container to
 2026-10-02, W-a1a359c8), which silently turned every reload into a
 container restart."""
 
-# The config path INSIDE the container (configs/monitoring-compose.yaml `--config.file`).
+# The config path INSIDE the container (`--config.file` in the vps1 monitoring compose,
+# mirrored at infra/vps1/monitoring/compose.yaml).
 PROMETHEUS_CONTAINER_CONFIG = "/etc/prometheus/prometheus.yml"
 # Fails the chain with a NAMED reason when no prometheus container is running: a bare
 # `[ -n "$X" ]` exits 1 with empty stderr, and the logged reason read `rc=1: ` (restart-S2).

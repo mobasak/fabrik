@@ -1,7 +1,8 @@
 # promtool rule unit tests for configs/prometheus/rules/fabrik-drift.yml (plan-2 Phase C, C2).
-# Run with the image vps1 runs (configs/monitoring-compose.yaml):
+# Run with the Prometheus image vps1 runs — services.prometheus.image in
+# infra/vps1/monitoring/compose.yaml (tests/test_registry_reconcile.py reads it from there):
 #   docker run --rm -v "$PWD/configs/prometheus/rules:/r:ro" -v "$PWD/tests/fixtures:/t:ro" \
-#     --entrypoint promtool prom/prometheus:v3.2.1 test rules /t/fabrik-drift-rules-test.yml
+#     --entrypoint promtool <that image> test rules /t/fabrik-drift-rules-test.yml
 rule_files:
   - /r/fabrik-drift.yml
 

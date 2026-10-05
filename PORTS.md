@@ -33,11 +33,16 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 9000/9001 | minio | specs/infrastructure/minio.yaml | [reserved — not yet deployed] |
 | — | apprise | specs/infrastructure/apprise.yaml | https://notify.vps1.ocoron.com (Traefik over the fabrik network; internal 8000, no host port) |
 | 7700 | meilisearch | specs/infrastructure/meilisearch.yaml | https://search.vps1.ocoron.com |
-| 3100 | loki | specs/infrastructure/monitoring-stack.yaml | internal only |
-| 9090 | prometheus | specs/infrastructure/monitoring-stack.yaml | internal only |
-| 9100 | node-exporter | specs/infrastructure/monitoring-stack.yaml | internal only |
-| 8080 | cadvisor | specs/infrastructure/monitoring-stack.yaml | internal only |
-| 3002 | grafana | specs/infrastructure/monitoring-stack.yaml | https://monitor.vps1.ocoron.com |
+| 3100 | loki | infra/vps1/monitoring/compose.yaml | mesh only: `10.99.0.1:3100` (spoke log push) |
+| 9090 | prometheus | infra/vps1/monitoring/compose.yaml | internal only |
+| 9093 | alertmanager | infra/vps1/monitoring/compose.yaml | internal only |
+| 9091 | pushgateway | infra/vps1/monitoring/compose.yaml | `127.0.0.1:9091` only |
+| 9080 | promtail | infra/vps1/monitoring/compose.yaml | internal only |
+| 9100 | node-exporter | infra/vps1/monitoring/compose.yaml | internal only |
+| 8080 | cadvisor | infra/vps1/monitoring/compose.yaml | internal only |
+| 9187 | postgres-exporter | infra/vps1/monitoring/compose.yaml | internal only |
+| 9121 | redis-exporter | infra/vps1/monitoring/compose.yaml | internal only |
+| — | grafana | infra/vps1/monitoring/compose.yaml | https://monitor.vps1.ocoron.com (Traefik → internal 3000; no host port) |
 | 5678 | n8n | specs/infrastructure/n8n.yaml | https://auto.vps1.ocoron.com |
 
 ### Control Plane Services (VPS)

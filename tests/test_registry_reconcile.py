@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -499,8 +501,14 @@ class TestCron:
 
 # ---------------------------------------------------------------------------
 # Phase C — the alert rules (C1). C2, the promtool rule unit test, is
-# tests/fixtures/fabrik-drift-rules-test.yml, run with prom/prometheus:v3.2.1.
+# tests/fixtures/fabrik-drift-rules-test.yml, run with the Prometheus image the vps1
+# monitoring mirror names (infra/vps1/monitoring/compose.yaml, services.prometheus.image).
 # ---------------------------------------------------------------------------
+
+
+def _vps1_prometheus_image() -> str:
+    compose = yaml.safe_load((REPO / "infra/vps1/monitoring/compose.yaml").read_text())
+    return compose["services"]["prometheus"]["image"]
 
 
 class TestDriftRules:
@@ -533,7 +541,7 @@ class TestDriftRules:
         shutil.which("docker") is None, reason="promtool runs from the docker image vps1 runs"
     )
     def test_promtool_rule_unit_tests_pass(self):
-        # C2: run the fixture under the Prometheus image vps1 runs (configs/monitoring-compose.yaml).
+        # C2: run the fixture under the Prometheus image the vps1 monitoring mirror names.
         r = subprocess.run(
             [
                 "docker",
@@ -545,7 +553,7 @@ class TestDriftRules:
                 f"{REPO}/tests/fixtures:/t:ro",
                 "--entrypoint",
                 "promtool",
-                "prom/prometheus:v3.2.1",
+                _vps1_prometheus_image(),
                 "test",
                 "rules",
                 "/t/fabrik-drift-rules-test.yml",
@@ -556,3 +564,20 @@ class TestDriftRules:
             check=False,
         )
         assert r.returncode == 0, r.stdout + r.stderr
+
+    def test_promtool_image_is_the_pinned_one_vps1_runs(self):
+        assert re.fullmatch(r"prom/prometheus:v\d+\.\d+\.\d+", _vps1_prometheus_image())
+
+    def test_promtool_run_uses_the_vps1_image(self, monkeypatch):
+        # Graded without docker: the run's argv carries whatever the vps1 mirror names, never a literal.
+        monkeypatch.setattr(
+            sys.modules[__name__], "_vps1_prometheus_image", lambda: "prom/prometheus:v9.9.9"
+        )
+        seen = []
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda argv, **kw: seen.append(argv) or subprocess.CompletedProcess(argv, 0, "", ""),
+        )
+        self.test_promtool_rule_unit_tests_pass()
+        assert "prom/prometheus:v9.9.9" in seen[0], seen

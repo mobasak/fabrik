@@ -35,6 +35,18 @@ All notable changes to this project will be documented in this file.
 - On trade-intelligence's real tree it keeps 20 of 20 comments, where HEAD kept 17, and leaves both plan sets collapsed. A second run is a no-op.
 - 7 graders. Follow-up W-3efb9553 covers `--only` and plan-set directories.
 
+### Removed — the two stale monitoring compose copies; docs name the vps1 mirror (2026-10-05)
+`configs/monitoring-compose.yaml` and `specs/infrastructure/monitoring-stack.yaml` were drifted copies of the vps1
+monitoring compose (no memory limits, no pushgateway, no loki mesh port) whose headers claimed a `fabrik apply` or
+Coolify deploy no code performs; nothing loaded, deployed or bundled either one. Both are deleted. `PORTS.md`,
+`agents-fabrik.md`, `docs/DEPLOYMENT_ARCHITECTURE.md` (§ 3.1 and § 7.3), `docs/reference/architecture.md` and
+`docs/reference/health-monitoring.md` now name the repo mirror `infra/vps1/monitoring/compose.yaml` and say true
+things about it: loki's mesh binding, pushgateway on 127.0.0.1, grafana behind Traefik with no host port, promtail,
+alertmanager and the two exporters, Prometheus inside the one stack (`/opt/prometheus/` was removed), and that
+`fabrik export` bundles only the Grafana dashboards. The promtool rule test now reads the Prometheus image from the
+mirror instead of a literal (graders in `tests/test_registry_reconcile.py`). The mirror's node-exporter
+`mount-points-exclude` regex reads `(320479|/)` where the retired copy had `($$|/)` — filed as W-fe46fb1e (W-589865a0).
+
 ### Fixed — the parity stub survives a NUL byte in `.env` and says when `.env` loads nothing (2026-10-05)
 `templates/scaffold/scripts/verify_prod_parity.py` caught only `OSError` / `UnicodeDecodeError` from `load_env()`.
 A NUL byte in a `.env` key or value makes `os.environ` raise `ValueError: embedded null byte`, which escaped and
