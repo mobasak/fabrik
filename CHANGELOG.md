@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `scripts/tests/test_gather_envs.py` passes under a plain pytest run (2026-10-05)
+48 of its tests failed unless `FABRIK_POOL_POLICY=on` was exported: since D-181/D-182 (acffe9c1d)
+`classify_services.main()` returns before dispatching while the pool is OFF, and the classifier tests drive the
+dispatch path with a stubbed `fanout`. An autouse fixture now pins the seam on for that file, as
+`tests/test_doc_reconcile.py` does, and `test_pool_policy_off_dispatches_nothing` covers the OFF path (no dispatch,
+no last-run record, cursor unmoved); it goes red when the policy guard is removed (W-e687a235).
+
 ### Fixed — a freshly scaffolded python project passes its own lint and type gate (2026-10-05)
 tryton-crm's completion gate went red right after scaffolding (01M3Q3DBYF, relayed as 01M44YG3CA): the vendored
 GlitchTip scrubber `src/<pkg>/glitchtip_init.py` (byte-parity with site-provisioner) was linted under the project's
