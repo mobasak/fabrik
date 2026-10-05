@@ -23,7 +23,7 @@ Last content verification: 2026-10-02
   the Max subscription (D-364). Windsurf is no longer used (D-514), nor is the Kilo CLI (D-364). OpenRouter agents are a
   possible later option (D-514); the metered subagent pool they would use is paused by ruling (D-181/D-182).
 - **Code-writing features → Claude through `claude -p`** on the agent loop ai/50-agentic.md sets: fabrik-lib's
-  `llm-dispatch` `run_agentic` on `opus`, with its bounds, its auth rules and its interim rule for features that answer
+  `llm-dispatch` `run_agentic` on `opus`, with its bounds, its auth rules and the operator's ruling for features that answer
   other users' requests. Under the loop's `dontAsk` mode a tool that would prompt is denied, so restrict the set with
   `tools` and grant editing and commands with `allowed_tools` (`Edit`, a `Bash` rule scoped to a command prefix).
   `scripts/ci_fix_dispatcher.py`, which runs `claude -p` on the host with permissions skipped to fix a failing CI run,

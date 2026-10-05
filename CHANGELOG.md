@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — products serving other users stay on the subscription lane, by operator ruling (2026-10-05)
+- The operator ruled that user-facing products keep calling Claude through `claude -p` on the Max subscription rather than a paid API key, accepting the enforcement risk Anthropic's terms state. ai/50-agentic's auth boundary drops the interim rule that held new user-facing `claude -p` calls for the operator and states the ruling; ai/60-code points at it; `tests/test_agentic_pack.py` pins the ruling and checks that the cited D-id has a ledger row. D-585.
+
 ### Changed — the universal-watchdog plan is superseded; the project watchdog prompt stays optional (2026-10-05)
 - `docs/development/plans/2026-07-06-plan-1-universal-watchdog.md` is SUPERSEDED, never executed: the watchdog is already on by default (D-052, D-108) and the project prompt shipped as the optional, fail-soft `watchdog.project_system_prompt_file`. The Opus+Fable panel retired the mandatory, gate-enforced prompt, which would have turned nearly every one of the 47 synced projects red. D-571. `docs_updater.parse_plan_status` now reads SUPERSEDED exactly (a "never executed" rationale had graded 2 of the 5 superseded plans EXECUTED), and PLANS.md is regenerated.
 

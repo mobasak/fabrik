@@ -1,0 +1,26 @@
+{
+  "block_digest": "e7059edc22a751ae7e0f713037a1649095e31bfc5f468167b00295afe57f5e49",
+  "blocked_by": [],
+  "created": "2026-10-05T00:34:00.214809Z",
+  "creator": "intel",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-33f8d3a7",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "78fe1470732a3cc685bde52c341578a2ca5c846c0f09031ac00b2816bb5e393e"
+  ],
+  "next": "",
+  "note": "subscription. (duplicate of W-970d0321)",
+  "owner": "",
+  "priority": 2,
+  "question": "Should products that serve other users keep calling Claude through your Max subscription (`claude -p`), or move to a paid API key?",
+  "status": "done",
+  "title": "Should products that serve other users keep calling Claude through your Max subscription (`claude -p`), or move to a paid API key?"
+}
