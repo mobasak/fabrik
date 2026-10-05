@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T00:05:42.567408Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-aa53dfc6",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: build the vanished set from every earlier round's slice names (command_run.py:372-385, used by round and done :5009); grader: r1 A,B · r2 A only · r3 A only → NOT TERMINAL and done refused; full /fabrik-review (sync path) ALSO: fabrik-repo-review.md round recipes (:64 batch, :165 certification) never pass --slices — decide whether its batch rounds record slices, then align with fabrik-review.md:479; and review-loop-workflow.md:58 '(D-339: done refuses a failing or vanished slice)' overstates until the union fix lands. ALSO: .windsurf/rules/core/62-using-subagents.md:51 ('not re-dispatched') lacks the restatement instruction; fabrik-review.md:481 TERMINAL sentence omits 'every --slices ledger verified with none omitted, from round 2'.",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "enforcement"
+  ],
+  "title": "command_run.py _vanished_slices: a slice omitted in two consecutive rounds reads clean (compares only the most recent slice-stating round)"
+}

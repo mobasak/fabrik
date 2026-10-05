@@ -53,7 +53,7 @@ API times a seat out; one refuter ran 59 minutes against a 12-minute box) and `N
 nothing. Re-run the command of every `confirmed` verdict on the pinned copy before writing a fix; treat `unverified`
 and every `gaps` entry as open; fix; record the round (`command_run.py round --slices …`) and name its stop and fix
 size in the receipt's Pass row; launch the next pass with `review_loop_ledger.py next <pass file> --ids <confirmed
-ids>` as its slices' ledgers. The review closes on the pass that confirms zero, whatever its number — ≤ 3 passes is
+ids>` as its slices' ledgers, and restate every round-1 slice in that pass's `round --slices`, a verified one at its last `<verified>/<claims>`. The review closes on the pass that confirms zero, whatever its number — ≤ 3 passes is
 a target, never a cap (D-355; D-339: `done` refuses a failing or vanished slice). `dispatch_headroom.py` refuses
 while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set, because that variable puts every seat on one model (D-357).
 
