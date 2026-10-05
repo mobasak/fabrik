@@ -612,10 +612,12 @@ class WatchdogDriver:
 
         - **git remote** (hard for the watchdog): autonomous push needs a clone
           source, so a missing one raises. The raise does NOT abort the apply:
-          ``_provision_watchdog`` hands it to ``_nonfatal``, so the deploy
-          completes without the watchdog, the watchdog is recorded as a failed
-          registrar, and ``fabrik apply`` exits 2 instead of printing the green
-          banner (not a silent degrade).
+          ``_provision_watchdog`` hands it to ``_nonfatal``, so the rest of the
+          deploy completes and the watchdog is recorded as a failed registrar
+          (the orchestrator path of ``fabrik apply`` exits 2 instead of printing
+          the green banner; ``deploy_router`` returns 1). This gate runs before
+          the image build and overlay, so a re-apply that fails it leaves any
+          previously deployed sidecar running unchanged (not a silent degrade).
         - **app HEALTHCHECK** (degrade): without one, ``verify_health`` is a
           no-op so auto-rollback can't fire (R-B). Refuse Tier-D → escalate-only.
         - **snapshot storage** (degrade): the sidecar stores a pre-apply snapshot
