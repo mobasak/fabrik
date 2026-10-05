@@ -5823,15 +5823,23 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
                     r_reset = _future_reset(r)
                     if r_reset is None or r_reset >= a_reset or _recently_tripped_off(r, now):
                         excluded.add(str(r.get("email")))
-                pick = (
-                    _validated_pick(accounts, excluded, verbose=True)
-                    if len(excluded) < len(accounts)
-                    else None
-                )
+                # `_validated_pick` may REPLACE a cached candidate's windows with its live probe, and
+                # the live weekly reset can be LATER than the cache said: re-check "strictly sooner"
+                # on the verified row, and on a miss exclude it and ask again (pass-1 review, slice A —
+                # a stale cache flipped to a later-resetting account and the next tick flipped back).
+                pick, p_reset = None, None
+                while len(excluded) < len(accounts):
+                    cand = _validated_pick(accounts, excluded, verbose=True)
+                    if cand is None:
+                        break
+                    prow = next((r for r in accounts if r.get("email") == cand[1]), None) or {}
+                    p_reset = _future_reset(prow)
+                    if p_reset is not None and p_reset < a_reset:
+                        pick = cand
+                        break
+                    excluded.add(cand[1])
                 if pick is not None:
                     slug, email = pick
-                    prow = next((r for r in accounts if r.get("email") == email), None) or {}
-                    p_reset = _future_reset(prow)
                     if _flip_active(slug, at_pct=hot, ignore_dwell=True, kind="perishable"):
                         print(
                             f"tick: perishable-first — {email} weekly resets "

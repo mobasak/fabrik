@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-05T19:36:21.216053Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "6cb75d037b321e8e2c4e2e2244f54d8c1278fda2",
   "id": "W-ce71bcd2",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "tags": [
     "vps"
   ],

@@ -76,14 +76,17 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   (`docs/workstation/quota-dashboard.md` § the rotation trigger). The **weekly** leg is governed by the account's `caps.json` cap when one exists
   (the cap IS the operator's weekly rule — a cap of 99 trips at 99, not at the session threshold) and by
   `ROTATE_THRESHOLD` otherwise; the 5-hour leg is never cap-gated.
-- **Drain-band relief flip (D-171):** a SECOND flip trigger, below the trip
-  line. When the active account's hottest window is at/over `ROTATE_DRAIN_THRESHOLD` (default **85**) but not
-  tripped, and a live-validated sibling is BELOW 85 on both windows (the strict-both-windows hysteresis that
-  stops ping-pong), the tick flips to it — walking down the ranking past in-band candidates, dwell-exempt like
-  a trip, ledgered with `kind: relief`. Without it a hold lifts on a sibling's reset while the pointer stays on the drained account, because only a trip moves it. Accepted cost: the
-  85→cap weekly band of the account flipped away from is deferred, not spent. The board's fast path mirrors it
-  (a `relief` trigger tier + the ghost return row), so a weekly-driven relief lands within the
-  20 s probe cadence like a trip.
+- **Perishable-first preemption (operator ruling 2026-10-06, replacing the D-171 drain-band relief):** the
+  operator's rule is "consume them according to closest weekly reset time first" — each account to its exact
+  `caps.json` cap or the session line, never "too soon", and "there should not be 85% at all". So the active
+  account is NEVER left early for a later-resetting sibling (the old relief flipped away at 85 to any sibling under
+  85 and abandoned the 85→cap band). The only early flip is TO the picker's top validated candidate among the
+  siblings whose weekly reset is strictly SOONER than the active one's — dwell-exempt, ledgered `kind: perishable`.
+  Monotonic in reset time, so it cannot ping-pong. Two guards: an unknown or past weekly reset on the active account
+  means no preemption that tick (fail closed), and an account a `trip` flip just left is not a target until one of
+  its windows has started after that trip (`_recently_tripped_off` — the projected trip leaves it a burn-width below
+  its line). When nobody resets sooner, no candidate is probed at all. The board's 20 s fast path still has a
+  `relief` trigger tier at the drain line; it only invokes `--tick`, which no longer flips there.
 - **URGENT drain at 90 with NO successor (`_urgent_drain_pct`, `ROTATE_URGENT_DRAIN_PCT`):**
   when the ACTIVE account's session is at/over **90** and `_validated_pick` finds no eligible sibling (every
   one session-exhausted, weekly-walled or cap-walled), the wall advisory fires EIGHT POINTS EARLY — the runway a graceful stop needs; the ordering (90 < the flip line) is the design, graded by
@@ -101,7 +104,7 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   or `--status`, never this page, for the numbers.** At weekly ≥ cap the account flips away
   whatever its session says.
   **A target must have 5h budget:** its session reading must be KNOWN and
-  ≤ `ROTATE_TARGET_SESSION_MAX_PCT` (default = `ROTATE_DRAIN_THRESHOLD`, **85** — a target at or over the drain line would be flagged the moment it became active) — a weekly reading alone proves nothing about
+  ≤ `ROTATE_TARGET_SESSION_MAX_PCT` (default = `ROTATE_THRESHOLD`, the **98** session line since 2026-10-06 — "available" means below its own walls, the 85 drain band no longer narrows it) — a weekly reading alone proves nothing about
   the session window, and a sibling near its own session wall would be flipped to and away from on
   the next tick. A cached standby whose 5h reset time has already passed is read as 0% (an idle
   account cannot burn fleet quota; the window rolled over — the board applies the same rule). A candidate ranked off
@@ -207,7 +210,7 @@ since when and the resume it promised; `picture.hold.tier` says whether it is th
 the picker's own perishable-first order, then everyone else by when they RETURN — a cap-walled or weekly-exhausted
 account at its weekly reset, a session-exhausted one at its 5h reset, the later of the two when both are spent),
 `next relief:` (the account and instant the tick's own relief rule would name), `last flip:` (when, from → to, and
-its `kind`: trip / relief / repair / dead-chain / switch). `--status --json` carries the same under `picture`
+its `kind`: trip / perishable / repair / dead-chain / switch — `relief` on rows before 2026-10-06). `--status --json` carries the same under `picture`
 (`accounts[].state` ∈ active · eligible · session-exhausted · weekly-exhausted · cap-walled · over-threshold (under its cap but a window ≥ the picker's target line — kept active, refused as a target until that window resets) · unavailable (its `why` names the picker's reason: no credentialed dir, no reading, …), with
 `why`, both percentages, both resets, `returns_at`, `in_drain_band`, `source`, `age_s`; plus `queue`, `next_relief`, `hold`,
 `last_flip`, `thresholds`). It is a READ — the same verdict the picker applies, no probe, no side effect — so
