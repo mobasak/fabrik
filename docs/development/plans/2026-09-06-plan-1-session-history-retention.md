@@ -522,6 +522,28 @@ $ python3 scripts/review_rubric.py --changed scripts/sysadmin/archive_transcript
 | CC11 | concurrency on the shared archive (hand run vs timer) | orchestrator, round 1 | FIXED | rules-O21: `flock` on `<ARCHIVE_ROOT>/.archive.lock` (A.1d, A-B10), excluded from the upload |
 | CC12 | gates executable as written, in the order written | orchestrator, round 1 | FIXED | rules-O1/S1/O2/S2: Gate 0 and Gate A run by hand before the merge, Gate S after it; gates use `--remote-count`/`--fetch`, which carry the key; B.4 builds its own two versions in `restore-proof/` |
 
+## Execution notes
+
+**2026-10-05 — Phase A code shipped and reviewed; Gate A BLOCKED on the B2 application key.**
+- Code: 8677a962d (archiver, tests, units, installer, docs), review fixes 23e891dec and b5cb26110.
+- `/fabrik-review` (routed up from review-scoped — the `flock` is a concurrency surface): confirmed
+  12 → 2 → 0, receipt `docs/development/reviews/2026-10-05-plan-1-session-history-retention-phase-A-review.md`
+  (c911db3a9). 46 tests; 14 Behavior-Contract mutants and 10 fix mutants each watched red in a
+  throwaway worktree.
+- Gate 0 — GREEN (run by hand from this worktree):
+
+```
+$ bash scripts/sysadmin/sample_transcript_growth.sh
+sample_transcript_growth: 2026-10-05  main=13917832151 bytes / 5969 files  largest=1364840151 bytes
+$ wc -l ~/.claude/state/transcript-growth.tsv
+2 /home/ozgur/.claude/state/transcript-growth.tsv
+```
+
+- Gate A — BLOCKED: missing infra. `SESSION_ARCHIVE_B2_KEY_ID` / `SESSION_ARCHIVE_B2_APPLICATION_KEY`
+  are not in `/opt/fabrik/.env` (presence check: the file holds 3 `SESSION_ARCHIVE_B2_*` lines — bucket,
+  bucket id, endpoint — and no key). Resume: the operator adds the key; the run resumes at Gate A
+  (first live run, `--remote-count`), then Phase B, Finish, Gate S. The plan lock stays `active`.
+
 ## Evidence
 
 **Revision 2026-10-05 — the measurements the B2-direct route is built on** (this machine):
