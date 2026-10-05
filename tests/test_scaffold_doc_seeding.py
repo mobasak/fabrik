@@ -386,36 +386,80 @@ def test_governance_template_names_adopt():
 
 
 def test_no_template_runs_psql_on_a_driver_dsn():
-    """Every seeded libpq call on DATABASE_URL / DATABASE_URL_OWNER reaches the variable only through
-    pgurl: the rule pack mandates postgresql+asyncpg://, which libpq reads as a database NAME, and an
-    asyncpg ?ssl= that libpq refuses (01M464NPPB). Scans every template file and scaffold.py."""
+    """Every seeded libpq call on DATABASE_URL / DATABASE_URL_OWNER reaches the variable only as
+    `u=$(pgurl "$VAR") && <cmd> ... "$u"`: the rule pack mandates postgresql+asyncpg://, which libpq
+    reads as a database NAME, and an asyncpg ?ssl= that libpq refuses (01M464NPPB); any other shape
+    (psql "$(pgurl ...)", `;` instead of `&&`) hands psql an empty string when pgurl or the variable
+    is missing, and psql then connects to the local default database. Scans every template file and
+    scaffold.py, with backslash-continued lines joined."""
     import re
 
     call = re.compile(r"\b(psql|pg_dump|pg_isready|pg_restore)\b")
     var = re.compile(r"\$\{?DATABASE_URL(_OWNER)?\b")
-    via_pgurl = re.compile(r'pgurl "\$\{?DATABASE_URL(_OWNER)?\}?"')
+    closed = re.compile(
+        r'\bu=\$\(pgurl "\$\{?DATABASE_URL(_OWNER)?\}?"\) && (psql|pg_dump|pg_isready|pg_restore)\b[^`|]*"\$u"'
+    )
     scaffold_py = REPO_ROOT / "src" / "fabrik" / "scaffold.py"
     subjects = [p for p in sorted((REPO_ROOT / "templates").rglob("*")) if p.is_file()]
     subjects.append(scaffold_py)
     hits = []
     for p in subjects:
-        lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
-        for n, line in enumerate(lines):
-            if not (call.search(line) and var.search(via_pgurl.sub("", line))):
+        raw = p.read_text(encoding="utf-8", errors="replace").splitlines()
+        lines, starts, buf, start = [], [], "", 0
+        for n, piece in enumerate(raw):
+            if not buf:
+                start = n
+            if piece.rstrip().endswith("\\"):
+                buf += piece.rstrip()[:-1] + " "
+                continue
+            lines.append(buf + piece)
+            starts.append(start)
+            buf = ""
+        for i, line in enumerate(lines):
+            if not (call.search(line) and var.search(closed.sub("", line))):
                 continue
             if p == scaffold_py:
-                prev = lines[n - 1].rstrip() if n else ""
-                nxt = lines[n + 1] if n + 1 < len(lines) else ""
+                prev = lines[i - 1].rstrip() if i else ""
                 if prev.endswith(
                     ".replace("
                 ):  # the search half of a .replace() that REMOVES a call
                     continue
+                # the labelled plain-DSN fallback under a pgurl headline in a db/schema.sql header
                 if (
-                    line.lstrip(" '\"").startswith("--") and "pgurl" in nxt
-                ):  # SQL header + its pointer
+                    line.lstrip(" '\"").startswith("--")
+                    and "with a plain postgresql:// DSN" in prev
+                ):
                     continue
-            hits.append(f"{p.relative_to(REPO_ROOT)}:{n + 1}: {line.strip()}")
+            hits.append(f"{p.relative_to(REPO_ROOT)}:{starts[i] + 1}: {line.strip()}")
     assert hits == [], hits
+
+
+def test_driver_dsn_grader_catches_the_fail_open_shapes(tmp_path, monkeypatch):
+    """The grader above flags each shape that fails open or bypasses pgurl, and passes the
+    fail-closed one; run against a scratch template tree."""
+    shapes = {
+        'psql "$DATABASE_URL"': True,
+        'psql "$(pgurl "$DATABASE_URL")" -c "SELECT 1"': True,
+        'u=$(pgurl "$DATABASE_URL"); psql "$u"': True,
+        'psql "$DATABASE_URL"  # pgurl it first': True,
+        'psql "$(notpgurl "$DATABASE_URL")"': True,
+        'psql -1 -v ON_ERROR_STOP=1 \\\n  "$DATABASE_URL_OWNER" -f db/schema.sql': True,
+        'u=$(pgurl "$DATABASE_URL") && psql "$u" -c "SELECT 1"': False,
+        'u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql': False,
+    }
+    for text, flagged in shapes.items():
+        root = tmp_path / str(abs(hash(text)))
+        (root / "templates").mkdir(parents=True)
+        (root / "src" / "fabrik").mkdir(parents=True)
+        (root / "src" / "fabrik" / "scaffold.py").write_text("")
+        (root / "templates" / "T.md").write_text(text.replace("\\n", "\n") + "\n")
+        monkeypatch.setitem(globals(), "REPO_ROOT", root)
+        try:
+            test_no_template_runs_psql_on_a_driver_dsn()
+            got = False
+        except AssertionError:
+            got = True
+        assert got is flagged, (text, got)
 
 
 def test_pgurl_rewrites_a_driver_dsn_for_libpq():
