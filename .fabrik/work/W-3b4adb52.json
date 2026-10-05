@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T16:25:14.472659Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3b4adb52",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure whether any live fleet DSN hits one of these (grep project .env.example files for +[A-Z], ssl=true, ' '); fix only what a real DSN reaches, with a grader",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "pgurl/psql scaffold helper: recorded low-severity residue from the 01M464NPPB scoped review (uppercase driver/scheme, ssl=true/false, unencoded ? in a password, whitespace-only DSN, grader blind to a psql/var split across two Python string literals)"
+}

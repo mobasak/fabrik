@@ -383,3 +383,122 @@ def test_governance_template_names_adopt():
     # in here as a copy-paste of the old operating-model prose, not as evidence of a removal.
     assert "tail sweep" not in text
     assert "docs_updater.py --adopt" in text
+
+
+def test_no_template_runs_psql_on_a_driver_dsn():
+    """Every seeded libpq call on DATABASE_URL / DATABASE_URL_OWNER reaches the variable only as
+    `u=$(pgurl "$VAR") && <cmd> ... "$u"`: the rule pack mandates postgresql+asyncpg://, which libpq
+    reads as a database NAME, and an asyncpg ?ssl= that libpq refuses (01M464NPPB); any other shape
+    (psql "$(pgurl ...)", `;` instead of `&&`) hands psql an empty string when pgurl or the variable
+    is missing, and psql then connects to the local default database. Scans every template file and
+    scaffold.py, with backslash-continued lines joined."""
+    import re
+
+    call = re.compile(r"\b(psql|pg_dump|pg_isready|pg_restore)\b")
+    var = re.compile(r"\$\{?DATABASE_URL(_OWNER)?\b")
+    closed = re.compile(
+        r'\bu=\$\(pgurl "\$\{?DATABASE_URL(_OWNER)?\}?"\) && (psql|pg_dump|pg_isready|pg_restore)\b[^`|]*"\$u"'
+    )
+    scaffold_py = REPO_ROOT / "src" / "fabrik" / "scaffold.py"
+    subjects = [p for p in sorted((REPO_ROOT / "templates").rglob("*")) if p.is_file()]
+    subjects.append(scaffold_py)
+    hits = []
+    for p in subjects:
+        raw = p.read_text(encoding="utf-8", errors="replace").splitlines()
+        lines, starts, buf, start = [], [], "", 0
+        for n, piece in enumerate(raw):
+            if not buf:
+                start = n
+            if piece.rstrip().endswith("\\"):
+                buf += piece.rstrip()[:-1] + " "
+                continue
+            lines.append(buf + piece)
+            starts.append(start)
+            buf = ""
+        for i, line in enumerate(lines):
+            if not (call.search(line) and var.search(closed.sub("", line))):
+                continue
+            if p == scaffold_py:
+                prev = lines[i - 1].rstrip() if i else ""
+                if prev.endswith(
+                    ".replace("
+                ):  # the search half of a .replace() that REMOVES a call
+                    continue
+                # the labelled plain-DSN fallback under a pgurl headline in a db/schema.sql header
+                if (
+                    line.lstrip(" '\"").startswith("--")
+                    and "with a plain postgresql:// DSN" in prev
+                ):
+                    continue
+            hits.append(f"{p.relative_to(REPO_ROOT)}:{starts[i] + 1}: {line.strip()}")
+    assert hits == [], hits
+
+
+def test_driver_dsn_grader_catches_the_fail_open_shapes(tmp_path, monkeypatch):
+    """The grader above flags each shape that fails open or bypasses pgurl, and passes the
+    fail-closed one; run against a scratch template tree."""
+    shapes = {
+        'psql "$DATABASE_URL"': True,
+        'psql "$(pgurl "$DATABASE_URL")" -c "SELECT 1"': True,
+        'u=$(pgurl "$DATABASE_URL"); psql "$u"': True,
+        'psql "$DATABASE_URL"  # pgurl it first': True,
+        'psql "$(notpgurl "$DATABASE_URL")"': True,
+        'psql -1 -v ON_ERROR_STOP=1 \\\n  "$DATABASE_URL_OWNER" -f db/schema.sql': True,
+        'u=$(pgurl "$DATABASE_URL") && psql "$u" -c "SELECT 1"': False,
+        'u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql': False,
+    }
+    for text, flagged in shapes.items():
+        root = tmp_path / str(abs(hash(text)))
+        (root / "templates").mkdir(parents=True)
+        (root / "src" / "fabrik").mkdir(parents=True)
+        (root / "src" / "fabrik" / "scaffold.py").write_text("")
+        (root / "templates" / "T.md").write_text(text.replace("\\n", "\n") + "\n")
+        monkeypatch.setitem(globals(), "REPO_ROOT", root)
+        try:
+            test_no_template_runs_psql_on_a_driver_dsn()
+            got = False
+        except AssertionError:
+            got = True
+        assert got is flagged, (text, got)
+
+
+def test_pgurl_rewrites_a_driver_dsn_for_libpq():
+    """Both seeded pgurl copies, run by POSIX sh (dash), yield a libpq URI and refuse an empty DSN."""
+    import subprocess
+
+    defs = {
+        name: next(
+            ln
+            for ln in (REPO_ROOT / "templates/scaffold/docs" / name)
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if ln.startswith("pgurl()")
+        )
+        for name in ("TROUBLESHOOTING_TEMPLATE.md", "CONFIGURATION_TEMPLATE.md")
+    }
+    assert len(set(defs.values())) == 1, "the two pgurl copies drifted"
+    definition = next(iter(defs.values()))
+    cases = {
+        "postgresql+asyncpg://shop@10.99.0.1:5432/shop?ssl=require": (
+            "postgresql://shop@10.99.0.1:5432/shop?sslmode=require"
+        ),
+        "postgresql+psycopg://u@h/d?application_name=x&ssl=prefer&ssl=disable": (
+            "postgresql://u@h/d?application_name=x&sslmode=prefer&sslmode=disable"
+        ),
+        "postgres+asyncpg://u@h/d": "postgres://u@h/d",
+        "postgresql+asyncpg:///db?host=/var/run/postgresql": "postgresql:///db?host=/var/run/postgresql",
+        "postgresql://u:a&ssl=x@h/my&ssl=db": "postgresql://u:a&ssl=x@h/my&ssl=db",
+        "postgresql://u:p+asyncpg@h/d": "postgresql://u:p+asyncpg@h/d",
+    }
+    for dsn, want in cases.items():
+        out = subprocess.run(
+            ["sh", "-c", definition + '\npgurl "$1"', "sh", dsn],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert out == want, (dsn, out)
+    empty = subprocess.run(
+        ["sh", "-c", definition + '\nu=$(pgurl "") && echo RAN'], capture_output=True, text=True
+    )
+    assert empty.returncode != 0 and "RAN" not in empty.stdout

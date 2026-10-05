@@ -31,6 +31,20 @@ All notable changes to this project will be documented in this file.
 - On trade-intelligence's real tree it keeps 20 of 20 comments, where HEAD kept 17, and leaves both plan sets collapsed. A second run is a no-op.
 - 7 graders. Follow-up W-3efb9553 covers `--only` and plan-set directories.
 
+### Fixed — seeded `psql` calls go through a `pgurl` helper, so a `postgresql+asyncpg://` DSN works (2026-10-05)
+`templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` and `CONFIGURATION_TEMPLATE.md` seeded `psql $DATABASE_URL` and
+`psql "$DATABASE_URL_OWNER"`. A project that writes its DSN in the rule-pack form (`postgresql+asyncpg://`; Fabrik's own
+scaffold and `fabrik apply` write plain `postgresql://`) got nothing useful: libpq does not recognise the scheme and
+takes the whole string as a database NAME on the local socket, and an asyncpg `?ssl=` is refused outright
+(brand-identiy-creator, 01M464NPPB). Both docs now define a POSIX `pgurl()` (drops a lowercase `+driver`, maps `ssl=` to
+`sslmode=` in the query string only, refuses an empty DSN, runs in a subshell) and every call runs `u=$(pgurl "$DATABASE_URL") && psql "$u"`,
+so an unset variable stops instead of psql falling back to the local default database; the generated `db/schema.sql`
+headers point at it. Other asyncpg-only query keys still need removing by hand.
+`tests/test_scaffold_doc_seeding.py` refuses a psql/pg_dump/pg_isready/pg_restore call (backslash continuations
+joined) that reaches either variable other than as `u=$(pgurl "$VAR") && <cmd> "$u"`, in any template file or
+`src/fabrik/scaffold.py` (whose `.replace()` search strings and labelled plain-DSN header line are exempt), proves
+it flags the fail-open shapes, and runs both helper copies under `sh`. Projects already scaffolded keep their old docs.
+
 ### Changed — `CROWDLEX_*` keys are the fleet's own youtube API, filed as internal config (2026-10-05)
 `scripts/service_catalog.json` listed `crowdlex` and `crowdlex_internal` as `unidentified`, so brand-identiy-creator's
 `/fabrik-catchup` probe could not tell `CROWDLEX_API_URL=http://crowdlex-api:8031` from a dead reference
