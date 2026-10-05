@@ -10,6 +10,7 @@ vendored file by name (the gate passes files explicitly, which is why the templa
 """
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,7 +24,9 @@ requires_fabrik_env = pytest.mark.skipif(
     reason="Requires full fabrik environment at /opt/fabrik",
 )
 
-BIN = Path(sys.executable).parent
+# ruff resolved as scripts/final_gate.py resolves it: beside the interpreter (the venv), else PATH.
+_NEXT_TO_PYTHON = Path(sys.executable).parent / "ruff"
+RUFF = str(_NEXT_TO_PYTHON) if _NEXT_TO_PYTHON.exists() else shutil.which("ruff")
 
 
 def _run(argv: list[str], cwd: Path) -> subprocess.CompletedProcess:
@@ -32,8 +35,8 @@ def _run(argv: list[str], cwd: Path) -> subprocess.CompletedProcess:
 
 @requires_fabrik_env
 def test_scaffolded_python_api_passes_its_own_lint_and_types(tmp_path):
-    ruff = BIN / "ruff"
-    assert ruff.exists(), f"ruff is not installed next to {sys.executable}"
+    assert RUFF, f"ruff is neither beside {sys.executable} nor on PATH"
+    ruff = RUFF
     create_project(
         name="gate-clean",
         project_type="python-api",
