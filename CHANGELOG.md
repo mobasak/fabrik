@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the VPS drift check compares each host's installed cron file with the template (2026-10-05)
+`/etc/cron.d/vps-sysadmin` is rendered by bootstrap step 14 on a spoke and was hand-built on the hub;
+`scripts/sync-vps-sysadmin.sh` never writes it, so a `sysadmin-cron.template` edit stayed inert and invisible.
+`scripts/sysadmin/vps_script_drift.py`'s single ssh session now also reads that file (sh builtins only, closed by a
+`CRON-END` sentinel) and compares the set of `/opt/fabrik/scripts/…` paths its non-comment lines schedule with the
+COMMITTED template's — paths, not bytes, since minutes differ per host. New tier-1 lines `CRONMISSING`,
+`CRONEXTRA`, `CRONUNREADABLE` and `CRONUNVERIFIED` reach the mail, which names the cron-only remedy (reinstall that
+one file rendered with the host's minutes, never re-run step 14 whole: it overwrites `.env.sysadmin`).
+Graders in `tests/test_vps_script_drift.py` (W-73feca74).
+
 ### Fixed — spokes receive the audit scripts and checklists their cron jobs read (2026-10-05)
 Every host installs the same sysadmin cron set, so vps2/vps3 run `weekly-security.sh` and `monthly-backup-verify.sh`,
 which read `scripts/audit/03-security.sh`, `scripts/audit/06-backup.sh` and their checklists under
