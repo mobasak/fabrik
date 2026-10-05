@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docs_updater --sync keeps a project's own INDEX rows (2026-10-05)
+- `scripts/docs_updater.py --sync` (fleet-synced) used to rebuild INDEX.md's STRUCTURE block with row comments taken only from a hard-coded hub dict, and it expanded every directory. A project's hand-written `# description` was lost or overwritten with Fabrik wording, and a directory collapsed by hand was expanded (trade-intelligence 01M3RTNQ, W-961bede1).
+- It now parses the current block first:
+  - a row keeps its own comment unless that comment is current or retired hub text (the new `_RETIRED_HUB_COMMENTS` holds the 80 wordings the dict has dropped), so hub rewording still reaches every repo;
+  - a directory written `name/` with no children shown stays collapsed;
+  - a row under an unparseable parent is skipped, never applied to the wrong file.
+- On trade-intelligence's real tree it keeps 20 of 20 comments, where HEAD kept 17, and leaves both plan sets collapsed. A second run is a no-op.
+- 7 graders. Follow-up W-3efb9553 covers `--only` and plan-set directories.
+
 ### Fixed — the WIP net fsyncs what it writes, so a crash cannot leave zero-byte objects (2026-10-05)
 - `scripts/wip_backup.sh` now runs every git call with `core.fsync=objects,reference`, appended to any `GIT_CONFIG_*` the caller set. Git 2.43's default, `committed,-loose-object`, fsyncs neither loose objects nor refs. An unclean WSL shutdown during a run on 2026-09-25 left web-ecommerce-factory with 123 zero-byte objects and 50 zero-byte `refs/wip` files, and every later push there died in `pack-objects` (web-ecommerce-factory 01M3RRQJ, W-dbb3073f). A full real run takes 43 s against the 15-minute cadence. `docs/workstation/wip-backup-safety-net.md` gains the repair recipe and the fleet check.
 
