@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — plan-review friction: the in-artifact ledger md5 and the scratch plan-dir name (2026-10-05)
+
+- `term-edit` (17 commands) now says how to check a pin when the Pass Ledger lives in the artifact: delete the previous row and the pin must hash to that row's end hash; `check_plan_tickets --plan-dir` names the remedy for a non-dated scratch copy (iterative_image_editor 01M3QA5R, D-581).
+
 ### Fixed — a monolith plan's CONVERGED flip is held to the closing-row rule (2026-10-05)
 
 - `check_convergence.py` now refuses a monolith plan newly flipping CONVERGED (`_check_plan`) or EXECUTED (`_check_executed_plan`) whose last counter Pass row does not read `confirmed: 0`, as it already did for plan sets (trade-intelligence 01M3Q9CX). Fleet census: 0 of 44 CONVERGED and 3 of 281 EXECUTED monoliths end on a nonzero row; all three are already settled, so none reddens.

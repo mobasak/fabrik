@@ -1510,6 +1510,7 @@ def test_cli_plan_dir_validation_messages(tmp_path: Path) -> None:
     bad.mkdir(parents=True)
     r2 = subprocess.run(cmd + [str(bad)], cwd=root, capture_output=True, text=True)
     assert r2.returncode == 1 and "not a dated plan directory" in r2.stdout
+    assert "keeps the set's dated directory name" in r2.stdout  # iie 01M3QA5R: the remedy
     outside = tmp_path / "elsewhere" / "2026-01-01-plan-9-x"
     outside.mkdir(parents=True)
     r3 = subprocess.run(cmd + [str(outside)], cwd=root, capture_output=True, text=True)
