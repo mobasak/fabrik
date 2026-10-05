@@ -1,7 +1,7 @@
 # work.py commit-items — the main checkout commits its store (W-4238b6ec)
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = c51f15bc462b3ff42589cf85f2e62d08e6513adc; `git diff HEAD -- scripts/work.py tests/test_work_commit_items.py tests/test_work_stop_autonomy.py tests/test_work_contract_rule.py CLAUDE.md templates/governance/CLAUDE.md docs/reference/work-tracking.md` + 1 untracked file(s) md5 f0f7df556ced3de129f44f5b93b33a77 (43372 bytes)
+**Surface:** `git rev-parse HEAD` = 665e16c437bebd7e556d1364cdb23893c4cd9c91; range tip 53ed601ac1662e3b605a8ce7269b8faf7310843f; `git diff c51f15bc4..53ed601ac -- scripts/work.py tests/test_work_commit_items.py tests/test_work_stop_autonomy.py tests/test_work_contract_rule.py CLAUDE.md templates/governance/CLAUDE.md docs/reference/work-tracking.md` md5 6d05c6f34cb35890c8113c5f2d160283 (43901 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/work.py`, `tests/test_work_commit_items.py`, `tests/test_work_stop_autonomy.py`, `tests/test_work_contract_rule.py`, `CLAUDE.md`, `templates/governance/CLAUDE.md`, `docs/reference/work-tracking.md`
 **Lane:** fabrik-task
 
