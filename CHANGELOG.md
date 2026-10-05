@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a monolith plan's CONVERGED flip is held to the closing-row rule (2026-10-05)
+
+- `check_convergence.py` now refuses a monolith plan newly flipping CONVERGED (`_check_plan`) or EXECUTED (`_check_executed_plan`) whose last counter Pass row does not read `confirmed: 0`, as it already did for plan sets (trade-intelligence 01M3Q9CX). Fleet census: 0 of 44 CONVERGED and 3 of 281 EXECUTED monoliths end on a nonzero row; all three are already settled, so none reddens.
+
 ### Fixed — merge requests no longer refuse a branch whose src/ holds a stdlib-named package (2026-10-05)
 
 - `merge_request.py` step (c)'s touched-tests fallback places the merged `src` (or the tree root for a package-style `src/`) after the stdlib via a `sitecustomize` shim, ignores the caller's `PYTHONPATH`, and prefers the main checkout's `.venv` python; `.fabrik/merge-tests` is unchanged (web-ecommerce-factory 01M453XP, D-580).
