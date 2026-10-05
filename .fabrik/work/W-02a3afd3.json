@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Friction from a 3-agent repo — tryton-crm, agent-3, 2026-09-29/30 (operator asked for the full list)"
 }

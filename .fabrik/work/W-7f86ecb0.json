@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T07:42:22.018449Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7f86ecb0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: grep fleet mail and kaizen logs for same-file rewrite collisions outside plans; build only if more than one repo hit it",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "work.py has no path claim for an ad-hoc (non-plan) whole-file rewrite: two agents rewrote docs/QUICKSTART.md in one window (tryton-crm 01M3QJCV item 9); plan-locks cover plans only. Measure recurrence before adding a verb"
+}
