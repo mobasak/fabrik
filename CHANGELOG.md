@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a freshly scaffolded python project passes its own lint and type gate (2026-10-05)
+tryton-crm's completion gate went red right after scaffolding (01M3Q3DBYF, relayed as 01M44YG3CA): the vendored
+GlitchTip scrubber `src/<pkg>/glitchtip_init.py` (byte-parity with site-provisioner) was linted under the project's
+rules — ruff ARG001 ×5, mypy no-any-return ×2 — because `templates/scaffold/python/pyproject.toml.template` carried
+no exclusion for it. The template now excludes it from ruff with `force-exclude = true` (the gate passes files by
+name, which a plain `extend-exclude` ignores) and gives it a mypy `ignore_errors` override. The same measurement
+found three more defects in hub-authored output: the generated `tests/test_glitchtip_no_secret_leak.py` (ARG002 ×2,
+SIM105) and `internal_auth.py` / `logger.py` failing `ruff format --check`. All are fixed at their generators, and
+`tests/test_scaffold_output_passes_gate.py` scaffolds a python-api project and runs the four tools on it. Existing
+projects need the two pyproject blocks added by hand.
+
 ### Fixed — seeded `psql` calls go through a `pgurl` helper, so a `postgresql+asyncpg://` DSN works (2026-10-05)
 `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` and `CONFIGURATION_TEMPLATE.md` seeded `psql $DATABASE_URL` and
 `psql "$DATABASE_URL_OWNER"`. A project that writes its DSN in the rule-pack form (`postgresql+asyncpg://`; Fabrik's own

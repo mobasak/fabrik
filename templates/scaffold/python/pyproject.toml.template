@@ -72,6 +72,10 @@ packages = ["src/<package_name>"]
 target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
+# glitchtip_init.py is VENDORED from site-provisioner (byte-parity with upstream): never lint or reformat it
+# here. force-exclude keeps the exclusion when a tool passes the file by name, as the completion gate does.
+extend-exclude = ["src/<package_name>/glitchtip_init.py"]
+force-exclude = true
 
 [tool.ruff.lint]
 select = [
@@ -124,6 +128,11 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+# The vendored scrubber (see [tool.ruff] extend-exclude): its typing is upstream's.
+[[tool.mypy.overrides]]
+module = "<package_name>.glitchtip_init"
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -821,21 +821,35 @@ def _logger_py_content(name: str, package_name: str) -> str:
         f"    # Matches a param whose NAME CONTAINS a credential word, not one that equals it:\n"
         f"    # `X-Amz-Signature` and `X-Amz-Credential` (presigned S3 URLs, which a boto3 worker\n"
         f"    # logs routinely) leaked past an equality list -- measured 2026-09-02.\n"
-        f'    re.compile(r"([?&][^=&\\s]*(?:signature|api_?key|token|password|secret|credential|auth)[^=&\\s]*=)[^&\\s]+", re.I),\n'
+        f"    re.compile(\n"
+        f'        r"([?&][^=&\\s]*(?:signature|api_?key|token|password|secret|credential|auth)[^=&\\s]*=)[^&\\s]+",\n'
+        f"        re.I,\n"
+        f"    ),\n"
         f"    # Authorization: Bearer <jwt-or-opaque>\n"
         f'    re.compile(r"((?:Bearer|Basic)\\s+)[A-Za-z0-9._~+/=-]{{8,}}", re.I),\n'
         f"    # vendor-prefixed keys: sk-..., ghp_..., xoxb-...\n"
         f'    re.compile(r"\\b(sk-|ghp_|gho_|xoxb-|xoxp-)[A-Za-z0-9_-]{{12,}}"),\n'
         f"]\n"
         f"\n"
-        f"_SENSITIVE_KEYS = frozenset({{\n"
-        f'    "api_key", "password", "token", "authorization", "secret",\n'
-        f'    "key", "access_token", "refresh_token", "cookie",\n'
-        f"}})\n"
+        f"_SENSITIVE_KEYS = frozenset(\n"
+        f"    {{\n"
+        f'        "api_key",\n'
+        f'        "password",\n'
+        f'        "token",\n'
+        f'        "authorization",\n'
+        f'        "secret",\n'
+        f'        "key",\n'
+        f'        "access_token",\n'
+        f'        "refresh_token",\n'
+        f'        "cookie",\n'
+        f"    }}\n"
+        f")\n"
         f"\n"
         f"\n"
         f"def _redact_sensitive(\n"
-        f"    _logger: Any, _method_name: str, event_dict: MutableMapping[str, Any],\n"
+        f"    _logger: Any,\n"
+        f"    _method_name: str,\n"
+        f"    event_dict: MutableMapping[str, Any],\n"
         f") -> MutableMapping[str, Any]:\n"
         f'    """Redact PII/secrets from log entries (GDPR/KVKK safe).\n'
         f"\n"
@@ -858,8 +872,12 @@ def _logger_py_content(name: str, package_name: str) -> str:
         f"\n"
         f"\n"
         f"_LOG_LEVELS = {{\n"
-        f'    "DEBUG": 10, "INFO": 20, "WARNING": 30, "WARN": 30,\n'
-        f'    "ERROR": 40, "CRITICAL": 50,\n'
+        f'    "DEBUG": 10,\n'
+        f'    "INFO": 20,\n'
+        f'    "WARNING": 30,\n'
+        f'    "WARN": 30,\n'
+        f'    "ERROR": 40,\n'
+        f'    "CRITICAL": 50,\n'
         f"}}\n"
         f"\n"
         f"\n"
@@ -929,7 +947,11 @@ def _logger_py_content(name: str, package_name: str) -> str:
         f"    # correlation_id but does NOT log the request, so silencing uvicorn.access would\n"
         f"    # delete every request record rather than de-duplicate it.\n"
         f"    for _name in (\n"
-        f'        "uvicorn", "uvicorn.error", "uvicorn.access", "gunicorn", "gunicorn.error",\n'
+        f'        "uvicorn",\n'
+        f'        "uvicorn.error",\n'
+        f'        "uvicorn.access",\n'
+        f'        "gunicorn",\n'
+        f'        "gunicorn.error",\n'
         f"    ):\n"
         f"        _lg = logging.getLogger(_name)\n"
         f"        _lg.handlers = []\n"
@@ -1608,6 +1630,7 @@ def _scaffold_fastapi_backend(dest_dir: Path, name: str, package_name: str) -> N
         f"  from {package_name}.internal_auth import require_internal_token\n"
         "  # In router: dependencies=[Depends(require_internal_token)]\n"
         '"""\n'
+        "\n"
         "import hmac\n"
         "import os\n"
         "\n"
