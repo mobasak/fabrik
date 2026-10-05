@@ -383,3 +383,20 @@ def test_governance_template_names_adopt():
     # in here as a copy-paste of the old operating-model prose, not as evidence of a removal.
     assert "tail sweep" not in text
     assert "docs_updater.py --adopt" in text
+
+
+def test_no_template_runs_psql_on_a_driver_dsn():
+    """A seeded debug command must work on the DSN the rule pack mandates (postgresql+asyncpg://):
+    psql/libpq rejects the +asyncpg scheme, so every template psql call strips it (01M464NPPB)."""
+    import re
+
+    bare = re.compile(r"psql\s+(?:-\S+\s+)*\"?\$\{?DATABASE_URL\}?\"?(?:\s|`|$)")
+    hits = [
+        f"{p.relative_to(REPO_ROOT)}:{n}: {line.strip()}"
+        for p in sorted((REPO_ROOT / "templates").rglob("*"))
+        if p.is_file() and p.suffix in {".md", ".j2", ".template", ".sh", ".yaml", ".yml"}
+        for n, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1)
+        if bare.search(line)
+    ]
+    assert hits == [], hits
+

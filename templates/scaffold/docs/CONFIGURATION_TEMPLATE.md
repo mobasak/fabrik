@@ -183,12 +183,12 @@ cat PORTS.md
 |---------|-------|-----|
 | Config validation failed | Missing required env var | Check `.env` against `.env.example` |
 | Port already in use | Another service on same port | Check `PORTS.md`, pick next available |
-| Database unreachable | Wrong `DATABASE_URL` or network | Verify: `psql $DATABASE_URL` |
+| Database unreachable | Wrong `DATABASE_URL` or network | Verify: `psql "${DATABASE_URL/+asyncpg/}"` |
 | Service starts but unhealthy | Dependency not ready | Check `/health` response for failing deps |
 
 ```bash
 # Debug commands
-psql $DATABASE_URL              # Test DB connection
+psql "${DATABASE_URL/+asyncpg/}"  # Test DB connection (drops SQLAlchemy's +asyncpg)
 lsof -i :$PORT                  # Check port availability
 grep -vE '^#|^$' .env      # Show active env vars
 ```

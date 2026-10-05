@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scaffold debug commands run `psql` on a libpq DSN, not SQLAlchemy's `+asyncpg` one (2026-10-05)
+`templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` and `CONFIGURATION_TEMPLATE.md` seeded `psql $DATABASE_URL`
+in four places. The python rule pack mandates `DATABASE_URL=postgresql+asyncpg://…`, which libpq rejects as an
+invalid URI, so the seeded command failed in every project that followed the rule (brand-identiy-creator,
+01M464NPPB). All four now run `psql "${DATABASE_URL/+asyncpg/}"`, a no-op on a plain DSN, and
+`tests/test_scaffold_doc_seeding.py::test_no_template_runs_psql_on_a_driver_dsn` refuses a bare `psql $DATABASE_URL`
+in any template.
+
 ### Changed — `CROWDLEX_*` keys are the fleet's own youtube API, filed as internal config (2026-10-05)
 `scripts/service_catalog.json` listed `crowdlex` and `crowdlex_internal` as `unidentified`, so brand-identiy-creator's
 `/fabrik-catchup` probe could not tell `CROWDLEX_API_URL=http://crowdlex-api:8031` from a dead reference
