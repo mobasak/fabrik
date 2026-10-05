@@ -10,10 +10,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import textwrap
 from pathlib import Path
+
+import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "sysadmin" / "vps_script_drift.py"
@@ -359,7 +362,7 @@ def test_template_targets_covered():
 # ── Behaviour 7: weekly_catchup.sh — stamp only on collector success; rider at most daily ────────
 
 
-def _catchup_env(tmp: Path, collector_rc: int) -> tuple[dict, Path]:
+def _catchup_env(tmp: Path, collector_rc: int, drift_rc: int = 1) -> tuple[dict, Path]:
     root = tmp / "root"
     sysadmin = root / "scripts" / "sysadmin"
     sysadmin.mkdir(parents=True)
@@ -368,7 +371,7 @@ def _catchup_env(tmp: Path, collector_rc: int) -> tuple[dict, Path]:
         ("kaizen_collect_v2.py", collector_rc),
         ("feedback_relay.py", 0),
         ("rules_currency_watch.py", 0),
-        ("vps_script_drift.py", 1),
+        ("vps_script_drift.py", drift_rc),
     ):
         (sysadmin / name).write_text(
             f"import sys\nopen({str(log)!r}, 'a').write({name!r} + '\\n')\nsys.exit({rc})\n"
@@ -401,3 +404,177 @@ def test_drift_rider_daily_stamp(tmp_path):
     assert calls.count("kaizen_collect_v2.py") == 2  # the failing collector retries
     assert calls.count("vps_script_drift.py") == 1  # the drift rider does not
     assert (state / "daily-vps_script_drift.stamp").exists()
+
+
+def test_collector_success_stamps(tmp_path):
+    env, state = _catchup_env(tmp_path, collector_rc=0)
+    r = subprocess.run(
+        ["bash", str(CATCHUP), "kaizen_collect_v2.py"], env=env, capture_output=True, text=True
+    )
+    assert r.returncode == 0, r.stdout + r.stderr  # the rider's rc 1 (a verdict) does not leak
+    assert (state / "daily-kaizen_collect_v2.py.stamp").exists()
+
+
+def test_drift_rider_failure_withholds_stamp(tmp_path):
+    # rc 3 is the check itself failing: no stamp, so the next hourly run retries it.
+    env, state = _catchup_env(tmp_path, collector_rc=0, drift_rc=3)
+    r = subprocess.run(
+        ["bash", str(CATCHUP), "kaizen_collect_v2.py"], env=env, capture_output=True, text=True
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert not (state / "daily-vps_script_drift.stamp").exists()
+    assert "vps_script_drift.py FAILED (rc=3)" in r.stderr
+
+
+# ── Behaviour 8: REMOTE_CMD itself, run by a real shell; malformed input never crashes ───────────
+
+
+def _module():
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        import vps_script_drift as d
+    finally:
+        sys.path.pop(0)
+    return d
+
+
+def _host_tree(tmp: Path) -> tuple[Path, str]:
+    """A fake host root: <tmp>/host/opt/fabrik/scripts/sysadmin + autoheal, no scripts/audit (a spoke)."""
+    d = _module()
+    host = tmp / "host"
+    sysadmin = host / "opt/fabrik/scripts/sysadmin"
+    (sysadmin / "__pycache__").mkdir(parents=True)
+    (sysadmin / "with space.sh").write_text("spaced\n")
+    (sysadmin / "with space.sh").chmod(0o755)
+    (sysadmin / "plain.py").write_text("plain\n")
+    (sysadmin / "plain.py").chmod(0o644)
+    (sysadmin / "__pycache__/x.cpython-312.pyc").write_bytes(b"\0")
+    (sysadmin / "link.sh").symlink_to("plain.py")
+    autoheal = host / "usr/local/bin/fabrik-autoheal"
+    autoheal.parent.mkdir(parents=True)
+    autoheal.write_text("#!/bin/sh\nheal\n")
+    autoheal.chmod(0o755)
+    cmd = d.REMOTE_CMD.replace("/opt/fabrik/", f"{host}/opt/fabrik/").replace(
+        d.AUTOHEAL_REMOTE, str(autoheal)
+    )
+    return host, cmd
+
+
+def _parse(host: Path, text: str) -> dict:
+    d = _module()
+    return d.parse_listing(
+        text, base=f"{host}/opt/fabrik/", autoheal=f"{host}/usr/local/bin/fabrik-autoheal"
+    )
+
+
+def test_remote_cmd_real_shell(tmp_path):
+    host, cmd = _host_tree(tmp_path)
+    r = subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60)
+    got = _parse(host, r.stdout)
+    assert got["scripts/sysadmin/with space.sh"] == ("755", _md5("spaced\n")), r.stdout
+    assert got["scripts/sysadmin/plain.py"] == ("644", _md5("plain\n"))
+    assert got["scripts/vps-autoheal.sh"] == ("755", _md5("#!/bin/sh\nheal\n"))
+    assert not any("__pycache__" in k or k.endswith("link.sh") for k in got), got
+
+
+def test_remote_cmd_unreadable_file(tmp_path):
+    if os.geteuid() == 0:
+        pytest.skip("root reads a mode-000 file")
+    d = _module()
+    host, cmd = _host_tree(tmp_path)
+    (host / "opt/fabrik/scripts/sysadmin/plain.py").chmod(0)
+    r = subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60)
+    assert _parse(host, r.stdout)["scripts/sysadmin/plain.py"] == d.UNREADABLE, r.stdout
+
+
+def test_remote_cmd_without_md5sum(tmp_path):
+    d = _module()
+    host, cmd = _host_tree(tmp_path)
+    bindir = tmp_path / "nomd5"
+    bindir.mkdir()
+    for tool in ("find", "stat", "sh"):
+        (bindir / tool).symlink_to(shutil.which(tool))
+    r = subprocess.run(
+        [shutil.which("sh"), "-c", cmd],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={"PATH": str(bindir)},
+    )
+    got = _parse(host, r.stdout)
+    assert got and all(v == d.UNREADABLE for v in got.values()), r.stdout + r.stderr
+
+
+def test_unreadable_reported(tmp_path):
+    root = make_hub(tmp_path)
+    listing = remote_listing({"scripts/sysadmin/bot.py": None})
+    listing += "UNREADABLE - /opt/fabrik/scripts/sysadmin/bot.py\n"
+    listing += "garbage\n\n abc  /opt/fabrik/scripts/sysadmin/x\n"  # malformed lines are dropped
+    env = make_env(tmp_path, root, {"vps": listing})
+    r = run(env)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "UNREADABLE vps scripts/sysadmin/bot.py" in r.stdout
+    assert "MISSING vps scripts/sysadmin/bot.py" not in r.stdout
+
+
+def test_committed_symlink_not_compared(tmp_path):
+    root = make_hub(tmp_path)
+    (root / "scripts/sysadmin/alias.sh").symlink_to("claude-run.sh")
+    _git(root, "add", "scripts/sysadmin/alias.sh")
+    _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "link")
+    env = make_env(tmp_path, root, {"vps": remote_listing()})
+    r = run(env)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+@pytest.mark.parametrize(
+    "bad", ["{not json", "[1, 2]", '{"hosts": [], "unreachable_runs": {"vps3": "x"}}']
+)
+def test_corrupt_state_starts_fresh(tmp_path, bad):
+    root = make_hub(tmp_path)
+    (tmp_path / "state.json").write_text(bad)
+    drift = remote_listing({"scripts/sysadmin/claude_rotate.py": ("644", "old\n")})
+    env = make_env(tmp_path, root, {"vps": drift, "vps3": None}, now=1000)
+    r = run(env, "--mail")
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert len(mails(tmp_path)) == 1
+    saved = json.loads((tmp_path / "state.json").read_text())
+    assert saved["unreachable_runs"] == {"vps": 0, "vps3": 1}
+
+
+def test_removed_host_pruned(tmp_path):
+    root = make_hub(tmp_path)
+    (tmp_path / "state.json").write_text(
+        json.dumps({"hosts": {"old": ["DRIFT old x"]}, "unreachable_runs": {"old": 2}})
+    )
+    drift = remote_listing({"scripts/sysadmin/claude_rotate.py": ("644", "old\n")})
+    run(make_env(tmp_path, root, {"vps": drift}, now=1000), "--mail")
+    saved = json.loads((tmp_path / "state.json").read_text())
+    assert "old" not in saved["hosts"] and "old" not in saved["unreachable_runs"]
+
+
+def test_mail_command_missing_is_not_a_crash(tmp_path):
+    root = make_hub(tmp_path)
+    drift = remote_listing({"scripts/sysadmin/claude_rotate.py": ("644", "old\n")})
+    env = make_env(tmp_path, root, {"vps": drift}, now=1000)
+    env["FABRIK_DRIFT_MAIL"] = str(tmp_path / "no-such-mailer")
+    r = run(env, "--mail")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "signature" not in json.loads((tmp_path / "state.json").read_text())
+
+
+def test_check_failure_exits_three(tmp_path):
+    not_a_repo = tmp_path / "plain"
+    (not_a_repo / "scripts/bootstrap/templates").mkdir(parents=True)
+    (not_a_repo / "scripts/bootstrap/templates/sysadmin-cron.template").write_text(TEMPLATE)
+    env = make_env(tmp_path, not_a_repo, {"vps": remote_listing()})
+    env["GIT_CEILING_DIRECTORIES"] = str(tmp_path)
+    r = run(env)
+    assert r.returncode == 3, r.stdout + r.stderr
+
+
+def test_mail_body_names_renudge_days(tmp_path):
+    root = make_hub(tmp_path)
+    drift = remote_listing({"scripts/sysadmin/claude_rotate.py": ("644", "old\n")})
+    run(make_env(tmp_path, root, {"vps": drift}, now=1000), "--mail")
+    assert f"every {_module().RENUDGE_DAYS} days" in mails(tmp_path)[0]["body"]

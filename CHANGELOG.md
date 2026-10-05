@@ -5,9 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added — read-only VPS script drift check, and the kaizen collector's stamp no longer hides its failures (2026-10-05)
-`scripts/sysadmin/vps_script_drift.py` (W-c792a205) compares master's committed `HEAD` with what vps, vps2 and vps3
-execute — `scripts/sysadmin/`, the two cron-called audit scripts and fabrik-autoheal — over one BatchMode ssh each,
-and reports `DRIFT`, `MISSING` and `MODE` (lost exec bit, the 2026-09-05 `detect_reversals.py` outage). It never
+`scripts/sysadmin/vps_script_drift.py` (W-c792a205) compares the hub checkout's committed `HEAD` (master, in the
+rider) with what vps, vps2 and vps3 execute — `scripts/sysadmin/`, the two cron-called audit scripts and
+fabrik-autoheal — over one BatchMode ssh each, and reports `DRIFT`, `MISSING`, `MODE` (lost exec bit, the
+2026-09-05 `detect_reversals.py` outage) and `UNREADABLE`; exit 3 means the check itself failed. It never
 pushes. A daily rider on `weekly_catchup.sh kaizen_collect_v2.py` runs it with `--mail`: fleet is mailed once per
 distinct drift of the executed tier, again every 7 days while it persists, and once when a host stays unreachable for
 3 runs. The same edit fixes `weekly_catchup.sh`: `rc=$?` after `esac` read the last rider's `|| true`, so a failing

@@ -106,11 +106,17 @@ case "$JOB" in
         "$PY" "$ROOT/scripts/sysadmin/rules_currency_watch.py" || true
         # RIDER (W-c792a205, non-fatal): read-only VPS script drift check — mails fleet when a
         # host is not running the hub's committed scripts. Its OWN daily stamp keeps it at one
-        # ssh round per day even while a failing collector retries hourly.
+        # ssh round per day even while a failing collector retries hourly. 0/1/2 are verdicts
+        # and stamp; 3 (the check itself failed) or 127 (no interpreter) leaves it to retry.
         DRIFT_STAMP="$STATE/daily-vps_script_drift.stamp"
         if [ ! -f "$DRIFT_STAMP" ] || [ $(( $(date +%s) - $(stat -c %Y "$DRIFT_STAMP") )) -ge "$DAILY" ]; then
-            "$PY" "$ROOT/scripts/sysadmin/vps_script_drift.py" --mail || true
-            touch "$DRIFT_STAMP"
+            "$PY" "$ROOT/scripts/sysadmin/vps_script_drift.py" --mail
+            drift_rc=$?
+            if [ "$drift_rc" -le 2 ]; then
+                touch "$DRIFT_STAMP"
+            else
+                echo "weekly_catchup: vps_script_drift.py FAILED (rc=${drift_rc}) — will retry next hour" >&2
+            fi
         fi
         (exit "$job_rc")
         ;;

@@ -10,26 +10,31 @@ inert for six days while ``detect_reversals.py`` failed 1,597 times on a lost ex
 it never pushes. Deploying stays the operator-approved run of the sync (a VPS write).
 
 What it compares
-  * Reference = the hub's COMMITTED ``HEAD`` in ``FABRIK_ROOT`` (default ``/opt/fabrik``), via git — never the
-    working tree, so a sibling's uncommitted edit is not "the hub's version". Consequence: a host synced from
-    a dirty tree reads as DRIFT until that work is committed (production is running uncommitted code).
-  * Tier 1 drives the exit code, the signature and the mail: every ``/opt/fabrik/scripts/sysadmin/<f>`` the
+  * Reference = the COMMITTED ``HEAD`` of whatever branch is checked out in ``FABRIK_ROOT`` (default
+    ``/opt/fabrik``, the main checkout on master), via git — never the working tree, so a sibling's uncommitted
+    edit is not "the hub's version". Consequence: a host synced from a dirty tree reads as DRIFT until that
+    work is committed (production is running uncommitted code). Committed symlinks are not compared.
+  * Tier 1 drives the signature and the mail: every ``/opt/fabrik/scripts/sysadmin/<f>`` the
     cron template names, ``TIER1_DEPENDENCIES`` (what those targets call, plus the bot), the two audit scripts
     cron calls (``AUDIT_TARGETS``) and ``scripts/vps-autoheal.sh`` (deployed as fabrik-autoheal).
   * Tier 2 is every other committed file under ``scripts/sysadmin/``: printed and counted, never mailed —
-    it churns daily and most of it never runs on a VPS.
-  * Per host, ONE read-only ``ssh -o BatchMode=yes`` session prints ``<mode> <md5> <path>`` per file.
-    ssh rc 255 or a timeout is "unreachable"; any other rc still has its stdout parsed.
+    it churns daily and most of it never runs on a VPS. A tier-2 difference still makes the exit 1.
+  * Per host, ONE read-only ``ssh -o BatchMode=yes`` session prints ``<mode> <md5> <path>`` per regular file
+    (``find -exec``, so a path with spaces survives; ``stat -L``), or ``UNREADABLE - <path>`` when the mode or
+    the md5 cannot be read. ssh rc 255 or a timeout is "unreachable"; any other rc still has its stdout parsed.
 
 Lines: ``DRIFT <host> <path>`` (content differs) · ``MISSING <host> <path>`` (committed, absent on the host)
-· ``MODE <host> <path>`` (committed executable, host copy lacks owner-exec — the 2026-09-05 shape).
-Exit: 0 clean (every host reached, nothing differs) · 1 any difference · 2 any host unreachable.
+· ``MODE <host> <path>`` (committed executable, host copy lacks owner-exec — the 2026-09-05 shape)
+· ``UNREADABLE <host> <path>`` (present, but the host could not read it or lacks stat/md5sum — unverified).
+Exit: 0 clean (every host reached, nothing differs) · 1 any difference, either tier · 2 any host unreachable
+· 3 the check itself failed (git, state, an unexpected error) — the rider then leaves its stamp and retries.
 
 ``--mail`` (watermark JSON at ``FABRIK_DRIFT_STATE``, default ``~/.claude/state/vps-script-drift.json``):
 the fleet signature is the sorted tier-1 lines of every host; an unreachable host keeps its previous lines, so
 a flapping host never changes it. A new signature, or one unchanged for ``RENUDGE_DAYS``, mails fleet
 (``ack: required``); the watermark advances only after the send succeeds and is cleared only on exit 0. A host
-unreachable on ``UNREACHABLE_RUNS`` consecutive runs mails once, so the check cannot go silently blind.
+unreachable on ``UNREACHABLE_RUNS`` consecutive runs mails once, so the check cannot go silently blind. The
+state is written atomically and a host no longer in ``FABRIK_DRIFT_HOSTS`` is dropped from it.
 
 COBRA (D-253): the cheapest way to quiet this check without deploying is to ack the mail and leave the drift
 — the RENUDGE_DAYS re-mail is the counter; the next cheapest is moving a file out of tier 1, which
@@ -46,6 +51,7 @@ import re
 import subprocess
 import sys
 import time
+import traceback
 from pathlib import Path
 
 HOSTS_DEFAULT = ("vps", "vps2", "vps3")
@@ -70,12 +76,24 @@ RENUDGE_DAYS = 7
 UNREACHABLE_RUNS = 3
 SSH_TIMEOUT = 60
 MAIL_TIMEOUT = 60
-REMOTE_CMD = (
-    "for f in $(find /opt/fabrik/scripts/sysadmin /opt/fabrik/scripts/audit -type f "
-    '! -path "*/__pycache__/*" ! -name "*.pyc" 2>/dev/null) ' + AUTOHEAL_REMOTE + "; do "
-    '[ -f "$f" ] && printf "%s %s %s\\n" "$(stat -c %a "$f")" "$(md5sum < "$f" | cut -d" " -f1)" "$f"; '
-    "done; true"
+# One line per file. Paths arrive as argv (find -exec … {} +), never through word-splitting, so a name with
+# spaces survives; a file whose mode or md5 cannot be read prints UNREADABLE rather than a false DRIFT. No
+# single quote may appear in _LIST_FILES: it is wrapped in one below.
+_LIST_FILES = (
+    'for f; do m=$(stat -L -c %a "$f" 2>/dev/null); h=$(md5sum 2>/dev/null < "$f"); h=${h%% *}; '
+    'if [ -n "$m" ] && [ -n "$h" ]; then printf "%s %s %s\\n" "$m" "$h" "$f"; '
+    'else printf "UNREADABLE - %s\\n" "$f"; fi; done'
 )
+REMOTE_CMD = (
+    "find /opt/fabrik/scripts/sysadmin /opt/fabrik/scripts/audit -type f "
+    "! -path '*/__pycache__/*' ! -name '*.pyc' -exec sh -c '"
+    + _LIST_FILES
+    + "' sh {} + 2>/dev/null; "
+    "[ -e " + AUTOHEAL_REMOTE + " ] && sh -c '" + _LIST_FILES + "' sh " + AUTOHEAL_REMOTE + "; true"
+)
+UNREADABLE = ("", "")
+_MODE_RE = re.compile(r"[0-7]{3,4}")
+_MD5_RE = re.compile(r"[0-9a-f]{32}")
 
 
 def _root() -> Path:
@@ -132,8 +150,8 @@ def committed_files(root: Path) -> dict[str, tuple[str, bool]]:
     for line in ls.splitlines():
         meta, path = line.split("\t", 1)
         mode, kind, sha = meta.split()
-        if kind != "blob" or "/__pycache__/" in path or path.endswith(".pyc"):
-            continue
+        if kind != "blob" or mode == "120000" or "/__pycache__/" in path or path.endswith(".pyc"):
+            continue  # a symlink's blob is its target text, not a script the host runs
         entries.append((path, mode, sha))
     blobs = "".join(f"{sha}\n" for _, _, sha in entries).encode()
     raw = subprocess.run(
@@ -146,7 +164,13 @@ def committed_files(root: Path) -> dict[str, tuple[str, bool]]:
     pos = 0
     for path, mode, _sha in entries:
         header_end = raw.index(b"\n", pos)
-        size = int(raw[pos:header_end].split()[2])
+        header = raw[pos:header_end].split()
+        if len(header) != 3 or header[1] != b"blob":
+            # "<sha> missing": the committed tree names a blob the object store lacks — refuse, never skip
+            raise RuntimeError(
+                f"git cat-file: {path}: {raw[pos:header_end].decode(errors='replace')}"
+            )
+        size = int(header[2])
         body = raw[header_end + 1 : header_end + 1 + size]
         pos = header_end + 1 + size + 1
         out[path] = (hashlib.md5(body).hexdigest(), mode == "100755")  # noqa: S324 — fingerprint only
@@ -166,16 +190,29 @@ def remote_listing(host: str) -> dict[str, tuple[str, str]] | None:
         return None
     if proc.returncode == 255:
         return None
+    return parse_listing(proc.stdout)
+
+
+def parse_listing(
+    text: str, base: str = REMOTE_BASE, autoheal: str = AUTOHEAL_REMOTE
+) -> dict[str, tuple[str, str]]:
+    """REMOTE_CMD's output -> repo path -> (octal mode, md5), or UNREADABLE. Malformed lines are dropped."""
     out: dict[str, tuple[str, str]] = {}
-    for line in proc.stdout.splitlines():
+    for line in text.splitlines():
         parts = line.split(" ", 2)
         if len(parts) != 3:
             continue
         mode, md5, path = parts
-        if path == AUTOHEAL_REMOTE:
-            out[AUTOHEAL_REPO] = (mode, md5)
-        elif path.startswith(REMOTE_BASE):
-            out[path[len(REMOTE_BASE) :]] = (mode, md5)
+        if mode == "UNREADABLE":
+            entry = UNREADABLE
+        elif _MODE_RE.fullmatch(mode) and _MD5_RE.fullmatch(md5):
+            entry = (mode, md5)
+        else:
+            continue
+        if path == autoheal:
+            out[AUTOHEAL_REPO] = entry
+        elif path.startswith(base):
+            out[path[len(base) :]] = entry
     return out
 
 
@@ -186,6 +223,9 @@ def compare(
     for path, (md5, exe) in sorted(expected.items()):
         if path not in remote:
             lines.append(f"MISSING {host} {path}")
+            continue
+        if remote[path] == UNREADABLE:
+            lines.append(f"UNREADABLE {host} {path}")
             continue
         mode, rmd5 = remote[path]
         if rmd5 != md5:
@@ -213,7 +253,8 @@ def _send(body: str) -> bool:
         proc = subprocess.run(
             argv, input=body, text=True, capture_output=True, timeout=MAIL_TIMEOUT
         )
-    except subprocess.TimeoutExpired:
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        print(f"vps_script_drift: mail send failed: {exc}", file=sys.stderr)
         return False
     if proc.returncode != 0:
         print(f"vps_script_drift: mail send failed rc={proc.returncode}", file=sys.stderr)
@@ -240,7 +281,7 @@ def _drift_body(tier1: list[str], tier2_count: int, unreachable: list[str]) -> s
         "Deploying is the operator-approved run of scripts/sync-vps-sysadmin.sh (a VPS write; it pushes the main",
         "checkout's working tree wholesale, so check for sibling WIP first). DRIFT can also mean a host is running",
         "uncommitted code that someone synced. MODE means the host copy lost its exec bit (cron cannot run it).",
-        "This mail repeats every 7 days while the same drift persists.",
+        f"This mail repeats every {RENUDGE_DAYS} days while the same drift persists.",
     ]
     return "\n".join(lines) + "\n"
 
@@ -251,13 +292,13 @@ def run(mail: bool) -> int:
     expected = committed_files(root)
     tier1 = set(tier1_paths(root))
     state_file = _state_path()
-    try:
-        state = json.loads(state_file.read_text()) if state_file.exists() else {}
-    except (OSError, ValueError):
-        state = {}
-    host_state = state.get("hosts", {})
-    unreach_runs = state.get("unreachable_runs", {})
-    unreach_mailed = state.get("unreachable_mailed", {})
+    state = _load_state(state_file)
+    # A host dropped from FABRIK_DRIFT_HOSTS leaves the state with it.
+    host_state = {h: v for h, v in state["hosts"].items() if h in hosts and isinstance(v, list)}
+    unreach_runs = {
+        h: v for h, v in state["unreachable_runs"].items() if h in hosts and isinstance(v, int)
+    }
+    unreach_mailed = {h: v for h, v in state["unreachable_mailed"].items() if h in hosts}
 
     printed: list[str] = []
     unreachable: list[str] = []
@@ -300,7 +341,7 @@ def run(mail: bool) -> int:
         state.pop("mailed_at", None)
     if signature and (
         signature != state.get("signature")
-        or now - float(state.get("mailed_at", 0)) >= RENUDGE_DAYS * 86400
+        or now - _num(state.get("mailed_at")) >= RENUDGE_DAYS * 86400
     ):
         if _send(_drift_body(fleet_tier1, tier2_count, unreachable)):
             state["signature"], state["mailed_at"] = signature, now
@@ -322,13 +363,41 @@ def run(mail: bool) -> int:
         }
     )
     state_file.parent.mkdir(parents=True, exist_ok=True)
-    state_file.write_text(json.dumps(state, indent=2, sort_keys=True))
+    tmp = state_file.with_name(state_file.name + ".tmp")
+    tmp.write_text(json.dumps(state, indent=2, sort_keys=True))
+    os.replace(
+        tmp, state_file
+    )  # atomic: a crash mid-write cannot leave a half state that resets the counters
     return rc
+
+
+def _num(value: object) -> float:
+    return float(value) if isinstance(value, (int, float)) else 0.0
+
+
+def _load_state(path: Path) -> dict:
+    """The watermark, with every section a dict; an unreadable or mis-shaped file is reported and reset."""
+    try:
+        state = json.loads(path.read_text()) if path.exists() else {}
+    except (OSError, ValueError) as exc:
+        print(f"vps_script_drift: state {path} unreadable ({exc}); starting fresh", file=sys.stderr)
+        state = {}
+    if not isinstance(state, dict):
+        print(f"vps_script_drift: state {path} is not an object; starting fresh", file=sys.stderr)
+        state = {}
+    for key in ("hosts", "unreachable_runs", "unreachable_mailed"):
+        if not isinstance(state.get(key), dict):
+            state[key] = {}
+    return state
 
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
-    return run(mail="--mail" in args)
+    try:
+        return run(mail="--mail" in args)
+    except Exception:  # noqa: BLE001 — any failure of the check itself is exit 3, distinct from a verdict
+        traceback.print_exc()
+        return 3
 
 
 if __name__ == "__main__":
