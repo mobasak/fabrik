@@ -21,4 +21,4 @@ means no real source supports that metric — the reason is in the hand-off mail
 | 2026-09-08 | — | 0 occ / 0 cls | — | 9.7 (n=38) | — | — | 327 filed / 2059 none / 0 unstated |
 | 2026-09-20 | — | 0 occ / 0 cls | — | 6.3 (n=49) | — | — | 491 filed / 240 none / 0 unstated |
 | 2026-09-26 | — | — | — | 32.7 (n=9) | — | — | 5 filed / 4 none / 0 unstated |
-| 2026-09-30 | — | — | — | 22.9 (n=15) | — | — | 18 filed / 15 none / 0 unstated |
+| 2026-10-04 | — | — | — | 23.7 (n=19) | — | none fixed in-pass — top friction is the run-record Stop block firing every turn while background review seats run (premature_stop_rate 53%, 461/865; ~40 such blocks in one infra session 2026-10-05); a synced-hook change owing a full review, so W-4c7edc74 raised to P1 | 18 filed / 15 none / 0 unstated · W-4c7edc74 (P1), W-54b0e523, W-67fc4aad |
