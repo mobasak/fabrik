@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-04T22:14:12.511842Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "72a3c30b169d4175be1fdf1bb043ffdcd1a62421",
   "id": "W-0a890331",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "parity template: catch ValueError from a NUL byte in .env and report load_env() returning False"
 }
