@@ -134,7 +134,7 @@ persists across rounds:
 not capped and nothing is refused on the budget: past it, a non-terminal round report ADVISES the close — `handoff`
 with the failing slices and their claims named. `round --slices A:12/12,B:5/6` stores the per-slice claim ledger
 (`verified/claims` per round-1 slice; a malformed value, `verified > claims`, a zero-claim slice or a repeated name is
-refused, rc 2; a later round that OMITS the ledger after an earlier round stated it is `⛔ NOT TERMINAL` and `done`
+refused, rc 2; a later round that OMITS the ledger, or any slice ANY earlier round stated, is `⛔ NOT TERMINAL` and `done`
 refuses it — the omission is the gate's cobra, written down in `_parse_slices`). A round that
 states slices is TERMINAL only when every slice's ledger is verified — a quiet, all-classes-clean round with a slice at
 `5/6` prints `⛔ NOT TERMINAL — slice B has 1 open claim … its owning seat's next pass is owed`. `done` refuses (rc 1)

@@ -6582,6 +6582,50 @@ def test_every_review_command_that_includes_a_termination_fragment_states_confir
     )
 
 
+def test_a_slice_omitted_for_several_rounds_stays_vanished_until_restated(run_dir: Path) -> None:
+    """W-aa53dfc6: `_vanished_slices` compared the last round only with the most recent earlier
+    round that stated slices, so a slice dropped two rounds running read clean and `done` closed.
+    Every slice ANY earlier round stated is owed — C, first stated in round 2, included."""
+    _start(run_dir)
+    quiet = ("--findings", "0", "--confirmed", "0", "--classes-swept", "a")
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "2",
+        "--confirmed",
+        "2",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:0/2,B:0/3",
+    )
+    _cr(run_dir, "round", *quiet, "--slices", "A:2/2,C:0/1")
+    _cr(run_dir, "round", *quiet, "--slices", "A:2/2")
+    out = _cr(run_dir, "round", *quiet, "--slices", "A:2/2").stdout
+    assert "NOT TERMINAL" in out and "(B, C)" in out and "TERMINAL VERDICT" not in out, out
+    refused = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
+    assert refused.returncode == 1 and "missing from the last round's ledger" in refused.stderr, (
+        refused.returncode,
+        refused.stderr,
+    )
+    back = _cr(run_dir, "round", *quiet, "--slices", "A:2/2,B:3/3,C:1/1").stdout
+    assert "TERMINAL VERDICT" in back and "NOT TERMINAL" not in back, back
+
+
+def test_an_unrestatable_stored_slice_name_is_never_owed() -> None:
+    """W-aa53dfc6 mirror: a hand-edited row's nameless slice reads as `?`, a name `--slices` refuses,
+    so counting it as vanished would make `done` unreachable for the rest of the run."""
+    command_run = _load("cr_vanish", _SCRIPT)
+    rounds = [
+        {"slices": [{"claims": 1, "verified": 1}]},
+        {"slices": [{"name": "A", "claims": 1, "verified": 1}]},
+    ]
+    assert command_run._vanished_slices(rounds) == []
+    rounds.insert(0, {"slices": [{"name": "B", "claims": 1, "verified": 0}]})
+    assert command_run._vanished_slices(rounds) == ["B"]
+
+
 def test_start_normalises_command_case_so_review_family_branches_fire(run_dir: Path) -> None:
     """W-5aa12ff3: `start` stripped the leading slash but not the case, so a record opened as
     `--command Fabrik-Review` failed every case-SENSITIVE `in REVIEW_FAMILY` /

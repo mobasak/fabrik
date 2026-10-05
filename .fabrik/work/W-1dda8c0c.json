@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T01:00:32.062735Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1dda8c0c",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "(1) fabrik-repo-review.md round recipes (:64 batch, :165 certification) never pass --slices — decide whether its rounds record slices, align with fabrik-review.md:480; (2) .windsurf/rules/core/62-using-subagents.md:51 'not re-dispatched' lacks the restatement instruction; (3) fabrik-review.md:481 TERMINAL sentence omits 'every --slices ledger verified, none omitted'; (4) shrink-claims cobra: a slice restated at fewer claims than an earlier round (B:0/3 then B:1/1) reads verified — measure whether a refuted claim may legitimately lower claims, then refuse or flag",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "enforcement"
+  ],
+  "title": "Slice-ledger text and cobra follow-ups after D-572/D-573"
+}

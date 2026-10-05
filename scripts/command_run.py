@@ -322,19 +322,22 @@ CONFIRMED_REQUIRED_COMMANDS = frozenset(
 )
 
 
+_SLICE_NAME = r"([A-Za-z0-9_.\-]{1,40})"
+
+
 def _parse_slices(raw: str) -> list[dict[str, Any]] | None:
     """`A:12/12,B:5/6` → [{"name", "verified", "claims"}] — None when malformed (D-335 § 5 item 4).
 
     COBRA (D-253): the cheapest way to satisfy "every slice verified" without verifying anything
     is a ledger with nothing in it — `A:0/0` — or a later round that simply stops passing
     `--slices`. So a slice carries at least one claim, a name appears once, and `_vanished_slices`
-    treats a ledger omitted after an earlier round stated it as OPEN, never as clean.
+    treats a slice ANY earlier round stated and the last round omits as OPEN, never as clean.
     """
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for part in str(raw).split(","):
         part = part.strip()
-        m = re.fullmatch(r"([A-Za-z0-9_.\-]{1,40}):(\d{1,5})/(\d{1,5})", part)
+        m = re.fullmatch(_SLICE_NAME + r":(\d{1,5})/(\d{1,5})", part)
         if not m:
             return None
         verified, claims = int(m.group(2)), int(m.group(3))
@@ -370,18 +373,23 @@ def _failing_slices(row: Any) -> list[dict[str, Any]]:
 
 
 def _vanished_slices(rounds: list[Any]) -> list[str]:
-    """The slice names an earlier round stated that the LAST round no longer states — the omission
-    cobra of the slice gate (chunk-2 review A2): both the terminal and `done` read the last round
-    only, so dropping `--slices`, or dropping the one slice still open from it, would read as
-    every slice verified."""
+    """The slice names ANY earlier round stated that the LAST round no longer states, in
+    first-stated order — the omission cobra of the slice gate (chunk-2 review A2): both the
+    terminal and `done` read the last round only, so dropping `--slices`, or dropping the one
+    slice still open from it, would read as every slice verified. Every earlier round, not only
+    the latest one that stated slices: comparing with the latest let a slice dropped two rounds
+    running read clean (W-aa53dfc6). A stored name `--slices` would refuse (a hand-edited row's
+    `?`) is skipped, because it could never be restated and would trap `done` forever."""
     if not rounds:
         return []
     last = {s["name"] for s in _slice_rows(rounds[-1])}
-    for row in reversed(rounds[:-1]):
-        names = [s["name"] for s in _slice_rows(row)]
-        if names:
-            return [n for n in names if n not in last]
-    return []
+    owed: list[str] = []
+    for row in rounds[:-1]:
+        for s in _slice_rows(row):
+            name = s["name"]
+            if name not in owed and re.fullmatch(_SLICE_NAME, name):
+                owed.append(name)
+    return [n for n in owed if n not in last]
 
 
 PER_UNIT_ROUND_COMMANDS = frozenset(
@@ -775,7 +783,7 @@ def _round_report(rec: dict[str, Any]) -> str:
             "⛔ NOT TERMINAL — slice ledger missing this round for ("
             + ", ".join(vanished)
             + "), stated by an earlier round; every later pass re-states `--slices` for every "
-            "round-1 slice — an omitted slice is open, never clean (D-335)"
+            "slice an earlier round stated — an omitted slice is open, never clean (D-335)"
         )
     if quiet and len(rounds) >= 2 and failing:
         lines.append(

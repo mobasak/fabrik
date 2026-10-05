@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `command_run.py` owes a slice omitted for any number of rounds (2026-10-05)
+
+- `_vanished_slices` compared the last round only with the latest round that stated slices, so a slice dropped two rounds running read clean and `done` closed; it now owes every slice any earlier round stated (W-aa53dfc6, D-573).
+
 ### Fixed — partitioned review passes restate every slice in `round --slices` (2026-10-05)
 
 - `term-coverage.md`, `term-edit.md`, `/fabrik-review`'s round recipe and the review-loop workflow doc now say a slice with no open claim is not re-dispatched but is still restated at its last `<verified>/<claims>`; omitting it cost a seatless extra round (tryton-crm 01M44GPRTVBVSCQRFPY5QGGFX5, D-572).
