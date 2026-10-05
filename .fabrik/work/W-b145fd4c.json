@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-review-scoped from a PROJECT worktree — the Workflow seat path is refused and review_loop_ledger.py is not synced"
 }
