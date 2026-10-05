@@ -105,9 +105,18 @@ REMOTE_CMD = (
     # the installed cron file: every line prefixed CRON (comments are filtered in Python, one function for both
     # sides) read with sh builtins only, then CRON-END; or one CRON-ABSENT / CRON-UNREADABLE line. Without
     # CRON-END the half did not finish, which parse_cron reports as unverified, never as every job missing.
-    "if [ -e " + CRON_REMOTE + " ]; then if [ -r " + CRON_REMOTE + " ]; then "
-    'while IFS= read -r l || [ -n "$l" ]; do printf "CRON %s\\n" "$l"; done < ' + CRON_REMOTE + "; "
-    "echo CRON-END; else echo CRON-UNREADABLE; fi; else echo CRON-ABSENT; fi; true"
+    # CRON-END follows only a successful redirect into a regular file: a directory or a failed open reads
+    # CRON-UNREADABLE. (A read error part-way through a regular file cannot be told from EOF — stated limit.)
+    "if [ -e "
+    + CRON_REMOTE
+    + " ]; then if [ -f "
+    + CRON_REMOTE
+    + " ] && [ -r "
+    + CRON_REMOTE
+    + " ]; then "
+    '{ while IFS= read -r l || [ -n "$l" ]; do printf "CRON %s\\n" "$l"; done; } < '
+    + CRON_REMOTE
+    + " && echo CRON-END || echo CRON-UNREADABLE; else echo CRON-UNREADABLE; fi; else echo CRON-ABSENT; fi; true"
 )
 UNREADABLE = ("", "")
 _MODE_RE = re.compile(r"[0-7]{1,4}")  # `stat -c %a` drops leading zeros: mode 044 prints "44"
@@ -151,7 +160,11 @@ def template_targets(root: Path) -> list[str]:
 
 # Only hub scripts: /usr/local/bin/fabrik-autoheal may be scheduled outside this file on a live host, and a
 # redirect target or a quote is not a scheduled path.
-_CRON_PATH_RE = re.compile(r"/opt/fabrik/scripts/[^\s>|;&\"'`()]+")
+_CRON_PATH_RE = re.compile(r"/opt/fabrik/scripts/[^\s>|;&\"'`(),:]+")
+# PATH=, SHELL=, MAILTO=: an environment line carries no job
+_CRON_ENV_RE = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*=")
+# cron hands the command to sh, where a whitespace-preceded # starts a comment: a path after it never runs
+_CRON_TAIL_COMMENT_RE = re.compile(r"\s#.*$")
 
 
 def cron_paths(text: str) -> set[str]:
@@ -160,9 +173,9 @@ def cron_paths(text: str) -> set[str]:
     name paths too."""
     return {
         m
-        for line in text.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-        for m in _CRON_PATH_RE.findall(line)
+        for line in text.split("\n")
+        if line.strip() and not line.lstrip().startswith("#") and not _CRON_ENV_RE.match(line)
+        for m in _CRON_PATH_RE.findall(_CRON_TAIL_COMMENT_RE.sub("", line))
         if "{{" not in m  # a templated path cannot match a rendered one
     }
 
@@ -171,7 +184,8 @@ def parse_cron(text: str) -> list[str] | None:
     """REMOTE_CMD's cron half -> the host's cron lines (comments included), None when the file is absent,
     ["CRON-UNREADABLE"] when it exists but cannot be read, ["CRON-UNVERIFIED"] when the half never reached
     CRON-END (a cut session or a failed reader)."""
-    lines = text.splitlines()
+    # split on \n only: str.splitlines also breaks on form feeds and other separators that are data in a cron line
+    lines = [ln.rstrip("\r") for ln in text.split("\n")]
     if "CRON-ABSENT" in lines:
         return None
     if "CRON-UNREADABLE" in lines:
@@ -358,6 +372,8 @@ def _drift_body(tier1: list[str], tier2_count: int, unreachable: list[str]) -> s
         "scripts/bootstrap/templates/sysadmin-cron.template. Reinstall THAT FILE ONLY (a VPS write): render the",
         "template with the host's two minute slots (the sed in bootstrap-vps.sh step 14) and `sudo install -m 644",
         "-o root -g root` it — never re-run step 14 whole on a live host: it also overwrites .env.sysadmin.",
+        f"CRONUNREADABLE/CRONUNVERIFIED mean the check could not read {CRON_REMOTE} or the listing was cut",
+        "short: re-run the check before touching the host.",
         f"This mail repeats every {RENUDGE_DAYS} days while the same drift persists.",
     ]
     return "\n".join(lines) + "\n"

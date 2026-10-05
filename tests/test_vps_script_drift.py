@@ -789,3 +789,62 @@ def test_remote_cmd_cron_half_needs_only_shell_builtins(tmp_path):
         "/opt/fabrik/scripts/sysadmin/detect_reversals.py",
         "/opt/fabrik/scripts/sysadmin/weekly-maintenance.sh",
     }, out
+
+
+def _cron_half(tmp: Path, target: Path) -> str:
+    d = _module()
+    _host, cmd = _host_tree(tmp)
+    cmd = cmd.replace(d.CRON_REMOTE, str(target))
+    return subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60).stdout
+
+
+def test_remote_cmd_cron_path_not_a_file_is_unreadable(tmp_path):
+    """A directory at the cron path makes the reader fail: CRONUNREADABLE, never one CRONMISSING per job."""
+    d = _module()
+    target = tmp_path / "cron-dir"
+    target.mkdir()
+    out = _cron_half(tmp_path, target)
+    assert d.parse_cron(out) == ["CRON-UNREADABLE"], out
+
+
+def test_remote_cmd_unreadable_cron_file(tmp_path):
+    if os.geteuid() == 0:
+        pytest.skip("root reads a mode-000 file")
+    d = _module()
+    target = tmp_path / "vps-sysadmin"
+    target.write_text("*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py\n")
+    target.chmod(0)
+    out = _cron_half(tmp_path, target)
+    assert d.parse_cron(out) == ["CRON-UNREADABLE"], out
+
+
+def test_cron_paths_ignores_env_lines_dirs_and_templated_paths():
+    d = _module()
+    text = (
+        "PATH=/opt/fabrik/scripts/sysadmin:/usr/bin:/bin\n"
+        "0 1 * * * root /opt/fabrik/scripts/{{HOST_NAME}}/x.sh\n"
+        "0 2 * * * root /opt/fabrik/scripts/sysadmin/a.sh,/opt/fabrik/scripts/sysadmin/b.sh\n"
+        "0 3 * * * root /opt/fabrik/scripts/sysadmin/c.sh # was /opt/fabrik/scripts/sysadmin/old.sh\n"
+    )
+    assert d.cron_paths(text) == {
+        "/opt/fabrik/scripts/sysadmin/a.sh",
+        "/opt/fabrik/scripts/sysadmin/b.sh",
+        "/opt/fabrik/scripts/sysadmin/c.sh",
+    }
+
+
+def test_parse_cron_splits_on_newlines_only():
+    """A form feed inside a cron line is data, not a line break that could fake a CRON-ABSENT."""
+    d = _module()
+    assert d.parse_cron("CRON 0 1 * * * root echo hi\x0cCRON-ABSENT\nCRON-END\n") == [
+        "0 1 * * * root echo hi\x0cCRON-ABSENT"
+    ]
+
+
+def test_cron_unverified_mail_says_recheck(tmp_path):
+    root = make_hub(tmp_path)
+    env = make_env(tmp_path, root, {"vps": remote_listing().replace("CRON-END\n", "")})
+    r = run(env, "--mail")
+    assert r.returncode == 1, r.stdout + r.stderr
+    body = mails(tmp_path)[0]["body"]
+    assert "CRONUNREADABLE/CRONUNVERIFIED" in body, body
