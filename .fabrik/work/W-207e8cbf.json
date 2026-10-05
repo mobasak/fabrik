@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T14:09:10.064834Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-207e8cbf",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4664JCANNNT0Y31VQS1HNSY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: /fabrik-catchup Phase 0 probe 3 (\"Stub sentinels\") names only `[Project Name]`, `[TBD…]` and a literal `**Last Updated:** YYYY-MM-DD`. brand-identiy-creator's docs/OPERATIONS.md was the raw scaffold template with 44 unfilled placeholders (`[feed_name]`, `[Vendor Name]`, `[Task name]`, `[handle"
+}
