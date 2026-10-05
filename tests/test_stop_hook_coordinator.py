@@ -146,6 +146,15 @@ def test_a_red_band_or_a_running_record_is_exempt(monkeypatch, tmp_path):
     )
 
 
+def test_a_running_record_with_seats_out_stays_exempt(monkeypatch, tmp_path):
+    """W-4c7edc74: seats in flight stand the run-record block down, never this cause's exemption."""
+    main = _repo(tmp_path)
+    monkeypatch.setattr(hook, "_run_record", lambda sid: {"state": "running", "command": "x"})
+    monkeypatch.setattr(hook, "_seats_in_flight", lambda rec, transcript: True)
+    out, _ = _drive(monkeypatch, main)
+    assert out is None
+
+
 def test_the_cause_never_writes_the_seven_slot_counter(monkeypatch, tmp_path):
     main = _repo(tmp_path)
     out, _ = _drive(monkeypatch, main)

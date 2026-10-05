@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Stop hook no longer blocks every turn while a review's seats run (2026-10-05)
+- `.claude/hooks/final_gate_stop.py` (fleet-synced): the `COMMAND STILL RUNNING` cause stands down while the live run record carries a fresh `command_run.py dispatch` stamp for its current round (≤ 25 min) AND the transcript's last 8 MB holds a seat launch (an Agent `async_launched` agentId, a Workflow `local_workflow` taskId, or a resume) at most 25 min old with no completion notification yet (queue-operation, attachment or task-notification shapes). Every failure reads as "no seats" and the old block applies. The counter does not advance while it stands down, a `stood_down` kaizen event is logged, and the coordinator cause stays exempt for the whole running record (tryton-crm 01M3QJCV item 3: ~30 "still waiting" turns in one run; W-4c7edc74). Tests: 16 in `tests/test_final_gate_stop_hook.py`, 1 in `tests/test_stop_hook_coordinator.py`; 10 mutations each killed.
+
 ### Changed — seat briefs ban package-manager verbs (2026-10-05)
 - `commands/_fragments/subagents-core.md` (21 commands): the D8 seat-brief paragraph now bans `uv run`, `uv sync`, `uv add`, `uv lock`, `pip install`, `uv pip install` — `uv run` syncs by default and a worktree's `.venv` is normally a symlink to the shared one (trade-intelligence 2026-09-30: one seat's `uv run pytest` upgraded 37 packages and reddened mypy for three agents). Seats run Python as `.venv/bin/python …` (`python3 …` with no `.venv`) and the gate only as `final_gate.py --check`, which for a seat overrides every rule-pack instruction to go through `uv` (`10-python`, `45-testing-strategy`, `50-code-review`; pack-side mirror: W-54b0e523).
 

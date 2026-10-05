@@ -319,9 +319,7 @@ def test_push_slot_resets_when_cause_resolves_across_a_gate_block(tmp_path: Path
             line = json.dumps(
                 {
                     "type": "assistant",
-                    "timestamp": (
-                        _d.datetime.now(_d.UTC) + _d.timedelta(seconds=60)
-                    ).isoformat(),
+                    "timestamp": (_d.datetime.now(_d.UTC) + _d.timedelta(seconds=60)).isoformat(),
                     "message": {
                         "content": [
                             {
@@ -1524,6 +1522,226 @@ def test_stale_run_record_fails_open(fake_project: Path, tmp_path: Path) -> None
     # session, not live work — never trap a new session on someone else's leftovers.
     stale = _running_record(updated_ts=int(time.time()) - 20 * 3600)
     assert _run_stop_with_record(fake_project, tmp_path, "s_run_stale", stale) == ""
+
+
+# --- W-4c7edc74: the run-record cause stands down while dispatched seats are in flight ---
+# A review that dispatched background seats has nothing to do until they report, and their
+# completion notification re-invokes the session anyway; blocking every end-of-turn in that
+# window only burned turns (tryton-crm 01M3QJCV item 3; premature_stop_rate 53% on 2026-10-04).
+
+
+def _iso(age_s: float = 60) -> str:
+    import datetime as _dt
+
+    t = _dt.datetime.now(_dt.UTC) - _dt.timedelta(seconds=age_s)
+    return t.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def _launch_line(agent_id: str, age_s: float = 60) -> dict:
+    return {
+        "type": "user",
+        "timestamp": _iso(age_s),
+        "message": {"role": "user", "content": [{"type": "tool_result", "content": "x"}]},
+        "toolUseResult": {"isAsync": True, "status": "async_launched", "agentId": agent_id},
+    }
+
+
+def _resume_line(agent_id: str) -> dict:
+    return {
+        "type": "user",
+        "timestamp": _iso(30),
+        "message": {"role": "user", "content": [{"type": "tool_result", "content": "x"}]},
+        "toolUseResult": {"success": True, "resumedAgentId": agent_id},
+    }
+
+
+def _notified_line(agent_id: str, status: str = "completed") -> dict:
+    return {
+        "type": "queue-operation",
+        "operation": "enqueue",
+        "content": f"<task-notification>\n<task-id>{agent_id}</task-id>\n"
+        f"<status>{status}</status>\n</task-notification>",
+    }
+
+
+def _stamped(**over: object) -> dict:
+    stamp = {"ts": time.time() - 60, "seats": 3, "phase": 4, "round": 1, "released": False}
+    stamp.update(over)
+    return _running_record(dispatch=stamp)
+
+
+def _run_stop_with_seats(
+    project: Path, tmp_path: Path, sid: str, rec: dict, lines: list[dict]
+) -> str:
+    run_dir = tmp_path / "command-runs"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / f"{sid}.json").write_text(json.dumps(rec))
+    tp = tmp_path / f"{sid}.jsonl"
+    tp.write_text("".join(json.dumps(x) + "\n" for x in lines))
+    ctr = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
+    ctr.unlink(missing_ok=True)
+    env = {**os.environ, "FAKE_FAILS": "", "COMMAND_RUN_DIR": str(run_dir)}
+    proc = subprocess.run(
+        [sys.executable, str(_HOOK)],
+        input=json.dumps(
+            {
+                "session_id": sid,
+                "cwd": str(project),
+                "hook_event_name": "Stop",
+                "transcript_path": str(tp),
+            }
+        ),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+    )
+    ctr.unlink(missing_ok=True)
+    return proc.stdout.strip()
+
+
+def _blocks_on_run_record(out: str) -> bool:
+    return bool(out) and "COMMAND STILL RUNNING" in json.loads(out).get("reason", "")
+
+
+def test_running_record_stands_down_while_a_dispatched_seat_runs(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    out = _run_stop_with_seats(
+        fake_project, tmp_path, "s_seat_live", _stamped(), [_launch_line("a1b2c3d4e5f60718")]
+    )
+    assert not _blocks_on_run_record(out), out
+
+
+def test_running_record_blocks_once_every_seat_reported(fake_project: Path, tmp_path: Path) -> None:
+    lines = [_launch_line("a1b2c3d4e5f60718"), _notified_line("a1b2c3d4e5f60718")]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_done", _stamped(), lines)
+    assert _blocks_on_run_record(out), out
+
+
+@pytest.mark.parametrize(
+    "over",
+    [
+        {"ts": time.time() - 26 * 60},
+        {"released": True},
+        {"seats": 0},
+        {"round": 0},
+    ],
+    ids=["stale", "released", "zero-seats", "earlier-round"],
+)
+def test_a_stale_or_closed_stamp_does_not_stand_down(
+    fake_project: Path, tmp_path: Path, over: dict
+) -> None:
+    out = _run_stop_with_seats(
+        fake_project, tmp_path, "s_seat_stamp", _stamped(**over), [_launch_line("a1b2c3d4e5f60718")]
+    )
+    assert _blocks_on_run_record(out), out
+
+
+def test_a_record_without_a_stamp_still_blocks(fake_project: Path, tmp_path: Path) -> None:
+    out = _run_stop_with_seats(
+        fake_project,
+        tmp_path,
+        "s_seat_nostamp",
+        _running_record(),
+        [_launch_line("a1b2c3d4e5f60718")],
+    )
+    assert _blocks_on_run_record(out), out
+
+
+def test_a_resumed_seat_is_in_flight_again(fake_project: Path, tmp_path: Path) -> None:
+    lines = [
+        _launch_line("a1b2c3d4e5f60718"),
+        _notified_line("a1b2c3d4e5f60718"),
+        _resume_line("a1b2c3d4e5f60718"),
+    ]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_resumed", _stamped(), lines)
+    assert not _blocks_on_run_record(out), out
+
+
+def test_a_quoted_launch_in_assistant_text_does_not_count(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    quoted = {
+        "type": "assistant",
+        "message": {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": '"status": "async_launched", "agentId": "a1b2c3d4e5f60718"',
+                }
+            ],
+        },
+        "toolUseResult": {"status": "async_launched", "agentId": "a1b2c3d4e5f60718"},
+    }
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_quoted", _stamped(), [quoted])
+    assert _blocks_on_run_record(out), out
+
+
+def test_a_launch_older_than_the_window_does_not_count(fake_project: Path, tmp_path: Path) -> None:
+    """`dispatch` re-dates the stamp, so a seat that never returns must be bounded by its own
+    launch line, not by a later stamp."""
+    lines = [_launch_line("a1b2c3d4e5f60718", age_s=30 * 60)]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_old", _stamped(), lines)
+    assert _blocks_on_run_record(out), out
+
+
+def test_launch_text_echoed_in_bash_output_does_not_count(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    forged = {
+        "type": "user",
+        "timestamp": _iso(60),
+        "message": {"role": "user", "content": [{"type": "tool_result", "content": "x"}]},
+        "toolUseResult": {
+            "stdout": "Async agent launched successfully. agentId: a1b2c3d4e5f60718",
+            "stderr": "",
+        },
+    }
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_forged", _stamped(), [forged])
+    assert _blocks_on_run_record(out), out
+
+
+@pytest.mark.parametrize("shape", ["attachment", "user-origin"])
+def test_a_notification_in_any_real_shape_ends_the_stand_down(
+    fake_project: Path, tmp_path: Path, shape: str
+) -> None:
+    note = "<task-notification>\n<task-id>a1b2c3d4e5f60718</task-id>\n<status>completed</status>\n"
+    if shape == "attachment":
+        done = {"type": "attachment", "attachment": {"type": "queued_command", "prompt": note}}
+    else:
+        done = {
+            "type": "user",
+            "origin": {"kind": "task-notification"},
+            "message": {"role": "user", "content": note},
+        }
+    lines = [_launch_line("a1b2c3d4e5f60718"), done]
+    out = _run_stop_with_seats(fake_project, tmp_path, f"s_seat_{shape}", _stamped(), lines)
+    assert _blocks_on_run_record(out), out
+
+
+@pytest.mark.parametrize(
+    ("tur", "stands_down"),
+    [
+        ({"status": "async_launched", "taskId": "wrunkdazo", "taskType": "local_workflow"}, True),
+        ({"status": "async_launched", "taskId": "b7x2k9q1", "taskType": "local_bash"}, False),
+    ],
+    ids=["workflow-review", "background-bash"],
+)
+def test_only_seat_shaped_async_launches_count(
+    fake_project: Path, tmp_path: Path, tur: dict, stands_down: bool
+) -> None:
+    line = {
+        "type": "user",
+        "timestamp": _iso(60),
+        "message": {"role": "user", "content": [{"type": "tool_result", "content": "x"}]},
+        "toolUseResult": {"isAsync": True, **tur},
+    }
+    out = _run_stop_with_seats(
+        fake_project, tmp_path, f"s_seat_{tur['taskType']}", _stamped(), [line]
+    )
+    assert _blocks_on_run_record(out) is not stands_down, out
 
 
 def test_run_record_cause_uses_the_shared_anti_trap_idiom() -> None:
