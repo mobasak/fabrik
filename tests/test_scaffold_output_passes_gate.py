@@ -24,22 +24,11 @@ requires_fabrik_env = pytest.mark.skipif(
     reason="Requires full fabrik environment at /opt/fabrik",
 )
 
-# The tools are resolved as scripts/final_gate.py resolves them from the PROJECT root: the project's
-# own .venv first (its ruff/mypy versions are what its gate runs), then beside this interpreter, then PATH.
+# The hub's ruff and mypy: tests/conftest.py scaffolds OFFLINE (FABRIK_SCAFFOLD_OFFLINE), so a scaffolded
+# project has no .venv of its own here. ruff is found beside this interpreter, else on PATH, as
+# scripts/final_gate.py finds it.
 _HUB_RUFF = Path(sys.executable).parent / "ruff"
-
-
-def _tools(proj: Path) -> tuple[str | None, str]:
-    venv = proj / ".venv" / "bin"
-    ruff = venv / "ruff"
-    python = venv / "python"
-    has_mypy = python.exists() and _run([str(python), "-c", "import mypy"], proj).returncode == 0
-    resolved_ruff = (
-        str(ruff)
-        if ruff.exists()
-        else (str(_HUB_RUFF) if _HUB_RUFF.exists() else shutil.which("ruff"))
-    )
-    return resolved_ruff, str(python) if has_mypy else sys.executable
+RUFF = str(_HUB_RUFF) if _HUB_RUFF.exists() else shutil.which("ruff")
 
 
 def _run(argv: list[str], cwd: Path) -> subprocess.CompletedProcess:
@@ -49,6 +38,7 @@ def _run(argv: list[str], cwd: Path) -> subprocess.CompletedProcess:
 @requires_fabrik_env
 @pytest.mark.parametrize("project_type", ["python-api", "python-api-gpu"])
 def test_scaffolded_python_project_passes_its_own_lint_and_types(tmp_path, project_type):
+    assert RUFF, f"ruff is neither beside {sys.executable} nor on PATH"
     create_project(
         name="gate-clean",
         project_type=project_type,
@@ -57,22 +47,25 @@ def test_scaffolded_python_project_passes_its_own_lint_and_types(tmp_path, proje
         generate_spec=False,
     )
     proj = tmp_path / "gate-clean"
-    ruff, python = _tools(proj)
-    assert ruff, "ruff is in neither the project venv, beside the interpreter, nor on PATH"
     pkg = Path("src") / "gate_clean"
     vendored = pkg / "glitchtip_init.py"
     assert (proj / vendored).is_file()
-    # The gate formats changed .py files only (never markdown), and runs mypy on the src package.
-    py_dirs = [d for d in ("src", "tests", "scripts") if (proj / d).is_dir()]
+    # The project's OWN Python files, passed by name as the gate passes changed files. Never a
+    # directory walk: scripts/ holds the hub-synced enforcement copies, gitignored in the project,
+    # which ruff honoured only some of the time (a flaky red on a hub file the project never edits).
+    own = sorted(
+        str(f.relative_to(proj)) for d in ("src", "tests") for f in (proj / d).rglob("*.py")
+    )
+    assert str(vendored) in own and len(own) > 1, own
     checks = {
-        "ruff check .": [ruff, "check", "."],
-        "ruff check <vendored file>": [ruff, "check", str(vendored)],
-        "ruff format --check <python dirs>": [ruff, "format", "--check", *py_dirs],
-        "mypy src/<pkg>": [python, "-m", "mypy", "--config-file=pyproject.toml", str(pkg)],
+        "ruff check <own .py>": [RUFF, "check", *own],
+        "ruff check <vendored file>": [RUFF, "check", str(vendored)],
+        "ruff format --check <own .py>": [RUFF, "format", "--check", *own],
+        "mypy src/<pkg>": [sys.executable, "-m", "mypy", "--config-file=pyproject.toml", str(pkg)],
     }
     failures = {}
     for label, argv in checks.items():
         r = _run(argv, proj)
         if r.returncode != 0:
             failures[label] = (r.stdout + r.stderr).strip()[-2000:]
-    assert failures == {}, (project_type, failures)
+    assert failures == {}, (project_type, RUFF, failures)

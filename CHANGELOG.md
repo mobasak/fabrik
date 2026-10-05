@@ -13,7 +13,8 @@ name, which a plain `extend-exclude` ignores) and gives it a mypy `ignore_errors
 found three more defects in hub-authored output: the generated `tests/test_glitchtip_no_secret_leak.py` (ARG002 ×2,
 SIM105) and `internal_auth.py` / `logger.py` failing `ruff format --check`. All are fixed at their generators, and
 `tests/test_scaffold_output_passes_gate.py` scaffolds python-api and python-api-gpu and runs the four checks with the
-project's own `.venv` tools when present. Existing projects need the two pyproject blocks added by hand. Not covered:
+hub's ruff and mypy on the project's own `.py` files passed by name (the suite scaffolds offline, so no project
+`.venv` exists). Existing projects need the two pyproject blocks added by hand. Not covered:
 the `server/` backends of saas-skeleton, static-site and office-extension, which have no ruff/mypy config and which
 the gate does not lint (W-1c722f35).
 
