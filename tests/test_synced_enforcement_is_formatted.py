@@ -17,8 +17,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-_HUB_RUFF = Path(sys.executable).parent / "ruff"
-RUFF = str(_HUB_RUFF) if _HUB_RUFF.exists() else shutil.which("ruff")
+# The same ruff the completion gate grades with (scripts/final_gate.py: VENV_RUFF, then PATH), so a
+# different interpreter running pytest cannot pick a ruff whose formatting disagrees. A checkout with no
+# .venv falls back to the interpreter's sibling.
+_CANDIDATES = (ROOT / ".venv" / "bin" / "ruff", Path(sys.executable).parent / "ruff")
+RUFF = next((str(c) for c in _CANDIDATES if c.exists()), None) or shutil.which("ruff")
 
 
 def test_every_synced_enforcement_script_is_ruff_formatted() -> None:
