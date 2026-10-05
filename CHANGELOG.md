@@ -10,7 +10,8 @@ All notable changes to this project will be documented in this file.
 (01M4642DYM). `crowdlex-api` is the `container_name` of youtube's `api` service on the external `fabrik` network,
 port 8031 (`/opt/youtube/compose.yaml`, `PORTS.md`), reachable from containers on that network on the same VPS.
 Like the other fleet services, `CROWDLEX` is now an `INTERNAL_PREFIX` in `scripts/gather_envs.py` and both catalog
-entries are gone: the keys file as internal config, never as a vendor or as paid triage.
+entries are gone: the keys file as internal config, never as a vendor or as paid triage. `crowdlex.com` joins
+`OWN_HOST_SUFFIXES` beside `.ocoron.com`, so the youtube code's links to its own domain open no triage block either.
 
 ### Added — read-only VPS script drift check, and the kaizen collector's stamp no longer hides its failures (2026-10-05)
 `scripts/sysadmin/vps_script_drift.py` (W-c792a205) compares the hub checkout's committed `HEAD` (master, in the

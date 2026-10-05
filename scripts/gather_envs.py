@@ -265,6 +265,7 @@ CODE_EXCLUDE_GLOBS = (
 OWN_HOST_SUFFIXES = (  # every entry dotted: a bare "localhost" matched `attacker.fakelocalhost` by suffix (ES4); the exact host `localhost` is the dotted entry's `lstrip(".")` case
     ".ocoron.com",
     ".ozgurbasak.com",
+    ".crowdlex.com",  # the youtube project's public domain (CROWDLEX is an INTERNAL_PREFIX too)
     ".local",
     ".localhost",
     ".test",

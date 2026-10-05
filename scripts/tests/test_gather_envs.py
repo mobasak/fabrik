@@ -588,6 +588,9 @@ def test_fleet_own_crowdlex_keys_are_internal_config(tmp_path):
     internal = body.split("internal-config", 1)[1]
     for key in ("CROWDLEX_API_URL", "CROWDLEX_INTERNAL_TOKEN", "CROWDLEX_ENABLED"):
         assert key in internal, key
+    # ...and the project's own domain in code is never a triage block either, like .ocoron.com
+    assert ge.ignored_host("crowdlex.com") and ge.ignored_host("api.crowdlex.com")
+    assert not ge.ignored_host("notcrowdlex.com")
 
 
 def test_internal_config_name_beats_a_catalog_match_prefix(tmp_path, monkeypatch):
