@@ -106,8 +106,11 @@ def _classify_script(path: Path) -> tuple[str, str]:
     # 4000 (check_traycer_chain.py, at 4219) made the script "manual" and dropped it from the catalog.
     # The retired/manual MARKERS stay header-only — they are header declarations, and a deep match
     # would misclassify a script that merely names them.
-    body = _read_head(path, n=10**9)
-    if any(t in body for t in ("argparse", "--help", "--check", "if __name__")):
+    # Comment lines are dropped first: a prose mention ("this once used argparse") is not a probe.
+    code = "\n".join(
+        ln for ln in _read_head(path, n=10**9).splitlines() if not ln.lstrip().startswith("#")
+    )
+    if any(t in code for t in ("argparse", "--help", "--check", "if __name__")):
         return "ok", summary
     # No safe probe available → can't auto-verify → operator checks (not "broken": it may work fine).
     return "manual", summary
