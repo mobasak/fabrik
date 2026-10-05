@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a review covers edits made before a non-review command (2026-10-05)
+
+- A review-family `done` reached back only to the latest command close, so an edit made before `/fabrik-plan-review` (or any non-review command) was never covered and the Stop hook's sixth cause kept naming it after the review that reviewed it; the reach now goes to the session's earliest covered window (fleet 01M44QXGG7656PBEJJ9VWXSZRV, D-574).
+
 ### Fixed — `command_run.py` owes a slice omitted for any number of rounds (2026-10-05)
 
 - `_vanished_slices` compared the last round only with the latest round that stated slices, so a slice dropped two rounds running read clean and `done` closed; it now owes every slice any earlier round stated (W-aa53dfc6, D-573).

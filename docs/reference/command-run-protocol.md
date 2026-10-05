@@ -217,9 +217,12 @@ genuinely halted review.
 
 ### The covered window, the route-up before the record, and the `done`-closed escalation
 
-A review-family `done` covers every code edit since the previous AGENT-closed record — `REVIEW_FAMILY`
-(`fabrik-review` + `fabrik-review-scoped`) is that reach-back set, and only `done` reaches back: a
-`blocked` or `handoff` reviewed nothing and caps the window. Two consequences the review-family pass-3 plan
+A review-family `done` covers the session's work: a non-nested close with a readable ledger reaches back
+to the session's EARLIEST covered window and stamps `first_review_reach` there, so an edit made before a
+non-review command (`/fabrik-plan-review`, `/fabrik-spec`) is covered too (D-574); a nested review, or a
+ledger holding a pair it cannot read, keeps the latest-close reach. `REVIEW_FAMILY` (`fabrik-review` +
+`fabrik-review-scoped`) is that reach-back set, and only `done` reaches back: a `blocked` or `handoff`
+reviewed nothing and caps the window. Two consequences the review-family pass-3 plan
 wrote into `/fabrik-review-scoped` (2026-09-12): (1) a change that trips its step-1 trigger BEFORE any
 record exists routes up at once — the heavy review starts with `--surface "ROUTED-UP: step 1 — …"` and
 its `done` covers the pre-start edits, no scoped record in between; (2) a scoped review whose SECOND

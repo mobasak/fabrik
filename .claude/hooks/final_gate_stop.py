@@ -1579,8 +1579,8 @@ def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, floa
     writer's shapes — round 2 of this change's own review found the previous paragraph describing
     neither: a durable reach on the record or any parked frame, positive, finite, not beyond the
     clock-skew tolerance, and no ledger pair starting before it. Everything else — `done` only, a
-    review-family command only, an empty ledger only — is the WRITER's gate on setting the field at
-    all (`command_run.py`), and is graded there. This side adds a window, never rewrites a pair, and
+    review-family command only, not nested, a readable ledger, earliest wins — is the WRITER's gate
+    on setting the field at all (`command_run.py`), and is graded there. This side adds a window, never rewrites a pair, and
     reads no `command` or `state` of its own."""
     if not isinstance(rec, dict):
         return []
@@ -1643,9 +1643,10 @@ def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, floa
 # (executed: `decide_review(1, 3)` -> `('allow_warn_review', 0)`), so the status quo was not three
 # blocks but three blocks per stop-cycle for the session's whole life — a block that cries wolf is
 # one agents learn to warn through, which is its own hollowing-out. This is a widening of a PROXY
-# (edit timestamp vs covered window), not a fix of the predicate; the predicate fix is on the
-# writer side — `command_run.py` stamps `first_review_reach` only when the ledger was EMPTY, so a
-# session whose first command run was not a review can never cover its pre-first-command work.
+# (edit timestamp vs covered window), not a fix of the predicate. The writer side now stamps
+# `first_review_reach` at the EARLIEST window's start on every non-nested review `done` with a
+# readable ledger (fleet 01M44QXGG7656PBEJJ9VWXSZRV), so a session whose first command was not a
+# review covers its pre-first-command work at its next review; this window bounds what remains.
 # ⚠️ THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): wait a day, or end three
 # turns and let it warn through — neither of which reviews anything. That is why the block NAMES
 # the window and the files: an agent who waits it out should at least have to read what it was.

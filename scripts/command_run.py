@@ -5448,52 +5448,50 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             # DONE only (reach-back reader F1): a `blocked` or `handoff` review reviewed nothing
             # to a verdict — reaching back from it would certify the whole gap since the last
             # close, an honest BLOCKED exit turned into a laundering hatch
-            # A REVIEW's own contract is "this session's work since the last run" — its window
-            # reaches BACK to the previous covered window's close, or every edit the review
-            # reviewed but that predates its `start` stays "between runs" forever (the Stop hook
-            # blocked a session on the very commit its scoped review had just closed over,
-            # 2026-09-07). A nested review starts with an empty ledger, so it reaches back only
-            # to its own start and never swallows its caller's later edits; a non-review command
-            # keeps its own start (A-F5: a /fabrik-spec run launders nothing).
-            # only a FINITE, non-bool close counts (a corrupt `[x, True]` pair read as 1 s and
-            # dragged lo to the epoch — pool reader, scoped review 2026-09-07). Coverage is per
-            # SESSION, the hook's own granularity: a review that narrows its `$ARGUMENTS` scope
-            # below the session diff is narrowing its own contract, not this ledger's.
-            prev = [
-                v
+            # A REVIEW's own contract is "this session's work" — so its window reaches BACK, or
+            # every edit the review reviewed but that predates its `start` stays "between runs"
+            # forever (the Stop hook blocked a session on the very commit its scoped review had
+            # just closed over, 2026-09-07). It reaches to the EARLIEST covered window's start and
+            # stamps the durable `first_review_reach` there, earliest wins, so the hook's base case
+            # adds [session floor, reach]: the review covers the session's whole work, every gap
+            # between earlier commands included. The reach used to stop at the LATEST close, so an
+            # edit made before a NON-review command (/fabrik-plan-review, /fabrik-spec) sat in no
+            # window and no later review could ever cover it (fleet 01M44QXGG7656PBEJJ9VWXSZRV).
+            # ⚠️ COBRA (D-253), stated: one trivial `/fabrik-review-scoped` run to its terminal
+            # certifies every plain-chat edit of the session. That is the review contract, and it
+            # was already the reach of a session's first review; the review still owes its rounds.
+            # A non-review command keeps its own start (A-F5: a /fabrik-spec run launders nothing).
+            # A NESTED review (`stack`) keeps reaching only to the latest close in its own ledger:
+            # a child is handed an empty ledger by construction, not because the session had no
+            # prior run, so it must never stamp the session-wide marker for its caller. ⚠️ DEFENCE
+            # IN DEPTH, stated as such: the pop below never joins a child's marker, and a child's
+            # ledger holds only windows that start after the child did, so a mutant dropping this
+            # gate changes nothing observable today; it guards the day either of those changes.
+            # Only a READABLE ledger reaches back to its earliest start: every pair a 2-list of
+            # finite, non-bool endpoints with lo <= hi — the hook's base case stands down on a pair
+            # whose lo it cannot read, and a corrupt `[x, True]` pair read as 1 s once dragged lo to
+            # the epoch (pool reader, scoped review 2026-09-07). A ledger holding any unreadable
+            # pair keeps the latest-readable-close reach and stamps nothing: it is still evidence of
+            # an earlier run. ⚠️ STATED COST: `_carried_windows` drops only SHAPE-corrupt pairs, so a
+            # VALUE-corrupt one (`[None, hi]`) persists and caps the rest of the session at this
+            # narrower reach — fail-conservative (the hook's base case stands down on the same pair,
+            # so sanitising here alone would restore nothing); it blocks more, it never launders.
+            pairs = [
+                (_finite_ts(w[0]), _finite_ts(w[1]))
                 for w in cov
                 if isinstance(w, list) and len(w) == 2
-                for v in (_finite_ts(w[1]),)
-                if v is not None
             ]
-            if prev:
-                lo = min(lo, math.floor(max(prev)))
-            elif not cov and not rec.get("stack"):
-                # NOTHING to reach back to — the session's first review. Its contract is still
-                # "this session's work", but the session's lower bound is the SessionStart
-                # baseline, which lives only on the Stop hook's side. So record the reach as a
-                # DURABLE marker and let the hook supply the floor. The hook used to synthesise
-                # this from the live record, which evaporated at the session's very next `start`
-                # (Phase C review round 1, seat finding F5) — the permanent-block symptom of
-                # 01M21JAET deferred rather than closed. Transitional in the same sense as
-                # `_LEDGER_EPOCH`: a record written before this field existed simply has none.
-                #
-                # TWO gates beyond "no reachable close", both from round 2 of this change's own
-                # review. `not cov`: a ledger that is NON-EMPTY but unreadable is still evidence of
-                # an earlier run — `prev` skips pairs it cannot parse and `_carried_windows`
-                # SANITISES them away at the next `start`, so inferring "first review" from `prev`
-                # alone granted the widest window in the file one stop later. `not rec.get("stack")`:
-                # a NESTED child is handed an empty ledger BY CONSTRUCTION (see `start`), not
-                # because the session had no prior run — without this, a `/fabrik-execute-plan`
-                # nesting a `/fabrik-review` at a phase boundary stamped a reach that the pop handed
-                # to the caller, and nesting ALONE flipped an unreviewed plain-chat edit 1 -> 0.
-                # ⚠️ That second gate is now DEFENCE IN DEPTH and is stated as such rather than
-                # implied to be load-bearing: removing the pop's join (below) already makes a nested
-                # child's reach unreachable, so a mutant of this clause alone survives the suite.
-                # Both are kept because the path they guard destroys review coverage fleet-wide, and
-                # the cost of the redundancy is one clause — but a reader must not mistake it for
-                # the only barrier, which is exactly the mistake round 1 made about the join.
-                rec["first_review_reach"] = float(lo)
+            readable = len(pairs) == len(cov) and all(
+                a is not None and b is not None and a <= b for a, b in pairs
+            )
+            if readable and not rec.get("stack"):
+                lo = min([lo, *(math.floor(a) for a, _ in pairs if a is not None)])
+                prior = _finite_ts(rec.get("first_review_reach"))
+                rec["first_review_reach"] = float(lo if prior is None else min(prior, lo))
+            else:
+                prev = [b for _, b in pairs if b is not None]
+                if prev:
+                    lo = min(lo, math.floor(max(prev)))
         cov.append([lo, int(rec["updated_ts"])])
         rec["covered"] = cov
     stack = list(rec.get("stack") or [])

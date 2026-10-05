@@ -3633,18 +3633,25 @@ def _start_named(run_dir: Path, command: str) -> None:
     _cr(run_dir, "start", "--command", command, "--phases", "1", "--terminal", "t")
 
 
-def test_a_review_family_close_reaches_back_to_the_previous_windows_close(tmp_path: Path) -> None:
-    """A review's contract is "this session's work since the last run": its closed window's lo
-    is the previous covered window's close, not its own start — otherwise the edits it reviewed
-    but that predate its `start` stay "between runs" forever (the Stop hook blocked a session on
-    the very commit its scoped review had just closed over, 2026-09-07)."""
+def test_a_review_family_close_reaches_back_to_the_earliest_windows_start(tmp_path: Path) -> None:
+    """A review's contract is "this session's work": its closed window's lo is the earliest covered
+    window's start, not its own start — otherwise the edits it reviewed but that predate its
+    `start` stay "between runs" forever (the Stop hook blocked a session on the very commit its
+    scoped review had just closed over, 2026-09-07). Not the LATEST close either: an edit made
+    before a NON-review command sat in no window behind it (fleet 01M44QXGG7656PBEJJ9VWXSZRV)."""
     run_dir = tmp_path / "runs"
     run_dir.mkdir()
     _start_named(run_dir, "fabrik-spec")
     time.sleep(1.1)
     _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _SETUP_FB)
-    prev_hi = _rec(run_dir)["covered"][0][1]
-    time.sleep(1.1)  # a plain-chat edit happens in this gap
+    first_lo = _rec(run_dir)["covered"][0][0]
+    time.sleep(1.1)
+    gap = int(time.time())  # a plain-chat edit happens here, before a non-review command
+    time.sleep(1.1)
+    _start_named(run_dir, "fabrik-spec")
+    time.sleep(1.1)
+    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _SETUP_FB)
+    time.sleep(1.1)
     _start_named(run_dir, "fabrik-review-scoped")
     rev_start = _rec(run_dir)["started_epoch"]
     time.sleep(1.1)
@@ -3659,7 +3666,12 @@ def test_a_review_family_close_reaches_back_to_the_previous_windows_close(tmp_pa
         _SETUP_FB,
     )
     cov = _rec(run_dir)["covered"]
-    assert cov[-1][0] == prev_hi, cov
+    assert not any(lo <= gap <= hi for lo, hi in cov[:-1]), (
+        "the gap must be uncovered before",
+        cov,
+    )
+    assert cov[-1][0] == first_lo, cov
+    assert cov[-1][0] <= gap <= cov[-1][1], "the review must cover the gap before the spec run"
     assert cov[-1][0] < int(rev_start), "the review's window must reach back past its own start"
 
 
@@ -4921,8 +4933,9 @@ def test_only_a_first_review_done_close_records_a_reach(run_dir: Path) -> None:
     - a `blocked` or `handoff` close records nothing (reach-back reader F1: an honest non-verdict
       exit must never certify the gap since the last run),
     - a non-review command records nothing,
-    - a review whose ledger already holds an earlier run records nothing — the ordinary reach-back
-      covers that gap, and this field exists only for the case with nothing to reach back TO.
+    - a review whose ledger already holds an earlier run records the EARLIEST window's start, and a
+      later review never moves an earlier marker forward (earliest wins) — the hook then adds
+      [session floor, reach], so work before the session's first command is covered too.
 
     `fabrik-review-scoped` is the review-family name used throughout: `_close` additionally
     demands a persisted report for `fabrik-review`/`fabrik-repo-review`, and this file's own
@@ -4945,7 +4958,7 @@ def test_only_a_first_review_done_close_records_a_reach(run_dir: Path) -> None:
         got = rec().get("first_review_reach")
         assert (got is not None and got > 0) is expect, (cmd, close, got, rec().get("state"))
 
-    # a review with an EARLIER run in the ledger: the ordinary reach-back covers that gap, no marker
+    # a review with an EARLIER run in the ledger: the marker is that run's start, and stays there
     (run_dir / f"{sid}.json").unlink(missing_ok=True)
     _cr(run_dir, "start", "--command", _PROBE, "--phases", "1", "--terminal", "t", sid=sid)
     _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", sid=sid)
@@ -4961,7 +4974,47 @@ def test_only_a_first_review_done_close_records_a_reach(run_dir: Path) -> None:
         sid=sid,
     )
     _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
-    assert rec().get("first_review_reach") is None, rec().get("covered")
+    first_lo = rec()["covered"][0][0]
+    assert rec().get("first_review_reach") == float(first_lo), rec()
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review-scoped",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        sid=sid,
+    )
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    assert rec().get("first_review_reach") == float(first_lo), "a later review never moves it"
+    # a ledger holding an unreadable pair reaches to the latest readable close and stamps nothing
+    (run_dir / f"{sid}.json").unlink(missing_ok=True)
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "1", "--terminal", "t", sid=sid)
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", sid=sid)
+    hi = rec()["covered"][0][1]
+    raw = rec()
+    raw["covered"].append([None, hi])
+    raw["state"] = "done"
+    (run_dir / f"{sid}.json").write_text(json.dumps(raw), encoding="utf-8")
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review-scoped",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        sid=sid,
+    )
+    corrupt = rec()
+    corrupt["covered"].append([None, hi])
+    (run_dir / f"{sid}.json").write_text(json.dumps(corrupt), encoding="utf-8")
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    assert rec().get("first_review_reach") is None, rec()
+    assert rec()["covered"][-1][0] == hi, rec()["covered"]
 
 
 def test_the_first_review_reach_survives_the_sessions_next_command(run_dir: Path) -> None:
