@@ -1,6 +1,6 @@
 # Review — session-history retention plan, Phase A (B2-direct archiver)
 
-Status: IN-PROGRESS
+Status: CONVERGED
 Surface: 8677a962d37f2ffc52149de66dcde61903b2ee26 + d41d8cd98f00b204e9800998ecf8427e (git diff HEAD empty; the reviewed range is 5820b32fb..8677a962d)
 Plan: `docs/development/plans/2026-09-06-plan-1-session-history-retention.md` (Phase A, revision 2026-10-05; D-565, D-569)
 Routed up from `/fabrik-review-scoped` step 1: concurrency surface (`fcntl.flock` serialising archive runs).
@@ -176,6 +176,7 @@ $ python3 scripts/review_rubric.py --changed <the 8 files above>
 |---|---|---|---|
 | Pass 1 | method: citation — full WIDE pass over 3 file slices; seats: archiver-sonnet 3/4 · archiver-haiku 1/1 · tests-sonnet 2/2 · tests-haiku 2/3 · ops-docs-sonnet 2/2 · ops-docs-haiku 2/3; every confirmed check re-executed by the orchestrator as a mutation on a throwaway worktree (9 fix mutants, all red); stop: confirmed 12; fix: archiver +40 lines, tests +110 lines, unit +8 lines for 12 confirmed | found: 15, new: 15, confirmed: 12, fixed: 12, unexecuted: 0 | finders: dispatched 6, returned 6 (sonnet×3, haiku×3) + refuters sonnet×3 returned 3 |
 | Pass 2 | method: re-derivation — the round-1 seats over their own slice ledgers (13 claims, all NOW_FALSE, each re-executed by its seat's test or probe) + the fix hunks and one hop; 3 candidates (archiver-S5, tests-S5, ops-docs-S3) are ONE defect in the `_env_value` fix (own-fix: round 1); ops-docs-S4 a precedence sentence in the round-1 doc edit (own-fix: round 1); ops-docs-S5 one hop out (RECORDED, fixed alongside); stop: confirmed 2; fix: +4 -1 lines archiver, +1 test case, 2 doc lines for 2 confirmed | found: 5, new: 5, confirmed: 2, fixed: 2, unexecuted: 0 | finders: dispatched 6, returned 6 (the round-1 seats) + refuters sonnet×3 returned 3 |
+| Pass 3 | method: re-derivation — seats sonnet×3 + haiku×3 (the round-1 owners) over their own slice ledgers (5 claims; escape variants `KEY=#value`, `KEY=  #x`, `KEY="#x"`, `KEY='a' #c`, `KEY=a #b #c` probed on `_env_value`; `_setting` with an empty process value probed; 46/46 tests re-run by the seats and by the orchestrator); every slice closable; one haiku seat labelled ops-docs-L1/L2 STILL_TRUE while its own evidence shows the fix holding (its test PASSED; its probe printed "empty env value falls back to file") — RECORDED — measured (a mislabel; the evidence and the sonnet twin agree NOW_FALSE); stop: closable; fix: none | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | finders: dispatched 6, returned 6 (the round-1 seats; no refuter needed, 0 candidates) |
 
 ## Disposition ledger
 
@@ -198,3 +199,30 @@ $ python3 scripts/review_rubric.py --changed <the 8 files above>
 | archiver-S5 = tests-S5 = ops-docs-S3 | `_env_value` | C7 `KEY= # note` parsed as `# note` (the strip ate the space the comment rule needs) — own-fix: round 1 | FIXED | a value that starts with `#` after the strip is all comment → `""`; new case in `test_env_values_drop_inline_comments_and_quotes`; mutant "comment-only value kept" RED |
 | ops-docs-S4 | workstation doc + `_setting` docstring | C4 "the process environment wins when set" silent on an EMPTY value, which falls through to the file — own-fix: round 1 | FIXED | doc and docstring state it: a non-empty process value wins, an empty one counts as unset |
 | ops-docs-S5 | `docs/CONFIGURATION.md` `SESSION_ARCHIVE_ENV_FILE` row | C4 said the file supplies only the key; it now supplies every `SESSION_ARCHIVE_*` setting | RECORDED — one hop out of the round-1 hunks (D-230); fixed alongside in the same commit | row reworded |
+
+## Phase A verdict
+
+**PASS.** The archiver (the one rclone door at `scripts/sysadmin/archive_transcripts.py:156`, the settings at `:115`, the env-value parser at `:103`), its Behavior Contract tests (A-B1..A-B13 plus the round-1 and
+round-2 regression tests, 46 in all), the systemd units, the installer and the docs converge:
+14 Behavior-Contract mutants and 10 fix mutants each watched red; closing Pass 3 confirmed 0 with
+every slice verified. Gate A (the live run against the bucket) is NOT part of this code review —
+it needs the B2 application key and is the plan's next step.
+
+## Gate
+
+`final_gate.py --check --json` at commit b5cb26110 (the tree this receipt reviews), run with this
+receipt set aside so the gate graded everything else; pasted verbatim (summary keys), the static
+tier skipped by the gate's own diff sensing; the test file re-run at the closing pass: `46 passed`.
+
+```json
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 54,
+  "failed": 0,
+  "skipped": 1,
+  "skipped_checks": [
+    "static tier"
+  ]
+}
+```
