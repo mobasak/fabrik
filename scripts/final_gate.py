@@ -298,12 +298,19 @@ _PYTEST_EARLY_STOP = "stopping after "
 RC_TIMEOUT = 124
 
 
-def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None) -> tuple[int, str]:
-    """Run a command and return (returncode, output); a timeout returns `RC_TIMEOUT`."""
+def run_cmd(
+    cmd: list[str],
+    cwd: Path | None = None,
+    timeout: int | None = None,
+    extra_env: dict[str, str] | None = None,
+) -> tuple[int, str]:
+    """Run a command and return (returncode, output); a timeout returns `RC_TIMEOUT`.
+    ``extra_env`` reaches this child only — the gate's own environment is never mutated."""
     timeout = timeout or TIMEOUTS["default"]
     # Pass PROJECT_ROOT to enforcement scripts so they know the correct project root
     env = os.environ.copy()
     env["PROJECT_ROOT"] = str(PROJECT_ROOT)
+    env.update(extra_env or {})
     try:
         result = subprocess.run(
             cmd,
@@ -319,6 +326,132 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None)
         return RC_TIMEOUT, f"Command timed out after {timeout}s"
     except FileNotFoundError:
         return 1, f"Command not found: {cmd[0]}"
+
+
+# ── TEST_DATABASE_URL for the pytest leg (W-e93160e3, mail 01M3S2A3) ──────────────────────────
+# Projects gate their DB-backed tests on TEST_DATABASE_URL, and the leg ran with the ambient env
+# only, so those tests SKIPPED and a red DB suite read green (134 skipped in trade-intelligence's
+# closing gate, two real DB failures escaped). The leg now takes the key from the environment, then
+# the project's own gitignored `.env.local` (where the scaffold writes it), then `.env`. A value
+# read from a FILE must name a disposable database — the gate now runs that suite on every
+# completion gate, and suites without a throwaway guard DROP/TRUNCATE what the key names. The value
+# is redacted from everything the leg prints. COBRA: a repo keeps its DB suite out of the gate by
+# never adding the key — the skip advisory names the miss, and `.fabrik/require-test-database-url`
+# turns it red for a repo that opts in.
+_TDB_KEY = "TEST_DATABASE_URL"
+_TDB_FILES = (".env.local", ".env")
+_TDB_SENTINEL = (".fabrik", "require-test-database-url")
+_TDB_DISPOSABLE = re.compile(r"(_test|throwaway|scratch)$", re.IGNORECASE)
+_TDB_READS = re.compile(
+    r"""(getenv|environ\.get)\(\s*["']TEST_DATABASE_URL["']|environ\[\s*["']TEST_DATABASE_URL["']"""
+)
+
+
+def _dotenv_value(path: Path, key: str) -> str | None:
+    """The value of the LAST ``key`` line in a dotenv file — None when that line is empty or absent. Reads that ONE key and never
+    logs it. Rules mirror ``libs/subagents/_dotenv.py::_parse_env_text`` (blank and ``#`` lines
+    skipped, ``export `` accepted, one pair of matching quotes honoured with ``#`` kept inside,
+    an unquoted `` #…`` comment stripped) — copied, because this synced single file cannot import
+    ``libs/`` and runs under each project's interpreter, which may lack python-dotenv."""
+    try:
+        text = path.read_text(encoding="utf-8-sig", errors="replace")  # a BOM must not hide line 1
+    except OSError:
+        return None
+    found: str | None = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].lstrip()
+        name, sep, value = line.partition("=")
+        if not sep or name.strip() != key:
+            continue
+        value = value.strip()
+        if value[:1] in ("'", '"'):
+            end = value.find(value[0], 1)
+            value = value[1:end] if end > 0 else value[1:]
+        else:
+            value = re.split(r"\s+#", value, maxsplit=1)[0].strip()
+        found = value or None
+    return found
+
+
+def _resolve_test_database_url(root: Path) -> tuple[str | None, str, str | None, list[str]]:
+    """(value, source, refusal, paths checked) for the pytest leg's TEST_DATABASE_URL.
+
+    The environment wins (the operator's own value, passed as-is). Otherwise the first file of
+    ``_TDB_FILES`` that names the key; a file value must end its database name in ``_test``,
+    ``throwaway`` or ``scratch`` (the scaffold's bar) and differ from that file's DATABASE_URL, or
+    it is refused — never passed."""
+    env = os.environ.get(_TDB_KEY, "")
+    if env:
+        return env, "the environment", None, []
+    checked: list[str] = []
+    for name in _TDB_FILES:
+        path = root / name
+        checked.append(str(path))
+        value = _dotenv_value(path, _TDB_KEY)
+        if not value:
+            continue
+        from urllib.parse import urlsplit  # noqa: PLC0415 — only on this path
+
+        db = urlsplit(value).path.rsplit("/", 1)[-1]
+        db = re.sub(r"\.(db|db3|sqlite3?)$", "", db, flags=re.IGNORECASE)  # sqlite file
+        if not _TDB_DISPOSABLE.search(db) or value == _dotenv_value(path, "DATABASE_URL"):
+            return (
+                None,
+                name,
+                f"TEST_DATABASE_URL in {path} does not name a disposable database (its name must "
+                "end `_test`, `throwaway` or `scratch` and differ from that file's DATABASE_URL) — "
+                "refused, NOT passed to pytest: the gate runs the DB suite on every completion "
+                "gate, and a suite without a throwaway guard drops or truncates what the key names.",
+                checked,
+            )
+        return value, name, None, checked
+    return None, "", None, checked
+
+
+def _redact_test_database_url(text: str, value: str | None) -> str:
+    """``text`` with the URL and its password (raw and percent-decoded) replaced.
+
+    The password is replaced wherever it appears once it is 4+ characters; a shorter one only where
+    it stands as a whole token (no letter or digit on either side) — pytest's own ``+ ab`` diff line,
+    a quoted repr, ``:ab@`` — because a substring replace of 1-3 characters rewrites every word
+    holding those letters and makes a real failure message unreadable (review rounds 2-3).
+    Literal replacement: a test that prints a DERIVED form (encoded, sliced) or a pytest assertion
+    whose own ``...`` elision cuts through the password is beyond it — the URL's scheme, host and
+    database name may survive such an elision; they are not secrets."""
+    if not value:
+        return text
+    from urllib.parse import unquote, urlsplit  # noqa: PLC0415 — only on this path
+
+    text = text.replace(value, "<TEST_DATABASE_URL>")
+    password = urlsplit(value).password
+    for secret in {password, unquote(password or "")}:
+        if not secret:
+            continue
+        if len(secret) >= 4:
+            text = text.replace(secret, "<password>")
+        else:  # a whole token only: pytest's `+ ab` diff line, `'ab'`, `:ab@` — never inside a word
+            text = re.sub(
+                rf"(?<![A-Za-z0-9]){re.escape(secret)}(?![A-Za-z0-9])", "<password>", text
+            )
+    return text
+
+
+def _suite_reads_test_database_url(root: Path) -> bool:
+    """True when a test file READS the key (getenv / environ) — not merely names it."""
+    tests = root / "tests"
+    if not tests.is_dir():
+        return False
+    for f in tests.rglob("*.py"):
+        try:
+            if _TDB_READS.search(f.read_text(encoding="utf-8", errors="ignore")):
+                return True
+        except OSError:
+            continue
+    return False
 
 
 # Rows whose check has NO failing exit path — declared at registration with
@@ -999,6 +1132,89 @@ def _vulture_argv() -> list[str]:
     return argv
 
 
+def _run_pytest_suite() -> tuple[str, bool, str]:
+    """Run the project's ``tests/`` once and classify it into ONE gate row (name, ok, text).
+
+    Callers have already decided the leg is armed. TEST_DATABASE_URL is resolved first
+    (``_resolve_test_database_url``): a refused file value or — with the opt-in sentinel — a key
+    found nowhere is a RED row and pytest never runs; a resolved value reaches the pytest child
+    only, and every byte of its output is redacted before it can reach a row."""
+    tdb, source, refusal, checked = _resolve_test_database_url(PROJECT_ROOT)
+    if refusal:
+        return ("pytest (TEST_DATABASE_URL REFUSED — not a disposable database)", False, refusal)
+    where = ", ".join(checked)
+    if not tdb and (PROJECT_ROOT.joinpath(*_TDB_SENTINEL)).exists():
+        return (
+            "pytest (DB SUITE NOT RUN — TEST_DATABASE_URL set in neither the environment, "
+            ".env.local nor .env)",
+            False,
+            f"{'/'.join(_TDB_SENTINEL)} requires the DB-backed suite in this gate, and "
+            f"TEST_DATABASE_URL is set in neither the environment nor {where}. Add it (a "
+            "disposable database: its name ends `_test`, `throwaway` or `scratch`) to "
+            ".env.local, or delete the sentinel.",
+        )
+    note = f"TEST_DATABASE_URL from {source} (value redacted)." if tdb else ""
+    code, out = run_cmd(
+        [PYTHON, "-m", "pytest", "tests/", "-x", "-q", "--color=no", "-p", "no:cacheprovider"],
+        timeout=TIMEOUTS["pytest"],
+        extra_env={_TDB_KEY: tdb} if tdb else None,
+    )
+    out = _redact_test_database_url(out, tdb)
+    if _module_absent(out, "pytest"):
+        return ("pytest (NOT RUN)", True, "pytest is not installed in this interpreter")
+    elif code == 5:  # pytest exit 5 = no tests collected
+        return ("pytest (NO TESTS COLLECTED)", True, "pytest ran and collected 0 tests")
+    elif code == 4:  # pytest exit 4 = UsageError: the suite REFUSED to run
+        # Neither a pass nor a test failure — a plain red here sends the next agent
+        # hunting for a broken test that does not exist (transdoc 01M171R8: their
+        # conftest deliberately refuses without TEST_DATABASE_URL). Red, but named.
+        return (
+            "pytest (SUITE REFUSED — usage error)",
+            False,
+            "exit 4: the suite refused to run (conftest/usage error, not a failing "
+            "test). The refusal message names the remedy:\n" + "\n".join(out.splitlines()[-15:]),
+        )
+    else:
+        tail = "\n".join(out.splitlines()[-30:])
+        _uninvoked = _uninvoked_test_dirs()
+        if code == 0 and _uninvoked:
+            tail = (
+                f"\u26a0 this green covers `tests/` ONLY — {len(_uninvoked)} test dir(s) "
+                f"were never invoked and this run asserts nothing about them: "
+                f"{', '.join(_uninvoked)}. The leg passes an explicit `tests/` path (and "
+                f"pyproject's testpaths says the same), so a suite living elsewhere is not "
+                f"collected. Run it yourself if your change touches it."
+            )
+        advised = skip_advisory(out, tail)
+        if advised != tail and not tdb and _suite_reads_test_database_url(PROJECT_ROOT):
+            advised += (
+                f"\n\u26a0 TEST_DATABASE_URL is set in neither the environment nor {where}, and "
+                "tests/ reads it — the skips above likely include the DB-backed suite. Add a "
+                "disposable database URL (name ending `_test`, `throwaway` or `scratch`) to "
+                ".env.local to run it here."
+            )
+        tail = advised
+        # T12.4 (01M2606BZ): the mail called this "a green over unreached tests". REFUTED by
+        # execution — `-x` truncates only on a FAILURE, pytest then exits 1, `code == 0` is
+        # False and the row is RED; a timeout returns `RC_TIMEOUT`, also RED. There is no green
+        # truncated run. What IS real is the other half: the red names the FIRST failure and
+        # says nothing about the tests that never ran, so an agent fixes one, re-runs, meets
+        # the next, and walks the suite serially. Executed on a 4-test suite with 2 failures:
+        # `-x` reports "1 failed, 1 passed", the full run "2 failed, 2 passed".
+        #
+        # `-x` STAYS — it is a deliberate cost decision (a hub-scale suite under a 900s budget
+        # across ~46 repos), and dropping it to improve a message would trade minutes of every
+        # failing gate for one line. The fix is to SAY the list is partial.
+        if code != 0 and _PYTEST_EARLY_STOP in out:
+            tail = (
+                "\u26a0 this suite STOPPED at the first failure (`-x`), so the failure below is "
+                "the first one, not the only one — the tests after it never ran. Before you "
+                "conclude the suite is one fix away, see the whole list with "
+                "`python -m pytest tests/ -q` (no `-x`).\n"
+            ) + tail
+        return ("pytest", code == 0, tail + ("\n" + note if note else ""))
+
+
 def run_static_checks(
     tier: int = 2, changed_files: set[str] | None = None, fix_all: bool = False
 ) -> list[tuple[str, bool, str]]:
@@ -1289,62 +1505,7 @@ def run_static_checks(
             or _has_path_prefix(changed, "scripts/")
         )
     ):
-        code, out = run_cmd(
-            [PYTHON, "-m", "pytest", "tests/", "-x", "-q", "--color=no", "-p", "no:cacheprovider"],
-            timeout=TIMEOUTS["pytest"],
-        )
-        if _module_absent(out, "pytest"):
-            results.append(
-                ("pytest (NOT RUN)", True, "pytest is not installed in this interpreter")
-            )
-        elif code == 5:  # pytest exit 5 = no tests collected
-            results.append(
-                ("pytest (NO TESTS COLLECTED)", True, "pytest ran and collected 0 tests")
-            )
-        elif code == 4:  # pytest exit 4 = UsageError: the suite REFUSED to run
-            # Neither a pass nor a test failure — a plain red here sends the next agent
-            # hunting for a broken test that does not exist (transdoc 01M171R8: their
-            # conftest deliberately refuses without TEST_DATABASE_URL). Red, but named.
-            results.append(
-                (
-                    "pytest (SUITE REFUSED — usage error)",
-                    False,
-                    "exit 4: the suite refused to run (conftest/usage error, not a failing "
-                    "test). The refusal message names the remedy:\n"
-                    + "\n".join(out.splitlines()[-15:]),
-                )
-            )
-        else:
-            tail = "\n".join(out.splitlines()[-30:])
-            _uninvoked = _uninvoked_test_dirs()
-            if code == 0 and _uninvoked:
-                tail = (
-                    f"\u26a0 this green covers `tests/` ONLY — {len(_uninvoked)} test dir(s) "
-                    f"were never invoked and this run asserts nothing about them: "
-                    f"{', '.join(_uninvoked)}. The leg passes an explicit `tests/` path (and "
-                    f"pyproject's testpaths says the same), so a suite living elsewhere is not "
-                    f"collected. Run it yourself if your change touches it."
-                )
-            tail = skip_advisory(out, tail)
-            # T12.4 (01M2606BZ): the mail called this "a green over unreached tests". REFUTED by
-            # execution — `-x` truncates only on a FAILURE, pytest then exits 1, `code == 0` is
-            # False and the row is RED; a timeout returns `RC_TIMEOUT`, also RED. There is no green
-            # truncated run. What IS real is the other half: the red names the FIRST failure and
-            # says nothing about the tests that never ran, so an agent fixes one, re-runs, meets
-            # the next, and walks the suite serially. Executed on a 4-test suite with 2 failures:
-            # `-x` reports "1 failed, 1 passed", the full run "2 failed, 2 passed".
-            #
-            # `-x` STAYS — it is a deliberate cost decision (a hub-scale suite under a 900s budget
-            # across ~46 repos), and dropping it to improve a message would trade minutes of every
-            # failing gate for one line. The fix is to SAY the list is partial.
-            if code != 0 and _PYTEST_EARLY_STOP in out:
-                tail = (
-                    "\u26a0 this suite STOPPED at the first failure (`-x`), so the failure below is "
-                    "the first one, not the only one — the tests after it never ran. Before you "
-                    "conclude the suite is one fix away, see the whole list with "
-                    "`python -m pytest tests/ -q` (no `-x`).\n"
-                ) + tail
-            results.append(("pytest", code == 0, tail))
+        results.append(_run_pytest_suite())
     else:
         # SAY WHICH of the three conditions fired. The old message listed all three, so a
         # PERMANENT structural exclusion ("this repo's CI never runs pytest, so the gate
