@@ -85,7 +85,7 @@ TIER1_DEPENDENCIES = (
 )
 # weekly-security.sh:20 and monthly-backup-verify.sh:28 run these with sudo bash.
 AUDIT_TARGETS = ("scripts/audit/03-security.sh", "scripts/audit/06-backup.sh")
-# ...and hand Claude these checklists (weekly-security.sh:24, monthly-backup-verify.sh:32). Their
+# ...and hand Claude these checklists (weekly-security.sh:25, monthly-backup-verify.sh:33). Their
 # `[ -f ] && cat` fails open: a missing or stale checklist degrades the report without an error.
 AUDIT_CHECKLISTS = (
     "docs/infrastructure/audit-prompts/03-security-hardening.md",
