@@ -30,7 +30,7 @@ Lines: ``DRIFT <host> <path>`` (content differs) · ``MISSING <host> <path>`` (c
   — rendered by bootstrap step 14 on a spoke, by hand on the hub, never by the sync — schedules a different SET of
   ``/opt/fabrik/scripts/`` paths than the COMMITTED template's non-comment lines; paths, never bytes, since minutes
   differ per host; ``CRONMISSING <host> /etc/cron.d/vps-sysadmin`` when the file is absent, ``CRONUNREADABLE`` when
-  it cannot be read). Cron lines are tier 1. Not compared: the cron user, the schedule, and
+  it cannot be read, ``CRONUNVERIFIED`` when the listing never reached its CRON-END sentinel). Cron lines are tier 1. Not compared: the cron user, the schedule, and
   ``/usr/local/bin/fabrik-autoheal`` (a live host may schedule it outside this file).
 Exit: 0 clean (every host reached, nothing differs) · 1 any difference, either tier · 2 any host unreachable
 · 3 the check itself failed (git, state, an unexpected error).
@@ -103,10 +103,11 @@ REMOTE_CMD = (
     + "' sh {} + 2>/dev/null; "
     "[ -e " + AUTOHEAL_REMOTE + " ] && sh -c '" + _LIST_FILES + "' sh " + AUTOHEAL_REMOTE + "; "
     # the installed cron file: every line prefixed CRON (comments are filtered in Python, one function for both
-    # sides), or one CRON-ABSENT / CRON-UNREADABLE line
+    # sides) read with sh builtins only, then CRON-END; or one CRON-ABSENT / CRON-UNREADABLE line. Without
+    # CRON-END the half did not finish, which parse_cron reports as unverified, never as every job missing.
     "if [ -e " + CRON_REMOTE + " ]; then if [ -r " + CRON_REMOTE + " ]; then "
-    'sed "s/^/CRON /" ' + CRON_REMOTE + "; else echo CRON-UNREADABLE; fi; "
-    "else echo CRON-ABSENT; fi; true"
+    'while IFS= read -r l || [ -n "$l" ]; do printf "CRON %s\\n" "$l"; done < ' + CRON_REMOTE + "; "
+    "echo CRON-END; else echo CRON-UNREADABLE; fi; else echo CRON-ABSENT; fi; true"
 )
 UNREADABLE = ("", "")
 _MODE_RE = re.compile(r"[0-7]{1,4}")  # `stat -c %a` drops leading zeros: mode 044 prints "44"
@@ -167,13 +168,16 @@ def cron_paths(text: str) -> set[str]:
 
 
 def parse_cron(text: str) -> list[str] | None:
-    """REMOTE_CMD's cron half -> the host's cron lines (comments included), None when the file is absent, or
-    ["CRON-UNREADABLE"] when it exists but cannot be read."""
+    """REMOTE_CMD's cron half -> the host's cron lines (comments included), None when the file is absent,
+    ["CRON-UNREADABLE"] when it exists but cannot be read, ["CRON-UNVERIFIED"] when the half never reached
+    CRON-END (a cut session or a failed reader)."""
     lines = text.splitlines()
     if "CRON-ABSENT" in lines:
         return None
     if "CRON-UNREADABLE" in lines:
         return ["CRON-UNREADABLE"]
+    if "CRON-END" not in lines:
+        return ["CRON-UNVERIFIED"]
     return [ln[len("CRON ") :] for ln in lines if ln.startswith("CRON ")]
 
 
@@ -182,6 +186,8 @@ def compare_cron(host: str, expected: set[str], remote: list[str] | None) -> lis
         return [f"CRONMISSING {host} {CRON_REMOTE}"]
     if remote == ["CRON-UNREADABLE"]:
         return [f"CRONUNREADABLE {host} {CRON_REMOTE}"]
+    if remote == ["CRON-UNVERIFIED"]:
+        return [f"CRONUNVERIFIED {host} {CRON_REMOTE}"]
     got = cron_paths("\n".join(remote))
     return [f"CRONMISSING {host} {p}" for p in sorted(expected - got)] + [
         f"CRONEXTRA {host} {p}" for p in sorted(got - expected)

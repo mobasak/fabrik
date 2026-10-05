@@ -82,7 +82,7 @@ def _cron_block(cron) -> str:
         return "CRON-ABSENT\n"
     text = TEMPLATE if cron is _SYNCED else cron
     lines = text.splitlines()
-    return "".join(f"CRON {ln}\n" for ln in lines)
+    return "".join(f"CRON {ln}\n" for ln in lines) + "CRON-END\n"
 
 
 def remote_listing(overrides: dict[str, tuple[str, str] | None] | None = None, cron=_SYNCED) -> str:
@@ -687,6 +687,7 @@ def test_cron_difference_is_mailed(tmp_path):
         and "CRONEXTRA vps /opt/fabrik/scripts/sysadmin/retired.sh" in sent[0]["body"]
     )
     assert "/etc/cron.d/vps-sysadmin schedules a different set" in sent[0]["body"], sent[0]["body"]
+    assert "never re-run step 14 whole" in sent[0]["body"], sent[0]["body"]
 
 
 def test_remote_cmd_cron_half_real_shell(tmp_path):
@@ -708,6 +709,7 @@ def test_remote_cmd_cron_half_real_shell(tmp_path):
         "SHELL=/bin/sh",
         "*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py >> /var/log/x.log 2>&1",
     ], out
+    assert out.rstrip().endswith("CRON-END"), out
     assert d.cron_paths("\n".join(d.parse_cron(out))) == {
         "/opt/fabrik/scripts/sysadmin/detect_reversals.py"
     }
@@ -747,3 +749,43 @@ def test_cron_autoheal_and_quotes_not_misread(tmp_path):
     env = make_env(tmp_path, root, {"vps": remote_listing(cron=cron)})
     r = run(env)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_cron_half_cut_short_is_unverified_not_every_job_missing(tmp_path):
+    """No CRON-END (a cut session, a failed reader): one CRONUNVERIFIED line, never a CRONMISSING per template job."""
+    root = make_hub(tmp_path)
+    listing = remote_listing().replace("CRON-END\n", "")
+    env = make_env(tmp_path, root, {"vps": listing})
+    r = run(env)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "CRONUNVERIFIED vps /etc/cron.d/vps-sysadmin" in r.stdout
+    assert "CRONMISSING" not in r.stdout
+
+
+def test_remote_cmd_cron_half_needs_only_shell_builtins(tmp_path):
+    """The cron half reads the file with sh builtins: a host without sed or grep still reports, and a last line
+    without a newline is kept."""
+    d = _module()
+    host, cmd = _host_tree(tmp_path)
+    cron = host / "etc/cron.d/vps-sysadmin"
+    cron.parent.mkdir(parents=True)
+    cron.write_text(
+        "*/5 * * * * root /opt/fabrik/scripts/sysadmin/detect_reversals.py\n"
+        "0 3 * * 0 root /opt/fabrik/scripts/sysadmin/weekly-maintenance.sh"
+    )
+    cmd = cmd.replace(d.CRON_REMOTE, str(cron))
+    bindir = tmp_path / "shonly"
+    bindir.mkdir()
+    for tool in ("find", "stat", "sh", "md5sum"):
+        (bindir / tool).symlink_to(shutil.which(tool))
+    out = subprocess.run(
+        [shutil.which("sh"), "-c", cmd],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={"PATH": str(bindir)},
+    ).stdout
+    assert d.cron_paths("\n".join(d.parse_cron(out))) == {
+        "/opt/fabrik/scripts/sysadmin/detect_reversals.py",
+        "/opt/fabrik/scripts/sysadmin/weekly-maintenance.sh",
+    }, out
