@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — spokes receive the audit scripts and checklists their cron jobs read (2026-10-05)
+Every host installs the same sysadmin cron set, so vps2/vps3 run `weekly-security.sh` and `monthly-backup-verify.sh`,
+which read `scripts/audit/03-security.sh`, `scripts/audit/06-backup.sh` and their checklists under
+`docs/infrastructure/audit-prompts/`. Bootstrap step 14 and `scripts/sync-vps-sysadmin.sh` shipped only
+`scripts/sysadmin/` to a spoke. Both now ship the two directories whole (step 14 stages, copies and installs them; the
+sync script adds one `rsync -azO -R` per spoke, non-fatal, with the chown remedy in its warning, and honours
+`FABRIK_ROOT`). Step 14's `chmod … 2>/dev/null || true &&` link swallowed the failure of every earlier step in its
+chain; it is fenced in braces. Graders in `tests/test_spoke_sysadmin_ship.py`, which derive the required files from
+the cron targets. The live spokes change when the operator next runs the sync (W-922fbee1).
+
 ### Removed — the two stale monitoring compose copies; docs name the vps1 mirror (2026-10-05)
 `configs/monitoring-compose.yaml` and `specs/infrastructure/monitoring-stack.yaml` were drifted copies of the vps1
 monitoring compose (no memory limits, no pushgateway, no loki mesh port) whose headers claimed a `fabrik apply` or
