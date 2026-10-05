@@ -54,7 +54,9 @@ ROOT="${WIP_BACKUP_ROOT:-/opt}"
 # set (cron sets none). Appending to the caller's count meant re-implementing
 # git's own parse of GIT_CONFIG_COUNT, and three review rounds each found an
 # input the copy read differently from git (W-dbb3073f) — a count that is
-# never read cannot be misread.
+# never read cannot be misread. GIT_CONFIG_PARAMETERS (what an outer
+# `git -c` passes down) is applied AFTER the slots and would override them.
+unset GIT_CONFIG_PARAMETERS
 export GIT_CONFIG_COUNT=2
 export GIT_CONFIG_KEY_0=core.fsync GIT_CONFIG_VALUE_0=objects,reference
 export GIT_CONFIG_KEY_1=core.fsyncMethod GIT_CONFIG_VALUE_1=batch

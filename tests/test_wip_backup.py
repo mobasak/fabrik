@@ -2677,6 +2677,7 @@ def test_every_git_call_hardens_loose_objects_and_refs(tmp_path: Path) -> None:
         "GIT_CONFIG_COUNT": "1",
         "GIT_CONFIG_KEY_0": "user.name",
         "GIT_CONFIG_VALUE_0": "caller",
+        "GIT_CONFIG_PARAMETERS": "'core.fsync'='none'",
     }
     proc = subprocess.run(
         ["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=60
