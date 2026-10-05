@@ -47,25 +47,17 @@ ROOT="${WIP_BACKUP_ROOT:-/opt}"
 # counter on git 2.43. An unclean WSL shutdown mid-run left 123 zero-byte
 # objects and 50 zero-byte refs/wip files in web-ecommerce-factory, and git
 # reads a zero-byte object as present-but-corrupt, so every later push there
-# died in pack-objects. Harden both for EVERY git call this script makes,
-# appended to (never replacing) any GIT_CONFIG_* the caller already set.
+# died in pack-objects. Harden both for EVERY git call this script makes.
 # `batch` keeps the hardening at one flush per command: per-object fsync made
 # `add -A` of 3000 new files 22x slower (0.6 s → 13.6 s; batch 1.9 s).
-# A non-numeric inherited count would abort the whole run under `set -u`
-# (bash reads it as an unset variable name), and `08` is an octal error. Git
-# itself accepts ` 1`, `+1` and `01`, so those are normalised (the caller's
-# pairs kept); a non-number is replaced with 0. A count that promises pairs
-# the caller never set breaks git on every call, with or without this script.
-_fsync_n="${GIT_CONFIG_COUNT:-0}"
-_fsync_n="${_fsync_n#"${_fsync_n%%[! ]*}"}"
-_fsync_n="${_fsync_n#+}"
-case "$_fsync_n" in
-    ''|*[!0-9]*) _fsync_n=0 ;;
-    *) _fsync_n=$((10#$_fsync_n)) ;;
-esac
-export "GIT_CONFIG_KEY_${_fsync_n}=core.fsync" "GIT_CONFIG_VALUE_${_fsync_n}=objects,reference"
-export "GIT_CONFIG_KEY_$((_fsync_n + 1))=core.fsyncMethod" "GIT_CONFIG_VALUE_$((_fsync_n + 1))=batch"
-export GIT_CONFIG_COUNT=$((_fsync_n + 2))
+# Fixed slots, deliberately: the script REPLACES any GIT_CONFIG_* its caller
+# set (cron sets none). Appending to the caller's count meant re-implementing
+# git's own parse of GIT_CONFIG_COUNT, and three review rounds each found an
+# input the copy read differently from git (W-dbb3073f) — a count that is
+# never read cannot be misread.
+export GIT_CONFIG_COUNT=2
+export GIT_CONFIG_KEY_0=core.fsync GIT_CONFIG_VALUE_0=objects,reference
+export GIT_CONFIG_KEY_1=core.fsyncMethod GIT_CONFIG_VALUE_1=batch
 # Round 9 acceptance finding 1 [H]: bounds every `git push` below so a
 # network stall can never cost a local snapshot or wedge a later repo in
 # this run under the cron's own `flock -n`. Overridable only for tests (a

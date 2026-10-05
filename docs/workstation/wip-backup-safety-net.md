@@ -93,9 +93,7 @@ prefixes by hand; never delete `/tmp/wip-backup.lock` (that just lets a concurre
 early) or `/tmp/wip-backup.log` (the forensic record of what already ran).
 
 **Crash durability (W-dbb3073f):** every git call the script makes runs with `core.fsync=objects,reference`
-and `core.fsyncMethod=batch` (exported as `GIT_CONFIG_*` pairs appended to any the caller set; an inherited
-`GIT_CONFIG_COUNT` that is not a number is replaced with 0; one that promises pairs the caller never set
-breaks git itself, with or without this script). Git's compiled default, documented as
+and `core.fsyncMethod=batch` (exported as fixed `GIT_CONFIG_*` slots that replace any the caller set; cron sets none). Git's compiled default, documented as
 `committed,-loose-object`, fsyncs neither loose objects nor refs (measured with trace2's `hardware-flush`
 counter on git 2.43). An unclean WSL shutdown during a run on 2026-09-25 left web-ecommerce-factory with
 123 zero-byte loose objects and 50 zero-byte `refs/wip/*` files. Git reads a zero-byte object as
