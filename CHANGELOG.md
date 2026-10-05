@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — an auto-reply to a parent with no sender was allowed (2026-10-06)
+- `scripts/mail.py::should_auto_reply` read the parent's `from:` with a default of an empty string. An empty sender never equalled the replier, so the self-guard was skipped, and the per-sender rate count matched no file, so the reply went through. A parent with a missing or blank `from:` now HOLDs ("parent has no from"), like the existing unparseable-parent HOLD. `tests/test_mail.py::test_auto_guard_holds_a_parent_with_no_sender` fails without the fix. Found by the closing whole-plan review of the loop-safety plan (W-0cd0363f).
+
 ### Changed — the GlitchTip deny-by-default plan set is EXECUTED and archived (2026-10-06)
 - `docs/development/plans/2026-09-05-plan-2-glitchtip-deny-by-default/` had all 4 tickets merged and a whole-plan review whose closing pass found 0 (accepted as a pre-D-206 legacy receipt, D-497), yet still read CONVERGED. After a conformance re-check (scrubber vendored, emitter copies it, rule 55 states the shape, the guard test 10/10), the spine reads EXECUTED and the set is in `docs/development/plans/archived/`. PLANS.md is regenerated. D-600, W-07314261.
 

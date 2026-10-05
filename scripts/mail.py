@@ -638,7 +638,15 @@ def should_auto_reply(
     wins and names the reason. Fail-soft: an uncomputable rate count ALLOWs
     with a stderr note (a loop is lower-risk than a wedged channel)."""
     _safe_name(self_repo, "repo")  # L9: keep the traversal guard on this public entry
-    sender = parent_fm.get("from", "")
+    sender = str(parent_fm.get("from", "") or "").strip()
+    if not sender:
+        # Closing review of the loop-safety plan (W-0cd0363f): an empty sender
+        # matched neither self_repo nor any mailbox file, so a parent with no
+        # `from:` skipped the self-guard AND the rate cap and was ALLOWED.
+        return (
+            False,
+            "HOLD: parent has no from — the self-guard and rate cap cannot attribute it",
+        )
     if sender == self_repo:
         return (
             False,

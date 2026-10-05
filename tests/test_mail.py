@@ -706,6 +706,19 @@ def test_auto_guard_truth_table(env):
     assert ok, reason
 
 
+def test_auto_guard_holds_a_parent_with_no_sender(env):
+    """A parent with no usable `from:` cannot be attributed, so the self-guard
+    and the per-sender rate cap cannot be evaluated: HOLD, never ALLOW (an empty
+    sender matched nobody, so the reply went through — closing review of the
+    loop-safety plan, W-0cd0363f)."""
+    for frm in (None, "", "   "):
+        fm = {"kind": "request", "ack": "required", "hops": "0"}
+        if frm is not None:
+            fm["from"] = frm
+        ok, reason = mail.should_auto_reply(fm, "fabrik")
+        assert not ok and "no from" in reason, (frm, reason)
+
+
 def test_hop_cap_boundary_equal_refuses(env, monkeypatch):
     """parent.hops == cap REFUSES (>=, not >)."""
     monkeypatch.setenv("FABRIK_MAIL_HOP_CAP", "2")
