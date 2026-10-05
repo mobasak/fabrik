@@ -405,12 +405,6 @@ docs/
 │   │   │   ├── T15-plans-md-regeneration-with-an-owner-colu.md
 │   │   │   └── T16-integration-whole-plan-gate-doc-receipt.md
 │   │   ├── 2026-09-05-plan-1-windowed-cost-sidecar.md
-│   │   ├── 2026-09-05-plan-2-glitchtip-deny-by-default
-│   │   │   ├── 2026-09-05-plan-2-glitchtip-deny-by-default.md
-│   │   │   ├── T01-vendor-the-scrubber-into-the-template-tree.md
-│   │   │   ├── T02-the-fastapi-emitter-copies-the-module.md
-│   │   │   ├── T03-the-guard-asserts-the-captured-event.md
-│   │   │   └── T04-rule-55-states-the-shape.md
 │   │   ├── 2026-09-06-plan-1-session-history-retention.md
 │   │   ├── 2026-09-06-plan-2-multi-agent-adoption
 │   │   │   ├── 2026-09-06-plan-2-multi-agent-adoption.md
