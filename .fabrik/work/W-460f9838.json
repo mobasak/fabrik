@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "fabrik-plan-review: resumed round-1 seats cannot deliver a pass-2 report (the hand-back is one-shot)"
 }
