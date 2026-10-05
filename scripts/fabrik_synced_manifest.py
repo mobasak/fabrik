@@ -64,6 +64,7 @@ CORE_SCRIPTS = [
     "thread_anchor.py",  # THREAD ANCHORS: durable NEXT:-line memory — the Stop hook harvests, SessionStart/UserPromptSubmit re-inject (settings.json references it, so it must travel with settings.json)
     "work.py",  # WORK TRACKING: the open-work store (ready/next/claim/done/answer/assign/status/sync/render) — travels with thread_anchor.py, whose DECISION harvest and prompt block call it by path (plan 2026-09-24 T04)
     "check_research_ledger.py",  # RESEARCH LEDGER (D-352): the row grammar every research fan-out files its facts under, in every repo
+    "review_loop_ledger.py",  # the review-loop's pass reader (`read`/`next`) — every launch of `.claude/workflows/fabrik-review-loop.js` runs it next, so it travels with that script (stdlib only; iterative_image_editor 01M3Q4Q1)
 ]
 
 # Scripts RETIRED from CORE_SCRIPTS — the sync DELETES these from every project copy.
@@ -276,6 +277,11 @@ AGENT_HOOK_FILES = [
     ".claude/hooks/quota_stop.py",  # PreToolUse: fleet-wide graceful stop on the tick's fleet-exhausted stamp (fail-open)
     ".claude/hooks/agent_role.py",
     ".claude/hooks/mcp_watch.py",  # UserPromptSubmit: the D-041 per-message MCP forcing layer — staleness + cached-liveness banners (01M1GJQ3: the old comment was agent_role.py's)
+    # NOT a hook: the review-family commands' seat launcher (`Workflow({scriptPath: "<repo root>/.claude/
+    # workflows/fabrik-review-loop.js"})`). The Workflow tool loads only a file inside the session's own
+    # tree, so a project launching the hub's absolute path was refused (iterative_image_editor
+    # 01M3Q4Q1FEJ22NQQEDVNZ4CWZA); synced verbatim beside the hooks, it is repo-generic.
+    ".claude/workflows/fabrik-review-loop.js",
     ".windsurf/hooks.json",
 ]
 

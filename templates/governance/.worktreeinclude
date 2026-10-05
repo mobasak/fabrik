@@ -18,6 +18,7 @@ CLAUDE.md
 .claude/hooks/quota_stop.py
 .claude/hooks/agent_role.py
 .claude/hooks/mcp_watch.py
+.claude/workflows/fabrik-review-loop.js
 .windsurf/hooks.json
 .windsurf/
 docs/reference/kilo/
@@ -47,6 +48,7 @@ scripts/task_lane.py
 scripts/thread_anchor.py
 scripts/work.py
 scripts/check_research_ledger.py
+scripts/review_loop_ledger.py
 scripts/enforcement/
 scripts/rund
 scripts/rundsh

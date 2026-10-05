@@ -13,8 +13,10 @@ subscription is spending usage credits (finding 41).
 ## Launch (the command source does this; the lead never dispatches seats one by one)
 
 ```text
-Workflow({ scriptPath: "/opt/fabrik/.claude/workflows/fabrik-review-loop.js", args: { … } })
+Workflow({ scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js", args: { … } })
 ```
+
+`<repo root>` is the session's own checkout — `git rev-parse --show-toplevel` from its working directory, so in a worktree the worktree, never the main checkout. The script and its pass reader `scripts/review_loop_ledger.py` are synced to every project (`scripts/fabrik_synced_manifest.py`), so the path exists in any checkout the sync has reached; elsewhere the § Fallback below applies.
 
 | `args` key | Value |
 |---|---|
@@ -59,7 +61,7 @@ while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set, because that variable puts ever
 
 ## Fallback
 
-When the `Workflow` tool is absent from the session, the seats go out through the `Agent` tool in one message
+When the `Workflow` tool is absent from the session, or cannot load the script (a repo or checkout the sync has not reached, such as fabrik-lib), the seats go out through the `Agent` tool in one message
 with the same briefs and schemas, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) names `shape: agent-tool`. Both shapes are the
 same loop; the workflow is the one that keeps the lead's turns flat.
 

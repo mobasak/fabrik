@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,7 +30,7 @@ SOURCES = [
 ]
 BRIEF = ROOT / "commands" / "_agents" / "fabrik-reviewer.md"
 DOC = ROOT / "docs" / "reference" / "review-loop-workflow.md"
-SCRIPT_PATH_TEXT = "/opt/fabrik/.claude/workflows/fabrik-review-loop.js"
+SCRIPT_PATH_TEXT = "<repo root>/.claude/workflows/fabrik-review-loop.js"
 
 
 def _script() -> str:
@@ -174,6 +175,43 @@ def test_the_sources_and_the_brief_name_the_script() -> None:
     brief = BRIEF.read_text(encoding="utf-8")
     assert "files_read" in brief, "the brief must tell a finder to list every file it opened"
     assert DOC.is_file(), "the workflow's reference doc is missing"
+
+
+def test_the_launcher_reaches_projects_and_no_source_launches_the_hub_copy() -> None:
+    """iterative_image_editor 01M3Q4Q1FEJ22NQQEDVNZ4CWZA: the Workflow tool loads only a file in the
+    session's own tree, so a project launching `/opt/fabrik/.claude/workflows/...` was refused. The
+    script is synced beside the hooks, every source launches the repo's own copy, and every fallback
+    covers a tool that cannot load it (a repo the sync does not reach)."""
+    import re
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    try:
+        import fabrik_synced_manifest as manifest
+    finally:
+        sys.path.pop(0)
+    assert ".claude/workflows/fabrik-review-loop.js" in manifest.AGENT_HOOK_FILES
+    assert (
+        "review_loop_ledger.py" in manifest.CORE_SCRIPTS
+    )  # the pass reader every launch runs next
+    corpus = [
+        *(ROOT / "commands" / "_sources").glob("*.md"),
+        *(ROOT / "commands" / "_fragments").glob("*.md"),
+        DOC,
+    ]
+    for path in corpus:
+        text = path.read_text(encoding="utf-8")
+        assert "/opt/fabrik/.claude/workflows/" not in text, f"{path.name} launches the hub copy"
+        if "fabrik-review-loop.js" in text:
+            flat = " ".join(text.split())
+            assert "cannot load the script" in flat, (
+                f"{path.name} names the script with no fallback"
+            )
+        for m in re.finditer(r"`Workflow`\s+tool\s+is\s+absent", text):
+            tail = " ".join(text[m.end() : m.end() + 60].split())
+            assert tail.startswith(("or cannot load", "from the session, or cannot load")), (
+                path.name,
+                tail,
+            )
 
 
 def _call_end(body: str, start: int) -> int:

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-review-scoped (and the review-loop contract docs/reference/review-loop-workflow.md) tells a project session to launch Workflow({scriptPath: \"/opt/fabrik/.claude/workflows/fabrik-review-loop.js\"}). From a project worktree (tryton-crm, agent-2, 2026-10-01) the Workflow tool refuses it: \"script"
 }

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review commands can launch their seat workflow from any project (2026-10-05)
+
+- `.claude/workflows/fabrik-review-loop.js` and `scripts/review_loop_ledger.py` are now synced to every project; the review commands launch the session's own copy instead of `/opt/fabrik/...` (which the Workflow tool refused outside the hub), and every fallback covers a tool that cannot load it (iterative_image_editor 01M3Q4Q1, D-577). Also corrects a corpus grader left stale by a56a844fb (`import httpx, dotenv`).
+
 ### Fixed — pointing at a boarded operator gate no longer forces a duplicate (2026-10-05)
 
 - The Stop hook's D1 deferral check accepts a `NEXT:` line whose every `W-` id is an open awaiting-operator item, instead of demanding a fresh DECISION block that the harvest then boarded as a duplicate gate; both CLAUDE.md copies say a boarded gate is pointed at by id (tryton-crm 01M3Q4HZ, D-576).

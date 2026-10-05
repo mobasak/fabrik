@@ -126,6 +126,7 @@ All files in `scripts/enforcement/` are recursively synced (`ENFORCEMENT_DIR`, `
 | `.claude/hooks/final_gate_stop.py` | Claude Code stop-hook enforcing `final_gate` green as the definition of done |
 | `.claude/hooks/skill_router.py` | UserPromptSubmit router — suggests the owning `/fabrik-*` skill for bare-prose requests |
 | `.claude/hooks/session_orient.py` | SessionStart ORIENT block — binds the synced CLAUDE.md, surfaces MEMORY.md state, names session-recall + the enforcement mesh |
+| `.claude/workflows/fabrik-review-loop.js` | Not a hook — the review-family commands' seat launcher, loaded as `Workflow({scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js"})`; the Workflow tool reads only the session's own tree, so the hub path was refused in projects (iterative_image_editor 01M3Q4Q1) |
 | `.windsurf/hooks.json` | Cascade hook configuration — **DORMANT**: no live runtime consumes it (Cascade retired); synced as a template for a future non-Claude tool, never counted as active enforcement |
 
 Synced verbatim to project root (`AGENT_HOOK_FILES`, `fabrik_synced_manifest.py`) — path/cwd-agnostic: the Claude Code hook resolves its project via `${CLAUDE_PROJECT_DIR}` + stdin cwd, the Cascade hook commands self-locate via `git rev-parse`. This is what makes every project — existing and future — enforce `final_gate` green as the definition of done.
