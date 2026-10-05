@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — service catalog: `crowdlex` classified as the fleet's own youtube API (2026-10-05)
+`scripts/service_catalog.json` listed `crowdlex` and `crowdlex_internal` as `unidentified`, so brand-identiy-creator's
+`/fabrik-catchup` probe could not tell `CROWDLEX_API_URL=http://crowdlex-api:8031` from a dead reference
+(01M4642DYM). `crowdlex-api` is the `container_name` of youtube's `api` service on the external `fabrik` network,
+port 8031 (`/opt/youtube/compose.yaml`, `PORTS.md`). The entry is now `infra-platform` / `self-host` / `active`, and
+`crowdlex_internal` is dropped because the `CROWDLEX` prefix already matches `CROWDLEX_INTERNAL_*` keys.
+
 ### Added — read-only VPS script drift check, and the kaizen collector's stamp no longer hides its failures (2026-10-05)
 `scripts/sysadmin/vps_script_drift.py` (W-c792a205) compares the hub checkout's committed `HEAD` (master, in the
 rider) with what vps, vps2 and vps3 execute — `scripts/sysadmin/`, the two cron-called audit scripts and
