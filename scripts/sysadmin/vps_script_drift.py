@@ -166,21 +166,32 @@ _CRON_ENV_RE = re.compile(r"""^\s*(["']?)[A-Za-z_][A-Za-z0-9_]*\1\s*=""")
 
 
 def _command_part(line: str) -> str:
-    """The part of a cron line that sh runs. cron turns the first unescaped % into a newline and feeds the rest
-    to the command's stdin (crontab(5)); sh then ignores a whitespace-preceded # outside quotes as a comment. A
-    left-to-right scan, so a quote inside the comment cannot hide where the comment starts."""
-    quote = ""
+    """The part of a cron line that sh runs, in two passes as cron and sh read it.
+
+    cron: the first % not escaped by a backslash becomes a newline and the rest is the command's stdin
+    (crontab(5)) — shell quotes mean nothing to cron, and a backslash escapes the next character, so ``\\\\%``
+    is an escaped backslash followed by a live %. sh: a # that begins a word (line start, after whitespace or an
+    operator) and is not quoted or backslash-escaped starts a comment; a backslash escapes the next character
+    outside quotes and inside double quotes, never inside single quotes."""
+    escaped = False
     for i, c in enumerate(line):
-        if c == "%" and (
-            i == 0 or line[i - 1] != "\\"
-        ):  # cron splits here even inside shell quotes
-            return line[:i]
-        if quote:
+        if c == "%" and not escaped:
+            line = line[:i]
+            break
+        escaped = c == "\\" and not escaped
+    quote = ""
+    escaped = False
+    for i, c in enumerate(line):
+        if escaped:
+            escaped = False
+        elif c == "\\" and quote != "'":
+            escaped = True
+        elif quote:
             if c == quote:
                 quote = ""
         elif c in "\"'":
             quote = c
-        elif c == "#" and (i == 0 or line[i - 1].isspace()):
+        elif c == "#" and (i == 0 or line[i - 1].isspace() or line[i - 1] in ";|&()<>"):
             return line[:i]
     return line
 
