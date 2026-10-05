@@ -62,6 +62,57 @@ def test_tests_only_change_needs_no_changelog(repo: Path) -> None:
     assert _run(repo).returncode == 0
 
 
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "tryton_modules/crm_bridge/sale.py",
+        "apps/web/app/api/route.ts",
+        "api.py",
+        "apps/web/next.config.mjs",
+        "libs/shim.cjs",
+        "types/global.mts",
+        "apps/billing_e2e/charge.py",
+        "contests/handler.py",
+        "apps/web/app/integrations/test/page.tsx",
+        "infra/vps1/watchdog-test/compose.yaml",
+        "src/ab_test/experiment.py",
+        "scripts/enforcement/check_test_coverage.py",
+    ],
+)
+def test_code_in_any_directory_demands_a_changelog(repo: Path, rel: str) -> None:
+    """Code is code wherever the layout puts it (tryton-crm 01M3QVX8): a hand-kept list of
+    five directories let 300 of 3,837 recent fleet commits ship code with no entry."""
+    _write(repo, rel, "x = 1\n")
+    _stage(repo, rel)
+    r = _run(repo)
+    assert (
+        r.returncode == 1
+        and f"CHANGELOG.md not updated for 1 significant code/infra change(s) (e.g. {rel})"
+        in r.stdout
+    ), r.stdout
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "pkg/test_helpers.py",
+        "integration-tests/setup.ts",
+        "web/tests-ui/helpers.ts",
+        "acceptance_tests/run.py",
+        "docs/reference/research/probe.py",
+        "apps/web/__tests__/e2e/helpers.ts",
+        "app/__mocks__/react-native-mmkv.ts",
+        "libs/art_direction/conftest.py",
+        "extension/e2e/extension.fixture.ts",
+    ],
+)
+def test_test_shaped_paths_need_no_changelog(repo: Path, rel: str) -> None:
+    _write(repo, rel, "x = 1\n")
+    _stage(repo, rel)
+    r = _run(repo)
+    assert r.returncode == 0, r.stdout
+
+
 def test_env_example_without_configuration_fails(repo: Path) -> None:
     _write(repo, ".env.example", "FOO=bar\n")
     _stage(repo, ".env.example")

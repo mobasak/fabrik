@@ -29,11 +29,18 @@ import subprocess
 import sys
 from pathlib import Path
 
-# ── significant-code definition (faithful to check_changelog.py) ──────────────
-SIGNIFICANT_DIRS = ("src/", "scripts/", "templates/", ".factory/", ".github/")
+# ── significant-code definition ───────────────────────────────────────────────
+# Code is significant WHEREVER it lives, unless _skip (SKIP_PATTERNS, SKIP_SEGMENTS) names
+# it a test, cache or transient path. This replaced a five-directory allowlist (src/
+# scripts/ templates/ .factory/ .github/) that a layout escaped silently: tryton_modules/,
+# apps/, server/, a root api.py — 300 of 3,837 recent fleet commits shipped code with no
+# CHANGELOG entry and this gate green (tryton-crm 01M3QVX8). Cheapest ways past the rule:
+# move code under a skipped path or a top-level docs/ (exempt below), touch one byte of a
+# sibling's [Unreleased] entry (the section check accepts any change to it, which is what
+# lets a task extend its own entry), or `git commit --no-verify` — the skip list and the
+# CHANGELOG diff are the review surface. _skip also gates the INDEX, route, resilience and
+# schema rows, so a test-shaped path is exempt from all of them.
 SKIP_PATTERNS = (
-    "tests/",
-    "test_",
     "_test.py",
     ".test.ts",
     ".spec.ts",
@@ -48,7 +55,16 @@ SKIP_PATTERNS = (
     ".fabrik/plan-locks/",
     ".fabrik/cert-locks/",
 )
-CODE_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".sh"}
+# Test-shaped paths matched as WHOLE path segments or basenames, so `billing_e2e/`, `contests/`
+# and `check_test_coverage.py` stay code (a bare "test_" substring hid ten fleet product files).
+# A dir counts as tests when it is `tests` or `tests` joined by - or _ to another word
+# (`integration-tests/`, `tests-ui/`). The singular is NOT a test signal: `test/` is a product
+# route in tojlo-mail and `watchdog-test/` a deployed service in the hub.
+SKIP_SEGMENTS = re.compile(
+    r"(?:^|/)(?:tests|__tests__|__mocks__|e2e|[\w.]+[-_]tests|tests[-_][\w.]+)/"
+    r"|(?:^|/)conftest\.py$|(?:^|/)test_[^/]*$"
+)
+CODE_EXTENSIONS = {".py", ".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs", ".cjs", ".sh"}
 SIGNIFICANT_FILES = {"Dockerfile", "compose.yaml", "compose.yml"}
 ROUTE_PATTERNS = (
     r"@app\.(get|post|put|patch|delete|options|head)\s*\(",
@@ -99,7 +115,7 @@ def _range_adr(base_range: str) -> list[str]:
 
 
 def _skip(f: str) -> bool:
-    return any(p in f for p in SKIP_PATTERNS)
+    return any(p in f for p in SKIP_PATTERNS) or bool(SKIP_SEGMENTS.search(f))
 
 
 def _is_tracked(path: str) -> bool:
@@ -190,9 +206,9 @@ def _is_orm_model(f: str) -> bool:
 def _is_significant_code(f: str) -> bool:
     if _skip(f):
         return False
-    in_dir = any(f.startswith(d) for d in SIGNIFICANT_DIRS)
-    is_code = Path(f).suffix in CODE_EXTENSIONS
-    return (in_dir and is_code) or Path(f).name in SIGNIFICANT_FILES
+    if f.startswith("docs/"):  # research and archive scripts beside the prose, not product code
+        return False
+    return Path(f).suffix in CODE_EXTENSIONS or Path(f).name in SIGNIFICANT_FILES
 
 
 def _has_route_change(staged: list[str], diff_scope: list[str] | None = None) -> bool:

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_doc_sync counts code wherever the layout puts it (2026-10-05)
+- `scripts/enforcement/check_doc_sync.py`: the CHANGELOG row (ERROR) keyed on a five-directory allowlist (`src/`, `scripts/`, `templates/`, `.factory/`, `.github/`), so code in `tryton_modules/`, `apps/`, `server/` or at the root never owed an entry — 300 of 3,837 recent fleet commits shipped code that way with the gate green (tryton-crm 01M3QVX8). Any code file (now also `.mjs`, `.cjs`, `.mts`) counts unless it is test-shaped or under a top-level `docs/`. Test-shaped skips match whole path segments or basenames — `tests/`, `__tests__/`, `__mocks__/`, `e2e/`, a plural `*-tests`/`tests-*` dir, `conftest.py`, `test_*` — so `contests/`, `billing_e2e/`, `watchdog-test/`, `ab_test/` and `check_test_coverage.py` stay code. Graders in `tests/test_check_doc_sync.py`, red on the old rule; receipt `docs/development/reviews/2026-10-05-check-doc-sync-significant-code-review.md`.
+
 ### Added — audit action `admin.job_requeued` for an operator re-running a tenant's work (2026-10-05)
 
 - Pack `core/app-audit-log` § `admin.*` gains `admin.job_requeued` (`details {job_kind, from_status, reason}`, target `job`, job_id or the requeued record itself), the generic row for operator re-runs of billed pipeline work (trade-intelligence 01M3QTXJ, D-584).
