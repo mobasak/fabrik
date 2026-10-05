@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_convergence no longer passes a non-git root unexamined (2026-10-05)
+- `scripts/enforcement/check_convergence.py` (fleet-synced) builds every worklist from `git status`. Outside a git work tree those lists were empty, so a plan claiming CONVERGED with no proof passed with rc 0, never examined (tryton-crm 01M3RW55, W-70d7718d).
+- It now asks `git rev-parse --is-inside-work-tree` first. If the answer is no and any plan or review file is on disk, it refuses with rc 2. The refusal message carries git's own error line, such as "dubious ownership", followed by the `git init && git add -A` remedy.
+- A missing `git` binary, a missing root or a hung git reads as "not inside", so the checker refuses instead of crashing with a traceback.
+- With nothing to grade, it still returns rc 0.
+- `docs/workflows/FINAL_GATE_WORKFLOW.md` describes the refusal in its scratch-copy recipe.
+- The old advisory test had used a non-git directory and so encoded the silent pass. It now simulates a failing `cat-file` inside a real repo.
+
 ### Fixed — docs_updater --sync keeps a project's own INDEX rows (2026-10-05)
 - `scripts/docs_updater.py --sync` (fleet-synced) used to rebuild INDEX.md's STRUCTURE block with row comments taken only from a hard-coded hub dict, and it expanded every directory. A project's hand-written `# description` was lost or overwritten with Fabrik wording, and a directory collapsed by hand was expanded (trade-intelligence 01M3RTNQ, W-961bede1).
 - It now parses the current block first:

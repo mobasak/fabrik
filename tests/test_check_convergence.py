@@ -1994,17 +1994,40 @@ def test_a_committed_executed_plan_whose_review_is_missing_is_reported_advisory(
     assert rc == 0 and out.startswith("⚠") and "NOTE: skip untracked" in out, out
 
 
-def test_a_git_failure_in_the_advisory_is_a_warning_final_gate_can_see(tmp_path: Path) -> None:
+def test_a_git_failure_in_the_advisory_is_a_warning_final_gate_can_see(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
     """Round 3: with no readable HEAD the advisory printed a `NOTE:` first line, which
-    final_gate's ⚠-first opt-in drops — the unexamined count is an advisory ROW under the ⚠ header."""
-    plan = tmp_path / "docs/development/plans/2026-08-03-plan-x.md"
-    plan.parent.mkdir(parents=True)
+    final_gate's ⚠-first opt-in drops — the unexamined count is an advisory ROW under the ⚠ header.
+    The failure is a `cat-file` that dies inside a real work tree (W-70d7718d made a non-git root
+    a refusal of its own, so it can no longer stand in for this)."""
+    plan = repo / "docs/development/plans/2026-08-03-plan-x.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
     plan.write_text(_EXECUTED_CITING)
-    rc, out = _check_out(tmp_path)  # not a git repo: cat-file fails
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "plan")
+    shim = tmp_path_factory.mktemp("shim")
+    import shutil
+
+    real_git = shutil.which("git")
+    assert real_git, "fixture premise: a git binary on PATH"
+    (shim / "git").write_text(f'#!/bin/sh\n[ "$1" = cat-file ] && exit 128\nexec {real_git} "$@"\n')
+    (shim / "git").chmod(0o755)
+    import os
+
+    proc = subprocess.run(
+        [sys.executable, str(CHECK), "--project-root", str(repo)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={**os.environ, "PATH": f"{shim}:{os.environ['PATH']}"},
+    )
+    rc, out = proc.returncode, proc.stdout
     assert rc == 0 and out.startswith("⚠") and "0 blob(s) of 1 plan file(s)" in out, out
     cc = _load_cc()
+    nogit = tmp_path_factory.mktemp("nogit")  # outside `repo`, so git finds no parent repo
     heads, complete, reached = cc._head_texts(
-        tmp_path, ["docs/development/plans/2026-08-03-plan-x.md"]
+        nogit, ["docs/development/plans/2026-08-03-plan-x.md"]
     )
     assert heads == {} and complete is False and reached == 0
 
@@ -2359,3 +2382,99 @@ def test_an_archived_plan_whose_bold_status_value_is_midflight_is_reported(repo:
     _git(repo, "commit", "-qm", "archived mid-flight")
     rc, out = _check_out(repo)
     assert rc == 0 and "2026-07-01-plan-y.md: archived while its own Status" in out, out
+
+
+@pytest.mark.parametrize(
+    "rel",
+    ["docs/development/plans/2026-09-30-plan-1-x.md", "docs/development/reviews/2026-09-30-r.md"],
+)
+def test_a_non_git_root_with_plans_refuses_instead_of_passing(tmp_path, rel):
+    """W-70d7718d (tryton-crm 01M3RW55): the worklists come from `git status`, so outside a work
+    tree they were empty and a plan claiming CONVERGED with no Evidence passed rc 0 unexamined.
+    A review-only tree is graded by the same gate, so it is refused the same way."""
+    (tmp_path / rel).parent.mkdir(parents=True)
+    (tmp_path / rel).write_text("# Doc\n\n**Status:** CONVERGED\n")
+    proc = subprocess.run(
+        [sys.executable, str(CHECK), "--project-root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=tmp_path,
+    )
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert "not inside a git work tree" in proc.stdout
+    assert "git init" in proc.stdout
+
+
+def test_a_non_git_root_with_nothing_to_grade_stays_green(tmp_path):
+    """Nothing under the plan or review dirs means nothing was skipped: rc 0 is honest there."""
+    proc = subprocess.run(
+        [sys.executable, str(CHECK), "--project-root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=tmp_path,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_a_missing_git_binary_refuses_without_a_traceback(tmp_path):
+    """W-70d7718d review: `git rev-parse` with no git on PATH raised FileNotFoundError out of the
+    gate; it now reads as "not inside a work tree" and refuses like any non-git root."""
+    plans = tmp_path / "docs" / "development" / "plans"
+    plans.mkdir(parents=True)
+    (plans / "2026-09-30-plan-1-x.md").write_text("# Plan\n\n**Status:** CONVERGED\n")
+    empty = tmp_path / "emptybin"
+    empty.mkdir()
+    proc = subprocess.run(
+        [sys.executable, str(CHECK), "--project-root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=tmp_path,
+        env={"PATH": str(empty)},
+    )
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert "Traceback" not in proc.stderr and "not inside a git work tree" in proc.stdout
+
+
+def test_a_git_that_refuses_the_repo_is_named_in_the_refusal(tmp_path, tmp_path_factory):
+    """A `dubious ownership` repo makes `git rev-parse` exit 128 with empty stdout: the refusal
+    must carry git's own line, since `git init && git add -A` cannot fix that case."""
+    plans = tmp_path / "docs" / "development" / "plans"
+    plans.mkdir(parents=True)
+    (plans / "2026-09-30-plan-1-x.md").write_text("# Plan\n\n**Status:** CONVERGED\n")
+    shim = tmp_path_factory.mktemp("shim")
+    (shim / "git").write_text(
+        "#!/bin/sh\necho \"fatal: detected dubious ownership in repository at '/x'\" >&2\nexit 128\n"
+    )
+    (shim / "git").chmod(0o755)
+    import os
+
+    proc = subprocess.run(
+        [sys.executable, str(CHECK), "--project-root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=tmp_path,
+        env={**os.environ, "PATH": f"{shim}:{os.environ['PATH']}"},
+    )
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert "dubious ownership" in proc.stdout
+
+
+@pytest.mark.parametrize("kind", ["missing", "file"])
+def test_a_missing_project_root_is_not_a_traceback(tmp_path, kind):
+    """A --project-root that does not exist (FileNotFoundError) or is a plain file
+    (NotADirectoryError) crashed `subprocess.run(cwd=...)`; with nothing on disk to grade it is the
+    honest rc 0 it was before the guard."""
+    root = tmp_path / "root"
+    if kind == "file":
+        root.write_text("x\n")
+    proc = subprocess.run(
+        [sys.executable, str(CHECK), "--project-root", str(root)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 0 and "Traceback" not in proc.stderr, proc.stderr
