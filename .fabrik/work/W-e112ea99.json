@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Addendum to 01M3WW45D0QVW14KJQW70PFE2P (merge_request.py owner-test PYTHONPATH), from our review of the write-up."
 }

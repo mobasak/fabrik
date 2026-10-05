@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Request: fix merge_request.py's owner-test PYTHONPATH (Fabrik-synced; I may not edit it)."
 }

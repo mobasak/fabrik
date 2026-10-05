@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T05:38:26.241978Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-aea7b45f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M456PCK75NNEXBAZWD720P07",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: correction to my request 01M453XP8WD6HZS79CQ5Y19MPW (merge_request.py src/ shadowing) - it is a RE-HIT of your open 2026-10-02 items 01M3WW45D0QVW14KJQW70PFE2P and 01M3WWSJ63HWYVM2FPZZS6RQCW, not a new defect."
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T04:27:43.512732Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-629bb933",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M453XP8WD6HZS79CQ5Y19MPW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Upstream proposal: merge_request.py step (c) prepends the throwaway's src/ to PYTHONPATH, so a project package named like a stdlib module (here src/copy/) shadows it and every owner-test run dies on import (xml.etree -> copy.deepcopy)."
+}
