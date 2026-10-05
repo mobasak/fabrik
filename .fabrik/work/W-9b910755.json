@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T20:41:09.545744Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-9b910755",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "replace the any-quote skip with a quote-aware left-to-right scan (strip at the first whitespace-preceded # outside quotes); regression row: '0 1 * * * root /opt/fabrik/scripts/sysadmin/a.sh # it'\\''s done, was /opt/fabrik/scripts/sysadmin/old2.sh' must not yield old2.sh; also _CRON_ENV_RE misses a quoted env name (\"FOO\"=…). Recorded by the W-73feca74 remainder round (scope-growth stop), tested fix in that seat's report",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "vps"
+  ],
+  "title": "vps_script_drift._strip_tail_comment keeps a comment's path when the comment has an apostrophe — could hide a dropped cron job"
+}
