@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Re: 01M3RQ7G, ordering rule for the prompt audit (operator addition): audit the SOURCE before anything that inherits it, then announce to the inheritors"
 }
