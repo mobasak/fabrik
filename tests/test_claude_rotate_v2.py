@@ -1318,17 +1318,24 @@ def _cand(name, session, weekly=20.0, reset=NOW + 3600, source="live", **extra):
 
 def test_target_needs_session_budget_even_when_its_weekly_reset_is_soonest(monkeypatch):
     """Perishable-first must not pick a sibling that is about to hit its OWN 5h wall — it would
-    flip there and flip away next tick. Default budget gate: session ≤ the drain threshold (85%) used."""
+    flip there and flip away next tick. Default budget gate: session ≤ the trip line (98%) used —
+    the 85% drain band left the target set on 2026-10-06 ("there should not be 85% at all")."""
     monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
     monkeypatch.setattr(cr, "_now", lambda: NOW)
-    soon_but_spent = _cand("soon", session=90.0, reset=NOW + 3600)
+    soon_but_spent = _cand("soon", session=98.5, reset=NOW + 3600)
+    soon_at_90 = _cand("soon90", session=90.0, reset=NOW + 1800)
     later_but_fresh = _cand("fresh", session=10.0, reset=NOW + 5 * 86400)
     assert cr._pick_flip_target([soon_but_spent, later_but_fresh], exclude=set()) == (
         "fresh",
         "fresh@test",
     )
-    reasons = cr._flip_exclusion_reasons([soon_but_spent], set(), 95.0)
+    reasons = cr._flip_exclusion_reasons([soon_but_spent], set(), 98.0)
     assert reasons and "no 5h budget" in reasons[0], reasons
+    # 90% session is available now: the soonest reset wins
+    assert cr._pick_flip_target([soon_at_90, later_but_fresh], exclude=set()) == (
+        "soon90",
+        "soon90@test",
+    )
 
 
 def test_target_with_no_session_reading_is_never_picked(monkeypatch):
@@ -1356,7 +1363,7 @@ def test_cached_standby_whose_session_window_rolled_over_counts_as_empty(monkeyp
 
 
 def test_live_reverify_applies_the_same_session_budget_gate(monkeypatch):
-    """A cached 10% that probes LIVE at 90% must not become the pointer — the live reading goes
+    """A cached 10% that probes LIVE at 98.5% must not become the pointer — the live reading goes
     through the SAME candidate verdict the picker used on the cache (F-C1), budget gate included."""
     monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
     monkeypatch.setattr(cr, "_now", lambda: NOW)
@@ -1366,7 +1373,7 @@ def test_live_reverify_applies_the_same_session_budget_gate(monkeypatch):
         cr,
         "_usage_windows",
         lambda u: {
-            "five_hour": {"utilization": 90.0, "resets_at_epoch": NOW + 3600},
+            "five_hour": {"utilization": 98.5, "resets_at_epoch": NOW + 3600},
             "seven_day": {"utilization": 20.0, "resets_at_epoch": NOW + 3600},
         },
     )
@@ -1749,7 +1756,7 @@ def test_guarantee_2_waits_when_no_account_is_available(monkeypatch, tmp_path, c
     """Active at the wall and EVERY sibling walled too -> no flip, and no crash. This is the
     'wait' half: installing a walled successor would kill every session box-wide."""
     flips = _real_pick_harness(monkeypatch, tmp_path)
-    walled = [_ob(99.0, 40.0), _sib("sarp", 99.0), _sib("can", 100.0), _sib("mob", 97.0)]
+    walled = [_ob(99.0, 40.0), _sib("sarp", 99.0), _sib("can", 100.0), _sib("mob", 98.5)]
     cr._fleet_flip_leg([], walled, threshold=95.0)
     assert flips == [], f"must NOT install a walled successor; got {flips}"
     assert cr._validated_pick(walled, {"ob@test"}) is None, "no candidate may be offered"
@@ -2060,14 +2067,14 @@ def test_an_idle_sibling_under_both_bars_is_not_a_relief_candidate():
 
 
 def test_relief_uses_the_pickers_session_bar_not_the_drain_threshold(monkeypatch):
-    """P3-2: the picker refuses a target over ROTATE_TARGET_SESSION_MAX_PCT (85); relief keyed on
-    the 95 drain line promised the weekly reset for an account at 90% — an instant at which
-    nothing was pickable, re-broadcast every hour."""
+    """P3-2: the picker refuses a target over ROTATE_TARGET_SESSION_MAX_PCT (default the 98 trip
+    line since 2026-10-06); relief must not promise the weekly reset for an account past that bar
+    — an instant at which nothing was pickable, re-broadcast every hour."""
     monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
     monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
     accounts = [
         _relief_row(
-            "band", weekly=99.0, cap=99, session=90.0, fh_reset=NOW + 36000, wk_reset=NOW + 3600
+            "band", weekly=99.0, cap=99, session=98.5, fh_reset=NOW + 36000, wk_reset=NOW + 3600
         )
     ]
     epoch, email, _ = cr._next_session_relief(accounts, "active@test", NOW)
@@ -2215,7 +2222,7 @@ def test_a_sooner_sibling_without_session_budget_or_at_its_cap_does_not_preempt(
     _relief_rows_base(monkeypatch, flips, active="can")
     rows = [
         _live("can@ocoron.com", "can", 46.0, 13.0, w_reset=2 * DAY),
-        _live("ob@ocoron.com", "ob", 90.0, 50.0, w_reset=DAY, cap=95),
+        _live("ob@ocoron.com", "ob", 98.5, 50.0, w_reset=DAY, cap=95),
         _live("sarp@ocoron.com", "sarp", 10.0, 95.0, w_reset=DAY, cap=95),
         _live("oz@ocoron.com", "oz", 0.0, 10.0, w_reset=5 * DAY),
     ]
@@ -2498,7 +2505,8 @@ def test_the_picture_reads_the_session_bar_strictly_like_the_picker(monkeypatch)
     `fv >= thr` while the picker refuses at `> session_max` (R5) — a row EXACTLY at the bar was
     `session-exhausted` on the board and eligible to the tick. Boundary at 85.0: eligible when
     the weekly window is under its cap; cap-walled with the weekly reset ALONE (no later-of-two
-    with a session reset it is not blocked by) when the weekly window is at its cap."""
+    with a session reset it is not blocked by) when the weekly window is at its cap. The bar is the
+    98 trip line since 2026-10-06 (it was the 85 drain band)."""
     monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
     monkeypatch.setattr(cr, "_now", lambda: NOW)
     monkeypatch.setattr(cr, "_rotate_state_dir", lambda: Path("/nonexistent-state-dir"))
@@ -2507,11 +2515,11 @@ def test_the_picture_reads_the_session_bar_strictly_like_the_picker(monkeypatch)
     )
     monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
     monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
-    atbar = _live("atbar@ocoron.com", "atbar", 85.0, 40.0)
+    atbar = _live("atbar@ocoron.com", "atbar", 97.0, 40.0)
     atbar["five_hour"]["resets_at_epoch"] = NOW + 3 * 3600
-    walled = _live("walled@ocoron.com", "walled", 85.0, 99.0, w_reset=2 * 3600)
+    walled = _live("walled@ocoron.com", "walled", 97.0, 99.0, w_reset=2 * 3600)
     walled["five_hour"]["resets_at_epoch"] = NOW + 4 * 3600  # later than the weekly reset
-    over = _live("over@ocoron.com", "over", 85.1, 40.0)
+    over = _live("over@ocoron.com", "over", 98.5, 40.0)
     over["five_hour"]["resets_at_epoch"] = NOW + 3 * 3600
     rows = [_live("act@ocoron.com", "act", 20.0, 30.0), atbar, walled, over]
     pic = cr._fleet_picture(rows, "act", NOW)

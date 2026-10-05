@@ -3678,7 +3678,7 @@ def test_live_reverify_applies_the_same_churn_exclusion_as_the_selector(
         monkeypatch,
         usages={
             "tok-seo": _usage_blob(98.5, 50.0),  # active, over threshold
-            "tok-intel": _usage_blob(97.0, 50.0),  # live truth: session 97 ≥ threshold
+            "tok-intel": _usage_blob(98.5, 50.0),  # live truth: session 98.5 ≥ threshold
             "tok-mob": _usage_blob(10.0, 60.0),  # live truth: clean
         },
     )
@@ -4314,10 +4314,13 @@ def test_the_urgent_drain_message_survives_a_relief_epoch_the_platform_cannot_da
         assert "no resume time can be given" in out, exc
 
 
-def test_a_nan_weekly_figure_reads_as_cap_walled_and_weekly_blocked_not_as_headroom():
+def test_a_nan_weekly_figure_reads_as_cap_walled_and_weekly_blocked_not_as_headroom(monkeypatch):
     """`json.loads` admits NaN and a cached row is used as-is; the comparison-only sites never
     raised on it but read it as NOT walled — fail-open on the one value the whole class is about
     (round 1 seat 3, F7). An unreadable figure blocks; an absent one is still no reading."""
+    monkeypatch.setenv(
+        "ROTATE_TARGET_SESSION_MAX_PCT", "85"
+    )  # this test uses an 85 target bar as its mechanism; the default is the 98 trip line since 2026-10-06
     now = FLEET_NOW
     nan_row = _row("nan@x", 97.0, float("nan"), cap=90, s_reset=now + 3000, w_reset=now + 86400)
     ok_row = _row("ok@x", 97.0, 30.0, cap=90, s_reset=now + 3000, w_reset=now + 86400)
@@ -4337,6 +4340,9 @@ def test_an_unreadable_weekly_figure_is_one_reading_in_the_verdict_the_board_and
     could never reach `cap-walled` for the case the warning names (heavy review round 3 seat C,
     F1–F3). One reading now: not a target; `cap-walled` under a cap, `weekly-unreadable` without;
     `returns_at` follows the state."""
+    monkeypatch.setenv(
+        "ROTATE_TARGET_SESSION_MAX_PCT", "85"
+    )  # this test uses an 85 target bar as its mechanism; the default is the 98 trip line since 2026-10-06
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=600.0)
     now = FLEET_NOW
@@ -4690,10 +4696,13 @@ def test_the_soonest_reset_ignores_a_zero_or_past_epoch_instead_of_letting_it_wi
     )
 
 
-def test_an_undateable_relief_epoch_is_refused_at_the_source_not_only_in_the_message():
+def test_an_undateable_relief_epoch_is_refused_at_the_source_not_only_in_the_message(monkeypatch):
     """A finite 1e300 passed `_usable_ts`, so the relief tuple carried it to the wall stamp and
     the ledger while only the message fell back — `_promised_resume` could never reach that
     instant and the re-arm slept for a week (heavy review round 1 seat 1, F3)."""
+    monkeypatch.setenv(
+        "ROTATE_TARGET_SESSION_MAX_PCT", "85"
+    )  # this test uses an 85 target bar as its mechanism; the default is the 98 trip line since 2026-10-06
     now = FLEET_NOW
     rows = [
         _row("act@x", 91.0, 40.0, cap=99, s_reset=None),
@@ -4732,8 +4741,11 @@ def test_the_legacy_picker_reads_an_unreadable_utilization_as_walled_and_sorts_i
     assert cr._pick_successor(rows, None, FLEET_NOW) == "real"
 
 
-def test_next_session_relief_prefers_the_soonest_session_reset_of_a_weekly_ok_sibling():
+def test_next_session_relief_prefers_the_soonest_session_reset_of_a_weekly_ok_sibling(monkeypatch):
     now = FLEET_NOW
+    monkeypatch.setenv(
+        "ROTATE_TARGET_SESSION_MAX_PCT", "85"
+    )  # this test uses an 85 target bar as its mechanism; the default is the 98 trip line since 2026-10-06
     rows = [
         _row("act@x", 91.0, 40.0, cap=99, s_reset=now + 4000),  # the active — never its own relief
         _row("late@x", 97.0, 30.0, cap=90, s_reset=now + 9000, w_reset=now + 86400),
@@ -4810,6 +4822,9 @@ def test_urgent_tier_fires_at_ninety_with_no_successor_and_names_the_resume_time
     """The operator's rule end to end through the advisory: active at 91 session, every sibling
     unusable, → ONE telegram + ONE broadcast mail carrying the next session reset + 60 s; the
     latch then holds for the episode."""
+    monkeypatch.setenv(
+        "ROTATE_TARGET_SESSION_MAX_PCT", "85"
+    )  # this test uses an 85 target bar as its mechanism; the default is the 98 trip line since 2026-10-06
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
     now = FLEET_NOW
     rows = [
@@ -5301,9 +5316,9 @@ def test_a_sooner_reset_sibling_preempts_end_to_end_and_does_not_bounce(
 def test_a_sooner_reset_sibling_without_session_budget_does_not_preempt(
     tmp_path, monkeypatch, capsys
 ):
-    """ob@ resets sooner but sits at session 90 — over the picker's 5h target bar: no target."""
+    """ob@ resets sooner but sits at session 98.5 — past the 98 session line: no target."""
     fleet = _drain_relief_fleet(
-        tmp_path, monkeypatch, active=(60.0, 50.0), successor=(90.0, 19.0), successor_reset=_SOONER
+        tmp_path, monkeypatch, active=(60.0, 50.0), successor=(98.5, 19.0), successor_reset=_SOONER
     )
     capsys.readouterr()
     assert cr._cmd_tick() == 0
@@ -6429,6 +6444,9 @@ def test_the_posture_is_not_green_in_the_tick_that_stamps_the_wall(tmp_path, mon
     the hook holds nothing at GREEN. (Seat 1 walled the active on a cap; this fixture walls it at
     weekly 100 with no cap — the F2 predicate — because the picture reads caps from a file, not
     from a monkeypatch. Both are the same shape: an active that serves nothing.)"""
+    monkeypatch.setenv(
+        "ROTATE_TARGET_SESSION_MAX_PCT", "85"
+    )  # this test uses an 85 target bar as its mechanism; the default is the 98 trip line since 2026-10-06
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
@@ -6572,6 +6590,9 @@ def test_a_cap_below_the_drain_band_cannot_read_green_at_the_fleet_wall(tmp_path
     `_fleet_readings` walls the active out, nobody serves 5h, and the fallback returned the
     active's RAW band — GREEN on the 85/90 line — in the tick that broadcast the ACTIVE-WALL
     advisory. Scarcity is RED, whatever the walled account's raw percentage says."""
+    monkeypatch.setenv(
+        "ROTATE_TARGET_SESSION_MAX_PCT", "85"
+    )  # this test uses an 85 target bar as its mechanism; the default is the 98 trip line since 2026-10-06
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
