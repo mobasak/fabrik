@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-05T06:48:33.006083Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "a3cb7b34a9401d2b1dcab34ff645ab8d981bc97e",
   "id": "W-589865a0",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "configs/monitoring-compose.yaml and specs/infrastructure/monitoring-stack.yaml are stale copies of the hub monitoring compose that claim a fabrik apply deploy no code performs"
 }
