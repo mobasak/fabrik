@@ -835,6 +835,12 @@ def test_cron_paths_ignores_env_lines_comments_and_templated_paths():
         "0 9 * * * root echo a\\\\% /opt/fabrik/scripts/sysadmin/stdin2.sh\n"
         "0 9 * * * root echo 50\\% /opt/fabrik/scripts/sysadmin/r2.sh\n"
         "0 9 * * * root echo a#b /opt/fabrik/scripts/sysadmin/h.sh\n"
+        # a # after an escaped character is mid-word, never a comment (sh prints ;#… and a #…)
+        "0 9 * * * root echo \\;#/opt/fabrik/scripts/sysadmin/esc1.sh\n"
+        "0 9 * * * root echo \\|#/opt/fabrik/scripts/sysadmin/esc2.sh\n"
+        "0 9 * * * root echo a\\ #b /opt/fabrik/scripts/sysadmin/esc3.sh\n"
+        "0 9 * * * root echo a\\\t#/opt/fabrik/scripts/sysadmin/esc4.sh\n"
+        "0 9 * * * root echo a\x0c#/opt/fabrik/scripts/sysadmin/esc5.sh\n"
         '0 7 * * * root echo "50%" /opt/fabrik/scripts/sysadmin/after-quoted-pct.sh\n'
         "0 6 * * * root /opt/fabrik/scripts/sysadmin/r.sh 50\\% done\n"
         '"FOO"=/opt/fabrik/scripts/sysadmin/z.sh\n'
@@ -845,6 +851,11 @@ def test_cron_paths_ignores_env_lines_comments_and_templated_paths():
         "/opt/fabrik/scripts/sysadmin/c.sh",
         "/opt/fabrik/scripts/sysadmin/d.sh",
         "/opt/fabrik/scripts/sysadmin/e.sh",
+        "/opt/fabrik/scripts/sysadmin/esc1.sh",
+        "/opt/fabrik/scripts/sysadmin/esc2.sh",
+        "/opt/fabrik/scripts/sysadmin/esc3.sh",
+        "/opt/fabrik/scripts/sysadmin/esc4.sh",
+        "/opt/fabrik/scripts/sysadmin/esc5.sh",
         "/opt/fabrik/scripts/sysadmin/h.sh",
         "/opt/fabrik/scripts/sysadmin/q.sh",
         "/opt/fabrik/scripts/sysadmin/r.sh",

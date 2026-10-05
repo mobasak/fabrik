@@ -170,7 +170,7 @@ def _command_part(line: str) -> str:
 
     cron: the first % not escaped by a backslash becomes a newline and the rest is the command's stdin
     (crontab(5)) — shell quotes mean nothing to cron, and a backslash escapes the next character, so ``\\\\%``
-    is an escaped backslash followed by a live %. sh: a # that begins a word (line start, after whitespace or an
+    is an escaped backslash followed by a live %. sh: a # that begins a word (line start, after an unescaped space, tab or
     operator) and is not quoted or backslash-escaped starts a comment; a backslash escapes the next character
     outside quotes and inside double quotes, never inside single quotes."""
     escaped = False
@@ -181,18 +181,26 @@ def _command_part(line: str) -> str:
         escaped = c == "\\" and not escaped
     quote = ""
     escaped = False
+    word_start = (
+        True  # an escaped or quoted character is part of a word, so a # after it is literal
+    )
     for i, c in enumerate(line):
         if escaped:
             escaped = False
+            word_start = False
         elif c == "\\" and quote != "'":
             escaped = True
+            word_start = False
         elif quote:
             if c == quote:
                 quote = ""
         elif c in "\"'":
             quote = c
-        elif c == "#" and (i == 0 or line[i - 1].isspace() or line[i - 1] in ";|&()<>"):
+            word_start = False
+        elif c == "#" and word_start:
             return line[:i]
+        else:
+            word_start = c in " \t;|&()<>"  # sh's blanks are space and tab only
     return line
 
 
