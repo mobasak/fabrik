@@ -25,7 +25,11 @@ What it compares
 
 Lines: ``DRIFT <host> <path>`` (content differs) · ``MISSING <host> <path>`` (committed, absent on the host)
 · ``MODE <host> <path>`` (committed executable, host copy lacks owner-exec — the 2026-09-05 shape)
-· ``UNREADABLE <host> <path>`` (present, but the host could not read it or lacks stat/md5sum — unverified).
+· ``UNREADABLE <host> <path>`` (present, but the host could not read it or lacks stat/md5sum — unverified)
+· ``CRONMISSING <host> <path>`` / ``CRONEXTRA <host> <path>`` (W-73feca74: the host's ``/etc/cron.d/vps-sysadmin``,
+  written only by bootstrap step 14, schedules a different SET of hub paths than the template's non-comment lines —
+  paths, never bytes, since minutes differ per host; ``CRONMISSING <host> /etc/cron.d/vps-sysadmin`` when the
+  file is absent or unreadable). Cron lines are tier 1. The cron user and schedule are not compared.
 Exit: 0 clean (every host reached, nothing differs) · 1 any difference, either tier · 2 any host unreachable
 · 3 the check itself failed (git, state, an unexpected error).
 ``--stamp <path>`` touches <path> only when the run reached one of the verdicts 0-2. The rider keys its daily
@@ -61,6 +65,8 @@ HOSTS_DEFAULT = ("vps", "vps2", "vps3")
 TEMPLATE = Path("scripts/bootstrap/templates/sysadmin-cron.template")
 AUTOHEAL_REPO = "scripts/vps-autoheal.sh"
 AUTOHEAL_REMOTE = "/usr/local/bin/fabrik-autoheal"
+# Written only by bootstrap step 14 from TEMPLATE; sync-vps-sysadmin.sh never touches it (W-73feca74).
+CRON_REMOTE = "/etc/cron.d/vps-sysadmin"
 REMOTE_BASE = "/opt/fabrik/"
 # What the cron targets call (claude-run.sh:18,58; claude-keepalive-rotate.sh:27; proactive-check.sh's
 # Telegram leg) plus the bot the systemd unit runs — the executed closure the template alone does not name.
@@ -92,7 +98,14 @@ REMOTE_CMD = (
     "! -path '*/__pycache__/*' ! -name '*.pyc' -exec sh -c '"
     + _LIST_FILES
     + "' sh {} + 2>/dev/null; "
-    "[ -e " + AUTOHEAL_REMOTE + " ] && sh -c '" + _LIST_FILES + "' sh " + AUTOHEAL_REMOTE + "; true"
+    "[ -e " + AUTOHEAL_REMOTE + " ] && sh -c '" + _LIST_FILES + "' sh " + AUTOHEAL_REMOTE + "; "
+    # the installed cron file: its non-comment lines, each prefixed CRON, or one CRON-ABSENT line
+    "if [ -r "
+    + CRON_REMOTE
+    + ' ]; then grep -v "^[[:space:]]*#" '
+    + CRON_REMOTE
+    + ' | sed "s/^/CRON /"; '
+    "else echo CRON-ABSENT; fi; true"
 )
 UNREADABLE = ("", "")
 _MODE_RE = re.compile(r"[0-7]{1,4}")  # `stat -c %a` drops leading zeros: mode 044 prints "44"
@@ -122,6 +135,38 @@ def template_targets(root: Path) -> list[str]:
     if AUTOHEAL_REMOTE in text:
         out.add(AUTOHEAL_REPO)
     return sorted(out)
+
+
+_CRON_PATH_RE = re.compile(r"(?:/opt/fabrik|/usr/local/bin)/[^\s>|;&]+")
+
+
+def cron_paths(text: str) -> set[str]:
+    """The hub paths a cron file SCHEDULES: those named on non-comment lines. Compared as a set, never bytes —
+    the minute fields differ per host ({{DIGEST_MINUTE}}, {{KEEPALIVE_MINUTE}}) and the template's comments
+    name paths too."""
+    return {
+        m
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+        for m in _CRON_PATH_RE.findall(line)
+    }
+
+
+def parse_cron(text: str) -> list[str] | None:
+    """REMOTE_CMD's cron half -> the host's active cron lines, or None when the file is absent or unreadable."""
+    lines = text.splitlines()
+    if "CRON-ABSENT" in lines:
+        return None
+    return [ln[len("CRON ") :] for ln in lines if ln.startswith("CRON ")]
+
+
+def compare_cron(host: str, expected: set[str], remote: list[str] | None) -> list[str]:
+    if remote is None:
+        return [f"CRONMISSING {host} {CRON_REMOTE}"]
+    got = cron_paths("\n".join(remote))
+    return [f"CRONMISSING {host} {p}" for p in sorted(expected - got)] + [
+        f"CRONEXTRA {host} {p}" for p in sorted(got - expected)
+    ]
 
 
 def tier1_paths(root: Path) -> list[str]:
@@ -180,8 +225,8 @@ def committed_files(root: Path) -> dict[str, tuple[str, bool]]:
     return out
 
 
-def remote_listing(host: str) -> dict[str, tuple[str, str]] | None:
-    """repo path -> (octal mode, md5) on the host, or None when the host is unreachable."""
+def remote_listing(host: str) -> tuple[dict[str, tuple[str, str]], list[str] | None] | None:
+    """(repo path -> (octal mode, md5), active cron lines or None) on the host, or None when unreachable."""
     try:
         proc = subprocess.run(
             ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, REMOTE_CMD],
@@ -193,7 +238,7 @@ def remote_listing(host: str) -> dict[str, tuple[str, str]] | None:
         return None
     if proc.returncode == 255:
         return None
-    return parse_listing(proc.stdout)
+    return parse_listing(proc.stdout), parse_cron(proc.stdout)
 
 
 def parse_listing(
@@ -284,6 +329,8 @@ def _drift_body(tier1: list[str], tier2_count: int, unreachable: list[str]) -> s
         "Deploying is the operator-approved run of scripts/sync-vps-sysadmin.sh (a VPS write; it pushes the main",
         "checkout's working tree wholesale, so check for sibling WIP first). DRIFT can also mean a host is running",
         "uncommitted code that someone synced. MODE means the host copy lost its exec bit (cron cannot run it).",
+        f"CRONMISSING/CRONEXTRA mean the host's {CRON_REMOTE} schedules a different set of hub paths than",
+        "scripts/bootstrap/templates/sysadmin-cron.template; only bootstrap step 14 rewrites that file (a VPS write).",
         f"This mail repeats every {RENUDGE_DAYS} days while the same drift persists.",
     ]
     return "\n".join(lines) + "\n"
@@ -294,6 +341,7 @@ def run(mail: bool) -> int:
     hosts = os.environ.get("FABRIK_DRIFT_HOSTS", " ".join(HOSTS_DEFAULT)).split()
     expected = committed_files(root)
     tier1 = set(tier1_paths(root))
+    cron_expected = cron_paths((root / TEMPLATE).read_text(encoding="utf-8"))
     state_file = _state_path()
     state = _load_state(state_file)
     # A host dropped from FABRIK_DRIFT_HOSTS leaves the state with it.
@@ -307,17 +355,21 @@ def run(mail: bool) -> int:
     unreachable: list[str] = []
     tier2_count = 0
     for host in hosts:
-        remote = remote_listing(host)
-        if remote is None:
+        listing = remote_listing(host)
+        if listing is None:
             unreachable.append(host)
             unreach_runs[host] = unreach_runs.get(host, 0) + 1
             print(f"UNREACHABLE {host}")
             continue
         unreach_runs[host] = 0
         unreach_mailed.pop(host, None)
+        remote, cron = listing
         lines = compare(host, expected, remote)
-        printed += lines
-        host_state[host] = [x for x in lines if x.split(" ", 2)[2] in tier1]
+        cron_lines = compare_cron(
+            host, cron_expected, cron
+        )  # the cron set decides what runs: tier 1
+        printed += lines + cron_lines
+        host_state[host] = [x for x in lines if x.split(" ", 2)[2] in tier1] + cron_lines
         tier2_count += sum(1 for x in lines if x.split(" ", 2)[2] not in tier1)
 
     for line in printed:
