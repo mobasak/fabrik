@@ -135,7 +135,8 @@ The drain sequence below is the only correct one. Skipping any step drops in-fli
 ```js
 let isShuttingDown = false;
 
-// /health returns 503 the instant SIGTERM lands → Traefik removes the pod from rotation
+// /health returns 503 from SIGTERM onward — a truth signal for external probes (Gatus) and
+// the Docker healthcheck. Traefik does NOT poll it: it routes here until the process exits.
 app.get('/health', async (req, res) => {
   if (isShuttingDown) return res.status(503).json({ status: 'draining' });
   try {
@@ -165,8 +166,8 @@ process.on('SIGTERM', async () => {
 });
 ```
 
-- **The /health 503 flip BEFORE drain is non-negotiable.** Traefik must drop the node from rotation before `server.close()` starts refusing connections.
-- **The 20s backstop only works because scaffold composes set `stop_grace_period: 45s`** — Docker's bare default grace is 10s, under which SIGKILL would win before the backstop fires. Manual composes MUST set `stop_grace_period` longer than the backstop.
+- **The /health 503 flip is a truth signal, not a drain mechanism.** Traefik's docker provider reconfigures only on container `start`/`die`/`health_status` events and no `loadbalancer.healthcheck` label is scaffolded. The compose's Docker healthcheck (30s interval, 3 retries) can only mark the container unhealthy after about 90s, far past the grace period, so in practice Traefik keeps routing to this container until the process exits (the same fact `76-gpu-workers.md` states for GPU workers). App services are single-replica (`58-resilience.md` § Shutdown), so a deploy's outage runs from SIGTERM to the new container's first healthy check whatever this process does. The drain's job is in-flight requests, keep-alives, ordered pool teardown and exit inside the grace — do not add a listen-then-close window, and do not add a Traefik healthcheck label without real replicas.
+- **The 20s backstop needs a compose `stop_grace_period` above it.** Docker's default grace is 10s, under which SIGKILL wins before the backstop fires. The scaffolded app compose (`_write_canonical_compose`) does not set one today — only the worker compose sets 45s — so set `stop_grace_period: 30s` on the service yourself, or lower the backstop below 10s.
 - `server.closeIdleConnections()` + `server.closeAllConnections()` replace the legacy `server.close()`-callback-only drain that hangs indefinitely on upstream keep-alives.
 - Teardown order: HTTP first, then DB/Redis. Reversing this loses in-flight queries.
 
@@ -327,6 +328,7 @@ export function requireInternalToken(req, res, next) {
 - [ ] `/health` tests real deps (`SELECT 1`, `PING`) AND returns 503 when `isShuttingDown=true` (real-dep mandate per `55-observability.md`).
 - [ ] `/metrics` mounted if `shape.exposes_metrics: true`.
 - [ ] SIGTERM handler: 503 flip → `closeIdleConnections()` → `server.close()` → `pgPool.end()` + `redisClient.quit()` → 20s backstop.
+- [ ] The compose sets `stop_grace_period` above the backstop (e.g. `30s`) — the scaffolded app compose does not set one today.
 - [ ] All async streams use `pipeline()` from `node:stream/promises`.
 - [ ] No `cluster` usage (replicas via Docker Compose instead).
 - [ ] M2M `X-Internal-Token` middleware uses `crypto.timingSafeEqual()` with length-check guard (canonical pattern per `35-security-auth.md`).

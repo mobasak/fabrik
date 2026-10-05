@@ -187,9 +187,17 @@ claims:
     window_days: 365
     last_verified: 2026-09-01
 
+  - id: traefik-docker-provider-events
+    pack: core/12-node.md
+    claim: "Traefik's docker provider (v2.11) rebuilds its configuration only on container start/die/health_status events — a SIGTERM'd container stays routed until it exits — and filters a container whose health status is set and not healthy"
+    kind: rationale
+    verify: "https://raw.githubusercontent.com/traefik/traefik/v2.11/pkg/provider/docker/docker.go; https://raw.githubusercontent.com/traefik/traefik/v2.11/pkg/provider/docker/config.go"
+    window_days: 365
+    last_verified: 2026-10-06
+
   - id: docker-stop-grace-default
     pack: core/12-node.md
-    claim: "Docker's default stop grace period is 10s; the 20s drain backstop works only under the scaffold's stop_grace_period: 45s (scaffold.py emits it)"
+    claim: "Docker's default stop grace period is 10s; the 20s drain backstop works only under a compose stop_grace_period above 20s — the scaffolded app compose sets none today (only the worker compose, scaffold.py, sets 45s)"
     kind: rationale
     verify: "https://docs.docker.com/reference/cli/docker/container/stop/"
     window_days: 365

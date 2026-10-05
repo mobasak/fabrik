@@ -24,19 +24,19 @@ Not every scaffold type gets every observability feature. **Ground each row agai
 |---|---|---|---|---|---|---|
 | `python-api` | structlog (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
 | `node-api` | pino (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
-| `file-api` | pino (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
+| `file-api` | pino (scaffolded) | Yes (scaffolded) | **No** (no metrics route is scaffolded) | **No** (no Sentry/GlitchTip init is scaffolded) | None scaffolded | Yes |
 | `file-worker` | structlog (scaffolded) | **No — no HTTP server exists** | **No** | Per ticket | Server-side auto | Via its own liveness signal, not HTTP |
 | `saas-skeleton` | pino (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Yes (scaffolded) | Server-side auto | Yes |
-| `chrome-extension` | Backend: structlog; Frontend: `chrome.storage.local` buffer | Backend only | Backend only | Backend only | Frontend: Sentry browser SDK | Backend only |
-| `mobile-app` | Backend: structlog; Client: Sentry RN SDK | Backend only | Backend only | Backend only | Client: Sentry React Native SDK | Backend only |
-| `desktop-app` | Backend: structlog; Client: per ticket | Backend only | Backend only | Backend only | Client: Sentry Electron SDK | Backend only |
+| `chrome-extension` | Backend: structlog; Frontend: `chrome.storage.local` buffer | Backend only | **No** (its `server/` backend emits none) | **No** (its `server/` backend has no init; the frontend uses the Sentry browser SDK) | Frontend: Sentry browser SDK | Backend only |
+| `mobile-app` | Client: Sentry RN SDK; the `server/` backend scaffolds no structured logger | Backend only | **No** (its `server/` backend emits none) | **No** (its `server/` backend has no init) | Client: Sentry React Native SDK | Backend only |
+| `desktop-app` | Client: per ticket (no backend) | N/A (no backend) | **No** (no backend) | **No** (no backend) | Client: Sentry Electron SDK | N/A (no backend) |
 | `wordpress` | WP debug log + Cloudflare analytics | Gatus checks site URL | N/A | N/A | N/A | Yes (site URL) |
 | `docusaurus` | N/A (static site) | Nginx responds on `/` | N/A | N/A | N/A | Yes (site URL) |
-| `static-site` | N/A (static site) | Nginx responds on `/` | N/A | N/A | N/A | Yes (site URL) |
+| `static-site` | Backend: structlog (`server/`) | Nginx responds on `/` | Backend only (`server/`) | Backend only (`server/`) | Server-side auto (`server/`) | Yes (site URL) |
 | `python-api-gpu` | as `python-api` | as `python-api` | as `python-api` | as `python-api` | Server-side auto | Yes |
 | `office-extension` | Backend: structlog; Client: per ticket | Backend only | Backend only | Backend only | Client: per ticket | Backend only |
 
-**Two-faced types** (mobile-app, desktop-app, chrome-extension): the backend lane gets full observability (logging + health + metrics + GlitchTip). The client lane gets crash reporting (Sentry SDK for the platform) **plus product analytics** where the product needs it — for `chrome-extension`, the GA4 Measurement Protocol or PostHog's core/no-external build behind a `chrome.storage` queue + `chrome.alarms` flush (see § Chrome Extension Telemetry). Consent-gated per the product's opt-out state.
+**Two-faced types** (mobile-app, desktop-app, chrome-extension): the scaffolded backend lane is thinner than a `python-api` — read the matrix rows above (chrome-extension's `server/` gets structlog + `/health`; mobile-app's `server/` gets `/health` only; desktop-app has no backend) and add what a ticket needs. The client lane gets crash reporting (Sentry SDK for the platform) **plus product analytics** where the product needs it — for `chrome-extension`, the GA4 Measurement Protocol or PostHog's core/no-external build behind a `chrome.storage` queue + `chrome.alarms` flush (see § Chrome Extension Telemetry). Consent-gated per the product's opt-out state.
 
 ---
 
@@ -175,7 +175,7 @@ logger.info({ event: 'event_name', key: 'value' });
 
 - Module: `lib/logger.ts` — pino, JSON output
 
-**No scaffold logging on the client side:** `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`, `static-site` — set up per ticket using the rules below. Note: `mobile-app` and `desktop-app` backends (python-api) DO get scaffold logging; only the client binary is unscaffolded.
+**No scaffold logging on the client side:** `mobile-app`, `desktop-app`, `wordpress`, `docusaurus`, `static-site` — set up per ticket using the rules below. Note: `chrome-extension`'s `server/` backend DOES get scaffold logging (structlog); `mobile-app`'s `server/` backend does not, and `desktop-app` has no backend.
 
 **Chrome extension frontend:** Use `chrome.storage.local` buffer pattern per the Chrome Extension Telemetry section below. Do not use pino directly in service workers.
 
@@ -224,7 +224,7 @@ PROCESSING_DURATION = Histogram("processing_duration_seconds", "Time to process 
   care about both is that a service moving to OTel inherits the silent one.
 - **What the scaffold actually emits** (read `{package}/metrics.py` before importing): `REQUEST_COUNT` = Counter `fabrik_requests_total` labelled `["endpoint","status"]` (no `method`), `ERROR_COUNT` + `PROCESSING_COUNT` = Counters, `REQUEST_DURATION` + `ACTIVE_JOBS` = **Histograms** — calling `.set()` on them raises. Import the names; do not assume their types.
 
-**Node projects:** no metrics module is scaffolded today — wire the Prometheus client yourself if `shape.exposes_metrics` is set, and do not set that flag until `/metrics` genuinely serves.
+**Node projects:** `node-api` scaffolds a `prom-client` `/metrics` route (default process and runtime metrics) and sets `shape.exposes_metrics: true`. `file-api` scaffolds none — wire the Prometheus client yourself if it needs metrics, and do not set that flag until `/metrics` genuinely serves. The matrix above is pinned to the scaffolder by `tests/test_observability_matrix.py`.
 
 ---
 
@@ -394,7 +394,7 @@ Runbook: `docs/infrastructure/glitchtip-sdk-integration-setup.md`
 
 ## Mobile Client Crash Reporting
 
-For `mobile-app` projects, the backend gets GlitchTip (above). The **client app** uses the Sentry React Native SDK:
+For `mobile-app` projects, the scaffolded `server/` backend has no GlitchTip init (see the matrix); add one per ticket. The **client app** uses the Sentry React Native SDK:
 
 - **SDK:** `@sentry/react-native` — wraps the native crash reporters (iOS + Android) with JS error boundary.
 - **Init:** in app entry point (before `registerRootComponent`). DSN from env/config, not hardcoded.
