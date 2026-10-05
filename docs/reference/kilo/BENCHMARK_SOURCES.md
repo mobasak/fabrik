@@ -28,7 +28,7 @@ Two safety levers:
 
 ## 2. WIRED sources (currently in pipeline)
 
-These four sources are consumed daily by `wsl_startup_hook.sh` step 5. Each fills specific columns in `kilo_agents.db`.
+These four sources were consumed daily by `wsl_startup_hook.sh` until 2026-08-15; they now run in `/opt/ai-model-catalog/engine`. Each fills specific columns in `kilo_agents.db`.
 
 ### 2.1 Chatbot Arena (LMSys / openlm.ai)
 

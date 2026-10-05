@@ -619,7 +619,7 @@ def test_edited_rename_counts_as_accompaniment(tmp_path: Path) -> None:
 
 
 def test_shell_test_in_tests_tree_counts(tmp_path: Path) -> None:
-    # Review finding (grounded in this repo's own tests/integration/*.sh): a `.sh` test was
+    # Review finding (grounded in the repo's former tests/integration/*.sh): a `.sh` test was
     # invisible to accompaniment AND counted as untested source.
     repo, _ = _repo(tmp_path)
     (repo / "src/app.py").write_text("A = 2\n")
