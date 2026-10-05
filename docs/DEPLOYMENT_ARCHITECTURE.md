@@ -383,8 +383,7 @@ Files that live **on the VPS only**, outside the Fabrik repo. Grouped by service
 
 | Path | Purpose | Edit mechanism |
 |---|---|---|
-| `/opt/monitoring/compose.yaml` | Main monitoring stack (Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor). | `cd /opt/monitoring && sudo docker compose up -d`. |
-| `/opt/prometheus/compose.yaml` | Prometheus standalone. Intentionally separated — scrape targets need the `fabrik` network attachment which compose stacks don't always preserve. | `cd /opt/prometheus && sudo docker compose up -d`. |
+| `/opt/monitoring/compose.yaml` | The whole monitoring stack (Prometheus, Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor, Pushgateway, postgres-exporter, redis-exporter); mirrored at `infra/vps1/monitoring/compose.yaml`. `/opt/prometheus/` was removed — Prometheus runs in this stack. | `cd /opt/monitoring && sudo docker compose up -d`. |
 | `/opt/monitoring/configs/prometheus/prometheus.yml` | Scrape targets + alerting config. Retention: `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB`. | Edit → hot-reload via `POST /-/reload` (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02). On failure the driver (`drivers/prometheus.py::_reload_prometheus`) falls back to `docker restart <the ^prometheus(-|$) container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8); `scripts/sync_prometheus_to_vps.sh` has no fallback — it prints a WARN and exits 1. |
 | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Alert rules (ContainerDown, HighCPU, HighMemory, OOMKilled, etc.) | Same pattern. |
 | `/opt/monitoring/configs/alertmanager/alertmanager.yml` | Routes, receivers (Telegram), inhibit rules. **Secret-bearing** (Telegram bot token). | Edit → `sudo docker restart alertmanager`. |

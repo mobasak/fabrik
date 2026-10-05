@@ -37,6 +37,7 @@ This document tracks port allocations for all Fabrik services to prevent conflic
 | 9090 | prometheus | infra/vps1/monitoring/compose.yaml | internal only |
 | 9093 | alertmanager | infra/vps1/monitoring/compose.yaml | internal only |
 | 9091 | pushgateway | infra/vps1/monitoring/compose.yaml | `127.0.0.1:9091` only |
+| 9080 | promtail | infra/vps1/monitoring/compose.yaml | internal only |
 | 9100 | node-exporter | infra/vps1/monitoring/compose.yaml | internal only |
 | 8080 | cadvisor | infra/vps1/monitoring/compose.yaml | internal only |
 | 9187 | postgres-exporter | infra/vps1/monitoring/compose.yaml | internal only |
