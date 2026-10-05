@@ -14,9 +14,9 @@
   },
   "next": "you add the `wsl-ozgur` key to `/opt/fabrik/.env`, then `/fabrik-execute-plan docs/development/plans/2026-09-06-plan-1-session-history-retention.md`, which resumes at the first upload",
   "next_at": "2026-10-05T00:21:53.772005Z",
-  "note": "",
+  "note": "superseded",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "you add the `wsl-ozgur` key to `/opt/fabrik/.env`, then `/fabrik-execute-plan docs/development/plans/2026-09-06-plan-1-session-history-retention.md`, which resumes at the first upload"
 }
