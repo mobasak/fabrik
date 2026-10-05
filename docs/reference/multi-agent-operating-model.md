@@ -227,6 +227,12 @@ shared container, reseeding the dev database. Measured in tryton-crm on the mode
 - **The item carries it.** An item whose completion needs a serialising act gets the tag the repo
   uses for it (`work.py add|assign --tag runtime`), so the constraint travels with the item and
   `ready` prints it — not with the distributor's memory (§ Claim or assign, below).
+- **Where the runtime mounts the main checkout, unmerged code is not what it runs.** It runs what
+  the main checkout holds (a merge is live in the next fresh process, before any reload), so a
+  worktree's tests against the stack exercise the BASE code: the red half of a seen-red can be
+  watched there, the green half cannot. Prove the red-then-green pair by running the worktree's code
+  in-process against a throwaway database clone (a clone the shared container serves still runs the
+  main checkout), and budget the merge owner's reload window in the plan (tryton-crm 01M3QJNH F2).
 - **Migrations have a stricter owner.** The epic schema's single-migration-owner rule —
   `epic_order.py --check` reports two epics of the same phase that both own `alembic/versions/**`
   or `db/schema.sql` ("at most one may") — still holds: one ticket owns any migration.
