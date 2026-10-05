@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — merge requests no longer refuse a branch whose src/ holds a stdlib-named package (2026-10-05)
+
+- `merge_request.py` step (c)'s touched-tests fallback places the merged `src` (or the tree root for a package-style `src/`) after the stdlib via a `sitecustomize` shim, ignores the caller's `PYTHONPATH`, and prefers the main checkout's `.venv` python; `.fabrik/merge-tests` is unchanged (web-ecommerce-factory 01M453XP, D-580).
+
 ### Changed — the watchdog packs name every Tier-D apply-time prerequisite (2026-10-05)
 
 - `core/60-watchdog` and `core/self-healing` now state the git remote, app HEALTHCHECK and snapshot-storage (`STORAGE_BACKEND` + keys) checks `fabrik apply` runs for Tier D, and what each miss does (fleet 01M3Q82V, D-579).

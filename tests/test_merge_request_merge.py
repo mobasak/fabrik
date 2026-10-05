@@ -655,7 +655,6 @@ def test_a_pure_insertion_decisions_conflict_resolves_newest_first(world):
     assert rows == ["| D-3 | base |", "| D-2 | branch |", "| D-1 | first |"]
 
 
-
 def test_a_resolved_ledger_conflict_commits_the_request_message_without_git_comments(world):
     """V9 (2026-10-01): a ledger conflict resolved in (b) committed with `--no-edit`, which reuses
     git's MERGE_MSG — its `# Conflicts:` comment block landed in the merge commit on master."""
@@ -708,6 +707,155 @@ def test_owner_tests_see_the_merged_src_first_and_the_fabrik_lib_link(world):
     assert world.run("merge") == 0
     assert probe.read_text() == "True True proj"
     assert world.scratch_left() == []
+
+
+# --- (c) fallback: touched tests run with the merged src AFTER the stdlib (wef 01M453XP8W) ------
+_SHADOW_TEST = """\
+import os, pathlib, subprocess, sys
+import copy
+import xml.etree.ElementTree as ET
+import mypkg
+
+
+def test_x():
+    src = os.path.join(os.getcwd(), "src")
+    assert hasattr(copy, "deepcopy"), copy.__file__
+    assert ET.fromstring("<a/>").tag == "a"
+    assert mypkg.__file__.startswith(src + os.sep), mypkg.__file__
+    child = subprocess.run(
+        [sys.executable, "-c", "import mypkg; print(mypkg.__file__)"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    assert child.startswith(src + os.sep), child
+    pathlib.Path(os.environ["SHADOW_MARK"]).write_text("ran")
+"""
+
+
+def _shadow_branch(world, monkeypatch, test=_SHADOW_TEST):
+    mark = world.tmp / "shadow-ran"
+    monkeypatch.setenv("SHADOW_MARK", str(mark))
+    head = world.branch(
+        {
+            "src/copy/__init__.py": "# a project package named like the stdlib's copy\n",
+            "src/mypkg/__init__.py": "MERGED = True\n",
+            "tests/test_x.py": test,
+        }
+    )
+    return head, mark
+
+
+def test_fallback_tests_import_a_stdlib_named_src_package_without_shadowing(world, monkeypatch):
+    head, mark = _shadow_branch(world, monkeypatch)
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 0
+    assert mark.read_text() == "ran"
+    assert world.scratch_left() == []
+    assert "pytest tests/test_x.py under " in world.replies(msg_id)["intel"]
+
+
+def test_fallback_ignores_the_callers_pythonpath(world, monkeypatch):
+    decoy = world.main / ".claude" / "worktrees" / "peer" / "src"
+    (decoy / "mypkg").mkdir(parents=True)
+    (decoy / "mypkg" / "__init__.py").write_text("DECOY = True\n", encoding="utf-8")
+    ambient = world.tmp / "ambient"  # an unrelated repo's src the caller's shell exports
+    (ambient / "copy").mkdir(parents=True)
+    (ambient / "copy" / "__init__.py").write_text("AMBIENT = True\n", encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join([str(decoy), str(ambient)]))
+    head, mark = _shadow_branch(world, monkeypatch)
+    world.send(head)
+
+    assert world.run("merge") == 0
+    assert mark.read_text() == "ran"
+    assert world.scratch_left() == []
+
+
+def test_fallback_runs_the_main_checkouts_venv_python(world, monkeypatch):
+    used = world.tmp / "venv-used"
+    venv = world.main / ".venv" / "bin" / "python"
+    venv.parent.mkdir(parents=True)
+    venv.write_text(f'#!/bin/sh\necho x > "{used}"\nexec "{sys.executable}" "$@"\n')
+    venv.chmod(0o755)
+    head, mark = _shadow_branch(world, monkeypatch)
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 0
+    assert used.read_text() == "x\n" and mark.read_text() == "ran"
+    assert f"under {venv}: green" in world.replies(msg_id)["intel"]
+    assert world.scratch_left() == []
+
+
+def test_fallback_src_beats_a_copy_installed_in_the_venvs_site_packages(world, monkeypatch):
+    """The reason ``src`` went first at all: an editable install of the main checkout lives in
+    site-packages and would otherwise grade master, not the merge."""
+    venv = world.main / ".venv"
+    subprocess.run(
+        [sys.executable, "-m", "venv", "--without-pip", str(venv)], check=True, timeout=120
+    )
+    py = venv / "bin" / "python"
+    site_dir = subprocess.run(
+        [str(py), "-c", "import site; print(site.getsitepackages()[0])"],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=60,
+    ).stdout.strip()
+    import _pytest  # the outer interpreter's pytest, reachable from the new venv
+
+    outer = str(Path(_pytest.__file__).resolve().parent.parent)
+    Path(site_dir, "outer.pth").write_text(outer + "\n", encoding="utf-8")
+    Path(site_dir, "mypkg").mkdir()
+    Path(site_dir, "mypkg", "__init__.py").write_text("INSTALLED = True\n", encoding="utf-8")
+    head, mark = _shadow_branch(world, monkeypatch)
+    world.send(head)
+
+    assert world.run("merge") == 0
+    assert mark.read_text() == "ran"
+    assert world.scratch_left() == []
+
+
+def test_fallback_a_package_style_src_is_imported_from_the_tree_root(world, monkeypatch):
+    """wef 01M3WW45D0QVW14KJQW70PFE2P: src/__init__.py makes the ROOT the import root (`src.x`);
+    src/ itself is not, so its stdlib-named package is never a top-level `copy`."""
+    mark = world.tmp / "pkg-ran"
+    monkeypatch.setenv("SHADOW_MARK", str(mark))
+    test = (
+        "import os, pathlib, subprocess, sys\n"
+        "import importlib.util\n"
+        "import copy\n"
+        "import src.copy\n\n\n"
+        "def test_x():\n"
+        "    assert hasattr(copy, 'deepcopy')\n"
+        "    assert importlib.util.find_spec('mypkg') is None\n"
+        "    child = subprocess.run([sys.executable, '-c', 'import src.mypkg, os; print(src.mypkg.__file__)'],\n"
+        "                           cwd='/', capture_output=True, text=True, check=True).stdout.strip()\n"
+        "    assert child.startswith(os.path.join(os.getcwd(), 'src') + os.sep), child\n"
+        "    pathlib.Path(os.environ['SHADOW_MARK']).write_text('ran')\n"
+    )
+    world.send(
+        world.branch(
+            {
+                "src/__init__.py": "",
+                "src/copy/__init__.py": "LOCAL = True\n",
+                "src/mypkg/__init__.py": "MERGED = True\n",
+                "tests/test_x.py": test,
+            }
+        )
+    )
+
+    assert world.run("merge") == 0
+    assert mark.read_text() == "ran"
+    assert world.scratch_left() == []
+
+
+def test_a_red_fallback_test_refuses_the_merge(world, monkeypatch, capsys):
+    head, _ = _shadow_branch(world, monkeypatch, test="def test_x():\n    assert False\n")
+    old = world.base()
+    world.send(head)
+
+    assert world.run("merge") == 1
+    assert world.base() == old
+    assert "owner tests red (pytest tests/test_x.py under" in capsys.readouterr().err
 
 
 # --- review round 1 ---------------------------------------------------------------------------

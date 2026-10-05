@@ -165,8 +165,11 @@ python3 scripts/merge_request.py resume <id>    # a request left short of `repli
 `merge` holds `<git common dir>/fabrik-merge.lock`, resumes any stranded record in
 `<git common dir>/fabrik-merge/` first, claims the request, and runs (a) a preflight in a throwaway
 worktree with a snapshot of every merged path, (b) pure-insertion ledger conflicts only, (c) the
-owner's tests (`.fabrik/merge-tests`, read from base), (d) a CAS of the local base (up to three
-rebuilds), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
+owner's tests (`.fabrik/merge-tests`, read from base, with the throwaway's `src` first on
+`PYTHONPATH`; with none, pytest over the touched `tests/` files under `<main>/.venv/bin/python` when
+present, with the caller's `PYTHONPATH` dropped and the merged import root — `src`, or the tree's
+root when `src/` is itself a package — placed after the stdlib and before site-packages), (d) a CAS
+of the local base (up to three rebuilds), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
 overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
 hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
 --merge-sha`. A refusal acks `blocked` with the refused step; the requester fixes and sends a new
