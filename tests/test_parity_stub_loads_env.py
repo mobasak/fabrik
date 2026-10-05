@@ -81,6 +81,60 @@ def test_a_broken_dotenv_is_reported_and_the_rows_carry_on(tmp_path):
     (proj / ".env").write_bytes(b"ZZ_BAD=\xff\xfe\n")
     r = _run(_PROBE, proj)
     assert "verify_prod_parity: .env not loaded (UnicodeDecodeError" in r.stderr, r.stderr
+    assert "0xff" not in r.stderr, r.stderr  # the reason only, never the byte from the file
+
+
+def test_a_nul_byte_in_the_dotenv_is_reported_and_the_rows_carry_on(tmp_path):
+    """os.environ refuses a value holding a NUL byte with ValueError, which used to escape the
+    stub and stop the whole parity run (tryton-crm 01M44BTHQQZ8, web-ecommerce-factory 01M44D5FP670)."""
+    proj = _project(tmp_path)
+    (proj / ".env").write_bytes(b"ZZ_PARITY_FROM_DOTENV=above\nZZ_PARITY_REAL=a\x00b\n")
+    r = _run(_PROBE, proj)
+    assert "verify_prod_parity: .env only partly loaded (ValueError" in r.stderr, r.stderr
+    # the message names exactly the keys that reached os.environ
+    assert "set before the error: ZZ_PARITY_FROM_DOTENV\n" in r.stderr, r.stderr
+    assert r.stdout.split() == ["above", "None", "True"], r.stdout
+
+
+def test_a_nul_byte_on_the_first_line_is_reported_as_not_loaded(tmp_path):
+    """Nothing reached os.environ, so the stub must not claim a partial load."""
+    proj = _project(tmp_path)
+    (proj / ".env").write_bytes(b"ZZ_PARITY_REAL=a\x00b\nZZ_PARITY_FROM_DOTENV=below\n")
+    r = _run(_PROBE, proj)
+    assert "verify_prod_parity: .env not loaded (ValueError" in r.stderr, r.stderr
+    assert "set before the error: none" in r.stderr, r.stderr
+    assert r.stdout.split() == ["None", "None", "True"], r.stdout
+
+
+def test_a_value_os_environ_cannot_encode_is_reported_without_the_value(tmp_path):
+    """Under a non-UTF-8 locale os.environ raises UnicodeEncodeError (a ValueError) whose text
+    quotes a character of the value; the stub prints the reason and the key names only."""
+    proj = _project(tmp_path)
+    (proj / ".env").write_bytes(
+        "ZZ_PARITY_FROM_DOTENV=above\nZZ_PARITY_REAL=secretcaf\u00e9\n".encode()
+    )
+    env = {"PATH": "/usr/bin:/bin", "LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+    r = subprocess.run(
+        [sys.executable, "-c", _PROBE, str(proj / "scripts" / "verify_prod_parity.py")],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "only partly loaded (UnicodeEncodeError" in r.stderr, r.stderr
+    assert "set before the error: ZZ_PARITY_FROM_DOTENV" in r.stderr, r.stderr
+    assert "xe9" not in r.stderr and "\u00e9" not in r.stderr, r.stderr
+
+
+def test_a_dotenv_that_loads_nothing_is_reported(tmp_path):
+    """load_env() returns False for a file that sets no variable (or without python-dotenv): the
+    rows then read only the real environment, and the operator is told."""
+    proj = _project(tmp_path)
+    (proj / ".env").write_text("# nothing set here\n")
+    r = _run(_COUNTING, proj, str(proj))
+    assert r.stdout.split() == ["1", "True"], r.stdout
+    assert "verify_prod_parity: .env loaded nothing" in r.stderr, r.stderr
 
 
 def test_the_stub_loads_the_project_env_once_and_a_real_variable_wins(tmp_path):

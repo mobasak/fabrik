@@ -29,6 +29,7 @@ the deployed service is written `UNVERIFIABLE (mutating — needs a scoped paylo
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from collections.abc import Callable
@@ -113,23 +114,47 @@ def _health_probe() -> Any | None:
     # Since fabrik-lib cfd9215f importing the module no longer loads the project `.env`; rows that
     # read os.environ after this import relied on it, so load THIS project's `.env` here once, by
     # explicit path (its default search reads the cwd under `python -c`) — a real variable still
-    # wins (override=False). A broken `.env` is reported and the rows carry on, as its cli() does.
+    # wins (override=False). A broken `.env` is reported and the rows carry on.
     global _ENV_LOADED
     load_env = getattr(health_probe, "load_env", None)
     dotenv = Path(root) / ".env"
     if load_env is not None and not _ENV_LOADED and dotenv.is_file():
         _ENV_LOADED = True
+        before = set(os.environ)
         try:
-            load_env(str(dotenv))
+            loaded = load_env(str(dotenv))
         except (OSError, UnicodeDecodeError) as exc:
             print(
-                f"verify_prod_parity: .env not loaded ({type(exc).__name__}: {exc})",
+                f"verify_prod_parity: .env not loaded ({type(exc).__name__}: {_why(exc)})",
                 file=sys.stderr,
             )
+        except ValueError as exc:
+            # a key or value os.environ refuses (a NUL byte, or "=" in a quoted key): python-dotenv
+            # has already set some keys by then, and which ones does not follow line order, so
+            # name what changed (key names only — never a value from `.env`)
+            got = sorted(set(os.environ) - before)
+            print(
+                f"verify_prod_parity: .env {'only partly loaded' if got else 'not loaded'} "
+                f"({type(exc).__name__}: {_why(exc)}); set before the error: {', '.join(got) or 'none'}",
+                file=sys.stderr,
+            )
+        else:
+            if not loaded:
+                print(
+                    "verify_prod_parity: .env loaded nothing (it sets no variable, or python-dotenv "
+                    "is not installed), so rows that read it see only the real environment",
+                    file=sys.stderr,
+                )
     return health_probe
 
 
 _ENV_LOADED = False  # `_health_probe()` runs per row; the project `.env` is loaded once
+
+
+def _why(exc: Exception) -> object:
+    """The reason for a `.env` load error, never its text: a UnicodeError's text quotes the
+    offending byte or character of a `.env` value (a non-UTF-8 file, or a non-UTF-8 locale)."""
+    return exc.reason if isinstance(exc, UnicodeError) else exc
 
 
 def unverifiable(system: str, why: str) -> dict[str, Any]:

@@ -35,6 +35,18 @@ All notable changes to this project will be documented in this file.
 - On trade-intelligence's real tree it keeps 20 of 20 comments, where HEAD kept 17, and leaves both plan sets collapsed. A second run is a no-op.
 - 7 graders. Follow-up W-3efb9553 covers `--only` and plan-set directories.
 
+### Fixed — the parity stub survives a NUL byte in `.env` and says when `.env` loads nothing (2026-10-05)
+`templates/scaffold/scripts/verify_prod_parity.py` caught only `OSError` / `UnicodeDecodeError` from `load_env()`.
+A NUL byte in a `.env` key or value makes `os.environ` raise `ValueError: embedded null byte`, which escaped and
+stopped the whole parity run. It is now reported on stderr with the names of the keys python-dotenv set before the
+error (a partial load, or "not loaded" when none) and the rows carry on. When `load_env()` returns `False` (for
+instance a file of only comments, or python-dotenv missing) the stub now says so instead of continuing silently
+against the real environment only. Found by tryton-crm (01M44BTHQQZ8) and web-ecommerce-factory (01M44D5FP670);
+D-563. A load error now prints only its reason, never its text: a `UnicodeDecodeError` quoted a byte of the file and
+a `UnicodeEncodeError` (a `ValueError` under a non-UTF-8 locale) quoted a character of a value. Five graders in
+`tests/test_parity_stub_loads_env.py` (four new, one tightened), all red on the old template. Scaffolded projects
+own their copy and keep the old one until they take this change by hand (W-0a890331).
+
 ### Fixed — `scripts/tests/test_gather_envs.py` passes under a plain pytest run (2026-10-05)
 48 of its tests failed unless `FABRIK_POOL_POLICY=on` was exported: since D-181/D-182 (acffe9c1d)
 `classify_services.main()` returns before dispatching while the pool is OFF, and the classifier tests drive the
