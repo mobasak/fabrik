@@ -1365,3 +1365,116 @@ def test_a_cross_repo_gate_block_is_refused(tmp_path: Path) -> None:
     )
     assert not ok, "a cross-repo-only gate block was accepted"
     assert "names no gate class" in why and "cross-repo" not in why.split("—", 1)[1], why
+
+
+# --- a pointer to a boarded gate (tryton-crm 01M3Q4HZ4V0MHHVH2FA0KTS1NQ, panel verdict b) -------
+
+
+def _board(tmp_path: Path, **items: str) -> Path:
+    """A git repo whose work store holds ``{id: status}`` items; returns its root."""
+    import subprocess
+
+    repo = tmp_path / "repo"
+    store = repo / ".fabrik" / "work"
+    store.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    for item_id, status in items.items():
+        item = {"id": item_id, "status": status, "kind": "decision", "block_digest": "ab" * 32}
+        (store / f"{item_id}.json").write_text(json.dumps(item), encoding="utf-8")
+    return repo
+
+
+def _stall_in(repo: Path, final: str, waived: list | None = None):
+    tr = repo.parent / "t.jsonl"
+    _turn(tr, _user(), _asst_text(final))
+    return hook._detect_stall(str(tr), repo, set(), waived)
+
+
+_POINTER = "Done: the patch is in.\n\nNEXT: operator decision — W-aaaaaaaa (credentials gate)\n"
+
+
+def test_a_pointer_to_an_open_awaiting_gate_is_not_a_deferral(tmp_path: Path) -> None:
+    """The gate is already on the board; naming it by id is the correct terminal, and the waiver
+    is recorded so a rising pointer rate stays measurable (D-253)."""
+    repo = _board(tmp_path, **{"W-aaaaaaaa": "awaiting-operator"})
+    waived: list = []
+    assert _stall_in(repo, _POINTER, waived) is None
+    assert ("boarded-gate", "W-aaaaaaaa") in waived, waived
+
+
+@pytest.mark.parametrize(
+    "items",
+    [
+        {},  # unknown id
+        {"W-aaaaaaaa": "done"},  # answered
+        {"W-aaaaaaaa": "dropped"},
+        {"W-aaaaaaaa": "open"},  # boarded, but not an operator gate
+    ],
+)
+def test_a_pointer_to_anything_but_an_open_awaiting_gate_still_defers(
+    tmp_path: Path, items: dict
+) -> None:
+    repo = _board(tmp_path, **items)
+    hit = _stall_in(repo, _POINTER)
+    assert hit is not None and hit[0] == "deferral:D1", hit
+
+
+def test_one_unresolved_id_on_the_line_keeps_the_deferral(tmp_path: Path) -> None:
+    repo = _board(tmp_path, **{"W-aaaaaaaa": "awaiting-operator"})
+    text = _POINTER.replace("(credentials gate)", "and W-bbbbbbbb")
+    hit = _stall_in(repo, text)
+    assert hit is not None and hit[0] == "deferral:D1", hit
+
+
+def test_a_closed_marker_hides_the_gate(tmp_path: Path) -> None:
+    """Answered in another tree: the closed marker wins over this tree's stale status."""
+    repo = _board(tmp_path, **{"W-aaaaaaaa": "awaiting-operator"})
+    closed = repo / ".git" / "fabrik-work" / "closed"
+    closed.mkdir(parents=True)
+    (closed / "W-aaaaaaaa.json").write_text("{}", encoding="utf-8")
+    hit = _stall_in(repo, _POINTER)
+    assert hit is not None and hit[0] == "deferral:D1", hit
+
+
+def test_no_store_and_no_id_keep_the_deferral(tmp_path: Path) -> None:
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    hit = _stall_in(bare, _POINTER)
+    assert hit is not None and hit[0] == "deferral:D1", hit
+    repo = _board(tmp_path, **{"W-aaaaaaaa": "awaiting-operator"})
+    hit = _stall_in(repo, "Done.\n\nNEXT: operator decision — the credentials gate\n")
+    assert hit is not None and hit[0] == "deferral:D1", hit
+
+
+def test_a_menu_elsewhere_still_blocks_after_the_pointer_is_waived(tmp_path: Path) -> None:
+    repo = _board(tmp_path, **{"W-aaaaaaaa": "awaiting-operator"})
+    text = (
+        "Two ways to go: (a) ship now or (b) wait a day — which do you prefer?\n\n"
+        "NEXT: operator decision — W-aaaaaaaa\n"
+    )
+    hit = _stall_in(repo, text)
+    assert hit is not None and hit[0].startswith("deferral:"), hit
+
+
+def test_the_d1_remedy_names_the_pointer_form() -> None:
+    reason = hook._deferral_reason("deferral:D1", "NEXT: operator decision", 1)
+    assert "already on the board" in reason and "W-<id>" in reason, reason
+
+
+def test_a_hand_written_status_only_item_is_not_a_boarded_gate(tmp_path: Path) -> None:
+    """Review round 1 (Sonnet F1): `{"status": "awaiting-operator"}` written by the agent itself is
+    not a harvested gate — the pointer needs the harvest's `kind: decision` and `block_digest`."""
+    repo = _board(tmp_path)
+    (repo / ".fabrik" / "work" / "W-aaaaaaaa.json").write_text(
+        json.dumps({"id": "W-aaaaaaaa", "status": "awaiting-operator"}), encoding="utf-8"
+    )
+    hit = _stall_in(repo, _POINTER)
+    assert hit is not None and hit[0] == "deferral:D1", hit
+
+
+def test_a_quoted_copy_of_the_line_is_not_the_one_waived() -> None:
+    """Review round 1 (Sonnet F3): the waived span is the real NEXT: line, never a fenced quote."""
+    line = "NEXT: operator decision — W-aaaaaaaa"
+    text = f"Done.\n\n{line}\n\n```\n{line}\n```\n"
+    span = hook._full_line(text, line)
+    assert span is not None and text[span[0] : span[1]] == line and span[0] < text.index("```")

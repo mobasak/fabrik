@@ -3529,6 +3529,7 @@ def _detect_stall(
             judged=judged,
             escalation=escalation,
             waived=waived,
+            root=root,
         )
     except Exception as e:
         # Fail open — but never SILENTLY (review finding: a MemoryError-disabled
@@ -3545,10 +3546,13 @@ def _deferral_stall(
     judged: tuple[str, tuple[bool, str]] | None,
     escalation: re.Match[str] | None,
     waived: list[tuple[str, str]] | None,
+    root: Path | None = None,
 ) -> tuple[str, str] | None:
     """The DEFERRAL check on a final message: a DECISION block decides it when one is present
     (well-formed → no stall; malformed → itself a deferral, spec § C2), else D1-D4. Interactive
-    sessions only; `BLOCKED:` exempts globally and is recorded as a waiver."""
+    sessions only; `BLOCKED:` exempts globally and is recorded as a waiver. A D1 `NEXT:` line
+    that only POINTS at gates already on the board (`_boarded_gates`) is waived as
+    `boarded-gate`, and the rest of the message is judged again without that line."""
     if _is_headless(transcript_path):
         return None
     hit: tuple[str, str] | None
@@ -3563,6 +3567,18 @@ def _deferral_stall(
         hit = ("block", why)
     else:
         hit = _deferral_match(text)
+        # At most one pass per NEXT: line: each waiver removes the line it waived.
+        for _ in range(_DEFER_TAIL_LINES):
+            if hit is None or hit[0] != "D1" or root is None:
+                break
+            span = _full_line(text, hit[1])
+            gates = _boarded_gates(root, text[span[0] : span[1]]) if span else None
+            if not span or not gates:
+                break
+            if waived is not None:
+                waived.append(("boarded-gate", ",".join(gates)))
+            text = text[: span[0]] + text[span[1] :]
+            hit = _deferral_match(text)
     if hit is None:
         return None
     # The DEFERRAL's own exemption is the escalation HEADER (`_DEFER_BLOCKED_RE`), narrower than
@@ -3572,6 +3588,78 @@ def _deferral_stall(
             waived.append(("blocked-escalation", escalation.group(0)))
         return None
     return f"deferral:{hit[0]}", hit[1]
+
+
+_ITEM_ID_RE = re.compile(r"\bW-[0-9a-f]{8}\b")
+
+
+def _full_line(text: str, snippet: str) -> tuple[int, int] | None:
+    """The span of the LAST line of ``text`` holding ``snippet`` (D1's stripped line, cut at 200
+    chars) — D1 reads the tail, so the last occurrence is the one it matched — or None."""
+    fences = _fence_spans(text)
+    at = text.rfind(snippet) if snippet else -1
+    # never a quoted copy: D1 itself skips a NEXT: line inside a quoting fence
+    while at >= 0 and any(lo <= at < hi for lo, hi in fences):
+        at = text.rfind(snippet, 0, at)
+    if at < 0:
+        return None
+    le = text.find("\n", at)
+    return text.rfind("\n", 0, at) + 1, len(text) if le == -1 else le
+
+
+def _boarded_gates(root: Path, line: str) -> list[str] | None:
+    """The W-ids on a D1 `NEXT:` line when EVERY one is an operator gate still on the board —
+    an item in this repo's work store whose status is `awaiting-operator` and which no closed
+    marker hides — else None (tryton-crm 01M3Q4HZ: the hook's own remedy, "end with a DECISION
+    block", re-minted a boarded gate as a duplicate; the D-558 panel ruled the pointer legal).
+
+    The store is the one the harvest writes for this cwd (`_repo_argv`): `<toplevel>/.fabrik/
+    work`, closed markers under `<git common dir>/fabrik-work/closed` (`work.py::_closed_dir`).
+    A marker hides the gate whatever its age — stricter than `work.py::_closed_ids`, and the cost
+    is only today's D1. Fail-closed: no id, no store, any unreadable or non-awaiting id → None.
+    ⚠️ COBRA (D-253): the cheapest pass is naming an UNRELATED old awaiting gate to dodge a new
+    decision. No cheaper than today's verbatim re-paste of an old block (it attaches by hash);
+    every id must resolve, D2-D4 are judged again without the line, the waiver is recorded as
+    `boarded-gate` for `stop_mine.py`, and the named gate sits on its addressee's awaiting list.
+    An item must carry the harvest's shape (`kind: decision`, a `block_digest`); a hand-written
+    file forging all three fields still passes — no cheaper than writing a fake DECISION block,
+    which the harvest boards for real and the operator then sees."""
+    ids = list(dict.fromkeys(_ITEM_ID_RE.findall(line)))
+    if not ids:
+        return None
+    try:
+
+        def _git(arg: str) -> Path | None:
+            r = subprocess.run(
+                ["git", "rev-parse", "--path-format=absolute", arg],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            out = r.stdout.strip()
+            return Path(out) if r.returncode == 0 and out else None
+
+        top, common = _git("--show-toplevel"), _git("--git-common-dir")
+        if top is None or common is None:
+            return None
+        store, closed = top / ".fabrik" / "work", common / "fabrik-work" / "closed"
+        for item_id in ids:
+            item = json.loads((store / f"{item_id}.json").read_text(encoding="utf-8"))
+            # the HARVEST's shape, not a hand-written `{"status": …}` (review round 1, Sonnet F1)
+            if not (
+                isinstance(item, dict)
+                and item.get("status") == "awaiting-operator"
+                and item.get("kind") == "decision"
+                and isinstance(item.get("block_digest"), str)
+                and item["block_digest"]
+            ):
+                return None
+            if (closed / f"{item_id}.json").exists():
+                return None
+        return ids
+    except Exception:
+        return None
 
 
 def _repo_argv(ta: Path | None, cwd: object) -> list[str]:
@@ -3725,7 +3813,10 @@ def _deferral_reason(kind: str, snippet: str, attempt: int) -> str:
         "The next step is yours if the plan, the rules, the ledger or the code decide it — do "
         "it now. If a human is genuinely needed, end with a DECISION block (CLAUDE.md § FINAL "
         "OUTPUT): `DECISION NEEDED (ground: gate|underivable|owned)` with its four lines — "
-        "Question · Why it is yours · Options · Recommendation — written unfenced. A `BLOCKED:` "
+        "Question · Why it is yours · Options · Recommendation — written unfenced; or, if the "
+        "gate is already on the board, name its open awaiting item by id (`NEXT: operator "
+        "decision — W-<id>`) — never re-state a boarded gate, the harvest mints a duplicate. "
+        "A `BLOCKED:` "
         "escalation exempts only in its format: `BLOCKED: <what> — searched: <sources> — "
         "missing: <need>`."
     )

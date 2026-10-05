@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pointing at a boarded operator gate no longer forces a duplicate (2026-10-05)
+
+- The Stop hook's D1 deferral check accepts a `NEXT:` line whose every `W-` id is an open awaiting-operator item, instead of demanding a fresh DECISION block that the harvest then boarded as a duplicate gate; both CLAUDE.md copies say a boarded gate is pointed at by id (tryton-crm 01M3Q4HZ, D-576).
+
 ### Changed — payments packs name the lane-scoped boot check and restate the PayTR blocker (2026-10-05)
 
 - `core/85` and `saas/95` now name `verify_service_role(conn, lane="ingest"|"fulfilment")` as the boot assertion, keep PayTR off until the worker's own scoped login passes the fulfilment lane, and ban granting that lane to the tenant app role (fabrik-lib mail 01M3Q1QP9Z part c, D-575).
