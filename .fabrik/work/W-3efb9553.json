@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T13:18:09.316657Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3efb9553",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "docs_updater --sync: add --only plans|structure (refresh PLANS without rewriting STRUCTURE) and never expand plan-set directories (_PLAN_DIR_NAME_RE, one plan unit) — follow-up of W-961bede1, recommended by both design critiques; keep the bare --sync as the documented path (PLANS.md header) and note --check does not grade STRUCTURE freshness"
+}

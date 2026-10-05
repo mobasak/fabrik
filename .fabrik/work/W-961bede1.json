@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "docs_updater.py --sync strips hand-written INDEX.md descriptions when it regenerates the STRUCTURE block"
 }
