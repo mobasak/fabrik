@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T06:16:56.999846Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-c81379ef",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "templates/node-api/defaults.yaml:14 exposes_metrics: true while templates/node-api/ carries no metrics module — the prometheus registrar adds a scrape target that will be down. Either flip the default to false or scaffold a prom-client /metrics; decide in /fabrik-task (split out of W-aec7365b / mail 01M1EQ3NCA98EF178ZY366V47T)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "scaffold"
+  ],
+  "title": "node-api template sets shape.exposes_metrics: true but scaffolds no /metrics endpoint"
+}
