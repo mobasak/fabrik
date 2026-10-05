@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — payments packs name the lane-scoped boot check and restate the PayTR blocker (2026-10-05)
+
+- `core/85` and `saas/95` now name `verify_service_role(conn, lane="ingest"|"fulfilment")` as the boot assertion, keep PayTR off until the worker's own scoped login passes the fulfilment lane, and ban granting that lane to the tenant app role (fabrik-lib mail 01M3Q1QP9Z part c, D-575).
+
 ### Fixed — a review covers edits made before a non-review command (2026-10-05)
 
 - A review-family `done` reached back only to the latest command close, so an edit made before `/fabrik-plan-review` (or any non-review command) was never covered and the Stop hook's sixth cause kept naming it after the review that reviewed it; the reach now goes to the session's earliest covered window (fleet 01M44QXGG7656PBEJJ9VWXSZRV, D-574).

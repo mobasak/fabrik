@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "payments scoped service roles (fabrik-lib D-324, design approved): three changes on your side — your driver's ingest block, a fulfilment role, pack 85"
 }
