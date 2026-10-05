@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: The final_gate Stop hook's \"UNREVIEWED SPONTANEOUS WORK\" cause blocked a turn naming tests/trytond/test_wizard_form_company.py."
 }
