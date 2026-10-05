@@ -47,7 +47,8 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
 | `blocked_by` | item ids that, if present, would gate `ready` and `claim` until each reads `done`/`dropped` (here, or closed by a marker elsewhere) — genuinely READ by both (`_is_ready`, `_refuse_blocked`). In practice it never blocks anything today: `add` has no `--blocked-by` flag and every item is minted with `blocked_by: []`, so nothing currently WRITES this field. |
 | `next` | the item's own concrete next action, written by `add --next` or `migrate-backlog` in full (a migrated item's whole body lives here) — a Stop harvest never rewrites it: a NEXT that qualifies under rule 2 (§ NEXT, DECISION blocks and the register, below) only CLAIMS the item. A `kind: next` item's own `next` is its session's current free-text NEXT, clipped to 300 characters (`LINE_MAX`) — the same 300 characters the register (`thread_anchor.py`) judges a NEXT by |
 | `next_at` | `kind: next` only: the time this item's `next`/title text was last set — a Stop harvest closes the item `dropped` `idle 7 days` once this reads more than 7 days old |
-| `evidence` | set by `done`: a commit SHA whose message names the item id |
+| `evidence` | set by `done`: a commit SHA whose message names the item id — or, for an item closed `--resolved-by`, the cited item's own recorded evidence, whose commit names the `resolved_by` root (the cited item itself, or the item at the end of its chain) |
+| `resolved_by` | set by `done --resolved-by`: the ROOT item whose recorded fix also resolved this one (a chain records its root, not the link it was cited through); copied onto the closed marker so another tree can follow the chain (W-f154f3f3) |
 | `legacy` | `true` only on items `migrate-backlog` created from rows already resolved; exempt from the evidence rule |
 | `note` | free text; on a `decision` closed by `answer` it holds the operator's words, which exempts that item from the evidence rule (it has no commit by design, D-542) |
 | `question`, `ground`, `msg_digests`, `block_digest` | `kind: decision` only: the plain-words question, the DECISION block's `ground:` token, every message digest that created or refreshed the item, and the block's own digest |
@@ -90,7 +91,7 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
   the marker file itself stays on disk. Drift class 6 relies on exactly that: a marker still present
   past 14 days, next to an item its base branch still reads open, is what class 6 reports. Class 6's
   other half reads the items themselves: an item marked `done` in the last 14 days whose `evidence`
-  SHA does not resolve or does not name the item — except `legacy` items, `mail`/`feedback` items,
+  SHA does not resolve or does not name the item (its `resolved_by` root when it has one) — except `legacy` items, `mail`/`feedback` items,
   and a `decision` closed by `answer` (D-542).
 
 ## The CLI — `scripts/work.py`
@@ -110,6 +111,7 @@ verbs:
 | `claim <id> [--session <s>]` | worker | take (or renew) the live claim; refused when another session holds a live claim, or the item is `blocked`/has an unresolved `blocked_by` |
 | `release <id> [--session <s>]` | worker | give up this session's live claim (fenced the same way as `done`) |
 | `done <id> --evidence <sha> [--session <s>]` | worker | refused without `--evidence`, with a SHA that does not resolve, or whose commit message does not name the item id; refused BY HAND on a `mail`/`feedback` item — those close only through `mail.py ack`/`close_linked` |
+| `done <id> --resolved-by <W-id> [--evidence <sha>] [--session <s>]` | worker | close an item another item's commit already fixed: the cited item must read `done` in this tree, on the base branch or in a closed marker, and record evidence; this item carries that evidence and records `resolved_by`. A given `--evidence` must equal the cited item's, so a fresh commit that merely names the cited item is refused (W-f154f3f3) |
 | `drop <id> (--why <text> \| --duplicate-of <keep>) [--session <s>]` | `--why`: the owner, the distributor, or anyone for an unassigned item · `--duplicate-of`: the distributor, or a caller whose agent name or session id is the `creator` of BOTH items | end an item that won't be done (`--why`, refused on `awaiting-operator` items); or retire an open `awaiting-operator` `<id>` into another open `awaiting-operator` `<keep>` (`--duplicate-of`, D5) — `<keep>` absorbs `<id>`'s block digest and id so a later re-ask of either wording refreshes `<keep>` instead of opening a third item |
 | `answer <id> --note <text> [--decision D-NNN] [--session <s>]` | the agent the operator answered | close an awaiting-operator item with the operator's own words |
 | `status` | anyone | the obligation lines and the distributor's lines (§ The view), items by state, uncommitted item files, plan-board ticket counts, and the eight drift classes below (read-only, no lock) |
@@ -315,7 +317,7 @@ Eight drift classes (`status`/`sync` print `DRIFT <n> (blocking|advisory)  <path
 | 3 | A plan IN-PROGRESS with no plan lock | blocking\* |
 | 4 | A plan EXECUTED while an item linking it is still open (archived plans included — a plan is archived at EXECUTED) | blocking\* |
 | 5 | An item file that doesn't parse, or a status outside the vocabulary | blocking\* |
-| 6 | A `done` item within the last 14 days whose evidence SHA doesn't exist or doesn't name it; or a closed marker over 14 days old whose item is still open in the base branch (never merged) | blocking\* |
+| 6 | A `done` item within the last 14 days whose evidence SHA doesn't exist or doesn't name it (or its `resolved_by` root); or a closed marker over 14 days old whose item is still open in the base branch (never merged) | blocking\* |
 | 7 | The backlog block is stale (`render` would change it) | advisory |
 | 8 | A plan `Status:` value outside the normalised set | advisory |
 

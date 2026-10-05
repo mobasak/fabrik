@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `work.py done --resolved-by`: close an item another item's commit already fixed (2026-10-06)
+- `scripts/work.py`: `done <B> --resolved-by <A>` closes B with A's recorded evidence. A must read `done` in this tree, on the base branch or in a closed marker, and must record a commit SHA as evidence; a given `--evidence` must equal it. B records `resolved_by` (the root of a chain), and the closed marker carries it too. Drift class 6 now checks a done item's evidence against its `resolved_by` root. Without the flag, `done` is unchanged. W-f154f3f3, D-599, mail 01M3T2C7 (trade-intelligence: the only honest-looking path was an empty commit naming the item).
+
 ### Fixed — final_gate's pytest leg runs the DB-backed suite from the project's own test-database URL (2026-10-05)
 - `scripts/final_gate.py`: when the leg runs, TEST_DATABASE_URL comes from the environment, else the project's `.env.local`, else `.env` (that one key only, BOM-safe). A file value must name a disposable database (name ends `_test`/`throwaway`/`scratch` in any case, a sqlite `.db`/`.sqlite3` extension ignored, and different from the file's DATABASE_URL), or the row is RED `pytest (TEST_DATABASE_URL REFUSED …)` and pytest does not run. The value reaches the pytest child only and is redacted from the row. The opt-in `.fabrik/require-test-database-url` makes a missing key RED; otherwise a green run that skipped tests in a suite reading the key names the miss. The leg's run-and-classify block is now `_run_pytest_suite()`; `tests/test_final_gate_advisory_display.py`'s `-x` notice grader now drives it behaviourally instead of scraping source. W-e93160e3, D-597, mail 01M3S2A3 (trade-intelligence: 134 tests skipped, two DB failures escaped a green gate).
 

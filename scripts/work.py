@@ -1078,6 +1078,7 @@ def _write_marker(
             "session": session,
             "status": item["status"],
             "tree": str(repo),
+            **({"resolved_by": item["resolved_by"]} if item.get("resolved_by") else {}),
         },
     )
 
@@ -1373,6 +1374,7 @@ _PLAN_STATUS_GIT_PATTERN = r"^[[:blank:]]*([-*>][[:blank:]]+)?\*{0,2}Status\*{0,
 _ITEM_STATUS_GIT_PATTERN = '"status":'  # the JSON status field's own line; already case-fixed
 _DIR_SCOPE_MIN = 8  # wanted paths under one parent before the batch scopes the directory
 _EVIDENCE_REV_RE = re.compile(r"[0-9A-Za-z^{}~@./_:-]+")  # a revision, never a protocol byte
+_HEX_SHA_RE = re.compile(r"[0-9a-fA-F]{7,40}")  # a recorded (abbreviated) SHA, never a ref
 
 
 def _git_status_porcelain(repo: Path, *args: str) -> str:
@@ -1818,7 +1820,11 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
                 and data.get("kind") not in LINKED_KINDS
                 and not answered
             ):
-                done_candidates.append((rel, path.stem, str(data.get("evidence") or "")))
+                # W-f154f3f3: an item closed `--resolved-by` carries its root item's fix, whose
+                # commit names that root. Cobra: a hand-written `resolved_by` dodges class 6
+                # exactly as a hand-written `note` does above; the edit is in the item's history.
+                cited = str(data.get("resolved_by") or path.stem)
+                done_candidates.append((rel, cited, str(data.get("evidence") or "")))
         # W-5937c2cd: one batched age read and one batched evidence read, never per item
         ages = _status_change_ages(
             repo,
@@ -3210,6 +3216,64 @@ def cmd_release(repo: Path, args: argparse.Namespace) -> int:
 _LINKED_CLOSE = {"mail": "mail is acked", "feedback": "queue is marked answered"}
 
 
+def _base_record(repo: Path, item_id: str) -> dict | None:
+    """``item_id``'s whole record on the store's base branch, or None (no branch, no file, a git
+    failure, malformed JSON) — the full-record sibling of ``_base_statuses``."""
+    branch = _base_branch(repo)
+    if not branch:
+        return None
+    try:
+        raw = _git(repo, "show", f"refs/heads/{branch}:{STORE_REL.as_posix()}/{item_id}.json")
+    except WorkError:
+        return None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _resolve_commit(repo: Path, rev: str) -> str:
+    """The full SHA ``rev`` names as a commit, or "" (an option-shaped or unknown rev)."""
+    if rev.startswith("-") or not _EVIDENCE_REV_RE.fullmatch(rev):
+        return ""
+    try:
+        return _git(repo, "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}").strip()
+    except WorkError:
+        return ""
+
+
+def _cited_done(repo: Path, cited: str) -> tuple[dict, str]:
+    """``(record, source)`` of ``cited`` closed DONE, read in order from this tree's file, the
+    base branch, then an effective closed marker — the three places a done item can be seen from
+    a checkout (D-403). Refused (WorkError) when none reads it done or its record carries no
+    evidence (an answered decision, a linked mail/feedback item, a legacy row)."""
+    looked = []
+    path = _item_path(repo, cited)
+    if path.exists():
+        rec = _read_item(repo, cited)
+        if rec.get("status") == "done":
+            looked.append((rec, "this tree"))
+    base = _base_record(repo, cited)
+    if base is not None and base.get("status") == "done":
+        looked.append((base, "the base branch"))
+    marker = _read_records(_closed_dir(repo)).get(cited)
+    if marker and marker.get("status") == "done" and cited in _closed_ids(repo):
+        looked.append((marker, "a closed marker"))
+    for rec, source in looked:
+        if str(rec.get("evidence") or "").strip():
+            return rec, source
+    if looked:
+        raise WorkError(
+            f"--resolved-by {cited} refused: {cited} is done but records no evidence commit "
+            "(an answered decision, a linked item or a legacy row) — there is no fix to carry"
+        )
+    raise WorkError(
+        f"--resolved-by {cited} refused: {cited} is not done in this tree, on the base branch "
+        "or in a closed marker — close it first, or cite the item whose commit fixed this one"
+    )
+
+
 def cmd_done(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
     first = _read_item(repo, args.id)
@@ -3220,12 +3284,36 @@ def cmd_done(repo: Path, args: argparse.Namespace) -> int:
         )
     _refuse_closed(repo, first, "done")
     session = _call_session(args)
-    sha = _verify_evidence(repo, args.id, args.evidence)
+    cited = (getattr(args, "resolved_by", None) or "").strip()
+    if cited:
+        if cited == args.id:
+            raise WorkError(f"--resolved-by {cited} refused: an item cannot be resolved by itself")
+    else:
+        sha = _verify_evidence(repo, args.id, args.evidence)
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="done"):
         item = _read_item(repo, args.id)
         _refuse_closed(repo, item, "done")
         _fence(repo, args.id, session, "done")
-        item.update(status="done", evidence=sha)
+        extra: dict = {}
+        if cited:
+            rec, source = _cited_done(repo, cited)
+            stored = str(rec["evidence"]).strip()
+            # recorded evidence is a SHA, never a ref: a branch name would re-resolve to
+            # whatever it points at NOW, so two citations of one root could carry two commits
+            sha = _resolve_commit(repo, stored) if _HEX_SHA_RE.fullmatch(stored) else ""
+            if not sha:
+                raise WorkError(
+                    f"--resolved-by {cited} refused: {cited}'s recorded evidence "
+                    f"{stored!r} (read from {source}) is not a commit SHA here"
+                )
+            given = (args.evidence or "").strip()
+            if given and _resolve_commit(repo, given) != sha:
+                raise WorkError(
+                    f"--resolved-by {cited} refused: {cited} was closed by {sha[:12]} (read from "
+                    f"{source}); cite that commit, or omit --evidence to carry it"
+                )
+            extra = {"resolved_by": str(rec.get("resolved_by") or cited)}
+        item.update(status="done", evidence=sha, **extra)
         path = _close(repo, item, session=session, evidence=sha)
         _after_write(repo, session)
     print(_rel(repo, path))
@@ -5134,7 +5222,17 @@ def _parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("done", help="close an item with a commit that names it")
     s.add_argument("id")
-    s.add_argument("--evidence", help="a commit SHA whose message names the item id")
+    s.add_argument(
+        "--evidence",
+        help="a commit SHA whose message names the item id (with --resolved-by: optional, and "
+        "it must equal the cited item's recorded evidence)",
+    )
+    s.add_argument(
+        "--resolved-by",
+        metavar="W-ID",
+        help="the DONE item whose recorded fix also resolved this one: this item carries that "
+        "item's evidence and records resolved_by (W-f154f3f3)",
+    )
     s.add_argument("--session", help=session_help)
     s.set_defaults(fn=cmd_done)
 
