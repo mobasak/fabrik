@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `decisions.py --check` resolves a hub-side supersede pointer against the hub ledger (2026-10-05)
+
+- A project row reading `supersedes D-048 (hub-side)` names the hub's row; once the project minted its own D-048 the check went green on an unrelated row. A pointer marked `(hub-side)` is now resolved against the hub ledger, never a local id, so it can neither false-resolve nor hide a dangling pointer; a bare pointer is still checked locally (trade-intelligence 01M3QTN2).
+
 ### Fixed — a phase review receipt named by letter (`phase-A`) satisfies `command_run.py step` (2026-10-05)
 
 - Plans label phases A/B/C, but the phase gate accepted only `phase-<N>`; letter N (A = 1) now counts as phase N, bounded so `phase-AB` names neither, and the refusal names both forms (trade-intelligence 01M3QPRY). A test that read the real hub reviews dir was made hermetic.
