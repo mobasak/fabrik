@@ -762,6 +762,16 @@ def _no_alerting_leak():
     _drop_module_leaks(before, path)
 
 
+@pytest.fixture(autouse=True)
+def _pool_policy_on_for_dispatch_tests(monkeypatch):
+    """The committed pool policy is OFF (D-181/D-182), and `classify_services.main()` returns before
+    dispatching when it is. Every classifier test here exercises the dispatch path with a stubbed
+    `fanout`, so the policy seam pins ON; the policy test below overrides it. Without this pin, 48
+    tests failed under a plain pytest run (W-e687a235), the same pattern tests/test_doc_reconcile.py
+    uses."""
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
+
+
 def _classify_env(tmp_path, monkeypatch, envs_text: str, argv: list[str], results):
     cat = tmp_path / "catalog.json"
     cat.write_text("{}", encoding="utf-8")
@@ -796,6 +806,32 @@ def _classify_env(tmp_path, monkeypatch, envs_text: str, argv: list[str], result
     monkeypatch.setattr(cs, "set_quality", lambda *a, **k: None)
     monkeypatch.setattr(sys, "argv", ["classify_services.py", *argv])
     return cat, state
+
+
+def test_pool_policy_off_dispatches_nothing(tmp_path, monkeypatch, capsys):
+    """D-181/D-182: with the pool OFF by ruling, a classify run dispatches no unit, writes no
+    last-run record, leaves the cursor where it was and writes no catalog, even with more flagged
+    providers queued than one run takes."""
+    # 12 > --max-per-run 10, so an ON run moves the cursor before its paid dispatch: a guard moved
+    # below that write would advance it with nothing classified, and this test sees it
+    text = "# ═ NEEDS-TRIAGE ═\n" + "".join(
+        f'#svc name=p{i:02d} category=? cost=? capability="?" url=? status=? used_by=web\n'
+        f"P{i:02d}_API_KEY=x\n"
+        for i in range(12)
+    )
+    cat, state = _classify_env(tmp_path, monkeypatch, text, ["--apply"], [])
+    # seeded, so "unmoved" and "unwritten" are checked against real prior content
+    cursor = state / "c.json"
+    cursor.write_text('{"after": "a"}', encoding="utf-8")
+    calls: list = []
+    monkeypatch.setattr(cs, "fanout", lambda *a, **k: calls.append(k) or ([], ""))
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
+    assert cs.main() == 0
+    assert "the pool is OFF by ruling" in capsys.readouterr().err
+    assert calls == []
+    assert not (state / "l.json").exists()
+    assert cursor.read_text(encoding="utf-8") == '{"after": "a"}'
+    assert cat.read_text(encoding="utf-8") == "{}"
 
 
 class _Res:
