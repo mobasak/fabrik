@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "ask the operator: keep the subscription lane for the operator's own services and automation, or move user-facing product features to an API key; evidence: docs/reference/research/2026-10-02-agentic-currency-ledger.md rows a1-19, a1-20, a1-22, a2-29; ai/00 owns the rule",
-  "note": "",
+  "note": "superseded by the awaiting-operator decision W-970d0321 (subscription vs API key for user-facing products; gate: spend, reserved by D-510)",
   "owner": "",
   "priority": 1,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "rules"
   ],
