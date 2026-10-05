@@ -65,7 +65,12 @@ _CANONICAL = (
     "a DECISION block the Stop hook accepts becomes an "
     "`awaiting-operator` item on its own, and the agent the operator answers closes it with "
     '`work.py answer <id> --note "<their words>"`. Item files are ordinary files: commit the ones '
-    "your verbs changed with your task. End a turn on work with `NEXT: <item id> — <what it is>` "
+    "your verbs changed with your task. The MAIN checkout's store also takes writes no task "
+    "commit carries (mail claims, triage, Stop-hook DECISION items), so the main "
+    "checkout's session commits whatever is left with `python3 scripts/work.py commit-items` — its "
+    "Stop hook names it (first under autonomy; otherwise once no claim is held and nothing else "
+    "waits). "
+    "End a turn on work with `NEXT: <item id> — <what it is>` "
     "to claim that item for your "
     "session (the first item it names that is open, ready, not a `next` item and held by no "
     "other session); "

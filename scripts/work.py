@@ -1916,9 +1916,40 @@ def _sync_blocking_active(repo: Path) -> bool:
 
 def _uncommitted_items(repo: Path) -> list[str]:
     """Item files ``git status --porcelain`` shows untracked or modified — a listing, never a
-    drift class (spec § Constraints — shared tree)."""
+    drift class (spec § Constraints — shared tree). Fails OPEN to ``[]`` on a git error."""
     store_rel = STORE_REL.as_posix()
-    out = _git_status_porcelain(repo, "--untracked-files=all", "--", store_rel)
+    return _parse_store_status(
+        _git_status_porcelain(repo, "--untracked-files=all", "--", store_rel)
+    )
+
+
+def _uncommitted_items_strict(repo: Path) -> list[str] | None:
+    """`_uncommitted_items`, but ``None`` when git fails — for a caller that must tell "nothing is
+    uncommitted" from "could not look" (an empty answer there would read as an all-clear)."""
+    try:
+        proc = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+                "--",
+                STORE_REL.as_posix(),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=_git_timeout(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return _parse_store_status(proc.stdout) if proc.returncode == 0 else None
+
+
+def _parse_store_status(out: str) -> list[str]:
+    """The item-file paths in UNSTRIPPED ``git status --porcelain`` output."""
+    store_rel = STORE_REL.as_posix()
     paths: set[str] = set()
     for line in out.splitlines():
         if len(line) < 4:
@@ -3406,6 +3437,182 @@ def _distributor_lines(
     return lines
 
 
+def _is_linked_worktree(repo: Path) -> bool:
+    """True when ``repo`` is a linked worktree (its git dir is not the common dir)."""
+    git_dir = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-dir")).resolve()
+    return git_dir != _common_dir(repo)
+
+
+_GIT_ENV_DROP = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")
+
+
+def _commit_store_files(repo: Path, paths: list[str], context: str) -> str:
+    """Commit exactly ``paths`` (their WORKING-TREE content) on the current branch and return the
+    commit's sha. Built with ``git commit --only``: git holds ``index.lock`` across the tree, the
+    ref move and the index update, so a sibling's bare ``git commit`` can neither interleave nor
+    ship a stale index entry for these paths, and another session's STAGED files stay staged and
+    out of this commit. Untracked paths get an intent-to-add entry first (undone on failure).
+    Hooks are skipped (``core.hooksPath=/dev/null``, ``--no-verify``): item JSON triggers no
+    check and no sync. A refused commit (index lock held, HEAD moved) raises — nothing landed."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_ENV_DROP}
+    agent = _agent_name()
+    message = "\n".join(
+        [
+            f"chore(work): commit {len(paths)} work-item file(s) from the main store",
+            "",
+            "Agent-Role: primary",
+            *([f"Agent-Name: {agent}"] if agent else []),
+            f"Agent-Context: {context}",
+        ]
+    )
+
+    def git(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", "-C", str(repo), *args],
+            capture_output=True,
+            text=True,
+            input=stdin,
+            env=env,
+            timeout=_git_timeout(),
+        )
+
+    tracked = set(git("ls-files", "--", *paths).stdout.split())
+    new = [p for p in paths if p not in tracked]
+    if new:
+        added = git("add", "-N", "--", *new)
+        if added.returncode != 0:
+            raise WorkError(f"git add -N failed: {added.stderr.strip()[:200]} — nothing committed")
+    done = git(
+        "-c",
+        "core.hooksPath=/dev/null",
+        "commit",
+        "--no-verify",
+        "--only",
+        "-F",
+        "-",
+        "--",
+        *paths,
+        stdin=message + "\n",
+    )
+    if done.returncode != 0:
+        if new:
+            git("reset", "-q", "--", *new)  # best effort: drop the intent-to-add entries
+        raise WorkError(f"git commit failed: {done.stderr.strip()[:300]} — nothing committed")
+    m = re.search(r"^\[[^\]\s]+ (?:\(root-commit\) )?([0-9a-f]{7,40})\]", done.stdout, re.M)
+    if not m:
+        raise WorkError(f"commit landed but its sha was not printed: {done.stdout[:200]}")
+    sha = _git(repo, "rev-parse", m.group(1))
+    landed = set(_git(repo, "show", "--name-only", "--format=", sha).splitlines())
+    if landed != set(paths):
+        raise WorkError(f"{sha[:9]} holds {sorted(landed ^ set(paths))} beyond/short of the list")
+    return sha
+
+
+def _valid_item_file(repo: Path, rel: str) -> bool:
+    """True when ``rel`` holds a JSON object whose ``id`` is the file's own stem."""
+    try:
+        data = json.loads((repo / rel).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(data, dict) and data.get("id") == Path(rel).stem
+
+
+def _store_commit_plan(repo: Path) -> tuple[list[str], list[str], list[str], list[str]]:
+    """(committable, staged by another session, deleted, not a valid item) among the store's
+    uncommitted item files. "Staged" reads the index against HEAD, so an intent-to-add entry
+    counts too. A deleted item file is never committed here: no verb deletes one, so a deletion is
+    a hand edit for its author to commit (or restore) — never read as "invalid"."""
+    pending = _uncommitted_items(repo)
+    try:
+        staged = set(
+            _git(
+                repo, "diff-index", "--cached", "--name-only", "HEAD", "--", STORE_REL.as_posix()
+            ).splitlines()
+        )
+    except WorkError:
+        staged = set()
+    held = [p for p in pending if p in staged]
+    rest = [p for p in pending if p not in staged]
+    deleted = [p for p in rest if not (repo / p).exists()]
+    invalid = [p for p in rest if p not in deleted and not _valid_item_file(repo, p)]
+    files = [p for p in rest if p not in deleted and p not in invalid]
+    return files, held, deleted, invalid
+
+
+def _store_refusal(repo: Path) -> str | None:
+    """Why the store cannot be committed in this checkout's state, or None (the caller-side
+    checks live in `_commit_refusal`)."""
+    if _is_linked_worktree(repo):
+        return "this is a linked worktree; the main checkout's session commits the main store"
+    try:
+        _git(repo, "symbolic-ref", "--short", "-q", "HEAD")
+    except WorkError:
+        return "HEAD is detached; check out a branch first"
+    git_dir = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-dir"))
+    for head in ("MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"):
+        if (git_dir / head).exists():
+            op = head.split("_HEAD")[0].lower().replace("_", "-")
+            return f"a {op} is in progress; finish it first"
+    if (git_dir / "rebase-merge").exists() or (git_dir / "rebase-apply").exists():
+        return "a rebase is in progress; finish it first"
+    return None
+
+
+def _commit_refusal(repo: Path) -> str | None:
+    """Why ``commit-items`` must not run here, or None: the store's own state, then the caller —
+    a session must run it from inside the main checkout, never name it with ``--repo``."""
+    why = _store_refusal(repo)
+    if why:
+        return why
+    try:
+        caller = _repo_root(Path.cwd())
+    except WorkError:
+        caller = None
+    if caller != repo:
+        return f"run it from inside the main checkout ({repo}), not from {Path.cwd()}"
+    return None
+
+
+def cmd_commit_items(repo: Path, args: argparse.Namespace) -> int:
+    """Commit every uncommitted, valid, unstaged item file of THIS main checkout's store in one
+    commit (W-4238b6ec). The store lock is held only while the list is taken — the commit itself
+    runs outside it, so hook writers (2 s fail-open waits) are never starved; a file a verb
+    rewrites after the listing is committed in its newer, equally complete state."""
+    why = _commit_refusal(repo)
+    if why:
+        print(f"work.py commit-items: refused — {why}.", file=sys.stderr)
+        return 2
+    for attempt in (1, 2):
+        with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="commit-items"):
+            files, held, deleted, invalid = _store_commit_plan(repo)
+        if not files:
+            print("work.py commit-items: nothing to commit")
+            break
+        try:
+            sha = _commit_store_files(
+                repo, files, f"work.py commit-items: {len(files)} item file(s) from the main store"
+            )
+        except WorkError as exc:
+            if attempt == 2:
+                print(f"work.py commit-items: {exc}", file=sys.stderr)
+                return 1
+            continue  # a sibling held the index or moved HEAD: re-list against the new state
+        branch = _git(repo, "symbolic-ref", "--short", "-q", "HEAD")
+        print(f"[{branch} {sha[:9]}] committed {len(files)} item file(s) — push it: git push")
+        break
+    # a race may have committed them since the listing — but only a listing that SUCCEEDED may
+    # drop a line: a git failure here must never read as an all-clear (round 2, A-S6)
+    fresh = _uncommitted_items_strict(repo)
+    still = set(fresh) if fresh is not None else set(held) | set(deleted) | set(invalid)
+    for rel in (r for r in held if r in still):
+        print(f"skipped (staged by another session): {rel}")
+    for rel in (r for r in deleted if r in still):
+        print(f"skipped (deleted — this verb commits no deletion; restore it or commit it): {rel}")
+    for rel in (r for r in invalid if r in still):
+        print(f"skipped (not a valid item file): {rel}")
+    return 0
+
+
 def cmd_status(repo: Path, args: argparse.Namespace) -> int:
     """The obligation lines and the distributor's lines (spec D1, D4), items by state,
     uncommitted item files (a listing, never a drift class), and the eight derived spec/plan
@@ -4341,11 +4548,63 @@ def _stop_action(tree: Path, session: str) -> dict:
     none = {"agent": agent, "role": "", "action": None, "fp": "", "text": ""}
     if not _has_store(main):
         return none
+    commit = _commit_items_subject(tree, main)
     if _autonomy_on(main):
-        return _autonomy_action(tree, main, session, agent, is_worker, workers, coordinator, none)
+        result = _autonomy_action(tree, main, session, agent, is_worker, workers, coordinator, none)
+        if commit:
+            # FIRST on the ladder: it exhausts after three blocks and the ladder moves on, and its
+            # fingerprint carries the store's last commit, so it re-arms once that commit lands
+            cands = [
+                commit,
+                *[c for c in result.get("candidates") or [] if c["fp"] != commit["fp"]],
+            ]
+            result = {**result, **commit, "candidates": cands[:AUTONOMY_MAX_CANDIDATES]}
+        return result
     if _holds_claim(tree, session):
-        return none
-    return _classic_rungs(tree, main, agent, is_worker, workers, coordinator, none)
+        return none  # mid-task: the task's own commit carries its item files
+    rung = _classic_rungs(tree, main, agent, is_worker, workers, coordinator, none)
+    if rung.get("action") or not commit:
+        return rung
+    return {**none, **commit}  # LAST on the classic path: it never masks claim/doorbell/triage
+
+
+def _commit_items_subject(tree: Path, main: Path) -> dict | None:
+    """The Stop subject for a session working IN the main checkout while its store holds
+    committable item files (W-4238b6ec); a worktree session is never handed it. It counts only
+    what `commit-items` would commit, so a skipped file never keeps it alive; when the checkout's
+    state refuses the verb (detached HEAD, a merge or rebase in progress) it names that instead.
+    The fingerprint carries the store's last commit AND the backlog's power-of-two bucket, so the
+    ladder re-arms after a store commit and again each time the backlog doubles. COBRA: ignoring
+    ``W-*.json`` in the store's .gitignore would empty the listing and silence this without
+    committing anything; a test pins the file."""
+    if tree != main:
+        return None
+    try:
+        files = _store_commit_plan(main)[0]
+        why = _store_refusal(main) if files else None
+    except Exception:
+        return None
+    if not files:
+        return None
+    try:
+        last = _git(main, "log", "-1", "--format=%h", "--", STORE_REL.as_posix()) or "none"
+    except WorkError:
+        last = "none"  # no commit yet (a fresh store): still a subject, never silence
+    n = len(files)
+    head = (
+        f"{n} work-item file(s) are uncommitted in this main checkout's store (mail claims, "
+        "triage, Stop-hook DECISION items and this checkout's own verbs write it; only this "
+        "checkout can commit it)"
+    )
+    if why:
+        text = f"{head}, but they cannot be committed yet: {why} — then `python3 scripts/work.py commit-items`"
+    else:
+        text = f"{head}: `python3 scripts/work.py commit-items`, then `git push`"
+    return {
+        "action": "commit-items",
+        "fp": f"rung:commit-items:{last}:{n.bit_length()}{':blocked' if why else ''}",
+        "text": text + _ESCAPE,
+    }
 
 
 def _classic_rungs(
@@ -4411,7 +4670,7 @@ def _classic_rungs(
                 f"while {routable} routable, {backlog} backlog and {own} of your own queued items "
                 "wait: run `python3 scripts/work.py triage`, promote the backlog you want done "
                 "(`python3 scripts/work.py assign <id> --owner <worker> --tag queued`), then "
-                "`python3 scripts/work.py triage --apply`, commit the store, and send the "
+                "`python3 scripts/work.py triage --apply`, `python3 scripts/work.py commit-items`, and send the "
                 "SendMessage lines it prints.",
             }
         return {**none, "role": "coordinator"}
@@ -4555,7 +4814,8 @@ def _autonomy_candidates(
     none: dict,
 ) -> list[dict]:
     """The ordered ladder (design: held claims → mail → queued → coordinator rungs → owned →
-    the distributor's feedback queues), one candidate per subject, deduplicated by fingerprint."""
+    the distributor's feedback queues), one candidate per subject, deduplicated by fingerprint.
+    `_stop_action` puts the main checkout's `commit-items` subject in front of it."""
     items = list(_iter_items(tree))
     closed = _closed_ids(tree)
     claims = _live_claims(tree)
@@ -4800,7 +5060,7 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
     if not done:
         return 0
     base = _base_branch(main) or "the base branch"
-    print("commit the store, then send:")
+    print("commit the store (`python3 scripts/work.py commit-items`), then send:")
     for name, written in done.items():
         ids = " ".join(written)
         for session in _sessions_of(name, main) or [f"<{name}'s session>"]:
@@ -4898,6 +5158,11 @@ def _parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("status", help="items, uncommitted item files, and spec/plan drift")
     s.set_defaults(fn=cmd_status)
+
+    s = sub.add_parser(
+        "commit-items", help="commit the main store's uncommitted item files (main checkout only)"
+    )
+    s.set_defaults(fn=cmd_commit_items)
 
     s = sub.add_parser("sync", help="drift check — the completion gate's row")
     s.add_argument(
