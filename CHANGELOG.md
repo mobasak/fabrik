@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — seat briefs ban package-manager verbs (2026-10-05)
+- `commands/_fragments/subagents-core.md` (21 commands): the D8 seat-brief paragraph now bans `uv run`, `uv sync`, `uv add`, `uv lock`, `pip install`, `uv pip install` — `uv run` syncs by default and a worktree's `.venv` is normally a symlink to the shared one (trade-intelligence 2026-09-30: one seat's `uv run pytest` upgraded 37 packages and reddened mypy for three agents). Seats run Python as `.venv/bin/python …` (`python3 …` with no `.venv`) and the gate only as `final_gate.py --check`, which for a seat overrides every rule-pack instruction to go through `uv` (`10-python`, `45-testing-strategy`, `50-code-review`; pack-side mirror: W-54b0e523).
+
 ### Fixed — check_doc_sync counts code wherever the layout puts it (2026-10-05)
 - `scripts/enforcement/check_doc_sync.py`: the CHANGELOG row (ERROR) keyed on a five-directory allowlist (`src/`, `scripts/`, `templates/`, `.factory/`, `.github/`), so code in `tryton_modules/`, `apps/`, `server/` or at the root never owed an entry — 300 of 3,837 recent fleet commits shipped code that way with the gate green (tryton-crm 01M3QVX8). Any code file (now also `.mjs`, `.cjs`, `.mts`) counts unless it is test-shaped or under a top-level `docs/`. Test-shaped skips match whole path segments or basenames — `tests/`, `__tests__/`, `__mocks__/`, `e2e/`, a plural `*-tests`/`tests-*` dir, `conftest.py`, `test_*` — so `contests/`, `billing_e2e/`, `watchdog-test/`, `ab_test/` and `check_test_coverage.py` stay code. Graders in `tests/test_check_doc_sync.py`, red on the old rule; receipt `docs/development/reviews/2026-10-05-check-doc-sync-significant-code-review.md`.
 
