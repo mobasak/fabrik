@@ -17,6 +17,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / ".claude" / "workflows" / "fabrik-review-loop.js"
 SOURCES = [
@@ -866,3 +868,62 @@ def test_the_route_up_sentence_cites_symbols_that_exist_not_drifting_line_number
     assert symbols, line
     for sym in symbols:
         assert re.search(rf"^(?:{sym} =|def {sym}\()", code, re.M), sym
+
+
+@pytest.mark.parametrize("sep", [" · ", ", ", " "])
+def test_a_composite_ledger_id_echo_counts_for_the_one_ledger_id_it_names(sep: str) -> None:
+    """W-7afacefb (fabrik-lib 01M3RX9J): a closing seat echoed each `<slice>-L<n>` with the original candidate id
+    appended (`S-L1 · S-O27`), so every fully re-verified claim read "not re-verified" and the slice was never
+    closable — a signal leads learn to override. A report naming exactly one ledger id now counts for it, whatever
+    the separator and however it is padded."""
+    args = {**_ARGS, "pass": 2}
+    args["slices"] = [{**_ARGS["slices"][0], "ledger": ["claim one", "claim two"]}]
+    status = [
+        {"id": f"  S-L1{sep}S-O27", "status": "NOW_FALSE", "command": "c", "output": "o"},
+        {"id": f"S-O30{sep}S-L2", "status": "NOW_FALSE", "command": "c", "output": "o"},
+    ]
+    out, _, _ = _harness(args, _two_finders([], ledger_status=status))
+    s = out["slices"][0]
+    assert s["closable"] is True, s["open"]
+
+
+def test_a_report_naming_two_ledger_ids_closes_neither() -> None:
+    """Review round 1 (slice A): a leading-token rule closed S-L2 for a report `S-L2 · S-L1` that verified S-L1 —
+    an unverified claim closed silently, worse than HEAD. A report naming two ledger ids is ambiguous: both stay
+    open, the fail-closed default."""
+    args = {**_ARGS, "pass": 2}
+    args["slices"] = [{**_ARGS["slices"][0], "ledger": ["claim one", "claim two"]}]
+    status = [{"id": "S-L2 · S-L1", "status": "NOW_FALSE", "command": "c", "output": "o"}]
+    out, _, _ = _harness(args, _two_finders([], ledger_status=status))
+    s = out["slices"][0]
+    assert s["closable"] is False
+    assert sorted(o for o in s["open"] if "not re-verified" in o) == [
+        "ledger claim S-L1 not re-verified by any seat",
+        "ledger claim S-L2 not re-verified by any seat",
+    ], s["open"]
+
+
+def test_a_report_naming_one_ledger_id_twice_still_closes_it() -> None:
+    """Review round 2 (slice B): `S-L1 · S-L1` names ONE distinct ledger id; counting it twice would read it as
+    ambiguous and leave a fully re-verified claim open."""
+    args = {**_ARGS, "pass": 2}
+    args["slices"] = [{**_ARGS["slices"][0], "ledger": ["claim one"]}]
+    status = [{"id": "S-L1 · S-L1", "status": "NOW_FALSE", "command": "c", "output": "o"}]
+    out, _, _ = _harness(args, _two_finders([], ledger_status=status))
+    assert out["slices"][0]["closable"] is True, out["slices"][0]["open"]
+
+
+def test_a_leading_id_token_never_closes_a_shorter_id_it_merely_starts_with() -> None:
+    """Tokens are cut at every character an id cannot hold, so `S-L10 · …` closes S-L10 and never S-L1 (a prefix
+    match would close both)."""
+    args = {**_ARGS, "pass": 2}
+    args["slices"] = [
+        {
+            **_ARGS["slices"][0],
+            "ledger": [{"id": "S-L1", "claim": "c"}, {"id": "S-L10", "claim": "d"}],
+        }
+    ]
+    status = [{"id": "S-L10 · S-O9", "status": "NOW_FALSE", "command": "c", "output": "o"}]
+    out, _, _ = _harness(args, _two_finders([], ledger_status=status))
+    s = out["slices"][0]
+    assert s["open"] == ["ledger claim S-L1 not re-verified by any seat"], s["open"]

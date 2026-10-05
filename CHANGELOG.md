@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review loop credits a composite ledger-id echo, never a wrong claim (2026-10-05)
+- `.claude/workflows/fabrik-review-loop.js` (fleet-synced) matched each closing seat's `ledger_status` id against the claim ledger exactly. A seat that echoed `S-L1 · S-O27` therefore left every fully re-verified claim "not re-verified", and the slice never closed (fabrik-lib 01M3RX9J, W-7afacefb).
+- A report now counts for a ledger id when its id-shaped tokens name exactly ONE of the slice's ledger ids. Tokens are split on every character an id cannot hold, so `S-L10` never counts as `S-L1`.
+- A report naming two ledger ids (`S-L2 · S-L1`) closes neither claim, the fail-closed default. A first-token rule tried during review would have closed S-L2 unverified.
+- 4 test cases, red on HEAD and on the first-token rule.
+
 ### Fixed — check_convergence no longer passes a non-git root unexamined (2026-10-05)
 - `scripts/enforcement/check_convergence.py` (fleet-synced) builds every worklist from `git status`. Outside a git work tree those lists were empty, so a plan claiming CONVERGED with no proof passed with rc 0, never examined (tryton-crm 01M3RW55, W-70d7718d).
 - It now asks `git rev-parse --is-inside-work-tree` first. If the answer is no and any plan or review file is on disk, it refuses with rc 2. The refusal message carries git's own error line, such as "dubious ownership", followed by the `git init && git add -A` remedy.

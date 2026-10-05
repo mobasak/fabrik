@@ -264,7 +264,16 @@ function closeCheck(r) {
   // forgiven but one report never closes two claims (review pass 2, A-S7)
   const fold = (id) => String(id || '').trim().toLowerCase()
   const ids = r.slice.ledger.map((c) => c.id)
-  const said = r.seats.flatMap((s) => (s.ledger_status || []).map((x) => String(x.id || '').trim()))
+  // a seat that echoes `S-L1 · S-O27` re-verified S-L1: a report whose id-shaped tokens (cut at every character an
+  // id cannot hold, so `S-L10` never reads as `S-L1`) name EXACTLY ONE of this slice's ledger ids counts for that id;
+  // `S-L2 · S-L1` names two, so it is ambiguous and closes neither — the fail-closed default (W-7afacefb, 01M3RX9J)
+  const only = (x) => {
+    const named = [...new Set(x.split(/[^A-Za-z0-9._-]+/).filter((t) => ids.includes(t)))]
+    return named.length === 1 && named[0] !== x ? named : []
+  }
+  const said = r.seats
+    .flatMap((s) => (s.ledger_status || []).map((x) => String(x.id || '').trim()))
+    .flatMap((x) => [x, ...only(x)])
   const hit = (id) => said.includes(id) || (ids.filter((k) => fold(k) === fold(id)).length === 1 && said.some((x) => fold(x) === fold(id)))
   for (const c of r.slice.ledger) if (!hit(c.id)) open.push(`ledger claim ${c.id} not re-verified by any seat`)
   if (open.length) log(`slice ${r.slice.name} NOT closable: ${open.join(' · ')}`)
