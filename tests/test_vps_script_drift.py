@@ -827,12 +827,19 @@ def test_cron_paths_ignores_env_lines_comments_and_templated_paths():
         "0 1 * * * root /opt/fabrik/scripts/{{HOST_NAME}}/x.sh\n"
         "0 2 * * * root /opt/fabrik/scripts/sysadmin/a.sh,/opt/fabrik/scripts/sysadmin/b.sh\n"
         "0 3 * * * root /opt/fabrik/scripts/sysadmin/c.sh # was /opt/fabrik/scripts/sysadmin/old.sh\n"
+        "0 4 * * * root /opt/fabrik/scripts/sysadmin/d.sh # it's done, was /opt/fabrik/scripts/sysadmin/old2.sh\n"
+        "0 5 * * * root cat % /opt/fabrik/scripts/sysadmin/stdin-only.sh\n"
+        '0 7 * * * root echo "50%" /opt/fabrik/scripts/sysadmin/after-quoted-pct.sh\n'
+        "0 6 * * * root /opt/fabrik/scripts/sysadmin/r.sh 50\\% done\n"
+        '"FOO"=/opt/fabrik/scripts/sysadmin/z.sh\n'
     )
     assert d.cron_paths(text) == {
         "/opt/fabrik/scripts/sysadmin/a.sh",
         "/opt/fabrik/scripts/sysadmin/b.sh",
         "/opt/fabrik/scripts/sysadmin/c.sh",
+        "/opt/fabrik/scripts/sysadmin/d.sh",
         "/opt/fabrik/scripts/sysadmin/q.sh",
+        "/opt/fabrik/scripts/sysadmin/r.sh",
     }
 
 

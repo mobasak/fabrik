@@ -161,15 +161,28 @@ def template_targets(root: Path) -> list[str]:
 # Only hub scripts: /usr/local/bin/fabrik-autoheal may be scheduled outside this file on a live host, and a
 # redirect target or a quote is not a scheduled path.
 _CRON_PATH_RE = re.compile(r"/opt/fabrik/scripts/[^\s>|;&\"'`(),:]+")
-# PATH=, SHELL=, MAILTO=: an environment line carries no job
-_CRON_ENV_RE = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*=")  # cron allows spaces around =
-# cron hands the command to sh, where a whitespace-preceded # starts a comment: a path after it never runs
-_CRON_TAIL_COMMENT_RE = re.compile(r"\s#.*$")
+# PATH=, SHELL=, MAILTO=: an environment line carries no job (cron allows spaces around = and a quoted name)
+_CRON_ENV_RE = re.compile(r"""^\s*(["']?)[A-Za-z_][A-Za-z0-9_]*\1\s*=""")
 
 
-def _strip_tail_comment(line: str) -> str:
-    """Drop a trailing shell comment, unless the line quotes something: a # inside quotes is data."""
-    return line if ('"' in line or "'" in line) else _CRON_TAIL_COMMENT_RE.sub("", line)
+def _command_part(line: str) -> str:
+    """The part of a cron line that sh runs. cron turns the first unescaped % into a newline and feeds the rest
+    to the command's stdin (crontab(5)); sh then ignores a whitespace-preceded # outside quotes as a comment. A
+    left-to-right scan, so a quote inside the comment cannot hide where the comment starts."""
+    quote = ""
+    for i, c in enumerate(line):
+        if c == "%" and (
+            i == 0 or line[i - 1] != "\\"
+        ):  # cron splits here even inside shell quotes
+            return line[:i]
+        if quote:
+            if c == quote:
+                quote = ""
+        elif c in "\"'":
+            quote = c
+        elif c == "#" and (i == 0 or line[i - 1].isspace()):
+            return line[:i]
+    return line
 
 
 def cron_paths(text: str) -> set[str]:
@@ -180,7 +193,7 @@ def cron_paths(text: str) -> set[str]:
         m
         for line in text.split("\n")
         if line.strip() and not line.lstrip().startswith("#") and not _CRON_ENV_RE.match(line)
-        for m in _CRON_PATH_RE.findall(_strip_tail_comment(line))
+        for m in _CRON_PATH_RE.findall(_command_part(line))
         if "{{" not in m  # a templated path cannot match a rendered one
     }
 
