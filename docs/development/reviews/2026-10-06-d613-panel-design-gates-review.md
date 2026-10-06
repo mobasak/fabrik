@@ -1,8 +1,8 @@
 # Review — D-613 panel-answered design gates
 
 **Status:** CONVERGED
-**Surface:** `git diff 20ed43d69..1b0c780c8 -- <the 15 files>` — pass 1 read the uncommitted tree at md5 2e84a9d211adba50b4b171c162984a26, pass 2 the fixed tree at 3f2c412f… minus the final fix (11a7a4ff00c969fe500a55c3399c9d1f), pass 3 3f2c412f0978a7dd2da5aef872a83b5d; committed as 1b0c780c8.
-**Command:** /fabrik-review (nested in /fabrik-task phase 4) · **Changed:** `.claude/hooks/final_gate_stop.py`, `commands/_fragments/design-gate-panel.md`, `commands/_fragments/design-critique.md`, `commands/_sources/fabrik-spec.md`, `commands/_sources/fabrik-spec-review.md`, `commands/_sources/fabrik-plan-review.md`, `commands/_sources/fabrik-flows-review.md`, `commands/_sources/fabrik-ui-design-review.md`, `commands/assemble_commands.py`, `CLAUDE.md`, `templates/governance/CLAUDE.md`, `tests/test_decision_panel.py`, `tests/test_design_critique_fragment.py`, `tests/test_plan_review_small_gate.py`, `docs/DECISIONS.md`, `CHANGELOG.md`, `INDEX.md`
+**Surface:** `git rev-parse HEAD` = 56eb913641012e069c147a7bb719d3d6cdc4d7a9; range tip 1b0c780c81e4b1e15a8702757ea50e21c72c4e48; `git diff 20ed43d69..1b0c780c8 -- .claude/hooks/final_gate_stop.py` md5 21060c52756bd21555ba46a2815ec3eb (12081 bytes) — passes read the uncommitted tree (md5 2e84a9d2…, 11a7a4ff…, 3f2c412f…) committed as the range tip
+**Command:** /fabrik-review · **Changed:** `.claude/hooks/final_gate_stop.py`, `commands/_fragments/design-gate-panel.md`, `commands/_fragments/design-critique.md`, `commands/_sources/fabrik-spec.md`, `commands/_sources/fabrik-spec-review.md`, `commands/_sources/fabrik-plan-review.md`, `commands/_sources/fabrik-flows-review.md`, `commands/_sources/fabrik-ui-design-review.md`, `commands/assemble_commands.py`, `CLAUDE.md`, `templates/governance/CLAUDE.md`, `tests/test_decision_panel.py`, `tests/test_design_critique_fragment.py`, `tests/test_plan_review_small_gate.py`, `docs/DECISIONS.md`, `CHANGELOG.md`, `INDEX.md`
 **Lane:** /fabrik-task v2, heavy (hook + governance-sync paths) — the full review, one sync commit (D-369)
 
 ## Rubric
