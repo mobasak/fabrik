@@ -1002,13 +1002,14 @@ def _validate_compose(content: str) -> list[str]:
         # `healthcheck: {disable: true}` fails `docker compose up -d --wait` ("has no healthcheck
         # configured", rc 1 — compose 2.40.3), which every git and redeploy path runs; a service with
         # NO healthcheck block passes. Refused here, before `up`, with the two shapes that work.
-        # Compose disables a healthcheck three ways and all three fail `--wait` identically:
-        # `disable: true`, a quoted `disable: "true"`, and `test: ["NONE"]` (or the bare "NONE").
+        # A healthcheck is disabled when `disable` is true (bool or the string "true") or when its
+        # `test` names no command — `["NONE"]`, the bare "NONE", or an EMPTY list/string. Every one
+        # of these fails `--wait` identically (all measured on compose 2.40.3).
         healthcheck = svc_config.get("healthcheck")
         if isinstance(healthcheck, dict):
-            test = healthcheck.get("test")
+            test = healthcheck.get("test", "absent")
             disabled = str(healthcheck.get("disable")).strip().lower() == "true" or (
-                test == "NONE" or (isinstance(test, list) and test[:1] == ["NONE"])
+                test in ("NONE", "", []) or (isinstance(test, list) and test[:1] == ["NONE"])
             )
             if disabled:
                 errors.append(

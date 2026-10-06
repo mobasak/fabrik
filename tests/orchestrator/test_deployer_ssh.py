@@ -233,8 +233,9 @@ class TestValidateCompose:
             '    healthcheck:\n      disable: "true"\n',
             '    healthcheck:\n      test: ["NONE"]\n',
             "    healthcheck:\n      test: NONE\n",
+            "    healthcheck:\n      test: []\n",
         ],
-        ids=["disable-bool", "disable-string", "test-none-list", "test-none-string"],
+        ids=["disable-bool", "disable-string", "test-none-list", "test-none-string", "test-empty"],
     )
     def test_disabled_healthcheck_refused_before_compose_up_wait(self, hc_block):
         """A disabled healthcheck makes `docker compose up -d --wait` exit 1 ("has no healthcheck
