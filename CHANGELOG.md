@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the review loop no longer marks a pinned, cited or annotated read as unread (2026-10-06)
+- `.claude/workflows/fabrik-review-loop.js` compared each seat's `files_read` entries verbatim with the slice's repo paths, so `<pins_dir>/src/x.md`, `tests/x.py (pinned copy at …)`, `f:120` and a SCRATCH/arch copy all read as gaps and the slice went `closable: false`. `readsFile` now strips the pin root or the seat's SCRATCH/arch root and matches the slice path as the leading token; a sibling pin of the same name, a nested tail and the live checkout still read as unread (D-625; W-b491da86, W-cd7979d3, web-ecommerce-factory 01M46BNT62). Graders in `tests/test_review_loop_workflow.py`; `docs/reference/review-loop-workflow.md` § gaps names the accepted shapes.
+
 ### Added — the rotation tick never promotes, or stays on, an account that refuses Claude Code (2026-10-06)
 - Phase B of plan 2026-10-06-plan-2 (W-7d2d4c98, D-614/D-616): the flip leg proves a candidate can serve before promoting it (one probe, its `ok` trusted 6 h, `ROTATE_PROBE_TRUST_S`); the ACTIVE account is re-probed on its own 30-minute window (`ROTATE_ACTIVE_PROBE_S`, 45 s timeout) and at once when a session's own `oauth_org_not_allowed` `.errparked` marker is newer than its verdict; a parked active account — refused or operator-parked — is flipped away on the same tick even with no quota reading (flip kind `refused` or `parked`); `run_claude` parks the account its call was bound to when the call is refused. The relief advisory and `--switch` never probe; the board's parked reason no longer says "by the operator". The scoped review hardened it: no probe and no auto-park while `--pause-switch` holds, a bounded non-blocking read of the session markers, a 45 s promote probe, and a 401 that rotates onto a refusing account alerts the billing check rather than "all credentials are dead".
 
