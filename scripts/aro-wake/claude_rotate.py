@@ -755,9 +755,14 @@ def _wrapper_park(slug: str | None) -> None:
         sys.stderr.write("claude_rotate: capability refused outside the fleet — nothing parked\n")
         return
     arow = _load_assignments(strict=False).get(slug)
-    identity = arow.get("identity") if isinstance(arow, dict) else None
+    arow = arow if isinstance(arow, dict) else {}
+    # the pinned identity, else the dir's account — the two fields _known_account_emails accepts
+    email = next(
+        (v for v in (arow.get("identity"), arow.get("account")) if isinstance(v, str) and "@" in v),
+        "",
+    )
     _auto_park(
-        identity if isinstance(identity, str) else "",
+        email,
         source="wrapper",
         cfg_dir=_fleet_root() / slug,
         timeout=_ACTIVE_PROBE_TIMEOUT_S,
@@ -881,7 +886,12 @@ def run_claude(
     if died_account is not None:
         final = (result.stdout or "") + "\n" + (result.stderr or "")
         host = _hostname()
-        recovered = last_target is not None and not is_auth_401(final) and not is_usage_limit(final)
+        recovered = (
+            last_target is not None
+            and not is_auth_401(final)
+            and not is_usage_limit(final)
+            and _capability_verdict(result.returncode, result.stdout or "") != "refused"
+        )  # a standby that answers with the org refusal has not recovered the call
         # RULE: while the operator's MARKER is set, the all-dead alert is theirs to own — they are
         # actively working the credential pool and asked for no swaps, so this call is not allowed
         # to declare the fleet dead on their behalf. (That holds even when real standbys were tried
@@ -3614,7 +3624,7 @@ def _validated_pick(
         if pick is None or not probe:
             return pick
         slug, email = pick
-        verdict = _probe_account(email, slug)
+        verdict = _probe_account(email, slug, timeout=_ACTIVE_PROBE_TIMEOUT_S)
         if verdict == "ok":
             return pick
         if verdict == "inconclusive":
@@ -4103,11 +4113,23 @@ def _session_refusal_epoch() -> float | None:
     for path in entries:
         if not path.name.endswith(".errparked"):
             continue
+        # A regular file only, its first 256 bytes only: a FIFO, a device or a huge file named
+        # *.errparked can neither block the tick nor fill its memory (O_NONBLOCK, no symlinks).
         try:
-            parts = path.read_text(errors="replace")[:256].split()
+            fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
         except OSError:
             continue
-        if len(parts) < 2 or parts[0] != "oauth_org_not_allowed" or not parts[1].isdigit():
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                continue
+            parts = os.read(fd, 256).decode("utf-8", "replace").split()
+        except OSError:
+            continue
+        finally:
+            os.close(fd)
+        if len(parts) < 2 or parts[0] != "oauth_org_not_allowed":
+            continue
+        if not (parts[1].isascii() and parts[1].isdigit()):  # `isdigit` alone admits "²"
             continue
         epoch = float(parts[1])
         if epoch > now + _CLOCK_SKEW_TOLERANCE_S:
@@ -6045,7 +6067,9 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     # than the verdict; a parked active account — this refusal or any earlier park, the
     # operator's included — is flipped away from here, with no quota reading needed (the trip
     # path below returns before deciding when the row has none) and is never re-probed.
-    if not _is_parked(row.get("weekly_cap")):
+    # The operator's freeze (the pause marker) holds the whole D6 re-check, not only its flip: no
+    # probe is spent and nothing is parked while they asked for no automated changes.
+    if not _switch_paused() and not _is_parked(row.get("weekly_cap")):
         verdict = _probe_account(
             row["email"],
             active_slug,

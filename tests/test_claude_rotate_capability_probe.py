@@ -730,3 +730,114 @@ def test_b6_the_wrapper_parks_the_account_its_call_was_bound_to(tmp_path, monkey
     )
     cr.run_claude(["claude", "-p", "x"], 30, str(tmp_path), env)
     assert not (fleet / "parked.json").exists()
+
+
+# ── Phase B scoped review, round 1 ──────────────────────────────────────────────────────────────
+
+
+def test_br1_a_fifo_a_huge_file_or_a_non_ascii_digit_never_stalls_the_marker_read(
+    tmp_path, monkeypatch
+):
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    monkeypatch.setattr(cr, "_selfwatch_lock_dir", lambda: locks)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    os.mkfifo(locks / "fifo.errparked")  # an open() without O_NONBLOCK would block here forever
+    (locks / "sup.errparked").write_text("oauth_org_not_allowed ²³\n")
+    (locks / "big.errparked").write_text(
+        f"oauth_org_not_allowed {int(FLEET_NOW - 60)}\n" + "x" * 5_000_000
+    )
+    started = time.monotonic()
+    assert cr._session_refusal_epoch() == FLEET_NOW - 60
+    assert time.monotonic() - started < 2.0
+
+
+def test_br2_a_rotation_that_lands_on_a_refusal_is_not_reported_recovered(tmp_path, monkeypatch):
+    """Legacy host: a 401, a rotation, and the standby answers with the org refusal — the 401
+    alert must not claim the call recovered."""
+    monkeypatch.setenv("CLAUDE_ROTATE_NO_USAGE_CAPTURE", "1")
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "no-fleet"))
+    answers = iter(
+        [
+            subprocess.CompletedProcess(["claude"], 1, "", "API Error: 401 authentication_error"),
+            subprocess.CompletedProcess(["claude"], 1, REFUSAL, ""),
+        ]
+    )
+    monkeypatch.setattr(cr.subprocess, "run", lambda *a, **k: next(answers))
+    monkeypatch.setattr(cr, "_list_accounts", lambda: [tmp_path / "a", tmp_path / "b"])
+    monkeypatch.setattr(cr, "_active_account", lambda: tmp_path / "a")
+    monkeypatch.setattr(cr, "_rotate_active_account", lambda avoid=frozenset(): "b")
+    monkeypatch.setattr(cr, "_should_alert_401", lambda: True)
+    sent = []
+    monkeypatch.setattr(cr, "_notify_telegram", lambda text: sent.append(text) or True)
+    cr.run_claude(["claude", "-p", "x"], 30, str(tmp_path), {"PATH": os.environ.get("PATH", "")})
+    assert sent and not any("recovered" in t for t in sent), sent
+
+
+def test_br3_the_promote_probe_is_bounded_at_45_seconds(tmp_path, monkeypatch):
+    _fleet_b(tmp_path, monkeypatch)
+    calls = _probe_by_dir(monkeypatch)
+    monkeypatch.setattr(
+        cr, "_validated_pick_reading", lambda acc, ex, verbose=False: ("intel", "ob@ocoron.com")
+    )
+    assert cr._validated_pick([], set(), probe=True) == ("intel", "ob@ocoron.com")
+    assert [c["timeout"] for c in calls] == [45]
+
+
+def test_br4_the_wrapper_parks_by_the_dirs_account_when_no_identity_is_pinned(
+    tmp_path, monkeypatch
+):
+    fleet = _fleet_b(tmp_path, monkeypatch)
+    table = json.loads((fleet / "assignments.json").read_text())
+    table["intel"]["identity"] = "pending-login"
+    table["intel"]["account"] = "ob@ocoron.com"
+    (fleet / "assignments.json").write_text(json.dumps(table))
+    _probe_by_dir(monkeypatch, refused={"intel"})
+    _alerts(monkeypatch)
+    cr._wrapper_park("intel")
+    assert json.loads((fleet / "parked.json").read_text()) == ["ob@ocoron.com"]
+
+
+def test_br5_the_operators_pause_holds_the_whole_active_re_check(tmp_path, monkeypatch):
+    fleet = _fleet_b(tmp_path, monkeypatch)
+    calls = _probe_by_dir(monkeypatch, refused={"seo"})
+    monkeypatch.setattr(cr, "_switch_paused", lambda: True)
+    cr._fleet_flip_leg(cr._fleet_dirs(), cr._fleet_account_rows(cr._fleet_dirs())[0], 98.0)
+    assert [c for c in calls if c["timeout"] == 45] == []
+    assert not (fleet / "parked.json").exists()
+
+
+def test_br6_a_refused_candidate_is_skipped_for_the_rest_of_the_call_even_unparked(
+    tmp_path, monkeypatch
+):
+    """An unknown identity refuses — nothing can be parked or walled — and the loop must still move
+    on to the next candidate rather than re-pick it."""
+    _fleet_b(tmp_path, monkeypatch)
+    _probe_by_dir(monkeypatch, refused={"intel"})
+    seen = []
+
+    def reading(acc, ex, verbose=False):
+        seen.append(set(ex))
+        assert len(seen) < 5, "the refused candidate was re-picked"
+        for slug, email in (("intel", "stranger@x.com"), ("seo", "sarp@ocoron.com")):
+            if email not in ex:
+                return slug, email
+        return None
+
+    monkeypatch.setattr(cr, "_validated_pick_reading", reading)
+    assert cr._validated_pick([], set(), probe=True) == ("seo", "sarp@ocoron.com")
+
+
+def test_br7_a_marker_inside_the_skew_tolerance_counts_and_the_flip_alert_has_its_own_key(
+    tmp_path, monkeypatch
+):
+    fleet = _fleet_b(tmp_path, monkeypatch)
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    (locks / "s.errparked").write_text(f"oauth_org_not_allowed {int(FLEET_NOW + 30)}\n")
+    _cache_ok("sarp@ocoron.com", 5 * 60.0)
+    _probe_by_dir(monkeypatch, refused={"seo"})
+    sent = _alerts(monkeypatch)
+    assert cr._cmd_tick() == 0
+    assert os.readlink(fleet / "active") == "intel"
+    assert "capability-flip-sarp@ocoron.com" in [k for _m, k in sent]
