@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `work.py triage` lists an open plan set, not only standalone plan files (2026-10-06)
+- `scripts/work.py::_open_plans`, which feeds triage's open-plans view, globbed `docs/development/plans/*.md` one level deep. A directory-form set (`plans/<stem>/<stem>.md` plus `T##` tickets) was never listed while open (web-ecommerce-factory 01M46V7T0CR4MAXBF3K5D0FSDD). It now also reads each dated set's same-stem spine, matched as `_iter_plan_spines` matches it, and skips `archived/`, undated directories and a set holding tickets but no spine. `ARCHIVED` now counts as terminal, and one unreadable plan is skipped instead of emptying the whole list. Top-level files keep the wider glob, so no plan the view listed before is dropped. Over the 42 repos with a plans directory, open plans went 86 → 95: nine open sets became visible and none disappeared. Test: tests/test_work_coordinator.py, red before the fix.
+
 ### Fixed — review-loop seats can run pytest against the pinned files, not the live tree (2026-10-06)
 - The review-loop seat recipe for importing a pinned module did not hold for a pytest run. Run from the live repo, pytest prepends the live rootdir's ini `pythonpath` and conftest paths, and in a src layout with no such ini an editable install's `.pth` supplies the live package. A seat's mutant run reported a false "35 passed" against live code (brand-identiy-creator 01M469D3).
 - Both seat briefs now carry one shared clause (`PYTEST_PINS`):
