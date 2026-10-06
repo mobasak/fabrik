@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T21:13:57.571352Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e7acedaa",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49AWGK72Z5G1DVYPDCJE9H5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "watchdog: new env WATCHDOG_LLM_ACTIONS needs a spec field; vendored watchdog copies change behaviour (fabrik-lib D-412)"
+}
