@@ -57,6 +57,10 @@ Desktop logs moved (since the MSIX build) to `%LOCALAPPDATA%\Claude\Logs\mcp-ser
 | npx cannot fetch `mcp-remote` (offline first run) | npm cache empty | run once online: `npx -y mcp-remote@0.14.3 --help` on Windows |
 | tool returns `timed_out: true` | command exceeded `timeout_seconds` | raise it (≤3600) or detach the job |
 
+## Old bridge — RETIRED 2026-10-06
+
+`@mako10k/mcp-shell-server`, `@modelcontextprotocol/server-filesystem` (global npm), `/home/ozgur/start-mcp-shell.sh`, `patch-mcp-shell.sh`, `/usr/local/bin/rebuild-mcp-node-pty` and the apt hook `99-rebuild-mcp-node-pty` were removed from the box. Everything is archived in `/home/ozgur/.retired/wsl-shell-mcp-20261006/` (scripts + a tarball of both node packages).
+
 ## Rollback
 
-Restore the backup config, `sudo systemctl disable --now wsl-mcp`, restart Desktop. The old scripts (`/home/ozgur/start-mcp-shell.sh`, patch, healer) are untouched.
+Restore the backup config, `sudo systemctl disable --now wsl-mcp`, untar the archive back into `/usr/local/lib/node_modules`, copy the scripts back, restart Desktop.
