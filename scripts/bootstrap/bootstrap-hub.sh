@@ -75,12 +75,12 @@
 #   10. docker network create fabrik (idempotent).
 #   11. restic restore /opt/ (everything except /opt/containerd, /opt/fabrik/.git,
 #       /opt/backups/coolify_env_*, restic-cache subdirs).
-#   12. restic restore Docker named volumes (postgres-data, redis_redis-data,
+#   12. restic restore Docker named volumes (postgres18-data, redis_redis-data,
 #       monitoring_grafana-data, apprise-config, meilisearch-data, n8n-data,
 #       and the ocoron-com tenant volumes).
 #   13. docker compose up -d in dep order (postgres-main, redis-main, traefik,
 #       authelia, monitoring stack, then the rest).
-#   14. Fallback: if postgres-data volume restore came up empty, psql restore
+#   14. Fallback: if postgres18-data volume restore came up empty, psql restore
 #       from /opt/backups/pg_dump_<latest>.sql.
 #   15. systemctl enable --now vps-sysadmin-bot authelia-config-sync.
 #   15b. Install + enable fabrik-compose-boot.service (reboot-race safety net — `restart: unless-stopped`
@@ -1167,7 +1167,7 @@ step_12c_start_core_services_drill() {
     # Bucket C1 (2026-06-15): under --skip-services drill mode, optionally
     # start ONLY postgres-main + redis-main. These are pure local state —
     # no B2 writes, no Telegram, no Cloudflare, no external DNS. Validates
-    # that the restored postgres-data + redis_redis-data volumes contain
+    # that the restored postgres18-data + redis_redis-data volumes contain
     # bootable state (i.e. `pg_isready` returns OK, `redis-cli ping` returns
     # PONG). step_18 + the full step_13 are still skipped — this is a
     # surgical add for the most valuable runtime check the drill safety
@@ -1312,7 +1312,7 @@ step_13_compose_up_dep_order() {
 }
 
 step_14_pg_dump_restore_fallback() {
-    log "step_14: pg_dump restore fallback (only if postgres-data volume came up empty) ($(elapsed))"
+    log "step_14: pg_dump restore fallback (only if postgres18-data volume came up empty) ($(elapsed))"
     if $SKIP_SERVICES; then
         log "  skipped — postgres-main not running (--skip-services)"
         return 0
@@ -1321,7 +1321,7 @@ step_14_pg_dump_restore_fallback() {
         ok "step_14 done (dry-run)"
         return 0
     fi
-    # Probe whether the postgres-data volume restore actually delivered the
+    # Probe whether the postgres18-data volume restore actually delivered the
     # fleet's databases. If glitchtip + site_provisioner exist, the volume
     # restore worked — skip. If they don't, the volume is empty/fresh and we
     # must replay from /opt/backups/pg_dump_<latest>.sql.
@@ -1331,7 +1331,7 @@ step_14_pg_dump_restore_fallback() {
         ok "step_14 — volume restore intact (glitchtip + site_provisioner present), pg_dump fallback not needed"
         return 0
     fi
-    log "  postgres-data volume came up empty — replaying from /opt/backups/pg_dump_*.sql"
+    log "  postgres18-data volume came up empty — replaying from /opt/backups/pg_dump_*.sql"
     local latest_dump
     latest_dump=$(remote 'sudo ls -1t /opt/backups/pg_dump_*.sql 2>/dev/null | head -1')
     if [[ -z "$latest_dump" ]]; then

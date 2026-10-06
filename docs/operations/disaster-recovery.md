@@ -71,7 +71,7 @@ Each spoke (vps2/vps3) runs the **`host-state`** + **`opt-configs`** plans only 
 
 ### Layer 2 — Shared infrastructure
 
-- `postgres-main` (`/opt/postgres`) — Postgres 16. Volume: `postgres-data`
+- `postgres-main` (`/opt/postgres`) — Postgres 16. Volume: `postgres18-data`
 - `redis-main` (`/opt/redis`) — Redis 7. Volume: `redis_redis-data`
 - `meilisearch` (`/opt/meilisearch`) — search engine. Volume: `meilisearch-data`
 
@@ -261,9 +261,10 @@ SNAPSHOT_ID=$(restic snapshots --tag docker-volumes --json | python3 -c 'import 
 restic restore $SNAPSHOT_ID --target /var/restore
 
 # Recreate volumes + copy data in
-# Only the 10 volumes the docker-volumes plan actually backs up (prometheus/loki/
-# promtail-positions/ocoron-com_redis_data are excluded from backup — they regenerate)
-for vol in postgres-data redis_redis-data meilisearch-data n8n-data apprise-config \
+# The docker-volumes plan backs up 11 until release (both Postgres volumes); this loop
+# restores 10 — prometheus/loki/promtail-positions/ocoron-com_redis_data are excluded
+# from backup — they regenerate
+for vol in postgres18-data redis_redis-data meilisearch-data n8n-data apprise-config \
            monitoring_grafana-data monitoring_alertmanager-data \
            ocoron-com_wp_html ocoron-com_db_data ocoron-com_backup_data; do
   sudo docker volume create "$vol"
@@ -276,7 +277,7 @@ done
 
 ### Step 8 — Restore postgres logical dumps (sanity layer)
 
-The `postgres-dumps` plan is an extra safety net on top of the postgres-data volume (volume restore can fail; dump restore almost never does).
+The `postgres-dumps` plan is an extra safety net on top of the postgres18-data volume (volume restore can fail; dump restore almost never does).
 
 ```bash
 restic restore latest --tag postgres-dumps --target /var/restore
@@ -450,7 +451,7 @@ cd /opt/fabrik
 curl -fsS https://status.vps1.ocoron.com | head -5
 ```
 
-**What the script does, condensed:** create sudoer → harden SSH → install Docker/WG/UFW/fail2ban/gh/inotify/jq → install Claude Code → place `/opt/fabrik/.env` + `.env.sysadmin` from W9 mirror → write Docker `daemon.json` → restic restore host-state (25 KB of `/etc/*`, `/root/.ssh/*`, `/home/ozgur/.ssh/*`, `/usr/local/bin/zellij`) → enable UFW + Wireguard + iptables boot units → create `fabrik` Docker network → restic restore `/opt/` (excludes `containerd`, `fabrik/.git`, `backups/coolify_env_*`) → restic restore 10 named Docker volumes → `docker compose up -d` in dep order (postgres → redis → traefik → authelia → monitoring → apprise → backrest → gatus → glitchtip → browserless → gotenberg → meilisearch → n8n → site-provisioner → ocoron-com) with pg_isready/PING gates → pg_dump fallback if `postgres-data` volume came up empty → enable `vps-sysadmin-bot` + `authelia-config-sync` → replay root crontab from `/opt/backups/root-crontab.txt` → (optional) rewrite Cloudflare A records to new IP → run 7-check end-state contract.
+**What the script does, condensed:** create sudoer → harden SSH → install Docker/WG/UFW/fail2ban/gh/inotify/jq → install Claude Code → place `/opt/fabrik/.env` + `.env.sysadmin` from W9 mirror → write Docker `daemon.json` → restic restore host-state (25 KB of `/etc/*`, `/root/.ssh/*`, `/home/ozgur/.ssh/*`, `/usr/local/bin/zellij`) → enable UFW + Wireguard + iptables boot units → create `fabrik` Docker network → restic restore `/opt/` (excludes `containerd`, `fabrik/.git`, `backups/coolify_env_*`) → restic restore 10 named Docker volumes → `docker compose up -d` in dep order (postgres → redis → traefik → authelia → monitoring → apprise → backrest → gatus → glitchtip → browserless → gotenberg → meilisearch → n8n → site-provisioner → ocoron-com) with pg_isready/PING gates → pg_dump fallback if `postgres18-data` volume came up empty → enable `vps-sysadmin-bot` + `authelia-config-sync` → replay root crontab from `/opt/backups/root-crontab.txt` → (optional) rewrite Cloudflare A records to new IP → run 7-check end-state contract.
 
 **End-state contract (must pass all 7):**
 

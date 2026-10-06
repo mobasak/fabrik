@@ -94,7 +94,7 @@ Verified live: 12 named volumes (the important ones). 4 UUID-anonymous volumes (
 
 | Volume | Bytes (approx) | Source | Restore-critical? |
 |---|---|---|---|
-| `postgres-data` | TBD | postgres-main container | **YES** — primary DB; alternative is `psql < pg_dump_latest.sql` from `/opt/backups/` |
+| `postgres18-data` | TBD | postgres-main container | **YES** — primary DB; alternative is `psql < pg_dump_latest.sql` from `/opt/backups/` |
 | `redis_redis-data` | TBD | redis-main container | **YES** — sessions, auth state |
 | `monitoring_prometheus-data` | LARGE | prometheus | NO (15d retention, regeneratable on restart) — EXCLUDE from backup |
 | `monitoring_loki-data` | LARGE | loki | NO (regenerates from logs) — EXCLUDE |
@@ -183,13 +183,13 @@ step_18's contract check (`docs/operations/hub-restore-inventory.md` § End-stat
 
 - **The slow part** — provision → SSH → harden → docker → fetch env → restic restore of host-state + /opt + every Docker volume. That's where unknown-unknown bugs surface, and that's the part Hub DR Drill #6 sweep validated end-to-end on 2026-06-15 in 5m46s wall on a `vc2-4c-8gb`.
 - **`step_12b` — config dry-validation** (7 c-dry checks): `wg0.conf` parses (`wg-quick strip`); every restored `compose.yaml` resolves (`docker compose config`); restored systemd units parse (`systemd-analyze`); sysadmin python scripts `py_compile`; `/opt/fabrik/.env` has the 4 critical keys (`B2_KEY_ID`, `B2_APPLICATION_KEY`, `BACKREST_RESTIC_PASSWORD`, `CLOUDFLARE_API_TOKEN`); CF token smoke (`GET /client/v4/zones` from the droplet); WG identity self-consistency (privkey→pubkey + every peer has `PublicKey`+`AllowedIPs`).
-- **`step_12c` — core-service boot** (`--drill-start-core-only`): starts ONLY `postgres-main` + `redis-main` (pure local state), creating a dummy `wg0` (10.99.0.1) under `--skip-mesh` so mesh-IP binds work; `pg_isready` + `redis-cli ping` prove the restored `postgres-data` + `redis_redis-data` volumes are bootable, and `glitchtip`+`site_provisioner` databases are present.
+- **`step_12c` — core-service boot** (`--drill-start-core-only`): starts ONLY `postgres-main` + `redis-main` (pure local state), creating a dummy `wg0` (10.99.0.1) under `--skip-mesh` so mesh-IP binds work; `pg_isready` + `redis-cli ping` prove the restored `postgres18-data` + `redis_redis-data` volumes are bootable, and `glitchtip`+`site_provisioner` databases are present.
 - **`step_17`/`step_17b`/`step_17c` — LE/DNS cutover** (`--cf-rewrite-dns` + `--drill-test-le-staging`, drilled against the `tojlo.com` sandbox zone, never `ocoron.com`): CF DNS rewrite green (`dr-drill-hub-20260615-154530`); ACME HTTP-01 staging cert via bare certbot green 2026-06-15 (`step_17b`, `dr-drill-hub-20260615-160819`); via traefik's own Go/lego green 2026-06-16 (`step_17c`, `dr-drill-hub-20260616-113524`, issuer `(STAGING) Ersatz Emmer YR2`). **LE/DNS cutover VALIDATED end-to-end.**
 
 ### What the drill does NOT validate (gap)
 
 - step_08 — `wg-quick@wg0` bring-up + live peer handshakes with vps2/vps3 (skipped by design under `--skip-mesh`; `step_12b [c-dry/1]`+`[c-dry/7]` validate the restored config + key identity instead)
 - step_13 — full `docker compose up -d` of ALL stacks in dep order (only `postgres-main` + `redis-main` are started, by `step_12c`; the rest are skipped under `--skip-services`)
-- step_14 — pg_dump fallback (only fires if the `postgres-data` volume came up empty, which `step_12c` has demonstrated it does not)
+- step_14 — pg_dump fallback (only fires if the `postgres18-data` volume came up empty, which `step_12c` has demonstrated it does not)
 - step_15 — `vps-sysadmin-bot` start + `/health` probe (drill-mode `step_15` masks the Telegram creds and verifies `systemctl is-enabled`, but does not prove the bot answers live)
 - step_18 — the 7-check end-state contract (short-circuits to a skip under `--skip-services || --skip-mesh`)
