@@ -51,8 +51,8 @@ restates nothing that section settles.
 | T02 | The repo's hub compose files describe the PG18 cluster and exporter | — | ⚡ | ✅ | a93a62b97 |
 | T03 | The disaster-recovery chain restores postgres18-data | — | ⚡ | ✅ | ee57ee3dc |
 | T04a | The hub's live pins and smaller current-state docs say 18 | — | ⚡ | ✅ | cb46e993c |
-| T04b | The two large current-state docs say 18 | — | ⚡ | ⬜ | |
-| T05 | The operator runbook for the WSL and hub windows | T02, T03 | ⛓️ | ⬜ | |
+| T04b | The two large current-state docs say 18 | — | ⚡ | 🟡 | |
+| T05 | The operator runbook for the WSL and hub windows | T02, T03 | ⛓️ | 🔵 | |
 | T06 | Integration: rehearsal, hand-offs, gates and the receipt | T01a, T01b, T04a, T04b, T05 | ⛓️ | ⬜ | |
 
 ## Merge Order
