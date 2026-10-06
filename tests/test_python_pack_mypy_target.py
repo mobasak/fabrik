@@ -27,7 +27,10 @@ def test_quality_gates_type_the_package_not_the_repo_root() -> None:
     block = _quality_gates_block()
     mypy_lines = [line for line in block.splitlines() if re.search(r"\bmypy\b", line)]
     assert mypy_lines, block
-    for line in mypy_lines:
-        command = line.split("#", 1)[0].split()
+    commands = [line.split("#", 1)[0].split() for line in mypy_lines]
+    for command, line in zip(commands, mypy_lines, strict=True):
         assert "." not in command, line
-    assert any("mypy src" in line for line in mypy_lines), block
+    # the target is read from the command, never a trailing comment that merely names `mypy src`
+    assert any(
+        c[c.index("mypy") + 1 : c.index("mypy") + 2] == ["src"] for c in commands if "mypy" in c
+    ), block
