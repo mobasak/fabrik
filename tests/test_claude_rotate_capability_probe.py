@@ -841,3 +841,59 @@ def test_br7_a_marker_inside_the_skew_tolerance_counts_and_the_flip_alert_has_it
     assert cr._cmd_tick() == 0
     assert os.readlink(fleet / "active") == "intel"
     assert "capability-flip-sarp@ocoron.com" in [k for _m, k in sent]
+
+
+# ── Phase B scoped review, pass 2 ───────────────────────────────────────────────────────────────
+
+
+def test_br2b_a_rotation_onto_a_refusal_alerts_billing_not_dead_credentials(tmp_path, monkeypatch):
+    """The standby's credentials work — its organisation refuses. The alert must name the billing
+    check, never the all-dead 're-capture a fresh account' advice."""
+    monkeypatch.setenv("CLAUDE_ROTATE_NO_USAGE_CAPTURE", "1")
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "no-fleet"))
+    answers = iter(
+        [
+            subprocess.CompletedProcess(["claude"], 1, "", "API Error: 401 authentication_error"),
+            subprocess.CompletedProcess(["claude"], 1, REFUSAL, ""),
+        ]
+    )
+    monkeypatch.setattr(cr.subprocess, "run", lambda *a, **k: next(answers))
+    monkeypatch.setattr(cr, "_list_accounts", lambda: [tmp_path / "a", tmp_path / "b"])
+    monkeypatch.setattr(cr, "_active_account", lambda: tmp_path / "a")
+    monkeypatch.setattr(cr, "_rotate_active_account", lambda avoid=frozenset(): "b")
+    monkeypatch.setattr(cr, "_should_alert_401", lambda: True)
+    sent = []
+    monkeypatch.setattr(cr, "_notify_telegram", lambda text: sent.append(text) or True)
+    cr.run_claude(["claude", "-p", "x"], 30, str(tmp_path), {"PATH": os.environ.get("PATH", "")})
+    assert len(sent) == 1, sent
+    assert "billing" in sent[0] and "'b'" in sent[0], sent
+    assert "all credentials are dead" not in sent[0], sent
+
+
+def test_br8_the_pause_holds_every_candidate_probe_even_with_the_active_already_parked(
+    tmp_path, monkeypatch
+):
+    """With the operator's pause marker set and the active account already parked, the tick
+    withholds the flip — and spends no probe on, and parks nothing of, the successor."""
+    fleet = _fleet_b(tmp_path, monkeypatch)
+    (fleet / "parked.json").write_text(json.dumps(["sarp@ocoron.com"]))
+    cr._rotate_state_dir().mkdir(parents=True, exist_ok=True)
+    (cr._rotate_state_dir() / "switch-paused").write_text("paused\n")
+    calls = _probe_by_dir(monkeypatch, refused={"intel"})
+    sent = _alerts(monkeypatch)
+    assert cr._cmd_tick() == 0
+    assert os.readlink(fleet / "active") == "seo"
+    assert [c for c in calls if c["timeout"] == 45] == []
+    assert json.loads((fleet / "parked.json").read_text()) == ["sarp@ocoron.com"]
+    assert not any(k.startswith("capability-") for _m, k in sent), sent
+
+
+def test_br9_a_marker_inside_the_skew_tolerance_is_clamped_to_now(tmp_path, monkeypatch):
+    """A marker up to the skew tolerance in the future counts — as NOW, so it cannot expire a
+    verdict the tick records after the refusal it reports."""
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    monkeypatch.setattr(cr, "_selfwatch_lock_dir", lambda: locks)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    (locks / "s.errparked").write_text(f"oauth_org_not_allowed {int(FLEET_NOW + 30)}\n")
+    assert cr._session_refusal_epoch() == FLEET_NOW

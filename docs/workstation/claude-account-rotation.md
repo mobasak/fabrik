@@ -205,8 +205,8 @@ deliberately, like any cap-walled one.
 (`oauth_org_not_allowed` — on 2026-09-30 a payment problem, `docs/TROUBLESHOOTING.md`) still passes a usage
 reading and a refresh-chain check, so the tick now tries one real call — `claude -p ok --output-format json
 --max-turns 1 --tools ""` bound to the account's own dir — at four moments: before promoting a candidate (its
-`ok` trusted for `ROTATE_PROBE_TRUST_S`, default 6 h); on the ACTIVE account every `ROTATE_ACTIVE_PROBE_S`
-(default 30 min, 45 s timeout); at once when an interactive session's own `oauth_org_not_allowed` death
+`ok` trusted for `ROTATE_PROBE_TRUST_S`, default 6 h; 45 s timeout); on the ACTIVE account every
+`ROTATE_ACTIVE_PROBE_S` (default 30 min, 45 s timeout — skipped while `--pause-switch` holds); at once when an interactive session's own `oauth_org_not_allowed` death
 record (`<lockdir>/<sess>.errparked`) is newer than the active account's verdict; and in the stale-reading
 refresh ping. A refusal is confirmed by a second probe, then the account is parked through the same locked
 writer as `--park`, one `auto-park` row goes to the ledger, and one alert per account per 30 minutes says
@@ -392,6 +392,8 @@ The `switch-paused` marker (`~/.claude/state/switch-paused`) gates automated ins
 
 - The tick prints the withheld successor instead of flipping; telemetry, keep-warm and drain
   warnings stay armed.
+- The active account's capability re-check (§ Parking, auto-park) is skipped while the marker is set: no
+  probe is spent and nothing is auto-parked.
 - `--switch <name>` does NOT route through the gate — the deliberate manual escape hatch.
 - Tri-state: absent (running) · `marker` (operator pause) · `error` (state dir unreadable →
   **fail closed**, nothing installs, but an all-credentials-dead 401 alert still fires).

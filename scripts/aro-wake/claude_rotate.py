@@ -886,11 +886,12 @@ def run_claude(
     if died_account is not None:
         final = (result.stdout or "") + "\n" + (result.stderr or "")
         host = _hostname()
+        refused = _capability_verdict(result.returncode, result.stdout or "") == "refused"
         recovered = (
             last_target is not None
             and not is_auth_401(final)
             and not is_usage_limit(final)
-            and _capability_verdict(result.returncode, result.stdout or "") != "refused"
+            and not refused
         )  # a standby that answers with the org refusal has not recovered the call
         # RULE: while the operator's MARKER is set, the all-dead alert is theirs to own — they are
         # actively working the credential pool and asked for no swaps, so this call is not allowed
@@ -905,6 +906,16 @@ def run_claude(
                 _notify_telegram(
                     f"⚠️ Claude 401 on {host}: account '{died_account}' credentials were dead — "
                     f"auto-rotated to '{last_target}' and recovered. (alerts quiet ~12h)"
+                )
+        elif refused and last_target is not None:
+            # the standby's credentials WORK — its organisation refuses Claude Code, a billing
+            # matter, so the all-dead "re-capture a fresh account" advice would send the operator
+            # to the wrong fix
+            if _should_alert_401():
+                _notify_telegram(
+                    f"⚠️ Claude 401 on {host}: account '{died_account}' credentials were dead — "
+                    f"auto-rotated to '{last_target}', whose organisation refuses Claude Code "
+                    f"(oauth_org_not_allowed — check that account's billing). (alerts quiet ~12h)"
                 )
         elif withheld_reason != _PAUSE_MARKER and _should_alert_401():
             if withheld_reason == _PAUSE_ERROR:
@@ -3617,8 +3628,11 @@ def _validated_pick(
     retried for 30 minutes (:func:`_probe_account`); ``inconclusive`` picks it as before, and a
     ``refused`` one is auto-parked after a confirming second probe (:func:`_auto_park`) and
     skipped for the rest of this tick either way. The relief advisory and a manual ``--switch``
-    never probe. None when nobody survives."""
+    never probe, and neither does any caller while the operator's pause marker is set — nothing
+    is installed then, so a probe would spend a call and could park an account for nothing.
+    None when nobody survives."""
     exclude = set(exclude)
+    probe = probe and not _switch_paused()
     while True:
         pick = _validated_pick_reading(accounts, exclude, verbose=verbose)
         if pick is None or not probe:
