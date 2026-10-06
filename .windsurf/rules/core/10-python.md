@@ -240,8 +240,10 @@ uv run pytest -k "test_health"  # Run specific
 ```bash
 uv run ruff check .              # Lint
 uv run ruff format .             # Format
-uv run mypy .                    # Type check
+uv run mypy src                  # Type check
 ```
+
+Type the package, never `.`: the root walks the hub-synced `scripts/`, where mypy finds the same file under two module names and stops on every fresh project. file-worker types `mypy --explicit-package-bases worker`; a `server/` backend (saas-skeleton, static-site, office-extension, chrome-extension, mobile-app) runs `mypy src` from `server/` (D-605).
 
 Ruff's selected rule-sets MUST include `ASYNC` (blocking IO in async code — machine-enforces
 this pack's hardest-to-review rule), `B` (bugbear) and `S` (bandit) alongside the defaults;
