@@ -1,7 +1,7 @@
 # Review — w-9c2f371a-merge-never-rebase
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = f526fb21ac5b41941bbdb1248c14a3ce62e6698c; `git diff HEAD -- scripts/merge_request.py tests/test_merge_request_merge.py docs/reference/multi-agent-operating-model.md agents-fabrik.md commands/_sources/fabrik-epics-review.md` md5 bc46e1870abf541282c724bd17702f8a (14396 bytes)
+**Surface:** `git rev-parse HEAD` = 823f72b28d977151300f65aae5d8222ffceff369; range tip 823f72b28d977151300f65aae5d8222ffceff369; `git diff f526fb21a..823f72b28 -- scripts/merge_request.py tests/test_merge_request_merge.py docs/reference/multi-agent-operating-model.md agents-fabrik.md commands/_sources/fabrik-epics-review.md` md5 60c4e403ae3a883cec27e164968cefdb (15019 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/merge_request.py`, `tests/test_merge_request_merge.py`, `docs/reference/multi-agent-operating-model.md`, `agents-fabrik.md`, `commands/_sources/fabrik-epics-review.md`
 **Lane:** fabrik-task
 
