@@ -201,6 +201,20 @@ naming the `--unpark` command; the board shows **PARKED — out of service**. On
 `parked.json` warns loudly and parks nothing. `--switch` may still target a parked account
 deliberately, like any cap-walled one.
 
+**Auto-park on a refused account** (D-614/D-616). An account whose organisation refuses Claude Code
+(`oauth_org_not_allowed` — on 2026-09-30 a payment problem, `docs/TROUBLESHOOTING.md`) still passes a usage
+reading and a refresh-chain check, so the tick now tries one real call — `claude -p ok --output-format json
+--max-turns 1 --tools ""` bound to the account's own dir — at four moments: before promoting a candidate (its
+`ok` trusted for `ROTATE_PROBE_TRUST_S`, default 6 h); on the ACTIVE account every `ROTATE_ACTIVE_PROBE_S`
+(default 30 min, 45 s timeout); at once when an interactive session's own `oauth_org_not_allowed` death
+record (`<lockdir>/<sess>.errparked`) is newer than the active account's verdict; and in the stale-reading
+refresh ping. A refusal is confirmed by a second probe, then the account is parked through the same locked
+writer as `--park`, one `auto-park` row goes to the ledger, and one alert per account per 30 minutes says
+"check this account's billing" and names `--unpark <email>`. A session call through `run_claude` that is
+refused parks the account it was bound to. An `inconclusive` probe (timeout, network, any other error) changes
+nothing and is retried after 30 minutes. A parked ACTIVE account — auto-parked or yours — is flipped away
+from on the same tick even when it has no quota reading. Only `--unpark` brings an account back.
+
 ## `--status` — the board
 
 **The picture:**
@@ -210,7 +224,7 @@ since when and the resume it promised; `picture.hold.tier` says whether it is th
 the picker's own perishable-first order, then everyone else by when they RETURN — a cap-walled or weekly-exhausted
 account at its weekly reset, a session-exhausted one at its 5h reset, the later of the two when both are spent),
 `next relief:` (the account and instant the tick's own relief rule would name), `last flip:` (when, from → to, and
-its `kind`: trip / perishable / repair / dead-chain / switch — `relief` on rows before 2026-10-06). `--status --json` carries the same under `picture`
+its `kind`: trip / perishable / repair / dead-chain / refused / parked / switch — `relief` on rows before 2026-10-06; `refused` is a flip away from an active account that refused Claude Code, `parked` one away from an active account already parked). `--status --json` carries the same under `picture`
 (`accounts[].state` ∈ active · eligible · session-exhausted · weekly-exhausted · cap-walled · over-threshold (under its cap but a window ≥ the picker's target line — kept active, refused as a target until that window resets) · unavailable (its `why` names the picker's reason: no credentialed dir, no reading, …), with
 `why`, both percentages, both resets, `returns_at`, `in_drain_band`, `source`, `age_s`; plus `queue`, `next_relief`, `hold`,
 `last_flip`, `thresholds`). It is a READ — the same verdict the picker applies, no probe, no side effect — so
