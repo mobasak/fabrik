@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-06T11:18:24.205880Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "159fa9b332717bff343619ed8bf8d94bd39f4533",
   "id": "W-97de2aa3",
   "kind": "backlog",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "tags": [
     "kaizen"
   ],

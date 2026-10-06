@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-misfile-30-runs"
+  ],
   "title": "**A confidence gate between one model answer and the curated catalog** (external-services review pass 39, DI3): the classifier writes a paid pool model's single answer straight into `scripts/servic..."
 }

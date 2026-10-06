@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-cron-template-change"
+  ],
   "title": "**Bake the new operator-reversal cron line into the live cron-template DEPLOY path for existing hosts**: Today I appended to `/etc/cron.d/vps-sysadmin` on all 3 hosts manually and also updated [`sy..."
 }

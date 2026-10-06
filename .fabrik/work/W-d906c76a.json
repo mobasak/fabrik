@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-store-surface-release"
+  ],
   "title": "**Store-terminal adjudication** (deploy-triad recorded residual): the plan-frozen release NEXT routes STORE surfaces post-submit to `/fabrik-deploy-verify`, whose contract is spec-driven VPS-only —..."
 }

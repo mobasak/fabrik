@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-pgvector-ci-consumer"
+  ],
   "title": "**CI-parity Phase 2 — spec-driven `shape.db_extensions: [pgvector]`**: deferred from [`archived/2026-07-01-plan-fabrik-ci-parity.md`](development/plans/archived/2026-07-01-plan-fabrik-ci-parity.md)..."
 }
