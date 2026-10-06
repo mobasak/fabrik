@@ -117,9 +117,71 @@ def _note(msg: str) -> None:
 
 # T4.8 (01M21804): a Gate: that RUNS a file naming it nowhere else — the executor sees one
 # .md in Touches and a gate over a test file nothing told it to write
+# Leading directories are part of the path (`frontend/tests/ui/x.spec.ts`): without them the
+# lookbehind refused the whole token and a sub-package path was never checked (01M46WXV).
 _GATE_FILE_RE = re.compile(
-    r"(?<![\w/.-])(?:\./)?((?:tests?|src|scripts|server|app|lib)/[\w./-]+\.(?:py|ts|tsx|js|mjs|sh))\b"
+    r"(?<![\w/.-])(?:\./)?((?:[\w.-]+/)*(?:tests?|src|scripts|server|app|lib)/[\w./-]+"
+    r"\.(?:py|ts|tsx|js|mjs|sh))\b"
 )
+# `cd <dir>`, optionally anchored at the repo root's `$(git rev-parse --show-toplevel)`
+_GATE_CD_RE = re.compile(
+    r"^cd\s+(['\"]?)(?P<top>\$\(git rev-parse --show-toplevel\)/?)?(?P<dir>[\w./-]*)\1$"
+)
+
+
+def _gate_file_paths(cmd: str) -> list[tuple[str, ...]]:
+    """The files a Gate command runs, each resolved against the directory its own `cd` set.
+
+    A Gate is split on `&&`, `||` and `;`; a `cd <dir>` segment moves the working directory for
+    every later segment, so `cd frontend && npx playwright test tests/ui/x.spec.ts` names
+    `frontend/tests/ui/x.spec.ts` (brand-identiy-creator 01M46WXVNQQRCEAVHWEQ5A7YEE: nine existing
+    specs read "exists nowhere" resolved against the root). A `cd` the checker cannot resolve to a
+    repo-relative directory (absolute, `~`, above the root, or a variable other than
+    `$(git rev-parse --show-toplevel)`, which is the root) leaves the paths after it unchecked
+    rather than guessed at — the cheapest way past this rule is such a `cd`, and the
+    review reads it.
+    """
+    cwd: PurePosixPath | None = PurePosixPath()
+    found: list[tuple[str, ...]] = []
+    for seg in re.split(r"&&|\|\||;", cmd.replace("`", " ")):
+        seg = seg.strip()
+        m = _GATE_CD_RE.match(seg)
+        if m and (m.group("top") or m.group("dir")):
+            base = PurePosixPath() if m.group("top") else cwd
+            target = PurePosixPath(m.group("dir") or ".")
+            if base is None or target.is_absolute():
+                cwd = None
+                continue
+            parts: list[str] = []
+            for part in (base / target).parts:
+                if part == "..":
+                    if not parts:
+                        cwd = None
+                        break
+                    parts.pop()
+                elif part != ".":
+                    parts.append(part)
+            else:
+                cwd = PurePosixPath(*parts) if parts else PurePosixPath()
+            continue
+        if seg.startswith("cd ") or seg == "cd":
+            cwd = None  # a cd this parser cannot read: stop resolving rather than guess
+            continue
+        if cwd is None:
+            continue
+        for f in _GATE_FILE_RE.findall(seg):
+            rel = (cwd / f).as_posix()
+            if rel.startswith("../"):
+                continue
+            # after a `cd`, a test runner's filter argument may still be spelled root-relative
+            # (Playwright matches `frontend/tests/ui/x.spec.ts` from inside frontend/), so both
+            # spellings name the file; the cwd-resolved one is reported
+            spellings = (rel,) if rel == f else (rel, f)
+            if spellings not in found:
+                found.append(spellings)
+    return found
+
+
 # a line the bullet collector (`_list_paths`) READS or a line that carries no path: a bullet (`-`,
 # `*`, `+` — all three parsed), a numbered item, a heading, a comment, a table row; a blockquote
 # is quiet only when its remainder is not path-shaped (a quoted path is an invisible path —
@@ -2337,8 +2399,11 @@ def check_plan_dir(
         _scan_t = _strip_fences(t.text)
         _touch_set = {_norm_path(x) for x in t.touches}
         for _gm in GATE_CMD_RE.finditer(_scan_t):
-            for _f in dict.fromkeys(_GATE_FILE_RE.findall(_gm.group("cmd"))):
-                if not (root / _f).exists() and _norm_path(_f) not in _touch_set:
+            for _spellings in _gate_file_paths(_gm.group("cmd")):
+                _f = _spellings[0]
+                if not any(
+                    (root / _s).exists() or _norm_path(_s) in _touch_set for _s in _spellings
+                ):
                     results.append(
                         _err(
                             f"{t.tid}: Gate: runs `{_f}`, which exists nowhere and is in no "

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the plan checker resolves a Gate's file paths against the Gate's own `cd` (2026-10-06)
+- `scripts/enforcement/check_plan_tickets.py` T4.8 resolved every file a ticket's `Gate:` runs against the repo root, so `cd frontend && npx playwright test tests/ui/<spec>` read "exists nowhere" for a spec that exists (brand-identiy-creator 01M46WXVNQQRCEAVHWEQ5A7YEE, 9 false ERRORs). Each `cd <dir>` now moves the directory for the commands after it (a `cd` anchored at `$(git rev-parse --show-toplevel)` resolves to the root), and a path after a `cd` counts as named under either spelling, since a runner's filter argument is often written root-relative. The mirror is closed too: a sub-package path such as `frontend/tests/ui/<spec>` is now checked, where the regex used to skip it. Over the 68 plan sets on the box, T4.8 errors went 15 → 0 with none new. Tests: tests/enforcement/test_check_plan_tickets.py, red on the old code and on each of three mutants.
+
 ### Fixed — `merge_request.py` refusals tell the requester to merge the base in, never to rebase a pushed branch (2026-10-06)
 - A refused merge used to tell the requester to "rebase on <base> and resend". The branch is already pushed (`request` requires it), so that rebase could only be republished with `--force`, a HARD STOP (fabrik-lib 01M3TVN8). The requester's conflict refusals now say `merge <base> into <branch> (git merge <base>), resolve, push, then run merge_request.py request again — never a rebase`.
 - A conflict with the OWNER's uncommitted ledger work now names the owner and never sends the requester to merge. The reply's HOW line is generic for every refusal.
