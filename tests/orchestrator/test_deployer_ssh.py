@@ -672,7 +672,7 @@ class TestSSHDeployerRedeploy:
         )
 
     def test_redeploy_git_force(self):
-        with patch("fabrik.drivers.ssh.ssh") as mock_ssh:
+        with patch("fabrik.drivers.ssh.ssh", return_value="") as mock_ssh:
             deployer = SSHDeployer()
             deployer.redeploy("my-app", source_type="git", force=True)
 
@@ -870,6 +870,7 @@ class TestDeployGit:
                 RuntimeError("not exists"),  # test -d .git
                 "",  # ssh-keyscan github.com → known_hosts (added 2026-05-31)
                 "",  # git clone
+                "a" * 40 + "\n",  # rev-parse HEAD → GIT_SHA in .env
                 _VALID_GIT_COMPOSE,  # D1: cat compose.yaml (read back for validation)
                 "",  # docker compose build
                 "",  # docker compose up -d
@@ -900,6 +901,7 @@ class TestDeployGit:
                 "exists",  # test -d .git → exists
                 "",  # ssh-keyscan github.com → known_hosts
                 "",  # git pull
+                "a" * 40 + "\n",  # rev-parse HEAD → GIT_SHA in .env
                 _VALID_GIT_COMPOSE,  # D1: cat compose.yaml (read back for validation)
                 "",  # docker compose build
                 "",  # docker compose up -d
