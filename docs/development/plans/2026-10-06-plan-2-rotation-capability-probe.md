@@ -243,7 +243,9 @@ Appetite: 120
   its window (`ok`: `_probe_trust_s()`; `inconclusive`: `_PROBE_RETRY_S`); otherwise runs
   `_capability_probe(_fleet_root() / slug)`, stores the verdict with `_record_probe`, and returns it.
 - `_record_probe(email: str, verdict: str) -> None` — writes an `ok` or `inconclusive` verdict with `ts = _now()`
-  atomically into the cache (a `refused` is never written); called by `_probe_account` and by the D4 ping call site
+  atomically into the cache (a `refused` is never written). It never raises: a write that fails with
+  `_STATE_DIR_ERRORS` prints one stderr line and returns, the rule of the row pass's own cache write (`:4088-4089`,
+  "a lost cache write costs one stale row later") — a lost verdict costs one extra probe, never the tick; called by `_probe_account` and by the D4 ping call site
   (`:4055`), which Phase B step 2 amends to call it after `_capability_probe`.
 - `_validated_pick(accounts, exclude, *, verbose=False, probe=False)` — the existing body (`:3559-3625`) moves
   unchanged into `_validated_pick_reading(accounts, exclude, *, verbose)`; the wrapper loops: take the reading-validated
@@ -283,10 +285,12 @@ Steps:
   `_fleet_creds`, `_point`), the ACTIVE account's probe returning the refusal with no cached verdict → after one
   `_fleet_tick_inner` the pointer names the other account, `parked.json` lists the refused one, the ledger carries one
   `auto-park` row with `source: "active"` and one flip row with `kind: "refused"`. Run it → red (no D6 branch).
-2. FIRST add a module-level autouse fixture to `tests/test_claude_fleet.py` that replaces `cr._capability_probe` with a
-  stub returning `"ok"` and counting its calls, so none of the file's existing tick tests (92 `_cmd_tick()` /
-  `_fleet_tick_inner(` calls) can launch the real `claude` binary once the flip leg probes; the new test file sets its
-  own stub per test. Then implement `_probe_trust_s`, `_PROBE_RETRY_S`, `_probe_cache_path`, `_probe_account`,
+2. FIRST add a module-level autouse fixture to `tests/test_claude_fleet.py` that replaces `cr._probe_account` (the D2
+  and D6 entry point) with a stub returning `"ok"` and counting its calls, so none of the file's existing tick tests
+  (92 `_cmd_tick()` / `_fleet_tick_inner(` calls) can launch the real `claude` binary once the flip leg probes. It
+  stubs `_probe_account`, NOT `_capability_probe`, so the two repointed tests (`:1400`, `:1767`) still exercise the
+  real `_capability_probe` against their own stubbed `subprocess.run`; the D4 ping path is unchanged in reach — it calls
+  `_capability_probe` exactly where today's tests already meet `_keepalive_ping`, so it adds no new launch. The new test file sets its own stubs per test. Then implement `_probe_trust_s`, `_PROBE_RETRY_S`, `_probe_cache_path`, `_probe_account`,
   `_record_probe` (and its call at the D4 ping site, `:4055`) and the `_fleet_flip_leg` branch. Re-run B5 → green. Add its mirrors: the same fleet with an `ok` cached 1 h ago → zero probe calls on that
   tick; an operator-parked active account with NO quota reading → flipped away with kind `parked` and zero probe
   calls; `_flip_active` withheld (pause marker set) → no Telegram call and the `withheld` tick line.
@@ -307,7 +311,8 @@ Steps:
    refusal, with `env["CLAUDE_CONFIG_DIR"] = <root>/active` → `a` is parked and `b` is not.
 4a. Add B7, the cache windows: a probe returning `inconclusive` → a second `_probe_account` call within
    `_PROBE_RETRY_S` makes no `claude` call; past it, one. A D4 ping that returned `ok` this tick → D6 makes no probe
-   call for that account on the same tick.
+   call for that account on the same tick. An unwritable state dir (`ROTATE_STATE_DIR` pointing at a read-only
+   directory) → the tick still completes and still flips away from a refused active account.
 5. `cp scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py && cmp scripts/sysadmin/claude_rotate.py
    scripts/aro-wake/claude_rotate.py` → no output, rc 0.
 6. **Phase gate**: `.venv/bin/python -m pytest tests/test_claude_rotate_capability_probe.py tests/test_claude_fleet.py
@@ -475,6 +480,7 @@ Joint loop over this plan and its `Size: small` spec (md5 pairs: plan · spec).
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (plan § Global Constraints, Phase A, Phase B; spec § The delta, § Validation, § Constraints digest) + sonnet×1 (every other section of both) · all axes; the monolith and spec flip gates run on flipped copies in a throwaway worktree | found: 15, new: 15, confirmed: 14, fixed: 14, unexecuted: 0, edits: 32 | method: citation — full pass; every candidate executed by the orchestrator (the four `ignore_dwell=True` flips, the assignments lock site `:3692-3694`, `is_usage_limit`/`is_auth_401` on the refusal text, `_is_parked` at `:6110-6115`, one real healthy probe call); confirmed: D4b parked the pointer's account not the answering one, the dwell bounded nothing and an inconclusive probe re-ran every tick, the unlocked-write citation said the opposite, an automated park overwrote a broken `parked.json`, an already-parked active account was re-probed and its withheld flip unspecified, three of five spellings, the "reached the API" contradiction and the uncaptured healthy shape, B6's vacuous no-retry assertion, D2's logging mismatch, R4 overstating D4b's reach, the `_validated_pick` docstring landing site, the spec/plan size mismatch, the `_is_parked` range, the digest missing `core/40-documentation.md` (flip gate) | plan 2957ecae · spec df9aaf05 → plan 67dcaa0b · spec be9ad375 |
 | Pass 2 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-1 fix hunks + one hop | found: 8, new: 8, confirmed: 5, fixed: 5, unexecuted: 0, edits: 10 | method: re-derivation — A 14/17 and B 12/15 re-executed (the 92 tick calls in `tests/test_claude_fleet.py`, `_known_account_emails` at `:3861-3870`, the two `subprocess.run` sites `:765`/`:826`, `ROTATE_REFRESH_MAX_PER_RUN` `:5564`, the pin-minus-ledger hash, D-613 on `origin/master`); confirmed, all in round-1 hunks (own-fix: round 1): the existing fleet tick tests would launch the real `claude` once the flip leg probes, the wrapper resolved the answering account after the call so a mid-call flip could park the healthy successor, the D4 ping was outside the cache and the cost sentence, `_auto_park` did not lower-case its email, the `_known_account_emails` span | plan d06380af · spec be9ad375 → plan 39c89b8e · spec dd0a5661 |
+| Pass 3 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-2 fix hunks + one hop | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 13 | method: re-derivation — A 9/11 and B 11/11 re-executed (`subprocess.run` at `:765`/`:826`, `env` required at `:736`, `_ping_slots` budget at `:5586`/`:5589`, the Pass 2 end hash by deleting that pass's own rows, the guarded cache write at `:4088-4089`); confirmed, both in round-2 hunks (own-fix: round 2): the autouse fixture stubbed the function the two repointed tests exist to test, and `_record_probe` could raise out of the row pass and lose the tick. Scope-growth stop: Passes 2 and 3 were both all own-fix (5/5, 2/2), so hunting stops; the next pass re-verifies only these two fixes; residue before the pin: the Coverage Checklist adjudicated (9 rows) | plan 1c2cb433 · spec dd0a5661 → plan 749cbbe7 · spec dd0a5661 |
 
 ## Residual
 
@@ -489,15 +495,15 @@ Joint loop over this plan and its `Size: small` spec (md5 pairs: plan · spec).
 
 | Class | Status |
 |---|---|
-| Hunt: `scripts/sysadmin/claude_rotate.py` + its twin — every changed function, its callers | UNCHECKED |
-| Hunt: `tests/test_claude_rotate_capability_probe.py`, `tests/test_claude_fleet.py` — every new or repointed test | UNCHECKED |
-| Hunt: `docs/workstation/claude-account-rotation.md` — every changed claim against the code | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `scripts/sysadmin/claude_rotate.py` + its twin — every changed function, its callers | FIXED r1 (the D4b hook now parks the account the call was bound to, not the pointer's; `_validated_pick`'s four flip-leg callers and the advisory caller re-read at `:5717`, `:5737`, `:5832`, `:5878`, `:6683`; the D6 branch placed ahead of `:5736` and the no-reading return `:5767-5769`) · FIXED r2 (the slug is snapshotted before each `subprocess.run`, `:765`/`:826`) · FIXED r3 (`_record_probe` never raises, `:4088-4089`'s rule) |
+| Hunt: `tests/test_claude_rotate_capability_probe.py`, `tests/test_claude_fleet.py` — every new or repointed test | FIXED r1 (A1 now five genuinely different spellings plus two framings; B6 no longer relies on a no-retry signal the code already gives) · FIXED r2 (an autouse fixture keeps the 92 existing tick calls in `tests/test_claude_fleet.py` off the real `claude`) · FIXED r3 (the fixture stubs `_probe_account`, so the repointed `:1400`/`:1767` tests still exercise the real `_capability_probe`) |
+| Hunt: `docs/workstation/claude-account-rotation.md` — every changed claim against the code | CLEAN (docs/workstation/claude-account-rotation.md:189 § Parking and :213 the flip-kind list re-read; Phase C step 1 names both, now with `refused` and `parked`) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (an unlockable or broken `parked.json` now writes nothing on an automated park, `:3692-3694`'s rule; inconclusive caches for 30 minutes) · FIXED r3 (a failed cache write can no longer abort the tick) |
+| Recurrence: boundary/sentinel/prefix — a prefix-vs-exact match | FIXED r1 (the refusal matches the lower-cased serialised result object, `is_error` required, so a quoted code never parks) · FIXED r2 (`_auto_park` lower-cases before the known-email check, `:3877`) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (B6's red signal moved to the parked assertion — `is_usage_limit`/`is_auth_401` are both false on the refusal text, executed) · FIXED r2 (B7 and the race case added for the new windows and the snapshot) |
+| Recurrence: denominator on every count — bounded searches state their bound | FIXED r1 (the size estimate re-summed to 253 in both documents) · FIXED r2 (the 92 tick calls counted with `grep -o … | wc -l` over the whole file) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | FIXED r1 (the dwell bounds nothing — the four `ignore_dwell=True` flips — so two cache windows bound the probe) · FIXED r2 (the D4 ping counted as today's unchanged call and seeding the shared cache; spec § Cost re-derived: ≤20/day healthy, 48/day/account outage worst case) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | FIXED r1 (the healthy result shape captured with one real call instead of assumed; the failure shape from an empty config dir) · CLEAN (docs/development/plans/2026-10-06-plan-2-rotation-capability-probe.md every candidate in Passes 1-3 executed by the orchestrator or a seat probe; the flip gates ran on flipped copies in a throwaway worktree) |
 
 Rubric invocation (verbatim output — the gate reads the generated header):
 
