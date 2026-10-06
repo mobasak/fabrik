@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-06T11:47:38.542876Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "b9546a973d21295890fb409e8b5c5339c2a5a8e2",
   "id": "W-42bde5ae",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "title": "CLAUDE.md § GATE line cites into scripts/final_gate.py drifted (:70→:71, :336-349→:515, :2932-2949→:3161…) since 173ac039e — tests/test_governance_template_split.py::test_the_gate_rows_line_citations_land_on_what_they_name red on master"
 }
