@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T15:10:24.384985Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ad71f248",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide how a project-side gate (no hub templates in projects) reads template text: a generated, synced token/line list beside _doc_registry, or the box-local /opt/fabrik path fail-open; then reuse fleet_doc_audit.template_left_pct's rule",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "check_doc_stubs.py detects a seeded-unfilled doc only by [Project Name]/[PROJECT_NAME]/{PROJECT_NAME}, which seeding substitutes — near-dead for scaffolded docs (sibling of 01M4664J)"
+}

@@ -113,7 +113,7 @@ DB-mutating actions that are impossible by default.
 
 | Action | What | Guards |
 |---|---|---|
-| `apply_code_fix` | generate a fix on `watchdog/<incident_id>` → tests pass (**HARD gate**) → secret-scan the diff → blast-radius guard → Telegram the diff with **Approve / Reject / STOP** → on approval **OR** silence past `code_fix_window_sec` → `deploy_adapter.apply(branch)` → VERIFY health → **auto-rollback on regression** | Isolated clone only (never the RO `/project` mount); deploy mechanism **injected** (no in-place src edit); every apply/rollback written to the `deploys` audit table; push restrictions apply to the **LLM's own bash** (hook + settings deny-list: no main/master, no force-push, no `git config`/`rebase`/`reset --hard`/`tag`); the **deploy adapter is the sole sanctioned main-push path** — it merges the fix branch into `deploy_branch` (default `main`) and uses `--force-with-lease` ONLY on rollback |
+| `create_fix_pr` | the dispatch key the coordinator's code-class fork reads (`coordinator.py::_is_code_fix`), routing the incident to REMEDIATE — there is no separate Tier-D action key, and the fork runs only for a trigger-bus signal (`trigger_sources` + `critical_paths`, [self-healing § Tier D](self-healing.md)); the always-on poll path dispatches the same key as the Tier-C branch push above: generate a fix on `watchdog/<incident_id>` → tests pass (**HARD gate**) → secret-scan the diff → blast-radius guard → Telegram the diff with **Approve / Reject / STOP** → on approval **OR** silence past `code_fix_window_sec` → `deploy_adapter.apply(branch)` → VERIFY health → **auto-rollback on regression** | Isolated clone only (never the RO `/project` mount); deploy mechanism **injected** (no in-place src edit); every apply/rollback written to the `deploys` audit table; push restrictions apply to the **LLM's own bash** (hook + settings deny-list: no main/master, no force-push, no `git config`/`rebase`/`reset --hard`/`tag`); the **deploy adapter is the sole sanctioned main-push path** — it merges the fix branch into `deploy_branch` (default `main`) and uses `--force-with-lease` ONLY on rollback |
 
 ---
 
@@ -128,7 +128,7 @@ Same flow for `propose_fix_prs: true` — first PR fires `[Watchdog proposed PR]
 
 ### Tier-D code-remediation gate (the human-in-the-loop terminal)
 
-When `apply_code_fix` produces a **green, secret-scanned, blast-radius-clean** diff, the sidecar fires a Telegram message carrying the diff + **Approve / Reject / STOP**:
+When the Tier-D lane produces a **green, secret-scanned, blast-radius-clean** diff, the sidecar fires a Telegram message carrying the diff + **Approve / Reject / STOP**:
 
 - **Approve** → `deploy_adapter.apply(branch)` immediately.
 - **Reject** → discard the branch; fall back to Tier C escalate.

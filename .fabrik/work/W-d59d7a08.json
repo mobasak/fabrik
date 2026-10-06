@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T23:48:10.326668Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d59d7a08",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M474J4GC3KD4KNV0RWKDFZEM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "Re: health_probe.cli() crashes on a NUL byte in .env — fixed at b1c06437"
+}

@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "WHAT: Two gaps in the spec-review machinery, both hit on 2026-10-02 in iterative_image_editor (iie2) while converging docs/superpowers/specs/2026-10-02-animate-fal-transport-design.md."
 }

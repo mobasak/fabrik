@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-10T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "346e0569f9eaa924eebb849a415af10430b65bfe",
   "id": "W-d44d0d7e",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:2382a9c1766e",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**`command_run.py` TERMINAL banner says \"swept every known class (a, b) clean\" when the closing round swept only one and the rest stood clean from an earlier round** (2026-09-10, owner: infra). Fou..."
 }

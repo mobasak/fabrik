@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T14:43:25.499156Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-78949da4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M43KAE43MXK20XASKVZKSV5H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
+  "title": "WHAT: the in-lane scope-growth exit (commands/_fragments/scope-growth-exit.md, rendered into /fabrik-review-scoped step 5) gives two exits that disagree for an own-fix-only round 2."
+}

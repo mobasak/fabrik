@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "WHAT: /fabrik-review (Phase 1 and 4) tells the lead to run `python3 scripts/review_loop_ledger.py read|next …`, but web-ecommerce-factory has no scripts/review_loop_ledger.py: not in the worktree and not in the main checkout. Only /opt/fabrik/scripts/review_loop_ledger.py exists."
 }

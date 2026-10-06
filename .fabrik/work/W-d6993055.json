@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T18:55:41.151880Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d6993055",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "cite the symbol (run_static_checks' pytest arming block) or refresh the range in both copies + the pinned test, one sync-path commit with full /fabrik-review",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "CLAUDE.md + template cite final_gate.py:1281-1291 for the pytest arming condition; the code sits at :1482-1492 (stale since before W-e93160e3, pinned by tests/test_governance_template_split.py)"
+}

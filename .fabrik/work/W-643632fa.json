@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T07:41:33.392652Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-643632fa",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3JJ73HTF8Y15XY2WB087KG3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "subagents — a capped free-tier row is now METERED; MISTRAL_MONTHLY_CAP_USD is read (closes 01M3J2978A) — re-vendor precondition inside"
+}

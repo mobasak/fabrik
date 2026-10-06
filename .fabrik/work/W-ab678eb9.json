@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: `python scripts/docs_updater.py --sync`, run in a linked worktree, regenerates INDEX.md's AUTO-GENERATED:STRUCTURE"
 }

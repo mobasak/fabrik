@@ -37,6 +37,11 @@ def _run(tmp_path: Path, cwd: str = "/opt/anything", sid: str = SID, **env: str)
     e = {**os.environ, "CLAUDE_SOUND_LOCKDIR": str(locks)}
     e.pop("CLAUDE_MESH_HEADLESS", None)  # the box's own env must not decide the test
     e.pop("FABRIK_HEADLESS", None)
+    # the kaizen window runs this suite too: its CLAUDE_AGENT would print the feedback-watch
+    # order and fail the "armed is silent" grader there alone (design critique, Fable #3)
+    e.pop("CLAUDE_AGENT", None)
+    (tmp_path / "identity.jsonl").write_text("")
+    e["AGENT_IDENTITY_FILE"] = str(tmp_path / "identity.jsonl")
     e.update(env)  # …but a test that SETS it must win (the first draft popped it after merging)
     proc = subprocess.run(
         [sys.executable, str(HOOK)],

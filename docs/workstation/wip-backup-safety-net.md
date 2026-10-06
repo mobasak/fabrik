@@ -93,12 +93,22 @@ prefixes by hand; never delete `/tmp/wip-backup.lock` (that just lets a concurre
 early) or `/tmp/wip-backup.log` (the forensic record of what already ran).
 
 **Crash durability (W-dbb3073f):** every git call the script makes runs with `core.fsync=objects,reference`
-(exported as `GIT_CONFIG_*`, appended to any the caller set). Git's own default, `committed,-loose-object`,
-fsyncs neither loose objects nor refs, and an unclean WSL shutdown during a run on 2026-09-25 left
-web-ecommerce-factory with 123 zero-byte loose objects and 50 zero-byte `refs/wip/*` files. Git reads a
-zero-byte object as present-but-corrupt, so every later push there died in `pack-objects`
-(`fatal: bad object …`), while `git push --dry-run` stayed clean. If it recurs, the repair loses
-nothing, because a zero-byte file holds no content. List them (`find .git/objects .git/refs -type f -empty`)
-and save the list. Then delete those files. Re-fetch the real objects (`git fetch origin '+refs/wip/*:refs/remotes/origin-wip/*'`).
-Finally run `git fsck`. A fleet check is `find /opt/*/.git/objects /opt/*/.git/refs -type f -empty`.
-Commits agents make themselves still run on git's default; this setting covers only the snapshotter.
+and `core.fsyncMethod=batch` (exported as fixed `GIT_CONFIG_*` slots that replace any the caller set, `GIT_CONFIG_PARAMETERS` included; cron sets none). Git's compiled default, documented as
+`committed,-loose-object`, fsyncs neither loose objects nor refs (measured with trace2's `hardware-flush`
+counter on git 2.43). An unclean WSL shutdown during a run on 2026-09-25 left web-ecommerce-factory with
+123 zero-byte loose objects and 50 zero-byte `refs/wip/*` files. Git reads a zero-byte object as
+present-but-corrupt, so every later push there died in `pack-objects` (`fatal: bad object …`), while
+`git push --dry-run` still exited 0. `batch` keeps the cost at one flush per command: per-object fsync
+made `add -A` of 3000 new files 22x slower, batch about 3x. Git documents `batch` as being as safe as
+`fsync` only on macOS (HFS+/APFS) and Windows (NTFS/ReFS), and refs still get a real fsync. Commits agents make themselves still run on
+git's default; this setting covers only the snapshotter.
+
+If it recurs, repair in this order (a zero-byte file holds no content, so deleting it loses nothing):
+list and save the empty files (`find .git/objects .git/refs -type f -empty`) and delete them; delete
+every `refs/wip/*` ref that no longer resolves (`git for-each-ref --format='%(refname)' refs/wip | while
+read -r r; do git rev-parse -q --verify "$r^{commit}" >/dev/null || git update-ref -d "$r"; done`),
+because a dangling ref makes the next fetch fail; fetch the rolling refs into
+`refs/remotes/origin-wip/*` (`git fetch origin '+refs/wip/*:refs/remotes/origin-wip/*'`); then run `git fsck`. Two limits: dated
+`bak-*` and `wt-*-<ts>` refs are local-only, so one whose objects were zeroed is gone (the next run takes
+a fresh snapshot); and an object fsck still reports missing under a tree the repo kept cannot be fetched
+back this way. A fleet check is `find /opt/*/.git/objects /opt/*/.git/refs -type f -empty`.

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "check_rule_grounding reads the Constraints Digest by COLUMN POSITION (quote = cell 0, path = cell 1), which /fabrik-plan-after-chat never states; also the review-loop PINS template contradicts a flat pin dir"
 }

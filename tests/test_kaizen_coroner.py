@@ -13,6 +13,8 @@ READ-ONLY, always, and no test touches the operator's real ``~/.claude/state``: 
 from __future__ import annotations
 
 import contextlib
+import dataclasses
+import datetime as dt
 import json
 import os
 import subprocess
@@ -80,9 +82,27 @@ def sources(tmp_path) -> kc.Sources:
 # ── fixture builders ─────────────────────────────────────────────────────────────────
 
 
-def _write_transcript(sources: kc.Sources, sid: str, rows: list[dict]) -> Path:
+def _project_repo(sources: kc.Sources) -> Path:
+    """A tmp checkout the Stop hook would instrument: it holds scripts/final_gate.py."""
+    repo = sources.transcripts_dir.parent / "repo"
+    (repo / "scripts").mkdir(parents=True, exist_ok=True)
+    (repo / "scripts" / "final_gate.py").touch()
+    return repo
+
+
+def _write_transcript(
+    sources: kc.Sources, sid: str, rows: list[dict], cwd: str | None = None
+) -> Path:
+    """A transcript with a REAL head: no transcript carries `cwd` on row 1 (0 of 814
+    measured 2026-10-06) — a cwd-less queue row first, then the row that records the
+    session's cwd (a tmp project by default; `cwd=""` writes none)."""
+    if cwd is None:
+        cwd = str(_project_repo(sources))
+    head: list[dict] = [{"type": "queue-operation", "operation": "enqueue"}]
+    if cwd:
+        head.append({"type": "attachment", "cwd": cwd})
     path = sources.transcripts_dir / "-opt-fabrik" / f"{sid}.jsonl"
-    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    path.write_text("".join(json.dumps(r) + "\n" for r in head + rows))
     return path
 
 
@@ -859,3 +879,138 @@ def test_holes_today_is_none_when_the_sweep_fails_open(tmp_path, monkeypatch):
     report = kc.sweep(ghost)
     assert report.errors, "the fail-open path must record the error"
     assert report.holes_today is None, "a crashed sweep must not report holes=0"
+
+
+# ── W-97de2aa3: the hole denominator is the Stop hook's instrumented population ─────
+
+
+def test_non_project_session_is_not_a_hole(sources, tmp_path):
+    """A headless `claude -p` from a directory with no scripts/final_gate.py never gets a
+    stop_pass (the hook returns at its project check) — it is not a lost session."""
+    (tmp_path / "home").mkdir()
+    _write_transcript(sources, "ping-1", [_normal_assistant_row()], cwd=str(tmp_path / "home"))
+    assert kc.holes(sources) == 0
+
+
+def test_project_session_with_realistic_head_is_a_hole(sources):
+    """The cwd row sits after cwd-less leading rows; a project session with no pass is a hole."""
+    _write_transcript(sources, "lost-1", [_normal_assistant_row()])
+    assert kc.holes(sources) == 1
+
+
+def test_quota_hold_exit_is_not_a_hole(sources):
+    """The quota hold ends the turn with stop_allowed_quota_hold, a legitimate hook pass."""
+    _write_transcript(sources, "held-1", [_normal_assistant_row()])
+    assert kaizen_events.emit("stop_allowed_quota_hold", sid="held-1")
+    assert kc.holes(sources) == 0
+
+
+def test_transcript_without_cwd_is_not_counted(sources, tmp_path, monkeypatch):
+    """No absolute cwd in the head: the instrument cannot say the hook covered it. The
+    relative cwd DOES resolve to a project from the process cwd, so only the isabs guard
+    keeps it out."""
+    (tmp_path / "relative" / "dir" / "scripts").mkdir(parents=True)
+    (tmp_path / "relative" / "dir" / "scripts" / "final_gate.py").touch()
+    monkeypatch.chdir(tmp_path)
+    _write_transcript(sources, "nocwd-1", [_normal_assistant_row()], cwd="")
+    _write_transcript(sources, "relcwd-1", [_normal_assistant_row()], cwd="relative/dir")
+    assert kc.holes(sources) == 0
+
+
+def test_hole_count_is_version_4(monkeypatch):
+    """The population change ships with its owed version bump (S5) — a new series file, so
+    the probe-inflated v3 history never averages with the instrumented v4 one."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "kc2_v4", REPO / "scripts" / "sysadmin" / "kaizen_collect_v2.py"
+    )
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    # its dataclasses resolve their module through sys.modules — scoped to this test
+    monkeypatch.setitem(sys.modules, "kc2_v4", mod)
+    spec.loader.exec_module(mod)
+    rows = [d for d in mod.METRIC_DEFS if d["id"] == "hole_count"]
+    assert len(rows) == 1 and rows[0]["version"] == 4
+    assert "scripts/final_gate.py" in rows[0]["formula"]
+
+
+# ── W-97de2aa3 part 2: the coroner's own sweep log ───────────────────────────────────
+
+
+def _with_log(sources: kc.Sources, tmp_path: Path) -> kc.Sources:
+    return dataclasses.replace(sources, sweeps_log=tmp_path / "state" / "coroner-sweeps.jsonl")
+
+
+def test_sweep_appends_its_line(sources, tmp_path):
+    """Behaviour 1: one bounded line per sweep, carrying what the collector checks."""
+    src = _with_log(sources, tmp_path)
+    kc.sweep(src)
+    lines = src.sweeps_log.read_text().splitlines()
+    assert len(lines) == 1 and len(lines[0]) < kc.SWEEP_LINE_MAX
+    row = json.loads(lines[0])
+    for key in (
+        "ts",
+        "deaths",
+        "session_ends",
+        "inconclusive",
+        "markers_seen",
+        "holes_today",
+        "errors",
+        "lookback_h",
+        "blind",
+    ):
+        assert key in row, key
+    assert row["errors"] == 0 and row["blind"] is False and row["lookback_h"] > 0
+    assert dt.datetime.fromisoformat(row["ts"]).tzinfo is not None
+
+
+def test_fixture_sweep_writes_no_line(sources, tmp_path, monkeypatch):
+    """Behaviour 2: a Sources without sweeps_log (every fixture, --selftest) writes nothing —
+    even with KAIZEN_STATE_DIR pointing somewhere writable."""
+    monkeypatch.setenv("KAIZEN_STATE_DIR", str(tmp_path / "live"))
+    assert sources.sweeps_log is None
+    kc.sweep(sources)
+    assert not (tmp_path / "live").exists()
+
+
+def test_inconclusive_counts_instrumented_only(sources, tmp_path):
+    """Behaviour 3: an undecidable marker on an instrumented session makes the line
+    unclean; the same marker on a probe ping from a non-project directory does not."""
+    undecided = {
+        "type": "assistant",
+        "isApiErrorMessage": True,
+        "message": {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "API Error: 403 org not allowed."}],
+        },
+    }
+    _write_transcript(sources, SID, [undecided])
+    _write_marker(sources, SID, "oauth_org_not_allowed")
+    src = _with_log(sources, tmp_path)
+    kc.sweep(src)
+    assert json.loads(src.sweeps_log.read_text().splitlines()[-1])["inconclusive"] == 1
+    (tmp_path / "home").mkdir()
+    other = "bbbb1111-2222-3333-4444-555566667777"
+    _write_transcript(sources, other, [undecided], cwd=str(tmp_path / "home"))
+    _write_marker(sources, other, "oauth_org_not_allowed")
+    (sources.transcripts_dir / "-opt-fabrik" / f"{SID}.jsonl").unlink()
+    (sources.lock_dir / f"{kc._mesh_safe(SID)}.errparked").unlink()
+    kc.sweep(src)
+    last = json.loads(src.sweeps_log.read_text().splitlines()[-1])
+    assert last["inconclusive"] == 0 and last["markers_seen"] == 1
+
+
+def test_a_failed_record_close_is_counted_in_the_line(sources, tmp_path, monkeypatch):
+    """A-S1/A-S4: a record-closure failure used to only warn, so the sweep line read
+    errors 0 after an error; it is counted now, which keeps that sweep from evidencing."""
+    _write_record(sources, "stale-1", age_s=13 * 3600.0)
+
+    def boom(*_a, **_k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(kc, "_command_run_save", boom)
+    src = _with_log(sources, tmp_path)
+    report = kc.sweep(src)
+    assert any("record close" in e for e in report.errors)
+    assert json.loads(src.sweeps_log.read_text().splitlines()[-1])["errors"] >= 1

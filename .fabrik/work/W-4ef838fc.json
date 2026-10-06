@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T15:26:58.892365Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4ef838fc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M464NPPBQW3E53VMYKDQ6Y2H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: /opt/fabrik/templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md's \"Debug Commands\" block seeds `psql $DATABASE_URL -c \"SELECT 1\"`. In every scaffold that uses an async SQLAlchemy DSN (`postgresql+asyncpg://…`, e.g. saas-skeleton), libpq rejects the `+asyncpg` scheme with an invalid-URI error,"
+}

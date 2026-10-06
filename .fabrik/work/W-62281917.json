@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-01T08:05:09.505818Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "f32b4f9af30ae1c46038338c2460cd3296d95afe",
   "id": "W-62281917",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "ledger"
   ],

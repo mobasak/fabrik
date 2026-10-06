@@ -89,6 +89,16 @@ case "$JOB" in
         # The DAILY kaizen collector (M1 cutover): consolidates YESTERDAY's events
         # into derived facts, series and the kaizen-log row. Replaced the retired
         # weekly kaizen_metrics.py (scripts/sysadmin/archived/, M0 operator ruling).
+        # PRE-SWEEP (W-97de2aa3, non-fatal): a coroner sweep NOW, before the collector
+        # publishes yesterday, so the day being published always has the sweep that closed
+        # it — the death pair is measured only on a clean closing sweep (coroner-sweeps.jsonl),
+        # and the coroner's own daily slot may fall after this run. Under the coroner job's
+        # own lock, WAITING up to 10 min (-w: a coroner job mid-run finishes and writes its
+        # line before this one starts — never a collector that reads before that line lands);
+        # the sweep is idempotent, its report goes to this job's log, and its failure never
+        # blocks the collector.
+        cd "$ROOT" && flock -w 600 "$STATE/daily-kaizen-coroner.lock" \
+            "$PY" scripts/sysadmin/kaizen_coroner.py --sweep || true
         cd "$ROOT" && "$PY" scripts/sysadmin/kaizen_collect_v2.py --daily
         # The collector's OWN status decides the stamp: `rc=$?` after `esac` reads the arm's
         # LAST command, which used to be a rider's `|| true`, so a failing collector still

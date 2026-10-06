@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T21:25:18.215495Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-98204c50",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce with a worktree requester whose item is in the main checkout's store; release via work.py --repo <main>",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "merge_request.py request prints PARTIAL when the item lives in the MAIN store: its release looks in the requester's worktree store (intel, request 01M46Z5KCR6VRXTHMY3XRKHSMQ, W-7b7b2f9e released by hand)"
+}

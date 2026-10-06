@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T19:32:14.511632Z",
+  "creator": "infra",
+  "evidence": "2db6ef68f68518d860f99589c0c901d819d4768d",
+  "id": "W-eb595ed4",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Found by the 01M48YF4ZJ review (B-S1 class): freeze it as history the way 30-ops:320 and 25-data-postgres:23 now are — name the image without a tag shape and cite CLAIMS.yaml rows pg-fleet-major / fleet-postgres-main-no-pgvector; then drop that clause from versions.yaml's postgres_major comment. Synced pack: full review.",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "done",
+  "tags": [
+    "rules"
+  ],
+  "title": "65-rag-search.md:61 wraps postgres_major in a span inside a DATED probe — a major flip silently rewrites 'Probed 2026-09-22 … postgres:16-alpine' to a major that was never probed"
+}

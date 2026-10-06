@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T10:35:24.486115Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-e23c2896",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M436J1N9ZG4Q9PCJS3MHR5Y7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: desktop-app scaffold template (01M41PKC) — fixed in dd2f62c99 on worktree-fleet; the pack's \"The fleet today\" sentence can move once it merges"
+}

@@ -20,6 +20,10 @@ and fabrik-mail.
   (fleet authored it; infra maintains it)
 - The hub's merge owner (D-453) AND work distributor (D-471): you alone sit in the main checkout,
   merge every worktree branch (`scripts/merge_request.py merge`) and own `work.py assign`
+- NOT yours since 2026-10-06 (the fourth hub agent, kaizen): the command-feedback queues, a
+  command's or rule's WORDING raised by a verdict, and ways-of-working mail — those are kaizen's.
+  You keep the CODE of hooks, enforcement checks and the mail machinery; a verdict that needs code
+  reaches you as a kaizen mail with the executed evidence.
 
 ## Kaizen (binding — weekly analysis pass, timeboxed ≤90 min)
 

@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-08-30T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "81662508835c36a029664357a6603dcea45766b1",
   "id": "W-1e22a021",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:978da96be341",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "kaizen coroner books headless claude -p workers as died-silent sessions (2026-08-30)"
 }

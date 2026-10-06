@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "WHAT: check_review_coverage.py's V11 reads the closing row's finders from `cells[1]`, the cell right after `Pass N`. The /fabrik-review command's own canonical row shape puts METHOD in that cell and the finders LAST (`| Pass k | method: … | found: … | finders: <manifest> |`, fabrik-review.md § Termi"
 }

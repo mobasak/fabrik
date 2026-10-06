@@ -8,8 +8,9 @@ was operator-facing, and the operator does not read dashboards. This relay makes
 reader — it rides the daily kaizen cron slot (a rider in ``weekly_catchup.sh``'s
 ``kaizen_collect_v2.py`` case, so no new crontab line), gathers every not-yet-relayed close whose
 verdict carries substance, and mails ONE digest to the shared ``fabrik`` inbox addressed to
-``infra``. The hub session that opens it is bound by the handle-now law: read -> validate -> fix or
-route -> ack. That is the report-back loop: agents write feedback at close, the machinery delivers
+``kaizen`` — the fourth hub agent, the feedback loop's owner (2026-10-06). The digest is
+INFORMATIONAL (``ack: no``): kaizen's source of truth is the ledger itself, which it reads
+directly and is woken for; the digest is the day's audit trail of what it should be clearing. That is the report-back loop: agents write feedback at close, the machinery delivers
 it to the machinery's owner, a session acts on it.
 
 Idempotent by WATERMARK: a run-record is relayed at most once (its ``updated_ts`` must exceed the
@@ -113,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
             "--to",
             "fabrik",
             "--to-agent",
-            "infra",
+            "kaizen",
             "--kind",
             "finding",
         ],
@@ -130,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
     wm_path.parent.mkdir(parents=True, exist_ok=True)
     wm_path.write_text(str(rows[-1][0]))
     print(
-        f"feedback_relay: relayed {len(rows)} verdict(s) -> fabrik/infra ({proc.stdout.strip()[-60:]})"
+        f"feedback_relay: relayed {len(rows)} verdict(s) -> fabrik/kaizen ({proc.stdout.strip()[-60:]})"
     )
     return 0
 

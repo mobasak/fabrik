@@ -51,9 +51,10 @@ The Stop hook blocks ONLY on ``state == "running"``
 (.claude/hooks/final_gate_stop.py:482,1029,1263 — verified on the merged file
 2026-08-20), so a coroner-closed record never pins its project.
 
-The hole metric: ``holes = transcripts-with-activity − sessions-with-a-stop_pass-or-
-session_end`` per day (a normally-ended session's liveliness is its last ``stop_pass``
-— H4) — :func:`holes` returns the NUMBER for T06 to consume as a first-class
+The hole metric: ``holes = instrumented-transcripts-with-activity − sessions-with-a-
+pass-or-session_end`` per day — only sessions whose recorded cwd the Stop hook instruments
+count (W-97de2aa3, hole_count v4), and a normally-ended session's liveliness is its last
+``stop_pass`` (H4) — :func:`holes` returns the NUMBER for T06 to consume as a first-class
 instrument-health input.
 
 HARD BOUNDARIES
@@ -80,6 +81,7 @@ import datetime as dt
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 import time
@@ -165,6 +167,10 @@ class Sources:
     transcripts_dir: Path  # ~/.claude/projects — READ-ONLY
     events_dir: Path  # kaizen event stream — the coroner APPENDS here (via emit)
     runs_dir: Path  # command-run records — the coroner CLOSES here (via load/save)
+    #: The coroner's own sweep log (W-97de2aa3): one line per sweep, the collector's evidence
+    #: that the coroner ran and could see. None (every fixture and --selftest) writes nothing,
+    #: so a test sweep can never pose as a live one; only :meth:`default` sets the live path.
+    sweeps_log: Path | None = None
 
     @classmethod
     def default(cls) -> Sources:
@@ -183,6 +189,10 @@ class Sources:
             transcripts_dir=Path.home() / ".claude" / "projects",
             events_dir=Path(events),
             runs_dir=Path(runs),
+            sweeps_log=Path(
+                os.getenv("KAIZEN_STATE_DIR", "") or str(Path.home() / ".claude/state/kaizen")
+            )
+            / SWEEPS_LOG_NAME,
         )
 
 
@@ -201,6 +211,11 @@ class CoronerReport:
     #: measured-looking 0). Only a live holes() reading sets a number.
     holes_today: int | None = None
     errors: list[str] = dataclasses.field(default_factory=list)
+    #: `.errparked` markers the sweep read (0 when the lock dir is absent, e.g. after a /tmp reboot).
+    markers_seen: int = 0
+    #: How many of :attr:`inconclusive` belong to sessions the Stop hook instruments — decided
+    #: where the marker is judged, so the sweep line never re-scans the transcripts dir.
+    inconclusive_instrumented: int = 0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -487,7 +502,9 @@ def _stream_state(events_dir: Path, sid: str) -> tuple[bool, bool, bool, dict | 
             continue
         if row.get("event") == "session_end":
             has_end = True
-        if row.get("event") == "stop_pass":
+        # the quota hold's exit is the hook passing the turn too (final_gate_stop.py
+        # `stop_allowed_quota_hold`) — a held session is not a lost one (W-97de2aa3)
+        if row.get("event") in ("stop_pass", "stop_allowed_quota_hold"):
             has_stop_pass = True
         if row.get("event") == "death" and row.get("reconstructed"):
             has_recon_death = True
@@ -610,6 +627,8 @@ def _close_records(sources: Sources, evidence: set[str], now: float, report: Cor
                         _emit_ttl_end(sources, raw_sid, report)
         except Exception as exc:
             _warn(f"record close for {stem} failed open: {exc!r}")
+            # counted, not only warned: the sweep line's `errors` must not read 0 after one
+            report.errors.append(f"record close for {stem} failed: {exc!r}")
             continue
 
 
@@ -637,14 +656,109 @@ def _emit_ttl_end(sources: Sources, raw_sid: str, report: CoronerReport) -> None
             report.session_ends.append(raw_sid)
     except Exception as exc:  # pragma: no cover - emit() itself never raises
         _warn(f"ttl session_end for {raw_sid} failed open: {exc!r}")
+        report.errors.append(f"ttl session_end for {raw_sid} failed: {exc!r}")
 
 
 # ── the hole metric — for T06 ────────────────────────────────────────────────────────
 
 
+# The head read for a transcript's recorded cwd: no transcript carries `cwd` on its first
+# row (0 of 814 measured 2026-10-06 — queue/title rows come first); the first row that does
+# sat at most 183,652 bytes in.
+CWD_HEAD_BYTES = 1024 * 1024
+
+
+def _session_cwd(path: Path) -> str | None:
+    """The first ABSOLUTE string ``cwd`` recorded in the transcript's head, or None."""
+    # Line by line, stopping at the first cwd (typically ~5 KB in) — never a full 1 MB
+    # read per transcript per sweep; a line straddling the bound is truncated, fails to
+    # parse and is skipped (the session then leaves the denominator — measured max 183 KB).
+    read = 0
+    try:
+        with open(path, "rb") as fh:
+            while read < CWD_HEAD_BYTES:
+                raw = fh.readline(CWD_HEAD_BYTES - read)
+                if not raw:
+                    return None
+                read += len(raw)
+                if b'"cwd"' not in raw:
+                    continue
+                try:
+                    row = json.loads(raw.decode("utf-8", "replace"))
+                except ValueError:
+                    continue  # a torn line at the bound, or a malformed row
+                cwd = row.get("cwd") if isinstance(row, dict) else None
+                if isinstance(cwd, str) and os.path.isabs(cwd):
+                    return cwd
+    except OSError:
+        return None
+    return None
+
+
+def _instrumented(path: Path) -> bool:
+    """Would the Stop hook have instrumented this session? Its own predicate
+    (final_gate_stop.py main: the project check before any stop_pass) applied to the
+    session's recorded cwd: a directory holding ``scripts/final_gate.py``."""
+    cwd = _session_cwd(path)
+    return cwd is not None and (Path(cwd) / "scripts" / "final_gate.py").is_file()
+
+
+# The sweep log's file name, under the collector's state dir (`KAIZEN_STATE_DIR`, else
+# ~/.claude/state/kaizen — kaizen_collect_v2.state_dir()); the collector reads the same name.
+SWEEPS_LOG_NAME = "coroner-sweeps.jsonl"
+# One O_APPEND write of at most this many bytes never interleaves with a concurrent writer.
+SWEEP_LINE_MAX = 4096
+
+
+def _write_sweep_line(src: Sources, report: CoronerReport, clock: float) -> None:
+    """Append ONE line recording this sweep — the collector's evidence that the coroner ran
+    and could see (W-97de2aa3). ``inconclusive`` counts only markers on sessions the Stop
+    hook instruments (:func:`_instrumented`): a probe ping's undecidable API error is not an
+    unjudged agent death. ``blind`` when holes() could not see, the lock dir exists but
+    cannot be read, or the event emitter is missing. Fail-open: a write error warns."""
+    if src.sweeps_log is None:
+        return
+    try:
+        lock_unreadable = src.lock_dir.exists() and not os.access(src.lock_dir, os.R_OK | os.X_OK)
+        line = {
+            "ts": dt.datetime.fromtimestamp(clock).astimezone().isoformat(timespec="seconds"),
+            "deaths": len(report.deaths_reconstructed),
+            "session_ends": len(report.session_ends),
+            "inconclusive": report.inconclusive_instrumented,
+            "markers_seen": report.markers_seen,
+            "holes_today": report.holes_today,
+            "errors": len(report.errors),
+            "error_first": (report.errors[0][:200] if report.errors else ""),
+            "lookback_h": round(_lookback_s() / 3600.0, 3),
+            "blind": bool(report.holes_today is None or lock_unreadable or kaizen_events is None),
+        }
+        data = (json.dumps(line, sort_keys=True) + "\n").encode("utf-8")
+        if len(data) > SWEEP_LINE_MAX:
+            line["error_first"] = ""
+            data = (json.dumps(line, sort_keys=True) + "\n").encode("utf-8")
+        src.sweeps_log.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(src.sweeps_log, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+        try:
+            os.write(fd, data)
+        finally:
+            os.close(fd)
+    except Exception as exc:
+        _warn(f"sweep log write failed open: {exc!r}")
+
+
 def holes(sources: Sources | None = None, day: dt.date | None = None) -> int | None:
-    """``transcripts-with-activity − sessions-with-a-stop_pass-or-session_end`` for
-    one day.
+    """``instrumented-transcripts-with-activity − sessions-with-a-pass-or-session_end``
+    for one day.
+
+    W-97de2aa3 (hole_count v4): only a transcript the Stop hook INSTRUMENTS enters the
+    count — its recorded cwd holds ``scripts/final_gate.py`` (:func:`_instrumented`). A
+    headless ``claude -p`` from ``~`` or ``/tmp`` can never get a stop_pass, so counting
+    it measured probe volume, not lost sessions (10-05: 392 of 393 holes). Residual: the
+    hook tests the payload cwd per TURN, this tests the session's first cwd — a session
+    that only ever stops ``cd``'d out of its project is a false hole (22 of 2,182 Stops
+    ran cd'd away on 10-05/10-06; no whole session). The real hole shape is a
+    ``session_start`` with no Stop ever. A pass is a ``stop_pass`` or the quota hold's
+    ``stop_allowed_quota_hold``.
 
     A first-class instrument-health input (spec :121-123): a transcript active on
     ``day`` (mtime date, local time) whose event stream carries NO ``stop_pass`` and
@@ -677,7 +791,13 @@ def holes(sources: Sources | None = None, day: dt.date | None = None) -> int | N
                 if path.stem.startswith("agent-"):
                     continue  # subagent sidecars are not sessions
                 try:
-                    if dt.date.fromtimestamp(path.stat().st_mtime) == target:
+                    st = path.stat()
+                    # a regular file only: opening a FIFO or a device would block the sweep
+                    if (
+                        stat.S_ISREG(st.st_mode)
+                        and dt.date.fromtimestamp(st.st_mtime) == target
+                        and _instrumented(path)
+                    ):
                         active.add(path.stem)
                 except (OSError, OverflowError, ValueError):
                     continue
@@ -702,9 +822,11 @@ def sweep(sources: Sources | None = None, now: float | None = None) -> CoronerRe
     marker the next sweep skips on, and closed records are never re-mutated.
     """
     report = CoronerReport()
+    src: Sources | None = None
+    clock = time.time()
     try:
         src = sources or Sources.default()
-        clock = float(now) if now is not None else time.time()
+        clock = float(now) if now is not None else clock
         with _pinned_env(
             {"KAIZEN_EVENTS_DIR": str(src.events_dir), "COMMAND_RUN_DIR": str(src.runs_dir)}
         ):
@@ -722,6 +844,9 @@ def sweep(sources: Sources | None = None, now: float | None = None) -> CoronerRe
     except Exception as exc:
         _warn(f"sweep failed open: {exc!r}")
         report.errors.append(repr(exc))
+    # a crashed sweep records itself too — its errors count keeps it from evidencing a day
+    if src is not None:
+        _write_sweep_line(src, report, clock)
     return report
 
 
@@ -759,7 +884,10 @@ def _gather_deaths(src: Sources, now: float, report: CoronerReport | None = None
     deaths: list[_Death] = []
     seen: set[str] = set()
 
-    for safe_sid, (cls, epoch) in sorted(_errparked_markers(src.lock_dir).items()):
+    markers = _errparked_markers(src.lock_dir)
+    if report is not None:
+        report.markers_seen = len(markers)
+    for safe_sid, (cls, epoch) in sorted(markers.items()):
         if epoch is not None and now - epoch > lookback:
             continue  # aged out — must not fire forever
         tpath = transcripts.get(safe_sid) or _find_transcript(src.transcripts_dir, safe_sid)
@@ -772,6 +900,8 @@ def _gather_deaths(src: Sources, now: float, report: CoronerReport | None = None
             # L3: the transcript exists and answered NOTHING — skip, counted.
             if report is not None:
                 report.inconclusive.append(safe_sid)
+                if _instrumented(tpath):
+                    report.inconclusive_instrumented += 1
             continue
         try:
             died_at = (

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T12:01:07.555411Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-47e052a3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M45K5PP4VSZ913KRG5HX4SQX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: per-prompt hook re-injection (your 01M3QJKETEPWDF6E6F0NWSQN9J and the amended scope 01M3QJP86X3WVQWG2G5KS26965)"
+}

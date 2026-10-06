@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "review workflow seat killed the box's live mail watches with `pkill -f` — please forbid pattern kills in the seat brief (fabrik-review-loop.js)"
 }

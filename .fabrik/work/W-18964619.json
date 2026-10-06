@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "fabrik-plan-review / fabrik-execute-plan disagree on the Opus finder at the small-profile Finish review, and plan-review has no rule for a half-blocked plan"
 }

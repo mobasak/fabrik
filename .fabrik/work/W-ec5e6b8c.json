@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T12:43:16.767273Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-ec5e6b8c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-554",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "check /opt/ai-model-catalog/engine/out/blocks/*.OPENROUTER_ROUTES.txt for eligible models and whether mail 01M3FEC47Q2KPTQZVDZVA2PHZZ was answered; then ask ai-model-catalog for a routing-doc exclude in deliver_to_fabrik.py",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "Resume model-routing and gateway block delivery once ai-model-catalog's engine emits non-empty OPENROUTER_ROUTES and the routing doc can be excluded upstream (D-554)"
+}

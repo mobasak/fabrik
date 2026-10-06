@@ -134,7 +134,10 @@ so a misspelled sensor is visible the day it ships.
 **The Stop hook fires once per TURN, not once per session.** So its pass-through is `stop_pass`,
 and **session liveliness derives from a session's LAST `stop_pass` timestamp** — the hole in the
 data is a session that produced **no `stop_pass` ever**, not a missing "session end". `session_end`
-is reserved for the coroner's post-hoc close of a session that is already gone.
+is reserved for the coroner's post-hoc close of a session that is already gone. Only a session the
+hook INSTRUMENTS can be a hole: its recorded cwd holds `scripts/final_gate.py` (`hole_count` v4,
+W-97de2aa3 — headless `claude -p` runs from `~` or `/tmp` never reach a Stop pass), and the quota
+hold's `stop_allowed_quota_hold` counts as a pass.
 
 **`stop_block.outcome` separates enforcement that HELD from enforcement that gave up.** After `CAP`
 consecutive blocked stops each cause warns through and lets the turn end; that give-up used to be
@@ -230,7 +233,7 @@ them.
 | `rule_activation` | `gate_failure_taxonomy` | run-closing sessions | T06 collector |
 | `unclassified_rate` | `hole_count` | instrument health (metric zero) | T06 collector |
 | `hole_count` | `unclassified_rate` | coroner holes | T06 collector |
-| `death_occurrences` | `death_classes` | day's death events (coroner-evidence-gated) | T06 collector |
+| `death_occurrences` | `death_classes` | day's death events (coroner-evidence-gated: a death/session_end event, or a clean closing sweep in `coroner-sweeps.jsonl`) | T06 collector |
 | `death_classes` | `death_occurrences` | day's NEW class distribution (delta suffix) | T06 collector |
 | `rework_rate` | `review_rounds` | git-mined commits, `/opt/*` | T07 `--rework` |
 | `review_rounds` | `rework_rate` | round-carrying sessions | T07 (from store rows) |

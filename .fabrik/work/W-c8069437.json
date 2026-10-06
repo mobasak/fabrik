@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "WHAT: /fabrik-review's command text and its grader disagree on the Pass Ledger row shape, so following the command verbatim fails the gate. A second, smaller one: command_run refuses TERMINAL unless every round-1 slice is re-stated, even though D-335 says a slice with no open claim is not re-dispatc"
 }

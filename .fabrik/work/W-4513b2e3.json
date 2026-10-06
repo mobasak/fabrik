@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T22:13:46.498033Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4513b2e3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M44D5FP670CK4B802EXSRFGX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: done — scripts/verify_prod_parity.py loads the project .env itself once libs/health_probe syncs to fabrik-lib cfd9215f (your D-563 request)."
+}

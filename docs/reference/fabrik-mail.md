@@ -310,7 +310,7 @@ every other `OSError` too (EACCES on a rename, `IsADirectoryError` from a stray 
 a stderr note (a wedged channel is worse than a rare unbounded reply; the addressing guard
 preserves this — `kind=reply` is exempt BY KIND, so an unresolvable-`re` reply is never re-refused
 as an addressing problem); an EXISTING parent that is
-unreadable or unparseable → HOLD (guards cannot be evaluated — never reply blind). `--auto`
+unreadable or unparseable → HOLD (guards cannot be evaluated — never reply blind), and so does a parent with no `from:` (the self-guard and rate cap cannot attribute it). `--auto`
 resolves the parent in the SENDER's (`--from`) own mailbox — a wrong `--from` degrades to the
 fail-soft ALLOW, so wrappers must pass the correct identity.
 

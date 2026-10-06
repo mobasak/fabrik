@@ -94,10 +94,24 @@ def _section(text: str, head_re: re.Pattern[str]) -> str:
     return rest[: nxt.start()] if nxt else rest
 
 
+def _column(header: list[str], name: str) -> int | None:
+    """Index of the header cell named exactly `name` (case-insensitive, any `(…)` stripped)."""
+    for i, cell in enumerate(header):
+        if re.sub(r"\([^)]*\)", "", cell).strip().lower() == name:
+            return i
+    return None
+
+
 def _digest_rows(section: str) -> list[tuple[str, str]]:
-    """(quote, cited-path) per data row; header/separator rows skipped."""
+    """(quote, cited-path) per data row; header/separator rows skipped.
+
+    Columns are found by EXACT header names (01M3T5RK): the quote is `Quote` (or `Verbatim`), the
+    source `Source`; an unnamed quote is column 0 and an unnamed source the column after the quote.
+    Exact names only — a substring word list mis-picked `Pack`/`Where it binds` on 21 of 55 measured
+    digests, while these names moved 224 -> 252 of 473 rows to green and turned none red."""
     rows: list[tuple[str, str]] = []
     seen_table_rows = 0  # rows are classified by POSITION: 1st = header, 2nd = separator (01M1GSBZ)
+    qcol, scol = 0, 1
     for line in section.splitlines():
         line = line.strip()
         if not line.startswith("|"):
@@ -106,12 +120,21 @@ def _digest_rows(section: str) -> list[tuple[str, str]]:
         if len(cells) < 2:
             continue
         seen_table_rows += 1
+        if seen_table_rows == 1:
+            named_q = _column(cells, "quote")
+            if named_q is None:
+                named_q = _column(cells, "verbatim")
+            qcol = named_q if named_q is not None else (1 if _column(cells, "source") == 0 else 0)
+            named_s = _column(cells, "source")
+            scol = qcol + 1 if named_s is None else named_s
         if seen_table_rows <= 2:
             continue  # the header row and the |---| separator, whatever their first cell says
-        quote = _norm(cells[0])
+        if max(qcol, scol) >= len(cells):
+            continue
+        quote = _norm(cells[qcol])
         if not quote or set(quote) <= {"-", ":", " "}:
             continue
-        m = PATH_TOKEN_RE.search(cells[1].replace("`", ""))
+        m = PATH_TOKEN_RE.search(cells[scol].replace("`", ""))
         if not m:
             continue
         path = re.sub(r":\d+$", "", m.group(0))
@@ -214,8 +237,21 @@ def _audit_full(root: Path) -> tuple[int, list[Finding], list[tuple[str, str]]]:
         if not rows:
             ungraded.append((name, "integrity: the digest has no parseable rows"))
         for quote, cited in rows:
+            if Path(cited).is_absolute() or ".." in Path(cited).parts:
+                findings.append(
+                    Finding(
+                        name,
+                        "QUOTE-NOT-FOUND",
+                        f"digest cites {cited}: a Source is a repo-relative path, never outside the repo",
+                    )
+                )
+                continue
             target = root / cited
-            if not target.is_file():
+            try:
+                is_file = target.is_file()
+            except OSError:
+                is_file = False
+            if not is_file:
                 findings.append(
                     Finding(name, "QUOTE-NOT-FOUND", f"digest cites {cited} which does not exist")
                 )

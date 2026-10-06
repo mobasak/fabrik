@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T20:13:22.926970Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a4274b06",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "seat-verify _redact_test_database_url's short-password branch against pytest -vv/-q renderings; decide whether derived forms need a refuse-short-passwords rule instead",
+  "note": "seat-verified in review pass 4 (A-sonnet, pin4 md5 843b6fa6): 0 confirmed; derived-form residual documented in D-597",
+  "owner": "",
+  "priority": 2,
+  "status": "dropped",
+  "tags": [
+    "infra"
+  ],
+  "title": "final_gate TEST_DATABASE_URL redaction: the <4-char whole-token rule (round-3 scope-growth stop) has a red-first grader but no seat re-verification; derived-form leaks (a test printing an encoded or sliced password) stay a documented residual"
+}

@@ -18,7 +18,7 @@ feedback line:**
 > `FEEDBACK: /<command> · <wall-clock> · rounds <n> (<findings trend>) · tokens <input> input / <output> output (<n>% cached) · confusion: <what in the
 > command text was ambiguous or misleading | none> · waste: <steps, turns or tokens spent without
 > changing the outcome | none> · change: <axis>: <the ONE concrete edit to this command or a rule that
-> would have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel | none
+> would have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none
 > — surfaces exercised: <what your run touched>> [· cost: <a PLAIN AMOUNT, e.g. `0.0125` or `$0.30` — prose or `10 usd` is refused, it is summed>]`
 
 **`change:` is AXIS-KEYED — lead the value with ONE axis, then a colon:**
@@ -149,9 +149,10 @@ the record stays `running` (and the Stop hook blocks the turn) until a substanti
 | **infra** | `commands/_sources/`, `.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`, the box mesh, fabrik-mail |
 | **fleet** | `specs/services/*.yaml`, deploy/VPS/monitoring, scaffolding, `docs/PROJECT_CATALOG.md` |
 | **intel** | models, benchmarks, the flywheel, author-blind review |
+| **kaizen** | FEEDBACK verdicts, a command's or rule's WORDING, ways of working — the feedback loop (not the code behind it) |
 
 ```bash
-python scripts/mail.py send --to fabrik --to-agent <infra|fleet|intel> --kind finding --ack required
+python scripts/mail.py send --to fabrik --to-agent <infra|fleet|intel|kaizen> --kind finding --ack required
 # body on stdin — the D-035 contract (docs/reference/fabrik-mail.md § The message contract):
 # WHAT/WHERE/WHEN/WHO/WHY(factual root cause)/HOW/SYSTEMIC(the class) mandatory;
 # ABDUCTIVE (alternatives ruled out) when WHY is inferred; INDUCTIVE/DEDUCTIVE/COUNTERFACTUAL where they carry weight

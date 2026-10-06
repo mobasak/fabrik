@@ -1,0 +1,26 @@
+{
+  "block_digest": "a8aae899704812f5615bac119d12e1586fb11f42f379ad9530872739cb68e179",
+  "blocked_by": [],
+  "created": "2026-10-02T22:20:08.093073Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-9dbf41a0",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "33a6a1adb693928e0ae2aeabb547c2000176a9eb01317525fef03d5d5ce2ec93"
+  ],
+  "next": "",
+  "note": "operator 2026-10-03: \"ok rebuilt\" — rebuild in the simpler shape; and \"why arent you suggesting fabrik-task for this?\" → built through /fabrik-task",
+  "owner": "",
+  "priority": 2,
+  "question": "The coordinator-assignment design failed its two independent critiques. Should I rebuild it in the simpler shape (route once by role; count only work the coordinator has handed out; workers wake the coordinator when their queue runs empty; single-window repos covered) and bring it back through spec review for your approval?",
+  "status": "done",
+  "title": "The coordinator-assignment design failed its two independent critiques. Should I rebuild it in the simpler shape (route once by role; count only work the coordinator has handed out; workers wake the coordinator when their queue runs empty; single-window repos covered) and bring it back through spec review for your approval?"
+}

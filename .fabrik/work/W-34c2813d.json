@@ -1,0 +1,26 @@
+{
+  "block_digest": "ab62f7e861851509e8e1f4df08aa2a76bc4c01c1c7a0347ef8c9f10d3bc310cf",
+  "blocked_by": [],
+  "created": "2026-10-02T21:08:20.819396Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-34c2813d",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "ec8b0eeb125d6818485c75071e8248c8b865181302a508cd089bf9ccf4dedd1f"
+  ],
+  "next": "",
+  "note": "superseded by W-9dbf41a0: operator 2026-10-03 \"ok rebuilt\" — the converged design is replaced by the simpler shape (D-519)",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve the converged coordinator-assignment design (`docs/superpowers/specs/2026-10-02-coordinator-assignment-design.md`)?",
+  "status": "done",
+  "title": "Do you approve the converged coordinator-assignment design (`docs/superpowers/specs/2026-10-02-coordinator-assignment-design.md`)?"
+}

@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "WHAT: scripts/enforcement/check_spec_convergence.py prints only its first findings then '... N more finding(s) - run the check directly' — but it IS being run directly and has no flag (only --root) to list them all or to scope to one spec, so a reviewer cannot tell whether the hidden findings name t"
 }

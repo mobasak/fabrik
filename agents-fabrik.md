@@ -89,7 +89,7 @@ Full lifecycle from vision to running service — what is automated vs what requ
 **Phase 2 — Implementation (coding agents: Claude Code native subagents — the OpenRouter subagent pool is OFF by ruling, D-181/D-182):**
 4. Each agent runs the corpus chain on its epic, in its own worktree: `/fabrik-spec <epic file>` → `/fabrik-flows` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` → `/fabrik-plan-after-chat` → `/fabrik-execute-plan`.
 5. Coding agent implements, passes `scripts/final_gate.py`, commits + pushes its own branch at task end (§ EXIT).
-6. The merge owner (agent-1) rebases and merges finished branches into `master` in `epic_order` phase order; the operator's go on the deploy is Gate 2.
+6. The merge owner (agent-1) merges finished branches into `master` with `scripts/merge_request.py merge`, in `epic_order` phase order (a REFUSED requester brings the base in by merging it into its pushed branch, never a rebase); the operator's go on the deploy is Gate 2.
 
 **Phase 3 — Deploy (WSL → VPS, semi-automated):**
 7. `fabrik apply <spec>` — runs in WSL, SSHes to VPS, writes compose.yaml + .env, runs `docker compose up -d --wait`, then provisions infra registrars. First deploy time is dominated by the image build (git source: `git clone` + `docker compose build`); redeploys reuse cached layers.

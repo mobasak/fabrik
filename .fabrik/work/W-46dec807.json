@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T17:56:23.644388Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-46dec807",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M440TK0EBDDK1S8WTM5KV9SM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: six identifier checks accept a trailing newline — fixed in bf81bb584"
+}

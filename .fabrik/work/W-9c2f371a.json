@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "merge_request.py tells a REQUESTER to \"rebase on <base> and resend\" in five refusals; the branch is already pushed (request requires it), so that rebase needs --force (extends 01M3RXQZM9)"
 }

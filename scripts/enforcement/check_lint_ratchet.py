@@ -243,7 +243,6 @@ def _baseline_payload() -> dict | None:
         return None
 
 
-
 def _worktree_baseline_payload() -> dict | None:
     """The WORKING-TREE baseline object, or None — the count travels with the version."""
     try:

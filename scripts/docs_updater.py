@@ -735,8 +735,196 @@ def replace_block(
     return block_re.sub(replacer, text), True
 
 
-def generate_docs_structure_tree() -> str:
-    """Generate indented tree string of docs/ directory with comments."""
+# W-961bede1: wordings the hub dict below has held and dropped (read from `git log -p` of this
+# file on 2026-10-05). A row still showing one is HUB text, so it is refreshed from the dict rather
+# than kept as the project's own. When you change or remove a dict value, append the old value
+# here — a wording missing from both reads as hand text and is frozen in every repo that shows it.
+_RETIRED_HUB_COMMENTS = frozenset(
+    {
+        "3-lane verification system",
+        "4-command Traycer Refactoring Workflow reference",
+        "8-command Traycer Agile Workflow reference",
+        "AI agent prompt directives",
+        "AI categories & tool selection",
+        "Agent timeout policy",
+        "Automatic code review system",
+        "Automatic documentation updater",
+        "Build Fabrik-compatible microservices",
+        "Complete 8-phase roadmap summary",
+        "Complete Kilo reference",
+        "Complete env var reference",
+        "Convention enforcement (check scripts, rules)",
+        "Coolify migration procedures",
+        "Core droid exec usage",
+        "Critical fixes",
+        "Curated WordPress plugin stack",
+        "Current priorities, backlog, future plans",
+        "Database selection",
+        "Deployment orchestrator module",
+        "Development tracker workflow",
+        "Documentation index (Legacy)",
+        "Documentation standards and conventions",
+        "Documentator workflow",
+        "Domain + hosting automation",
+        "Duplicati backup configuration",
+        "Epic Kilo integration",
+        "Example code and configuration",
+        "Excel file generation guide",
+        "Fabrik driver API (Coolify, DNS, etc.)",
+        "File API deployment guide",
+        "Gatus runbook",
+        "Global gate definitions",
+        "Hook and skill usage guide",
+        "How Traycer fits into Fabrik's 9-step workflow",
+        "How to deploy services to VPS",
+        "INDEX for AI planning phases",
+        "Kilo agent configuration and usage",
+        "Kilo benchmarks testing",
+        "Kilo code review workflow",
+        "Kilo file handling reference",
+        "Kilo model capabilities",
+        "Kilo review workflow",
+        "Kilo selected agents",
+        "Kilo token-lean workflow",
+        "MCP Kilo quickstart",
+        "MCP Kilo setup guide",
+        "MCP server configuration reference",
+        "Make projects deployment-ready",
+        "Master inventory of all /opt projects",
+        "Non-negotiable execution rules",
+        "Page creation idempotency",
+        "Process monitor setup",
+        "Project and feature proposals",
+        "Property-based testing with Hypothesis",
+        "Reviewer benchmark results",
+        "SaaS skeleton GUI guide",
+        "Site spec YAML format",
+        "Spec pipeline (idea -> scope -> spec)",
+        "Start here - new/existing project workflow",
+        "Step-by-step guides and tutorials",
+        "System design and architecture proposals",
+        "Technology stack & tools inventory",
+        "Template mapping",
+        "Traycer + Kilo workflow analysis",
+        "Traycer Kilo agents guide",
+        "Traycer Kilo direct CLI",
+        "Traycer YOLO (fast-path) workflow guide",
+        "Traycer free-tier agent testing",
+        "Traycer integration evaluation",
+        "Trueforge image catalog",
+        "Uptime Kuma runbook",
+        "VPS backup strategy",
+        "What Fabrik is and what it does",
+        "Windsurf IDE optimization",
+        "WordPress deployment workflow",
+        "WordPress module integration",
+        "WordPress module overview",
+        "WordPress plugin evaluation criteria",
+        "WordPress technical docs",
+    }
+)
+
+_ROW_RE = re.compile(r"^((?:│   |    )*)(├── |└── )(.*)$")
+# The comment starts at the first `#` followed by a space and preceded by whitespace or the name's
+# end — `name   # text`, `name/   # text` and the fleet's `name# text` all split; `a#b.md` does not.
+_COMMENT_RE = re.compile(r"^(.*?)\s*#\s(.*)$")
+
+
+def _parse_structure_rows(body: str) -> dict[str, tuple[str, bool, bool]]:
+    """{relative path: (comment, written with a trailing `/`, has shown children)} of a block.
+
+    Only tree rows count; a row deeper than its parent chain allows (the parent row did not parse)
+    is skipped with its whole subtree, so its comment never lands on another file."""
+    rows: dict[str, tuple[str, bool, bool]] = {}
+    stack: list[str] = []
+    skip_below: int | None = None
+    for line in body.splitlines():
+        m = _ROW_RE.match(line)
+        if not m:
+            continue
+        depth = len(m.group(1)) // 4
+        if skip_below is not None:
+            if depth > skip_below:
+                continue
+            skip_below = None
+        if depth > len(stack):
+            skip_below = depth - 1
+            continue
+        text = m.group(3).rstrip()
+        cm = _COMMENT_RE.match(text)
+        name, comment = (cm.group(1), cm.group(2).strip()) if cm else (text, "")
+        slash = name.endswith("/")
+        name = name.rstrip("/").strip()
+        if not name:
+            skip_below = depth
+            continue
+        del stack[depth:]
+        if stack:
+            parent = "/".join(stack)
+            pc, ps, _ = rows.get(parent, ("", False, False))
+            rows[parent] = (pc, ps, True)
+        stack.append(name)
+        rows["/".join(stack)] = (comment, slash, False)
+    return rows
+
+
+def _in_linked_worktree() -> bool:
+    """True only in a linked worktree: its git dir differs from the common dir. Absolute paths on
+    both sides, because a main checkout run from a subdirectory prints `--git-dir` absolute and
+    `--git-common-dir` relative. Any git failure reads as a main checkout (today's walk)."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    lines = proc.stdout.splitlines()
+    if proc.returncode != 0 or len(lines) != 2:
+        return False
+    return Path(lines[0]).resolve() != Path(lines[1]).resolve()
+
+
+def _carried_rows(
+    docs_dir: Path, existing: dict[str, tuple[str, bool, bool]]
+) -> dict[str, dict[str, bool]]:
+    """{parent rel: {name: is_dir}} of block rows a linked worktree must keep (W-ab678eb9).
+
+    A worktree lacks the main checkout's gitignored files, so a walk of its own disk rewrote the
+    committed block without them (tryton-crm 01M3T9H8). In a linked worktree, a row whose path is
+    absent here and ignored by this checkout's rules is carried forward; a deleted, non-ignored
+    row is not. A directory row is queried with its trailing `/`: a dir-only pattern matches a
+    missing path only then. The main checkout never carries — it is the block's authority."""
+    absent = {
+        rel: slash or shown
+        for rel, (_c, slash, shown) in existing.items()
+        if not os.path.lexists(docs_dir / rel)
+    }
+    if not absent or not _in_linked_worktree():
+        return {}
+    query = {f"docs/{rel}{'/' if is_dir else ''}": rel for rel, is_dir in absent.items()}
+    kept = {query[n] for n in _check_ignore(list(query)) if n in query}
+    carried: dict[str, dict[str, bool]] = {}
+    for rel in kept:
+        parts = rel.split("/")
+        for depth in range(len(parts)):
+            parent = "".join(f"{x}/" for x in parts[:depth])
+            is_dir = depth < len(parts) - 1 or absent[rel]
+            carried.setdefault(parent, {})
+            carried[parent][parts[depth]] = carried[parent].get(parts[depth], False) or is_dir
+    return carried
+
+
+def generate_docs_structure_tree(existing: dict[str, tuple[str, bool, bool]] | None = None) -> str:
+    """Generate indented tree string of docs/ directory with comments.
+
+    ``existing`` is the current block parsed by ``_parse_structure_rows``: a row's own comment wins
+    unless it is current or retired hub text, and a directory written ``name/`` with no shown
+    children stays collapsed (W-961bede1)."""
+    existing = existing or {}
     docs_dir = PROJECT_ROOT / "docs"
     if not docs_dir.exists():
         return "docs/ (not found)"
@@ -785,30 +973,37 @@ def generate_docs_structure_tree() -> str:
         "SYNC_ENFORCEMENT_WORKFLOW.md": "Sync enforcement workflow",
         "SYNC_PROJECTS_WORKFLOW.md": "Sync projects workflow",
     }
+    # Changing or removing a value above? Append the old one to _RETIRED_HUB_COMMENTS.
+    hub_text = set(comments.values()) | _RETIRED_HUB_COMMENTS
 
     tree = ["docs/"]
+    carried = _carried_rows(docs_dir, existing)
 
-    def walk(directory: Path, prefix: str = "") -> None:
-        items = sorted(directory.iterdir())
-        # Filter items
-        items = [i for i in items if not i.name.startswith(".")]
+    def walk(directory: Path, prefix: str = "", rel: str = "") -> None:
+        kinds = {i.name: i.is_dir() for i in directory.iterdir()} if directory.is_dir() else {}
+        for name, is_dir in carried.get(rel, {}).items():
+            kinds.setdefault(name, is_dir)  # what is on disk wins a name clash
+        items = sorted((n, d) for n, d in kinds.items() if not n.startswith("."))
 
-        for i, item in enumerate(items):
+        for i, (name, is_dir) in enumerate(items):
             is_last = i == len(items) - 1
             connector = "└── " if is_last else "├── "
+            path = f"{rel}{name}"
+            own, slash, shown = existing.get(path, ("", False, False))
 
-            comment = comments.get(item.name, "")
+            comment = own if own and own not in hub_text else comments.get(name, "")
             # If directory, check with trailing slash
-            if item.is_dir() and not comment:
-                comment = comments.get(f"{item.name}/", "")
+            if is_dir and not comment:
+                comment = comments.get(f"{name}/", "")
+            collapsed = is_dir and slash and not shown
 
-            line = f"{prefix}{connector}{item.name}"
+            line = f"{prefix}{connector}{name}{'/' if collapsed else ''}"
             if comment:
                 line = f"{line.ljust(35)} # {comment}"
 
             tree.append(line)
 
-            if item.is_dir():
+            if is_dir and not collapsed:
                 # Skip expanding archive/ and trajectories/ (too noisy)
                 skip_dirs = {
                     "archive",
@@ -817,9 +1012,9 @@ def generate_docs_structure_tree() -> str:
                     "previously-planned-fabrik-phases",
                     "issues",
                 }
-                if item.name not in skip_dirs:
+                if name not in skip_dirs:
                     new_prefix = prefix + ("    " if is_last else "│   ")
-                    walk(item, new_prefix)
+                    walk(directory / name, new_prefix, f"{path}/")
 
     walk(docs_dir)
     tree_str = "\n".join(tree)
@@ -1641,14 +1836,19 @@ def _gitignored(paths: list[Path]) -> set[Path]:
     On ANY git failure this returns an empty set, i.e. check everything — a visible false positive
     beats silently skipping a doc the project really owns.
     """
-    if not paths:
+    return {PROJECT_ROOT / n for n in _check_ignore([str(p) for p in paths])}
+
+
+def _check_ignore(names: list[str]) -> set[str]:
+    """The subset of *names* git ignores — ONE batched `git check-ignore`, empty on any failure."""
+    if not names:
         return set()
     try:
         # `-z`: NUL-separated in and out, so paths with spaces/newlines survive intact.
         # Exit 1 means "nothing matched" and is NOT an error; 128 is.
         proc = subprocess.run(
             ["git", "check-ignore", "-z", "--stdin"],
-            input="\0".join(str(p) for p in paths),
+            input="\0".join(names),
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -1658,7 +1858,7 @@ def _gitignored(paths: list[Path]) -> set[Path]:
         return set()
     if proc.returncode not in (0, 1):
         return set()
-    return {PROJECT_ROOT / n for n in proc.stdout.split("\0") if n}
+    return {n for n in proc.stdout.split("\0") if n}
 
 
 def _is_scaffold_template(rel: str) -> bool:
@@ -1853,15 +2053,16 @@ def run_sync(dry_run: bool = False) -> None:
     # Sync STRUCTURE block in INDEX.md
     if README_PATH.exists():
         content = README_PATH.read_text()
-        new_tree = generate_docs_structure_tree()
+        current = extract_block_body(content, STRUCTURE_BLOCK_RE) or ""
+        new_tree = generate_docs_structure_tree(_parse_structure_rows(current))
         new_content, changed = replace_block(content, new_tree, STRUCTURE_BLOCK_RE, "STRUCTURE")
 
         if changed:
             if dry_run:
-                print("Would update: docs/INDEX.md (STRUCTURE block)")
+                print("Would update: INDEX.md (STRUCTURE block)")
             else:
                 README_PATH.write_text(new_content)
-                print("Updated: docs/INDEX.md (STRUCTURE block)")
+                print("Updated: INDEX.md (STRUCTURE block)")
 
     # Sync the PLANS block in docs/development/PLANS.md (opt-in by its markers)
     plans_changed, plans_msg = sync_plans_index(dry_run=dry_run)

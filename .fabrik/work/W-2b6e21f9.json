@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T15:00:42.552707Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2b6e21f9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4642DYMHKNT9V41XBJQ0VBR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: brand-identiy-creator points CROWDLEX_API_URL at http://crowdlex-api:8031, but the hub registry assigns port 8031 to the youtube project, and service_catalog.json lists \"crowdlex\"/\"crowdlex_internal\" as status \"unidentified\". Reported by /fabrik-catchup probe 6 (candidate dead/misregistered co"
+}

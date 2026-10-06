@@ -471,8 +471,9 @@ dispatch is not a command that renders instructions; it is the operator opening 
 - **agent-1 (the first name)** stays in the **main checkout** — the window running this command, already
   launched as `CLAUDE_AGENT=<name> claude -n <name>-<repo>` — and runs
   `/fabrik-spec docs/development/epics/<its epic>.md` on its Phase-1 epic. It is also the merge owner:
-  finished branches merge into master in `epic_order` phase order, one at a time, rebased first, and it
-  runs the tail after the last merge (`/fabrik-features` REFRESH → `/fabrik-conformance-review` when
+  finished branches merge into master in `epic_order` phase order, one at a time, through
+  `scripts/merge_request.py merge` (a refused requester brings the base in by merging it into its pushed
+  branch, never a rebase), and it runs the tail after the last merge (`/fabrik-features` REFRESH → `/fabrik-conformance-review` when
   E ≥ 2 → certification → `/fabrik-deploy-checklist` → `/fabrik-release`).
 - **agents 2..N** each launch `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` (the
   session name is `<name>-<repo>` because session names are box-wide — a bare `-n <name>` collides across

@@ -2049,7 +2049,7 @@ def sync_scripts_to_project(
                     )
                     file_results.append(result)
 
-        # Sync vendored fabrik-lib modules — whatever VENDORED_DIRS holds — recursive flat copy, bytecode
+        # Sync vendored fabrik-lib modules — whatever VENDORED_DIRS holds — recursive copy that keeps each file's relative path, bytecode
         # excluded (same rule as the enforcement dir), WITH orphan pruning: a Python module churns, so
         # a file REMOVED from the hub must be removed from every project too — else a stale
         # `from libs.<module> import <gone>` keeps resolving to dead code. ⚠️ `libs/subagents` is NOT

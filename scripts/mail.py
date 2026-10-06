@@ -8,7 +8,7 @@ One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,arch
 
     send  --to <repo> --kind <k> [--ack required|no] [--re <id>] [--from <repo>] [--auto]
           [--to-agent <role>] [--broadcast] < body
-          (hub-bound sends REQUIRE --to-agent infra|fleet|intel, --broadcast, or a
+          (hub-bound sends REQUIRE --to-agent infra|fleet|intel|kaizen, --broadcast, or a
           kind=reply thread — the addressing guard; see the refusal text)
     list  [--repo <repo>] [--agent <role>]
     read  <id> [--repo <repo>]
@@ -537,16 +537,16 @@ def _frontmatter(
     )
 
 
-# The hub's shared three-agent mailbox is the ONLY mailbox with beats — the send/route
+# The hub's shared four-agent mailbox is the ONLY mailbox with beats — the send/route
 # guards key on membership here. Project mailboxes keep free-form roles (_safe_agent is
 # shape-only). Adding a future beat = extend this tuple (plus the charter file).
-HUB_BEATS = ("infra", "fleet", "intel")
+HUB_BEATS = ("infra", "fleet", "intel", "kaizen")
 
 
 def _safe_agent(name: str) -> str:
     """Validate an intra-mailbox addressee (a ROLE, not a repo and not a session).
 
-    The hub runs three agents — infra · fleet · intel — sharing ONE `fabrik`
+    The hub runs four agents — infra · fleet · intel · kaizen — sharing ONE `fabrik`
     mailbox, so intra-hub traffic is `from: fabrik → to: fabrik` with no addressee
     at all. Agents worked around it in PROSE (`[infra→fleet]` body prefixes), and
     some put a role in `from:`, which is not a repo and breaks every routing and
@@ -638,7 +638,15 @@ def should_auto_reply(
     wins and names the reason. Fail-soft: an uncomputable rate count ALLOWs
     with a stderr note (a loop is lower-risk than a wedged channel)."""
     _safe_name(self_repo, "repo")  # L9: keep the traversal guard on this public entry
-    sender = parent_fm.get("from", "")
+    sender = str(parent_fm.get("from", "") or "").strip()
+    if not sender:
+        # Closing review of the loop-safety plan (W-0cd0363f): an empty sender
+        # matched neither self_repo nor any mailbox file, so a parent with no
+        # `from:` skipped the self-guard AND the rate cap and was ALLOWED.
+        return (
+            False,
+            "HOLD: parent has no from — the self-guard and rate cap cannot attribute it",
+        )
     if sender == self_repo:
         return (
             False,
@@ -1022,7 +1030,7 @@ def send(
             file=sys.stderr,
         )
     ack = ack or ACK_BY_KIND[kind]
-    # Addressing guard — the hub's shared three-agent mailbox only. Keyed on the LITERAL
+    # Addressing guard — the hub's shared four-agent mailbox only. Keyed on the LITERAL
     # "fabrik", deliberately never _is_hub(): fabrik-lib's mailbox has no beats and stays
     # unguarded. Runs AFTER the recipient/star checks and the HIGH-secret refusal (D6/E1 —
     # a credential leak is diagnosed as a leak on the FIRST attempt, never masked by an
@@ -1070,13 +1078,15 @@ def send(
             )
         if not to_agent and not broadcast and not is_thread_reply:
             raise MailRefusedError(
-                "unaddressed hub-bound send — the fabrik mailbox is shared by THREE agents, "
+                "unaddressed hub-bound send — the fabrik mailbox is shared by FOUR agents, "
                 "so name the owner:\n"
-                "  --to-agent infra  (commands · rules packs · enforcement · hooks · "
-                "fabrik-mail · workstation)\n"
+                "  --to-agent infra  (the CODE of hooks, enforcement checks and fabrik-mail · "
+                "the sync · workstation)\n"
                 "  --to-agent fleet  (VPS · deploy · specs/services · scaffolding · "
                 "monitoring)\n"
-                "  --to-agent intel  (models · benchmarks · flywheel · reviews)\n"
+                "  --to-agent intel  (models · benchmarks · flywheel · the review loop)\n"
+                "  --to-agent kaizen (FEEDBACK verdicts · a command's or rule's WORDING · "
+                "ways of working — the feedback loop)\n"
                 "  genuinely all-agents → --broadcast (with --ack no)"
             )
     # AFTER every refusal, BEFORE minting: a hint must never change whether a
@@ -1679,14 +1689,15 @@ def _verify_merge_sha(msg_id: str, body: str, merge_sha: str | None) -> str:
     Git runs in the CWD's repository. Returns the FULL SHA; raises MailRefusedError otherwise.
     Cobra note: the cheapest pass without a merge is a commit that merges the head AND names the
     id — which is a real merge by construction; ancestry of base is what makes it landed."""
-    if not (merge_sha or "").strip():
+    wanted = (merge_sha or "").strip()  # bound once: the refusal and the lookup read the same str
+    if not wanted:
         raise MailRefusedError(
             f"{msg_id}: ack --disposition done of a merge-request needs --merge-sha <sha> "
             "(the merge commit that landed the request's head in base)"
         )
     fields = _body_fields(body)
     base_ref, head_ref = fields.get("base", ""), fields.get("head", "")
-    sha = _commit_sha(merge_sha.strip())
+    sha = _commit_sha(wanted)
     if not sha:
         raise MailRefusedError(f"{msg_id}: --merge-sha {merge_sha!r} is not a commit in this repo")
     base = _commit_sha(base_ref)

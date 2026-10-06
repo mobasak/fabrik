@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T05:50:56.030280Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-782670db",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M44WGW53QY52265H7F6DHF8M",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "Re: Stop hook sixth cause can't be cleared by the review that reviewed the file — fixed at the writer (D-574)"
+}

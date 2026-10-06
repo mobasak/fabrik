@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "core/55-observability.md now contradicts the node-api scaffold (line 227), its matrix overclaims file-api /metrics, and 12-node's drain pattern makes the /health 503 unobservable"
 }

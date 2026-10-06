@@ -185,47 +185,36 @@ def test_plan_review_small_spec_exception_has_an_estimate_escape_hatch() -> None
 
 
 def test_plan_review_small_spec_exception_presents_in_spec_reviews_own_order() -> None:
-    """S4/O12 (orchestrator ruling): present exactly what `/fabrik-spec-review` presents — the
-    ask↔spec table (built from the spec's own `## Intake Inventory`, never fabricated), the
-    converged spec + a summary of what hardened, and the full Pass Ledger — never dropping the
-    middle item, and never ENDING the run some other way (O16: "skips the operator's
-    design-approval gate" must fail)."""
+    """S4/O12, as amended by D-613 (operator 2026-10-06): the gate is held, now answered by the
+    panel; the ask↔spec table is still built from the spec's own `## Intake Inventory` (never
+    fabricated) and kept in the review receipt — never dropped, and the run never ENDS some
+    other way (O16)."""
     section = _plan_review_small_spec_section()
     assert_affirmed(
         section,
-        "this run ends at the operator's design-approval gate — present exactly what "
-        "`/fabrik-spec-review` presents (`fabrik-spec-review.md:280-296`), in the same order",
+        "this run ends at the design-approval gate, which the panel below answers in the "
+        "operator's place",
     )
     assert_affirmed(
         section,
-        "(1) the ask↔spec comparison table, built from the spec's own `## Intake Inventory` "
-        "section (the A0a enumeration `/fabrik-spec` already wrote when it authored this spec — "
-        "this loop never re-runs that step and never fabricates rows)",
-    )
-    assert_affirmed(section, "(2) the converged spec + a short summary of what hardened")
-    assert_affirmed(
-        section,
-        "(3) the full Pass Ledger; then **end the turn** with the `DECISION NEEDED (ground: gate)` "
-        "block asking for design approval",
+        "the ask↔spec comparison table, built from the spec's own `## Intake Inventory` section "
+        "(the A0a enumeration `/fabrik-spec` already wrote when it authored this spec — this "
+        "loop never re-runs that step and never fabricates rows), kept in the plan's review receipt, not in chat",
     )
 
 
-def test_plan_review_small_spec_exception_does_not_mint_the_approval_row_in_the_loop() -> None:
-    """O2 (orchestrator ruling): the approval row is minted ONLY on the operator's explicit
-    approval, in a later turn — exactly as `/fabrik-spec-review` does. The loop itself must say it
-    does NOT mint the row, and that prohibition must be the sentence's OWN wording (O7: a bare
-    "mint the approval row" substring is satisfied by its own negation elsewhere)."""
+def test_plan_review_small_spec_exception_never_starts_the_build() -> None:
+    """O2, as amended by D-613: the panel's approval row is this spec's approval row, and the
+    loop never invokes `/fabrik-execute-plan` — the brief names it as ready work."""
     section = _plan_review_small_spec_section()
     assert_affirmed(
         section,
-        "**Do NOT mint the approval row here, and do NOT auto-invoke `/fabrik-execute-plan`** — "
-        "exactly as `/fabrik-spec-review` does today, this loop ends with BOTH documents CONVERGED "
-        "and no approval row yet",
+        "**this loop never invokes `/fabrik-execute-plan` itself.** On a split, end the turn with "
+        "this block, written as plain lines, not inside a code fence",
     )
     assert_affirmed(
         section,
-        "only on the operator's explicit approval, in a LATER turn, does that approving turn's "
-        "session mint the `docs/DECISIONS.md` approval row",
+        "On approval the panel's row is this `Size: small` spec's approval row",
     )
 
 

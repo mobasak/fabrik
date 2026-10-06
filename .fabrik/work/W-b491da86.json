@@ -13,9 +13,12 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
-  "owner": "infra",
+  "note": "mail ack: done",
+  "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "WHAT: fabrik-review-loop.js reports a slice \"unread\" (and NOT closable) when the seat demonstrably read the file — a coverage false positive that blocks a clean delta round."
 }

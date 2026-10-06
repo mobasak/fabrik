@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T23:57:16.087584Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-58fa5518",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-571",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add the rule beside the existing Tier-D prerequisite check in src/fabrik/spec_loader.py, with a test that a Tier-D spec without a project prompt is rejected",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Tier-D guard: a spec with watchdog.auto_code_fix true must set watchdog.project_system_prompt_file (D-571 salvage b; 0 of 69 specs broken today)"
+}

@@ -13,8 +13,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "review-loop PINS grader: assert the whole recipe sentence, not clauses — a substring assertion admits contradicting text inserted between or after its clauses (scoped review of the seat recipe, 2026-10-04: three own-fix rounds, each a new inserted-text mutant)"
 }

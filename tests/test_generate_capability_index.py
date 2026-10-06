@@ -104,6 +104,39 @@ def test_script_with_no_safe_probe_is_manual_not_broken(tmp_path) -> None:
     assert status == "manual"
 
 
+def test_a_main_guard_past_the_header_window_still_classifies_ok(tmp_path) -> None:
+    """The probe markers are searched in the WHOLE file: check_traycer_chain.py's `if __name__`
+    sat at char 4219, past the old 4000-char head, and the script fell to "manual" (W-a8b6defa)."""
+    f = tmp_path / "long_tool.py"
+    f.write_text(
+        '"""A long tool."""\n' + "x = 1\n" * 1500 + 'if __name__ == "__main__":\n    pass\n'
+    )
+    assert len(f.read_text()) > 4000
+    status, _ = gci._classify_script(f)
+    assert status == "ok"
+
+
+def test_a_probe_marker_only_in_a_comment_is_not_a_probe(tmp_path) -> None:
+    """A comment that merely mentions argparse is not a safe probe: the whole-file search reads
+    code lines only, so a prose mention far down the file stays "manual" (review of W-a8b6defa)."""
+    f = tmp_path / "doc_tool.py"
+    f.write_text(
+        '"""A tool."""\n' + "x = 1\n" * 1500 + "# historical note: this once used argparse.\n"
+    )
+    status, _ = gci._classify_script(f)
+    assert status == "manual"
+
+
+def test_the_after_edit_header_is_never_the_summary(tmp_path) -> None:
+    """A script's `# AFTER-EDIT:` doc-coupling header is machinery, not its description (W-a8b6defa)."""
+    f = tmp_path / "tool.py"
+    f.write_text(
+        "#!/usr/bin/env python3\n# AFTER-EDIT: docs/x.md\n# Rebuilds the widget index.\nimport argparse\n"
+    )
+    _, summary = gci._classify_script(f)
+    assert summary == "Rebuilds the widget index."
+
+
 # --- Behavior 6: capabilities.json is valid against the 8-key schema ---------------------------------
 
 

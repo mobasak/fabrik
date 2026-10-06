@@ -24,7 +24,16 @@ REPO = Path(__file__).resolve().parents[1]
 FRAGMENT = REPO / "commands" / "_fragments" / "design-critique.md"
 # A sentence only the fragment carries — the marker the render must contain once per holder.
 MARKER = "Two independent design critiques"
-GATE_HOLDERS = ("fabrik-spec-review", "fabrik-plan-review", "fabrik-task")
+GATE_HOLDERS = (
+    "fabrik-spec-review",
+    "fabrik-plan-review",
+    "fabrik-flows-review",
+    "fabrik-ui-design-review",
+    "fabrik-task",
+)
+# D-613: the commands whose design-approval gate the panel answers in the operator's place.
+PANEL_HOLDERS = GATE_HOLDERS[:4]
+PANEL_MARKER = "The panel answers the design-approval gate in the operator's place"
 
 
 def _load(path: Path, name: str):
@@ -77,10 +86,38 @@ def test_fragment_names_both_models_the_fallback_and_no_version() -> None:
     """Both model tokens, the Fable-unavailable fallback, the counter — and no version literal."""
     text = FRAGMENT.read_text(encoding="utf-8")
     assert 'model: "opus"' in text and 'model: "fable"' in text, "a model token is missing"
-    assert re.search(r"When Fable is unavailable[^.]*run a second\s+Opus\s+seat in its place", text), (
-        "no Fable→Opus fallback sentence"
-    )
+    assert re.search(
+        r"When Fable is unavailable[^.]*run a second\s+Opus\s+seat in its place", text
+    ), "no Fable→Opus fallback sentence"
     assert "ONE message" in text, "the two critiques are not dispatched in parallel"
     assert "dispatch --seats 2" in text, "the two seats are not stamped"
     assert re.search(r"(?i)cobra", text), "no cheapest-way-past line (D-253)"
     assert not re.search(r"\b(Opus|Fable)\s+\d", text), "a model version literal in rule text"
+
+
+@pytest.mark.parametrize("command", PANEL_HOLDERS)
+def test_four_gate_commands_include_panel(rendered, command) -> None:
+    """Behaviour 7 (D-613): each design-gate command renders the panel step once, AFTER the
+    critique step it reads; `/fabrik-task` (no gate) carries none."""
+    text = rendered[command]
+    assert text.count(PANEL_MARKER) == 1, (
+        f"{command}.md carries the panel step {text.count(PANEL_MARKER)} times"
+    )
+    assert text.index(MARKER) < text.index(PANEL_MARKER), f"{command}.md: panel before critique"
+
+
+def test_fabrik_task_has_no_panel_step(rendered) -> None:
+    assert PANEL_MARKER not in rendered["fabrik-task"]
+
+
+@pytest.mark.parametrize("command", PANEL_HOLDERS)
+def test_each_panel_holder_states_its_split_block(rendered, command) -> None:
+    """B-S3: the panel step ends a split at "the command's DECISION block" — each of the four
+    commands must state one, with the `Panel: … → split` line the Stop hook checks."""
+    text = rendered[command]
+    i = text.find("DECISION NEEDED (ground: gate)")
+    assert i != -1, f"{command}.md states no DECISION block for the split path"
+    window = text[i : i + 1200]
+    assert re.search(r"^\s*- Panel: .*→ split\s*$", window, re.M), (
+        f"{command}.md: no split Panel line"
+    )

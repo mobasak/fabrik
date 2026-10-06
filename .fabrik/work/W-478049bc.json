@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T09:16:34.254493Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-478049bc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3WSN8X6G0D8SJA0HMAQRSYD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: On this workstation, registry.npmjs.org and registry.yarnpkg.com do not resolve. `npm install` hangs; `getent hosts registry.npmjs.org` returns nothing. Other hosts resolve, including api.cloudflare.com and cdn.jsdelivr.net."
+}

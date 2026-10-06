@@ -1319,6 +1319,42 @@ def main() -> int:
     args = parser.parse_args()
     root = args.project_root.resolve()
 
+    # W-70d7718d (tryton-crm 01M3RW55): every worklist below comes from `git status`, which
+    # prints nothing outside a work tree — so a plan claiming CONVERGED with no proof passed rc 0
+    # unexamined in a scratch copy. Refuse instead; with no plan or review file on disk there is
+    # nothing to grade and rc 0 stays honest.
+    why = ""
+    try:
+        probe = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        inside = probe.stdout.strip()
+        why = (probe.stderr.strip().splitlines() or [""])[0]
+    except (OSError, subprocess.SubprocessError) as e:
+        inside = ""  # no git binary, a missing root, or a hang: nothing below could list plans
+        why = f"{type(e).__name__}: {e}"
+    if inside != "true":
+        on_disk = [
+            p
+            for d in (PLANS_DIR, REVIEWS_DIR)
+            if (root / d).is_dir()
+            for p in (root / d).rglob("*.md")
+        ]
+        if on_disk:
+            print(
+                f"check_convergence: {root} is not inside a git work tree, so its "
+                f"{len(on_disk)} plan/review file(s) cannot be listed and were NOT examined. "
+                + (f"git said: {why} — fix that first. " if why else "")
+                + "A plain scratch copy is graded once you run `git init && git add -A` in it "
+                "(staged files are graded; untracked ones are skipped by design)."
+            )
+            return 2
+        return 0
+
     fails: list[str] = []
     for p in _converged_targets(root):
         fails += _check_plan(root, p)

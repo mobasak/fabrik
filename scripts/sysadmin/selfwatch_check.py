@@ -27,7 +27,16 @@ import sys
 from pathlib import Path
 
 WATCH = Path.home() / ".claude" / "bin" / "claude-selfwatch.sh"
-ARM = "/opt/fabrik/scripts/sysadmin/selfwatch_arm.sh"  # runs WATCH as one background Bash task (D-356)
+# ONE notion of where the hub lives (`FABRIK_HUB_ROOT`, trailing slash tolerated): the arm scripts,
+# the whoami resolver and the kaizen cwd gate all derive from it, so a relocated hub cannot be
+# recognised by one and pointed at the wrong path by another (review pass 1, D-S4/D-S5/D-S6/C-S5)
+HUB_ROOT = (os.environ.get("FABRIK_HUB_ROOT") or "/opt/fabrik").rstrip("/") or "/opt/fabrik"
+ARM = f"{HUB_ROOT}/scripts/sysadmin/selfwatch_arm.sh"  # runs WATCH as one background Bash task (D-356)
+# The fourth hub agent's second watch (kaizen, 2026-10-06): the feedback loop's owner is woken when a
+# command-feedback queue rises or mail addressed to it lands. Same shape, its own lock suffix. It
+# needs NO self-watch binary — its order is evaluated before the self-watch's own gates.
+FEEDBACK_ARM = f"{HUB_ROOT}/scripts/sysadmin/feedback_watch_arm.sh"
+FEEDBACK_AGENT = "kaizen"
 
 
 def _safe(sid: str) -> str:
@@ -63,8 +72,55 @@ def _held_per_proc_locks(st: os.stat_result) -> bool:
     return False
 
 
-def _armed(sid: str) -> bool:
-    path = _lock_dir() / f"{_safe(sid)}.selfwatch.lock"
+def _agent_name() -> str:
+    """`CLAUDE_AGENT` when set, else the whoami binding for this process's session — the hub's
+    resolver, imported by path; "" on any failure (a check must never block a prompt)."""
+    env = (os.environ.get("CLAUDE_AGENT") or "").strip()
+    if env:
+        return env
+    try:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "_selfwatch_whoami", f"{HUB_ROOT}/scripts/whoami_agent.py"
+        )
+        if spec is None or spec.loader is None:
+            return ""
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return str(mod.resolve_agent_name() or "")
+    except Exception:
+        return ""
+
+
+def _in_hub(cwd: str) -> bool:
+    """The hub's main checkout or one of its linked worktrees — the only trees whose kaizen window
+    watches the box-global feedback ledger (a project window named kaizen is not the hub's)."""
+    cwd = cwd.rstrip("/") or "/"
+    return cwd == HUB_ROOT or cwd.startswith(HUB_ROOT + "/")
+
+
+def _feedback_order(sid: str, cwd: str) -> str:
+    """The feedback-watch arm order for a kaizen window in the hub whose feedbackwatch lock is free;
+    "" for every other window. Evaluated BEFORE the self-watch's own early return, because an armed
+    self-watch is the normal state of a live window (design critique, Opus #6)."""
+    if _agent_name() != FEEDBACK_AGENT or not _in_hub(cwd):
+        return ""
+    if _armed(sid, "feedbackwatch"):
+        return ""
+    return (
+        "## ⚠️ FEEDBACK WATCH NOT ARMED (kaizen window, mechanical check)\n"
+        "No process holds this session's `feedbackwatch.lock`, so a queue that rises or mail "
+        "addressed to you lands unseen until your next prompt. ARM IT NOW — one background Bash "
+        "task; once the lock is held this notice stops:\n"
+        f'`Bash(run_in_background: true, command: "bash {FEEDBACK_ARM} {_safe(sid)}")`\n'
+        "(ONE wake per arm: its wake line names the `/fabrik-command-improve <cmd>` or the mail id "
+        "to claim — act on it, then re-arm. Authority: docs/workstation/hooks-index.md.)\n"
+    )
+
+
+def _armed(sid: str, suffix: str = "selfwatch") -> bool:
+    path = _lock_dir() / f"{_safe(sid)}.{suffix}.lock"
     if not path.exists():
         return False
     st = os.stat(path)
@@ -100,9 +156,15 @@ def main() -> int:
             or os.environ.get("CLAUDE_MESH_HEADLESS") == "1"
             or os.environ.get("FABRIK_HEADLESS") == "1"
             or os.environ.get("CLAUDE_MESH_AUTONOMOUS") == "1"
-            or not (cwd == "/opt" or cwd.startswith("/opt/"))
-            or not WATCH.is_file()
         ):
+            return 0
+        # the kaizen feedback-watch order first: it is gated on the HUB tree (`_in_hub`), never on
+        # the `/opt` prefix or the self-watch binary below, which belong to the self-watch alone
+        # (review pass 1, A-S1/A-S2/D-S4)
+        order = _feedback_order(sid, cwd)
+        if order:
+            print(order)
+        if not (cwd == "/opt" or cwd.startswith("/opt/")) or not WATCH.is_file():
             return 0
         if _armed(sid):
             return 0

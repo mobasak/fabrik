@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-01T09:07:49.532564Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "55dc797a91a96a2f43fb9b038084b5d40e6f6d7a",
   "id": "W-61380819",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "tests"
   ],

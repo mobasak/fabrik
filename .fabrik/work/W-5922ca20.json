@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T12:01:08.307100Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5922ca20",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M45VXB06KATW8GT33R3JC12Q",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: run `/claude-api prompt-audit` over the hub contract, the synced template and the command/rules corpus (your 01M3RQ7G6ZM8H1B66VJG93S32B; ordering rule 01M3RQE2C4D3B81KRR2A5K94ND)"
+}

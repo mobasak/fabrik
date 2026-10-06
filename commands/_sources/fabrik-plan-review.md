@@ -26,22 +26,32 @@ the same commit as the plan), then the plan; flipping the plan alone fails the g
 more than ~400 code lines OR more than 5 code files, tests excluded), remove the `Size: small` line from
 the spec and send it to `/fabrik-spec-review` first — the joint loop does not continue past that point.
 
-Once both documents read `Status: CONVERGED`, this run ends at the operator's design-approval gate —
-present exactly what `/fabrik-spec-review` presents (`fabrik-spec-review.md:280-296`), in the same order:
-(1) the ask↔spec comparison table, built from the spec's own `## Intake Inventory` section (the A0a
-enumeration `/fabrik-spec` already wrote when it authored this spec — this loop never re-runs that step
-and never fabricates rows); (2) the converged spec + a short summary of what hardened; (3) the full Pass
-Ledger; then **end the turn** with the `DECISION NEEDED (ground: gate)` block asking for design approval.
-**Do NOT mint the approval row here, and do NOT auto-invoke `/fabrik-execute-plan`** — exactly as
-`/fabrik-spec-review` does today, this loop ends with BOTH documents CONVERGED and no approval row yet;
-only on the operator's explicit approval, in a LATER turn, does that approving turn's session mint the
-`docs/DECISIONS.md` approval row — the duty `fabrik-plan-after-chat.md:55` hands to `/fabrik-spec-review`
-for full-size work, which this `Size: small` spec skipped. If the operator asks for changes instead,
-re-open the loop on their feedback, same as `/fabrik-spec-review`. A spec with no `Size: small` line keeps
-today's behaviour unchanged: no joint loop, no gate, full autonomy. **Only a `Size: small` spec's gate owes the
-step below** — a plan review without that gate dispatches no critiques.
+Once both documents read `Status: CONVERGED`, this run ends at the design-approval gate, which the panel
+below answers in the operator's place. Its brief carries the ask↔spec comparison table, built from the spec's
+own `## Intake Inventory` section (the A0a enumeration `/fabrik-spec` already wrote when it authored this spec —
+this loop never re-runs that step and never fabricates rows), kept in the plan's review receipt, not in chat.
+On approval the panel's row is this `Size: small` spec's approval row — the duty `fabrik-plan-after-chat.md:55`
+hands to `/fabrik-spec-review` for full-size work — and the brief's `NEXT:` names `/fabrik-execute-plan <plan>`;
+**this loop never invokes `/fabrik-execute-plan` itself.** On a split, end the turn with this block,
+written as plain lines, not inside a code fence; the operator's answer, in a LATER turn, is minted by that
+turn's session, and changes re-open the loop.
+
+```
+DECISION NEEDED (ground: gate)
+- Question: Do you approve this converged design spec and its plan for the build?
+- Why it is yours: design approval of <spec path> and <plan path> — the panel split, so the gate before the build is yours.
+- Options: A — approve as converged, and `/fabrik-execute-plan <plan>` is the next step · B — take the disputed changes, and the joint loop re-opens on them.
+- Recommendation: <A or B>, with the one disputed concern that decides it.
+- Panel: opus="<its VERDICT line>" fable="<its VERDICT line>" → split
+```
+ A spec with no `Size: small` line
+keeps today's behaviour unchanged: no joint loop, no gate, full autonomy.
+**Only a `Size: small` spec's gate owes the two steps below** — a plan review without that gate dispatches no
+critiques.
 
 {{include:design-critique}}
+
+{{include:design-gate-panel}}
 
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope

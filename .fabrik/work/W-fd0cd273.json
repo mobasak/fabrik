@@ -13,8 +13,11 @@
   },
   "next": "**[infra] `check_rule_grounding._digest_rows` grades NOTHING on a Pack-first Constraints Digest, and says so in a way that reads like the opposite (2026-09-18)** — it takes `cells[0]` as the QUOTE and `cells[1]` as the cited path. A digest written `| Pack | Rule | file:line |` makes it resolve each quote's FIRST WORD (`uv`, `Behavior`, `Fenced`) as a filename and emit `QUOTE-NOT-FOUND: digest cites uv which does not exist` — 8 findings while verifying ZERO quotes. Found by running the gate on a flipped scratch copy during `/fabrik-plan-review`; the fix in the reviewed artifact was to reorder its columns, but the GATE should detect a table whose cell 1 holds no path-shaped token and say \"this digest's columns are in an order I cannot read\" rather than emit per-row not-found noise. Low-medium.",
   "note": "migrated-digest:5fb2d5fbef1d",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "**`check_rule_grounding._digest_rows` grades NOTHING on a Pack-first Constraints Digest, and says so in a way that reads like the opposite (2026-09-18)** — it takes `cells[0]` as the QUOTE and `cel..."
 }

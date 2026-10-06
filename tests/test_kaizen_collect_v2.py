@@ -3256,7 +3256,9 @@ def test_upsert_leaves_no_tmp_residue(tmp_path: Path) -> None:
     log.write_text("\n".join([header, sep]) + "\n", encoding="utf-8")
     assert kc.upsert_log_row(log, ["2026-08-19"] + [kc.DASH] * (len(kc.COLUMNS) - 1))
     assert "| 2026-08-19 |" in log.read_text()
-    leftovers = [p.name for p in work.iterdir() if p.name != "log.md"]  # the log lock lives in KAIZEN_LOCK_DIR
+    leftovers = [
+        p.name for p in work.iterdir() if p.name != "log.md"
+    ]  # the log lock lives in KAIZEN_LOCK_DIR
     assert leftovers == [], leftovers
 
 
@@ -3291,7 +3293,9 @@ def test_upsert_replace_failure_leaves_the_log_untouched(
         "the original log must survive a failed replace byte-for-byte"
     )
     assert "row skipped" in buf.getvalue()
-    leftovers = [p.name for p in work.iterdir() if p.name != "log.md"]  # the log lock lives in KAIZEN_LOCK_DIR
+    leftovers = [
+        p.name for p in work.iterdir() if p.name != "log.md"
+    ]  # the log lock lives in KAIZEN_LOCK_DIR
     assert leftovers == [], "the failed write cleans up its unique tmp"
 
 
@@ -3799,13 +3803,17 @@ def test_malformed_series_rows_never_cost_the_mail(tmp_path: Path) -> None:
         + b'\n{"day": "2026-09-20", "cell": "1.0 (1/1)"}\n'
     )
     metrics = {"m": kc.MetricResult(id="m", cell="2.0 (2/1)")}
-    body = kc._compose_mail(dt.date(2026, 9, 22), metrics, "", {"m": {"version": 1, "hash": "h"}}, tmp_path)
+    body = kc._compose_mail(
+        dt.date(2026, 9, 22), metrics, "", {"m": {"version": 1, "hash": "h"}}, tmp_path
+    )
     assert "  - previous: 09-20 1.0 (1/1)\n" in body
     body = kc._compose_mail(dt.date(2026, 9, 22), metrics, "", {"m": {"version": "x"}}, tmp_path)
     assert "  - previous: unavailable (ValueError)\n" in body
 
 
-def test_the_daily_pass_mails_the_prior_readings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_daily_pass_mails_the_prior_readings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The call site, not just the composer: daily() hands the registry and state through."""
     sent: list[str] = []
     monkeypatch.setattr(kc, "send_mail", lambda root, body: sent.append(body) or True)
@@ -3821,3 +3829,80 @@ def test_the_daily_pass_mails_the_prior_readings(tmp_path: Path, monkeypatch: py
     assert kc.daily(day, **args) == 0
     assert len(sent) == 1
     assert f"  - previous: {prior[5:]} 7\n" in sent[0]
+
+
+# ── W-97de2aa3 part 2: a clean coroner sweep that closed the day is evidence ─────────
+
+
+def _sweep_line(ts: str, **over) -> str:
+    row = {"ts": ts, "errors": 0, "blind": False, "inconclusive": 0, "lookback_h": 48.0}
+    row.update(over)
+    return json.dumps(row)
+
+
+def _local(day: str, hh: int, mm: int = 0) -> str:
+    return (
+        dt.datetime.combine(dt.date.fromisoformat(day), dt.time(hh, mm))
+        .astimezone()
+        .isoformat(timespec="seconds")
+    )
+
+
+def test_closing_sweep_measures_a_death_free_day(tmp_path) -> None:
+    """Behaviour 4: the clean sweep taken the NEXT morning (it looked back past the day's
+    start) makes a death-free day a measured 0."""
+    (tmp_path / "coroner-sweeps.jsonl").write_text(_sweep_line(_local("2026-08-19", 12, 53)) + "\n")
+    assert kc._coroner_swept(dt.date(2026, 8, 18), tmp_path) is True
+    quiet = _w2_row("s", "2026-08-18", events={"stop_pass": 1}, death_classes=[])
+    m = kc.compute_metrics([quiet], holes=0, coroner_swept=True)
+    assert m["death_occurrences"].measurable and m["death_occurrences"].cell == "0"
+    assert m["death_classes"].measurable
+
+
+def test_unqualified_sweep_leaves_the_day_unmeasured(tmp_path) -> None:
+    """Behaviour 5: a same-day sweep, a blind one, an erroring one, one with an
+    inconclusive instrumented marker, one whose lookback misses the day, or none at all
+    never evidences the day."""
+    d = dt.date(2026, 8, 18)
+    assert kc._coroner_swept(d, tmp_path) is False  # no log
+    bad = [
+        _sweep_line(_local("2026-08-18", 12, 53)),  # same day: saw only half of it
+        _sweep_line(_local("2026-08-19", 12, 53), blind=True),
+        _sweep_line(_local("2026-08-19", 12, 53), errors=1),
+        _sweep_line(_local("2026-08-19", 12, 53), inconclusive=2),
+        _sweep_line(_local("2026-08-19", 12, 53), lookback_h=6.0),  # never reached the start
+        "not json",
+    ]
+    (tmp_path / "coroner-sweeps.jsonl").write_text("\n".join(bad) + "\n")
+    assert kc._coroner_swept(d, tmp_path) is False
+    quiet = _w2_row("s", "2026-08-18", events={"stop_pass": 1}, death_classes=[])
+    m = kc.compute_metrics([quiet], holes=0, coroner_swept=False)
+    assert not m["death_occurrences"].measurable
+
+
+def test_death_pair_is_version_2() -> None:
+    """Behaviour 6: the evidence gate changed, so both halves bump together."""
+    reg = {d["id"]: d for d in kc.METRIC_DEFS}
+    assert reg["death_occurrences"]["version"] == 2 and reg["death_classes"]["version"] == 2
+    assert "coroner-sweeps.jsonl" in reg["death_occurrences"]["formula"]
+
+
+def test_closing_sweep_bounds_follow_daylight_saving(tmp_path, monkeypatch) -> None:
+    """B-S1/B-S2: each bound is its own date's local midnight. On a 25-hour fall-back day a
+    sweep late on that same day must not pass for the closing sweep (start + 24 h would
+    end the day an hour early)."""
+    import time as _time
+
+    monkeypatch.setenv("TZ", "America/New_York")
+    _time.tzset()
+    try:
+        d = dt.date(2026, 11, 1)  # US fall-back: 25 hours long
+        late_same_day = dt.datetime(2026, 11, 1, 23, 30).astimezone().isoformat()
+        (tmp_path / "coroner-sweeps.jsonl").write_text(_sweep_line(late_same_day) + "\n")
+        assert kc._coroner_swept(d, tmp_path) is False
+        next_morning = dt.datetime(2026, 11, 2, 0, 30).astimezone().isoformat()
+        (tmp_path / "coroner-sweeps.jsonl").write_text(_sweep_line(next_morning) + "\n")
+        assert kc._coroner_swept(d, tmp_path) is True
+    finally:
+        monkeypatch.delenv("TZ", raising=False)
+        _time.tzset()

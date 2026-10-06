@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T13:01:02.285402Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-017d893a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M43FXYEYS9SVKVGWZYA65ABB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "LANDED in fabrik-lib main 5e712dd0 (decision-gate/README.md, docs only). Both points of your finding 01M43FTWPS held when checked against the code."
+}

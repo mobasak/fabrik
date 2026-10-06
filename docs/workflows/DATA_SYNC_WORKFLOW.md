@@ -128,22 +128,20 @@ Under the lock, detached with `nohup`:
 | Step | Script | Purpose |
 |------|--------|---------|
 | 1 | `scripts/wait_for_network.sh` | wait for the network |
-| 2 | `scripts/sync_projects.py` | § 1.1 |
-| 3 | `scripts/health_summary.py` | § 1.5 |
-| 4 | *(OpenRouter routing subshell)* | now EMPTY — only the `/tmp/.openrouter_routing_disabled` kill-switch test and a `cd` remain; the routing scripts moved to the engine (§ 3.4) |
-| 5 | `scripts/check_ai_pack_freshness.py` | warn-only: `.windsurf/rules/ai/*.md` packs whose `Last content verification:` is >90 d old (`AI_PACK_STALE_DAYS`) |
-| 6 | `scripts/sync_extensions.sh` | exits at once with "Skipped: windsurf CLI is not installed" (Windsurf/Cascade retired) |
-| 7 | `ssh -N -L 15432:10.99.0.1:5432 …` | the Postgres MCP tunnel to the hub's `postgres-main`, `pgrep`-guarded |
-| 8 | `commands/assemble_commands.py --check` | warn if `~/.claude/commands` drifted from `commands/_sources/` |
-| 9 | `/opt/session-recall … -m ingest.reindex` | session-recall incremental index (`timeout 600`; Postgres down = one log line) |
-| 10 | `scripts/kilo-benchmarks/flush_subagent_outboxes.py` | replay stranded subagent rows into the flywheel |
-| 11 | `scripts/claude_p_cost.py --refresh` | rebuild `scripts/kilo-benchmarks/claude_p_cost.json` |
-| 12 | `scripts/kilo-benchmarks/rank_task_subagents.py` | regenerate `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` |
-| 13 | `scripts/kilo-benchmarks/tests/capture_golden.py --verify` | contract oracle (drift alerts) |
-| 14 | `scripts/kilo-benchmarks/check_daily_refresh_freshness.py` | heartbeat check |
-| 15 | `scripts/external_services_chain.sh` | § 1.3 |
-| 16 | `scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh` | commit the pipeline's own regenerated tracked files (explicit `PATHS` list: the `docs/reference/kilo/*` selection docs, `docs/CAPABILITIES.md`, `capabilities.json`, `docs/traycer/kilo_selected_agents.md`, `scripts/kilo-benchmarks/claude_p_cost.json`, …), guarded fast-forward push, never force |
-| 17 | heartbeat write | `daily_refresh_last_success.txt` |
+| 2 | `scripts/health_summary.py` | § 1.5 |
+| 3 | `scripts/check_ai_pack_freshness.py` | warn-only: `.windsurf/rules/ai/*.md` packs whose `Last content verification:` is >90 d old (`AI_PACK_STALE_DAYS`) |
+| 4 | `scripts/sync_extensions.sh` | exits at once with "Skipped: windsurf CLI is not installed" (Windsurf/Cascade retired) |
+| 5 | `ssh -N -L 15432:10.99.0.1:5432 …` | the Postgres MCP tunnel to the hub's `postgres-main`, `pgrep`-guarded |
+| 6 | `commands/assemble_commands.py --check` | warn if `~/.claude/commands` drifted from `commands/_sources/` |
+| 7 | `/opt/session-recall … -m ingest.reindex` | session-recall incremental index (`timeout 600`; Postgres down = one log line) |
+| 8 | `scripts/kilo-benchmarks/flush_subagent_outboxes.py` | replay stranded subagent rows into the flywheel |
+| 9 | `scripts/claude_p_cost.py --refresh` | rebuild `scripts/kilo-benchmarks/claude_p_cost.json` |
+| 10 | `scripts/kilo-benchmarks/rank_task_subagents.py` | regenerate `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` |
+| 11 | `scripts/kilo-benchmarks/tests/capture_golden.py --verify` | contract oracle (drift alerts) |
+| 12 | `scripts/kilo-benchmarks/check_daily_refresh_freshness.py` | heartbeat check |
+| 13 | `scripts/external_services_chain.sh` | § 1.3 |
+| 14 | `scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh` | commit the pipeline's own regenerated tracked files (explicit `PATHS` list: the `docs/reference/kilo/*` selection docs, `docs/CAPABILITIES.md`, `capabilities.json`, `docs/traycer/kilo_selected_agents.md`, `scripts/kilo-benchmarks/claude_p_cost.json`, …), guarded fast-forward push, never force |
+| 15 | heartbeat write | `daily_refresh_last_success.txt` |
 
 `generate_kilo_agents.py` and `sync_cascade_backup.sh` are NOT invoked on the boot path (the hook's comment says so for `sync_cascade_backup.sh`), and `generate_kilo_agents.py` no longer runs from the cron either: both tools it fed — the Kilo CLI and Traycer's CLI agents — are retired (D-415). `tests/test_retired_scripts_not_scheduled.py` refuses a RETIRED-headed script named as a step of either scheduler.
 
@@ -162,7 +160,7 @@ Under the lock, detached with `nohup`:
 | `capture_golden --verify` | contract oracle |
 | `sync_enforcement_to_projects` | § 2.1 (c) |
 | heartbeat + disk hygiene | `.microbench_cache` and `translation_bench/cache` files >30 d, all but the 5 newest `direct_vendor_audit_*`, rotated `update.log.*` / `env_watcher.log.*` beyond 3 generations, week-old `.notalog.*` squatters, `.pytest_cache`/`__pycache__` under `scripts/kilo-benchmarks/`, and stale `/tmp/.fabrik_daily_*` lockfiles are deleted |
-| `autocommit_pipeline_outputs` | last, after the hygiene step — the same shared stage list as § 3.2 step 16 |
+| `autocommit_pipeline_outputs` | last, after the hygiene step — the same shared stage list as § 3.2 step 14 |
 
 The model-catalog steps this file used to run (`kilo_agents_db.py`, `update_kilo_benchmarks.py`, `scrape_artificial_analysis.py`, `role_mapper.py`, `export_traycer_registry.py`, the `embedding_*` pipeline, `verify_openrouter_catalog.py`, `classify_ai_category.py`, `category_route_mapper.py`, `category_export_markdown.py`, the pricing fetchers, `derive_cheapest_gateway.py`, `export_models_browser.py`) no longer exist under `scripts/` and no longer run here; `update_gateway_counts.py` is the one that still exists (`scripts/kilo-benchmarks/`): `daily_refresh.sh` names it only in its header comment, but the contract oracle `tests/capture_golden.py` reads its source on every run, so it is not dead. Their comment blocks remain in `daily_refresh.sh` with no code beneath them.
 

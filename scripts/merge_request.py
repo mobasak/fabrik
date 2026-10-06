@@ -91,6 +91,16 @@ ITEM_RE = re.compile(r"^W-[0-9a-f]{8}$")
 HEADS = "refs/heads/"
 
 
+def _resend(base: str, branch: str = "your branch") -> str:
+    """The REQUESTER's remedy for a refused merge (W-9c2f371a, fabrik-lib 01M3TVN8): `request`
+    requires the branch pushed, so a rebase could be republished only with --force, a universal
+    HARD STOP. Merging the base in pushes fast-forward and keeps every SHA a receipt cites."""
+    return (
+        f"merge {base} into {branch} (`git merge {base}`), resolve, push, then run "
+        "`merge_request.py request` again — never a rebase: the branch is already pushed"
+    )
+
+
 class RefusedError(Exception):
     """A refusal: printed on stderr, exit 1, nothing sent."""
 
@@ -798,7 +808,7 @@ def _max_d(lines: list[str]) -> int:
     return max((int(m) for m in _D_ROW_RE.findall("".join(lines))), default=-1)
 
 
-def _resolve_insertions(path: str, text: str, base: str) -> str:
+def _resolve_insertions(path: str, text: str) -> str:
     """Keep BOTH sides of every conflict whose base section is EMPTY (both sides are pure
     insertions at the same point) — newest D-row first for DECISIONS, ours then theirs
     elsewhere. A conflict where a side edits an existing line refuses. The result is checked
@@ -818,10 +828,7 @@ def _resolve_insertions(path: str, text: str, base: str) -> str:
             state = "t"
         elif state == "t" and bare == f">>>>>>> {_L_THEIRS}":
             if orig:
-                raise RefusedError(
-                    f"{path}: a side edits an existing line at a conflict — rebase on {base} "
-                    "and resend"
-                )
+                raise RefusedError(f"{path}: a side edits an existing line at a conflict")
             first, second = ours, theirs
             if path == DECISIONS and _max_d(theirs) >= _max_d(ours):
                 first, second = theirs, ours
@@ -834,14 +841,14 @@ def _resolve_insertions(path: str, text: str, base: str) -> str:
         else:
             out.append(line)
     if state:
-        raise RefusedError(f"{path}: an unterminated conflict — rebase on {base} and resend")
+        raise RefusedError(f"{path}: an unterminated conflict")
     result = "".join(out)
     if _MARKER_RE.search(result):
         raise RefusedError(f"{path}: a conflict marker remains after the auto-resolve — refused")
     return result
 
 
-def _merge3(path: str, ours: str, orig: str, theirs: str, base: str) -> str:
+def _merge3(path: str, ours: str, orig: str, theirs: str) -> str:
     """``git merge-file -p --diff3`` of three texts; a conflict is auto-resolved only when it is
     a pure insertion (``_resolve_insertions``), otherwise this refuses."""
     with tempfile.TemporaryDirectory(prefix="fabrik-merge3-") as tmp:
@@ -855,7 +862,7 @@ def _merge3(path: str, ours: str, orig: str, theirs: str, base: str) -> str:
     if res.returncode < 0 or res.returncode > 127:
         raise RefusedError(f"{path}: git merge-file failed: {_decode(res.stderr).strip()}")
     merged = _decode(res.stdout)
-    return merged if res.returncode == 0 else _resolve_insertions(path, merged, base)
+    return merged if res.returncode == 0 else _resolve_insertions(path, merged)
 
 
 # --- (a)-(d): build, preflight, tests, CAS --------------------------------------------------
@@ -925,9 +932,7 @@ def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
             raise RefusedError(f"git merge failed: {res.stderr.strip() or res.stdout.strip()}")
         others = sorted(p for p in conflicted if p not in LEDGERS)
         if others:
-            raise ConflictError(
-                others, f"conflict in {', '.join(others)} — rebase on {base} and resend"
-            )
+            raise ConflictError(others, f"conflict in {', '.join(others)} — {_resend(base)}")
         for path in conflicted:
             stages: dict[str, str] = {}
             for entry in _gitc(wt, "ls-files", "-u", "-z", "--", path).split("\0"):
@@ -936,14 +941,13 @@ def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
                     _, sha, stage = meta.split()
                     stages[stage] = sha
             if "2" not in stages or "3" not in stages:
-                raise ConflictError(
-                    [path], f"{path}: deleted on one side — rebase on {base} and resend"
-                )
+                raise ConflictError([path], f"{path}: deleted on one side — {_resend(base)}")
             orig = _blob(wt, stages["1"]) if "1" in stages else ""
             try:
-                text = _merge3(path, _blob(wt, stages["2"]), orig, _blob(wt, stages["3"]), base)
+                text = _merge3(path, _blob(wt, stages["2"]), orig, _blob(wt, stages["3"]))
             except RefusedError as exc:
-                raise ConflictError([path], str(exc)) from exc
+                # the REQUESTER's conflict: only here does the remedy name their branch (W-9c2f371a)
+                raise ConflictError([path], f"{exc} — {_resend(base)}") from exc
             (wt / path).write_bytes(_encode(text))
             _gitc(wt, "add", "--", path)
         # The request's own message, never `--no-edit`: that reuses git's MERGE_MSG, whose
@@ -1031,7 +1035,14 @@ def _preflight(
         if wt is None or wt == "dir" or (ctx.main / path).is_symlink() or path not in new_b:
             raise RefusedError(f"{path} is dirty in the main checkout in a way no carry can merge")
         current = _decode((ctx.main / path).read_bytes())
-        _merge3(path, current, _blob(ctx.main, head), _blob(ctx.main, new_b[path]), base)
+        try:
+            _merge3(path, current, _blob(ctx.main, head), _blob(ctx.main, new_b[path]))
+        except RefusedError as exc:
+            # the OWNER's uncommitted ledger work conflicts, not the branch (W-9c2f371a)
+            raise RefusedError(
+                f"{exc} — the owner's uncommitted {path} in the main checkout conflicts with the "
+                "merge; the owner commits or moves it aside, and the branch needs no change"
+            ) from exc
     return merged, snap, True
 
 
@@ -1069,13 +1080,78 @@ def _fallback_env(wt: Path, shim: Path) -> dict:
     return {**os.environ, "PYTHONPATH": str(shim), "FABRIK_MERGE_SRC": str(root)}
 
 
+def _copy_worktree_include(ctx: _Ctx, wt: Path, old: str) -> str | None:
+    """Copy the base's ``.worktreeinclude`` set from the main checkout into the build tree.
+
+    The build tree is a fresh checkout, so a gitignored ``.env`` was absent and a pydantic-settings
+    app failed at import — a correct request refused (brand-identiy-creator 01M46NZMP4F08KBP7WC8KF1Z37).
+    Claude Code copies this same set into every new linked worktree, so the owner's tests now see
+    what a worktree sees, read by the app's own loader rather than a second ``.env`` parser
+    (D-610). The list comes from the BASE, never the branch; a file the tree already holds (tracked)
+    is never overwritten; a path that leaves the checkout, or a symlink, is skipped. The build tree
+    lives in a private mkdtemp directory and is removed after the merge.
+
+    Every synced project IGNORES ``.worktreeinclude`` (the synced .gitignore block writes it, the sync
+    owns it), so the base never holds it there: an ignored, regular list is then read from the main
+    checkout's working tree — never the branch's (brand-identiy-creator 01M48K5ZGYWBX1F4S8K8GQ32E0).
+    A TRACKED list still governs from the base only (``check-ignore`` without ``--no-index`` answers 1
+    for a tracked path). With no readable list the copy returns a NOTE instead of passing silently;
+    the caller puts it in the refusal and on stderr."""
+    res = _run(["git", "show", f"{old}:.worktreeinclude"], GIT_TIMEOUT_S, cwd=ctx.main)
+    text = res.stdout if res.returncode == 0 else None
+    listed_file = ctx.main / ".worktreeinclude"
+    if text is None and listed_file.is_file() and not listed_file.is_symlink():
+        ignored = _run(
+            ["git", "check-ignore", "-q", ".worktreeinclude"], GIT_TIMEOUT_S, cwd=ctx.main
+        )
+        if ignored.returncode == 0:
+            try:
+                text = listed_file.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                text = None
+    if text is None:
+        # no sha in the text: the base moves between rebuilds, and the caller dedups by text
+        return (
+            "`.worktreeinclude` is neither tracked at the base nor an ignored regular file in the "
+            "main checkout — nothing copied into the build tree"
+        )
+    main = ctx.main.resolve()
+    for line in text.splitlines():
+        rel = line.strip()
+        if not rel or rel.startswith("#"):
+            continue
+        listed = main / rel
+        target = listed.resolve()
+        if listed.is_symlink() or not target.is_relative_to(main) or target == main:
+            continue  # a symlink, an absolute path or `..`: never read outside the checkout
+        # walk the LISTED path, never the resolved one, so each copy lands where it was listed
+        files = (
+            [listed] if listed.is_file() else (sorted(listed.rglob("*")) if listed.is_dir() else [])
+        )
+        for f in files:
+            if f.is_symlink() or not f.is_file() or not f.resolve().is_relative_to(main):
+                continue
+            dst = wt / f.relative_to(main)
+            if dst.exists():
+                continue  # tracked in the merged tree: the merge's copy wins
+            try:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dst)
+            except OSError:
+                continue  # a tracked FILE where the list has a directory: the merge's tree wins
+    return None
+
+
 def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -> str:
     """(c): the OWNER's command — ``.fabrik/merge-tests`` read from the BASE, never the branch —
     with the throwaway's ``src`` first on ``PYTHONPATH`` (a contract owner commands rely on; one
     whose ``src`` holds a stdlib-named package runs ``env -u PYTHONPATH …`` itself). Else pytest
     over the merged ``tests/`` files the diff touched, under the main checkout's ``.venv`` python
     when it has one, the merged ``src`` placed after the stdlib by the shim above. A red test
-    refuses."""
+    refuses. Both legs first get the base's ``.worktreeinclude`` set (``_copy_worktree_include``)."""
+    note = _copy_worktree_include(ctx, wt, old)
+    if note and note not in ctx.notes:  # once per merge: this runs per rebuild and per catch-up
+        ctx.notes.append(note)
     res = _run(["git", "show", f"{old}:.fabrik/merge-tests"], GIT_TIMEOUT_S, cwd=ctx.main)
     if res.returncode == 0 and res.stdout.strip():
         pythonpath = os.pathsep.join(
@@ -1104,7 +1180,8 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
             run = _run([py, "-m", "pytest", "-q", *touched], TEST_TIMEOUT_S, cwd=wt, env=env)
     if run.returncode != 0:
         tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
-        raise RefusedError(f"owner tests red ({label}, exit {run.returncode}): {tail}")
+        why = f"; NOTE: {note}" if note else ""
+        raise RefusedError(f"owner tests red ({label}, exit {run.returncode}): {tail}{why}")
     return f"{label}: green"
 
 
@@ -1200,7 +1277,7 @@ def _carry(
             try:
                 current = _decode((ctx.main / path).read_bytes())
                 text = _merge3(
-                    path, current, _blob(ctx.main, old_b[path]), _blob(ctx.main, new_b[path]), ""
+                    path, current, _blob(ctx.main, old_b[path]), _blob(ctx.main, new_b[path])
                 )
             except RefusedError as exc:
                 keep(path, f"its 3-way carry conflicts ({exc})")
@@ -1365,8 +1442,9 @@ def _reply_body(rec: dict) -> str:
         )
     elif rec["outcome"] != "merged":
         lines.append(
-            f"HOW — rebase {rec.get('branch', 'the branch')} on {rec.get('base', 'base')}, fix "
-            "what the reason names, push, and run merge_request.py request again."
+            "HOW — do what the reason names; when it names a change to your branch, make it, "
+            "push, re-review, and run merge_request.py request again with the updated receipt — "
+            "never a rebase or a force-push: the branch is already pushed."
         )
     body = "\n".join(lines) + "\n"
     return body.replace("acked-by:", "acked by:")  # a body never carries a verbatim ack line
@@ -1680,6 +1758,8 @@ def _drive(ctx: _Ctx, rec: dict, *, resuming: bool) -> int:
         _merge_request_steps(ctx, rec, remote)  # a start: the origin-ahead refusal applies
     if rec["phase"] == "refused":
         _reply_and_ack(ctx, rec)
+        for note in ctx.notes:
+            print(f"merge_request: {note}", file=sys.stderr)
         print(f"merge_request: REFUSED {rec['id']} — {rec['reason']}", file=sys.stderr)
         return EXIT_REFUSED
     try:
@@ -1692,8 +1772,9 @@ def _drive(ctx: _Ctx, rec: dict, *, resuming: bool) -> int:
             f"{' '.join(str(exc).split())} — the merge {rec.get('merge_sha')} is committed "
             f"locally; left: {left}; finish with `merge_request.py resume {rec['id']}`"
         ) from exc
-    for note in ctx.notes:
-        print(f"merge_request: {note}", file=sys.stderr)
+    finally:  # merged or PARTIAL alike: a note is never swallowed by the exit it took
+        for note in ctx.notes:
+            print(f"merge_request: {note}", file=sys.stderr)
     print(f"merged {rec['id']} as {rec.get('merge_sha')}")
     for line in rec.get("not_carried", []):
         print(f"merge_request: NOT CARRIED — {line}", file=sys.stderr)

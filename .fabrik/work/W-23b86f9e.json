@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "check_review_coverage: certification ledgers under reviews/ get review-report grammar; git-status scope lets commit-then-gate bypass it"
 }

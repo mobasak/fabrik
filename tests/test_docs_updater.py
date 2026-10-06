@@ -463,3 +463,237 @@ class TestMultiAgentOperatingModelDoc:
         # No line cap: T15's 150-line ceiling (last enforced at aedcf64c6) was a plan-era snapshot; the
         # doc became the canonical operating model and passed it at f4fac0204 (2026-09-16), growing
         # through every reviewed change since. Its contract is the named surfaces above, not a length.
+
+
+# W-961bede1: --sync must keep a project's own STRUCTURE rows (trade-intelligence 01M3RTNQ).
+_SCRIPT = Path(__file__).parent.parent / "scripts" / "docs_updater.py"
+_FILES = (
+    "docs/a/README.md",
+    "docs/b/README.md",
+    "docs/design-system.md",
+    "docs/saved.md",
+    "docs/plans/set1/a.md",
+    "docs/plans/set1/b.md",
+    "docs/reference/x.md",
+    "docs/QUICKSTART.md",
+    "docs/windsurf/w.md",
+)
+# The reporter's literal shapes: `name/   # text` (a hand-collapsed dir) and `name# text`.
+_HAND_BLOCK = (
+    "docs/\n"
+    "├── QUICKSTART.md                   # Get Fabrik running in 5 minutes\n"
+    "├── a\n"
+    "│   └── README.md                   # Readme of a\n"
+    "├── b\n"
+    "│   └── README.md                   # Readme of b\n"
+    "├── design-system.md                # Design-system declaration (house identity)\n"
+    "├── plans\n"
+    "│   └── set1/   # Plan set (spine + T01-T12): enrich persona\n"
+    "├── reference\n"
+    "├── saved.md# Saved search config\n"
+    "└── windsurf                        # Windsurf IDE optimization\n"
+)
+
+
+def _structure_project(root: Path, block: str, files=_FILES) -> Path:
+    for rel in files:
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text("x\n")
+    (root / "INDEX.md").write_text(
+        "# Index\n<!-- AUTO-GENERATED:STRUCTURE:START -->\n```text\n"
+        + block
+        + "```\n<!-- AUTO-GENERATED:STRUCTURE:END -->\n"
+    )
+    return root
+
+
+def _sync(root: Path) -> str:
+    import subprocess
+
+    subprocess.run(
+        [sys.executable, str(_SCRIPT), "--sync"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    return extract_block_body((root / "INDEX.md").read_text(), STRUCTURE_BLOCK_RE)
+
+
+def _row(body: str, name: str) -> str:
+    for line in body.splitlines():
+        text = line.lstrip("│ ├└─")
+        if text == name or text.startswith((name + " ", name + "/")):
+            return line
+    raise AssertionError(f"no row {name!r} in:\n{body}")
+
+
+def test_sync_keeps_hand_written_row_comments_by_path(tmp_path):
+    body = _sync(_structure_project(tmp_path, _HAND_BLOCK))
+    assert _row(body, "design-system.md").endswith("# Design-system declaration (house identity)")
+    assert _row(body, "saved.md").endswith("# Saved search config")
+    lines = body.splitlines()
+    a = next(i for i, ln in enumerate(lines) if ln.endswith("── a"))
+    b = next(i for i, ln in enumerate(lines) if ln.endswith("── b"))
+    assert lines[a + 1].endswith("# Readme of a") and lines[b + 1].endswith("# Readme of b"), body
+
+
+def test_sync_keeps_a_hand_collapsed_directory_collapsed(tmp_path):
+    body = _sync(_structure_project(tmp_path, _HAND_BLOCK))
+    row = _row(body, "set1")
+    assert "set1/" in row and row.endswith("# Plan set (spine + T01-T12): enrich persona"), body
+    assert "a.md" not in body.split("set1", 1)[1].split("├──", 1)[0], body
+
+
+def test_a_hub_commented_directory_expands_when_populated(tmp_path):
+    lines = _sync(_structure_project(tmp_path, _HAND_BLOCK)).splitlines()
+    ref = next(i for i, ln in enumerate(lines) if ln.lstrip("│ ├└─").startswith("reference"))
+    assert lines[ref + 1].endswith("── x.md"), (
+        lines
+    )  # the empty `reference` row expands, x.md under it
+
+
+def test_hub_text_follows_the_hub_dict(tmp_path):
+    body = _sync(_structure_project(tmp_path, _HAND_BLOCK))
+    assert "Get Fabrik running in 5 minutes" in _row(body, "QUICKSTART.md")  # current hub text
+    assert _row(body, "windsurf").endswith("# Windsurf IDE reference (retired 2026-07-19)"), body
+
+
+def test_sync_is_idempotent_over_carried_comments(tmp_path):
+    root = _structure_project(tmp_path, _HAND_BLOCK)
+    _sync(root)
+    first = (root / "INDEX.md").read_text()
+    _sync(root)
+    assert (root / "INDEX.md").read_text() == first
+
+
+def test_a_deleted_rows_comment_is_dropped(tmp_path):
+    root = _structure_project(tmp_path, _HAND_BLOCK)
+    (root / "docs/design-system.md").unlink()
+    (root / "docs/new.md").write_text("x\n")
+    (root / "docs/FAQ.md").write_text("x\n")
+    body = _sync(root)
+    assert "design-system.md" not in body and "house identity" not in body
+    assert " # " not in _row(body, "new.md")
+    assert _row(body, "FAQ.md").endswith("# Frequently asked questions")  # a new hub-known file
+
+
+def test_an_orphan_row_never_lands_on_another_file(tmp_path):
+    block = "docs/\n├─ broken\n│   └── README.md                   # Orphan text\n├── a\n"
+    body = _sync(_structure_project(tmp_path, block, files=("docs/README.md", "docs/a/README.md")))
+    assert "Orphan text" not in body, body
+
+
+# ── W-ab678eb9 (tryton-crm 01M3T9H8): --sync in a linked worktree must not drop the main checkout's
+# gitignored STRUCTURE rows. A worktree lacks the main checkout's ignored files, so a walk of its own
+# disk rewrote the committed block without them.
+
+_DU = Path(__file__).parent.parent / "scripts" / "docs_updater.py"
+
+
+def _git(cwd: Path, *args: str) -> str:
+    import subprocess
+
+    return subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+
+def _run_sync(cwd: Path) -> str:
+    import subprocess
+
+    subprocess.run(
+        [sys.executable, str(_DU), "--sync"], cwd=cwd, check=True, capture_output=True, text=True
+    )
+    return extract_block_body((cwd / "INDEX.md").read_text(), STRUCTURE_BLOCK_RE) or ""
+
+
+def _main_with_worktree(tmp_path: Path) -> tuple[Path, Path]:
+    """A main checkout with ignored docs (a file and a collapsed dir with a hand comment) synced
+    into a committed block, plus a linked worktree of it."""
+    main = tmp_path / "main"
+    (main / "docs" / "guide").mkdir(parents=True)
+    (main / "docs" / "guide" / "a.md").write_text("a\n")
+    (main / "docs" / "old.md").write_text("old\n")
+    (main / "docs" / "private" / "deep").mkdir(parents=True)
+    (main / "docs" / "private" / "deep" / "d.md").write_text("d\n")
+    (main / "docs" / "notes.md").write_text("n\n")
+    (main / ".gitignore").write_text("docs/private/\ndocs/notes.md\n")
+    (main / "INDEX.md").write_text(
+        "# Index\n<!-- AUTO-GENERATED:STRUCTURE:START -->\n<!-- AUTO-GENERATED:STRUCTURE:END -->\n"
+    )
+    _git(main, "init", "-q")
+    _run_sync(main)
+    block = (main / "INDEX.md").read_text()
+    collapsed = "└── private/                         # hand note on private\n"
+    assert "└── private\n    └── deep\n        └── d.md\n" in block, block
+    block = block.replace("└── private\n    └── deep\n        └── d.md\n", collapsed)
+    (main / "INDEX.md").write_text(block)
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "init")
+    wt = tmp_path / "wt"
+    _git(main, "worktree", "add", "-q", str(wt))
+    return main, wt
+
+
+def test_worktree_sync_carries_ignored_rows(tmp_path):
+    _main, wt = _main_with_worktree(tmp_path)
+    body = _run_sync(wt)
+    assert "notes.md" in body, body
+    assert "private/" in body and "hand note on private" in body, body
+
+
+def test_worktree_sync_lists_its_own_new_doc(tmp_path):
+    _main, wt = _main_with_worktree(tmp_path)
+    (wt / "docs" / "fresh.md").write_text("f\n")
+    assert "fresh.md" in _run_sync(wt)
+
+
+def test_worktree_sync_drops_deleted_tracked_row(tmp_path):
+    """Non-vacuity: only IGNORED absent rows are carried; a deleted tracked doc is not resurrected."""
+    _main, wt = _main_with_worktree(tmp_path)
+    (wt / "docs" / "old.md").unlink()
+    assert "old.md" not in _run_sync(wt)
+
+
+def test_disk_wins_a_name_clash_with_a_carried_row(tmp_path):
+    """A carried child `x/y.md` forces its parent `x` to a directory; when `docs/x` is a plain
+    FILE on the worktree's disk, the disk wins: `x` is listed as a file and `y.md` is not."""
+    _main, wt = _main_with_worktree(tmp_path)
+    (wt / ".gitignore").write_text((wt / ".gitignore").read_text() + "docs/x/\n")
+    (wt / "docs" / "x").write_text("now a file\n")
+    index = (wt / "INDEX.md").read_text()
+    (wt / "INDEX.md").write_text(index.replace("docs/\n", "docs/\n├── x\n│   └── y.md\n", 1))
+    body = _run_sync(wt)
+    assert "x" in body.split() and "y.md" not in body, body
+
+
+def test_main_checkout_subdir_is_not_a_worktree(tmp_path):
+    """A main checkout run from a subdirectory reads `--git-dir` absolute and `--git-common-dir`
+    relative; compared raw they differ, so the subdirectory project would carry stale rows."""
+    main, _wt = _main_with_worktree(tmp_path)
+    sub = main / "sub"
+    (sub / "docs").mkdir(parents=True)
+    (sub / "docs" / "x.md").write_text("x\n")
+    (sub / ".gitignore").write_text("docs/gone.md\n")
+    (sub / "INDEX.md").write_text(
+        "# Sub\n<!-- AUTO-GENERATED:STRUCTURE:START -->\n```text\ndocs/\n└── gone.md\n```\n"
+        "<!-- AUTO-GENERATED:STRUCTURE:END -->\n"
+    )
+    assert "gone.md" not in _run_sync(sub)
+
+
+def test_structure_outside_git_is_plain_walk(tmp_path):
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "x.md").write_text("x\n")
+    (tmp_path / "INDEX.md").write_text(
+        "# I\n<!-- AUTO-GENERATED:STRUCTURE:START -->\n```text\ndocs/\n└── gone.md\n```\n"
+        "<!-- AUTO-GENERATED:STRUCTURE:END -->\n"
+    )
+    body = _run_sync(tmp_path)
+    assert "x.md" in body and "gone.md" not in body, body

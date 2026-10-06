@@ -84,6 +84,10 @@ def _assign(repo: Path, env: dict, item: str, owner: str, *extra: str) -> None:
 
 
 def _stop(repo: Path, env: dict, session: str = SID) -> dict:
+    # commit the main store first, as its session does (W-4238b6ec) — these tests read the ladder
+    # BEHIND the `commit-items` subject, which test_work_commit_items.py owns
+    c = run(["commit-items"], env, repo)
+    assert c.returncode == 0, c.stderr
     r = run(["queue", "--stop", "--session", session, "--cwd", str(repo)], env, repo)
     assert r.returncode == 0, r.stderr
     lines = r.stdout.strip().splitlines()

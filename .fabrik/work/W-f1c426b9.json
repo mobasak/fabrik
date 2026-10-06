@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T13:16:23.860606Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f1c426b9",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "anchor each cite on the line plus its distinctive neighbour (e.g. the preceding comment or condition), or assert the enclosing def; measure the fire rate on the current table first",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "tests/test_governance_template_split.py _GATE_CITES anchors :1311/:1410 on 'return results' and :1294 on 'if tier == 3:' — non-unique lines in final_gate.py, so a cite drifting onto another occurrence stays green (W-42bde5ae review B-S1, pre-existing)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T19:08:26.766143Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-d6701ee5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M444R02J1363JZ467HAHKRJ1",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: work.py synced but its manual is not — already closed by the hub-path pointer, verified today"
+}

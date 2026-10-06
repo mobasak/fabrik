@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T16:47:07.828399Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-358a2124",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Restored from HEAD (blob 79d4187e) by infra the same minute. Searched: every session transcript active 16:38:40-16:39:05Z (no tool call writes it; site-provisioner sp2 ran mail.py send --to fabrik 16:38:55-16:39:03, the only mail.py call in the window), both critique seats (read-only git show), tests/ (only test_check_vendored_drift writes a tmp mail.py). Next: check what a hub-bound send triggers hub-side (mail_notify hook, dispatcher, inotify units) and whether any of it opens scripts/ for write; if it recurs, run an inotifywait/auditctl watch on scripts/mail.py.",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "mail"
+  ],
+  "title": "scripts/mail.py in the hub main checkout was truncated to 0 bytes at 2026-10-06 19:39:02 +0300 by an unattributed writer"
+}

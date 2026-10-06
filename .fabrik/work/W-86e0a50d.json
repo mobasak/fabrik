@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T10:35:24.171949Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-86e0a50d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M43241JR5S5YTKKWGM6P6C7N",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: bootstrap-script findings 01M41SYN + 01M41V5N — the scripts caught up (57bd1a0e3 on worktree-fleet); the pack's \"behind this rule\" sentences can go once it merges"
+}

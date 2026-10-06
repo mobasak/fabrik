@@ -17,10 +17,10 @@
     "a00f29c131c5565e098f40caae9942349eb16026c16bca577ae4dbba23faccc8"
   ],
   "next": "",
-  "note": "",
+  "note": "Panel (operator delegation D-558): opus=RETIRE, fable=RETIRE — the universal-watchdog plan is SUPERSEDED, the project prompt stays optional and fail-soft; recorded as D-571. Salvage items W-58fa5518, W-ebeca6b6.",
   "owner": "",
   "priority": 2,
   "question": "Should the universal-watchdog plan be built (a mandatory, checked-at-commit watchdog prompt in every project) or retired now that an optional per-project prompt setting exists?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Should the universal-watchdog plan be built (a mandatory, checked-at-commit watchdog prompt in every project) or retired now that an optional per-project prompt setting exists?"
 }

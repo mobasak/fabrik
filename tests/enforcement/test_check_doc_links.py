@@ -225,6 +225,62 @@ def test_a_linked_worktree_resolves_a_gitignored_ref_through_the_main_checkout(
     assert cdl._resolves("scripts/cache/x.json", main / "docs" / "a.md") is False
 
 
+def test_a_fresh_worktree_exempts_synced_sources_through_the_main_checkouts_lock(
+    tmp_path, monkeypatch
+):
+    """`.fabrik/synced.lock` names the Fabrik-synced docs a PROJECT must not link-check; `.worktreeinclude`
+    copies the synced docs into a new worktree but never the lock (the sync writes it there only at the NEXT
+    hub sync, and only under `.claude/worktrees/`). A lock-less linked worktree therefore reads the MAIN
+    checkout's lock; the main checkout's own run is unchanged; with no lock anywhere the source stays checked."""
+
+    def git(*args, cwd):
+        subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+
+    def sources(root):
+        monkeypatch.setattr(cdl, "REPO", root)
+        monkeypatch.setattr(cdl, "_MAIN_CACHE", {}, raising=False)
+        return {p.relative_to(root).as_posix() for p in cdl._tracked_md_sources()}
+
+    main = tmp_path / "main"
+    main.mkdir()
+    git("init", "-q", "-b", "master", cwd=main)
+    (main / ".gitignore").write_text("CLAUDE.md\n.fabrik/\n")
+    (main / "docs").mkdir()
+    (main / "docs" / "a.md").write_text("plain\n")
+    git("add", ".", cwd=main)
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init", cwd=main)
+    # a hub-relative ref that cannot resolve in a project
+    synced_doc = "see `scripts/hub_only.py`\n"
+    (main / "CLAUDE.md").write_text(synced_doc)
+    (main / ".fabrik").mkdir()
+    # production shape: {rel: md5}
+    (main / ".fabrik" / "synced.lock").write_text('{"CLAUDE.md": "d41d8cd9"}')
+    wt = tmp_path / "wt"
+    git("worktree", "add", "-q", "--detach", str(wt), "HEAD", cwd=main)
+    (wt / "CLAUDE.md").write_text(synced_doc)  # what .worktreeinclude copies in
+    # the source IS there (a pass must come from the lock, never absence); the lock is NOT — the premise
+    assert (wt / "CLAUDE.md").is_file()
+    assert not (wt / ".fabrik" / "synced.lock").exists()
+
+    wt_sources = sources(wt)
+    assert "CLAUDE.md" not in wt_sources, wt_sources  # exempted through the main checkout's lock
+    assert "docs/a.md" in wt_sources
+    assert "CLAUDE.md" not in sources(main)  # the main checkout's own run: unchanged, its own lock
+
+    # anything occupying the worktree's OWN lock path is its lock: unparseable, or a directory, keeps
+    # today's no-exemption and never falls through to the main checkout's copy
+    (wt / ".fabrik").mkdir()
+    (wt / ".fabrik" / "synced.lock").write_text("{not json")
+    assert "CLAUDE.md" in sources(wt)
+    (wt / ".fabrik" / "synced.lock").unlink()
+    (wt / ".fabrik" / "synced.lock").mkdir()
+    assert "CLAUDE.md" in sources(wt)
+    (wt / ".fabrik" / "synced.lock").rmdir()
+
+    (main / ".fabrik" / "synced.lock").unlink()
+    assert "CLAUDE.md" in sources(wt)  # no lock anywhere: nothing is exempt, as before
+
+
 def test_a_source_relative_ref_out_of_a_worktree_resolves_as_from_the_main_checkout(
     tmp_path, monkeypatch
 ):

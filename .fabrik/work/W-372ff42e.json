@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-03T09:26:44.921517Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-372ff42e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M3Z40KFFNFWE4ABSW3YAEM39",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "follow-up — vps1 browserless gets net::ERR_CONNECTION_RESET from gib.gov.tr (every page, ~2 s)"
+}

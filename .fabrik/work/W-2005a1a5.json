@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T16:24:28.563737Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2005a1a5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M48K5ZGYWBX1F4S8K8GQ32E0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "merge_request.py (Fabrik-synced) refuses every merge in a repo where .worktreeinclude is gitignored."
+}

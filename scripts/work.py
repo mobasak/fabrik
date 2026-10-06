@@ -1078,6 +1078,7 @@ def _write_marker(
             "session": session,
             "status": item["status"],
             "tree": str(repo),
+            **({"resolved_by": item["resolved_by"]} if item.get("resolved_by") else {}),
         },
     )
 
@@ -1373,6 +1374,7 @@ _PLAN_STATUS_GIT_PATTERN = r"^[[:blank:]]*([-*>][[:blank:]]+)?\*{0,2}Status\*{0,
 _ITEM_STATUS_GIT_PATTERN = '"status":'  # the JSON status field's own line; already case-fixed
 _DIR_SCOPE_MIN = 8  # wanted paths under one parent before the batch scopes the directory
 _EVIDENCE_REV_RE = re.compile(r"[0-9A-Za-z^{}~@./_:-]+")  # a revision, never a protocol byte
+_HEX_SHA_RE = re.compile(r"[0-9a-fA-F]{7,40}")  # a recorded (abbreviated) SHA, never a ref
 
 
 def _git_status_porcelain(repo: Path, *args: str) -> str:
@@ -1818,7 +1820,11 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
                 and data.get("kind") not in LINKED_KINDS
                 and not answered
             ):
-                done_candidates.append((rel, path.stem, str(data.get("evidence") or "")))
+                # W-f154f3f3: an item closed `--resolved-by` carries its root item's fix, whose
+                # commit names that root. Cobra: a hand-written `resolved_by` dodges class 6
+                # exactly as a hand-written `note` does above; the edit is in the item's history.
+                cited = str(data.get("resolved_by") or path.stem)
+                done_candidates.append((rel, cited, str(data.get("evidence") or "")))
         # W-5937c2cd: one batched age read and one batched evidence read, never per item
         ages = _status_change_ages(
             repo,
@@ -1916,9 +1922,40 @@ def _sync_blocking_active(repo: Path) -> bool:
 
 def _uncommitted_items(repo: Path) -> list[str]:
     """Item files ``git status --porcelain`` shows untracked or modified — a listing, never a
-    drift class (spec § Constraints — shared tree)."""
+    drift class (spec § Constraints — shared tree). Fails OPEN to ``[]`` on a git error."""
     store_rel = STORE_REL.as_posix()
-    out = _git_status_porcelain(repo, "--untracked-files=all", "--", store_rel)
+    return _parse_store_status(
+        _git_status_porcelain(repo, "--untracked-files=all", "--", store_rel)
+    )
+
+
+def _uncommitted_items_strict(repo: Path) -> list[str] | None:
+    """`_uncommitted_items`, but ``None`` when git fails — for a caller that must tell "nothing is
+    uncommitted" from "could not look" (an empty answer there would read as an all-clear)."""
+    try:
+        proc = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+                "--",
+                STORE_REL.as_posix(),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=_git_timeout(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return _parse_store_status(proc.stdout) if proc.returncode == 0 else None
+
+
+def _parse_store_status(out: str) -> list[str]:
+    """The item-file paths in UNSTRIPPED ``git status --porcelain`` output."""
+    store_rel = STORE_REL.as_posix()
     paths: set[str] = set()
     for line in out.splitlines():
         if len(line) < 4:
@@ -3179,6 +3216,64 @@ def cmd_release(repo: Path, args: argparse.Namespace) -> int:
 _LINKED_CLOSE = {"mail": "mail is acked", "feedback": "queue is marked answered"}
 
 
+def _base_record(repo: Path, item_id: str) -> dict | None:
+    """``item_id``'s whole record on the store's base branch, or None (no branch, no file, a git
+    failure, malformed JSON) — the full-record sibling of ``_base_statuses``."""
+    branch = _base_branch(repo)
+    if not branch:
+        return None
+    try:
+        raw = _git(repo, "show", f"refs/heads/{branch}:{STORE_REL.as_posix()}/{item_id}.json")
+    except WorkError:
+        return None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _resolve_commit(repo: Path, rev: str) -> str:
+    """The full SHA ``rev`` names as a commit, or "" (an option-shaped or unknown rev)."""
+    if rev.startswith("-") or not _EVIDENCE_REV_RE.fullmatch(rev):
+        return ""
+    try:
+        return _git(repo, "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}").strip()
+    except WorkError:
+        return ""
+
+
+def _cited_done(repo: Path, cited: str) -> tuple[dict, str]:
+    """``(record, source)`` of ``cited`` closed DONE, read in order from this tree's file, the
+    base branch, then an effective closed marker — the three places a done item can be seen from
+    a checkout (D-403). Refused (WorkError) when none reads it done or its record carries no
+    evidence (an answered decision, a linked mail/feedback item, a legacy row)."""
+    looked = []
+    path = _item_path(repo, cited)
+    if path.exists():
+        rec = _read_item(repo, cited)
+        if rec.get("status") == "done":
+            looked.append((rec, "this tree"))
+    base = _base_record(repo, cited)
+    if base is not None and base.get("status") == "done":
+        looked.append((base, "the base branch"))
+    marker = _read_records(_closed_dir(repo)).get(cited)
+    if marker and marker.get("status") == "done" and cited in _closed_ids(repo):
+        looked.append((marker, "a closed marker"))
+    for rec, source in looked:
+        if str(rec.get("evidence") or "").strip():
+            return rec, source
+    if looked:
+        raise WorkError(
+            f"--resolved-by {cited} refused: {cited} is done but records no evidence commit "
+            "(an answered decision, a linked item or a legacy row) — there is no fix to carry"
+        )
+    raise WorkError(
+        f"--resolved-by {cited} refused: {cited} is not done in this tree, on the base branch "
+        "or in a closed marker — close it first, or cite the item whose commit fixed this one"
+    )
+
+
 def cmd_done(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
     first = _read_item(repo, args.id)
@@ -3189,12 +3284,36 @@ def cmd_done(repo: Path, args: argparse.Namespace) -> int:
         )
     _refuse_closed(repo, first, "done")
     session = _call_session(args)
-    sha = _verify_evidence(repo, args.id, args.evidence)
+    cited = (getattr(args, "resolved_by", None) or "").strip()
+    if cited:
+        if cited == args.id:
+            raise WorkError(f"--resolved-by {cited} refused: an item cannot be resolved by itself")
+    else:
+        sha = _verify_evidence(repo, args.id, args.evidence)
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="done"):
         item = _read_item(repo, args.id)
         _refuse_closed(repo, item, "done")
         _fence(repo, args.id, session, "done")
-        item.update(status="done", evidence=sha)
+        extra: dict = {}
+        if cited:
+            rec, source = _cited_done(repo, cited)
+            stored = str(rec["evidence"]).strip()
+            # recorded evidence is a SHA, never a ref: a branch name would re-resolve to
+            # whatever it points at NOW, so two citations of one root could carry two commits
+            sha = _resolve_commit(repo, stored) if _HEX_SHA_RE.fullmatch(stored) else ""
+            if not sha:
+                raise WorkError(
+                    f"--resolved-by {cited} refused: {cited}'s recorded evidence "
+                    f"{stored!r} (read from {source}) is not a commit SHA here"
+                )
+            given = (args.evidence or "").strip()
+            if given and _resolve_commit(repo, given) != sha:
+                raise WorkError(
+                    f"--resolved-by {cited} refused: {cited} was closed by {sha[:12]} (read from "
+                    f"{source}); cite that commit, or omit --evidence to carry it"
+                )
+            extra = {"resolved_by": str(rec.get("resolved_by") or cited)}
+        item.update(status="done", evidence=sha, **extra)
         path = _close(repo, item, session=session, evidence=sha)
         _after_write(repo, session)
     print(_rel(repo, path))
@@ -3404,6 +3523,182 @@ def _distributor_lines(
             f"{AGED_MAIL_DAYS} days ago{flag}"
         )
     return lines
+
+
+def _is_linked_worktree(repo: Path) -> bool:
+    """True when ``repo`` is a linked worktree (its git dir is not the common dir)."""
+    git_dir = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-dir")).resolve()
+    return git_dir != _common_dir(repo)
+
+
+_GIT_ENV_DROP = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")
+
+
+def _commit_store_files(repo: Path, paths: list[str], context: str) -> str:
+    """Commit exactly ``paths`` (their WORKING-TREE content) on the current branch and return the
+    commit's sha. Built with ``git commit --only``: git holds ``index.lock`` across the tree, the
+    ref move and the index update, so a sibling's bare ``git commit`` can neither interleave nor
+    ship a stale index entry for these paths, and another session's STAGED files stay staged and
+    out of this commit. Untracked paths get an intent-to-add entry first (undone on failure).
+    Hooks are skipped (``core.hooksPath=/dev/null``, ``--no-verify``): item JSON triggers no
+    check and no sync. A refused commit (index lock held, HEAD moved) raises — nothing landed."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_ENV_DROP}
+    agent = _agent_name()
+    message = "\n".join(
+        [
+            f"chore(work): commit {len(paths)} work-item file(s) from the main store",
+            "",
+            "Agent-Role: primary",
+            *([f"Agent-Name: {agent}"] if agent else []),
+            f"Agent-Context: {context}",
+        ]
+    )
+
+    def git(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", "-C", str(repo), *args],
+            capture_output=True,
+            text=True,
+            input=stdin,
+            env=env,
+            timeout=_git_timeout(),
+        )
+
+    tracked = set(git("ls-files", "--", *paths).stdout.split())
+    new = [p for p in paths if p not in tracked]
+    if new:
+        added = git("add", "-N", "--", *new)
+        if added.returncode != 0:
+            raise WorkError(f"git add -N failed: {added.stderr.strip()[:200]} — nothing committed")
+    done = git(
+        "-c",
+        "core.hooksPath=/dev/null",
+        "commit",
+        "--no-verify",
+        "--only",
+        "-F",
+        "-",
+        "--",
+        *paths,
+        stdin=message + "\n",
+    )
+    if done.returncode != 0:
+        if new:
+            git("reset", "-q", "--", *new)  # best effort: drop the intent-to-add entries
+        raise WorkError(f"git commit failed: {done.stderr.strip()[:300]} — nothing committed")
+    m = re.search(r"^\[[^\]\s]+ (?:\(root-commit\) )?([0-9a-f]{7,40})\]", done.stdout, re.M)
+    if not m:
+        raise WorkError(f"commit landed but its sha was not printed: {done.stdout[:200]}")
+    sha = _git(repo, "rev-parse", m.group(1))
+    landed = set(_git(repo, "show", "--name-only", "--format=", sha).splitlines())
+    if landed != set(paths):
+        raise WorkError(f"{sha[:9]} holds {sorted(landed ^ set(paths))} beyond/short of the list")
+    return sha
+
+
+def _valid_item_file(repo: Path, rel: str) -> bool:
+    """True when ``rel`` holds a JSON object whose ``id`` is the file's own stem."""
+    try:
+        data = json.loads((repo / rel).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(data, dict) and data.get("id") == Path(rel).stem
+
+
+def _store_commit_plan(repo: Path) -> tuple[list[str], list[str], list[str], list[str]]:
+    """(committable, staged by another session, deleted, not a valid item) among the store's
+    uncommitted item files. "Staged" reads the index against HEAD, so an intent-to-add entry
+    counts too. A deleted item file is never committed here: no verb deletes one, so a deletion is
+    a hand edit for its author to commit (or restore) — never read as "invalid"."""
+    pending = _uncommitted_items(repo)
+    try:
+        staged = set(
+            _git(
+                repo, "diff-index", "--cached", "--name-only", "HEAD", "--", STORE_REL.as_posix()
+            ).splitlines()
+        )
+    except WorkError:
+        staged = set()
+    held = [p for p in pending if p in staged]
+    rest = [p for p in pending if p not in staged]
+    deleted = [p for p in rest if not (repo / p).exists()]
+    invalid = [p for p in rest if p not in deleted and not _valid_item_file(repo, p)]
+    files = [p for p in rest if p not in deleted and p not in invalid]
+    return files, held, deleted, invalid
+
+
+def _store_refusal(repo: Path) -> str | None:
+    """Why the store cannot be committed in this checkout's state, or None (the caller-side
+    checks live in `_commit_refusal`)."""
+    if _is_linked_worktree(repo):
+        return "this is a linked worktree; the main checkout's session commits the main store"
+    try:
+        _git(repo, "symbolic-ref", "--short", "-q", "HEAD")
+    except WorkError:
+        return "HEAD is detached; check out a branch first"
+    git_dir = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-dir"))
+    for head in ("MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"):
+        if (git_dir / head).exists():
+            op = head.split("_HEAD")[0].lower().replace("_", "-")
+            return f"a {op} is in progress; finish it first"
+    if (git_dir / "rebase-merge").exists() or (git_dir / "rebase-apply").exists():
+        return "a rebase is in progress; finish it first"
+    return None
+
+
+def _commit_refusal(repo: Path) -> str | None:
+    """Why ``commit-items`` must not run here, or None: the store's own state, then the caller —
+    a session must run it from inside the main checkout, never name it with ``--repo``."""
+    why = _store_refusal(repo)
+    if why:
+        return why
+    try:
+        caller = _repo_root(Path.cwd())
+    except WorkError:
+        caller = None
+    if caller != repo:
+        return f"run it from inside the main checkout ({repo}), not from {Path.cwd()}"
+    return None
+
+
+def cmd_commit_items(repo: Path, args: argparse.Namespace) -> int:
+    """Commit every uncommitted, valid, unstaged item file of THIS main checkout's store in one
+    commit (W-4238b6ec). The store lock is held only while the list is taken — the commit itself
+    runs outside it, so hook writers (2 s fail-open waits) are never starved; a file a verb
+    rewrites after the listing is committed in its newer, equally complete state."""
+    why = _commit_refusal(repo)
+    if why:
+        print(f"work.py commit-items: refused — {why}.", file=sys.stderr)
+        return 2
+    for attempt in (1, 2):
+        with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="commit-items"):
+            files, held, deleted, invalid = _store_commit_plan(repo)
+        if not files:
+            print("work.py commit-items: nothing to commit")
+            break
+        try:
+            sha = _commit_store_files(
+                repo, files, f"work.py commit-items: {len(files)} item file(s) from the main store"
+            )
+        except WorkError as exc:
+            if attempt == 2:
+                print(f"work.py commit-items: {exc}", file=sys.stderr)
+                return 1
+            continue  # a sibling held the index or moved HEAD: re-list against the new state
+        branch = _git(repo, "symbolic-ref", "--short", "-q", "HEAD")
+        print(f"[{branch} {sha[:9]}] committed {len(files)} item file(s) — push it: git push")
+        break
+    # a race may have committed them since the listing — but only a listing that SUCCEEDED may
+    # drop a line: a git failure here must never read as an all-clear (round 2, A-S6)
+    fresh = _uncommitted_items_strict(repo)
+    still = set(fresh) if fresh is not None else set(held) | set(deleted) | set(invalid)
+    for rel in (r for r in held if r in still):
+        print(f"skipped (staged by another session): {rel}")
+    for rel in (r for r in deleted if r in still):
+        print(f"skipped (deleted — this verb commits no deletion; restore it or commit it): {rel}")
+    for rel in (r for r in invalid if r in still):
+        print(f"skipped (not a valid item file): {rel}")
+    return 0
 
 
 def cmd_status(repo: Path, args: argparse.Namespace) -> int:
@@ -4147,7 +4442,7 @@ QUEUED_TAG = "queued"
 HELD_TAGS = frozenset({"runtime", "hold"})
 HELD_PREFIX = "waits-"
 _HARNESS_RE = re.compile(r"agent-[0-9a-f]{16,}")
-_PLAN_DONE = frozenset({"EXECUTED", "COMPLETE", "SUPERSEDED", "SHIPPED"})
+_PLAN_DONE = frozenset({"EXECUTED", "COMPLETE", "SUPERSEDED", "SHIPPED", "ARCHIVED"})
 
 
 def _tags(item: dict) -> set[str]:
@@ -4213,13 +4508,37 @@ def _worktrees(repo: Path) -> list[Path]:
     return trees or [repo.resolve()]
 
 
+def _feedback_owner(main: Path) -> str:
+    """The agent the command-feedback queues are walked for: `config.json["feedback_owner"]`,
+    else the distributor — a repo without the key behaves as it always did. A fourth hub agent,
+    `kaizen`, owns the hub's queues this way (operator ruling 2026-10-06) without becoming the
+    distributor, so coordination and the feedback loop are two agents, not one."""
+    try:
+        cfg = _read_config(main)
+    except Exception:
+        return ""
+    owner = str(cfg.get("feedback_owner") or "").strip()
+    if owner and _valid_name(owner):
+        return owner
+    return str(cfg.get("distributor") or "").strip()
+
+
 def _workers(main: Path) -> dict[str, Path]:
-    """Registered `<main>/.claude/worktrees/<name>` trees that are not harness worktrees."""
+    """Registered `<main>/.claude/worktrees/<name>` trees that are not harness worktrees. A feedback
+    owner that is not the distributor is NOT a pool worker: its tree is dropped here, so the doorbell
+    rung never fires for it and the distributor's triage never routes general backlog to it — its
+    queue is the feedback ledger, not the pool (design critique, Opus #4)."""
     base = (main / ".claude" / "worktrees").resolve()
     out: dict[str, Path] = {}
+    owner = _feedback_owner(main)
+    distributor = (
+        str(_read_config(main).get("distributor") or "").strip() if _has_store(main) else ""
+    )
     for tree in _worktrees(main)[1:]:
         tree = tree.resolve()
         if tree.parent == base and not _HARNESS_RE.fullmatch(tree.name) and _valid_name(tree.name):
+            if owner and tree.name == owner and owner != distributor:
+                continue
             out[tree.name] = tree
     return out
 
@@ -4310,8 +4629,20 @@ def _open_plans(main: Path) -> list[str]:
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         out = []
-        for path in sorted((main / "docs" / "development" / "plans").glob("*.md")):
-            status = str(mod.parse_plan_status(path)[0]).upper().strip()
+        plans = main / "docs" / "development" / "plans"
+        # a plan SET is `plans/<stem>/<stem>.md` + T## tickets; its spine carries the status
+        # (web-ecommerce-factory 01M46V7T0CR4MAXBF3K5D0FSDD: a one-level glob never listed one).
+        # Sets are matched as `_iter_plan_spines` matches them; top-level files keep the wider
+        # `*.md` glob, so an undated plan this view always listed is not dropped
+        spines = [d / f"{d.name}.md" for d in plans.glob("*/") if _PLAN_DIR_NAME_RE.match(d.name)]
+        for path in sorted([*plans.glob("*.md"), *spines]):
+            # one unreadable plan is skipped, never the whole view (review round 1)
+            try:
+                if not path.is_file():
+                    continue  # a dated set directory holding tickets but no spine
+                status = str(mod.parse_plan_status(path)[0]).upper().strip()
+            except OSError:
+                continue
             if (status.split() or [""])[0] not in _PLAN_DONE:
                 out.append(f"{path.relative_to(main).as_posix()} ({status})")
         return out
@@ -4336,16 +4667,74 @@ def _stop_action(tree: Path, session: str) -> dict:
     is_worker = tree in workers.values()
     if not agent and is_worker:
         agent = next(n for n, t in workers.items() if t == tree)
+    if not agent:
+        # the feedback owner's tree is dropped from the pool, so it gets the same name fallback
+        # the pool workers have — else an unset CLAUDE_AGENT silences its whole ladder (pass 1, A-S3)
+        owner = _feedback_owner(main)
+        if owner and tree == (main / ".claude" / "worktrees" / owner).resolve():
+            agent = owner
     if not agent and tree == main and coordinator:
         agent = coordinator
     none = {"agent": agent, "role": "", "action": None, "fp": "", "text": ""}
     if not _has_store(main):
         return none
+    commit = _commit_items_subject(tree, main)
     if _autonomy_on(main):
-        return _autonomy_action(tree, main, session, agent, is_worker, workers, coordinator, none)
+        result = _autonomy_action(tree, main, session, agent, is_worker, workers, coordinator, none)
+        if commit:
+            # FIRST on the ladder: it exhausts after three blocks and the ladder moves on, and its
+            # fingerprint carries the store's last commit, so it re-arms once that commit lands
+            cands = [
+                commit,
+                *[c for c in result.get("candidates") or [] if c["fp"] != commit["fp"]],
+            ]
+            result = {**result, **commit, "candidates": cands[:AUTONOMY_MAX_CANDIDATES]}
+        return result
     if _holds_claim(tree, session):
-        return none
-    return _classic_rungs(tree, main, agent, is_worker, workers, coordinator, none)
+        return none  # mid-task: the task's own commit carries its item files
+    rung = _classic_rungs(tree, main, agent, is_worker, workers, coordinator, none)
+    if rung.get("action") or not commit:
+        return rung
+    return {**none, **commit}  # LAST on the classic path: it never masks claim/doorbell/triage
+
+
+def _commit_items_subject(tree: Path, main: Path) -> dict | None:
+    """The Stop subject for a session working IN the main checkout while its store holds
+    committable item files (W-4238b6ec); a worktree session is never handed it. It counts only
+    what `commit-items` would commit, so a skipped file never keeps it alive; when the checkout's
+    state refuses the verb (detached HEAD, a merge or rebase in progress) it names that instead.
+    The fingerprint carries the store's last commit AND the backlog's power-of-two bucket, so the
+    ladder re-arms after a store commit and again each time the backlog doubles. COBRA: ignoring
+    ``W-*.json`` in the store's .gitignore would empty the listing and silence this without
+    committing anything; a test pins the file."""
+    if tree != main:
+        return None
+    try:
+        files = _store_commit_plan(main)[0]
+        why = _store_refusal(main) if files else None
+    except Exception:
+        return None
+    if not files:
+        return None
+    try:
+        last = _git(main, "log", "-1", "--format=%h", "--", STORE_REL.as_posix()) or "none"
+    except WorkError:
+        last = "none"  # no commit yet (a fresh store): still a subject, never silence
+    n = len(files)
+    head = (
+        f"{n} work-item file(s) are uncommitted in this main checkout's store (mail claims, "
+        "triage, Stop-hook DECISION items and this checkout's own verbs write it; only this "
+        "checkout can commit it)"
+    )
+    if why:
+        text = f"{head}, but they cannot be committed yet: {why} — then `python3 scripts/work.py commit-items`"
+    else:
+        text = f"{head}: `python3 scripts/work.py commit-items`, then `git push`"
+    return {
+        "action": "commit-items",
+        "fp": f"rung:commit-items:{last}:{n.bit_length()}{':blocked' if why else ''}",
+        "text": text + _ESCAPE,
+    }
 
 
 def _classic_rungs(
@@ -4411,7 +4800,7 @@ def _classic_rungs(
                 f"while {routable} routable, {backlog} backlog and {own} of your own queued items "
                 "wait: run `python3 scripts/work.py triage`, promote the backlog you want done "
                 "(`python3 scripts/work.py assign <id> --owner <worker> --tag queued`), then "
-                "`python3 scripts/work.py triage --apply`, commit the store, and send the "
+                "`python3 scripts/work.py triage --apply`, `python3 scripts/work.py commit-items`, and send the "
                 "SendMessage lines it prints.",
             }
         return {**none, "role": "coordinator"}
@@ -4554,8 +4943,10 @@ def _autonomy_candidates(
     coordinator: str,
     none: dict,
 ) -> list[dict]:
-    """The ordered ladder (design: held claims → mail → queued → coordinator rungs → owned →
-    the distributor's feedback queues), one candidate per subject, deduplicated by fingerprint."""
+    """The ordered ladder (design: held claims → mail → [the feedback owner's queues, when it is
+    not the distributor] → queued → coordinator rungs → owned → the distributor's feedback
+    queues), one candidate per subject, deduplicated by fingerprint.
+    `_stop_action` puts the main checkout's `commit-items` subject in front of it."""
     items = list(_iter_items(tree))
     closed = _closed_ids(tree)
     claims = _live_claims(tree)
@@ -4586,6 +4977,10 @@ def _autonomy_candidates(
             }
         )
     cands.extend(_mail_candidates(main, agent, coordinator))
+    owner = _feedback_owner(main)
+    if agent and agent == owner and owner != coordinator:
+        # the feedback owner's job IS the queue: right after its mail, never behind its backlog
+        cands.extend(_feedback_candidates(tree))
     classic = _classic_rungs(tree, main, agent, is_worker, workers, coordinator, none)
     if classic.get("action"):
         # a STABLE subject per rung: the classic fps carry live counts and worker names, and a
@@ -4623,7 +5018,7 @@ def _autonomy_candidates(
                 f"start it{_ESCAPE}",
             }
         )
-    if agent and agent == coordinator:
+    if agent and agent == coordinator and owner == coordinator:
         cands.extend(_feedback_candidates(tree))
     seen: set[str] = set()
     out = []
@@ -4717,6 +5112,7 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
                 "tree": str(tree),
             }
         )
+    open_plans = _open_plans(main)  # typed here: the mixed-value report dict widens it to a union
     report = {
         "coordinator": coordinator or None,
         "floor": floor,
@@ -4724,7 +5120,7 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
         "routable": len(pool["routable"]),
         "backlog_waiting": len(pool["backlog"]),
         "held": len(pool["held"]),
-        "plans": _open_plans(main),
+        "plans": open_plans,
     }
     if args.json:
         print(json.dumps(report, sort_keys=True))
@@ -4741,7 +5137,7 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
         f"routable {report['routable']} · backlog waiting {report['backlog_waiting']} · "
         f"held {report['held']} (runtime/hold/waits-*)"
     )
-    for plan in report["plans"]:
+    for plan in open_plans:
         print(f"plan not executed: {plan}")
     return 0
 
@@ -4800,7 +5196,7 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
     if not done:
         return 0
     base = _base_branch(main) or "the base branch"
-    print("commit the store, then send:")
+    print("commit the store (`python3 scripts/work.py commit-items`), then send:")
     for name, written in done.items():
         ids = " ".join(written)
         for session in _sessions_of(name, main) or [f"<{name}'s session>"]:
@@ -4874,7 +5270,17 @@ def _parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("done", help="close an item with a commit that names it")
     s.add_argument("id")
-    s.add_argument("--evidence", help="a commit SHA whose message names the item id")
+    s.add_argument(
+        "--evidence",
+        help="a commit SHA whose message names the item id (with --resolved-by: optional, and "
+        "it must equal the cited item's recorded evidence)",
+    )
+    s.add_argument(
+        "--resolved-by",
+        metavar="W-ID",
+        help="the DONE item whose recorded fix also resolved this one: this item carries that "
+        "item's evidence and records resolved_by (W-f154f3f3)",
+    )
     s.add_argument("--session", help=session_help)
     s.set_defaults(fn=cmd_done)
 
@@ -4898,6 +5304,11 @@ def _parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("status", help="items, uncommitted item files, and spec/plan drift")
     s.set_defaults(fn=cmd_status)
+
+    s = sub.add_parser(
+        "commit-items", help="commit the main store's uncommitted item files (main checkout only)"
+    )
+    s.set_defaults(fn=cmd_commit_items)
 
     s = sub.add_parser("sync", help="drift check — the completion gate's row")
     s.add_argument(

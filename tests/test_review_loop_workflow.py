@@ -17,6 +17,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / ".claude" / "workflows" / "fabrik-review-loop.js"
 SOURCES = [
@@ -866,3 +868,117 @@ def test_the_route_up_sentence_cites_symbols_that_exist_not_drifting_line_number
     assert symbols, line
     for sym in symbols:
         assert re.search(rf"^(?:{sym} =|def {sym}\()", code, re.M), sym
+
+
+@pytest.mark.parametrize("sep", [" · ", ", ", " "])
+def test_a_composite_ledger_id_echo_counts_for_the_one_ledger_id_it_names(sep: str) -> None:
+    """W-7afacefb (fabrik-lib 01M3RX9J): a closing seat echoed each `<slice>-L<n>` with the original candidate id
+    appended (`S-L1 · S-O27`), so every fully re-verified claim read "not re-verified" and the slice was never
+    closable — a signal leads learn to override. A report naming exactly one ledger id now counts for it, whatever
+    the separator and however it is padded."""
+    args = {**_ARGS, "pass": 2}
+    args["slices"] = [{**_ARGS["slices"][0], "ledger": ["claim one", "claim two"]}]
+    status = [
+        {"id": f"  S-L1{sep}S-O27", "status": "NOW_FALSE", "command": "c", "output": "o"},
+        {"id": f"S-O30{sep}S-L2", "status": "NOW_FALSE", "command": "c", "output": "o"},
+    ]
+    out, _, _ = _harness(args, _two_finders([], ledger_status=status))
+    s = out["slices"][0]
+    assert s["closable"] is True, s["open"]
+
+
+def test_a_report_naming_two_ledger_ids_closes_neither() -> None:
+    """Review round 1 (slice A): a leading-token rule closed S-L2 for a report `S-L2 · S-L1` that verified S-L1 —
+    an unverified claim closed silently, worse than HEAD. A report naming two ledger ids is ambiguous: both stay
+    open, the fail-closed default."""
+    args = {**_ARGS, "pass": 2}
+    args["slices"] = [{**_ARGS["slices"][0], "ledger": ["claim one", "claim two"]}]
+    status = [{"id": "S-L2 · S-L1", "status": "NOW_FALSE", "command": "c", "output": "o"}]
+    out, _, _ = _harness(args, _two_finders([], ledger_status=status))
+    s = out["slices"][0]
+    assert s["closable"] is False
+    assert sorted(o for o in s["open"] if "not re-verified" in o) == [
+        "ledger claim S-L1 not re-verified by any seat",
+        "ledger claim S-L2 not re-verified by any seat",
+    ], s["open"]
+
+
+def test_a_report_naming_one_ledger_id_twice_still_closes_it() -> None:
+    """Review round 2 (slice B): `S-L1 · S-L1` names ONE distinct ledger id; counting it twice would read it as
+    ambiguous and leave a fully re-verified claim open."""
+    args = {**_ARGS, "pass": 2}
+    args["slices"] = [{**_ARGS["slices"][0], "ledger": ["claim one"]}]
+    status = [{"id": "S-L1 · S-L1", "status": "NOW_FALSE", "command": "c", "output": "o"}]
+    out, _, _ = _harness(args, _two_finders([], ledger_status=status))
+    assert out["slices"][0]["closable"] is True, out["slices"][0]["open"]
+
+
+def test_a_leading_id_token_never_closes_a_shorter_id_it_merely_starts_with() -> None:
+    """Tokens are cut at every character an id cannot hold, so `S-L10 · …` closes S-L10 and never S-L1 (a prefix
+    match would close both)."""
+    args = {**_ARGS, "pass": 2}
+    args["slices"] = [
+        {
+            **_ARGS["slices"][0],
+            "ledger": [{"id": "S-L1", "claim": "c"}, {"id": "S-L10", "claim": "d"}],
+        }
+    ]
+    status = [{"id": "S-L10 · S-O9", "status": "NOW_FALSE", "command": "c", "output": "o"}]
+    out, _, _ = _harness(args, _two_finders([], ledger_status=status))
+    s = out["slices"][0]
+    assert s["open"] == ["ledger claim S-L1 not re-verified by any seat"], s["open"]
+
+
+def test_every_seat_is_told_how_to_run_pytest_against_the_pins() -> None:
+    """01M469D3 (brand-identiy-creator): the probe recipe does not hold for a PYTEST run from the
+    live repo — pytest prepends the live rootdir's ini `pythonpath` at sys.path[0], so an Opus
+    seat's mutant run reported a false "35 passed" against the live module. Every finder and
+    refuter is told to run pytest from INSIDE the archive and to prove the import from inside."""
+    _, _, prompts = _harness(
+        _ARGS,
+        {
+            "find:S:sonnet": {
+                "files_read": ["a.py", "b.py"],
+                "notes": "",
+                "candidates": [_cand("S-S1", 3)],
+            }
+        },
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        assert "PYTEST" in p and "cd INTO SCRATCH/arch" in p, label
+        # in-process launch keeps the site-packages insert: without it an editable .pth wins
+        assert "pytest.main(sys.argv[1:])" in p and "site-packages" in p, label
+        # the real base sha, never a literal BASE no seat can run (review A-H1)
+        assert "tox.ini" in p and f"git ls-tree --name-only {_ARGS['base_sha']}`" in p, label
+        assert "every top-level directory the tests import" in p, label
+        assert "the live repo's absolute path" in p and "unverifiable" in p, label
+        assert "Print `__file__` from INSIDE the run" in p and "child process" in p, label
+        # a dummy must never reach a real DB nor un-skip a DB-gated suite (Fable critique)
+        assert (
+            "never for a TEST_*" in p and "dummy.invalid:1/dummy" in p and "Never copy a .env" in p
+        ), label
+
+
+def test_finder_and_refuter_share_one_pytest_clause() -> None:
+    """Both briefs append the one PYTEST_PINS constant, so the two copies cannot drift."""
+    src = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text(encoding="utf-8")
+    assert src.count("const PYTEST_PINS = ") == 1
+    assert src.count("not the pin.${PYTEST_PINS}") == 2
+
+
+def test_a_shell_less_researcher_finder_gets_no_shell_recipe() -> None:
+    """A fabrik-researcher seat has no shell: its FINDER prompt, like its refuter's (A-S4), carries
+    neither the import recipe nor the pytest clause (review of W-07b8f192, A-S1)."""
+    args = dict(_ARGS)
+    args["slices"] = [
+        {"name": "X", "files": ["a.py"], "models": ["sonnet"], "agent": "fabrik-researcher"}
+    ]
+    _, _, prompts = _harness(
+        args, {"find:X:sonnet": {"files_read": ["a.py"], "notes": "", "candidates": []}}
+    )
+    p = prompts["find:X:sonnet"]
+    assert "read the pin, never the live tree" in p
+    assert "PYTEST" not in p and "git archive" not in p and "python -P" not in p
+    # nor the SCRATCH shell rules (closing pass A2-S1, the same class as the refuter's A-S4)
+    assert "timeout 120" not in p and "mkdir" not in p and "you have no shell" in p

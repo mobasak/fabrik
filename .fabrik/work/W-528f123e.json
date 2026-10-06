@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "check_review_coverage _OWNER_ID only accepts F<n> ids — project finding ids can never satisfy \"RECORDED — by design\""
 }

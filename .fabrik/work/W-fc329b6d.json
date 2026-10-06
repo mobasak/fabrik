@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T19:20:40.263634Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-fc329b6d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M445K2ZND6JG1TSFFTN7DVQ1",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: DATA_SYNC_WORKFLOW CORE_SCRIPTS count — fixed in 0d37cd7b0"
+}

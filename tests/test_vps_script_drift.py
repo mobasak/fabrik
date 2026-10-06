@@ -401,6 +401,7 @@ def _catchup_env(tmp: Path, collector_rc: int, drift_rc: int = 1) -> tuple[dict,
     sysadmin.mkdir(parents=True)
     log = tmp / "calls.log"
     for name, rc in (
+        ("kaizen_coroner.py", 0),
         ("kaizen_collect_v2.py", collector_rc),
         ("feedback_relay.py", 0),
         ("rules_currency_watch.py", 0),
@@ -929,3 +930,53 @@ def test_remote_cmd_failed_redirect_is_unreadable(tmp_path):
     cmd = cmd.replace("} < " + str(good), "} < " + str(tmp_path / "gone"))
     out = subprocess.run(["sh", "-c", cmd], capture_output=True, text=True, timeout=60).stdout
     assert d.parse_cron(out) == ["CRON-UNREADABLE"], out
+
+
+# ── W-97de2aa3: the collector arm runs the coroner's closing sweep first ─────────────
+
+
+def test_coroner_sweeps_before_the_collector(tmp_path):
+    """The day the collector publishes (yesterday) always has the sweep that closed it."""
+    env, _state = _catchup_env(tmp_path, collector_rc=0)
+    r = subprocess.run(
+        ["bash", str(CATCHUP), "kaizen_collect_v2.py"], env=env, capture_output=True, text=True
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    calls = (tmp_path / "calls.log").read_text().split()
+    assert calls.index("kaizen_coroner.py") < calls.index("kaizen_collect_v2.py")
+
+
+def test_a_failing_pre_sweep_never_blocks_the_collector(tmp_path):
+    env, state = _catchup_env(tmp_path, collector_rc=0)
+    sweep = Path(env["FABRIK_ROOT"]) / "scripts" / "sysadmin" / "kaizen_coroner.py"
+    log = tmp_path / "calls.log"
+    sweep.write_text(
+        f"import sys\nopen({str(log)!r}, 'a').write('pre-sweep-failed\\n')\nsys.exit(2)\n"
+    )
+    r = subprocess.run(
+        ["bash", str(CATCHUP), "kaizen_collect_v2.py"], env=env, capture_output=True, text=True
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (state / "daily-kaizen_collect_v2.py.stamp").exists()
+    calls = (tmp_path / "calls.log").read_text().split()
+    assert calls.index("pre-sweep-failed") < calls.index("kaizen_collect_v2.py")
+
+
+def test_pre_sweep_waits_for_a_running_coroner_job(tmp_path):
+    """C-S1: when the coroner's own job holds its lock, the pre-sweep WAITS for it and then
+    sweeps — it never skips, so the collector never reads before a closing line exists."""
+    env, state = _catchup_env(tmp_path, collector_rc=0)
+    state.mkdir(parents=True, exist_ok=True)
+    holder = subprocess.Popen(["flock", str(state / "daily-kaizen-coroner.lock"), "sleep", "2"])
+    try:
+        import time as _time
+
+        _time.sleep(0.3)  # let the holder take the lock first
+        r = subprocess.run(
+            ["bash", str(CATCHUP), "kaizen_collect_v2.py"], env=env, capture_output=True, text=True
+        )
+    finally:
+        holder.wait(timeout=30)
+    assert r.returncode == 0, r.stdout + r.stderr
+    calls = (tmp_path / "calls.log").read_text().split()
+    assert calls.index("kaizen_coroner.py") < calls.index("kaizen_collect_v2.py")

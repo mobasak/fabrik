@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "final_gate's pytest leg runs without TEST_DATABASE_URL, so every DB-backed test is skipped and a red DB suite reads green"
 }

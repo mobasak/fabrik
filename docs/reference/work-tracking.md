@@ -22,6 +22,11 @@ would fork `config.json`). Without `--distributor`, it runs `<the current interp
 /opt/fabrik/scripts/decisions.py --merge-owner <the resolved absolute repo root>` (hub-only, 30 s
 timeout); a name that isn't a valid agent name is warned about on stderr and dropped. With no name
 recorded either way, the store's `distributor` field is left empty and `assign` is open to any agent.
+A second, optional key, `feedback_owner` (set by hand, like `autonomy`), names the agent whose Stop
+ladder walks the command-feedback queues — the hub's fourth agent, `kaizen`, since 2026-10-06; absent,
+the distributor walks them as before. A feedback owner that is not the distributor is not a pool
+worker: `_workers` drops its worktree, so triage never routes general backlog to it, and its feedback
+candidates come right after its mail on the autonomy ladder.
 
 ## Two homes
 
@@ -47,7 +52,8 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
 | `blocked_by` | item ids that, if present, would gate `ready` and `claim` until each reads `done`/`dropped` (here, or closed by a marker elsewhere) — genuinely READ by both (`_is_ready`, `_refuse_blocked`). In practice it never blocks anything today: `add` has no `--blocked-by` flag and every item is minted with `blocked_by: []`, so nothing currently WRITES this field. |
 | `next` | the item's own concrete next action, written by `add --next` or `migrate-backlog` in full (a migrated item's whole body lives here) — a Stop harvest never rewrites it: a NEXT that qualifies under rule 2 (§ NEXT, DECISION blocks and the register, below) only CLAIMS the item. A `kind: next` item's own `next` is its session's current free-text NEXT, clipped to 300 characters (`LINE_MAX`) — the same 300 characters the register (`thread_anchor.py`) judges a NEXT by |
 | `next_at` | `kind: next` only: the time this item's `next`/title text was last set — a Stop harvest closes the item `dropped` `idle 7 days` once this reads more than 7 days old |
-| `evidence` | set by `done`: a commit SHA whose message names the item id |
+| `evidence` | set by `done`: a commit SHA whose message names the item id — or, for an item closed `--resolved-by`, the cited item's own recorded evidence, whose commit names the `resolved_by` root (the cited item itself, or the item at the end of its chain) |
+| `resolved_by` | set by `done --resolved-by`: the ROOT item whose recorded fix also resolved this one (a chain records its root, not the link it was cited through); copied onto the closed marker so another tree can follow the chain (W-f154f3f3) |
 | `legacy` | `true` only on items `migrate-backlog` created from rows already resolved; exempt from the evidence rule |
 | `note` | free text; on a `decision` closed by `answer` it holds the operator's words, which exempts that item from the evidence rule (it has no commit by design, D-542) |
 | `question`, `ground`, `msg_digests`, `block_digest` | `kind: decision` only: the plain-words question, the DECISION block's `ground:` token, every message digest that created or refreshed the item, and the block's own digest |
@@ -90,12 +96,12 @@ plus a random nonce, exclusive-created so a collision just retries with a fresh 
   the marker file itself stays on disk. Drift class 6 relies on exactly that: a marker still present
   past 14 days, next to an item its base branch still reads open, is what class 6 reports. Class 6's
   other half reads the items themselves: an item marked `done` in the last 14 days whose `evidence`
-  SHA does not resolve or does not name the item — except `legacy` items, `mail`/`feedback` items,
+  SHA does not resolve or does not name the item (its `resolved_by` root when it has one) — except `legacy` items, `mail`/`feedback` items,
   and a `decision` closed by `answer` (D-542).
 
 ## The CLI — `scripts/work.py`
 
-Executed against the merged script (`work.py --help`, then `work.py <verb> --help`, 2026-09-26) — 14
+Executed against the merged script (`work.py --help`, then `work.py <verb> --help`, 2026-10-05) — 17
 verbs:
 
 | Verb | Who | What |
@@ -110,9 +116,11 @@ verbs:
 | `claim <id> [--session <s>]` | worker | take (or renew) the live claim; refused when another session holds a live claim, or the item is `blocked`/has an unresolved `blocked_by` |
 | `release <id> [--session <s>]` | worker | give up this session's live claim (fenced the same way as `done`) |
 | `done <id> --evidence <sha> [--session <s>]` | worker | refused without `--evidence`, with a SHA that does not resolve, or whose commit message does not name the item id; refused BY HAND on a `mail`/`feedback` item — those close only through `mail.py ack`/`close_linked` |
+| `done <id> --resolved-by <W-id> [--evidence <sha>] [--session <s>]` | worker | close an item another item's commit already fixed: the cited item must read `done` in this tree, on the base branch or in a closed marker, and record evidence; this item carries that evidence and records `resolved_by`. A given `--evidence` must equal the cited item's, so a fresh commit that merely names the cited item is refused (W-f154f3f3) |
 | `drop <id> (--why <text> \| --duplicate-of <keep>) [--session <s>]` | `--why`: the owner, the distributor, or anyone for an unassigned item · `--duplicate-of`: the distributor, or a caller whose agent name or session id is the `creator` of BOTH items | end an item that won't be done (`--why`, refused on `awaiting-operator` items); or retire an open `awaiting-operator` `<id>` into another open `awaiting-operator` `<keep>` (`--duplicate-of`, D5) — `<keep>` absorbs `<id>`'s block digest and id so a later re-ask of either wording refreshes `<keep>` instead of opening a third item |
 | `answer <id> --note <text> [--decision D-NNN] [--session <s>]` | the agent the operator answered | close an awaiting-operator item with the operator's own words |
 | `status` | anyone | the obligation lines and the distributor's lines (§ The view), items by state, uncommitted item files, plan-board ticket counts, and the eight drift classes below (read-only, no lock) |
+| `commit-items` | the MAIN checkout's session | commit every uncommitted, valid item file of the main store in ONE plumbing commit on the current branch (`Agent-Role`/`Agent-Context` trailers), built in a private index from HEAD, so no other dirty or staged file rides along; a path another session STAGED and a file that is not a valid item are skipped and named; a sibling commit landing meanwhile is never overwritten (compare-and-swap, one rebuild). Refused in a linked worktree and on a detached HEAD. It never pushes. While committable files remain, `queue --stop` hands the main checkout's session this verb: FIRST on the autonomy ladder (re-armed after each store commit and each doubling of the backlog), LAST on the classic path and never while the session holds a claim; when the checkout's state refuses the verb it names that state instead. A deleted item file is never committed by it (W-4238b6ec) |
 | `sync --check` | gate, pipeline | the same drift report, plus one `readings.jsonl` line; exits non-zero only when a listed class is both `(blocking)` in its output **and** the repo has passed its blocking window (below) |
 | `render` | pipeline, agents | regenerate the backlog's `AUTO-GENERATED:BACKLOG` block — its only writer |
 | `migrate-backlog` | once per repo | turn existing `docs/STRATEGIC_BACKLOG.md` rows into items; once `migrated_at` is set, a run creates nothing |
@@ -165,7 +173,8 @@ one-window repo (or one with no distributor) is its own coordinator. A repo whos
 operator ruling 2026-10-04, D-558) — gets the AUTONOMY LADDER instead: `queue --stop` returns ordered
 `candidates`, one per subject — a claim this session holds, `ack: required` mail for the agent,
 queued work, the coordinator rungs above, the agent's other owned ready items, and for the
-distributor the command-feedback queues — and the Stop hook blocks on each subject in turn, three
+distributor the command-feedback queues (for a `feedback_owner` that is not the distributor, its
+queues come right after its mail instead — § above) — and the Stop hook blocks on each subject in turn, three
 times at most, so holding a claim no longer silences it. Self-service claiming from
 `ready` stays the fallback — `docs/reference/multi-agent-operating-model.md` § Claim or assign.
 
@@ -314,7 +323,7 @@ Eight drift classes (`status`/`sync` print `DRIFT <n> (blocking|advisory)  <path
 | 3 | A plan IN-PROGRESS with no plan lock | blocking\* |
 | 4 | A plan EXECUTED while an item linking it is still open (archived plans included — a plan is archived at EXECUTED) | blocking\* |
 | 5 | An item file that doesn't parse, or a status outside the vocabulary | blocking\* |
-| 6 | A `done` item within the last 14 days whose evidence SHA doesn't exist or doesn't name it; or a closed marker over 14 days old whose item is still open in the base branch (never merged) | blocking\* |
+| 6 | A `done` item within the last 14 days whose evidence SHA doesn't exist or doesn't name it (or its `resolved_by` root); or a closed marker over 14 days old whose item is still open in the base branch (never merged) | blocking\* |
 | 7 | The backlog block is stale (`render` would change it) | advisory |
 | 8 | A plan `Status:` value outside the normalised set | advisory |
 
@@ -392,7 +401,7 @@ second chance above and a printed warning if that also fails. A corrupt item fil
 `sync`/`status` and skipped by `ready`. A missing store reads as empty only through the hook-facing
 API (`has_store`, `on_harvest`, `ensure_decision_item[s]`, `has_msg_digest`, `prompt_block`) and
 through `sync` (one line, exit 0); every OTHER CLI verb — `add`, `assign`, `ready`, `next`, `claim`,
-`release`, `done`, `drop`, `answer`, `status`, `render`, `migrate-backlog` — exits 1 with the `init`
+`release`, `done`, `drop`, `answer`, `status`, `queue`, `triage`, `commit-items`, `render`, `migrate-backlog` — exits 1 with the `init`
 refusal instead.
 
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->

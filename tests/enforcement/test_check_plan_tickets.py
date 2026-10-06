@@ -2807,6 +2807,74 @@ def test_touches_shapes_that_are_not_prose_stay_quiet_and_a_dot_slash_ghost_gate
     assert any("scripts/probe_ghost.sh" in m and "exists nowhere" in m for m in errs), errs
 
 
+def test_a_gate_path_resolves_against_its_own_cd_and_a_subdir_prefixed_ghost_fires(
+    tmp_path: Path,
+) -> None:
+    """T4.8 (brand-identiy-creator 01M46WXVNQQRCEAVHWEQ5A7YEE): `cd frontend && npx playwright test
+    tests/ui/<spec>` was resolved against the repo root, so 9 existing specs read "exists nowhere";
+    and a path spelled `frontend/tests/ui/<spec>` was never checked at all, so the workaround also
+    silenced a true ghost."""
+
+    def _errs_for(sub: str, gate: str, exists: list[str]) -> list[str]:
+        t1 = T01.replace("Gate: pytest -q tests/test_schema.py", f"Gate: {gate}")
+        assert gate in t1
+        plan_dir = _build(
+            tmp_path / sub,
+            tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99},
+        )
+        root = plan_dir.parents[3]
+        for rel in exists:
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text("x", encoding="utf-8")
+        return [m for m in _errors(cpt.check_plan_dir(plan_dir)) if "exists nowhere" in m]
+
+    spec = "frontend/tests/ui/disc-a.spec.ts"
+    cd_gate = "cd frontend && npx playwright test tests/ui/disc-a.spec.ts"
+    assert _errs_for("cd-real", cd_gate, [spec]) == []
+    ghost = _errs_for("cd-ghost", cd_gate, [])
+    assert len(ghost) == 1 and f"`{spec}`" in ghost[0], ghost
+    assert _errs_for("prefixed-real", f"npx playwright test {spec}", [spec]) == []
+    prefixed = _errs_for("prefixed-ghost", f"npx playwright test {spec}", [])
+    assert len(prefixed) == 1 and f"`{spec}`" in prefixed[0], prefixed
+    # the reporter's workaround: still inside `cd frontend`, the runner's filter argument is spelled
+    # root-relative — Playwright runs it, so it is not a ghost
+    workaround = f"cd frontend && npx playwright test {spec}"
+    assert _errs_for("workaround-real", workaround, [spec]) == []
+    # a `cd` anchored at the repo root resolves too, so its ghost is not silenced (fabrik-lib's
+    # Gates use this form)
+    top = 'cd "$(git rev-parse --show-toplevel)/frontend" && npx playwright test tests/ui/disc-a.spec.ts'
+    assert _errs_for("top-real", top, [spec]) == []
+    top_ghost = _errs_for("top-ghost", top, [])
+    assert len(top_ghost) == 1 and f"`{spec}`" in top_ghost[0], top_ghost
+    # the anchor resets to the root even after an earlier `cd`
+    after = _errs_for("top-after-cd", f"cd web && {top}", [])
+    assert len(after) == 1 and f"`{spec}`" in after[0], after
+    # review round 1: a root file of the same name never vouches for the cd-resolved one (S1)
+    vouch = _errs_for("root-vouch", cd_gate, ["tests/ui/disc-a.spec.ts"])
+    assert len(vouch) == 1 and f"`{spec}`" in vouch[0], vouch
+    # a subshell's cd applies inside it and ends at its `)` (S4)
+    sub = "(cd frontend && npx playwright test tests/ui/disc-a.spec.ts) && pytest tests/x.py"
+    assert _errs_for("subshell", sub, [spec, "tests/x.py"]) == []
+    # `pushd` moves like `cd` (S3); `cd -` is not a directory named `-` (S2)
+    pushd = cd_gate.replace("cd ", "pushd ", 1)
+    assert _errs_for("pushd", pushd, [spec]) == []
+    pushd_ghost = _errs_for("pushd-ghost", pushd, [])
+    assert len(pushd_ghost) == 1 and f"`{spec}`" in pushd_ghost[0], pushd_ghost
+    assert _errs_for("cd-dash", "cd - && npx playwright test tests/ui/disc-a.spec.ts", []) == []
+    # review round 2 (S5): `cd a || cd b` is an alternative, never `a/b`; `cd x || exit 1` keeps x
+    alt = "cd web || cd frontend && npx playwright test tests/ui/disc-a.spec.ts"
+    assert _errs_for("or-alternative", alt, [spec]) == []
+    keep = _errs_for("or-exit", cd_gate.replace(" && ", " || exit 1 && ", 1), [])
+    assert len(keep) == 1 and f"`{spec}`" in keep[0], keep
+    # round 4: only the exact builtin outside a subshell guarantees the cd took
+    for name, fb in (("or-exit-cmd", "exit-with-error"), ("or-exit-sub", "(exit 1)")):
+        alt_fb = f"cd web || {fb}; npx playwright test tests/ui/disc-a.spec.ts"
+        assert _errs_for(name, alt_fb, ["tests/ui/disc-a.spec.ts"]) == [], name
+    # round 3: a cd that is itself the `||` fallback runs only on failure, so it never resolves
+    mirror = "pytest tests/x.py || cd web && npx playwright test tests/ui/disc-a.spec.ts"
+    assert _errs_for("or-mirror", mirror, ["tests/x.py", "tests/ui/disc-a.spec.ts"]) == []
+
+
 def test_touches_shapes_round_two_a_plus_bullet_a_quoted_path_and_a_mid_bullet_comment(
     tmp_path: Path,
 ) -> None:

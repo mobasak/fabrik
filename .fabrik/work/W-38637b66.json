@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-03T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "b099dc42d4ccff85a708dbb31fa8e2a84d69aec1",
   "id": "W-38637b66",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:272a5e94a589",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`commands/_fragments/grounding-research.md` is included by NO command (2026-09-03, owner: infra)"
 }

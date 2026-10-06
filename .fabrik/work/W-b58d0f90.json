@@ -9,7 +9,7 @@
   "kind": "decision",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-554",
     "plan": "",
     "spec": ""
   },
@@ -17,10 +17,10 @@
     "ae066f89ad65199bb040eab43f3df639ab8038113822e63cd49f4fea042834a5"
   ],
   "next": "",
-  "note": "",
+  "note": "handle them all one by one autonomously, when decision needed ask two subagents independently one fable one opus 5.5 — seats agreed: keep delivery paused until the engine's routes are non-empty (D-554)",
   "owner": "",
   "priority": 2,
   "question": "Should the hub resume delivering the model-routing and gateway blocks into the AI rule packs while the pool stays paused, holding back only the routing doc that the pause protects?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Should the hub resume delivering the model-routing and gateway blocks into the AI rule packs while the pool stays paused, holding back only the routing doc that the pause protects?"
 }

@@ -22,7 +22,7 @@ Workflow({ scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js", ar
 |---|---|
 | `pass` | 1 on the partitioned round; 2, 3 on the passes over the slice ledgers |
 | `surface`, `base_sha`, `digest` | the Phase-0 surface, the pinned commit, `git diff HEAD \| md5sum` |
-| `pins_dir`, `scratch_dir` | the pinned copies every seat reads; the per-seat scratch root |
+| `pins_dir`, `scratch_dir` | the pinned copies every seat reads, each at `<pins_dir>/<repo-relative path>` (`cp --parents <file> <pins_dir>/` from the repo root); the per-seat scratch root |
 | `brief` | the dispatcher's shared text: the 16 failure classes, the D8 lessons, the house rules, the referents |
 | `slices` | `[{ name, files: [repo-relative…], priority, scope?, models?, agent?, ledger?: [{ id, file, line, claim } \| "<claim>"] }]` — `models` is one to three distinct of `opus`/`sonnet`/`haiku` (default `["sonnet", "haiku"]`, D-344's file-slice pair; a section slice names one seat — `["opus"]` on the rule/grammar sections, `["sonnet"]` on the rest, D-212/D-218; `/fabrik-execute-plan` adds its per-round Opus finder as the riskiest slice's third); `agent` is `fabrik-reviewer` (default) or `fabrik-researcher` for a cited-fact slice, and seats that slice's refuter too; `scope` names the sections of `files` the slice owns; an unknown model or agent, or a repeated or fourth finder, stops the script before a seat runs. `ledger` on pass ≥ 2 (a string row gets the id `<slice>-L<n>`; any other row shape stops the script before a seat runs); each `claim` states the DEFECT as raised — `STILL_TRUE` the defect persists · `NOW_FALSE` it is gone (the fix holds) · `NEW` a defect the fix introduced |
 | `box_minutes` | the seats' hard time box (default 15) |

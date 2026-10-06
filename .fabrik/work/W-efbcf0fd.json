@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T22:13:46.218031Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-efbcf0fd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M44BTHQQZ8YJ2VFW7XS1T6V0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "DONE in tryton-crm, da4ec89 (pushed): verify_prod_parity loads the project .env itself (your D-563 request)."
+}

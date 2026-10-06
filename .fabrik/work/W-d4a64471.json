@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-second-occurrence"
+  ],
   "title": "**\"Repeated-flag-no-action\" pattern detector** (complement to `detect_reversals.py`): The 2026-06-07 netdata flood was 24 benign \"anomaly detected\" wakes with no AI action taken — `detect_reversals..."
 }

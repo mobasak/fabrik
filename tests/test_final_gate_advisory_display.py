@@ -643,7 +643,9 @@ def test_the_early_stop_marker_matches_what_pytest_actually_prints() -> None:
     assert fg._PYTEST_EARLY_STOP not in "5 passed in 0.10s"
 
 
-def test_a_truncated_pytest_red_says_its_failure_list_is_partial() -> None:
+def test_a_truncated_pytest_red_says_its_failure_list_is_partial(
+    tmp_path: Path, monkeypatch
+) -> None:
     """T12.4 (01M2606BZ) — the mail's claim was a GREEN over unreached tests, which execution
     REFUTES: `-x` truncates only on a failure, pytest exits 1, `code == 0` is False, the row is
     red, and `run_cmd` returns 1 on timeout too. The real cost is the other half: the red names
@@ -651,17 +653,22 @@ def test_a_truncated_pytest_red_says_its_failure_list_is_partial() -> None:
     failure at a time. Executed: `-x` reports `1 failed, 1 passed` where the full run reports
     `2 failed, 2 passed`.
 
-    Graded on the producer, because the behaviour lives in a branch of `run_consistency_checks`
-    that a unit test cannot reach without running a suite."""
-    src = Path(fg.__file__).read_text(encoding="utf-8")
-    block = src.split("tail = skip_advisory(out, tail)")[1].split("results.append")[0]
-    assert "_PYTEST_EARLY_STOP in out" in block, "the partial-list notice must be emitted"
-    assert "code != 0" in block, (
-        "the notice belongs on the RED path only — a green run never stopped early, and saying so "
-        "there would be the false claim this row exists to remove"
-    )
-    assert "-x" in src.split("_PYTEST_EARLY_STOP in out")[1][:600], (
-        "the notice must name the flag that caused the truncation"
+    Driven through `_run_pytest_suite` (W-e93160e3 extracted the leg) on a real two-failure
+    suite; a green suite must NOT carry the notice."""
+    (tmp_path / "tests").mkdir()
+    suite = tmp_path / "tests" / "test_two.py"
+    suite.write_text("def test_a():\n    assert 0\n\ndef test_b():\n    assert 0\n")
+    monkeypatch.setattr(fg, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(fg, "PYTHON", sys.executable)
+    monkeypatch.delenv("TEST_DATABASE_URL", raising=False)
+    monkeypatch.chdir(tmp_path)
+    name, ok, text = fg._run_pytest_suite()
+    assert (name, ok) == ("pytest", False), (name, text)
+    assert "STOPPED at the first failure (`-x`)" in text, text
+    suite.write_text("def test_a():\n    assert 1\n")
+    name, ok, text = fg._run_pytest_suite()
+    assert ok and "STOPPED" not in text, (
+        "the notice belongs on the RED path only — a green run never stopped early"
     )
 
 

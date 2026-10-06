@@ -111,8 +111,9 @@ TRANSCRIPT_REASONS: dict[str, str] = {
     "rule_activation": "rule_activation events do not exist pre-event-era",
     "unclassified_rate": "defined over typed event lines; transcript lines are not events",
     "hole_count": (
-        "defined as transcripts-without-session_end; pre-event-era EVERY transcript "
-        "lacks one — it would measure era absence, not holes"
+        "defined as instrumented transcripts with no stop_pass, quota-hold pass or "
+        "session_end; pre-event-era EVERY transcript lacks those — it would measure era "
+        "absence, not holes"
     ),
 }
 _GENERIC_TRANSCRIPT_REASON = (

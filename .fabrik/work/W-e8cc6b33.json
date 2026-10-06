@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-04T17:33:46.450393Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e8cc6b33",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M43XR79FEHB9QDV2NC9T6DXK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: a scratch-overlay probe writes the live checkout's data/ — fixed in 3c84aed9e"
+}

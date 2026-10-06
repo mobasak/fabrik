@@ -42,15 +42,24 @@ set -u
 KEEP_DAYS=7
 LOG_PREFIX="[wip-backup]"
 ROOT="${WIP_BACKUP_ROOT:-/opt}"
-# W-dbb3073f: git's default core.fsync is `committed,-loose-object`, which
-# fsyncs neither loose objects nor refs. An unclean WSL shutdown mid-run left
-# 123 zero-byte objects and 50 zero-byte refs/wip files in web-ecommerce-factory,
-# and git reads a zero-byte object as present-but-corrupt, so every later push
-# there died in pack-objects. Harden both for EVERY git call this script makes,
-# appended to (never replacing) any GIT_CONFIG_* the caller already set.
-_fsync_n="${GIT_CONFIG_COUNT:-0}"
-export "GIT_CONFIG_KEY_${_fsync_n}=core.fsync" "GIT_CONFIG_VALUE_${_fsync_n}=objects,reference"
-export GIT_CONFIG_COUNT=$((_fsync_n + 1))
+# W-dbb3073f: git's compiled default (documented as `committed,-loose-object`)
+# fsyncs neither loose objects nor refs — measured with trace2's hardware-flush
+# counter on git 2.43. An unclean WSL shutdown mid-run left 123 zero-byte
+# objects and 50 zero-byte refs/wip files in web-ecommerce-factory, and git
+# reads a zero-byte object as present-but-corrupt, so every later push there
+# died in pack-objects. Harden both for EVERY git call this script makes.
+# `batch` keeps the hardening at one flush per command: per-object fsync made
+# `add -A` of 3000 new files 22x slower (0.6 s → 13.6 s; batch 1.9 s).
+# Fixed slots, deliberately: the script REPLACES any GIT_CONFIG_* its caller
+# set (cron sets none). Appending to the caller's count meant re-implementing
+# git's own parse of GIT_CONFIG_COUNT, and three review rounds each found an
+# input the copy read differently from git (W-dbb3073f) — a count that is
+# never read cannot be misread. GIT_CONFIG_PARAMETERS (what an outer
+# `git -c` passes down) is applied AFTER the slots and would override them.
+unset GIT_CONFIG_PARAMETERS
+export GIT_CONFIG_COUNT=2
+export GIT_CONFIG_KEY_0=core.fsync GIT_CONFIG_VALUE_0=objects,reference
+export GIT_CONFIG_KEY_1=core.fsyncMethod GIT_CONFIG_VALUE_1=batch
 # Round 9 acceptance finding 1 [H]: bounds every `git push` below so a
 # network stall can never cost a local snapshot or wedge a later repo in
 # this run under the cron's own `flock -n`. Overridable only for tests (a

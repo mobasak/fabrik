@@ -1,6 +1,7 @@
 # Claude Desktop wsl-shell MCP — Complete Setup
 
-**Status:** ✅ Working (re-verified against the live box 2026-08-03 — `@mako10k/mcp-shell-server` 2.7.1 installed, schema patch present (`ExecutionModeSchema.default("foreground")`), `/home/ozgur/start-mcp-shell.sh` matches the script below, `pty.node` loads under `/usr/bin/node` v22.23.1, healer + apt hook in place)
+**Status:** ⛔ SUPERSEDED 2026-10-06 by [wsl-mcp.md](wsl-mcp.md) (D-616) — Desktop no longer spawns this server; RETIRED from the box 2026-10-06; archive at `/home/ozgur/.retired/wsl-shell-mcp-20261006/`.
+**Previous status:** ✅ Working (re-verified against the live box 2026-08-03 — `@mako10k/mcp-shell-server` 2.7.1 installed, schema patch present (`ExecutionModeSchema.default("foreground")`), `/home/ozgur/start-mcp-shell.sh` matches the script below, `pty.node` loads under `/usr/bin/node` v22.23.1, healer + apt hook in place)
 **Where it runs:** Local Windows workstation (not VPS)
 **Purpose:** Lets Claude Desktop execute shell commands inside WSL Ubuntu, which can then `ssh vps` for VPS operations
 

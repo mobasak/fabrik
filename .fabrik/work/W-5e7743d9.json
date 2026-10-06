@@ -15,7 +15,7 @@
   "kind": "decision",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-555",
     "plan": "",
     "spec": ""
   },
@@ -24,10 +24,10 @@
     "612ef31ece144b0d8a13a312742d7e57dfde3143248ccbafbddf973b553480ce"
   ],
   "next": "",
-  "note": "",
+  "note": "handle them all one by one autonomously, when decision needed ask two subagents independently one fable one opus 5.5 — seats agreed: not yet; rule per repo in shadow, public class only, when a consumer is built (D-555)",
   "owner": "",
   "priority": 2,
   "question": "May Jev pilots send text to TypeSafe through OpenRouter's Decisions API? That would start with public-data projects (citation-verifier, calendar, youtube) and the hub's Stop-hook pilot, with customer text (tojlo-mail, whatsapp, CRM mail) staying excluded until a separate ruling.",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May Jev pilots send text to TypeSafe through OpenRouter's Decisions API? That would start with public-data projects (citation-verifier, calendar, youtube) and the hub's Stop-hook pilot, with customer text (tojlo-mail, whatsapp, CRM mail) staying excluded until a separate ruling."
 }

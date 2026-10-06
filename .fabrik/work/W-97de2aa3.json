@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T11:18:24.205880Z",
+  "creator": "infra",
+  "evidence": "159fa9b332717bff343619ed8bf8d94bd39f4533",
+  "id": "W-97de2aa3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measured 2026-10-06: the daily job runs (~/.claude/kaizen-coroner.log, 12:53 each day) and finds 10-20 candidates a day, but every one lands in `inconclusive` (scripts/sysadmin/kaizen_coroner.py _tail_verdict/_walk_rows), so deaths_reconstructed and session_ends stay empty; paths are fine (~/.claude-fleet/active/projects is a symlink to ~/.claude/projects, 855 transcripts in 48h). Next: replay one inconclusive sid's tail through _walk_rows and find which row shape stopped matching around 2026-09-14",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "done",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "kaizen coroner has emitted no session_end/death event since 2026-09-14 though it runs daily and its selftest passes — death_occurrences/death_classes NOT MEASURED for 3 weeks, hole_count 218→304→393"
+}

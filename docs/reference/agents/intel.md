@@ -63,6 +63,10 @@ intelligence" means the routing policy, the seat spend, and the re-enable decisi
   `model='m/x'`), not dispatch; the last real row is 2026-09-07 22:56. Their deletion is an open
   operator go/no-go — do not quietly widen it into a cleanup.
 
+- The review commands' FEEDBACK queues are kaizen's (the fourth hub agent, 2026-10-06), not yours:
+  you own the review loop's CODE; a verdict about what a review command SAYS is kaizen's edit, and
+  one that needs the loop changed reaches you as a kaizen mail with the rows it answers.
+
 ## Standing duties (persist after the extraction)
 
 - **Non-author closing reviews** for infra/fleet plan executions — invoked by native session

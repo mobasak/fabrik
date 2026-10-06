@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "FINDING — check_review_coverage V11 reads the finders from the SECOND cell; the command corpus puts `method:` there"
 }

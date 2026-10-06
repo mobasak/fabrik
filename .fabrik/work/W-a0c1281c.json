@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-08-31T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "b099dc42d4ccff85a708dbb31fa8e2a84d69aec1",
   "id": "W-a0c1281c",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:6f1f6810b435",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Two dead fragments: grounding-research + grounding-rules-cite (0 consumers, 0 renderer refs — found by the fresh corpus review round 5, 2026-08-31)"
 }

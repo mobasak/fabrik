@@ -168,12 +168,17 @@ worktree with a snapshot of every merged path, (b) pure-insertion ledger conflic
 owner's tests (`.fabrik/merge-tests`, read from base, with the throwaway's `src` first on
 `PYTHONPATH`; with none, pytest over the touched `tests/` files under `<main>/.venv/bin/python` when
 present, with the caller's `PYTHONPATH` dropped and the merged import root — `src`, or the tree's
-root when `src/` is itself a package — placed after the stdlib and before site-packages), (d) a CAS
+root when `src/` is itself a package — placed after the stdlib and before site-packages; both legs
+first get the base's `.worktreeinclude` set copied in from the main checkout, so a gitignored `.env`
+is there as in a worktree, never over a file the tree tracks — D-610), (d) a CAS
 of the local base (up to three rebuilds), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
 overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
 hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
 --merge-sha`. A refusal acks `blocked` with the refused step; the requester fixes and sends a new
-request. Mail is the durable record; the doorbell only wakes an idle session (best effort, D-463).
+request. When the reason is a conflict with the base, the requester brings the base in by MERGING it
+into the branch (`git merge <base>`), never a rebase: the branch is already pushed, so a rebase could
+only be republished with `--force`. A refusal that names the main checkout (a dirty,
+staged or untracked owner file) is the owner's to clear and needs no change to the branch. Mail is the durable record; the doorbell only wakes an idle session (best effort, D-463).
 The Stop hook holds the owner's turn while a request waits unclaimed or a record is stranded
 (`docs/workstation/hooks-index.md`). To keep a plan's epic order, merge by id in
 `python3 scripts/epic_order.py` phase order. `/fabrik-execute-plan`'s § Finish (c) is the agent-side
@@ -293,7 +298,12 @@ hazards were closed. **infra is agent-1**, the merge owner, alone in `/opt/fabri
 `python3 scripts/decisions.py --merge-owner .` reads `infra`. Fleet and intel work in
 `.claude/worktrees/fleet` and `.claude/worktrees/intel`; infra is also the distributor
 (`.fabrik/work/config.json`, D-471, superseding D-395's intel), so one agent holds both roles
-here as in every repo (§ Ownership surfaces, above).
+here as in every repo (§ Ownership surfaces, above). A fourth hub agent, **kaizen**, works in
+`.claude/worktrees/kaizen` since 2026-10-06 and owns the feedback loop — every command-feedback
+queue, a command's or rule's wording, ways-of-working mail — through the store's `feedback_owner`
+key rather than by being the distributor; it is not a pool worker (`work.py::_workers` drops it),
+so triage never routes general backlog to it. Launch: `CLAUDE_AGENT=kaizen claude --worktree kaizen
+-n kaizen-fabrik`; its charter is `docs/reference/agents/kaizen.md`.
 
 **Two acts stay main-checkout-only, both closed hazards the hub carried that projects never did:**
 - **The corpus render.** `commands/assemble_commands.py` PRUNES every installed command/skill absent
@@ -334,7 +344,9 @@ resolution is worktree-aware, not the import system.
 gets the hub's self-exemptions and the vendored-drift check grades the worktree's OWN governance set;
 any git failure reads as "not the hub". From any linked worktree, `scripts/enforcement/check_doc_links.py`
 resolves a doc ref to a GITIGNORED path through the main checkout (a fresh worktree lacks generated
-files); a tracked file missing from the worktree, or an in-repo `../` ref, is still a real break.
+files); a tracked file missing from the worktree, or an in-repo `../` ref, is still a real break. In a
+PROJECT it also exempts the Fabrik-synced docs named by `.fabrik/synced.lock` as SOURCES, and a linked
+worktree without its own lock (`.worktreeinclude` never carries it) reads the main checkout's.
 
 T01b's settings block ships from the hub because the hub's `.claude/settings.json` is the synced
 source, and it is **not inert here**: on CLI 2.1.258 `baseRef: "head"` applies to `--worktree`,

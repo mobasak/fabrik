@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T20:46:37.184571Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-7b7b2f9e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M46GJZ2ER3FV64G01XRJKJGT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "scripts/enforcement/check_lint_ratchet.py is not ruff-formatted at HEAD (it is synced into every project)"
+}

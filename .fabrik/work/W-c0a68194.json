@@ -13,8 +13,11 @@
   },
   "next": "State the recipe (copy scripts/enforcement/ into the worktree, or run the main checkout's checker against the worktree path) in the contract's worktree mutate-restore paragraph, and make check_convergence/check_review_coverage exit loudly when their own path is missing. Source: iterative_image_editor mail 01M35NVJ3FEMND8274E4V31H0Q.",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "A project cannot test its EXECUTED flip in a throwaway worktree: scripts/enforcement/ is gitignored there, so the checkers are absent and the probe silently runs nothing"
 }

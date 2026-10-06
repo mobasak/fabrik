@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T08:01:47.708416Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-c1266a47",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M46V7T0CR4MAXBF3K5D0FSDD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: `work.py triage` never lists a directory-form plan set, so an open plan set is invisible to the coordinator's \"plan not executed\" view."
+}

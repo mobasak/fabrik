@@ -1,5 +1,5 @@
 ---
-description: Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→build verdict, stress the approach + completeness, iterate to a quiet closing round (all in ONE invocation). Sets Status: CONVERGED, STOPS for design approval (no auto-chain); on approval → /fabrik-data-contract | /fabrik-ui-design | /fabrik-plan-after-chat. TRIGGER — EN: "review/harden/converge this spec", "is this spec solid/ready"; TR: "bu spec'i gözden geçir/sağlamlaştır", "bu tasarım hazır mı" — fires on an EXISTING draft spec, never a fresh idea (→ /fabrik-spec) or a plan review (→ /fabrik-plan-review). Stage: 1-design.
+description: Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→build verdict, stress the approach + completeness, iterate to a quiet closing round (all in ONE invocation). Sets Status: CONVERGED, a two-model panel answers design approval (split → operator); on approval → /fabrik-data-contract | /fabrik-ui-design | /fabrik-plan-after-chat. TRIGGER — EN: "review/harden/converge this spec", "is this spec solid/ready"; TR: "bu spec'i gözden geçir/sağlamlaştır", "bu tasarım hazır mı" — fires on an EXISTING draft spec, never a fresh idea (→ /fabrik-spec) or a plan review (→ /fabrik-plan-review). Stage: 1-design.
 argument-hint: "[path to the spec file — omit to use the spec under discussion]"
 ---
 
@@ -13,7 +13,7 @@ against the real world.
 {{include:run-record}}
 {{include:orient}}
 {{include:term-edit}}
-(After the quiet closing round: the approval gate below — unlike `/fabrik-plan-review`, this command ends at user approval, not auto-handoff.)
+(After the quiet closing round: the design approval gate below, which the panel answers in the operator's place — only a split reaches the user.)
 
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope
@@ -277,52 +277,44 @@ CLAUDE.md § the decision ledger). If a BLOCKING unknown remains — an
 external fact you cannot verify live, or a fabrik-lib capability you cannot confirm — stop at
 `Status: DRAFT`, name the blocker, and do NOT mark CONVERGED.
 
-## After CONVERGED — STOP and ask for the user's approval (do NOT auto-chain)
+## After CONVERGED — the panel answers the design-approval gate
 
-`/fabrik-spec-review` ends at the **design approval gate** — a **human approves the hardened design** before any
+`/fabrik-spec-review` ends at the **design approval gate** — the hardened design is approved before any
 field-freeze / UI / plan work begins. Once the quiet closing round (§ Termination contract) earns `Status: CONVERGED`:
 
 {{include:design-critique}}
 
-- **Present, in this order:** (1) the **ask ↔ spec comparison table** — defined in `/fabrik-spec` Phase 6
-  (hub ruling D-153): one row per item of the operator's brief in the operator's OWN WORDS · what the
-  CONVERGED spec says (section + one line) · anchor · IN / CHANGED (how) / ADDED (why) / DROPPED (why), then
-  one row per spec section the operator did not ask for; **recomputed against the CONVERGED text, never
-  copied from the DRAFT hand-over** (every round may have moved a section, and an anchor that no longer
-  resolves is a defect of THIS round); countable: rows ≥ the A0a inventory you enumerated yourself, every
-  row anchored — a brief item with no row is a silent drop and re-opens the loop; (2) the converged spec + a
-  short summary of what hardened (facts re-verified, vendor verdicts confirmed, gaps closed); (3) the full
-  Pass Ledger; then **end the turn with the block below**, written as plain lines, not inside a code
-  fence — never a plain-prose approval ask.
+{{include:design-gate-panel}}
+
+- **The ask ↔ spec comparison table** (D-153, defined in `/fabrik-spec` Phase 6) is built for the panel's brief
+  and kept in the spec's review receipt: one row per item of the operator's brief in the operator's OWN WORDS ·
+  what the CONVERGED spec says (section + one line) · anchor · IN / CHANGED (how) / ADDED (why) / DROPPED (why),
+  then one row per spec section the operator did not ask for; **recomputed against the CONVERGED text, never
+  copied from the DRAFT hand-over**; countable: rows ≥ the A0a inventory you enumerated yourself, every row
+  anchored — a brief item with no row is a silent drop and re-opens the loop.
+- **On a split**, end the turn with this block, written as plain lines, not inside a code fence:
 
   ```
   DECISION NEEDED (ground: gate)
   - Question: Do you approve this converged design spec?
-  - Why it is yours: design approval — the human gate before any field-freeze / UI / plan work begins.
-  - Options: A — approve, and the applicable next command (named below) runs · B — request changes, and the grounding loop re-opens on your feedback.
-  - Recommendation: A, once the ask ↔ spec comparison table and the full Pass Ledger above show every brief item accounted for.
+  - Why it is yours: design approval of <spec path> — the panel split, so the human gate before any field-freeze / UI / plan work begins is yours.
+  - Options: A — approve as converged, and the applicable next command (named below) runs · B — take the disputed changes, and the grounding loop re-opens on them.
+  - Recommendation: <A or B>, with the one disputed concern that decides it.
+  - Panel: opus="<its VERDICT line>" fable="<its VERDICT line>" → split
   ```
 
-- **Do NOT auto-invoke the next command.** Unlike `/fabrik-spec` → `/fabrik-spec-review` (no human gate
-  there), this hand-off IS the human gate; auto-chaining past it would skip the design sign-off. Name the
-  applicable next so the operator (or the next turn) knows what follows, but do not call it:
+- **The next command** (run after the brief on approval; named in the DECISION block on a split):
   - **Data/field-shaped** (entities / persistence / user-facing fields — `shape.needs_database` or any
-    form/DB field) → next is **`/fabrik-data-contract <spec>`**.
+    form/DB field) → **`/fabrik-data-contract <spec>`**.
   - **Else GUI** (`project.yaml::type` in CLAUDE.md's UI-bearing set — {`saas-skeleton`,
     `chrome-extension`, `office-extension`, `mobile-app`, `desktop-app`, `static-site`,
-    `docusaurus`}) → next is **`/fabrik-ui-design`**.
-  - **Else** (headless `python-api`/`python-api-gpu`/`node-api`/`file-api`/`file-worker`) → next is
+    `docusaurus`}) → **`/fabrik-ui-design`**.
+  - **Else** (headless `python-api`/`python-api-gpu`/`node-api`/`file-api`/`file-worker`) →
     **`/fabrik-plan-after-chat <spec>`**.
-- Only **on the user's explicit approval (a later turn)** does the applicable next command run. **The
-  approval is a RECEIVED decision — the approving turn's session mints its `docs/DECISIONS.md` row in
-  that turn's change, and when the approving turn carries no other change THE ROW ITSELF IS THE
-  CHANGE: append it and commit it standalone, immediately — an approval turn that ends row-less
-  mints the project's largest scope decision nowhere, and the spec-fed skip downstream guarantees
-  nobody catches it later** (what was approved + the chosen approach, referencing the spec path; this is the
-  mint downstream commands rely on — `/fabrik-plan-after-chat`'s spec-fed skip cites exactly this row).
-  If they ask
-  for changes instead, **re-open the loop** on their feedback (back to a full grounding pass). Never end at
-  the gate on an unconverged `DRAFT` — converge first, then stop for approval.
+- **On a split, the operator's answer is a RECEIVED decision** — the answering turn's session mints its
+  `docs/DECISIONS.md` row in that turn's change (standalone, immediately, when the turn carries no other
+  change), the row `/fabrik-plan-after-chat`'s spec-fed skip cites. If they ask for changes, **re-open the
+  loop** on their feedback. Never reach the gate on an unconverged `DRAFT` — converge first.
 
 
 {{include:subagents-core}}

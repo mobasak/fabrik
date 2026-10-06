@@ -156,24 +156,30 @@ was used to justify not building the thing that would have caught it.
 
 **Do not commit** unless the user says so this turn (`git add` is fine). ⚠️ **Superseded where it conflicts with CLAUDE.md § EXIT:** an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed. **COMMIT the artifact** — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that. What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28).
 
-## After the attestation — STOP and ask for the user's approval (do NOT auto-chain)
+## After the attestation — the panel answers the journey-freeze gate
 
 Like its siblings, this is a **design approval gate**: the frozen journeys commit every downstream stage to
-serve them. Once the closing round (`confirmed: 0`) earns the attestation, **present** the contract + the flow index + any
-"contract bump needed" findings + the full Pass Ledger, then **end the turn with the block below**,
-written as plain lines, not inside a code fence — never a plain-prose approval ask.
+serve them. Once the closing round (`confirmed: 0`) earns the attestation, the panel answers it; its brief
+carries the contract, the flow index and any "contract bump needed" findings.
+
+{{include:design-critique}}
+
+{{include:design-gate-panel}}
+
+On a split, end the turn with this block, written as plain lines, not inside a code fence:
 
 ```
 DECISION NEEDED (ground: gate)
 - Question: Do you approve these frozen journeys?
-- Why it is yours: journey-freeze approval — the design approval gate every downstream stage builds on.
-- Options: A — approve, and `/fabrik-data-contract` freezes the fields the journeys surfaced · B — request changes, and the loop re-opens on your feedback.
-- Recommendation: A, once the contract, the flow index and the full Pass Ledger above show nothing unattested.
+- Why it is yours: journey-freeze approval of <docs/flows.md path> — the design approval gate every downstream stage builds on; the panel split.
+- Options: A — approve as frozen, and `/fabrik-data-contract` freezes the fields the journeys surfaced · B — take the disputed changes, and the loop re-opens on them.
+- Recommendation: <A or B>, with the one disputed concern that decides it.
+- Panel: opus="<its VERDICT line>" fable="<its VERDICT line>" → split
 ```
 
-Name the successor without invoking it: `/fabrik-data-contract` — freeze the fields the journeys surfaced
-(the Contract inputs section is its evidence list). Only on the user's explicit approval does it run; on
-requested changes, re-open the loop. Never hand off on an unattested / `DRAFT` contract.
+The next command is `/fabrik-data-contract` — freeze the fields the journeys surfaced (the Contract inputs
+section is its evidence list). On a split, the operator's answer decides; on requested changes, re-open the
+loop. Never hand off on an unattested / `DRAFT` contract.
 
 
 {{include:subagents-core}}

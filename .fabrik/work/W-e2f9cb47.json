@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "WHAT: /fabrik-review-scoped names `python3 scripts/review_loop_ledger.py read|next` as a repo-relative path, but the script exists only at /opt/fabrik/scripts/review_loop_ledger.py — it is not in the synced set, so the command as written fails with \"can't open file\" in a project repo (web-ecommerce-"
 }

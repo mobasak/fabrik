@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "FINDING (3 machinery defects hit during /fabrik-plan-review of iterative_image_editor plan 2026-10-02-plan-1-creative-scorer, iie3, 2026-10-02)"
 }

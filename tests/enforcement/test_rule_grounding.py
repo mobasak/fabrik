@@ -260,3 +260,88 @@ def test_a_relative_root_still_grades_completeness(tmp_path):
     _plan(root, digest_rows='| "Another mandate line entirely." | CLAUDE.md | x |')
     out = _census(root, root_arg=root.name)
     assert "PACK-NOT-IN-DIGEST" in out, out
+
+
+# ── 01M3T5RK (fabrik-lib, W-ad6bd74a): the digest's columns are found by HEADER, not position ──
+# A digest laid out `| Rule | Quote | Source | Applies |` passed every authoring gate, then drew
+# QUOTE-NOT-FOUND on every row at the CONVERGED flip: cell 0 (the rule name) was read as the quote
+# and the first word of the real quote as the cited "file".
+
+
+def test_quote_and_source_columns_are_found_by_header_name():
+    section = (
+        "| Rule | Quote | Source | Applies |\n"
+        "|---|---|---|---|\n"
+        "| uv only | Use uv, never pip | .windsurf/rules/core/10-python.md:12 | yes |\n"
+    )
+    assert chk._digest_rows(section) == [("Use uv, never pip", ".windsurf/rules/core/10-python.md")]
+
+
+def test_a_reordered_digest_grades_clean_end_to_end(tmp_path):
+    root = _root(tmp_path)
+    plan = root / "docs" / "development" / "plans" / "2026-08-30-plan-9-fixture.md"
+    plan.write_text(
+        "# Plan fixture\n\nStatus: CONVERGED\n\n## Constraints Digest\n\n"
+        "| Applies | Source | Quote (verbatim) |\n|---|---|---|\n"
+        f'| settings discipline zz | `{PACK_REL}:2` | "{WRAPPED_QUOTE}" |\n'
+        "\n## File Scope (owned paths)\n\n- scripts/x.py\n",
+        encoding="utf-8",
+    )
+    labels = _labels(root)
+    assert "QUOTE-NOT-FOUND" not in labels and "PACK-NOT-IN-DIGEST" not in labels, labels
+
+
+def test_unnamed_columns_fall_back_to_quote_then_source():
+    section = "| A | B |\n|---|---|\n| Use uv, never pip | .windsurf/rules/core/10-python.md:12 |\n"
+    assert chk._digest_rows(section) == [("Use uv, never pip", ".windsurf/rules/core/10-python.md")]
+
+
+def test_a_verbatim_header_names_the_quote_column():
+    section = (
+        "| Rule | Verbatim | Source |\n|---|---|---|\n"
+        "| uv only | Use uv, never pip | .windsurf/rules/core/10-python.md:12 |\n"
+    )
+    assert chk._digest_rows(section) == [("Use uv, never pip", ".windsurf/rules/core/10-python.md")]
+
+
+def test_a_non_exact_header_keeps_the_positional_reading():
+    """Only exact names move a column: `Rule (verbatim)` is `rule`, `Where` is no source name."""
+    rows = "| Use uv, never pip | .windsurf/rules/core/10-python.md:12 | python |\n"
+    named = "| Rule (verbatim) | Where | Pack |\n|---|---|---|\n" + rows
+    unnamed = "| A | B | C |\n|---|---|---|\n" + rows
+    assert chk._digest_rows(named) == chk._digest_rows(unnamed) != []
+
+
+def test_an_absolute_cited_path_is_a_finding_not_a_crash(tmp_path):
+    """An absolute Source escapes the repo: on 3.12 `is_file()` under an unreadable dir raised and
+    the whole census aborted (promtail-to-alloy spec cites /var/lib/docker/containers/)."""
+    root = _root(tmp_path)
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    (locked / "pack.md").write_text(WRAPPED_QUOTE, encoding="utf-8")
+    locked.chmod(0)
+    try:
+        _plan(root, digest_rows=f'| "{WRAPPED_QUOTE}" | {locked}/pack.md:1 | x |')
+        _, findings = chk._audit(root)
+    finally:
+        locked.chmod(0o755)
+    hits = [f for f in findings if f.label == "QUOTE-NOT-FOUND"]
+    assert hits and "repo-relative" in hits[0].detail, findings
+
+
+def test_an_unreadable_repo_relative_path_is_a_finding_not_a_crash(tmp_path):
+    """A repo-relative Source under an unreadable dir reaches `is_file()` (the absolute guard does
+    not shadow it): it must be QUOTE-NOT-FOUND for that row, never a census-wide PermissionError."""
+    root = _root(tmp_path)
+    locked = root / "locked"
+    locked.mkdir()
+    (locked / "pack.md").write_text(WRAPPED_QUOTE, encoding="utf-8")
+    locked.chmod(0)
+    try:
+        _plan(root, digest_rows=f'| "{WRAPPED_QUOTE}" | locked/pack.md:1 | x |')
+        _, findings = chk._audit(root)
+    finally:
+        locked.chmod(0o755)
+    assert [f.label for f in findings if "locked/pack.md" in f.detail] == ["QUOTE-NOT-FOUND"], (
+        findings
+    )

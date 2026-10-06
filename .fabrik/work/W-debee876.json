@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "/fabrik-review's pin recipe grades the LIVE hub for any FABRIK_ROOT-keyed code — `git archive` + `git init` is not a hub worktree"
 }

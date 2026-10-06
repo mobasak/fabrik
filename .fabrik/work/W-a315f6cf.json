@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-05T23:08:46.138123Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a315f6cf",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after fleet's scaffold change, add server/ to final_gate's ruff/mypy roots when the dir exists, with a grader on a scaffolded static-site",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "final_gate never lints a project's server/ backend (ruff roots scripts/ src/; mypy skipped green) — fleet W-1c722f35 gate side; decide once fleet's server/ ruff/mypy config lands"
+}

@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import functools
+import os
 import re
 import subprocess
 import sys
@@ -38,6 +40,7 @@ from pathlib import Path
 FABRIK_ROOT = Path(__file__).resolve().parents[1]
 OPT = Path("/opt")
 REPORT_DIR = FABRIK_ROOT / "docs" / "infrastructure" / "probe-reports"
+TEMPLATE_DIR = FABRIK_ROOT / "templates" / "scaffold"
 
 
 # Exclusions come from sync_projects.py ITSELF (imported, never hand-copied — a
@@ -73,8 +76,65 @@ _STUB_RES = (
     re.compile(r"\[Project Name\]"),
     re.compile(r"\[TBD[^\]]*\]"),
     re.compile(r"^\*\*Last Updated:\*\* YYYY-MM-DD", re.M),
+    # The TODO tokens a 2026-10-01 SERVICES seeding wrote into 15 repos (`[API — fill in]`,
+    # `[purpose]`) — in no template, so the template rule cannot see them.
+    re.compile(r"\[[^\]\n]*— fill in\]"),
+    re.compile(r"\[purpose\]"),
+)
+# A doc left as its scaffold template (01M4664J): the template's OWN text is the sentinel, so the
+# probe tracks whatever a template emits — a hand-picked token list missed an untouched OPERATIONS.md
+# and every doc the scaffold seeds, because seeding substitutes `[Project Name]`/`YYYY-MM-DD`.
+# A template line counts when it is >25 chars and carries none of the strings the scaffold
+# substitutes at seed time (`SEED_SUBSTITUTED` is the union of src/fabrik/scaffold.py's seeding loops —
+# a test reads those loops' AST and fails on drift). COBRA: a doc that rewords each template line
+# trivially passes; the probe answers "was this template ever filled", never "is it true".
+SEED_SUBSTITUTED: tuple[str, ...] = (
+    "[Project Name]",
+    "<project>",
+    "project-name",
+    "myproject",
+    "[package_name]",
+    "<package_name>",
+    "<domain>",
+    "YYYY-MM-DD",
+    "[Brief description]",
+    "[One-line description]",
+    "Brief project description",
+    "[PORT]",
+)
+# Registry docs whose template is a SHAPE the project keeps on purpose (append ledgers, indexes,
+# the friction log) — measured 2026-10-05: every filled copy keeps 85-100% of its template's lines.
+KEPT_SHAPE_DOCS = frozenset(
+    {
+        "CHANGELOG.md",
+        "INDEX.md",
+        "docs/README.md",
+        "AFCL.md",
+        "docs/DECISIONS.md",
+        "docs/LESSONS_LEARNT.md",
+        "docs/STRATEGIC_BACKLOG.md",
+    }
+)
+# Measured 2026-10-05 over 44 repos: filled docs keep 0-48% of their template's lines, unfilled
+# ones 49-98% (OPERATIONS 81-85, RESILIENCE 75-83, QUICKSTART 58-94, TROUBLESHOOTING 77-85).
+TEMPLATE_LEFT_PCT = 50
+# ...and the template must also be at least half of the DOC: measured 2026-10-05, the 16 docs that
+# pass the first cut but are mostly their own text (e.g. a 664-line CONFIGURATION keeping the
+# template's example blocks) carry 2-44% template lines; the 158 left as template carry 50-100%.
+TEMPLATE_SHARE_PCT = 50
+_HISTORY_NOTE = (
+    "template history: unavailable (shallow or unreadable hub git) — only the current templates "
+    "were compared, so a doc seeded from an older template version can read clean"
 )
 STALE_WARN_DAYS = 14  # a key doc this many days older than code = report row
+
+# An inherited GIT_DIR/GIT_WORK_TREE (inside a git hook) would point `git -C <repo>` at the
+# hook's repo instead — strip them so every git call reads the repo it names.
+_GIT_ENV_DROP = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")
+
+
+def _git_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k not in _GIT_ENV_DROP}
 
 
 def _git_ts(repo: Path, *paths: str) -> int | None:
@@ -83,7 +143,9 @@ def _git_ts(repo: Path, *paths: str) -> int | None:
     if paths:
         cmd += ["--", *paths]
     try:
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=20, check=False).stdout
+        out = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=20, check=False, env=_git_env()
+        ).stdout
     except Exception:
         return None
     out = out.strip()
@@ -100,6 +162,102 @@ def lag_days(code_ts: int | None, docs_ts: int | None) -> int:
 def stub_hits(text: str) -> int:
     """Count of unfilled template sentinels in one doc's text."""
     return sum(len(r.findall(text)) for r in _STUB_RES)
+
+
+def _substantive_lines(text: str) -> set[str]:
+    return {ln.strip() for ln in text.splitlines() if len(ln.strip()) > 25}
+
+
+def _seed_lines(text: str) -> frozenset[str]:
+    return frozenset(
+        ln for ln in _substantive_lines(text) if not any(x in ln for x in SEED_SUBSTITUTED)
+    )
+
+
+def _git_out(*args: str) -> str:
+    """stdout of ``git -C FABRIK_ROOT <args>``, '' on any failure (one call, one timeout)."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(FABRIK_ROOT), *args],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+            env=_git_env(),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return r.stdout if r.returncode == 0 else ""
+
+
+@functools.cache
+def template_history_complete() -> bool:
+    """True when the hub's full git history is readable — git present, FABRIK_ROOT is itself the
+    work tree (a plain copy inside another repo would read THAT repo's history) and not shallow;
+    else only the current templates are compared and the output says so."""
+    top = _git_out("rev-parse", "--show-toplevel").strip()
+    if not top or Path(top).resolve() != FABRIK_ROOT.resolve():
+        return False
+    return _git_out("rev-parse", "--is-shallow-repository").strip() == "false"
+
+
+@functools.cache
+def template_versions(template: str) -> tuple[frozenset[str], ...]:
+    """The seed lines of templates/scaffold/<template> as it stands AND as every commit left it —
+    a doc seeded from an older wording is still a template left unfilled (measured 2026-10-05:
+    the current wording alone missed 5 DEPLOYMENT, 9 README and 16 CONFIGURATION docs that are
+    95-100% an older version). Git unreadable → the current file alone."""
+    rel = f"templates/scaffold/{template}"
+    texts: list[str] = []
+    try:
+        texts.append((TEMPLATE_DIR / template).read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        pass
+    for sha in _git_out("log", "--format=%H", "--", rel).split():
+        shown = _git_out("show", f"{sha}:{rel}")
+        if shown:
+            texts.append(shown)
+    return tuple(dict.fromkeys(v for v in map(_seed_lines, texts) if v))
+
+
+def templated_docs() -> list[tuple[str, str]]:
+    """(project path, template) for every registry doc a project fills from a template."""
+    try:
+        sys.path.insert(0, str(FABRIK_ROOT / "scripts" / "enforcement"))
+        import _doc_registry  # noqa: PLC0415
+
+        rows = _doc_registry.PROJECT_DOCS
+    except Exception:
+        return []
+    return [
+        (r.name, r.template)
+        for r in rows
+        if r.template and r.fills in {"agent", "scaffold-stub"} and r.name not in KEPT_SHAPE_DOCS
+    ]
+
+
+def template_left_pct(text: str, template: str) -> int | None:
+    """Highest percent of any template version's seed lines still verbatim in ``text``
+    (None: the template has no such lines)."""
+    versions = template_versions(template)
+    if not versions:
+        return None
+    lines = _substantive_lines(text)
+    return max(round(100 * len(v & lines) / len(v)) for v in versions)
+
+
+def template_verdict(text: str, template: str) -> int | None:
+    """``template_left_pct`` when the doc is left as its template — at least TEMPLATE_LEFT_PCT of
+    a template version still in it AND template lines at least TEMPLATE_SHARE_PCT of the doc;
+    else None. The second half keeps a long filled doc that kept a few template blocks (or a
+    short old version's generic lines) from reading as a stub."""
+    pct = template_left_pct(text, template)
+    if pct is None or pct < TEMPLATE_LEFT_PCT:
+        return None
+    lines = _substantive_lines(text)
+    every = frozenset().union(*template_versions(template))
+    share = round(100 * len(lines & every) / len(lines)) if lines else 0
+    return pct if share >= TEMPLATE_SHARE_PCT else None
 
 
 @dataclass
@@ -169,11 +327,17 @@ def audit_project(project: Path) -> Row | None:
             d = lag_days(code_ts, doc_ts)
             if d >= STALE_WARN_DAYS:
                 row.stale.append(f"{Path(rel).name} ({d}d)")
+    templates = dict(templated_docs())
+    for rel in dict.fromkeys([*KEY_DOCS, *templates]):
         try:
-            n = stub_hits(f.read_text(encoding="utf-8", errors="replace"))
+            text = (project / rel).read_text(encoding="utf-8", errors="replace")
         except OSError:
-            n = 0
-        if n:
+            continue
+        pct = template_verdict(text, templates[rel]) if rel in templates else None
+        n = stub_hits(text)
+        if pct is not None:
+            row.stubs.append(f"{Path(rel).name} (template text left: {pct}%)")
+        elif n:
             row.stubs.append(f"{Path(rel).name} ({n})")
     return row
 
@@ -195,6 +359,7 @@ def index_is_clean(root: Path) -> bool:
             ["git", "-C", str(root), "diff", "--quiet", "HEAD", "--", "INDEX.md"],
             check=False,
             timeout=30,
+            env=_git_env(),
         ).returncode
         == 0
     )
@@ -248,6 +413,7 @@ def run(write_report: bool = True, commit: bool = False) -> int:
         "",
         f"Projects scanned: {len(rows)} · flagged: {len(dirty)} · clean: {len(rows) - len(dirty)}",
         "",
+        *([_HISTORY_NOTE, ""] if not template_history_complete() else []),
         "Mechanical probes only (lag/stale/stubs/missing) — truth-level fixes are",
         "`/fabrik-docs-review` or `/fabrik-doc-converge <doc>` run IN the flagged project.",
         "",
@@ -316,7 +482,23 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--stdout", action="store_true", help="print only — no report file")
     ap.add_argument("--commit", action="store_true", help="git-commit the report files (cron mode)")
+    ap.add_argument(
+        "--repo",
+        type=Path,
+        help="audit ONE project and print its row — no report (/fabrik-catchup)",
+    )
     a = ap.parse_args()
+    if a.repo:
+        r = audit_project(a.repo.resolve())
+        if r is None:
+            print(f"{a.repo}: not a git repo with a docs/ directory — nothing audited")
+            return 0
+        print(f"project: {r.project}\nlag: {r.lag}d")
+        for label, items in (("stale", r.stale), ("stubs", r.stubs), ("missing", r.missing)):
+            print(f"{label}: {', '.join(items) or 'none'}")
+        if not template_history_complete():
+            print(_HISTORY_NOTE)
+        return 0
     return run(write_report=not a.stdout, commit=a.commit)
 
 
