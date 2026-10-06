@@ -208,6 +208,61 @@ class TestValidateCompose:
         errors = _validate_compose(compose)
         assert any("ports" in e.lower() for e in errors)
 
+    @pytest.mark.parametrize(
+        "env_block",
+        [
+            "    environment:\n      DATABASE_URL: postgresql://u:p@localhost:5432/db\n",
+            "    environment:\n      - DATABASE_URL=postgresql://u:p@localhost:5432/db\n",
+            "    environment:\n      - REDIS_URL=${REDIS_URL:-redis://localhost:6379/0}\n",
+        ],
+        ids=["mapping", "list", "list-default"],
+    )
+    def test_localhost_dsn_refused_in_either_environment_form(self, env_block):
+        """The list form (`- KEY=value`, the fleet's documented shape) was never checked, so a
+        localhost DSN in it read as clean (brand-identiy-creator 01M482YX)."""
+        compose = self._valid_compose().replace(
+            "    networks:\n      - fabrik\n", env_block + "    networks:\n      - fabrik\n", 1
+        )
+        errors = _validate_compose(compose)
+        assert any("localhost" in e for e in errors), errors
+
+    @pytest.mark.parametrize(
+        "hc_block",
+        [
+            "    healthcheck:\n      disable: true\n",
+            '    healthcheck:\n      disable: "true"\n',
+            '    healthcheck:\n      test: ["NONE"]\n',
+            "    healthcheck:\n      test: NONE\n",
+            "    healthcheck:\n      test: []\n",
+        ],
+        ids=["disable-bool", "disable-string", "test-none-list", "test-none-string", "test-empty"],
+    )
+    def test_disabled_healthcheck_refused_before_compose_up_wait(self, hc_block):
+        """A disabled healthcheck makes `docker compose up -d --wait` exit 1 ("has no healthcheck
+        configured", measured on compose 2.40.3 for disable: true, disable: "true" and
+        test: ["NONE"]); every git and redeploy path runs --wait, so each spelling is refused
+        before `up`. A liveness probe, or no healthcheck block at all, still passes."""
+        disabled = self._valid_compose().replace(
+            "    networks:\n      - fabrik\n", hc_block + "    networks:\n      - fabrik\n", 1
+        )
+        assert any("disabled healthcheck" in e for e in _validate_compose(disabled))
+        probe = self._valid_compose().replace(
+            "    networks:\n      - fabrik\n",
+            '    healthcheck:\n      test: ["CMD-SHELL", "kill -0 1"]\n    networks:\n      - fabrik\n',
+            1,
+        )
+        assert _validate_compose(probe) == []
+
+    def test_an_empty_string_healthcheck_test_is_not_refused(self):
+        """compose runs `test: ""` as `CMD-SHELL ""`, which exits 0 and passes `--wait` (measured,
+        compose 2.40.3) — a valid check, never a disabled one (review round 3 of ee2e55362)."""
+        compose = self._valid_compose().replace(
+            "    networks:\n      - fabrik\n",
+            '    healthcheck:\n      test: ""\n    networks:\n      - fabrik\n',
+            1,
+        )
+        assert _validate_compose(compose) == []
+
     def test_missing_restart(self):
         compose = self._valid_compose().replace("    restart: unless-stopped\n", "")
         errors = _validate_compose(compose)

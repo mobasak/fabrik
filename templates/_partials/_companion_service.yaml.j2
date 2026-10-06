@@ -2,9 +2,9 @@
    {% for c in companion_services %} loop in a parent compose.yaml.j2. Shares the
    parent's build/image + env + DATABASE_URL/REDIS_URL AND the project .env
    (env_file — the only place registrar-injected keys such as DATABASE_URL_OWNER
-   live); overrides command + container_name + memory. No Traefik labels and no
-   image HEALTHCHECK — companions are workers/schedulers, not HTTP-routed, and the
-   image's probe checks the parent app. Memory limit is mandatory (fabrik
+   live); overrides command + container_name + memory. No Traefik labels, and a
+   liveness probe in place of the image HEALTHCHECK — companions are workers/schedulers,
+   not HTTP-routed, and the image's probe checks the parent app. Memory limit is mandatory (fabrik
    per-service invariant). #}
   {{ c.id }}:
     build:
@@ -17,7 +17,14 @@
     env_file:
       - .env
     healthcheck:
-      disable: true
+      # A liveness probe, never `disable: true`: compose `up --wait` refuses a service whose
+      # healthcheck is disabled ("has no healthcheck configured", rc 1), and the image's own
+      # HEALTHCHECK probes the parent app (its HTTP port or its worker heartbeat), never the scheduler.
+      test: ["CMD-SHELL", "kill -0 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     environment:
       {% for key, value in env.items() %}
       - {{ key }}={{ value | env_escape }}

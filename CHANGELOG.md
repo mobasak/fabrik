@@ -101,6 +101,13 @@ All notable changes to this project will be documented in this file.
 - On trade-intelligence's real tree it keeps 20 of 20 comments, where HEAD kept 17, and leaves both plan sets collapsed. A second run is a no-op.
 - 7 graders. Follow-up W-3efb9553 covers `--only` and plan-set directories.
 
+### Fixed — a disabled healthcheck no longer fails `compose up --wait`; the compose validator checks list-form environments (2026-10-06)
+
+- `healthcheck: disable: true` makes `docker compose up -d --wait` exit 1 ("has no healthcheck configured"; compose 2.40.3, measured). A service with no healthcheck block passes. Every git and redeploy path runs `--wait`, and the scaffold's own audit-jobs companion was emitted with `disable: true`, so every scaffold with a database would have failed its first git deploy. Both companion emitters now carry a liveness probe instead: `_append_audit_jobs_service` and `templates/_partials/_companion_service.yaml.j2`, both using `kill -0 1`. `_validate_compose` refuses every disabled spelling before `up` — `disable: true`, a quoted `disable: "true"`, and `test: ["NONE"]` (each fails `--wait` identically) — naming the two shapes that work. The container-health audit prompt no longer recommends `disable: true`.
+- The validator's localhost check (`DATABASE_URL` and `REDIS_URL`) ran only on mapping-form `environment:`. The fleet's documented list form (`- KEY=value`) is now checked too.
+- `specs/services/brand-identiy-creator.yaml.draft` adds `BRAVE_API_KEY` to `secrets.from_env` and `deploy.db_before_boot: true`, because the app connects at boot. It also pins its own database (`depends.postgres: brand_identiy_creator`) instead of the shared `main`, which `db_before_boot` would otherwise have pre-created and booted against.
+- Mail 01M482YX (brand-identiy-creator). Graded in `tests/orchestrator/test_deployer_ssh.py`; 3 of 4 cases failed before the fix, and the mapping case already passed.
+
 ### Fixed — chrome-extension and mobile-app server/ backends lint and type under the project's own rules (2026-10-06)
 
 - `_write_server_lint_config` now runs for every type that ships a `server/src` backend. chrome-extension and mobile-app used to get no `server/pyproject.toml`, so ruff ran with no project config and mypy on its defaults (mail 01M47Z0D, intel). The writer takes the backend's first-party packages (mobile-app has two: `app` and `mobile_config`).

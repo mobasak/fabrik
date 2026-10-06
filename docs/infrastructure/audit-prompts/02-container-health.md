@@ -110,7 +110,7 @@ EOF
 ### 2. Health status
 
 - Containers with HEALTHCHECK report `healthy` (not `starting` past start_period, not `unhealthy`).
-- Containers without HEALTHCHECK explicit: confirm they shouldn't have one (per Lesson 30, distroless images may opt out via `healthcheck: disable: true`).
+- Containers without HEALTHCHECK explicit: confirm they shouldn't have one (per Lesson 30, a distroless image may opt out by OMITTING the healthcheck block — never `healthcheck: disable: true`, which fails `compose up --wait` and which `_validate_compose` refuses; a process that has a shell gets a liveness probe such as `kill -0 1`).
 - W15 (spokes only): `traefik` container has `traefik.enable=true` AND `traefik.http.middlewares.gzip.compress=true` labels. Missing label = next spoke deploy will 404 at the verifier.
 
 ### 3. Resource pressure
