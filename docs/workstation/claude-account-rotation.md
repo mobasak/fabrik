@@ -201,7 +201,7 @@ naming the `--unpark` command; the board shows **PARKED — out of service**. On
 `parked.json` warns loudly and parks nothing. `--switch` may still target a parked account
 deliberately, like any cap-walled one.
 
-**Auto-park on a refused account** (D-614/D-616). An account whose organisation refuses Claude Code
+**Auto-park on a refused account** (D-614/D-629). An account whose organisation refuses Claude Code
 (`oauth_org_not_allowed` — on 2026-09-30 a payment problem, `docs/TROUBLESHOOTING.md`) still passes a usage
 reading and a refresh-chain check, so the tick now tries one real call — `claude -p ok --output-format json
 --max-turns 1 --tools ""` bound to the account's own dir — at four moments: before promoting a candidate (its

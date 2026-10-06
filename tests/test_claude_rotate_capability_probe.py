@@ -1,4 +1,4 @@
-"""Behavior-Contract tests — the rotation capability probe (plan 2026-10-06-plan-2, spec D1-D7, D-614/D-616).
+"""Behavior-Contract tests — the rotation capability probe (plan 2026-10-06-plan-2, spec D1-D7, D-614/D-629).
 
 An account whose organisation refuses Claude Code (`oauth_org_not_allowed`, the 2026-09-29/30 billing
 lapse) passes a usage reading and a refresh-chain check, so the picker promoted it and no tick flipped

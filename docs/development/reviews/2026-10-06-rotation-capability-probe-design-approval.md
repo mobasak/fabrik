@@ -1,6 +1,6 @@
 # Design approval — rotation capability probe (W-f8bfe7eb)
 
-**Status:** APPROVED (panel, D-613) · decision row D-616
+**Status:** APPROVED (panel, D-613) · decision row D-629
 **Artifacts:** `docs/superpowers/specs/2026-10-06-rotation-capability-probe-design.md` (CONVERGED, md5 4521df82169b0e81378c4ae491604d7d) and `docs/development/plans/archived/2026-10-06-plan-2-rotation-capability-probe.md` (CONVERGED, md5 6d78a9f2b1a0aecc1382da1d9e284747), commit ebc9190d5.
 **Review ledger:** the plan's § Pass Ledger — 7 passes; the joint loop closed at confirmed 0 in Pass 4, the panel's changes re-opened it for Passes 5-7, which closed at confirmed 0.
 
@@ -42,7 +42,7 @@ Both panel seats returned `VERDICT: sound` on the revised artifacts; the review 
 
 ## Gate
 
-`python3 scripts/final_gate.py --check --json`, run in the worktree with D-616 staged (this receipt added afterwards). The keys below are verbatim from its envelope; the static tier skipped because the staged diff is markdown-only, and the hub's pytest leg is off by design.
+`python3 scripts/final_gate.py --check --json`, run in the worktree with D-629 staged (this receipt added afterwards). The keys below are verbatim from its envelope; the static tier skipped because the staged diff is markdown-only, and the hub's pytest leg is off by design.
 
 ```json
 {
