@@ -716,10 +716,20 @@ def test_owner_tests_see_the_worktreeinclude_files_the_main_checkout_holds(world
     checkout, as Claude Code copies it into a new worktree — a file the tree already tracks is
     never overwritten, and a path outside the checkout is never read."""
     probe = world.tmp / "env-probe"
-    world.write(".worktreeinclude", "# comment\n.env\nlocal/\ntracked.cfg\n../outside.txt\n")
+    world.write(
+        ".worktreeinclude",
+        "# comment\n.env\nlocal/\ntracked.cfg\n../outside.txt\nlink.env\nlink_dir/\n",
+    )
     world.write("tracked.cfg", "base\n")
     world.commit_main("include list", ".worktreeinclude", "tracked.cfg")
     world.write(".env", "DATABASE_URL=postgresql://u:p@h/app\n")  # untracked, as gitignored
+    world.write("secret.txt", "unlisted\n")
+    world.write("realdir/x.txt", "unlisted\n")
+    (world.main / "link_dir").symlink_to(world.main / "realdir")  # a listed dir symlink too
+    (world.main / "link.env").symlink_to(world.main / "secret.txt")  # a listed symlink is skipped
+    # the owner's uncommitted edit to the list is never read: the BASE's list governs
+    world.write(".worktreeinclude", "# comment\n.env\nlocal/\ntracked.cfg\nextra.txt\n")
+    world.write("extra.txt", "never\n")
     world.write("local/deep/a.txt", "a\n")
     world.write("tracked.cfg", "dirty in main\n")  # the owner's uncommitted edit
     (world.tmp / "outside.txt").write_text("never\n", encoding="utf-8")
@@ -727,7 +737,10 @@ def test_owner_tests_see_the_worktreeinclude_files_the_main_checkout_holds(world
         "import os, pathlib; "
         f"pathlib.Path({str(probe)!r}).write_text(' '.join(["
         "open('.env').read().strip(), open('local/deep/a.txt').read().strip(), "
-        "open('tracked.cfg').read().strip(), str(os.path.exists('../outside.txt'))]))"
+        "open('tracked.cfg').read().strip(), str(os.path.exists('../outside.txt')), "
+        "str(os.path.lexists('link.env') or os.path.exists('secret.txt') "
+        "or os.path.lexists('link_dir')), "
+        "str(os.path.exists('extra.txt'))]))"
     )
     world.write(".fabrik/merge-tests", f'python3 -c "{script}"\n')
     world.commit_main("owner tests", ".fabrik/merge-tests")
@@ -735,9 +748,8 @@ def test_owner_tests_see_the_worktreeinclude_files_the_main_checkout_holds(world
     world.send(world.branch({"x.txt": "x\n"}))
 
     assert world.run("merge") == 0
-    assert probe.read_text() == "DATABASE_URL=postgresql://u:p@h/app a base False", (
-        probe.read_text()
-    )
+    got = probe.read_text()
+    assert got == "DATABASE_URL=postgresql://u:p@h/app a base False False False", got
     assert world.scratch_left() == []
 
 

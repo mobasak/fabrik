@@ -1098,12 +1098,16 @@ def _copy_worktree_include(ctx: _Ctx, wt: Path, old: str) -> None:
         rel = line.strip()
         if not rel or rel.startswith("#"):
             continue
-        src = (main / rel).resolve()
-        if not src.is_relative_to(main) or src == main:
-            continue  # absolute or `..`: never read outside the checkout
-        files = [src] if src.is_file() else (sorted(src.rglob("*")) if src.is_dir() else [])
+        listed = main / rel
+        target = listed.resolve()
+        if listed.is_symlink() or not target.is_relative_to(main) or target == main:
+            continue  # a symlink, an absolute path or `..`: never read outside the checkout
+        # walk the LISTED path, never the resolved one, so each copy lands where it was listed
+        files = (
+            [listed] if listed.is_file() else (sorted(listed.rglob("*")) if listed.is_dir() else [])
+        )
         for f in files:
-            if f.is_symlink() or not f.is_file():
+            if f.is_symlink() or not f.is_file() or not f.resolve().is_relative_to(main):
                 continue
             dst = wt / f.relative_to(main)
             if dst.exists():
