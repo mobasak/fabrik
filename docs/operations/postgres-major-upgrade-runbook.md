@@ -841,8 +841,9 @@ sudo docker exec postgres-main vacuumdb -U postgres --all --analyze-only 2> "$W/
 empty and the container came back after any restart; every ported line reads back (`SHOW <name>` equals the 16 value —
 a list setting shows its items comma-separated, e.g. `pg_stat_statements, auto_explain`); `max_connections` covers P6's pool sum; `analyze clean` — an error there is
 the `search_path` change (pg-07): an expression index or matview on a non-default schema that must set its own.
-**Rollback:** the port is undone by putting back the saved 18 file while the container is down —
-`sudo docker run --rm -i -v postgres18-data:/var/lib/postgresql --entrypoint sh postgres:18.6-alpine -c 'cat > /var/lib/postgresql/18/docker/postgresql.auto.conf' < "$W/auto18.orig" && rm -f "$W/port-auto.applied"`
+**Rollback:** the port is undone by putting back the saved 18 file while the container is down (stop it first — a
+ported line that keeps 18 from starting leaves it crash-looping under `restart: unless-stopped`, never down) —
+`sudo docker stop postgres-main && sudo docker run --rm -i -v postgres18-data:/var/lib/postgresql --entrypoint sh postgres:18.6-alpine -c 'cat > /var/lib/postgresql/18/docker/postgresql.auto.conf' < "$W/auto18.orig" && rm -f "$W/port-auto.applied"`
 (it touches the PG18 copy only; the truncate-and-write keeps the file's owner), then `sudo docker start postgres-main`;
 otherwise step 7's one-step rollback.
 
