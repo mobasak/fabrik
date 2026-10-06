@@ -758,8 +758,12 @@ def _call_refused(result: subprocess.CompletedProcess) -> bool:
         return True
     if result.returncode in (0, None):
         return False
-    blob = ((result.stdout or "") + "\n" + (result.stderr or "")).lower()
-    return any(marker in blob for marker in _REFUSAL_MARKERS)
+    blob = (result.stdout or "") + "\n" + (result.stderr or "")
+    if is_auth_401(blob) or is_usage_limit(blob):
+        return (
+            False  # a rotation signal wins: the text fallback must never swallow a 401 or a limit
+        )
+    return any(marker in blob.lower() for marker in _REFUSAL_MARKERS)
 
 
 def _wrapper_park(slug: str | None) -> None:

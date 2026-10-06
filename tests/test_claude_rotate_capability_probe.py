@@ -969,3 +969,15 @@ def test_br12_a_text_mode_call_that_is_refused_parks_its_account_after_the_json_
     monkeypatch.setattr(cr.subprocess, "run", wrapped(1, text_refusal, HEALTHY))
     cr.run_claude(["claude", "-p", "do the thing"], 30, str(tmp_path), env)
     assert not (fleet / "parked.json").exists(), "the confirmation probe stops a false positive"
+
+
+def test_br13_a_401_that_quotes_the_refusal_code_still_rotates(monkeypatch):
+    """Finish review pass 2, rest-S3: the text fallback never outranks a rotation signal — a 401 or a
+    usage limit whose text happens to carry the code is a 401 or a limit, not a refusal."""
+    quoted = "API Error: 401 authentication_error (earlier output mentioned oauth_org_not_allowed)"
+    assert cr.is_auth_401(quoted)
+    assert not cr._call_refused(subprocess.CompletedProcess(["claude"], 1, "", quoted))
+    plain = 'API Error: 403 {"error":{"type":"oauth_org_not_allowed"}}'
+    assert cr._call_refused(subprocess.CompletedProcess(["claude"], 1, plain, ""))
+    assert cr._call_refused(subprocess.CompletedProcess(["claude"], 1, "", plain)), "stderr counts"
+    assert not cr._call_refused(subprocess.CompletedProcess(["claude"], None, plain, "")), "timeout"
