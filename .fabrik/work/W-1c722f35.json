@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-05T16:57:17.349053Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "ab0885829edf4ae8ad57e0c49480c1cbad9f3370",
   "id": "W-1c722f35",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "title": "Scaffold: the server/ backends of saas-skeleton, static-site and office-extension ship the vendored glitchtip_init.py with no ruff/mypy config, and final_gate never lints server/ (mypy skipped green, ruff roots scripts/ src/); also make lint runs mypy . and fails on scripts/enforcement duplicate module names"
 }
