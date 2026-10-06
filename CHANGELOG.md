@@ -95,6 +95,17 @@ All notable changes to this project will be documented in this file.
 - On trade-intelligence's real tree it keeps 20 of 20 comments, where HEAD kept 17, and leaves both plan sets collapsed. A second run is a no-op.
 - 7 graders. Follow-up W-3efb9553 covers `--only` and plan-set directories.
 
+### Fixed — scaffolded app services set a 30 s stop grace, so a SIGTERM drain is not SIGKILLed at 10 s (2026-10-06)
+
+- Every routed app service a scaffold emits now sets `stop_grace_period: 30s`. That covers the canonical compose (node-api, file-api, docusaurus …), the python-api template, and the saas-family web and api services. Before this, Docker's 10 s default killed the node-api drain before its 20 s backstop could fire (mail 01M470F5YW, W-a63d61a2).
+- The node-api comments no longer say the 503 flip makes Traefik drain. It is a signal for external probes only: Traefik routes to the single replica until it exits.
+- SIGTERM now reaches the app, so the grace is not just a longer wait for the same SIGKILL:
+  - the three uvicorn Dockerfile emitters run `sh -c "exec uvicorn …"`, where `sh` used to stay PID 1 and drop the signal;
+  - the file-api `src/index.js` drains on SIGTERM, where Node as PID 1 ignored it.
+- Graded by `tests/test_scaffold_compose_traefik.py`:
+  - `test_app_service_outlives_its_own_drain_backstop` covers 10 routed types and failed on all 7 HTTP types before the fix;
+  - `test_sigterm_reaches_the_app_process` failed on 8 of 10 types before the fix.
+
 ### Fixed — a scaffolded saas server/ passes the gate it ships into; make lint types src (2026-10-06)
 saas-skeleton, static-site and office-extension emitted a `server/` backend with no `pyproject.toml`, so ruff and
 mypy linted the vendored `glitchtip_init.py` and `fastapi_user_auth` under default rules, and the hub-authored server

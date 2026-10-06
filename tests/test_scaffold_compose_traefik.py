@@ -26,11 +26,13 @@ This test was the gate for a follow-up sweep that closed the same bug in
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 from fabrik.scaffold import create_project
 
@@ -259,6 +261,51 @@ def test_traefik_host_uses_real_domain(tmp_path, project_type):
 # --------------------------------------------------------------------------- #
 # Worker-specific invariants                                                  #
 # --------------------------------------------------------------------------- #
+
+
+# Types that are not SPEC_ENABLED yet still emit a routed compose service.
+ROUTED_TYPES = DEPLOYABLE_TYPES_HTTP + ["chrome-extension", "mobile-app", "office-extension"]
+
+
+@requires_fabrik_env
+@pytest.mark.parametrize("project_type", ROUTED_TYPES)
+def test_app_service_outlives_its_own_drain_backstop(tmp_path, project_type):
+    """Docker's default stop grace is 10 s; the node-api SIGTERM handler arms a 20 s hard-exit
+    backstop, so without an explicit stop_grace_period SIGKILL lands first and a slow drain is cut
+    (mail 01M470F5YW, W-a63d61a2). Every routed service (the saas family has two) sets a grace above
+    that backstop."""
+    project_dir = _scaffold(tmp_path, project_type)
+    services = yaml.safe_load(_read_compose(project_dir))["services"]
+    routed = {n: s for n, s in services.items() if "traefik.enable=true" in s.get("labels", [])}
+    assert project_dir.name in routed, (project_type, sorted(services))
+    for svc_name, svc in routed.items():
+        grace = str(svc.get("stop_grace_period", ""))
+        assert re.fullmatch(r"\d+s", grace), (project_type, svc_name, svc.get("stop_grace_period"))
+        assert int(grace[:-1]) > 20, (project_type, svc_name, grace)
+
+
+@requires_fabrik_env
+@pytest.mark.parametrize("project_type", ROUTED_TYPES)
+def test_sigterm_reaches_the_app_process(tmp_path, project_type):
+    """A stop grace buys nothing if SIGTERM never reaches the app: under ``sh -c "uvicorn …"`` the
+    shell is PID 1 and drops it, and Node as PID 1 ignores it unless it is handled. Either way the
+    container waits out the whole grace and is SIGKILLed (review of 132c4613f). A shell-form CMD
+    execs the server, and a Node entrypoint the scaffold writes handles SIGTERM."""
+    project_dir = _scaffold(tmp_path, project_type)
+    dockerfiles = [p for p in (project_dir / "Dockerfile", project_dir / "server" / "Dockerfile") if p.is_file()]
+    assert dockerfiles, project_type
+    for dockerfile in dockerfiles:
+        cmd_lines = [ln for ln in dockerfile.read_text().splitlines() if ln.startswith("CMD ")]
+        if not cmd_lines:  # the base image's own entrypoint (nginx: STOPSIGNAL SIGQUIT, graceful)
+            continue
+        cmd = cmd_lines[-1][4:].strip()
+        argv = json.loads(cmd) if cmd.startswith("[") else ["sh", "-c", cmd]
+        if argv[:2] == ["sh", "-c"]:
+            assert argv[2].startswith("exec "), (project_type, dockerfile.name, argv)
+        if argv[0] == "node":
+            entry = dockerfile.parent / argv[1]
+            if entry.is_file():  # Next.js standalone's server.js exists only after `next build`
+                assert "process.on('SIGTERM'" in entry.read_text(), (project_type, entry)
 
 
 @requires_fabrik_env

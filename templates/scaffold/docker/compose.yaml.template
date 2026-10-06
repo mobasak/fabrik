@@ -35,6 +35,8 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    # Docker's default stop grace is 10 s; give the app's SIGTERM drain longer.
+    stop_grace_period: 30s
     # F5: Declaring the memory limit here (not just CPU) makes Docker enforce
     # it on every redeploy — required so a single service can't OOM the shared
     # VPS (Fabrik invariant; `fabrik apply` rejects composes without it).

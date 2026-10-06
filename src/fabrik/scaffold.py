@@ -1101,6 +1101,9 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    # Docker's default stop grace is 10 s; the app's own SIGTERM drain may take
+    # longer (node-api arms a 20 s hard-exit backstop), so SIGKILL comes later.
+    stop_grace_period: 30s
     # A memory limit per service is a Fabrik invariant: ``fabrik apply``'s git,
     # template and docker deploys refuse a compose without one
     # (deployer_ssh._validate_compose).
@@ -3234,6 +3237,7 @@ services:
       retries: 3
       start_period: 20s
     restart: unless-stopped
+    stop_grace_period: 30s  # Docker's 10 s default cuts a SIGTERM drain short
     deploy:
       resources:
         limits:
@@ -3268,6 +3272,7 @@ services:
       retries: 3
       start_period: 15s
     restart: unless-stopped
+    stop_grace_period: 30s
     deploy:
       resources:
         limits:
@@ -4479,7 +4484,8 @@ client.collectDefaultMetrics();
 // The pack's /health, plus /api/health: the compose healthcheck and the spec's health_path.
 const HEALTH_PATHS = new Set(['/health', '/api/health']);
 
-// Flipped true on SIGTERM so /health returns 503 and Traefik drains us.
+// Flipped true on SIGTERM so /health reports 503 while we drain. Traefik keeps routing here
+// until exit: the compose healthcheck (30s x 3) cannot turn unhealthy inside the 20s drain.
 let isShuttingDown = false;
 
 const server = http.createServer((req, res) => {
@@ -4531,7 +4537,8 @@ server.listen(PORT, () => {
 });
 
 // Graceful drain on SIGTERM (Docker stop): 503 health flip -> stop idle conns ->
-// close once in-flight finishes -> 20s hard backstop. See core/12-node.md.
+// close once in-flight finishes -> 20s hard backstop, inside the compose's 30s
+// stop_grace_period. See core/12-node.md.
 process.on('SIGTERM', () => {
   isShuttingDown = true;
   setTimeout(() => process.exit(1), 20_000).unref();
@@ -5794,7 +5801,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY requirements.txt .
 COPY server/ ./server/
 
-CMD ["sh", "-c", "uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{PORT:-8000}}"]
+CMD ["sh", "-c", "exec uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{PORT:-8000}}"]
 """
     )
 
@@ -6107,7 +6114,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY requirements.txt .
 COPY server/ ./server/
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 """
     )
 
