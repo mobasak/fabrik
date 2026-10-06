@@ -71,7 +71,7 @@ Each spoke (vps2/vps3) runs the **`host-state`** + **`opt-configs`** plans only 
 
 ### Layer 2 — Shared infrastructure
 
-- `postgres-main` (`/opt/postgres`) — Postgres 16. Volume: `postgres18-data`
+- `postgres-main` (`/opt/postgres`) — Postgres 18. Volume: `postgres18-data` (mounted at `/var/lib/postgresql`)
 - `redis-main` (`/opt/redis`) — Redis 7. Volume: `redis_redis-data`
 - `meilisearch` (`/opt/meilisearch`) — search engine. Volume: `meilisearch-data`
 
