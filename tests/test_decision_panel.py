@@ -288,9 +288,155 @@ def test_a_bare_design_approval_gate_names_its_artifact(tmp_path, panel_mode):
     ok, why = hook.parse_decision_block(bare, run_live=False, transcript_path=tr)
     assert not ok and "path" in why, why
     named = _block(
-        None, ground="gate", why="gate — design approval of docs/superpowers/specs/x-design.md"
+        PANEL, ground="gate", why="gate — design approval of docs/superpowers/specs/x-design.md"
     )
-    assert hook.parse_decision_block(named, run_live=False, transcript_path=tr) == (True, "gate")
+    assert hook.parse_decision_block(named, run_live=False, transcript_path=_full(tmp_path)) == (
+        True,
+        "gate",
+    )
+
+
+# ── D-613: the panel answers a design-approval gate in the operator's place ────────────────
+_DESIGN_WHY = "gate — design approval of docs/superpowers/specs/x-design.md; the panel split"
+
+
+def test_design_gate_needs_panel(tmp_path, panel_mode):
+    """Behaviour 1: a design gate without a verified split panel is refused, and a gate that
+    dodges the class word is caught by its Question."""
+    tr = _full(tmp_path)
+    ok, why = hook.parse_decision_block(
+        _block(None, ground="gate", why=_DESIGN_WHY), run_live=False, transcript_path=tr
+    )
+    assert not ok and "split" in why, why
+    relabelled = _block(None, ground="gate", why="gate — publish docs/flows.md").replace(
+        "Pick the retention window?", "Do you approve these frozen journeys?"
+    )
+    ok, why = hook.parse_decision_block(relabelled, run_live=False, transcript_path=tr)
+    assert not ok and "split" in why, why
+    approve = _block(PANEL.replace("split", "both-approve"), ground="gate", why=_DESIGN_WHY)
+    assert not hook.parse_decision_block(approve, run_live=False, transcript_path=tr)[0]
+
+
+def test_design_gate_with_split_panel_passes(tmp_path, panel_mode):
+    """Behaviour 2: a verified split panel and a named artifact reach the operator."""
+    block = _block(PANEL, ground="gate", why=_DESIGN_WHY)
+    assert hook.parse_decision_block(block, run_live=False, transcript_path=_full(tmp_path)) == (
+        True,
+        "gate",
+    )
+
+
+def test_deploy_gate_needs_no_panel(tmp_path, panel_mode):
+    """Behaviour 3: other gate classes stay the operator's — a deploy plan's question too."""
+    tr = _transcript(tmp_path, _user("go"))
+    deploy = _block(None, ground="gate", why="gate — Gate 2, deploy to production").replace(
+        "Pick the retention window?", "Do you approve this converged deploy plan for execution?"
+    )
+    assert hook.parse_decision_block(deploy, run_live=False, transcript_path=tr) == (True, "gate")
+
+
+_BRIEF = (
+    "PANEL APPROVED (docs/superpowers/specs/x-design.md)\n"
+    "The spec makes the purge job keep 30 days.\n"
+    "Panel: {panel}\n\nNEXT: /fabrik-plan-after-chat docs/superpowers/specs/x-design.md"
+)
+
+
+_SPEC = "docs/superpowers/specs/x-design.md"
+_V_OPUS = f"VERDICT: sound — {_SPEC}"
+_V_FABLE = f"VERDICT: sound-with-changes — {_SPEC}"
+
+
+def _approving(tmp_path: Path, opus: str = _V_OPUS, fable: str = _V_FABLE) -> str:
+    return _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{opus}\nno concern; attacks tried: replay, ordering."),
+        _result("t-fable", f"{fable}\none concern, ACCEPTED: name the lock file."),
+    )
+
+
+def _approve_line(opus: str = _V_OPUS, fable: str = _V_FABLE) -> str:
+    return f'opus="{opus}" fable="{fable}" → both-approve'
+
+
+def test_approval_brief_needs_panel(tmp_path, panel_mode):
+    """Behaviour 4: a PANEL APPROVED brief needs a verified both-approve line quoting each seat's
+    VERDICT line; prose that only mentions the heading mid-line is not a brief."""
+    tr = _approving(tmp_path)
+    assert hook._panel_brief_problem(tr, _BRIEF.format(panel=_approve_line())) == ""
+    assert "both-approve" in hook._panel_brief_problem(tr, _BRIEF.format(panel=PANEL))
+    forged = _BRIEF.format(
+        panel='opus="a verdict nobody gave" fable="another one nobody gave" → both-approve'
+    )
+    assert hook._panel_brief_problem(tr, forged)
+    assert hook._panel_brief_problem(tr, "the brief goes under `PANEL APPROVED (<path>)`") == ""
+
+
+def test_approval_quotes_must_approve_this_artifact(tmp_path, panel_mode):
+    """A-S1/A-S3: verdicts given on ANOTHER artifact, or a quote that is not an approving VERDICT
+    line, never approve the brief's artifact."""
+    other = "VERDICT: sound — docs/superpowers/specs/other-design.md"
+    tr = _approving(tmp_path, opus=other, fable=other.replace("sound", "sound-with-changes"))
+    line = _approve_line(other, other.replace("sound", "sound-with-changes"))
+    assert "VERDICT" in hook._panel_brief_problem(tr, _BRIEF.format(panel=line))
+    longer = f"VERDICT: sound — {_SPEC}-old/variant.md"
+    tr = _approving(tmp_path, opus=longer, fable=longer)
+    assert "VERDICT" in hook._panel_brief_problem(
+        tr, _BRIEF.format(panel=_approve_line(longer, longer))
+    )
+    tr = _approving(tmp_path, fable=f"VERDICT: unsound — {_SPEC}")
+    line = _approve_line(fable=f"VERDICT: unsound — {_SPEC}")
+    assert "VERDICT" in hook._panel_brief_problem(tr, _BRIEF.format(panel=line))
+
+
+def test_brief_heading_forms(tmp_path, panel_mode):
+    """A-S2/C-H1/C-H3: a fenced example is not a brief; extra spacing does not dodge the check;
+    one heading never borrows the Panel line written for a later one."""
+    tr = _approving(tmp_path)
+    assert (
+        hook._panel_brief_problem(tr, "Example:\n```\n## PANEL APPROVED (docs/x.md)\n```\n") == ""
+    )
+    spaced = _BRIEF.format(panel="none").replace("PANEL APPROVED (", "PANEL  APPROVED  (")
+    assert hook._panel_brief_problem(tr, spaced)
+    two = "PANEL APPROVED (docs/forged.md)\ntext\n" + _BRIEF.format(panel=_approve_line())
+    assert "docs/forged.md" in hook._panel_brief_problem(tr, two)
+
+
+def test_fable_unavailable_two_opus(tmp_path, panel_mode, monkeypatch):
+    """Behaviour 5: with `fable unavailable`, two DISTINCT opus seats satisfy the line."""
+    monkeypatch.setitem(_MODELS, "t-opus2", "claude-opus-5-5")
+    second = "the design holds, ship it as converged today"
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _result("t-opus", f"verdict: {OPUS}."),
+        _result("t-opus2", f"verdict: {second}."),
+    )
+    line = f'opus="{OPUS}" fable="{second}" → split (fable unavailable: out of credit)'
+    block = _block(line, ground="gate", why=_DESIGN_WHY)
+    assert hook.parse_decision_block(block, run_live=False, transcript_path=tr)[0]
+    same = f'opus="{OPUS}" fable="{OPUS}" → split (fable unavailable: out of credit)'
+    assert not hook.parse_decision_block(
+        _block(same, ground="gate", why=_DESIGN_WHY), run_live=False, transcript_path=tr
+    )[0]
+
+
+def test_outside_autonomy_unchanged(tmp_path, monkeypatch):
+    """Behaviour 6: without the flag a design gate and a brief need no panel."""
+    monkeypatch.setattr(hook, "_is_headless", lambda _t: False)
+    tr = _transcript(tmp_path, _user("go"))
+    block = _block(None, ground="gate", why=_DESIGN_WHY)
+    assert hook.parse_decision_block(block, run_live=False, transcript_path=tr) == (True, "gate")
+    brief = _BRIEF.format(panel="none")
+    hit = hook._deferral_stall(brief, tr, run_live=False, judged=None, escalation=None, waived=None)
+    assert hit is None or hit[0] != "deferral:panel-brief", hit
+    monkeypatch.setattr(hook, "_PANEL_MODE", True)
+    hit = hook._deferral_stall(brief, tr, run_live=False, judged=None, escalation=None, waived=None)
+    assert hit and hit[0] == "deferral:panel-brief", hit
 
 
 # ── the ladder: one subject at a time, never re-armed ──────────────────────────────────────

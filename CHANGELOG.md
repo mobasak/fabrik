@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the Opus + Fable panel answers design-approval gates; the operator gets a short brief (2026-10-06)
+- `/fabrik-spec-review`, `/fabrik-plan-review` (Size: small), `/fabrik-flows-review` and `/fabrik-ui-design-review` no longer end on the long approval presentation: the two design-critique seats answer as the operator's stand-in, the agent applies and re-reviews their changes, mints the approval row and presents a ≤10-line `PANEL APPROVED (<path>)` brief, then runs the next design stage. A split panel still asks the operator (D-613).
+- The Stop hook, in autonomy mode, checks a design gate's `Panel: … → split` line and a brief's `Panel: … → both-approve` line against the seats' own returned VERDICT lines.
+
 ### Fixed — mypy is clean on `scripts/mail.py` (2026-10-06)
 - `_verify_merge_sha` refused an empty `--merge-sha` with `(merge_sha or "").strip()`, then stripped `merge_sha` again for the lookup, which mypy read as `str | None` (W-57c88c6f). The stripped value is now bound once and used for both. A None value never reached the lookup, so behaviour is unchanged. Tests: tests/test_mail*.py 369 passed.
 

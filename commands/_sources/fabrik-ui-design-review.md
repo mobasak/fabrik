@@ -159,31 +159,32 @@ was used to justify not building the thing that would have caught it.
 
 **Do not commit** unless the user says so this turn (`git add` is fine). ⚠️ **Superseded where it conflicts with CLAUDE.md § EXIT:** an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed. **COMMIT the artifact** — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that. What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28).
 
-## After the attestation — STOP and ask for the user's UI approval (do NOT auto-chain)
+## After the attestation — the panel answers the UI approval gate
 
 Like `/fabrik-spec-review`, this is a **design approval gate**: a frozen UI contract commits agents to build
-every screen/flow in it, so a **human signs off on the UI before planning/building begins.** Once the closing
-round (`confirmed: 0`) earns the attestation:
+every screen/flow in it. Once the closing round (`confirmed: 0`) earns the attestation, the panel answers it;
+its brief carries the contract, the screens, the key flows with their click budgets and any reconciliations.
 
-- **Present** the reviewed contract + a short summary (screens, key flows + their click budgets, any
-  reconciliations) + the full Pass Ledger, then **end the turn with the block below**, written as
-  plain lines, not inside a code fence — never a plain-prose approval ask.
+{{include:design-critique}}
+
+{{include:design-gate-panel}}
+
+- **On a split**, end the turn with this block, written as plain lines, not inside a code fence:
 
   ```
   DECISION NEEDED (ground: gate)
   - Question: Do you approve this UI design?
-  - Why it is yours: UI design approval — a frozen UI contract commits agents to build every screen/flow in it.
-  - Options: A — approve, and planning starts from this frozen contract · B — request changes, and the loop re-opens on your feedback.
-  - Recommendation: A, once the contract, the click budgets and the full Pass Ledger above show nothing unattested.
+  - Why it is yours: UI design approval of <docs/ui-design.md path> — a frozen UI contract commits agents to build every screen/flow in it; the panel split.
+  - Options: A — approve as frozen, and planning starts from this contract · B — take the disputed changes, and the loop re-opens on them.
+  - Recommendation: <A or B>, with the one disputed concern that decides it.
+  - Panel: opus="<its VERDICT line>" fable="<its VERDICT line>" → split
   ```
 
-- **Do NOT auto-invoke planning.** Name what comes next so it's clear, but don't call it: **Claude Code path** →
-  `/fabrik-plan-after-chat` (references `docs/ui-design.md` + the design system + `docs/data-contract.md` as
-  binding UI truth, its screen-building phases each running the Build Verification Loop to its closing round); **Traycer
-  path** → paste/link the reviewed contract as the UI-epic Context File.
-- Only **on the user's explicit approval (a later turn)** does planning run — and if they're on the Claude Code
-  path, then auto-invoke `/fabrik-plan-after-chat` (don't make them re-type it). If they ask for changes,
-  **re-open the loop** on their feedback. Never hand off on an unattested / `DRAFT` contract.
+- **The next step:** **Claude Code path** → `/fabrik-plan-after-chat` (references `docs/ui-design.md` + the
+  design system + `docs/data-contract.md` as binding UI truth, its screen-building phases each running the
+  Build Verification Loop to its closing round); **Traycer path** → paste/link the reviewed contract as the
+  UI-epic Context File. On a split, the operator's answer decides; on requested changes, **re-open the loop**.
+  Never hand off on an unattested / `DRAFT` contract.
 
 
 {{include:subagents-core}}

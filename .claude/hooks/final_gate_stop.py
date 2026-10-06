@@ -2597,9 +2597,26 @@ _DECISION_QUOTE_MIN = 12
 _PANEL_MODE = False
 _PANEL_RE = re.compile(
     r"""opus\s*=\s*"([^"]{12,})"\s*fable\s*=\s*"([^"]{12,})"\s*(?:→|->|:|—|-)?\s*"""
-    r"(split|both-underivable)\b",
+    r"(split|both-underivable|both-approve)\b",
     re.I,
 )
+# DESIGN GATE (operator ruling 2026-10-06, D-613): in autonomy mode the Opus+Fable panel answers a
+# design-approval gate in the operator's place. A gate block reaches the operator only on a SPLIT
+# panel — its `Panel:` line ends `split` — and an approval is briefed under the
+# `PANEL APPROVED (<path>)` heading with a `Panel: … → both-approve` line; both lines are checked
+# against the seats' own returned text (`_panel_problem`). A gate is a design gate when its Why
+# line names design/plan approval OR its Question asks to approve a design, spec or journeys — so
+# relabelling the gate class does not skip the panel; a deploy plan's question names none of them.
+# COBRA (D-253): the cheapest way past is a brief with no heading — the approval then has no
+# checked line, but neither has it the approval row the command's step 3 orders, which a reader
+# of `docs/DECISIONS.md` sees missing its `Panel:` line.
+_DESIGN_ASK_RE = re.compile(r"\bapprove\b[^?\n]*\b(?:design|spec|journeys)\b", re.I)
+_PANEL_BRIEF_RE = re.compile(r"^[#*\s]*PANEL\s+APPROVED\s*\(([^)\n]+)\)", re.M)
+# an approving seat's first line, quoted whole on a both-approve Panel line: its verdict and the artifact
+_PANEL_VERDICT_RE = re.compile(
+    r"VERDICT:\s*sound(?:-with-changes)?(?![\w-])\s*(?:—|–|-+|:)?\s*`?([^\s`]+)", re.I
+)
+_PANEL_LINE_RE = re.compile(r"^\W*Panel:\s*(.+)$", re.M)
 # Operator-entry rows that are the harness's or a hook's words, never the operator's:
 # `scripts/render_chat_history.py`'s `_SKIP_USER_PREFIXES`, the prompt hook's wrapper, and the
 # mesh's machine appends — MIRRORED from `scripts/sysadmin/kaizen_coroner.py::MACHINE_APPEND_MARKS`
@@ -3308,21 +3325,46 @@ def _row_text(content: object) -> str:
     return "\n".join(out)
 
 
-def _panel_problem(panel: str, transcript_path: str) -> str:
-    """ "" when the `Panel:` line is backed by the transcript, else what is missing."""
+def _panel_problem(
+    panel: str,
+    transcript_path: str,
+    *,
+    ground: str = "`ground: underivable`",
+    outcomes: tuple[str, ...] = ("split", "both-underivable"),
+    artifact: str = "",
+) -> str:
+    """ "" when the `Panel:` line is backed by the transcript, else what is missing. ``outcomes``
+    are the endings this caller accepts; `fable unavailable` in the line lets a SECOND, distinct
+    Opus seat stand in for the Fable one (D-613)."""
     if re.match(r"\s*unavailable\b", panel, re.I):
         if (_coord_band(transcript_path) or "") in _COORD_QUIET_BANDS:
             return ""
         return "`Panel: unavailable` is accepted only at a RED/WALL quota band — ask the panel"
     m = _PANEL_RE.search(panel or "")
-    if not m:
+    if not m or m.group(3).lower() not in outcomes:
         return (
-            "autonomy mode: `ground: underivable` needs a `Panel:` line — ask two independent "
+            f"autonomy mode: {ground} needs a `Panel:` line — ask two independent "
             'seats (one model "opus", one model "fable") the question first, then write '
-            '`Panel: opus="<its verdict>" fable="<its verdict>" → split|both-underivable`; a '
+            f'`Panel: opus="<its verdict>" fable="<its verdict>" → {"|".join(outcomes)}`; a '
             "panel that answers it is the decision"
         )
     quotes = [_norm_ws(m.group(1)), _norm_ws(m.group(2))]
+    if m.group(3).lower() == "both-approve":
+        # an approval quotes each seat's `VERDICT: sound|sound-with-changes — <path>` line: a
+        # disagreeing verdict, or one given on another artifact, never approves this one
+        def _names(q: str) -> str:
+            v = _PANEL_VERDICT_RE.match(q)
+            return v.group(1).rstrip(".,;:)") if v else ""
+
+        # the path the VERDICT line names must BE the artifact — a containing path is another file
+        bad = [q for q in quotes if _names(q) != artifact.strip("` ")]
+        if bad:
+            return (
+                f"{ground}: a both-approve Panel line quotes each seat's first line, "
+                f"`VERDICT: sound|sound-with-changes — {artifact or '<artifact path>'}` — not: "
+                + "; ".join(repr(q[:60]) for q in bad)
+            )
+    stand_in = bool(re.search(r"\bfable unavailable\b", panel, re.I))
     # Each quote must come from ITS seat's own returned text — never any tool result (round 1:
     # an `echo` of the wanted verdict passed). A seat is an Agent call whose result row carries
     # `toolUseResult.agentId` + `resolvedModel` (so a seat that inherits its model counts too); a
@@ -3331,6 +3373,7 @@ def _panel_problem(panel: str, transcript_path: str) -> str:
     # last word.
     said: dict[str, list[str]] = {"opus": [], "fable": []}
     seats: dict[str, str] = {}
+    by_seat: dict[str, list[str]] = {}
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -3343,7 +3386,7 @@ def _panel_problem(panel: str, transcript_path: str) -> str:
                 if entry.get("type") != "user":
                     continue
                 if _is_operator_prompt(entry):
-                    said, seats = {"opus": [], "fable": []}, {}
+                    said, seats, by_seat = {"opus": [], "fable": []}, {}, {}
                     continue
                 content = (entry.get("message") or {}).get("content")
                 text = _row_text(content)
@@ -3355,6 +3398,7 @@ def _panel_problem(panel: str, transcript_path: str) -> str:
                         seats[str(meta["agentId"])] = fam
                         if meta.get("status") != "async_launched":
                             said[fam].append(_norm_ws(text))
+                            by_seat.setdefault(str(meta["agentId"]), []).append(_norm_ws(text))
                     continue
                 # a hand-back is told by the HARNESS's own `origin` record (kind peer, handback,
                 # from = the agentId), never by the tag in its text: a `Bash` echo (round 2) and a
@@ -3367,9 +3411,20 @@ def _panel_problem(panel: str, transcript_path: str) -> str:
                     and str(origin.get("from") or "") in seats
                 ):
                     said[seats[str(origin["from"])]].append(_norm_ws(text))
+                    by_seat.setdefault(str(origin["from"]), []).append(_norm_ws(text))
     except OSError:
         sys.stderr.write("[deferral] cannot read the transcript to verify the panel; allowing it\n")
         return ""
+    if stand_in:
+        opus_ids = [a for a, f in seats.items() if f == "opus"]
+        first = [a for a in opus_ids if any(quotes[0] in t for t in by_seat.get(a, []))]
+        second = [a for a in opus_ids if any(quotes[1] in t for t in by_seat.get(a, []))]
+        if any(a != b for a in first for b in second):
+            return ""
+        return (
+            "`fable unavailable` needs two DISTINCT opus seats, each quoted from its own returned "
+            "text since the operator's last message"
+        )
     missing = [f for f in ("opus", "fable") if not said[f]]
     if missing:
         return (
@@ -3382,6 +3437,55 @@ def _panel_problem(panel: str, transcript_path: str) -> str:
                 f"the {who} verdict quoted on the Panel: line is not in the {who} seat's own "
                 "returned text since the operator's last message"
             )
+    return ""
+
+
+def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
+    """ "" unless a `PANEL APPROVED (<path>)` brief written THIS turn (any assistant text since the
+    operator's last row, the final message included) lacks a transcript-verified
+    `Panel: … → both-approve` line after its heading (D-613) — the brief is often followed by
+    the next design stage, so the final message alone would miss it."""
+    texts = [final_text] if final_text else []
+    for line in reversed(_tail_lines(transcript_path) or []):
+        if '"type"' not in line:
+            continue
+        try:
+            entry = json.loads(line)
+        except Exception:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("type") == "user":
+            if _operator_text(entry):
+                break
+            continue
+        content = (entry.get("message") or {}).get("content")
+        if entry.get("type") == "assistant" and isinstance(content, list):
+            texts.extend(
+                str(b.get("text") or "")
+                for b in content
+                if isinstance(b, dict) and b.get("type") == "text"
+            )
+    for text in texts:
+        fences = _fence_spans(text)
+        heads = [
+            m
+            for m in _PANEL_BRIEF_RE.finditer(text)
+            if not any(a <= m.start() < b for a, b in fences)
+        ]
+        for i, m in enumerate(heads):
+            # a heading's Panel line sits before the NEXT heading — never borrowed from a later brief
+            end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
+            line = _PANEL_LINE_RE.search(text, m.end(), end)
+            problem = _panel_problem(
+                line.group(1) if line else "",
+                transcript_path,
+                ground=f"the PANEL APPROVED brief for {m.group(1)}",
+                outcomes=("both-approve",),
+                artifact=m.group(1).strip(),
+            )
+            if problem:
+                return problem
     return ""
 
 
@@ -3419,15 +3523,23 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
         return False, f"unknown ground {ground!r} — one of gate · underivable · owned"
     why = fields["Why it is yours"]
     if ground == "gate":
-        if (
-            _PANEL_MODE
-            and re.search(r"\b(?:design|plan) approval\b", why, re.I)
-            and not _SEARCHED_EVIDENCE_RE.search(why)
-        ):
-            return False, (
-                "a design/plan-approval gate names the artifact it asks about (its path) — "
-                "autonomy mode refuses the bare phrase"
+        design_gate = re.search(
+            r"\b(?:design|plan) approval\b", why, re.I
+        ) or _DESIGN_ASK_RE.search(fields["Question"])
+        if _PANEL_MODE and design_gate:
+            if not _SEARCHED_EVIDENCE_RE.search(why):
+                return False, (
+                    "a design/plan-approval gate names the artifact it asks about (its path) — "
+                    "autonomy mode refuses the bare phrase"
+                )
+            problem = _panel_problem(
+                fields.get("Panel", ""),
+                transcript_path,
+                ground="a design-approval gate (D-613: only a split panel reaches the operator)",
+                outcomes=("split",),
             )
+            if problem:
+                return False, problem
         if not _DECISION_GATE_RE.search(why):
             return False, (
                 '`ground: gate` names no gate class on its "Why it is yours" line — one of '
@@ -3676,6 +3788,10 @@ def _deferral_stall(
     `boarded-gate`, and the rest of the message is judged again without that line."""
     if _is_headless(transcript_path):
         return None
+    if _PANEL_MODE:
+        brief = _panel_brief_problem(transcript_path, text)
+        if brief:
+            return "deferral:panel-brief", brief
     hit: tuple[str, str] | None
     if extract_decision_block(text) is not None:
         ok, why = (

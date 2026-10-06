@@ -437,8 +437,9 @@ no-op round, and flips `Status: DRAFT → CONVERGED` (same relationship as `/fab
 CONVERGED are an unanswered Phase-2 question or a Phase-1 BLOCKING unknown (an external fact you cannot
 verify live); surface those and stop.
 
-After `CONVERGED`, present the hardened spec for the **user's approval** — and the presentation OPENS with the
-**ask ↔ spec comparison table** (hub ruling D-153: *"present what I have asked and what was specced in a
+After `CONVERGED`, the hardened spec reaches the design-approval gate `/fabrik-spec-review` holds — answered by
+the Opus + Fable panel in the operator's place (D-613; only a split reaches the operator) — and the gate is
+weighed against the **ask ↔ spec comparison table** (hub ruling D-153: *"present what I have asked and what was specced in a
 comparison table"*): **one row per item of the operator's brief** — the operator's OWN WORDS · what the spec
 says (section + one line) · the anchor (`path:line` or heading) · a disposition ∈ {**IN** · **CHANGED** (how) ·
 **ADDED** beyond the ask (why) · **DROPPED** (why)} — followed by **one row per spec section the operator did
@@ -447,8 +448,8 @@ command mandates it · engineering nicety). Countable: rows ≥ Intake Inventory
 anchor; a brief item with no row is the SILENT DROP the inventory exists to catch. The Intake Inventory inside
 the artifact grades coverage for the AGENT; this table is the same fact laid out for the OPERATOR, side by
 side, in their wording — how a 672-line spec got approved-for-review while its operator was "totally lost"
-. `/fabrik-spec-review` presents the same table, recomputed against the
-CONVERGED text, at its approval gate. On approval, the pipeline continues —
+. `/fabrik-spec-review` builds the same table, recomputed against the
+CONVERGED text, for its gate and keeps it in the spec's review receipt. On approval, the pipeline continues —
 **data + UI contracts are frozen BEFORE planning** for anything data/GUI-shaped:
 
 ```
