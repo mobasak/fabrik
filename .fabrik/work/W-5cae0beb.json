@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T09:05:36.178100Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5cae0beb",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "seat re-runs the docker shapes on compose 2.40.3 against c445a5165; for the test-less block, either document the limitation in _compose_up's docstring or have the git path fall back to _compose_up's readiness poll",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Disabled-healthcheck validator (deployer_ssh._validate_compose): an independent reader re-verifies c445a5165's rule (test \"\" accepted, [] and NONE refused), and decide the test-less block case (inherits the image HEALTHCHECK — only an image inspect can tell)"
+}
