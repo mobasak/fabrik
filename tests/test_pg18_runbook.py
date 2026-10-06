@@ -98,15 +98,62 @@ def _parse(text: str) -> tuple[list[str], list[Section]]:
 
 
 def _code_lines(fences: list[str]) -> list[str]:
-    """Executable lines only: shell `#` and SQL `--` comment lines are dropped."""
+    """Executable lines only: shell `#` / SQL `--` comment lines dropped, trailing ` # …` comments cut."""
     out = []
     for block in fences:
         for line in block.splitlines():
             s = line.strip()
             if not s or s.startswith("#") or s.startswith("--"):
                 continue
+            s = re.sub(r"\s+#\s.*$", "", s)
             out.append(s)
     return out
+
+
+def _fence_ranges(lines: list[str]) -> list[tuple[int, int]]:
+    """(opening-delimiter index, closing-delimiter index) for every fenced block."""
+    out, start = [], None
+    for idx, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            if start is None:
+                start = idx
+            else:
+                out.append((start, idx))
+                start = None
+    return out
+
+
+def _preceding_prose(lines: list[str], fence_start: int) -> list[str]:
+    """The prose between the previous fence (or heading) and this fence's opening line."""
+    out = []
+    for idx in range(fence_start - 1, -1, -1):
+        line = lines[idx]
+        if line.lstrip().startswith("```") or HEADING.match(line):
+            break
+        out.append(line)
+    return out[::-1]
+
+
+def _block_with(sec: Section, needle: str) -> str:
+    hits = [b for b in sec.all_fences if needle in "\n".join(_code_lines([b]))]
+    assert len(hits) == 1, (
+        f"expected one block in '{sec.title}' running {needle!r}, found {len(hits)}"
+    )
+    return hits[0]
+
+
+def _run_bash(script: str, env: dict[str, str]) -> str:
+    import os
+    import shutil
+    import subprocess
+
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("bash not available")
+    res = subprocess.run(
+        [bash, "-c", script], env={**os.environ, **env}, capture_output=True, text=True, timeout=60
+    )
+    return res.stdout + res.stderr
 
 
 @pytest.fixture(scope="module")
@@ -236,8 +283,9 @@ def test_wsl_window_has_d2_steps_0_to_6_in_order(doc):
     ids = [sid for sid, _ in _step_ids(_children(sections, wsl, 3), r"^WSL step (\w+)\b")]
     assert ids == ["0", "1", "2", "2a", "3", "4", "5", "6"]
     for sid, sec in _step_ids(_children(sections, wsl, 3), r"^WSL step (\w+)\b"):
-        assert _code_lines(sec.all_fences), f"WSL step {sid}: no command block"
-        assert _has_marker(sec.all_prose, "**Verify:**"), f"WSL step {sid}: no Verify line"
+        assert _code_lines(sec.fences), f"WSL step {sid}: no command block"
+        assert _has_marker(sec.prose, "**Verify:**"), f"WSL step {sid}: no Verify line"
+        assert _has_marker(sec.prose, "**Rollback:**"), f"WSL step {sid}: no Rollback line"
 
 
 def test_wsl_stop_list_names_the_local_writers(doc):
@@ -305,17 +353,42 @@ def test_release_removals_are_gated_on_the_operators_word(doc):
         assert _has_marker(sec.all_prose, GATE_MARKER), f"{sec.title}: no operator's-word gate"
 
 
+def _destructive(text: str) -> str | None:
+    norm = re.sub(r"\s+", " ", text)
+    for token in DESTRUCTIVE:
+        if token in norm:
+            return token
+    return None
+
+
 def test_no_destructive_line_outside_an_operator_word_block(doc):
-    lines, sections = doc
+    """E2-1: the gate is bound to the BLOCK — the prose right before the fence holding the command
+    must carry the marker line; a destructive command in prose must sit on the marker line itself."""
+    lines, _ = doc
+    ranges = _fence_ranges(lines)
+    inside = {i: (a, b) for a, b in ranges for i in range(a + 1, b)}
     for idx, line in enumerate(lines):
-        for token in DESTRUCTIVE:
-            if token in line:
-                owner = max(
-                    (s for s in sections if s.start <= idx < s.own_end), key=lambda s: s.start
-                )
-                assert _has_marker(owner.prose, GATE_MARKER), (
-                    f"line {idx + 1} ({token!r}) sits in '{owner.title}', which names no operator's word"
-                )
+        token = _destructive(line)
+        if token is None:
+            continue
+        if idx in inside:
+            start = inside[idx][0]
+            assert _has_marker(_preceding_prose(lines, start), GATE_MARKER), (
+                f"line {idx + 1} ({token!r}): its fenced block is not preceded by the operator's-word line"
+            )
+        else:
+            assert line.strip().startswith(GATE_MARKER), (
+                f"line {idx + 1} ({token!r}) is a destructive command in prose outside a marker line"
+            )
+
+
+def test_release_steps_have_command_verify_rollback(doc):
+    """E2-2: R1-R4 carry their own command block, Verify and Rollback."""
+    _, sections = doc
+    for rid, sec in _release_steps(sections):
+        assert _code_lines(sec.fences), f"release step {rid}: no command block"
+        assert _has_marker(sec.prose, "**Verify:**"), f"release step {rid}: no Verify line"
+        assert _has_marker(sec.prose, "**Rollback:**"), f"release step {rid}: no Rollback line"
 
 
 def test_pre_window_snapshot_restore_needs_the_old_volume_name(doc):
@@ -468,3 +541,299 @@ def test_doc_only_projects_share_one_broadcast(doc):
     bodies = [b for b in hits[0].all_fences if "<<'BODY'" in b]
     assert len(bodies) == 1, "the 27 doc-only projects must share ONE broadcast body"
     assert "mail.py send" in bodies[0]
+
+
+def test_appendix_send_timing_is_structural(doc):
+    """E2-3: A1 (D7) goes BEFORE the WSL window; every other request AFTER the hub window."""
+    _, sections = doc
+    seen = {}
+    for sec in _appendix(sections):
+        sends = [ln.strip() for ln in sec.prose if ln.strip().startswith("**Send:**")]
+        assert len(sends) == 1, f"{sec.title}: expected one **Send:** line"
+        seen[sec.title.split()[0]] = sends[0].split()[1]
+    assert seen.pop("A1") == "BEFORE-WSL-WINDOW"
+    assert seen.pop("A9") == "NONE"
+    assert seen and set(seen.values()) == {"AFTER-HUB-WINDOW"}, seen
+
+
+# --- Wave-2 review fixups (pass 1) ---------------------------------------------------------------
+
+
+def _wsl_step(sections: list[Section], sid: str) -> Section:
+    return dict(
+        _step_ids(_children(sections, _top(sections, "2. WSL window"), 3), r"^WSL step (\w+)\b")
+    )[sid]
+
+
+_WSL2_STUBS = r"""
+pg_lsclusters() { printf '%s\n' "16 main 5432 online postgres /x" ${FAKE18:+"$FAKE18"}; }
+sudo() { [ "$1" = -u ] && shift 2; "$@"; }
+psql() { echo "PSQL $*" >> "$LOG"; [ "$FAKE_PSQL" = fail ] && return 2; echo "$FAKE_PSQL"; }
+pg_dropcluster() { echo "DROP $*" >> "$LOG"; return "${DROP_RC:-0}"; }
+"""
+
+
+@pytest.mark.parametrize(
+    ("fake18", "fake_psql", "drop_rc", "dropped", "port"),
+    [
+        ("18 main 5432 online postgres /x", "0", "0", False, None),
+        ("18 main 5433 online postgres /x", "fail", "0", False, "5433"),
+        ("18 main 5433 online postgres /x", "3", "0", False, "5433"),
+        ("18 main 5434 online postgres /x", "0", "0", True, "5434"),
+        ("18 main 5433 online postgres /x", "0", "1", True, "5433"),
+        ("", "0", "0", False, None),
+    ],
+)
+def test_wsl_step_2_never_drops_a_cluster_that_is_not_the_empty_install(
+    doc, tmp_path, fake18, fake_psql, drop_rc, dropped, port
+):
+    """E1-1/E1-14: the guard EXECUTED with stubbed host tools — port read from pg_lsclusters, 5432
+    refused, a failed query refused, a non-empty cluster refused, a failed drop reported as failed."""
+    _, sections = doc
+    block = _block_with(_wsl_step(sections, "2"), "pg_dropcluster")
+    log = tmp_path / "log"
+    log.write_text("")
+    out = _run_bash(
+        _WSL2_STUBS + block,
+        {"FAKE18": fake18, "FAKE_PSQL": fake_psql, "DROP_RC": drop_rc, "LOG": str(log)},
+    )
+    calls = log.read_text()
+    assert ("DROP 18 main" in calls) == dropped, out + calls
+    if port:
+        assert re.search(rf"PSQL .*-p {port}\b", calls), calls
+    if drop_rc != "0":
+        assert "dropped the empty" not in out and "FAILED" in out, out
+
+
+def test_hub_step_5_ports_auto_conf_faithfully(doc):
+    """E1-2: list GUCs survive — the 16 auto.conf lines are appended, never re-quoted as one value."""
+    _, sections = doc
+    code = _code_lines(_hub_steps(sections)["5"].all_fences)
+    joined = "\n".join(code)
+    assert not re.search(r"ALTER\s+SYSTEM\s+SET\s+%s", joined, re.I), (
+        "settings re-quoted via printf"
+    )
+    src = [i for i, ln in enumerate(code) if "conf16/postgresql.auto.conf" in ln]
+    app = [
+        i
+        for i, ln in enumerate(code)
+        if re.search(r"cat\s*>>\s*\\?\"?\$PGDATA/postgresql\.auto\.conf", ln)
+    ]
+    chk = [i for i, ln in enumerate(code) if "pg_file_settings" in ln]
+    rst = [i for i, ln in enumerate(code) if "docker restart postgres-main" in ln]
+    assert src and app and chk and rst, (src, app, chk, rst)
+    assert src[0] < app[0] < chk[0] < rst[0], "port, then the file-settings check, then the restart"
+
+
+def test_dumps_count_only_on_exit_0_and_a_full_read(doc):
+    """E1-3: every dump writes its .ok marker on exit 0, skip-guards key on the marker, the verify is
+    a FULL read (pg_restore -f /dev/null), and pg_restore -l is no longer the test anywhere."""
+    _, sections = doc
+    hub = _hub_steps(sections)
+    for sid in ("3", "6a"):
+        assert not re.search(r"pg_restore\s+-l\b", " ".join(_code_lines(hub[sid].all_fences))), sid
+    code = _code_lines(hub["3"].all_fences)
+    dumps = [ln for ln in code if re.search(r"\bpg_dump(all)?\s+-h\b", ln)]
+    assert len(dumps) == 2, dumps
+    for ln in dumps:
+        m = re.search(r'>\s*"(\$\w+)"\s*&&\s*touch\s+"(\$\w+)\.ok"', ln)
+        assert m and m.group(1) == m.group(2), f"dump not marked .ok on exit 0: {ln}"
+        assert re.match(r'\[\s*-f\s+"\$\w+\.ok"\s*\]\s*\|\|', ln), (
+            f"skip-guard not on the marker: {ln}"
+        )
+    assert any("pg_restore -f /dev/null" in ln for ln in code)
+    block = _block_with(hub["6a"], "DROP DATABASE")
+    lines = _code_lines([block])
+    drop = next(i for i, ln in enumerate(lines) if "DROP DATABASE" in ln)
+    guard = [
+        i
+        for i, ln in enumerate(lines[:drop])
+        if re.match(r'if\s+\[\s*-f\s+"\$\w+\.ok"\s*\]\s*&&.*pg_restore\s+-f\s+/dev/null', ln)
+    ]
+    assert guard, "step 6a drops glitchtip without the .ok + full-read guard"
+
+
+def test_password_file_lives_in_ram_and_is_proven_and_shredded(doc):
+    """E1-4/E1-5: the env file is never under /opt; it is proven before use and shredded after the dumps."""
+    lines, sections = doc
+    code_all = _code_lines([b for s in sections if s.level == 2 for b in s.all_fences])
+    for ln in code_all:
+        for arg in re.findall(r"--env-file\s+(\S+)", ln):
+            assert arg == '"$PGENV"', f"--env-file not the RAM file: {ln}"
+        if "PGPASSWORD=" in ln:
+            m = re.search(r'>\s*"?(\S+?)"?\s*\)', ln)
+            assert m and m.group(1) == "$PGENV", f"password written elsewhere: {ln}"
+        if re.match(r"PGENV_DIR=", ln):
+            assert re.match(r"PGENV_DIR=\$\(mktemp -d /dev/shm/", ln), ln
+        assert not re.search(r"--env-file\s+\S*(/opt|\$W|\$P)\b", ln), ln
+    code = _code_lines(_hub_steps(sections)["3"].all_fences)
+    proof = next(i for i, ln in enumerate(code) if "SELECT 1" in ln and "PGENV" in ln)
+    first_dump = next(i for i, ln in enumerate(code) if "pg_dumpall" in ln)
+    last_dump = max(i for i, ln in enumerate(code) if re.search(r"\bpg_dump\s+-h\b", ln))
+    shred = [i for i, ln in enumerate(code) if re.search(r'shred\s+-u\s+"\$PGENV"', ln)]
+    assert proof < first_dump, "the password is not proven before the first dump"
+    assert any(i > last_dump for i in shred), (
+        "the password file is not shredded after the last dump"
+    )
+
+
+def test_wsl_step_2a_trusts_exit_status_and_reads_via_stdin(doc):
+    """E1-6/E1-12: no trailer grep; dropdb only behind both .ok markers; restores read via stdin."""
+    _, sections = doc
+    sec = _wsl_step(sections, "2a")
+    code = _code_lines(sec.fences)
+    assert not any("dump complete" in ln for ln in code)
+    dumps = [ln for ln in code if re.search(r"\bpg_dump\b", ln)]
+    assert len(dumps) == 2 and all(re.search(r'&&\s*touch\s+"\$\w+\.ok"', ln) for ln in dumps), (
+        dumps
+    )
+    drop = next(i for i, ln in enumerate(code) if "dropdb" in ln)
+    assert any(re.search(r'-f\s+"\$D1\.ok".*-f\s+"\$D2\.ok"', ln) for ln in code[:drop]), (
+        "dropdb not behind both markers"
+    )
+    assert not any(re.search(r"pg_restore\b[^<]*\$\w+[^<]*$", ln) and "<" not in ln for ln in code)
+    rollback = _paragraph(sec.prose, "**Rollback:**")
+    assert re.search(r"pg_restore[^`]*<\s*\"\$D2\"", rollback), rollback
+
+
+_GO_STUB = "sudo() { return 0; }\n"
+
+
+def _go_state(w: Path, drop: str | None = None) -> None:
+    import os
+    import time
+
+    (w / "manifest-18").mkdir(parents=True)
+    (w / "manifest-18" / "COMPLETE").write_text("5 files\n")
+    old = time.time() - 100
+    os.utime(w / "manifest-18" / "COMPLETE", (old, old))
+    (w / "manifest-18.diffs").mkdir()
+    (w / "manifest-18.diffs" / "cluster.txt").write_text("")
+    (w / "restore.err").write_text('psql:<stdin>:20: ERROR:  role "postgres" already exists\n')
+    (w / "compat-18.txt").write_text("trgm index|app|t_s_idx|valid=true\n")
+    (w / "glitchtip-6a.ok").write_text("glitchtip wrote nothing\n")
+    (w / "stopped-services.txt").write_text("app-api\n")
+    if drop:
+        target = w / drop
+        if target.is_dir():
+            for f in target.iterdir():
+                f.unlink()
+            target.rmdir()
+        else:
+            target.unlink()
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        None,
+        "manifest-18/COMPLETE",
+        "manifest-18.diffs",
+        "compat-18.txt",
+        "glitchtip-6a.ok",
+        "restore.err",
+    ],
+)
+def test_step_7_go_requires_every_input(doc, tmp_path, missing):
+    """E1-7: the GO check EXECUTED — a missing input is a NO-GO, never a 0 that reads as GO."""
+    _, sections = doc
+    block = _block_with(_hub_steps(sections)["7"], "go=GO")
+    _go_state(tmp_path, missing)
+    out = _run_bash(_GO_STUB + block, {"W": str(tmp_path)})
+    last = out.strip().splitlines()[-1]
+    assert last == ("GO" if missing is None else "NO-GO"), out
+
+
+def test_step_7_go_rejects_an_invalid_trgm_index_and_stale_diffs(doc, tmp_path):
+    _, sections = doc
+    block = _block_with(_hub_steps(sections)["7"], "go=GO")
+    _go_state(tmp_path)
+    (tmp_path / "compat-18.txt").write_text("trgm index|app|t_s_idx|valid=false\n")
+    assert _run_bash(_GO_STUB + block, {"W": str(tmp_path)}).strip().splitlines()[-1] == "NO-GO"
+
+
+def test_after_readings_are_retaken(doc):
+    """E1-8: every AFTER reading of the new cluster is retaken, and the helper supports it."""
+    _, sections = doc
+    for code in (
+        _code_lines(_hub_steps(sections)["6"].all_fences),
+        _code_lines(_wsl_step(sections, "4").fences),
+    ):
+        calls = [ln for ln in code if re.search(r"\bpg_manifest\b.*manifest-18", ln)]
+        assert calls and all("--retake" in ln for ln in calls), calls
+    body = _function_body(sections, "pg_manifest")
+    assert "--retake" in body and ".new" in body
+    assert "COMPLETE" in _function_body(sections, "manifest_diff")
+
+
+def test_every_rollback_restores_the_backup_cron_and_the_glitchtip_pin(doc):
+    """E1-9: step 1's rollback and the step-7 NO-GO block put back the root crontab and the compose."""
+    _, sections = doc
+    hub = _hub_steps(sections)
+    nogo = " ".join(_code_lines([_block_with(hub["7"], "ALTER SYSTEM RESET")]))
+    rollback = _paragraph(hub["1"].all_prose, "**Rollback:**")
+    for text in (nogo, rollback):
+        assert re.search(r'crontab -u root "\$W/root-crontab\.before"', text), text[:200]
+        assert re.search(
+            r'cp -p "\$W/glitchtip-compose\.yaml\.orig" /opt/glitchtip/compose\.yaml', text
+        )
+
+
+def test_tunnel_is_kept_closed_through_the_window(doc):
+    """E1-10: the hook's daily lock is pre-created, and the tunnel is re-checked before 7 and 8.4."""
+    _, sections = doc
+    hub = _hub_steps(sections)
+    assert any(
+        re.search(r"touch\s+\"/tmp/\.fabrik_daily_\$", ln)
+        for ln in _code_lines(hub["1"].all_fences)
+    )
+    step84 = next(s for s in _children(sections, hub["8"], 4) if s.title.startswith("8.4"))
+    for sec in (hub["7"], step84):
+        assert any(ln.startswith("pgrep -af '15432:") for ln in _code_lines(sec.fences)), sec.title
+
+
+def test_step_1_reports_unknown_writers_before_terminating(doc):
+    """E1-11: clients are recorded and mapped BEFORE pg_terminate_backend; the count is watched."""
+    _, sections = doc
+    code = _code_lines(_hub_steps(sections)["1"].all_fences)
+    rec = next(
+        i for i, ln in enumerate(code) if "clients-at-freeze" in ln and "pg_stat_activity" in ln
+    )
+    rep_ = next(i for i, ln in enumerate(code) if "WRITER NOT ON THE STOP LIST" in ln)
+    term = next(i for i, ln in enumerate(code) if "pg_terminate_backend" in ln)
+    watch = [
+        i
+        for i, ln in enumerate(code)
+        if re.search(r"for i in \$\(seq \d+\)", ln) and "pg_stat_activity" in ln
+    ]
+    assert rec < rep_ < term and watch and watch[0] > term
+
+
+def test_spoke_blocks_are_labelled_where_they_run(doc):
+    """E1-13: an ssh-to-spoke block runs on WSL, says so, and 8.4 reads the lists step 1 wrote."""
+    lines, sections = doc
+    for a, b in _fence_ranges(lines):
+        body = lines[a + 1 : b]
+        if body and re.search(r"#\s*on:\s*vps2", body[0]):
+            assert not any("ssh" in ln for ln in body), body[0]
+    hub = _hub_steps(sections)
+    step84 = next(s for s in _children(sections, hub["8"], 4) if s.title.startswith("8.4"))
+    w1 = " ".join(_code_lines(hub["1"].fences))
+    w84 = " ".join(_code_lines(step84.fences))
+    assert '"$HW/stopped-$h.txt"' in w1 and '"$HW/stopped-$h.txt"' in w84
+
+
+def test_v8_drill_handles_leftovers_and_gates_its_cleanup(doc):
+    """E2-4/E2-5: a non-running leftover is detected and recreated; the scratch rm is a gated command."""
+    lines, sections = doc
+    r1 = _release_steps(sections)[0][1]
+    code = _code_lines(r1.fences)
+    assert any(
+        re.search(r"docker inspect -f '\{\{\.State\.Status\}\}' pg18-drill-verify", ln)
+        for ln in code
+    )
+    assert any(re.search(r"docker rm pg18-drill-verify", ln) for ln in code)
+    rm_lines = [i for i, ln in enumerate(lines) if re.search(r'sudo rm -rf -- "\$V"', ln)]
+    assert len(rm_lines) == 1
+    start = max(a for a, b in _fence_ranges(lines) if a < rm_lines[0] < b)
+    assert _has_marker(_preceding_prose(lines, start), GATE_MARKER), "the scratch rm is not gated"

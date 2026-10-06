@@ -95,16 +95,22 @@ SELECT format('SELECT %L || count(*) || %L || md5(coalesce(string_agg(t::text, E
 SQL
 }
 
-pg_manifest() {   # $1 = output dir. A complete reading is kept, never overwritten; a failed one is moved aside.
-  local out="$1" db
-  if [ -s "$out/COMPLETE" ]; then echo "manifest $out already taken — kept"; return 0; fi
-  [ -e "$out" ] && mv "$out" "$out.partial-$(date -u +%H%M%S)"
-  mkdir -p "$out"
-  pg_manifest_cluster > "$out/cluster.txt" || { mv "$out" "$out.failed-$(date -u +%H%M%S)"; echo "MANIFEST FAILED (cluster)"; return 1; }
+pg_manifest() {   # [--retake] <dir>. A BEFORE reading (no --retake) is taken once and kept. An AFTER reading passes
+                  # --retake: it is taken fresh into <dir>.new and swapped in only when complete (the old one moves to
+                  # <dir>.prev-<time>), so a re-run after a fix never compares stale data. A failed reading is moved aside.
+  local retake=0 out db new
+  [ "$1" = --retake ] && { retake=1; shift; }
+  out="$1"
+  if [ "$retake" = 0 ] && [ -s "$out/COMPLETE" ]; then echo "manifest $out already taken — kept (a BEFORE reading)"; return 0; fi
+  new="$out.new"; [ -e "$new" ] && mv "$new" "$out.partial-$(date -u +%H%M%S)"
+  mkdir -p "$new"
+  pg_manifest_cluster > "$new/cluster.txt" || { mv "$new" "$out.failed-$(date -u +%H%M%S)"; echo "MANIFEST FAILED (cluster)"; return 1; }
   for db in $(dbs); do
-    pg_manifest_db "$db" > "$out/db-$db.txt" || { mv "$out" "$out.failed-$(date -u +%H%M%S)"; echo "MANIFEST FAILED ($db)"; return 1; }
+    pg_manifest_db "$db" > "$new/db-$db.txt" || { mv "$new" "$out.failed-$(date -u +%H%M%S)"; echo "MANIFEST FAILED ($db)"; return 1; }
   done
-  echo "$(ls "$out" | wc -l) files" > "$out/COMPLETE"
+  echo "$(ls "$new" | wc -l) files" > "$new/COMPLETE"
+  [ -e "$out" ] && mv "$out" "$out.prev-$(date -u +%H%M%S)"
+  mv "$new" "$out"
   echo "manifest $out: $(ls "$out" | wc -l) files, $(cat "$out"/db-*.txt | grep -c '^table|') tables"
 }
 
@@ -115,6 +121,8 @@ manifest_norm() {   # PG17 adds MAINTAIN (m) to every owner's ACL on restore; st
 
 manifest_diff() {   # $1 = before dir, $2 = after dir; per-file diffs land in $2.diffs/; rc 1 on ANY difference
   local a="$1" b="$2" f rc=0
+  [ -s "$a/COMPLETE" ] && [ -s "$b/COMPLETE" ] || { echo "DIFF: $a or $b is not a COMPLETE reading"; return 1; }
+  [ -e "$b.diffs" ] && mv "$b.diffs" "$b.diffs.prev-$(date -u +%H%M%S)"   # diffs always belong to the latest reading
   mkdir -p "$b.diffs"
   diff <(ls "$a") <(ls "$b") > "$b.diffs/_file-list" || { echo "DIFF: file list"; rc=1; }
   for f in $(ls "$a"); do
@@ -221,15 +229,19 @@ image lacks (`vector` is absent from the image — spec § What exists today).
 
 The dump authenticates over TCP as the live superuser (spec § The delta › D1 step 3); prove the password now.
 
+The password file lives in RAM (`/dev/shm`), never under `/opt` — `/opt/backups` is carried to B2 by the
+`postgres-dumps` plan (`docs/operations/disaster-recovery.md:45`).
+
 ```bash
 # on: hub
 read -rsp 'postgres superuser password (not echoed): ' PGPW; echo
-( umask 077; printf 'PGPASSWORD=%s\n' "$PGPW" > "$P/pgpass.env" )
-sudo docker run --rm --network fabrik --env-file "$P/pgpass.env" postgres:18.6-alpine psql -h postgres-main -U postgres -XAtc 'SELECT 1'
-shred -u "$P/pgpass.env"
+PGENV_DIR=$(mktemp -d /dev/shm/pg18.XXXXXX); PGENV="$PGENV_DIR/pgpass.env"
+( umask 077; printf 'PGPASSWORD=%s\n' "$PGPW" > "$PGENV" ); unset PGPW
+sudo docker run --rm --network fabrik --env-file "$PGENV" postgres:18.6-alpine psql -h postgres-main -U postgres -XAtc 'SELECT 1'
+shred -u "$PGENV"; rmdir "$PGENV_DIR"
 ```
 
-**Verify:** prints `1`.
+**Verify:** prints `1`; `ls /dev/shm/pg18.*` finds nothing afterwards.
 **Rollback:** none — read-only; a wrong password means the window does not open until the right one is found.
 
 ### P4 — `pre-backup.sh` read (U2)
@@ -300,7 +312,8 @@ or the config path differs — find the real one in the Backrest UI at `backup.v
 ## 2. WSL window (D2)
 
 The rehearsal (spec § The delta › D2), run before the hub window. WSL runs native apt PostgreSQL 16 on 5432 with one
-`{project}_dev` database per project (`scripts/create_pg_dev_db.sh:11`). Before it opens: appendix A1 has been sent
+dedicated `{project_name}_dev` database per project (`.windsurf/rules/core/25-data-postgres.md:37`; the name is built
+at `scripts/create_pg_dev_db.sh:11`). Before it opens: appendix A1 has been sent
 and brand-identiy-creator's D7 branch is ready (spec § The delta › D7).
 
 ```bash
@@ -349,43 +362,66 @@ the 16 pair stays on PGDG's build, which serves the same data directory).
 
 ### WSL step 2 — Drop the auto-created, EMPTY 18/main
 
-The install creates `18/main` on 5433; `pg_upgradecluster` refuses while it exists (spec D2 step 2).
+The install creates `18/main` on 5433; `pg_upgradecluster` refuses while it exists (spec D2 step 2). The guard reads
+the cluster's REAL port from `pg_lsclusters`, refuses outright when 18/main is on 5432 (after step 3 it IS the upgraded
+cluster), refuses when it holds any non-template database (after step 6 it holds the upgraded copies on 5433), and
+treats a failed query as a refusal, never as "empty".
 
-**Operator's explicit word:** required before the drop line — it removes the EMPTY cluster the step-1 install created,
-never a cluster that holds data; the guard refuses when it holds any database beyond the three system ones.
+**Operator's explicit word:** required before the drop block — it removes ONLY the EMPTY cluster the step-1 install
+created; every other state is refused by the guard and nothing is dropped.
 
 ```bash
 # on: wsl
-if pg_lsclusters -h | awk '$1 == 18 && $2 == "main"' | grep -q .; then
-  n=$(sudo -u postgres psql -p 5433 -X -At -c "SELECT count(*) FROM pg_database WHERE datname NOT IN ('postgres', 'template0', 'template1')" 2>/dev/null || echo 0)
-  [ "$n" = 0 ] && sudo pg_dropcluster 18 main --stop || echo "18/main holds $n user databases — NOT dropped; stop"
+line=$(pg_lsclusters -h | awk '$1 == 18 && $2 == "main"')
+if [ -z "$line" ]; then
+  echo "no 18/main — nothing to drop"
+else
+  port=$(echo "$line" | awk '{print $3}')
+  if [ "$port" = 5432 ]; then
+    echo "REFUSED: 18/main is on 5432 — it is the upgraded cluster; nothing dropped"
+  elif ! n=$(sudo -u postgres psql -p "$port" -X -At -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM pg_database WHERE datname NOT IN ('postgres', 'template0', 'template1')"); then
+    echo "REFUSED: could not query 18/main on port $port (start it with: sudo pg_ctlcluster 18 main start); nothing dropped"
+  elif [ "$n" != 0 ]; then
+    echo "REFUSED: 18/main on port $port holds $n databases; nothing dropped"
+  else
+    if sudo pg_dropcluster 18 main --stop; then echo "dropped the empty 18/main (port $port)"; else echo "pg_dropcluster FAILED — read its error above"; fi
+  fi
 fi
 pg_lsclusters
 ```
 
-**Verify:** `pg_lsclusters` lists `16 main 5432 online` and no 18 cluster.
+**Verify:** the block prints `dropped the empty 18/main …` or `no 18/main`; `pg_lsclusters` lists `16 main 5432 online`
+and no 18 cluster. Any `REFUSED` line stops the window at this step.
 **Rollback:** `sudo pg_createcluster 18 main` recreates the empty cluster (nothing else needs it).
 
 ### WSL step 2a — brand-identiy-creator's dev database out of the way
 
 Its hand-built `pg_uuidv7` has no 18 build here (spec D2 step 2a, D7). Take a data-only dump (minus the two tables its
-migrations populate) and a full `-Fc` copy, outside the repo, then drop the database.
+migrations populate) and a full `-Fc` copy, outside the repo, then drop the database. A dump counts as taken only when
+`pg_dump` EXITED 0 — its `.ok` marker; pg_dump 16.15 ends a plain dump with `\unrestrict <key>`, so a "dump complete"
+trailer grep is not a test. The `-Fc` copy is also read in full (`pg_restore -f /dev/null`), which a truncated
+archive fails.
 
-**Operator's explicit word:** required before `dropdb` — the two dumps must exist and verify first.
+**Operator's explicit word:** required before `dropdb` — both `.ok` markers must exist and the full read must pass first.
 
 ```bash
 # on: wsl
-B=brand_identiy_creator_dev
+B=brand_identiy_creator_dev; D1="$WW/$B-data-$WTS.sql"; D2="$WW/$B-full-$WTS.dump"
 if "${PSQL[@]}" -X -At -d postgres -c "SELECT 1 FROM pg_database WHERE datname = '$B'" | grep -q 1; then
-  [ -s "$WW/$B-data-$WTS.sql" ] || sudo -u postgres pg_dump -p 5432 --data-only --exclude-table=alembic_version --exclude-table=worker_pool_state "$B" > "$WW/$B-data-$WTS.sql"
-  [ -s "$WW/$B-full-$WTS.dump" ] || sudo -u postgres pg_dump -p 5432 -Fc "$B" > "$WW/$B-full-$WTS.dump"
-  tail -n 3 "$WW/$B-data-$WTS.sql" | grep -q 'PostgreSQL database dump complete' && pg_restore -l "$WW/$B-full-$WTS.dump" >/dev/null && sudo -u postgres dropdb -p 5432 "$B"
+  [ -f "$D1.ok" ] || { sudo -u postgres pg_dump -p 5432 --data-only --exclude-table=alembic_version --exclude-table=worker_pool_state "$B" > "$D1" && touch "$D1.ok"; }
+  [ -f "$D2.ok" ] || { sudo -u postgres pg_dump -p 5432 -Fc "$B" > "$D2" && touch "$D2.ok"; }
+  if [ -f "$D1.ok" ] && [ -f "$D2.ok" ] && pg_restore -f /dev/null < "$D2"; then
+    sudo -u postgres dropdb -p 5432 "$B"
+  else
+    echo "REFUSED: a dump is missing its .ok marker or failed the full read — $B NOT dropped"
+  fi
 fi
 "${PSQL[@]}" -X -At -d postgres -c "SELECT count(*) FROM pg_database WHERE datname = '$B'"
 ```
 
-**Verify:** prints `0`; both dump files exist and the data dump ends with `PostgreSQL database dump complete`.
-**Rollback:** `sudo -u postgres pg_restore -p 5432 --create -d postgres "$WW/$B-full-$WTS.dump"` (on 16, where the extension exists).
+**Verify:** prints `0`; both `.ok` markers exist; no `REFUSED` line.
+**Rollback:** `sudo -u postgres pg_restore -p 5432 --create -d postgres < "$D2"` (stdin, because the postgres user cannot
+read a 0750 home; on 16, where the extension exists).
 
 ### WSL step 3 — Stop the local writers, then `pg_upgradecluster`
 
@@ -426,7 +462,7 @@ migrations (D7) once its branch is merged.
 
 ```bash
 # on: wsl
-pg_manifest "$WW/manifest-18"
+pg_manifest --retake "$WW/manifest-18"
 manifest_diff "$WW/manifest-16" "$WW/manifest-18"
 pg_compat_checks | tee "$WW/compat-18.txt" | grep -E '^(BLOCKER|INVALID|NON-SCRAM)' || echo "compat: clean"
 "${PSQL[@]}" -X -At -d postgres -c "SELECT version(), current_setting('server_version_num'), uuidv7() IS NOT NULL"
@@ -519,11 +555,21 @@ when it exits — its container-state check, `docs/infrastructure/vps-complete-i
 today, `:742`), then every container that reaches `postgres-main`, spokes included — glitchtip and the exporter log in
 as the superuser, so stopping them is the only thing that keeps them out. Then the freeze inside the database.
 
+The shell-open hook re-opens the tunnel on the FIRST shell of every UTC day: its daily block runs only when
+`/tmp/.fabrik_daily_<UTC date>` is absent (`scripts/wsl_startup_hook.sh:62`, `:134-135`), and the tunnel line is in
+that block (`:227`). The block below pre-creates the lock for the window's dates — which also skips that day's daily
+pipeline on WSL — and records which locks it created, so 8.6 removes exactly those. The tunnel is re-checked before
+step 7 and before 8.4.
+
 ```bash
-# on: wsl — the deploy freeze for agents, and the tunnel
+# on: wsl — the deploy freeze for agents, the tunnel, and the hook's daily lock
+HW=$HOME/pg18-hub-window; mkdir -p "$HW"
 python3 scripts/mail.py send --to fabrik --broadcast --ack no --kind request <<'EOF'
 DEPLOY FREEZE — PostgreSQL 18 hub window in progress. No `fabrik apply`, no compose up on vps1/vps2/vps3, no writes to postgres-main until the all-clear. Runbook: docs/operations/postgres-major-upgrade-runbook.md § 3.
 EOF
+for d in "$(date -u +%Y%m%d)" "$(date -u -d '+1 day' +%Y%m%d)"; do
+  [ -e "/tmp/.fabrik_daily_$d" ] || { touch "/tmp/.fabrik_daily_$d"; echo "/tmp/.fabrik_daily_$d" >> "$HW/locks-created.txt"; }
+done
 pkill -f '15432:10\.99\.0\.1:[5]432' || true
 pgrep -af '15432:10\.99\.0\.1:[5]432' || echo "tunnel stopped"
 ```
@@ -534,8 +580,11 @@ sudo docker exec prometheus wget -qO- --post-data "title=Maintenance window&body
 window_silences() { sudo docker exec alertmanager amtool silence query --alertmanager.url=http://localhost:9093 -o json | jq -r --arg c "pg18-window-$TS" '.[] | select(.comment == $c and .status.state == "active") | .id'; }
 window_silences | grep -q . || \
   sudo docker exec alertmanager amtool silence add --alertmanager.url=http://localhost:9093 --duration=6h --author=operator --comment="pg18-window-$TS" 'alertname=~".+"'
-# the 01:30 backup cron — ONLY if the window overlaps 01:30–03:30 (P1)
-# [ -s "$W/root-crontab.before" ] || sudo crontab -u root -l > "$W/root-crontab.before"; sudo crontab -u root -l | sed -E 's|^([^#].*pre-backup\.sh.*)$|#PG18# \1|' | sudo crontab -u root -
+OVERLAP=no   # set to yes when P1 showed the window overlaps 01:30–03:30; every rollback path restores the crontab
+if [ "$OVERLAP" = yes ]; then
+  [ -s "$W/root-crontab.before" ] || sudo crontab -u root -l > "$W/root-crontab.before"
+  sudo crontab -u root -l | sed -E 's|^([^#].*pre-backup\.sh.*)$|#PG18# \1|' | sudo crontab -u root -
+fi
 sudo systemctl disable --now fabrik-compose-boot.service
 sudo docker ps --format '{{.Names}}' | grep -E -- '-watchdog$' >> "$W/stopped-watchdogs.txt"; sort -u -o "$W/stopped-watchdogs.txt" "$W/stopped-watchdogs.txt"
 xargs -r sudo docker stop < "$W/stopped-watchdogs.txt"
@@ -548,35 +597,54 @@ xargs -r sudo docker stop < "$W/stopped-services.txt"
 ```
 
 ```bash
-# on: vps2 and vps3 — spoke services reach the hub at 10.99.0.1 (src/fabrik/orchestrator/infrastructure.py:134-152)
+# on: wsl (ssh to vps2/vps3) — spoke services reach the hub at 10.99.0.1 (src/fabrik/orchestrator/infrastructure.py:134-152); the lists live on WSL in $HW
+HW=$HOME/pg18-hub-window; mkdir -p "$HW"
 for h in vps2 vps3; do
-  ssh "$h" 'for c in $(sudo docker ps --format "{{.Names}}"); do sudo docker inspect -f "{{range .Config.Env}}{{println .}}{{end}}" "$c" | grep -q "10\.99\.0\.1" && echo "$c"; done' >> "$HOME/pg18-hub-stopped-$h.txt"
-  sort -u -o "$HOME/pg18-hub-stopped-$h.txt" "$HOME/pg18-hub-stopped-$h.txt"
-  xargs -r ssh "$h" sudo docker stop < "$HOME/pg18-hub-stopped-$h.txt"
+  ssh "$h" 'for c in $(sudo docker ps --format "{{.Names}}"); do sudo docker inspect -f "{{range .Config.Env}}{{println .}}{{end}}" "$c" | grep -q "10\.99\.0\.1" && echo "$c"; done' >> "$HW/stopped-$h.txt"
+  sort -u -o "$HW/stopped-$h.txt" "$HW/stopped-$h.txt"
+  xargs -r ssh "$h" sudo docker stop < "$HW/stopped-$h.txt"
 done
 ```
 
+The freeze inside the database. First the limits; then every client still connected is, by construction, a writer
+the stop list missed — record each one (address, user, application, database), map its address to a container on
+the `fabrik` network, and report it BEFORE terminating; then watch the count for a minute, not one moment.
+
 ```bash
-# on: hub — the freeze inside the database (never ALLOW_CONNECTIONS false: pg_dumpall silently skips such a database)
+# on: hub — never ALLOW_CONNECTIONS false: pg_dumpall silently skips such a database
 [ -s "$W/pre-freeze-connlimits.txt" ] || "${PSQL[@]}" -X -At -c "SELECT datname || '|' || datconnlimit FROM pg_database ORDER BY 1" > "$W/pre-freeze-connlimits.txt"
 "${PSQL[@]}" -X -v ON_ERROR_STOP=1 -f - <<'SQL'
 SET default_transaction_read_only = off;
 SELECT format('ALTER DATABASE %I CONNECTION LIMIT 0', datname) FROM pg_database WHERE datname NOT IN ('postgres', 'template0', 'template1') \gexec
-SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <> pg_backend_pid();
 ALTER SYSTEM SET default_transaction_read_only = on;
 SELECT pg_reload_conf();
 SQL
+"${PSQL[@]}" -X -At -c "SELECT coalesce(host(client_addr), 'local') || '|' || usename || '|' || coalesce(application_name, '') || '|' || datname FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <> pg_backend_pid()" | tee -a "$W/clients-at-freeze.txt"
+sudo docker network inspect fabrik -f '{{range .Containers}}{{.IPv4Address}} {{.Name}}{{println}}{{end}}' | sed -E 's#/[0-9]+##' > "$W/fabrik-net-ips.txt"
+while IFS='|' read -r addr user app db; do
+  c=$(awk -v a="$addr" '$1 == a {print $2}' "$W/fabrik-net-ips.txt")
+  echo "WRITER NOT ON THE STOP LIST: addr=$addr container=${c:-unknown (mesh 10.99.0.x = a spoke; local = a docker exec session)} user=$user app=$app db=$db"
+done < "$W/clients-at-freeze.txt"
+"${PSQL[@]}" -X -At -c "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <> pg_backend_pid()"
+for i in $(seq 12); do "${PSQL[@]}" -X -At -c "SELECT count(*) FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <> pg_backend_pid()"; sleep 5; done | sort | uniq -c
 ```
 
 **Verify:** `sudo docker ps --format '{{.Names}}' | grep -Fxf "$W/stopped-services.txt"` and the same for
 `stopped-watchdogs.txt` print nothing (none came back); `systemctl is-enabled fabrik-compose-boot` reads `disabled`;
-`"${PSQL[@]}" -X -At -c "SELECT count(*) FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <> pg_backend_pid()"`
-prints `0` and `"${PSQL[@]}" -X -At -c "SHOW default_transaction_read_only"` prints `on`; `pre-freeze-connlimits.txt`
-holds the ORIGINAL limits (it is written once, before any limit changes).
-**Rollback:** `ALTER SYSTEM RESET default_transaction_read_only` + `SELECT pg_reload_conf()` (in a session that first runs
-`SET default_transaction_read_only = off`), restore the limits with step 8.1's block, start the lists back
-(`xargs -r sudo docker start < "$W/stopped-services.txt"`, then the watchdogs, then the spokes' lists), `sudo systemctl
-enable fabrik-compose-boot.service`, restart the tunnel (step 8.6), expire the silence and post an all-clear.
+every `WRITER NOT ON THE STOP LIST` line is traced to its container and that container is stopped and appended to
+`stopped-services.txt` (or the spoke list) before going on; the one-minute watch prints only `12 0`;
+`"${PSQL[@]}" -X -At -c "SHOW default_transaction_read_only"` prints `on`; `pre-freeze-connlimits.txt` holds the
+ORIGINAL limits (it is written once, before any limit changes). The `postgres` database is left outside the
+`CONNECTION LIMIT 0` freeze on purpose: it is the admin database every superuser session (this runbook's included)
+connects to, no service's DSN names it (spec § What exists today › Databases), and `default_transaction_read_only`
+binds the superuser in it too.
+**Rollback:** in a session that first runs `SET default_transaction_read_only = off`: `ALTER SYSTEM RESET
+default_transaction_read_only` + `SELECT pg_reload_conf()`; restore the limits with step 8.1's block; restore the root
+crontab and the glitchtip compose (`[ -s "$W/root-crontab.before" ] && sudo crontab -u root "$W/root-crontab.before";
+[ -s "$W/glitchtip-compose.yaml.orig" ] && sudo cp -p "$W/glitchtip-compose.yaml.orig" /opt/glitchtip/compose.yaml`);
+start the lists back (`xargs -r sudo docker start < "$W/stopped-services.txt"`, then the watchdogs, then the spokes'
+lists in `$HW`); `sudo systemctl enable fabrik-compose-boot.service`; restart the tunnel and remove the created locks
+(step 8.6); expire the silence and post an all-clear.
 
 ### Hub step 2 — The manifest on 16
 
@@ -604,20 +672,38 @@ freeze is in the reading).
 ### Hub step 3 — Dump with the 18 client, bracket it, ship it off the host, stop 16
 
 The PG18 client dumps over TCP as the live superuser (pg-06; the image trusts only its local socket, so a TCP client
-needs the password — spec D1 step 3). The manifest is re-read after the dump and must equal step 2's.
+needs the password — spec D1 step 3). The password file is created fresh in RAM (`/dev/shm`) on every run — never under
+`/opt`, which the `postgres-dumps` plan and the 01:30 dump carry to B2 — proven with a test connection, deleted at once
+when the proof fails (so a typo never sticks), and shredded right after the last dump. A dump counts as taken only when
+its `pg_dump`/`pg_dumpall` EXITED 0 (the `.ok` marker); every `-Fc` dump is also read in full (`pg_restore -f
+/dev/null`), which a truncated archive fails — `pg_restore -l` does not. When any dump is (re)taken, the bracketing
+second manifest is retaken too.
 
 ```bash
 # on: hub
-read -rsp 'postgres superuser password (not echoed): ' PGPW; echo
-[ -s "$W/pgpass.env" ] || ( umask 077; printf 'PGPASSWORD=%s\n' "$PGPW" > "$W/pgpass.env" ); unset PGPW
-F="$W/pg16-final-$TS.sql"
-tail -n 3 "$F" 2>/dev/null | grep -q 'database cluster dump complete' || \
-  sudo docker run --rm --network fabrik --env-file "$W/pgpass.env" postgres:18.6-alpine pg_dumpall -h postgres-main -U postgres > "$F"
-for db in $(dbs); do
-  D="$W/pg16-final-$TS-$db.dump"
-  sudo docker run --rm -i postgres:18.6-alpine pg_restore -l < "$D" >/dev/null 2>&1 || sudo docker run --rm --network fabrik --env-file "$W/pgpass.env" postgres:18.6-alpine pg_dump -h postgres-main -U postgres -Fc "$db" > "$D"
+F="$W/pg16-final-$TS.sql"; need=0
+[ -f "$F.ok" ] || need=1
+for db in $(dbs); do [ -f "$W/pg16-final-$TS-$db.dump.ok" ] || need=1; done
+if [ "$need" = 1 ]; then
+  read -rsp 'postgres superuser password (not echoed): ' PGPW; echo
+  PGENV_DIR=$(mktemp -d /dev/shm/pg18.XXXXXX); PGENV="$PGENV_DIR/pgpass.env"
+  ( umask 077; printf 'PGPASSWORD=%s\n' "$PGPW" > "$PGENV" ); unset PGPW
+  if ! sudo docker run --rm --network fabrik --env-file "$PGENV" postgres:18.6-alpine psql -h postgres-main -U postgres -XAtc 'SELECT 1' | grep -qx 1; then
+    shred -u "$PGENV"; rmdir "$PGENV_DIR"; echo "password REJECTED — nothing dumped; re-run this block"
+  else
+    [ -f "$F.ok" ] || { sudo docker run --rm --network fabrik --env-file "$PGENV" postgres:18.6-alpine pg_dumpall -h postgres-main -U postgres > "$F" && touch "$F.ok"; }
+    for db in $(dbs); do
+      D="$W/pg16-final-$TS-$db.dump"
+      [ -f "$D.ok" ] || { sudo docker run --rm --network fabrik --env-file "$PGENV" postgres:18.6-alpine pg_dump -h postgres-main -U postgres -Fc "$db" > "$D" && touch "$D.ok"; }
+    done
+    shred -u "$PGENV"; rmdir "$PGENV_DIR"
+    pg_manifest --retake "$W/manifest-16-b"
+  fi
+fi
+for d in "$W"/pg16-final-"$TS"-*.dump; do
+  [ -f "$d.ok" ] && sudo docker run --rm -i postgres:18.6-alpine pg_restore -f /dev/null < "$d" || echo "BAD DUMP $d"
 done
-pg_manifest "$W/manifest-16-b"
+[ -s "$W/manifest-16-b/COMPLETE" ] || pg_manifest "$W/manifest-16-b"   # an interrupted run: 16 is still up here
 manifest_diff "$W/manifest-16-a" "$W/manifest-16-b"
 ```
 
@@ -627,14 +713,13 @@ Now trigger a manual run of the Backrest `postgres-dumps` plan (Backrest UI, `ba
 ```bash
 # on: hub
 hub_restic snapshots --tag plan:postgres-dumps --latest 1
-hub_restic ls latest --tag plan:postgres-dumps "$W" | grep -c "pg16-final-$TS"
+hub_restic ls latest --tag plan:postgres-dumps "$W" | grep -cE "pg16-final-$TS(-.*\.dump|\.sql)$"
 sudo docker stop postgres-main
 ```
 
-**Verify:** `tail -n 3 "$F"` ends with `-- PostgreSQL database cluster dump complete`; every `.dump` lists with the in-container
-`pg_restore -l` (`for d in "$W"/*.dump; do sudo docker run --rm -i postgres:18.6-alpine pg_restore -l < "$d" >/dev/null || echo "BAD $d"; done`
-prints nothing); `manifest_diff` prints `manifest-16-a == manifest-16-b` (the dump is bracketed by two identical
-readings); the restic count equals 1 + the number of databases; `sudo docker inspect -f '{{.State.Running}}'
+**Verify:** `ls "$W"/*.ok | wc -l` equals 1 + the number of databases (every dump exited 0); the full-read loop prints
+no `BAD DUMP` line; `ls /dev/shm/pg18.*` finds nothing (the password file is gone); `manifest_diff` prints
+`manifest-16-a == manifest-16-b` (the dump is bracketed by two identical readings); the restic count equals 1 + the number of databases; `sudo docker inspect -f '{{.State.Running}}'
 postgres-main` prints `false`.
 **Rollback:** `sudo docker start postgres-main`, then hub step 1's rollback.
 
@@ -642,7 +727,9 @@ postgres-main` prints `false`.
 
 `docker volume create` first — the compose declares its volume `external: true` (`infra/vps1/postgres/compose.yaml:25-27`).
 The 18 image refuses any volume at `/var/lib/postgresql/data` (pg-36), so the mount moves to `/var/lib/postgresql`
-(PGDATA `/var/lib/postgresql/18/docker`, pg-35). The old `postgres-data` volume is untouched. The block writes the
+(PGDATA `/var/lib/postgresql/18/docker`, pg-35). The old `postgres-data` volume is untouched. From here to step 8.4 the 18 cluster runs WITHOUT
+`default_transaction_read_only` (a fresh cluster; the flag is not ported): it is protected only by the dump-carried
+`CONNECTION LIMIT 0` and the stopped containers, so nothing but a superuser session can write — keep it that way. The block writes the
 repo's file verbatim (`infra/vps1/postgres/compose.yaml:1-30`; P5 proved the live file differs only there).
 
 ```bash
@@ -696,7 +783,16 @@ Without `ON_ERROR_STOP`, stderr captured: exactly one error is allowed — `role
 step 5). The dump carries step 1's `CONNECTION LIMIT 0`, which stays until step 8.1. Then port every non-default
 setting from `postgresql.auto.conf` — except step 1's own `default_transaction_read_only` and the parameters PG17
 removed (`old_snapshot_threshold`, `db_user_namespace`; pg-08, pg-10), with `ssl_ecdh_curve` renamed `ssl_groups`
-(pg-30) — and every `pg_hba`/`pg_ident` rule, check `max_connections` against P6, then `ANALYZE`.
+(pg-30) — and every `pg_hba`/`pg_ident` rule, check `max_connections` against P6, then `ANALYZE`. The settings are
+ported FAITHFULLY: the 16 cluster's own `postgresql.auto.conf` lines are appended to the 18 one, so a list setting
+(`shared_preload_libraries`, `search_path`, `*_preload_libraries`, `temp_tablespaces`) keeps its list form — re-issuing
+it as `ALTER SYSTEM SET x = 'a, b'` would make it ONE item and 18 would refuse to start. `pg_file_settings` is read for
+errors before the restart.
+
+Edits made by hand to the 16 cluster's `postgresql.conf` (not `postgresql.auto.conf`) are NOT ported: the 18 image
+writes its own `postgresql.conf`. V1 catches them — a `setting|…|postgresql.conf` row that differs in step 6's
+`cluster.txt` diff — and the remedy is `ALTER SYSTEM SET` of that value on 18, a reload (or a restart when
+`pending_restart`), and step 6 again.
 
 **Operator's explicit word:** the restore runs ONLY into an empty cluster; the guard refuses otherwise. Redoing a
 failed restore means removing the PG18 volume this window created and repeating step 4 — that removal needs the
@@ -711,11 +807,18 @@ else
   echo "cluster already holds $n databases — restore NOT re-run (read $W/restore.err)"
 fi
 grep -c 'ERROR' "$W/restore.err"; grep 'ERROR' "$W/restore.err" | grep -v 'role "postgres" already exists' || echo "only the allowed error"
-awk -F'|' -v q="'" '$1 == "setting" && $5 == "postgresql.auto.conf" && $2 != "default_transaction_read_only" && $2 != "old_snapshot_threshold" && $2 != "db_user_namespace" {
-  n = ($2 == "ssl_ecdh_curve") ? "ssl_groups" : $2; v = $3; gsub(q, q q, v); printf "ALTER SYSTEM SET %s = %s%s%s;\n", n, q, v, q }' \
-  "$W/manifest-16-a/cluster.txt" > "$W/port-settings.sql"
-cat "$W/port-settings.sql"
-"${PSQL[@]}" -X -v ON_ERROR_STOP=1 -f - < "$W/port-settings.sql"
+if ! sudo docker exec postgres-main sh -c 'grep -q "^# pg18-window port" "$PGDATA/postgresql.auto.conf"'; then
+  { echo "# pg18-window port from the 16 cluster ($TS)"
+    awk -v skip='^(default_transaction_read_only|old_snapshot_threshold|db_user_namespace)$' '
+      /^[[:space:]]*(#|$)/ { next }
+      { n = $0; sub(/^[[:space:]]*/, "", n); sub(/[[:space:]]*=.*$/, "", n)
+        if (n ~ skip) next
+        if (n == "ssl_ecdh_curve") sub(/ssl_ecdh_curve/, "ssl_groups")
+        print }' "$W/conf16/postgresql.auto.conf"; } > "$W/port-auto.conf"
+  cat "$W/port-auto.conf"
+  sudo docker exec -i -u postgres postgres-main sh -c 'cat >> "$PGDATA/postgresql.auto.conf"' < "$W/port-auto.conf"
+fi
+"${PSQL[@]}" -X -At -c "SELECT coalesce(name, '?') || ' — ' || error FROM pg_file_settings WHERE error IS NOT NULL AND error <> 'setting could not be applied'" | tee "$W/port-errors.txt"   # 'could not be applied' = needs the restart below, not an error
 for f in pg_hba.conf pg_ident.conf; do
   if ! diff -q <(grep -vE '^\s*(#|$)' "$W/conf16/$f") <(sudo docker exec postgres-main sh -c "grep -vE '^\s*(#|$)' \"\$PGDATA/$f\"") >/dev/null; then
     sudo docker exec -i -u postgres postgres-main sh -c "cat > \"\$PGDATA/$f\"" < "$W/conf16/$f"
@@ -728,10 +831,13 @@ for i in $(seq 60); do sudo docker exec postgres-main pg_isready -U postgres -q 
 sudo docker exec postgres-main vacuumdb -U postgres --all --analyze-only 2> "$W/analyze.err"; grep -i error "$W/analyze.err" || echo "analyze clean"
 ```
 
-**Verify:** `restore.err` holds exactly one `ERROR` and it is `role "postgres" already exists`; every `ALTER SYSTEM` line
-applied (`SHOW <name>` reads the 16 value); `max_connections` covers P6's pool sum; `analyze clean` — an error there is
+**Verify:** `restore.err` holds exactly one `ERROR` and it is `role "postgres" already exists`; `port-errors.txt` is
+empty and the container came back after any restart; every ported line reads back (`SHOW <name>` equals the 16 value —
+a list setting shows its items comma-separated, e.g. `pg_stat_statements, auto_explain`); `max_connections` covers P6's pool sum; `analyze clean` — an error there is
 the `search_path` change (pg-07): an expression index or matview on a non-default schema that must set its own.
-**Rollback:** step 7's one-step rollback.
+**Rollback:** a ported line that stops 18 from starting is cut from the 18 copy's file while the container is down —
+`sudo docker run --rm -v postgres18-data:/var/lib/postgresql --entrypoint sh postgres:18.6-alpine -c 'sed -i "/^# pg18-window port/,\$d" /var/lib/postgresql/18/docker/postgresql.auto.conf'`
+(it touches the PG18 copy only), then `sudo docker start postgres-main`; otherwise step 7's one-step rollback.
 
 ### Hub step 6 — Diff the manifest on 18 (V1) and the compatibility checks
 
@@ -739,11 +845,11 @@ V1 (spec § Validation): the 18 reading must equal step 3's second 16 reading af
 ACL letter and dropping step 1's own `default_transaction_read_only`; `datconnlimit` is the frozen 0 on both sides. Then
 spec § Compatibility checks on the restored cluster before the point of no return: the restore blockers, the
 `pg_trgm` indexes, and roles and grants re-measured (the manifest's `role|`/`member|` rows, SCRAM prefixes, and the
-real-PG role test — spec V4, `tests/test_app_role_real_pg.py:29` runs `postgres:18.6-alpine`).
+real-PG role test — spec V4, `tests/test_app_role_real_pg.py:30` runs `postgres:18.6-alpine`).
 
 ```bash
 # on: hub
-pg_manifest "$W/manifest-18"
+pg_manifest --retake "$W/manifest-18"
 manifest_diff "$W/manifest-16-b" "$W/manifest-18"; echo "V1 rc=$?"
 pg_compat_checks | tee "$W/compat-18.txt" | grep -E '^(BLOCKER|INVALID|NON-SCRAM)' || echo "compat: clean"
 grep '^trgm index|' "$W/compat-18.txt"
@@ -769,35 +875,51 @@ application with no WSL rehearsal. Pin its image digest for the window, start `g
 its health and `manage.py migrate --check`. If it wrote, re-restore the `glitchtip` database from its per-database dump
 before step 7 (spec D1 step 6a).
 
+Its outcome is a marker step 7's GO reads: `glitchtip-6a.ok` is written only when one health path answered 200,
+`migrate --check` exited 0, and the `glitchtip` database is byte-for-byte the restored one (it wrote nothing, or it was
+re-restored and re-read equal).
+
 ```bash
 # on: hub
+rm -f "$W/glitchtip-6a.ok"
 [ -s "$W/glitchtip-compose.yaml.orig" ] || sudo cp -p /opt/glitchtip/compose.yaml "$W/glitchtip-compose.yaml.orig"
 DIGEST=$(sudo docker image inspect glitchtip/glitchtip:latest --format '{{index .RepoDigests 0}}'); echo "$DIGEST" | tee "$W/glitchtip-digest.txt"
 sudo sed -i "s#image: glitchtip/glitchtip:latest#image: $DIGEST#" /opt/glitchtip/compose.yaml
 pg_manifest_db glitchtip > "$W/glitchtip-before.txt"
 (cd /opt/glitchtip && sudo docker compose up -d --no-deps glitchtip-web)
 sleep 30
-for p in /_health/ /health; do curl -sS -o /dev/null -w "$p %{http_code}\n" "http://10.99.0.1:8000$p"; done
-sudo docker exec glitchtip-web ./manage.py migrate --check; echo "migrate --check rc=$?"
+health=$(for p in /_health/ /health; do curl -sS -o /dev/null -w "%{http_code}\n" "http://10.99.0.1:8000$p"; done | grep -c '^200$')
+sudo docker exec glitchtip-web ./manage.py migrate --check; mig=$?
 pg_manifest_db glitchtip > "$W/glitchtip-after.txt"
-diff "$W/glitchtip-before.txt" "$W/glitchtip-after.txt" && echo "glitchtip wrote nothing"
+sudo docker stop glitchtip-web
+echo "health200=$health migrate=$mig" | tee "$W/glitchtip-6a-checks.txt"
+if [ "$health" -ge 1 ] && [ "$mig" = 0 ] && diff -q "$W/glitchtip-before.txt" "$W/glitchtip-after.txt" >/dev/null; then
+  echo "glitchtip wrote nothing" | tee "$W/glitchtip-6a.ok"
+fi
 ```
 
-If it wrote:
+If it wrote (health and migrate green, the database changed) — re-restore it. The DROP is refused unless the
+glitchtip dump exited 0 (its `.ok` marker) AND passes a full read:
 
 ```bash
 # on: hub — re-restore the glitchtip database (nothing else is up, so this costs minutes)
-sudo docker stop glitchtip-web
-"${PSQL[@]}" -X -c "DROP DATABASE IF EXISTS glitchtip WITH (FORCE)"
-sudo docker exec -i postgres-main pg_restore -U postgres --create -d postgres < "$W/pg16-final-$TS-glitchtip.dump"
-pg_manifest_db glitchtip > "$W/glitchtip-rerestored.txt"; diff "$W/manifest-18/db-glitchtip.txt" "$W/glitchtip-rerestored.txt" && echo "glitchtip re-restored"
+G="$W/pg16-final-$TS-glitchtip.dump"
+if [ -f "$G.ok" ] && sudo docker run --rm -i postgres:18.6-alpine pg_restore -f /dev/null < "$G"; then
+  sudo docker stop glitchtip-web
+  "${PSQL[@]}" -X -c "DROP DATABASE IF EXISTS glitchtip WITH (FORCE)"
+  sudo docker exec -i postgres-main pg_restore -U postgres --create -d postgres < "$G"
+  pg_manifest_db glitchtip > "$W/glitchtip-rerestored.txt"
+  grep -qx 'health200=[1-9] migrate=0' "$W/glitchtip-6a-checks.txt" && diff -q "$W/manifest-18/db-glitchtip.txt" "$W/glitchtip-rerestored.txt" >/dev/null && echo "glitchtip re-restored" | tee "$W/glitchtip-6a.ok"
+else
+  echo "REFUSED: $G has no .ok marker or fails the full read — glitchtip NOT dropped; NO-GO"
+fi
 ```
 
-**Verify:** one health path answers `200` (glitchtip-web listens on `10.99.0.1:8000`, `infra/vps1/glitchtip/compose.yaml:26-27`);
-`migrate --check rc=0`; then either `glitchtip wrote nothing` or `glitchtip re-restored`; `glitchtip-web` is stopped again
-before step 7 (`sudo docker stop glitchtip-web`).
+**Verify:** `glitchtip-6a.ok` exists (glitchtip-web listens on `10.99.0.1:8000`, `infra/vps1/glitchtip/compose.yaml:26-27`)
+and `glitchtip-web` is stopped (`sudo docker ps --format '{{.Names}}' | grep -x glitchtip-web` prints nothing); a
+`health200=0` or `migrate=` other than 0 is a NO-GO at step 7.
 **Rollback:** `sudo docker stop glitchtip-web`, re-restore as above, `sudo cp -p "$W/glitchtip-compose.yaml.orig"
-/opt/glitchtip/compose.yaml`; or step 7's one-step rollback.
+/opt/glitchtip/compose.yaml`; or step 7's one-step rollback, which restores that file too.
 
 ### Hub step 7 — The rollback cut-off
 
@@ -806,14 +928,28 @@ restored into 16 by hand, the writes since restart carried manually — so the r
 V1 must be green before it (spec D1 step 7).
 
 ```bash
-# on: hub — the GO check
-cat "$W"/manifest-18.diffs/* | wc -c
-grep -c 'ERROR' "$W/restore.err"
-grep -E '^(BLOCKER|INVALID|NON-SCRAM)' "$W/compat-18.txt" | wc -l
-sudo docker ps --format '{{.Names}}' | grep -Fxf "$W/stopped-services.txt" | wc -l
+# on: wsl — the tunnel must still be closed (the hook can re-open it, scripts/wsl_startup_hook.sh:227)
+pgrep -af '15432:10\.99\.0\.1:[5]432' && echo "NO-GO: the MCP tunnel is open again" || echo "tunnel closed"
 ```
 
-If ANY check is red — NO-GO, the one-step rollback:
+```bash
+# on: hub — the GO check: every input must EXIST and be the LATEST reading, or it is a NO-GO
+go=GO; nogo() { echo "NO-GO: $*"; go=NO-GO; }
+[ -s "$W/manifest-18/COMPLETE" ] || nogo "manifest-18 is not a complete reading"
+[ -d "$W/manifest-18.diffs" ] || nogo "no V1 diff for manifest-18 (run step 6)"
+[ "$W/manifest-18.diffs" -nt "$W/manifest-18/COMPLETE" ] || nogo "the V1 diff is older than the latest manifest-18"
+[ -d "$W/manifest-18.diffs" ] && [ "$(cat "$W"/manifest-18.diffs/* | wc -c)" = 0 ] || nogo "V1 diffs are not empty"
+[ -s "$W/restore.err" ] || nogo "no restore.err"
+[ "$(grep -c 'ERROR' "$W/restore.err" 2>/dev/null)" = 1 ] && grep -q 'role "postgres" already exists' "$W/restore.err" || nogo "restore errors are not exactly the allowed one"
+[ -f "$W/compat-18.txt" ] && [ "$W/compat-18.txt" -nt "$W/manifest-18/COMPLETE" ] || nogo "compat-18.txt missing or older than manifest-18"
+grep -qE '^(BLOCKER|INVALID|NON-SCRAM)' "$W/compat-18.txt" 2>/dev/null && nogo "compat-18.txt has a blocker"
+grep '^trgm index|' "$W/compat-18.txt" 2>/dev/null | grep -qv 'valid=true$' && nogo "a pg_trgm index is not valid"
+[ -s "$W/glitchtip-6a.ok" ] || nogo "step 6a did not pass"
+[ -z "$(sudo docker ps --format '{{.Names}}' | grep -Fxf "$W/stopped-services.txt")" ] || nogo "a stopped service is running"
+echo "$go"
+```
+
+If the hub check prints `NO-GO`, or the WSL check printed `NO-GO` — the one-step rollback:
 
 ```bash
 # on: hub — NO-GO only
@@ -826,11 +962,15 @@ SET default_transaction_read_only = off;
 ALTER SYSTEM RESET default_transaction_read_only;
 SELECT pg_reload_conf();
 SQL
-# then hub step 8.1's limit restore, and the rest of hub step 1's rollback
+[ -s "$W/root-crontab.before" ] && sudo crontab -u root "$W/root-crontab.before"
+[ -s "$W/glitchtip-compose.yaml.orig" ] && sudo cp -p "$W/glitchtip-compose.yaml.orig" /opt/glitchtip/compose.yaml
+sudo crontab -u root -l | grep pre-backup
+# then hub step 8.1's limit restore, and the rest of hub step 1's rollback (services, watchdogs, spokes, compose-boot, tunnel, locks, silence)
 ```
 
-**Verify:** GO = the four numbers read `0`, `1`, `0`, `0`. After a NO-GO: `SELECT version()` reports 16 and the
-services' health is green.
+**Verify:** GO = the WSL check prints `tunnel closed` and the hub check prints `GO` with no `NO-GO:` line. After a NO-GO:
+`SELECT version()` reports 16, the root crontab carries the `pre-backup.sh` line uncommented, `/opt/glitchtip/compose.yaml`
+names `glitchtip/glitchtip:latest` again, and the services' health is green.
 **Rollback:** the NO-GO block above IS the rollback; past step 8.4 rollback is the forward path of spec D1 step 7, never a
 volume revert.
 
@@ -920,7 +1060,13 @@ and the hub's volume now agree.
 
 #### 8.4 Start the services
 
-The point of no return (step 7).
+The point of no return (step 7). The tunnel is re-checked first: the shell-open hook can re-open it
+(`scripts/wsl_startup_hook.sh:227`), and it must stay closed until 8.6.
+
+```bash
+# on: wsl
+pgrep -af '15432:10\.99\.0\.1:[5]432' && echo "STOP: the MCP tunnel is open again — pkill it before 8.4" || echo "tunnel closed"
+```
 
 ```bash
 # on: hub
@@ -929,11 +1075,15 @@ sudo docker ps --format '{{.Names}}' | grep -Fxf "$W/stopped-services.txt" | wc 
 ```
 
 ```bash
-# on: vps2 and vps3
-for h in vps2 vps3; do xargs -r ssh "$h" sudo docker start < "$HOME/pg18-hub-stopped-$h.txt"; done
+# on: wsl (ssh to vps2/vps3) — the lists step 1 wrote to $HW on WSL
+HW=$HOME/pg18-hub-window
+for h in vps2 vps3; do
+  xargs -r ssh "$h" sudo docker start < "$HW/stopped-$h.txt"
+  ssh "$h" 'sudo docker ps --format "{{.Names}}"' | grep -Fxf "$HW/stopped-$h.txt" | wc -l; wc -l < "$HW/stopped-$h.txt"
+done
 ```
 
-**Verify:** the two hub counts are equal, and every spoke container on its list is `Up`.
+**Verify:** `tunnel closed`; the two hub counts are equal, and for each spoke its two counts are equal.
 **Rollback:** the forward path of spec D1 step 7 — a `pg_dumpall` from 18 into a 16 cluster, by hand.
 
 #### 8.5 Start the watchdog sidecars
@@ -958,13 +1108,16 @@ sudo cp -p "$W/glitchtip-compose.yaml.orig" /opt/glitchtip/compose.yaml
 
 ```bash
 # on: wsl — the tunnel exactly as scripts/wsl_startup_hook.sh:227 starts it, then the all-clear to the agents
+HW=$HOME/pg18-hub-window
+[ -s "$HW/locks-created.txt" ] && xargs -r rm -f < "$HW/locks-created.txt" && mv "$HW/locks-created.txt" "$HW/locks-removed.txt"
 pgrep -f '15432:10\.99\.0\.1:[5]432' >/dev/null || nohup ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -L 15432:10.99.0.1:5432 vps >/dev/null 2>&1 &
 python3 scripts/mail.py send --to fabrik --broadcast --ack no --kind request <<'EOF'
 DEPLOY FREEZE LIFTED — postgres-main now runs PostgreSQL 18.6. Report anything database-shaped to fleet.
 EOF
 ```
 
-**Verify:** `enabled`; the root crontab carries the `pre-backup.sh` line uncommented; `pgrep -af '15432:10\.99\.0\.1:[5]432'`
+**Verify:** `enabled`; the root crontab carries the `pre-backup.sh` line uncommented; the daily-hook locks step 1
+created are gone (only those — `locks-removed.txt` lists them); `pgrep -af '15432:10\.99\.0\.1:[5]432'`
 prints the tunnel.
 **Rollback:** `sudo systemctl disable fabrik-compose-boot.service` and re-announce the freeze.
 
@@ -1051,9 +1204,12 @@ grep -E 'step_12 done|step_12c|postgres-main:|step_14' "$(ls -1t logs/drill-*.bo
 SNAP=$(hub_restic snapshots --tag plan:docker-volumes --latest 1 --json | jq -r '.[-1].short_id'); echo "snapshot $SNAP"
 V=/opt/backups/pg18-drill-verify-$SNAP
 [ -d "$V/var/lib/docker/volumes/postgres18-data/_data/18/docker" ] || { sudo install -d -m 700 "$V"; HUB_RESTIC_MOUNT="$V:/restore" hub_restic restore "$SNAP" --target /restore --include /var/lib/docker/volumes/postgres18-data; }
-sudo docker ps -a --format '{{.Names}}' | grep -qx pg18-drill-verify || \
-  sudo docker run -d --name pg18-drill-verify --network none -v "$V/var/lib/docker/volumes/postgres18-data/_data:/var/lib/postgresql" postgres:18.6-alpine
+state=$(sudo docker inspect -f '{{.State.Status}}' pg18-drill-verify 2>/dev/null || echo absent); echo "pg18-drill-verify: $state"
+# a leftover that is not running is a scratch container over the scratch COPY in $V — never the live volume — so it is removed and recreated
+case "$state" in running | absent) ;; *) sudo docker rm pg18-drill-verify ;; esac
+[ "$state" = running ] || sudo docker run -d --name pg18-drill-verify --network none -v "$V/var/lib/docker/volumes/postgres18-data/_data:/var/lib/postgresql" postgres:18.6-alpine
 for i in $(seq 60); do sudo docker exec pg18-drill-verify pg_isready -U postgres -q && break; sleep 2; done
+sudo docker exec pg18-drill-verify pg_isready -U postgres || echo "STOP: pg18-drill-verify is not ready — read: sudo docker logs pg18-drill-verify"
 DRILL=(sudo docker exec -i pg18-drill-verify psql -U postgres)
 diff <("${PSQL[@]}" -X -At -c "SELECT datname FROM pg_database ORDER BY 1") <("${DRILL[@]}" -X -At -c "SELECT datname FROM pg_database ORDER BY 1") && echo "database list equal"
 counts() { local -n q=$1; local db; for db in $("${q[@]}" -X -At -d postgres -c "SELECT datname FROM pg_database WHERE datallowconn ORDER BY 1"); do
@@ -1076,10 +1232,18 @@ the content check prints `database list equal`, the two table counts are equal, 
 total rows sit at or just below the live total (the snapshot is hours older than the live reading — the drift is the
 writes since the nightly run, never a missing database or an emptied table). A red here stops § 4: nothing is released.
 **Rollback:** none for the live hub — the check is read-only against it; `pg18-drill-verify` is already removed by the
-block. The scratch directory `$V` is a copy and is removed on the operator's word only.
+block. The scratch directory `$V` is a copy and is removed on the operator's word only, by the block below.
 
-**Operator's explicit word:** required before `sudo rm -rf "$V"` (the scratch copy of the restored volume; never a
-docker volume).
+**Operator's explicit word:** required before the block below runs `sudo rm -rf` on `$V` — the scratch copy of the
+restored volume and its two count files; never a docker volume. The path guard refuses anything else.
+
+```bash
+# on: hub — ONLY on the operator's explicit word, after R1's Verify is green
+case "$V" in
+  /opt/backups/pg18-drill-verify-?*) sudo rm -rf -- "$V" "$V.live-counts.txt" "$V.drill-counts.txt"; ls -d "$V" 2>/dev/null || echo "scratch copy removed" ;;
+  *) echo "REFUSED: \$V is '$V', not a pg18-drill-verify scratch path — nothing removed" ;;
+esac
+```
 
 ### Release step R2 — Remove postgres-data from the Backrest plan
 
@@ -1158,9 +1322,11 @@ Sent from the hub's main checkout with `scripts/mail.py send` (body on stdin), A
 CI on 16 against an 18 production fails closed, the reverse fails open (spec D5) — except A1, which goes out BEFORE the
 WSL window (spec D7). Every request names its lines from spec § What exists today and asks the project to run its suite
 against the WSL 18 cluster before committing. A hub agent never edits another repo (`CLAUDE.md` § HARD STOPS); these
-are requests.
+are requests. Each item's `**Send:**` line says WHEN: `BEFORE-WSL-WINDOW`, `AFTER-HUB-WINDOW` or `NONE`.
 
 ### A1 — brand-identiy-creator (D7) — send BEFORE the WSL window
+
+**Send:** BEFORE-WSL-WINDOW — D7: the change is prepared before the WSL window and merged after it.
 
 ```bash
 # on: wsl, in /opt/fabrik
@@ -1179,6 +1345,8 @@ BODY
 
 ### A2 — tryton-crm and tojlo-mail
 
+**Send:** AFTER-HUB-WINDOW — a project CI on 16 against an 18 production fails closed (spec D5).
+
 ```bash
 # on: wsl, in /opt/fabrik
 cat > /tmp/pg18-a2.txt <<'BODY'
@@ -1193,6 +1361,8 @@ for r in tryton-crm tojlo-mail; do python3 scripts/mail.py send --to "$r" --kind
 ```
 
 ### A3 — trade-intelligence (D6)
+
+**Send:** AFTER-HUB-WINDOW — a project CI on 16 against an 18 production fails closed (spec D5).
 
 ```bash
 # on: wsl, in /opt/fabrik
@@ -1212,6 +1382,8 @@ BODY
 
 ### A4 — gmail-account-creator and fabrik-claim-validator
 
+**Send:** AFTER-HUB-WINDOW — a project CI on 16 against an 18 production fails closed (spec D5).
+
 ```bash
 # on: wsl, in /opt/fabrik
 cat > /tmp/pg18-a4.txt <<'BODY'
@@ -1224,6 +1396,8 @@ for r in gmail-account-creator fabrik-claim-validator; do python3 scripts/mail.p
 
 ### A5 — youtube
 
+**Send:** AFTER-HUB-WINDOW — a project CI on 16 against an 18 production fails closed (spec D5).
+
 ```bash
 # on: wsl, in /opt/fabrik
 python3 scripts/mail.py send --to youtube --kind request --ack required <<'BODY'
@@ -1234,6 +1408,8 @@ BODY
 ```
 
 ### A6 — calendar-orchestration-engine
+
+**Send:** AFTER-HUB-WINDOW — a project CI on 16 against an 18 production fails closed (spec D5).
 
 ```bash
 # on: wsl, in /opt/fabrik
@@ -1247,6 +1423,8 @@ BODY
 
 ### A7 — fabrik-lib
 
+**Send:** AFTER-HUB-WINDOW — a project CI on 16 against an 18 production fails closed (spec D5).
+
 ```bash
 # on: wsl, in /opt/fabrik
 python3 scripts/mail.py send --to fabrik-lib --kind request --ack required <<'BODY'
@@ -1257,6 +1435,8 @@ BODY
 ```
 
 ### A8 — the 27 doc-only projects (one broadcast)
+
+**Send:** AFTER-HUB-WINDOW — a project CI on 16 against an 18 production fails closed (spec D5).
 
 One body for all of them, one line per project naming its files (spec D5). The spec counted ~70 lines across 27 projects
 without listing them; the body's project lines are re-measured at send time with the spec's own scope rule (every
@@ -1288,6 +1468,8 @@ Read the count before the loop sends: it should be 27; a different count means t
 read the lines, drop any false hit (a dated plan, a changelog entry), and send to what remains.
 
 ### A9 — the synced baseline (no request)
+
+**Send:** NONE — the governance sync carries it; no mail.
 
 `agents-fabrik.md`, `CLAIMS.yaml`, the rule packs and the gate comments every project carries update through the
 governance sync when D3 and D4 merge (spec D5, last bullet); no project is asked to touch them.
