@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T12:11:51.502575Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-79a56d2c",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure _panel_problem wall time on a 500 MB transcript; if material, bound the scan to the rows after the operator's last prompt (walk back from the tail)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "final_gate_stop.py::_panel_problem reads the whole transcript (no _TAIL_READ_BYTES bound) on every panel check — pre-existing at 20ed43d69; D-613 review A-S4"
+}
