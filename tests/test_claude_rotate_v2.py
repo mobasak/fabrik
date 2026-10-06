@@ -993,7 +993,9 @@ def test_stale_reading_triggers_refresh_ping_and_reprobe(tmp_path, monkeypatch):
     monkeypatch.setattr(cr, "_now", lambda: now)
     monkeypatch.setattr(cr, "_load_usage_cache", lambda: {"alpha@test": {"ts": now - 90_000}})
     pinged = []
-    monkeypatch.setattr(cr, "_keepalive_ping", lambda d: pinged.append(d.name) or True)
+    monkeypatch.setattr(
+        cr, "_capability_probe", lambda d, timeout=None: pinged.append(d.name) or "ok"
+    )
     monkeypatch.setattr(cr, "_read_access_token", lambda p: "tok")
     monkeypatch.setattr(cr, "_oauth_get", lambda kind, tok: {"usage": True})
     monkeypatch.setattr(
@@ -1025,10 +1027,10 @@ def test_status_path_never_pings_even_when_stale(tmp_path, monkeypatch):
         lambda: {"alpha@test": {"ts": now - 90_000, "seven_day": {"utilization": 93.0}}},
     )
 
-    def _boom(d):
-        raise AssertionError("--status must never invoke _keepalive_ping")
+    def _boom(d, timeout=None):
+        raise AssertionError("--status must never invoke _capability_probe")
 
-    monkeypatch.setattr(cr, "_keepalive_ping", _boom)
+    monkeypatch.setattr(cr, "_capability_probe", _boom)
     monkeypatch.setattr(cr, "_identity_probe_due", lambda slugs, now: False)
     accounts, _ = cr._fleet_account_rows(cr._fleet_dirs())
     assert accounts[0]["source"] == "cache", "status serves the honest cached row instead"
@@ -1050,7 +1052,7 @@ def test_failed_refresh_ping_marks_chain_dead_not_zero(tmp_path, monkeypatch):
         "_load_usage_cache",
         lambda: {"alpha@test": {"ts": now - 90_000, "seven_day": {"utilization": 93.0}}},
     )
-    monkeypatch.setattr(cr, "_keepalive_ping", lambda d: False)
+    monkeypatch.setattr(cr, "_capability_probe", lambda d, timeout=None: "inconclusive")
     monkeypatch.setattr(cr, "_identity_probe_due", lambda slugs, now: False)
     accounts, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=True)
     assert accounts[0]["ping_failed"] is True
@@ -1132,7 +1134,9 @@ def test_keepalive_sweep_is_retired_and_pings_nothing(tmp_path, monkeypatch, cap
     now = 2_000_000.0
     _os.utime(root / "stale" / ".credentials.json", (now - 40 * 86400,) * 2)
     pinged = []
-    monkeypatch.setattr(cr, "_keepalive_ping", lambda d: pinged.append(d.name) or True)
+    monkeypatch.setattr(
+        cr, "_capability_probe", lambda d, timeout=None: pinged.append(d.name) or "ok"
+    )
     capsys.readouterr()
     assert cr._keepalive_sweep([root / "stale", root / "fresh"], now, quiet=True) == (0, 0)
     assert pinged == [] and capsys.readouterr().out == ""

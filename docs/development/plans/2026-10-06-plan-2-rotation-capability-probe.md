@@ -1,6 +1,6 @@
 # Plan — an account that refuses inference is never the next account (W-f8bfe7eb)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** —
 **Surface:** `git rev-parse HEAD` = 99b111443 at authoring; `scripts/sysadmin/claude_rotate.py` 7560 lines, byte-identical to `scripts/aro-wake/claude_rotate.py`
@@ -419,6 +419,17 @@ Steps:
 - tests/test_claude_fleet.py
 - docs/workstation/claude-account-rotation.md
 - docs/development/reviews/2026-10-06-plan-2-rotation-capability-probe-review.md
+- tests/test_claude_rotate_v2.py
+
+## Execution notes
+
+- Phase A (2026-10-06): `tests/test_claude_rotate_v2.py` joined File Scope — it monkeypatches `cr._keepalive_ping`
+  at four sites (`:996`, `:1031`, `:1053`, `:1135`), a mirror the plan missed (grounding seat 3 read none there), and
+  deleting the function makes each `setattr` raise. The four stubs move to `_capability_probe` with the verdict
+  strings (`True` → `"ok"`, `False` → `"inconclusive"`); no assertion changed. Infra notified.
+- Phase A also carries the probe cache (`_probe_trust_s`, `_active_probe_s`, `_PROBE_RETRY_S`,
+  `_ACTIVE_PROBE_TIMEOUT_S`, `_read_probe_cache`, `_record_probe`, `_probe_account`) the plan scheduled for Phase B,
+  because `_auto_park`'s confirmation records its verdict through `_record_probe` (A9).
 
 ## Evidence
 

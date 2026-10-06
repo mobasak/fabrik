@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the rotation tick can tell a refused account from a dead one (2026-10-06)
+- `claude_rotate.py`'s stale-reading refresh ping is now a capability probe (`_capability_probe`, replacing `_keepalive_ping`): one `claude -p ok --output-format json --max-turns 1 --tools ""` bound to the account's dir, classified `refused` (the organisation refusal `oauth_org_not_allowed`, only when the result says `is_error`), `ok`, or `inconclusive`. A refusal no longer reads as a dead chain; it auto-parks the account after a second confirming probe, under a new lock on `parked.json`, with one `auto-park` ledger row and one alert that leads with the billing check. A broken `parked.json` is never overwritten by the automated park. Phase A of plan 2026-10-06-plan-2 (W-7d2d4c98, D-614/D-616); the promote, active-account and session-marker wiring follow.
+
 ### Fixed — mypy is clean on `scripts/mail.py` (2026-10-06)
 - `_verify_merge_sha` refused an empty `--merge-sha` with `(merge_sha or "").strip()`, then stripped `merge_sha` again for the lookup, which mypy read as `str | None` (W-57c88c6f). The stripped value is now bound once and used for both. A None value never reached the lookup, so behaviour is unchanged. Tests: tests/test_mail*.py 369 passed.
 

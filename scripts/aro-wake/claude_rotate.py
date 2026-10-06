@@ -3870,6 +3870,195 @@ def _known_account_emails() -> set[str]:
     return known
 
 
+def _parked_lock_fd() -> int:
+    """The lock serialising every read-modify-write of ``parked.json`` (spec D5): the operator's
+    ``--park`` and the tick's auto-park could otherwise each read the list, add their email, and
+    the slower write drop the faster one's. A dedicated lock file, the ``assignments.lock`` shape."""
+    root = _fleet_root()
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return os.open(str(root / "parked.lock"), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+
+
+def _parked_update(email: str, park: bool, *, repair: bool) -> bool | None:
+    """Add (``park``) or remove *email* from ``parked.json`` under :func:`_parked_lock_fd`.
+
+    True = changed, False = already so, None = nothing written (lock or write failed, or a broken
+    file an automated caller must not overwrite). The re-read under the lock is STRICT: missing →
+    empty; unreadable or not a JSON list → with ``repair`` False (the tick's auto-park) refuse —
+    a cron tick never replaces the operator's list on its own, the D-443 "broken parked.json
+    parks NOTHING" stance — and with ``repair`` True (the operator's ``--park``/``--unpark``)
+    proceed from empty, as ``_cmd_park`` always has. A lock that cannot be taken writes nothing,
+    the assignments site's rule ("cannot lock → never risk clobbering the table")."""
+    path = _fleet_root() / "parked.json"
+    try:
+        lock_fd = _parked_lock_fd()
+    except _STATE_DIR_ERRORS as e:
+        sys.stderr.write(f"claude_rotate: cannot lock {path} ({e}) — nothing changed\n")
+        return None
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        try:
+            data = json.loads(path.read_text())
+        except FileNotFoundError:
+            data = []
+        except (OSError, ValueError):
+            data = None
+        if not isinstance(data, list):
+            if not repair:
+                sys.stderr.write(
+                    f"claude_rotate: {path} unreadable — the auto-park wrote nothing\n"
+                )
+                return None
+            data = []
+        parked = {e.lower() for e in data if isinstance(e, str) and "@" in e}
+        if park == (email in parked):
+            return False
+        parked = parked | {email} if park else parked - {email}
+        try:
+            _write_json_atomic(path, sorted(parked), mode=0o644)
+        except OSError as e:
+            sys.stderr.write(f"claude_rotate: cannot write {path} ({e})\n")
+            return None
+        return True
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        try:
+            os.close(lock_fd)
+        except OSError:
+            pass
+
+
+_PROBE_RETRY_S = 1800.0
+_ACTIVE_PROBE_TIMEOUT_S = 45
+
+
+def _probe_trust_s() -> float:
+    """How long a STANDBY's ``ok`` capability verdict is trusted (spec D2): ``ROTATE_PROBE_TRUST_S``,
+    default 21600 (6 h). Non-finite or not positive → the default."""
+    val = _env_float("ROTATE_PROBE_TRUST_S", 21600.0)
+    return val if val > 0 else 21600.0
+
+
+def _active_probe_s() -> float:
+    """How long the ACTIVE account's ``ok`` verdict is trusted (spec D6): ``ROTATE_ACTIVE_PROBE_S``,
+    default 1800. Separate from the standby window because a refusal on the active account stops
+    every session on the box at once. Non-finite or not positive → the default."""
+    val = _env_float("ROTATE_ACTIVE_PROBE_S", 1800.0)
+    return val if val > 0 else 1800.0
+
+
+def _probe_cache_path() -> Path:
+    return _rotate_state_dir() / "capability-probe.json"
+
+
+def _read_probe_cache() -> dict:
+    """``{email: {"verdict": "ok"|"inconclusive", "ts": epoch}}``; anything unreadable reads as empty
+    (the next probe runs — fail toward probing, bounded by the windows)."""
+    try:
+        data = json.loads(_probe_cache_path().read_text())
+    except (FileNotFoundError, *_STATE_DIR_ERRORS):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _record_probe(email: str, verdict: str) -> None:
+    """Cache an ``ok`` or ``inconclusive`` verdict (a ``refused`` is never cached — the account is
+    parked instead). Never raises: a lost write costs one extra probe later, never the tick (the
+    row pass's own cache-write rule)."""
+    if verdict not in ("ok", "inconclusive"):
+        return
+    try:
+        cache = _read_probe_cache()
+        cache[email] = {"verdict": verdict, "ts": _now()}
+        _write_json_atomic(_probe_cache_path(), cache)
+    except _STATE_DIR_ERRORS as e:
+        sys.stderr.write(f"claude_rotate: capability cache not written ({e})\n")
+
+
+def _probe_account(
+    email: str,
+    slug: str,
+    *,
+    window: float | None = None,
+    timeout: int | None = None,
+    expired_after: float | None = None,
+) -> str:
+    """The capability verdict for *email*, probing ``<fleet_root>/<slug>`` only when the cached one
+    has expired: an ``ok`` lives *window* (default :func:`_probe_trust_s`), an ``inconclusive``
+    :data:`_PROBE_RETRY_S`; a session refusal newer than the verdict (*expired_after*, spec D7)
+    expires it at once. Every fresh verdict is recorded with :func:`_record_probe`."""
+    hit = _read_probe_cache().get(email)
+    if isinstance(hit, dict) and isinstance(hit.get("ts"), (int, float)):
+        life = (window or _probe_trust_s()) if hit.get("verdict") == "ok" else _PROBE_RETRY_S
+        fresh = _now() - hit["ts"] < life
+        stale_by_session = expired_after is not None and expired_after > hit["ts"]
+        if hit.get("verdict") in ("ok", "inconclusive") and fresh and not stale_by_session:
+            return hit["verdict"]
+    verdict = _capability_probe(_fleet_root() / slug, timeout)
+    _record_probe(email, verdict)
+    return verdict
+
+
+def _auto_park(
+    email: str,
+    *,
+    source: str,
+    cfg_dir: Path,
+    timeout: int | None = None,
+    status: object = None,
+    row: dict | None = None,
+) -> bool:
+    """Park an account that refused Claude Code (spec D3) — CONFIRMED first: one immediate second
+    probe of *cfg_dir* must refuse too (a refused call spends no quota; one bad answer never takes
+    an account out of service). Any other confirmation verdict is cached and nothing is parked,
+    walled, logged or alerted. Then: ``parked.json`` through the locked writer, one ``auto-park``
+    ledger row, one alert per account per 30 minutes that leads with the billing check, and — when
+    *row* is given — the in-tick row walled as cap 0 so every later reader of this tick excludes it
+    even if the write was refused. Writes NOTHING to stdout: the CLI passthrough mirrors stdout to
+    its callers. Returns True when the account is parked after the call. The operator un-parks
+    (D-443); nothing here ever removes an email."""
+    email = (email or "").strip().lower()
+    if email not in _known_account_emails():
+        sys.stderr.write(
+            f"claude_rotate: capability refused for {email!r}, not a known account — nothing parked\n"
+        )
+        return False
+    confirm = _capability_probe(cfg_dir, timeout)
+    if confirm != "refused":
+        _record_probe(email, confirm)
+        sys.stderr.write(
+            f"claude_rotate: {email} refused once, confirmation {confirm} — nothing parked\n"
+        )
+        return False
+    if row is not None:
+        row["weekly_cap"] = 0
+        row["capability_refused"] = True
+    changed = _parked_update(email, True, repair=False)
+    if changed is None:
+        return False
+    if changed:
+        _ledger_append(
+            {
+                "event": "auto-park",
+                "email": email,
+                "cause": "oauth_org_not_allowed",
+                "source": source,
+                "api_error_status": status,
+                "ts": _now(),
+            }
+        )
+        _tick_telegram(
+            f"check this account's billing: {email} is refused by Claude Code (oauth_org_not_allowed)"
+            f" and was parked automatically ({source}). Once billing is fixed: claude_rotate.py"
+            f" --unpark {email}",
+            key=f"capability-{email}",
+        )
+    return True
+
+
 def _cmd_park(email: str, park: bool) -> int:
     """``--park <email>`` / ``--unpark <email>``: take an account out of service, or put it back.
     It stays listed; parked, it is never picked, counted as capacity or named as relief, and an
@@ -3881,17 +4070,15 @@ def _cmd_park(email: str, park: bool) -> int:
             f"claude_rotate: {email!r} is not a known account — known: {', '.join(sorted(known))}\n"
         )
         return 1
-    path = _fleet_root() / "parked.json"
-    parked = _parked_accounts()
-    if park == (email in parked):
+    changed = _parked_update(email, park, repair=True)
+    if changed is None:
+        sys.stderr.write(
+            f"claude_rotate: cannot write {_fleet_root() / 'parked.json'} — nothing changed\n"
+        )
+        return 1
+    if not changed:
         print(f"{email} is already {'parked' if park else 'in service'} — nothing changed")
         return 0
-    parked = parked | {email} if park else parked - {email}
-    try:
-        _write_json_atomic(path, sorted(parked), mode=0o644)
-    except OSError as e:
-        sys.stderr.write(f"claude_rotate: cannot write {path} ({e}) — nothing changed\n")
-        return 1
     print(
         f"{email} PARKED — listed, never picked, no capacity counted; `--unpark {email}` restores it"
         if park
@@ -4052,11 +4239,18 @@ def _fleet_account_rows(
             if email in ping_slots:
                 ping_slots.discard(email)
                 _touch_refresh_stamp(email)
-                if _keepalive_ping(with_creds[0]["dir"]):
+                verdict = _capability_probe(with_creds[0]["dir"])
+                if verdict == "ok":
+                    _record_probe(email, verdict)
                     tok = _read_access_token(with_creds[0]["dir"] / ".credentials.json")
                     if tok is not None:
                         windows = _usage_windows(_oauth_get("usage", tok))
+                elif verdict == "refused":
+                    # The chain is ALIVE — only the capability is gone (spec D4): park, never a
+                    # dead-chain flip trigger. `_auto_park` confirms with a second probe first.
+                    _auto_park(email, source="ping", cfg_dir=with_creds[0]["dir"], row=row)
                 else:
+                    _record_probe(email, verdict)
                     row["ping_failed"] = True
         if windows is not None:
             row.update(windows)
@@ -7126,11 +7320,54 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
     return sent
 
 
-def _keepalive_ping(cfg_dir: Path) -> bool:
-    """One ``claude -p ping`` bound to *cfg_dir* — the in-place SOLE-OWNER refresh (the
-    youtube-proven path): CLAUDE_CONFIG_DIR + CLAUDE_QUOTA_HOME both point at the dir itself,
-    so the CLI rolls THIS dir's own chain. NOT the retired --touch temp-dir copy pattern —
-    no credential byte is read, copied, or written by this script."""
+_REFUSAL_MARKERS = ("oauth_org_not_allowed", "disabled claude subscription access")
+
+
+def _capability_verdict(rc: int | None, stdout: str) -> str:
+    """Classify one ``claude -p --output-format json`` run: ``refused`` · ``ok`` · ``inconclusive``.
+
+    ``refused`` ONLY when the result object has ``is_error`` true AND its serialisation names the
+    organisation refusal (``oauth_org_not_allowed``, or the incident's "disabled Claude
+    subscription access" text) — so a conversation that merely QUOTES the code can never park an
+    account (the class ``run_claude`` admits at its classifier). ``api_error_status`` is not
+    required (spec U2) and ``subtype`` is never read: a failed call reports ``"subtype":
+    "success"`` (measured 2026-10-06). ``ok`` is exit 0 with no ``is_error`` result — a non-JSON
+    stdout at exit 0 included, the old ping's exit-0-is-success. Everything else, a timeout
+    (``rc is None``) and a refusal printed only on stderr included, is ``inconclusive``: it
+    changes nothing, so a probe outage can never take an account out of service. The result
+    TEXT is never logged — a healthy result echoes the account's private session context."""
+    obj: dict | None = None
+    text = stdout or ""
+    try:
+        whole = json.loads(text)
+        if isinstance(whole, dict):
+            obj = whole
+    except ValueError:
+        for line in reversed(text.splitlines()):
+            try:
+                cand = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(cand, dict) and cand.get("type") == "result":
+                obj = cand
+                break
+    is_error = isinstance(obj, dict) and obj.get("is_error") is True
+    if is_error:
+        blob = json.dumps(obj).lower()
+        if any(marker in blob for marker in _REFUSAL_MARKERS):
+            return "refused"
+    if rc == 0 and not is_error:
+        return "ok"
+    return "inconclusive"
+
+
+def _capability_probe(cfg_dir: Path, timeout: int | None = None) -> str:
+    """One ``claude -p ok`` bound to *cfg_dir*, classified by :func:`_capability_verdict` — the
+    in-place SOLE-OWNER call (the youtube-proven path): CLAUDE_CONFIG_DIR + CLAUDE_QUOTA_HOME both
+    point at the dir itself, so the CLI rolls THIS dir's own chain and exercises the capability a
+    session actually uses. NOT the retired --touch temp-dir copy pattern — no credential byte is
+    read, copied, or written by this script. Replaces the bool ``_keepalive_ping`` (spec D1, D4):
+    the stale-reading refresh ping now tells a refused account from a dead chain."""
     env = os.environ.copy()
     env["CLAUDE_CONFIG_DIR"] = str(cfg_dir)
     env["CLAUDE_QUOTA_HOME"] = str(cfg_dir)
@@ -7138,23 +7375,24 @@ def _keepalive_ping(cfg_dir: Path) -> bool:
     env["CLAUDE_SOUND_NO_REVIVE"] = "1"
     env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
     _with_claude_on_path(env)  # cron PATH lacks ~/.local/bin → bare spawn would FileNotFoundError
-    try:
-        timeout = int(os.environ.get("KEEPALIVE_TIMEOUT", "150"))
-    except ValueError:
-        timeout = 150
+    if timeout is None:
+        try:
+            timeout = int(os.environ.get("KEEPALIVE_TIMEOUT", "150"))
+        except ValueError:
+            timeout = 150
     try:
         p = subprocess.run(
-            ["claude", "-p", "ping"],
+            ["claude", "-p", "ok", "--output-format", "json", "--max-turns", "1", "--tools", ""],
             env=env,
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
-            errors="replace",  # the ping's text is never read; invalid UTF-8 out must not raise
+            errors="replace",  # invalid UTF-8 out must not raise mid-pass; the classifier copes
             timeout=timeout,
         )
-        return p.returncode == 0
     except (OSError, subprocess.SubprocessError):
-        return False
+        return "inconclusive"
+    return _capability_verdict(p.returncode, p.stdout or "")
 
 
 _KEEPALIVE_RETIRED_LINE = (
