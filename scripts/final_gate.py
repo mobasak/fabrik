@@ -456,7 +456,7 @@ def _resolve_extra_test_database_urls(root: Path) -> tuple[dict[str, str], list[
     return values, notes, None
 
 
-def _redact_test_database_url(text: str, value: str | None) -> str:
+def _redact_test_database_url(text: str, value: str | None, key: str = _TDB_KEY) -> str:
     """``text`` with the URL and its password (raw and percent-decoded) replaced.
 
     The password is replaced wherever it appears once it is 4+ characters; a shorter one only where
@@ -470,7 +470,9 @@ def _redact_test_database_url(text: str, value: str | None) -> str:
         return text
     from urllib.parse import unquote, urlsplit  # noqa: PLC0415 — only on this path
 
-    text = text.replace(value, "<TEST_DATABASE_URL>")
+    text = text.replace(
+        value, f"<{key}>"
+    )  # each key its own label, so two redacted URLs stay apart
     password = urlsplit(value).password
     for secret in {password, unquote(password or "")}:
         if not secret:
@@ -1210,15 +1212,16 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
             ".env.local, or delete the sentinel.",
         )
     sources = ([f"TEST_DATABASE_URL from {source}"] if tdb else []) + extra_notes
-    note = f"{', '.join(sources)} (values redacted)." if sources else ""
+    plural = "values" if len(sources) > 1 else "value"  # one key reads exactly as it always did
+    note = f"{', '.join(sources)} ({plural} redacted)." if sources else ""
     child_env = ({_TDB_KEY: tdb} if tdb else {}) | extra
     code, out = run_cmd(
         [PYTHON, "-m", "pytest", "tests/", "-x", "-q", "--color=no", "-p", "no:cacheprovider"],
         timeout=TIMEOUTS["pytest"],
         extra_env=child_env or None,
     )
-    for _v in (tdb, *extra.values()):
-        out = _redact_test_database_url(out, _v)
+    for _k, _v in ((_TDB_KEY, tdb), *extra.items()):
+        out = _redact_test_database_url(out, _v, _k)
     if _module_absent(out, "pytest"):
         return ("pytest (NOT RUN)", True, "pytest is not installed in this interpreter")
     elif code == 5:  # pytest exit 5 = no tests collected

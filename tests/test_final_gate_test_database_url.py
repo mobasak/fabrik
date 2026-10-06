@@ -62,6 +62,9 @@ def test_the_pytest_leg_takes_test_database_url_from_env_files_in_order(project,
     (project / ".env").write_text(f"{KEY}={GOOD}\n", encoding="utf-8")
     name, ok, text = _row()
     assert not ok and name == "pytest" and "from .env" in text, (name, text)
+    assert "TEST_DATABASE_URL from .env (value redacted)." in text, (
+        text
+    )  # the one-key note, unchanged
 
     (project / ".env.local").write_text(
         f"{KEY}=postgresql://u:p@localhost/other_test\n", encoding="utf-8"
@@ -246,6 +249,7 @@ def test_the_app_role_key_reaches_the_suite_from_an_env_file_redacted(rls_projec
     assert not ok and name == "pytest" and "test_rls" in text, (name, text)  # ran, not skipped
     assert f"{APP_KEY} from .env" in text, text
     assert APP_GOOD not in text and APP_SECRET not in text, text
+    assert "<TEST_APP_DATABASE_URL>" in text and "(value redacted)." in text, text  # its own label
     values, notes, refusal = fg._resolve_extra_test_database_urls(rls_project)
     assert refusal is None and set(values) == {APP_KEY}, (values, notes)  # TEST_REDIS_URL is not
 
