@@ -113,6 +113,10 @@ The traps, all of which produce a plausible-looking empty dossier rather than an
   degrades, and you get an empty dossier with `partial=True`. The pre-flight names the missing key,
   because the engine cannot. `--free-legs-only` requires only `BRAVE_API_KEY`.
 
+One wiring mistake is refused outright instead: running another repo's copy from inside a different
+checkout exits 2 with `WIRING ERROR (nothing was spent)` before any `.env` is read (W-6a157c25) — run
+the repo's OWN synced copy (`docs/reference/rivals-command.md` § The traps).
+
 ## Phase 2 — converge: dry discovery + the split audit
 
 **Parallelism — per RIVAL, and the engine will not do it for you.** `libs/competitor_intel/orchestrator.py`
