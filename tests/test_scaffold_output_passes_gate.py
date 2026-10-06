@@ -145,3 +145,26 @@ def test_make_lint_types_the_package_not_the_whole_tree(tmp_path, project_type, 
     assert "mypy ." not in makefile, makefile
     assert makefile.count(typed) == 2, makefile
     assert (tmp_path / "gate-clean" / typed.split()[-1]).is_dir(), typed
+
+
+@requires_fabrik_env
+@pytest.mark.parametrize(("project_type", "sub"), [("python-api", "."), ("static-site", "server")])
+def test_the_vendored_libs_exclusion_does_not_hide_a_projects_own_libs_dir(
+    tmp_path, project_type, sub
+):
+    """W-1c722f35 closing pass: a bare "libs" pattern excluded EVERY directory named libs at any depth,
+    so project-owned code under src/<pkg>/libs/ was never linted. "libs/*" is anchored to the root."""
+    assert RUFF, f"ruff is neither beside {sys.executable} nor on PATH"
+    create_project(
+        name="gate-clean",
+        project_type=project_type,
+        description="own libs dir is linted",
+        base=tmp_path,
+        generate_spec=False,
+    )
+    base = tmp_path / "gate-clean" / sub
+    own = base / "src" / "gate_clean" / "libs" / "own.py"
+    own.parent.mkdir(parents=True, exist_ok=True)
+    own.write_text("import os\n")
+    r = _run([RUFF, "check", "--output-format=concise", str(own.relative_to(base))], base)
+    assert r.returncode == 1 and "F401" in r.stdout, r.stdout + r.stderr

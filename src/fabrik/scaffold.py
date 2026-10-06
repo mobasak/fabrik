@@ -3395,8 +3395,8 @@ def _write_server_lint_config(server_dir: Path, package_name: str) -> None:
         body = body.replace(old, new)
 
     _swap(
-        f'extend-exclude = ["src/{package_name}/glitchtip_init.py", "libs"]',
-        f'extend-exclude = ["src/{package_name}/glitchtip_init.py", "libs", "src/fastapi_user_auth"]',
+        f'extend-exclude = ["src/{package_name}/glitchtip_init.py", "libs/*"]',
+        f'extend-exclude = ["src/{package_name}/glitchtip_init.py", "libs/*", "src/fastapi_user_auth"]',
     )
     _swap(
         'known-first-party = ["src"]',
