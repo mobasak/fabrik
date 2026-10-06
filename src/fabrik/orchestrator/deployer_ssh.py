@@ -33,6 +33,9 @@ _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 # A full SHA-1 commit id as `git rev-parse HEAD` prints it — the only GIT_SHA the deployer writes.
 _GIT_SHA_RE = re.compile(r"[0-9a-f]{40}")
 
+# Exactly one compose interpolation of a bare name, optionally with a `-`/`:-` default.
+_INTERPOLATION_RE = re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*(:?-[^}]*)?\}")
+
 # health.disabled readiness poll (see _compose_up): `docker compose up --wait` needs a
 # healthcheck a FROM-scratch image can't have, so we `up -d` then poll `docker inspect` for a
 # STABLE running state. Requires _HEALTH_STABLE_REQUIRED consecutive polls at running + an
@@ -798,8 +801,15 @@ def _is_placeholder(value: str) -> bool:
     post-deploy via ``inject_env()``. ``_build_env_content`` uses this to avoid
     letting such a placeholder clobber an already-injected real value on a
     re-apply (which would break ``docker compose up --wait``).
+
+    A value that is exactly ONE compose interpolation of a bare name (``${SENTRY_DSN:-}``,
+    ``${LOG_LEVEL:-INFO}``, ``${GIT_SHA}``) is a stand-in too: the spec generator copies such
+    entries verbatim from a scaffold's compose ``environment:``, and on a re-apply writing the
+    literal over the registrar's real value would blank it until the registrar re-injects.
+    Cost (the MIRROR): a spec that DELIBERATELY sets such a literal no longer replaces a real
+    value already in ``.env``; edit or remove the ``.env`` key to force it.
     """
-    return "placeholder" in value.lower()
+    return "placeholder" in value.lower() or bool(_INTERPOLATION_RE.fullmatch(value))
 
 
 def _closing_quote(value: str) -> int:
