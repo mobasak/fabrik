@@ -102,7 +102,15 @@ def _classify_script(path: Path) -> tuple[str, str]:
     if _line_starts_with(head, _MANUAL_MARKERS):
         return "manual", summary
     # A script exposes a safe probe iff it references argparse/--help/--check (parseable without side effects).
-    if any(t in head for t in ("argparse", "--help", "--check", "if __name__")):
+    # The probe markers are searched in the WHOLE file, not the header window: a main guard past char
+    # 4000 (check_traycer_chain.py, at 4219) made the script "manual" and dropped it from the catalog.
+    # The retired/manual MARKERS stay header-only — they are header declarations, and a deep match
+    # would misclassify a script that merely names them.
+    # Comment lines are dropped first: a prose mention ("this once used argparse") is not a probe.
+    code = "\n".join(
+        ln for ln in _read_head(path, n=10**9).splitlines() if not ln.lstrip().startswith("#")
+    )
+    if any(t in code for t in ("argparse", "--help", "--check", "if __name__")):
         return "ok", summary
     # No safe probe available → can't auto-verify → operator checks (not "broken": it may work fine).
     return "manual", summary
@@ -167,6 +175,10 @@ def _first_docline(head: str) -> str:
             continue
         s = bare.lstrip("#").strip().strip('"').strip("'").strip()
         if not s:
+            continue
+        # The `# AFTER-EDIT:` doc-coupling header is machinery, never the script's description: it
+        # sat on line 2 of every headered script and became every catalog summary.
+        if s.startswith("AFTER-EDIT:"):
             continue
         # Skip a bare Python `import`/`from` STATEMENT (real code, not a `# import …` prose comment —
         # so a bash comment that happens to start with "import" is not dropped).
