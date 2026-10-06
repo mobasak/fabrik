@@ -440,6 +440,15 @@ Steps:
   is a heavy-surface trigger routed to the Finish `/fabrik-review`. The pass-4 seats first died on a transient
   `oauth_org_not_allowed` refusal and were re-run; ozgurbasak probed healthy minutes later — the one-refusal case the
   confirmation probe exists for.
+- Phase B `/fabrik-review-scoped` (2026-10-06): round 1 confirmed 8 (e12856a76 — the `.errparked` read is bounded
+  and non-blocking with ASCII digits only, a rotation onto a refusal is not "recovered", the promote probe is 45 s,
+  `_wrapper_park` falls back to the dir's account, the pause holds the D6 re-check); pass 2 confirmed 3 (160cbeb29 —
+  `_validated_pick` never probes while the pause marker is set, which closes the parked-branch path round 1 missed;
+  the 401-onto-a-refusal alert names the billing check instead of "all credentials are dead", a defect round 1's own
+  fix introduced; the skew clamp is pinned by br9); pass 3 confirmed 1 (ca512f21b — the pass-2 gate read the bare
+  `_switch_paused()`, which raises on an unreadable state dir; all four tick-side pause gates now read the tri-state
+  `_pause_state()`, two of them older than this plan). Guards `test_br1`–`test_br10`, each red on the pre-fix code
+  or by mutation. The doc gained the 45 s promote timeout and the pause rule (§ Parking, § Pause semantics).
 
 ## Evidence
 
