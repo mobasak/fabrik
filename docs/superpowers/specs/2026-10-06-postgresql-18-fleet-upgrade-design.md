@@ -170,8 +170,9 @@ The window runs clear of 01:30–03:30 (the backup cron and the Backrest snapsho
 1. **Freeze deploys and writes.** Announce a deploy freeze (no `fabrik apply`), stop the WSL MCP tunnel, stop
    every service container that uses `postgres-main` (the plan derives the list from the spec inventory and the
    hub's `docker ps`, spokes included; glitchtip and the postgres-exporter log in as the superuser, so stopping
-   their containers is the only thing that keeps them out), then enforce the freeze in the database:
-   `ALTER DATABASE … CONNECTION LIMIT 0` for every non-system database, terminate any remaining client backend,
+   their containers is the only thing that keeps them out), then enforce the freeze in the database: first
+   record every database's `datname, datconnlimit` (the pre-freeze limits), then `ALTER DATABASE … CONNECTION
+   LIMIT 0` for every non-system database, terminate any remaining client backend,
    and assert `SELECT count(*) FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <>
    pg_backend_pid()` is 0. Never `ALLOW_CONNECTIONS false`: `pg_dumpall` silently leaves such a database out of
    the dump (exit 0) and `pg_dump` and the manifest cannot connect to it (measured in review); a connection
@@ -198,14 +199,15 @@ The window runs clear of 01:30–03:30 (the backup cron and the Backrest snapsho
 5. **Restore** into the empty PG18 cluster (initdb with checksums on, the PG18 default, pg-05):
    `docker exec -i postgres-main psql -U postgres -X -f - < pg16-final-<ts>.sql`, without `ON_ERROR_STOP`,
    stderr captured. Exactly one error is expected and allowed — `role "postgres" already exists`; any other error
-   fails the window. The dump carries step 1's `CONNECTION LIMIT 0`, so run `ALTER DATABASE … CONNECTION LIMIT
-   -1` on exactly the databases the manifest lists as non-system (never `template0`, which keeps
-   `datallowconn = false`), then `ANALYZE`. The superuser keeps its old password (the dump's `ALTER ROLE postgres … PASSWORD`
+   fails the window. The dump carries step 1's `CONNECTION LIMIT 0`, so reset each database the manifest lists as
+   non-system to its recorded pre-freeze limit (`-1` unless step 1 recorded another value; never `template0`,
+   which keeps `datallowconn = false`), then `ANALYZE`. The superuser keeps its old password (the dump's `ALTER ROLE postgres … PASSWORD`
    overrides the new container's `POSTGRES_PASSWORD`).
 6. **Diff the manifest** on 18 (V1). ACLs are compared after normalising PG17's new `m` (MAINTAIN) privilege,
-   which every owner's ACL gains on restore, and `datconnlimit` after step 5's reset.
+   which every owner's ACL gains on restore; `datconnlimit` is compared against step 1's pre-freeze record, not
+   the manifest's frozen 0.
 7. **The rollback cut-off.** Until services restart, rollback is one step: revert the compose image and mount to
-   `postgres-data`, `up`, and reset step 1's `CONNECTION LIMIT 0` on the 16 cluster — nothing was written to 18. Once services restart, rollback means a `pg_dumpall` from
+   `postgres-data`, `up`, and restore step 1's pre-freeze limits on the 16 cluster — nothing was written to 18. Once services restart, rollback means a `pg_dumpall` from
    18 restored into 16, with hand edits where the dump uses 18-only syntax, and the writes since restart are
    carried manually; the plan treats the restart as the point of no return and requires V1 green before it.
 8. **Restart** services, lift the freeze, run the battery (V2–V6).
@@ -214,23 +216,26 @@ The window runs clear of 01:30–03:30 (the backup cron and the Backrest snapsho
 
 1. Add the PGDG apt repository and install `postgresql-18` and `postgresql-18-pgvector`. PGDG's
    `postgresql-common` replaces Ubuntu's; `postgresql-16` follows only if PGDG's build sorts newer than the
-   installed `16.15-0ubuntu0.24.04.1`; either way the running 16 cluster restarts once (a short dev outage).
+   installed `16.15-0ubuntu0.24.04.1`; the running 16 cluster may restart once (a short dev outage).
 2. The install auto-creates an `18/main` cluster on 5433; drop it (`pg_dropcluster 18 main --stop`), because
    `pg_upgradecluster` refuses while it exists.
+2a. brand-identiy-creator's dev database has the hand-built `pg_uuidv7` extension, which has no build for 18 on
+   this box and would fail the upgrade: take `pg_dump --data-only` of it to a dated file outside the repo, then
+   drop it. It is recreated on 18 in step 4 from its rewritten migrations (D7), and the dump reloads its rows if
+   they turn out not to be regenerable.
 3. `pg_upgradecluster 16 main` — its default method is dump/restore. Afterwards 18 owns port 5432 (every
    `{project}_dev` DSN keeps working) and 16 moves to 5433 with `start.conf` set to manual, kept until release.
 4. Verify every database, `fabrik_analytics` and session-recall's included, with the D1 manifest method; then run
    every project's suite against 18. This is where driver versions (pg-48), the `search_path` change (pg-07)
-   and removed features surface. brand-identiy-creator's dev database is the one exception: it has the
-   hand-built `pg_uuidv7` extension, which has no build for 18 on this box, so it is dropped before step 3 and
-   recreated on 18 from its rewritten migrations (D7) — dev data, regenerable.
+   and removed features surface. brand-identiy-creator's database, dropped in step 2a, is recreated here on 18
+   from its rewritten migrations (D7), and step 2a's dump is reloaded if needed.
 5. **KILL** (D-612): a WSL verification that fails stops the hub window until fixed.
 6. **Parity gap, bounded:** between the windows WSL runs 18 and production 16. The hub window follows within 7
    days of the WSL window; past that, WSL rolls back until a hub window is scheduled: stop both clusters
    (`pg_ctlcluster`), set `port` in each `postgresql.conf` (16 back to 5432, 18 to 5433), flip `start.conf` (16
-   auto, 18 manual), start 16. Dev writes made on 18 in the gap are lost (dev data). brand-identiy-creator's D7
-   code calls native `uuidv7()`, absent on 16, so that one project stays on its 18 cluster port until the hub
-   window.
+   auto, 18 manual), start 16. Dev writes made on 18 in the gap are lost (dev data). The one exception is
+   brand-identiy-creator: its D7 code calls native `uuidv7()`, absent on 16, so 18 keeps `start.conf` auto at
+   5433 and that project's dev DSN is repointed to port 5433 until the hub window.
 
 ### D3 — The hub repo changes (one branch, merged only after the hub window passes)
 
@@ -283,8 +288,8 @@ WSL 18 cluster before committing. Requests go out after the hub window passes: a
 production runs 18 fails closed (an 18-only construct reds CI and never deploys), whereas a CI on 18 against a 16
 production fails open.
 
-- **brand-identiy-creator** — the exception: its request goes out BEFORE the WSL window, its change applied after
-  it (D7).
+- **brand-identiy-creator** — the exception: its request goes out BEFORE the WSL window, its change prepared
+  against a scratch 18 container and merged and applied after it (D7).
 - **tryton-crm, tojlo-mail** — image to `postgres:18.6-*` AND the mount to `/var/lib/postgresql` (an image-only
   bump fails to start, pg-36), with a local dump/restore of their dev data.
 - **trade-intelligence** — its six pins to 18 (D6).
@@ -307,7 +312,7 @@ It has left Supabase for `postgres-main` (§ What exists today), and its dev dat
 (`README.md:204`). Its CI, scripts and tests move to 18 with everyone else; its cutover to `postgres-main` lands on
 an 18 cluster. No project stays on 17.
 
-### D7 — brand-identiy-creator's `pg_uuidv7` dependency: landed before the WSL window, applied after
+### D7 — brand-identiy-creator's `pg_uuidv7` dependency: prepared before the WSL window, merged and applied after
 
 `uuid_generate_v7()` (extension) and native `uuidv7()` both return `uuid` (pg-41), but a SQL function body is
 checked at creation and `uuidv7()` exists only on 18, so the change cannot be applied on a 16 cluster (measured in
@@ -315,8 +320,10 @@ review: `ERROR: function uuidv7() does not exist`). The request asks for code th
 moved to native `uuidv7()` (or a shim `CREATE OR REPLACE FUNCTION uuid_generate_v7() RETURNS uuid LANGUAGE sql
 VOLATILE AS 'SELECT uuidv7()'`, created on 18 where the extension is absent); migration 0001 rewritten so it no
 longer creates `pg_uuidv7`; the model defaults, raw SQL and tests updated; `db/schema.sql:3,14` and
-`README.md:117`. It is committed before the WSL window and applied after it: the dev database is dropped before
-`pg_upgradecluster` and recreated on 18 from the rewritten migrations (D2 step 4). Its production deploy, still
+`README.md:117`. The project prepares it on a branch before the WSL window and gates it against a scratch
+`postgres:18.6-alpine` container, which has no `pg_uuidv7` (the target condition). It merges after the WSL
+upgrade, when its suite can run against the WSL 18 cluster as every request requires: the dev database is
+dropped before `pg_upgradecluster` (D2 step 2a) and recreated on 18 from the rewritten migrations (D2 step 4). Its production deploy, still
 `.draft`, happens only on the 18 hub.
 
 ## Compatibility checks (from the PG17 and PG18 migration notes)
