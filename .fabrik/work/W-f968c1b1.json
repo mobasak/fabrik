@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-06T06:43:11.558130Z",
+  "created": "2026-10-06T08:36:31.551771Z",
   "creator": "intel",
   "evidence": "",
-  "id": "W-13c254f9",
+  "id": "W-f968c1b1",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M46WXVNQQRCEAVHWEQ5A7YEE",
+    "mail": "01M473WBS4VSQPQ7XAJZZYNSFT",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "intel",
   "priority": 2,
   "status": "done",
-  "title": "check_plan_tickets.py T4.8 Gate-path rule is blind to the Gate's own `cd` — 9 false \"exists nowhere\" errors"
+  "title": "final_gate's pytest leg injects only the TEST_DATABASE_URL key, never TEST_APP_DATABASE_URL, so the RLS suites run as superuser and fail."
 }

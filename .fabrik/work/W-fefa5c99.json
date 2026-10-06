@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-06T00:47:50.066382Z",
+  "created": "2026-10-06T07:40:10.103117Z",
   "creator": "fleet",
   "evidence": "",
-  "id": "W-0650ca57",
+  "id": "W-fefa5c99",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M470F5YWEWJGHPH86ZFQQ34Y",
+    "mail": "01M47Z0D6MSR1N42FQRRWE823A",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "fleet",
   "priority": 2,
   "status": "done",
-  "title": "scaffolded app composes set no stop_grace_period, so the node-api 20 s drain backstop never fires (Docker's 10 s default SIGKILLs first)"
+  "title": "chrome-extension and mobile-app scaffold a server/src Python backend with no lint or type config"
 }
