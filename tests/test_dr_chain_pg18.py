@@ -194,7 +194,7 @@ def test_bootstrap_hub_probe_sites_query_datname_without_literal_quoting() -> No
         + "\n".join(offenders)
     )
     for name in _PROBE_FUNCTIONS:
-        body = _extract_bash_function(text, name)
+        body = _strip_bash_comments(_extract_bash_function(text, name))
         assert _EXPECTED_PSQL_QUERY in body, (
             f"{name}() does not query exactly `{_EXPECTED_PSQL_QUERY}`:\n{body}"
         )
