@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "PG18 plan precondition — add pgvector_version to versions.yaml; re-date two postgres:16-alpine literals as history"
 }

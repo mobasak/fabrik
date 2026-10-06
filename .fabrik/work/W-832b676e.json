@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T19:27:15.429098Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-832b676e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M46BNT62C7988B5QN175ZKNN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: fabrik-review-loop.js marks a slice's files \"unread\" (closable: false, open: [\"unread: …\"]) when the seat reports files_read as ABSOLUTE paths inside the pin dir; the gap check compares them with the slice's repo-relative paths."
+}
