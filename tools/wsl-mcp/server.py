@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -56,12 +56,12 @@ def _resolve(path: str) -> Path:
 @mcp.tool()
 async def bash(
     command: str,
-    description: Optional[str] = None,
-    comment: Optional[str] = None,
+    description: str | None = None,
+    comment: str | None = None,
     timeout_seconds: int = 120,
-    working_directory: Optional[str] = None,
-    stdin: Optional[str] = None,
-    env: Optional[dict[str, str]] = None,
+    working_directory: str | None = None,
+    stdin: str | None = None,
+    env: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Run a shell command in WSL as the operator (login bash, full PATH).
 
@@ -90,7 +90,7 @@ async def bash(
         out, err = await asyncio.wait_for(
             proc.communicate(stdin.encode() if stdin else None), timeout=timeout_seconds
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         timed_out = True
         for sig in (15, 9):
             try:
@@ -100,7 +100,7 @@ async def bash(
             try:
                 out, err = await asyncio.wait_for(proc.communicate(), timeout=5)
                 break
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 out, err = b"", b""
     return {
         "stdout": _clip(out.decode(errors="replace")),
@@ -122,7 +122,7 @@ def read_file(path: str, offset: int = 0, limit: int = 0) -> str:
     start = max(offset - 1, 0) if offset else 0
     end = start + limit if limit else len(lines)
     chunk = lines[start:end]
-    body = "\n".join(f"{i:6d}\t{l}" for i, l in enumerate(chunk, start=start + 1))
+    body = "\n".join(f"{i:6d}\t{line}" for i, line in enumerate(chunk, start=start + 1))
     note = f"\n[{len(lines)} lines total]" if end < len(lines) or start else ""
     return _clip(body) + note
 

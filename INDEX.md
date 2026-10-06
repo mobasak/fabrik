@@ -1025,6 +1025,7 @@ docs/
 │   ├── vps-claude-quota-governance.md
 │   ├── vscode-configuration.md
 │   ├── wip-backup-safety-net.md
+│   ├── wsl-mcp.md
 │   ├── wsl-shell-mcp-setup.md
 │   └── wsl-startup-inventory.md
 └── zed

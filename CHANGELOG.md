@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the completion gate is green again after the wsl-mcp bridge landed (2026-10-06)
+- `tools/wsl-mcp/server.py` carried 8 ruff errors and `docs/workstation/wsl-mcp.md` had no `INDEX.md` entry (both from 898eb1269), which turned the repo-wide lint ratchet and the INDEX↔docs check red for every session. The lint rewrites are behaviour-neutral on the service's Python 3.12 (the five tool schemas are byte-identical to before).
+
 ### Fixed — kaizen `hole_count` counts only sessions the Stop hook can see (2026-10-06)
 - The daily digest's hole count (218 → 304 → 393) was measuring headless `claude -p` pings from `~` and `/tmp`, which never get a Stop-hook pass. `holes()` now counts a transcript only when its recorded working directory is a fabrik project, and the quota hold's exit counts as a pass; 10-05 reads 1 hole, not 393. `hole_count` moves to version 4 (D-618, W-97de2aa3, W-1e22a021).
 
