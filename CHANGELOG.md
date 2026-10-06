@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 - A worktree lacks the main checkout's gitignored files, so `--sync` there rewrote INDEX.md's committed STRUCTURE block without them (tryton-crm 01M3T9H8). In a linked worktree, a block row that is absent on disk and gitignored by the checkout is now carried forward, comment and collapsed state included. A deleted tracked row is still dropped, and the main checkout's output is unchanged: 38 of 38 /opt blocks are byte-identical old vs new.
 - The run message names `INDEX.md` (the block lives in the root INDEX.md, not `docs/INDEX.md`).
 
+### Fixed — the TERMINAL banner no longer claims a sweep that did not happen (2026-10-06)
+- `scripts/command_run.py`'s TERMINAL VERDICT said "swept every known class (a, b) clean" even when the closing round swept only one class and the rest stood clean from an earlier round, so a receipt copying the banner carried a false coverage claim. It now names the classes this round swept apart from those "standing clean from an earlier round". Tests: tests/test_command_run.py 276 passed (two red-first tests: the two-class split and the never-empty swept list). W-d44d0d7e.
+
 ### Fixed — Constraints Digest columns found by header; review-loop pin layout stated (2026-10-06)
 - `scripts/enforcement/check_rule_grounding.py` reads the digest's quote from a header named exactly `Quote` (or `Verbatim`) and the cited file from `Source`, in any order; without those headers it keeps the positional rule. A digest laid out `| Rule | Quote | Source | Applies |` no longer draws QUOTE-NOT-FOUND on every row (fabrik-lib 01M3T5RK). Over the 55 existing digests, 224 → 252 of 473 rows grade green and none turn red.
 - An absolute or `..` cited path is now a QUOTE-NOT-FOUND finding for that row, and an unreadable path no longer aborts the whole census with PermissionError.
