@@ -45,6 +45,15 @@ OVER_LINE = cr._rotate_threshold() + 1.0
 SENTINEL = "SENTINEL-ACCESS-TOKEN"
 
 
+@pytest.fixture(autouse=True)
+def _no_real_capability_probe(monkeypatch):
+    """The flip leg probes the active account and every promotion candidate (plan 2026-10-06-plan-2,
+    D2/D6). This file's tick tests never meant to launch the real `claude` for that, so the D2/D6
+    entry point answers `ok`. It stubs `_probe_account`, NOT `_capability_probe`, so the tests of
+    the probe itself still run it against their own stubbed `subprocess.run`."""
+    monkeypatch.setattr(cr, "_probe_account", lambda *a, **k: "ok")
+
+
 def _canonical(tmp_path, monkeypatch):
     """A fake ~/.claude + ~/.claude.json + an empty fleet root. Returns (fleet, cdir, home)."""
     home = tmp_path / "home"

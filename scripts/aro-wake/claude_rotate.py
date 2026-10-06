@@ -732,6 +732,38 @@ def _notify_telegram(text: str) -> bool:
         return False
 
 
+def _bound_fleet_slug(env: dict[str, str]) -> str | None:
+    """The fleet dir a ``claude`` call with *env* answers as — ``CLAUDE_CONFIG_DIR`` resolved, so a
+    session bound to ``<root>/active`` names the pointer's target AT THIS MOMENT — or None when the
+    call is bound to no fleet dir (unset, the shared ``~/.claude``, a VPS host with no fleet)."""
+    cfg = env.get("CLAUDE_CONFIG_DIR")
+    if not cfg:
+        return None
+    try:
+        dest = Path(cfg).resolve()
+        root = _fleet_root().resolve()
+    except (OSError, RuntimeError):
+        return None
+    return dest.name if dest.parent == root and dest.is_dir() else None
+
+
+def _wrapper_park(slug: str | None) -> None:
+    """Park the account behind *slug* after a refused ``run_claude`` call (spec D4b) — confirmed
+    by :func:`_auto_park`'s second probe of that same dir, 45 s bounded. Stderr only: the CLI
+    passthrough mirrors stdout to its callers."""
+    if slug is None:
+        sys.stderr.write("claude_rotate: capability refused outside the fleet — nothing parked\n")
+        return
+    arow = _load_assignments(strict=False).get(slug)
+    identity = arow.get("identity") if isinstance(arow, dict) else None
+    _auto_park(
+        identity if isinstance(identity, str) else "",
+        source="wrapper",
+        cfg_dir=_fleet_root() / slug,
+        timeout=_ACTIVE_PROBE_TIMEOUT_S,
+    )
+
+
 def run_claude(
     argv: list[str], timeout: int, cwd: str, env: dict[str, str], buffer_stdin: bool = False
 ) -> subprocess.CompletedProcess:
@@ -757,6 +789,7 @@ def run_claude(
     behavior change).
     """
     stdin_data = _read_piped_stdin() if buffer_stdin else None
+    bound = _bound_fleet_slug(env)  # the account this call answers as — snapshot BEFORE the call
     # Pin subprocess I/O to UTF-8 with errors="replace" (NOT text=True, which re-encodes stdin with
     # the LOCALE's encoding + STRICT errors): _read_piped_stdin decoded leniently, so under a
     # non-UTF-8 locale (LANG=C) a strict re-encode of any non-ASCII byte would raise UnicodeEncodeError
@@ -789,6 +822,13 @@ def run_claude(
     # (max_rotations == 0 — a 1-snapshot host) correctly stays "exhausted".
     withheld_reason: str | None = None
     while True:
+        if _capability_verdict(result.returncode, result.stdout or "") == "refused":
+            # The organisation refuses Claude Code on this account (spec D4b): park the account the
+            # call was BOUND to (snapshotted before it ran — the pointer may have moved since) and
+            # stop — every retry would meet the same refusal. On a fleet host the rotate below is
+            # withheld anyway; the next tick flips away from a parked active account.
+            _wrapper_park(bound)
+            break
         combined = (result.stdout or "") + "\n" + (result.stderr or "")
         # Rotate on the usage-limit signal OR a 401, REGARDLESS of exit code / output format.
         # Never missing a real limit/401 is this feature's core guarantee, and Claude's exit code
@@ -823,6 +863,7 @@ def run_claude(
         last_target = new_account
         tried.add(new_account)
         rotations += 1
+        bound = _bound_fleet_slug(env)
         result = subprocess.run(
             argv,
             capture_output=True,
@@ -3509,7 +3550,7 @@ def _flip_candidate_verdict(
         wu = utils.get("seven_day")
         cap = row.get("weekly_cap")
         if _is_parked(cap):
-            return slug, utils, "parked by the operator (`--unpark` restores it)"
+            return slug, utils, "parked (`--unpark` restores it)"
         if cap is not None and wu is not None and wu >= cap:
             return slug, utils, f"weekly {wu:.0f}% ≥ cap {cap}"
         return slug, utils, f"a window ≥ {threshold:.0f}% (flip-away next tick)"
@@ -3557,6 +3598,34 @@ def _freshest_credentialed_slug(dirs: list[Path]) -> str | None:
 
 
 def _validated_pick(
+    accounts: list[dict], exclude: set[str], *, verbose: bool = False, probe: bool = False
+) -> tuple[str, str] | None:
+    """F-P2 plus the capability probe: :func:`_validated_pick_reading`'s quota-validated pick,
+    and — with *probe*, which only the flip leg passes — one real Claude Code call proving the
+    candidate can serve before it becomes the fleet's pointer (spec D2). A candidate's ``ok``
+    verdict is trusted for ``ROTATE_PROBE_TRUST_S`` (6 h) and an ``inconclusive`` one is not
+    retried for 30 minutes (:func:`_probe_account`); ``inconclusive`` picks it as before, and a
+    ``refused`` one is auto-parked after a confirming second probe (:func:`_auto_park`) and
+    skipped for the rest of this tick either way. The relief advisory and a manual ``--switch``
+    never probe. None when nobody survives."""
+    exclude = set(exclude)
+    while True:
+        pick = _validated_pick_reading(accounts, exclude, verbose=verbose)
+        if pick is None or not probe:
+            return pick
+        slug, email = pick
+        verdict = _probe_account(email, slug)
+        if verdict == "ok":
+            return pick
+        if verdict == "inconclusive":
+            print(f"tick: {email} capability probe inconclusive — picked anyway")
+            return pick
+        row = next((r for r in accounts if r.get("email") == email), None)
+        _auto_park(email, source="promote", cfg_dir=_fleet_root() / slug, row=row)
+        exclude.add(email)
+
+
+def _validated_pick_reading(
     accounts: list[dict], exclude: set[str], *, verbose: bool = False
 ) -> tuple[str, str] | None:
     """F-P2: :func:`_pick_flip_target`, with cached candidates LIVE-verified before they can
@@ -4014,6 +4083,38 @@ def _probe_account(
     verdict = _capability_probe(_fleet_root() / slug, timeout)
     _record_probe(email, verdict)
     return verdict
+
+
+def _session_refusal_epoch() -> float | None:
+    """The newest epoch of a session's own ``oauth_org_not_allowed`` death record (spec D7): the
+    StopFailure hook writes ``<lockdir>/<safe-sess>.errparked`` = ``<class> <epoch>`` on every
+    failed interactive session (the read-only parser is ``kaizen_coroner._errparked_markers``).
+    A marker names a SESSION, not an account, so it only expires the active account's cached
+    verdict — the probe it triggers is the definitive act. A marker more than
+    ``_CLOCK_SKEW_TOLERANCE_S`` in the future is skipped (a cap recomputed each tick would stay
+    newer than every verdict and force a probe every tick); one inside it counts as now.
+    Malformed records are skipped; an unreadable dir is None; never raises."""
+    now = _now()
+    newest: float | None = None
+    try:
+        entries = list(_selfwatch_lock_dir().iterdir())
+    except OSError:
+        return None
+    for path in entries:
+        if not path.name.endswith(".errparked"):
+            continue
+        try:
+            parts = path.read_text(errors="replace")[:256].split()
+        except OSError:
+            continue
+        if len(parts) < 2 or parts[0] != "oauth_org_not_allowed" or not parts[1].isdigit():
+            continue
+        epoch = float(parts[1])
+        if epoch > now + _CLOCK_SKEW_TOLERANCE_S:
+            continue
+        epoch = min(epoch, now)
+        newest = epoch if newest is None else max(newest, epoch)
+    return newest
 
 
 def _auto_park(
@@ -5924,7 +6025,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     *threshold* on either window AND a credentialed, un-walled sibling has headroom."""
     active_slug = _resolve_active()
     if active_slug is None:
-        pick = _validated_pick(accounts, set())
+        pick = _validated_pick(accounts, set(), probe=True)
         slug = pick[0] if pick else _freshest_credentialed_slug(dirs)
         if slug is None:
             print("tick: active pointer missing and NO credentialed dir exists — cannot repair")
@@ -5938,13 +6039,56 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     if row is None:
         print(f"tick: active {active_slug} — identity pending, no flip decision possible")
         return
+    # THE ACTIVE ACCOUNT'S CAPABILITY (spec D6, D7 — the 2026-09-29/30 incident: ob refused every
+    # session while its readings stayed healthy, and no tick left it). Re-checked on its own
+    # 30-minute window with a 45 s probe, at once when a session's own refusal marker is newer
+    # than the verdict; a parked active account — this refusal or any earlier park, the
+    # operator's included — is flipped away from here, with no quota reading needed (the trip
+    # path below returns before deciding when the row has none) and is never re-probed.
+    if not _is_parked(row.get("weekly_cap")):
+        verdict = _probe_account(
+            row["email"],
+            active_slug,
+            window=_active_probe_s(),
+            timeout=_ACTIVE_PROBE_TIMEOUT_S,
+            expired_after=_session_refusal_epoch(),
+        )
+        if verdict == "refused":
+            _auto_park(
+                row["email"],
+                source="active",
+                cfg_dir=_fleet_root() / active_slug,
+                timeout=_ACTIVE_PROBE_TIMEOUT_S,
+                row=row,
+            )
+    if _is_parked(row.get("weekly_cap")):
+        kind = "refused" if row.get("capability_refused") else "parked"
+        pick = _validated_pick(accounts, {row["email"]}, probe=True)
+        if pick is None:
+            print(
+                f"tick: active {row['email']} is parked and NO successor has headroom — "
+                + "; ".join(_flip_exclusion_reasons(accounts, {row["email"]}, threshold))
+            )
+            return
+        slug, email = pick
+        if _flip_active(slug, ignore_dwell=True, kind=kind):
+            print(f"tick: active {row['email']} parked ({kind}) — flipped -> {email} ({slug})")
+            _tick_telegram(
+                f"active account {row['email']} is parked ({kind}) — auto-flipped to {email}.",
+                key=f"capability-flip-{row['email']}",
+            )
+        else:
+            print(
+                f"tick: active {row['email']} parked ({kind}) — flip to {slug} withheld (see stderr)"
+            )
+        return
     # DEAD-ACTIVE CHAIN IS A FLIP TRIGGER (root cause of the 2026-08-17 21:00 incident: the
     # active chain died at 93% quota and the tick said "no flip" from cache for 9 hours while
     # every screen begged for login). `ping_failed` = the stale-reading refresh ping could not
     # roll this chain. Gate on a PROVEN-UP network — at least one OTHER account probed live
     # this run — so a box-wide outage never triggers a pointless flip storm.
     if row.get("ping_failed") and any(r.get("source") == "live" for r in accounts if r is not row):
-        pick = _validated_pick(accounts, {row["email"]})
+        pick = _validated_pick(accounts, {row["email"]}, probe=True)
         if pick is not None:
             slug, email = pick
             if _flip_active(slug, ignore_dwell=True, kind="dead-chain"):
@@ -6039,7 +6183,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
                 # a stale cache flipped to a later-resetting account and the next tick flipped back).
                 pick, p_reset = None, None
                 while len(excluded) < len(accounts):
-                    cand = _validated_pick(accounts, excluded, verbose=True)
+                    cand = _validated_pick(accounts, excluded, verbose=True, probe=True)
                     if cand is None:
                         break
                     prow = next((r for r in accounts if r.get("email") == cand[1]), None) or {}
@@ -6085,7 +6229,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         if cap_only
         else f"at {hot:.0f}%{projected}"
     )
-    pick = _validated_pick(accounts, {row["email"]}, verbose=True)
+    pick = _validated_pick(accounts, {row["email"]}, verbose=True, probe=True)
     if pick is None:
         # Every sibling is walled/cap-walled/unreadable/credential-less: nothing to flip to. The
         # ≥85% advisory loop below is the recourse (Telegram + drain mail), exactly as before.

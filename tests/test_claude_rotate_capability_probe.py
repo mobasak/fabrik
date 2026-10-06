@@ -13,11 +13,24 @@ monkeypatched `subprocess.run`, never the real CLI.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import threading
 import time
 
-from tests.test_claude_fleet import FLEET_NOW, _canonical, _fleet_creds, _pin, cr
+from tests.test_claude_fleet import (
+    FLEET_NOW,
+    _canonical,
+    _caps,
+    _fake_oauth,
+    _fleet_creds,
+    _fleet_tick_spies,
+    _fleet_two_accounts,
+    _pin,
+    _point,
+    _usage_blob,
+    cr,
+)
 
 # The shapes `claude -p --output-format json` prints (G1, G3). NOT_LOGGED_IN is the verbatim failure
 # captured in the plan's Evidence (an empty config dir); HEALTHY carries the keys of the one real call.
@@ -449,3 +462,271 @@ def test_r9_a_park_that_could_not_be_written_never_shows_as_parked(tmp_path, mon
     row = {"email": "a@ocoron.com", "weekly_cap": None, "parked": False}
     assert cr._auto_park("a@ocoron.com", source="active", cfg_dir=fleet / "d0", row=row) is False
     assert row["weekly_cap"] == 0 and row["parked"] is False
+
+
+# ── Phase B: the wiring — probe on promote (D2), active re-check (D6), session marker (D7),
+#    the wrapper (D4b) ───────────────────────────────────────────────────────────────────────────
+
+
+def _fleet_b(tmp_path, monkeypatch, *, active="seo"):
+    """Two accounts — seo/youtube are sarp@, intel is ob@ — both with live, cool readings."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(10.0, 10.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    monkeypatch.setattr(cr, "_selfwatch_lock_dir", lambda: tmp_path / "locks")
+    _point(fleet, active)
+    return fleet
+
+
+def _probe_by_dir(monkeypatch, refused=()):
+    """`claude` answers the refusal for any dir named in *refused*, healthy otherwise."""
+    calls = []
+
+    def fake_run(argv, **kw):
+        name = os.path.basename(kw["env"]["CLAUDE_CONFIG_DIR"])
+        calls.append({"dir": name, "timeout": kw.get("timeout")})
+        return (
+            subprocess.CompletedProcess(argv, 1, REFUSAL, "")
+            if name in refused
+            else (subprocess.CompletedProcess(argv, 0, HEALTHY, ""))
+        )
+
+    monkeypatch.setattr(cr.subprocess, "run", fake_run)
+    return calls
+
+
+def _flips(tmp_path):
+    return [r for r in _ledger_rows(tmp_path) if r.get("event") == "flip"]
+
+
+def _cache_ok(email, age_s):
+    cr._probe_cache_path().write_text(
+        json.dumps({email: {"verdict": "ok", "ts": FLEET_NOW - age_s}})
+    )
+
+
+def test_b5_a_refused_active_account_is_parked_and_flipped_away_on_the_same_tick(
+    tmp_path, monkeypatch
+):
+    """D6: the active account, holding no fresh verdict, refuses — it is parked and the pointer
+    leaves it on THIS tick, flip kind `refused`."""
+    fleet = _fleet_b(tmp_path, monkeypatch)
+    _probe_by_dir(monkeypatch, refused={"seo"})
+    assert cr._cmd_tick() == 0
+    assert os.readlink(fleet / "active") == "intel"
+    assert json.loads((fleet / "parked.json").read_text()) == ["sarp@ocoron.com"]
+    parks = [r for r in _ledger_rows(tmp_path) if r.get("event") == "auto-park"]
+    assert [p["source"] for p in parks] == ["active"]
+    assert [f.get("kind") for f in _flips(tmp_path)] == ["refused"]
+
+
+def test_b5b_a_fresh_active_verdict_spends_no_probe(tmp_path, monkeypatch):
+    """Cost: an `ok` younger than the active window means no probe on this tick."""
+    fleet = _fleet_b(tmp_path, monkeypatch)
+    calls = _probe_by_dir(monkeypatch)
+    _cache_ok("sarp@ocoron.com", 5 * 60.0)
+    assert cr._cmd_tick() == 0
+    assert calls == []
+    assert os.readlink(fleet / "active") == "seo"
+
+
+def test_b5c_an_operator_parked_active_account_with_no_reading_is_flipped_and_not_probed(
+    tmp_path, monkeypatch
+):
+    """D6 + D-443: any parked active account is flipped away, even with no quota reading, and is
+    never re-probed (its weekly_cap reads 0)."""
+    fleet = _fleet_b(tmp_path, monkeypatch)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(None, None), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _caps(fleet, {"sarp@ocoron.com": 0})
+    calls = _probe_by_dir(monkeypatch)
+    assert cr._cmd_tick() == 0
+    assert os.readlink(fleet / "active") == "intel"
+    assert [f.get("kind") for f in _flips(tmp_path)] == ["parked"]
+    # D6's own probe is the 45 s one; a 150 s call on seo is today's stale-reading refresh ping (D4)
+    assert not [c for c in calls if c["dir"] == "seo" and c["timeout"] == 45], calls
+
+
+def test_b5d_a_withheld_flip_away_alerts_nothing_and_says_withheld(tmp_path, monkeypatch, capsys):
+    fleet = _fleet_b(tmp_path, monkeypatch)
+    _probe_by_dir(monkeypatch, refused={"seo"})
+    sent = _alerts(monkeypatch)
+    monkeypatch.setattr(cr, "_flip_active", lambda *a, **k: False)
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    assert os.readlink(fleet / "active") == "seo"
+    assert "withheld" in capsys.readouterr().out
+    assert not [m for m, _k in sent if "flipped" in m.lower()]
+
+
+def test_b1_a_refused_top_candidate_is_parked_and_the_next_is_picked(tmp_path, monkeypatch):
+    """D2: the picker's top candidate refuses — it is parked, walled for this tick, and the next
+    healthy candidate is returned."""
+    _fleet_b(tmp_path, monkeypatch)
+    _probe_by_dir(monkeypatch, refused={"intel"})
+    accounts = [
+        {"email": "ob@ocoron.com", "slugs": ["intel"], "weekly_cap": None, "parked": False},
+        {"email": "sarp@ocoron.com", "slugs": ["seo"], "weekly_cap": None, "parked": False},
+    ]
+    picks = iter([("intel", "ob@ocoron.com"), ("seo", "sarp@ocoron.com")])
+    monkeypatch.setattr(cr, "_validated_pick_reading", lambda acc, ex, verbose=False: next(picks))
+    assert cr._validated_pick(accounts, set(), probe=True) == ("seo", "sarp@ocoron.com")
+    assert accounts[0]["weekly_cap"] == 0
+    parks = [r for r in _ledger_rows(tmp_path) if r.get("event") == "auto-park"]
+    assert [(p["email"], p["source"]) for p in parks] == [("ob@ocoron.com", "promote")]
+
+
+def test_b2_a_fresh_candidate_verdict_spends_no_probe_and_a_stale_one_spends_one(
+    tmp_path, monkeypatch
+):
+    _fleet_b(tmp_path, monkeypatch)
+    calls = _probe_by_dir(monkeypatch)
+    _cache_ok("ob@ocoron.com", 3600.0)
+    assert cr._probe_account("ob@ocoron.com", "intel") == "ok"
+    assert calls == []
+    _cache_ok("ob@ocoron.com", cr._probe_trust_s() + 60.0)
+    assert cr._probe_account("ob@ocoron.com", "intel") == "ok"
+    assert len(calls) == 1
+
+
+def test_b3_an_inconclusive_candidate_is_picked_as_today(tmp_path, monkeypatch, capsys):
+    _fleet_b(tmp_path, monkeypatch)
+
+    def timeout_run(argv, **kw):
+        raise subprocess.TimeoutExpired(argv, kw["timeout"])
+
+    monkeypatch.setattr(cr.subprocess, "run", timeout_run)
+    accounts = [{"email": "ob@ocoron.com", "slugs": ["intel"], "weekly_cap": None}]
+    monkeypatch.setattr(
+        cr, "_validated_pick_reading", lambda acc, ex, verbose=False: ("intel", "ob@ocoron.com")
+    )
+    capsys.readouterr()
+    assert cr._validated_pick(accounts, set(), probe=True) == ("intel", "ob@ocoron.com")
+    assert "capability probe inconclusive" in capsys.readouterr().out
+    assert not (tmp_path / "fleet" / "parked.json").exists()
+
+
+def test_b4_the_advisory_and_a_manual_switch_never_probe(tmp_path, monkeypatch):
+    """D2: only the flip leg probes; the relief advisory and the operator's --switch never do, and
+    the switch still lands on a refusing account (D-443's escape hatch)."""
+    fleet = _fleet_b(tmp_path, monkeypatch)
+    calls = _probe_by_dir(monkeypatch, refused={"intel"})
+    monkeypatch.setattr(
+        cr, "_validated_pick_reading", lambda acc, ex, verbose=False: ("intel", "ob@ocoron.com")
+    )
+    assert cr._validated_pick([], set()) == ("intel", "ob@ocoron.com")
+    assert calls == []
+    assert cr.main(["--switch", "intel"]) == 0
+    assert calls == []
+    assert os.readlink(fleet / "active") == "intel"
+
+
+def test_b7_inconclusive_is_held_off_and_a_d4_ok_seeds_the_cache(tmp_path, monkeypatch):
+    _fleet_b(tmp_path, monkeypatch)
+    calls = _probe_script(monkeypatch, [(1, "boom")])
+    assert cr._probe_account("ob@ocoron.com", "intel") == "inconclusive"
+    assert cr._probe_account("ob@ocoron.com", "intel") == "inconclusive"
+    assert len(calls) == 1, "an inconclusive verdict is not re-probed within _PROBE_RETRY_S"
+    cr._record_probe("ob@ocoron.com", "ok")  # what the D4 ping writes after an `ok`
+    calls.clear()
+    assert cr._probe_account("ob@ocoron.com", "intel", window=cr._active_probe_s()) == "ok"
+    assert calls == []
+
+
+def test_b7b_an_unwritable_state_dir_never_stops_the_tick(tmp_path, monkeypatch):
+    fleet = _fleet_b(tmp_path, monkeypatch)
+    _probe_by_dir(monkeypatch, refused={"seo"})
+    monkeypatch.setattr(cr, "_record_probe", lambda e, v: None)  # nothing can be cached
+    ro = tmp_path / "ro-state"
+    ro.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(ro))
+    ro.chmod(0o500)
+    try:
+        assert cr._cmd_tick() == 0
+    finally:
+        ro.chmod(0o700)
+    assert os.readlink(fleet / "active") == "intel"
+
+
+def test_b8_a_sessions_refusal_marker_expires_the_active_verdict(tmp_path, monkeypatch):
+    """D7: an `.errparked` record of class oauth_org_not_allowed newer than the active `ok` makes
+    this tick probe the active account; another class, an older record or a malformed one do not;
+    a record more than 60 s in the future is skipped."""
+    _fleet_b(tmp_path, monkeypatch)
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    cases = [
+        ("oauth_org_not_allowed", FLEET_NOW - 60, 1),
+        ("rate_limit", FLEET_NOW - 60, 0),
+        ("oauth_org_not_allowed", FLEET_NOW - 3600, 0),
+        ("garbage!!", FLEET_NOW - 60, 0),
+        ("oauth_org_not_allowed", FLEET_NOW + 3600, 0),
+    ]
+    for cls, epoch, want in cases:
+        for f in locks.glob("*.errparked"):
+            f.unlink()
+        (locks / "sess1.errparked").write_text(f"{cls} {int(epoch)}\n")
+        _cache_ok("sarp@ocoron.com", 5 * 60.0)  # fresh: only a marker can expire it
+        calls = _probe_by_dir(monkeypatch)
+        cr._fleet_flip_leg(cr._fleet_dirs(), *(cr._fleet_account_rows(cr._fleet_dirs())[:1]), 98.0)
+        assert len([c for c in calls if c["dir"] == "seo"]) == want, (cls, epoch, calls)
+
+
+def test_b9_the_active_window_is_thirty_minutes_and_its_probes_are_bounded(tmp_path, monkeypatch):
+    _fleet_b(tmp_path, monkeypatch)
+    for age, want in ((31 * 60.0, 1), (29 * 60.0, 0)):
+        _cache_ok("sarp@ocoron.com", age)
+        calls = _probe_by_dir(monkeypatch)
+        cr._fleet_flip_leg(cr._fleet_dirs(), *(cr._fleet_account_rows(cr._fleet_dirs())[:1]), 98.0)
+        active = [c for c in calls if c["dir"] == "seo"]
+        assert len(active) == want, (age, calls)
+        assert all(c["timeout"] == 45 for c in active)
+    _cache_ok("ob@ocoron.com", 31 * 60.0)
+    assert cr._probe_account("ob@ocoron.com", "intel") == "ok"  # standby: 6 h window
+
+
+def test_b6_the_wrapper_parks_the_account_its_call_was_bound_to(tmp_path, monkeypatch, capsys):
+    """D4b: the refusal parks the account of the fleet dir the call was bound to AT CALL TIME —
+    never the pointer's when it moved meanwhile; unbound calls park nothing."""
+    fleet = _fleet_b(tmp_path, monkeypatch, active="seo")
+    _alerts(monkeypatch)
+
+    def run_and_repoint(argv, **kw):
+        if argv and argv[0] == "claude" and "-p" in argv and "ok" in argv:
+            return subprocess.CompletedProcess(argv, 1, REFUSAL, "")  # the confirmation
+        _point(fleet, "intel")  # a tick flips the pointer during the long call
+        return subprocess.CompletedProcess(argv, 1, REFUSAL, "")
+
+    monkeypatch.setattr(cr.subprocess, "run", run_and_repoint)
+    capsys.readouterr()
+    env = {"CLAUDE_CONFIG_DIR": str(fleet / "active"), "PATH": os.environ.get("PATH", "")}
+    result = cr.run_claude(["claude", "-p", "do the thing"], 30, str(tmp_path), env)
+    assert result.stdout == REFUSAL
+    assert json.loads((fleet / "parked.json").read_text()) == ["sarp@ocoron.com"]
+    assert capsys.readouterr().out == ""
+
+    (fleet / "parked.json").unlink()
+    unbound = {"PATH": os.environ.get("PATH", "")}
+    cr.run_claude(["claude", "-p", "do the thing"], 30, str(tmp_path), unbound)
+    assert not (fleet / "parked.json").exists()
+    assert "capability refused outside the fleet" in capsys.readouterr().err
+
+    healthy_quote = json.dumps(
+        {"type": "result", "is_error": False, "result": "it said oauth_org_not_allowed"}
+    )
+    monkeypatch.setattr(
+        cr.subprocess,
+        "run",
+        lambda argv, **kw: subprocess.CompletedProcess(argv, 0, healthy_quote, ""),
+    )
+    cr.run_claude(["claude", "-p", "x"], 30, str(tmp_path), env)
+    assert not (fleet / "parked.json").exists()
