@@ -1002,13 +1002,21 @@ def _validate_compose(content: str) -> list[str]:
         # `healthcheck: {disable: true}` fails `docker compose up -d --wait` ("has no healthcheck
         # configured", rc 1 — compose 2.40.3), which every git and redeploy path runs; a service with
         # NO healthcheck block passes. Refused here, before `up`, with the two shapes that work.
+        # Compose disables a healthcheck three ways and all three fail `--wait` identically:
+        # `disable: true`, a quoted `disable: "true"`, and `test: ["NONE"]` (or the bare "NONE").
         healthcheck = svc_config.get("healthcheck")
-        if isinstance(healthcheck, dict) and healthcheck.get("disable") is True:
-            errors.append(
-                f"Service '{svc_name}': healthcheck `disable: true` fails `compose up --wait` — "
-                "give it a liveness probe (e.g. test: [\"CMD-SHELL\", \"kill -0 1\"]) or omit "
-                "the block when the image declares no HEALTHCHECK"
+        if isinstance(healthcheck, dict):
+            test = healthcheck.get("test")
+            disabled = str(healthcheck.get("disable")).strip().lower() == "true" or (
+                test == "NONE" or (isinstance(test, list) and test[:1] == ["NONE"])
             )
+            if disabled:
+                errors.append(
+                    f"Service '{svc_name}': a disabled healthcheck (`disable: true` or "
+                    '`test: ["NONE"]`) fails `compose up --wait` — give it a liveness probe '
+                    '(e.g. test: ["CMD-SHELL", "kill -0 1"]) or omit the block when the image '
+                    "declares no HEALTHCHECK"
+                )
 
     # Network: fabrik external (renamed from `coolify` 2026-05-31; W12 of fleet-hardening plan).
     networks = data.get("networks", {})

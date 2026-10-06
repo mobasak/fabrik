@@ -20,7 +20,7 @@ source:
   repository: https://github.com/mobasak/brand-identity-creator.git
   branch: master
 depends:
-  postgres: main
+  postgres: brand_identiy_creator   # its OWN database — the name the registrar derives; never the shared `main`
   redis: main
 deploy:
   db_before_boot: true        # the app builds its engine at import and connects in lifespan — the
