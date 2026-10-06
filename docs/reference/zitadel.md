@@ -19,7 +19,9 @@ verified via `docker inspect`). **NOT** authelia (Zitadel *is* the auth), **NOT*
   `ZITADEL_TLS_ENABLED=false` — Zitadel serves plain HTTP internally; Traefik terminates HTTPS. `EXTERNALPORT=443`
   (the port end users reach), `PORT=8080` (internal listen).
 - **Masterkey:** `secrets.generate` mints `ZITADEL_MASTERKEY` = exactly 32 `[a-zA-Z0-9]` chars (Zitadel's hard
-  requirement). **Never rotate it** — it decrypts stored data. `start-from-init` = init+setup+start one-shot;
+  requirement). **Never rotate it** — it decrypts stored data. It is minted on the FIRST apply only: a re-apply keeps
+  the value the deployed `.env` holds (mint-once, `SSHDeployer._preserve_minted_secrets`, W-023bdd59), so a later
+  `fabrik apply` is safe; setting it on the hub would overwrite it. `start-from-init` = init+setup+start one-shot;
   the compose emitter (`_generate_docker_compose`) interpolates `${ZITADEL_MASTERKEY}` from `.env` at up-time.
 - **DB (DSN-only):** the postgres registrar injects only a single `DATABASE_URL`, so the spec uses
   `ZITADEL_DATABASE_POSTGRES_DSN=${DATABASE_URL}` (+ `_USER_SSL_MODE=disable` for the internal `fabrik` net).

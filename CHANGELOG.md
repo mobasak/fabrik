@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a re-apply no longer re-mints a generated secret; the deployed value is kept (2026-10-06)
+
+- `fabrik apply` minted a fresh value for every `secrets.generate`/`required` key the hub could not resolve, on EVERY apply, and the template path baked it into `compose.yaml` — so a re-apply replaced passwords and a stable encryption key such as Zitadel's `ZITADEL_MASTERKEY`. `SSHDeployer._preserve_minted_secrets` now keeps the value the deployed `.env` holds, before anything renders; to rotate such a secret, set it on the hub. A failed read of the remote `.env` aborts the deploy when anything was minted. W-023bdd59, D-619; review receipt `docs/development/reviews/2026-10-06-mint-once-secrets-review.md`.
+
 ### Fixed — a disabled healthcheck no longer fails `compose up --wait`; the compose validator checks list-form environments (2026-10-06)
 
 - `healthcheck: disable: true` makes `docker compose up -d --wait` exit 1 ("has no healthcheck configured"; compose 2.40.3, measured). A service with no healthcheck block passes. Every git and redeploy path runs `--wait`, and the scaffold's own audit-jobs companion was emitted with `disable: true`, so every scaffold with a database would have failed its first git deploy. Both companion emitters now carry a liveness probe instead: `_append_audit_jobs_service` and `templates/_partials/_companion_service.yaml.j2`, both using `kill -0 1`. `_validate_compose` refuses every disabled spelling before `up` — `disable: true`, a quoted `disable: "true"`, and `test: ["NONE"]` (each fails `--wait` identically) — naming the two shapes that work. The container-health audit prompt no longer recommends `disable: true`.
