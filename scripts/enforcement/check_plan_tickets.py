@@ -143,8 +143,8 @@ def _gate_file_paths(cmd: str) -> list[tuple[str, ...]]:
     resolve to a repo-relative directory (absolute, `~`, `-`, `popd`, above the root, quoted with
     spaces, or a variable other than `$(git rev-parse --show-toplevel)`, which is the root) leaves
     the paths after it unchecked rather than guessed at — the cheapest way past this rule is such a
-    `cd`, and the review reads it. A `cd x ||` keeps `x` only when the fallback is `exit` or
-    `return` (`cd x || exit 1`); any other fallback (`cd a || cd b`), and a `cd` that is itself the
+    `cd`, and the review reads it. A `cd x ||` keeps `x` only when the fallback is the `exit` or
+    `return` builtin itself, outside a subshell (`cd x || exit 1`); any other fallback (`cd a || cd b`), and a `cd` that is itself the
     fallback (`pytest y || cd a`), leaves the directory unknown, so the paths after it are
     unchecked rather than resolved against both. `cd a || true` is therefore unchecked too.
     """
@@ -166,8 +166,10 @@ def _gate_file_paths(cmd: str) -> list[tuple[str, ...]]:
             ambiguous = False
             cwd = None if _GATE_CD_WORD_RE.match(seg) else cwd
         elif _GATE_CD_WORD_RE.match(seg) and seps[i] == "||":
-            fallback = segs[i + 1].strip().strip("()").strip() if i + 1 < len(segs) else ""
-            if re.match(r"(?:exit|return)\b", fallback):
+            # the exact builtin, outside a subshell: `(exit 1)` ends only the subshell, and
+            # `exit-with-error` is some other command
+            fallback = segs[i + 1].strip() if i + 1 < len(segs) else ""
+            if re.match(r"(?:exit|return)(?:\s|$)", fallback):
                 cwd = _gate_cd(seg, cwd)
             else:
                 cwd, ambiguous = None, True
