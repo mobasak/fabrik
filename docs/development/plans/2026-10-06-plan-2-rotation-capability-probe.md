@@ -7,11 +7,12 @@ Profile: small
 
 Spec: `docs/superpowers/specs/2026-10-06-rotation-capability-probe-design.md` (DRAFT at 99b111443, `Size: small`,
 `Profile: delta` — `/fabrik-plan-review` grades its sections together with this plan and flips both). Decision: D-614.
-Source: fleet mail 01M3QG6GG5NQNVG5MZE6SAME1G; work item W-f8bfe7eb. Estimated diff: ≈250 code lines in ONE source
+Source: fleet mail 01M3QG6GG5NQNVG5MZE6SAME1G; work item W-f8bfe7eb. Estimated diff: ≈300 code lines in ONE source
 file, copied byte-identical to its twin (2 code files), tests excluded — `_capability_probe` + `_capability_verdict` ≈60
-(replacing `_keepalive_ping`'s 30), the parked lock + `_parked_update` + `_auto_park` ≈60, the probe cache and its two
-windows ≈35, `_validated_pick` split and docstring ≈20, the D6 branch in `_fleet_flip_leg` ≈45, the D4 call site ≈8,
-the D4b hook in `run_claude` ≈25 (sum 253). Tests ≈330 lines in one new file plus two repointed tests.
+(replacing `_keepalive_ping`'s 30), the parked lock + `_parked_update` + `_auto_park` with its confirmation ≈70, the
+probe cache, its windows and the active knob ≈45, `_session_refusal_epoch` ≈25, `_validated_pick` split and
+docstring ≈20, the D6 branch in `_fleet_flip_leg` ≈45, the D4 call site ≈8, the D4b hook in `run_claude` ≈25, the
+parked reason ≈2 (sum 300). Tests ≈400 lines in one new file plus two repointed tests.
 
 ## What this plan is
 
@@ -70,8 +71,8 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 - **The operator owns un-parking** (D-443, `docs/DECISIONS.md:158`); nothing in this plan removes an email from
   `parked.json` except `--unpark`. A manual `--switch` never probes (`_cmd_fleet_switch` → `_flip_active(…, manual=True)`
   at `:3643`, which never calls `_validated_pick`).
-- **12-Factor on this surface**: a box-local cron script, not a service — **III** one optional env knob
-  (`ROTATE_PROBE_TRUST_S`), read with `os.environ.get` and a default; **XI** no log file (stderr + the existing ledger);
+- **12-Factor on this surface**: a box-local cron script, not a service — **III** two optional env knobs
+  (`ROTATE_PROBE_TRUST_S`, `ROTATE_ACTIVE_PROBE_S`), each read with `os.environ.get` and a default; **XI** no log file (stderr + the existing ledger);
   the rest not engaged (no backing service, port, process model or deploy).
 - Tests: one per behaviour, watched-fail-first (`core/45-testing-strategy.md`, the Behavior Contract and
   Watched-fail-first rows); assertions on `parked.json`, ledger rows, the pointer and verdict strings, never on prose.
@@ -128,8 +129,8 @@ Appetite: 90
   None` and a refusal printed only on stderr before the run starts included, is `"inconclusive"` (G1 covers in-run
   failures only; a pre-run failure fails open). The `result` text is never logged or stored — a healthy result echoes
   the account's private session context (Evidence, Phase A).
-- `_capability_probe(cfg_dir: Path) -> str` — replaces `_keepalive_ping` (`:7129-7157`), same env, same
-  `KEEPALIVE_TIMEOUT` (default 150) and `errors="replace"`; argv `["claude", "-p", "ok", "--output-format", "json",
+- `_capability_probe(cfg_dir: Path, timeout: int | None = None) -> str` — replaces `_keepalive_ping`
+  (`:7129-7157`), same env, `KEEPALIVE_TIMEOUT` (default 150) unless `timeout` is given, and `errors="replace"`; argv `["claude", "-p", "ok", "--output-format", "json",
   "--max-turns", "1", "--tools", ""]`; returns `_capability_verdict(p.returncode, p.stdout)`, and `"inconclusive"` on
   `OSError`/`SubprocessError`. `_keepalive_ping` is deleted; its one caller (`:4055`) and its two tests move to the new
   name.
@@ -144,13 +145,16 @@ Appetite: 90
   (`_STATE_DIR_ERRORS`, `:450`) returns `None` with one stderr line and writes nothing — the assignments site's rule
   (`:3692-3694`: "cannot lock → apply in memory only; never risk clobbering the table"). Unlock and close each in their
   own `try` (`:3712-3716`).
-- `_auto_park(email: str, *, source: str, status: object = None, row: dict | None = None) -> bool` — `source` ∈
-  `promote` · `active` · `ping` · `wrapper`. Normalises `email = email.strip().lower()` first (as `_cmd_park` does,
+- `_auto_park(email: str, *, source: str, cfg_dir: Path, status: object = None, row: dict | None = None) -> bool` —
+  `source` ∈ `promote` · `active` · `ping` · `wrapper`. It first CONFIRMS: one immediate `_capability_probe(cfg_dir)`
+  must also return `refused` (spec § The delta D3 — two refusals in a row; a refused call spends no quota); any other
+  verdict returns `False` with one stdout-free stderr line and parks nothing, walls nothing. Then it normalises `email = email.strip().lower()` first (as `_cmd_park` does,
   `:3877`), then refuses (stderr, returns `False`) an email not in `_known_account_emails()` (`:3861-3870`), so a `pending-login` identity (`:3699`) is never written. Calls `_parked_update(email, True,
   repair=False)`; on `True` appends
   `{"event": "auto-park", "email", "cause": "oauth_org_not_allowed", "source", "api_error_status": status, "ts": _now()}`
-  via `_ledger_append` and sends `_tick_telegram(<msg>, key=f"capability-{email}")` naming the account, the cause and
-  the one-step fix `claude_rotate.py --unpark <email>`; when `row` is given sets `row["weekly_cap"] = 0` and
+  via `_ledger_append` and sends `_tick_telegram(<msg>, key=f"capability-{email}")` whose text LEADS with "check this
+  account's billing" (the 2026-09-30 cause, `docs/TROUBLESHOOTING.md:255`), then names the account, the code and the
+  one-step fix `claude_rotate.py --unpark <email>` (the per-account key alerts at most once per 30 minutes, `:2585`); when `row` is given sets `row["weekly_cap"] = 0` and
   `row["capability_refused"] = True`, so every later reader of this tick walls it through the cap path it already has
   (`_flip_candidate_verdict`, `:3509-3510`) — the row is walled even when the write returned `None`, so a broken or
   unlockable `parked.json` still excludes the account for this tick. Writes nothing to stdout. Returns `True` when the
@@ -176,10 +180,10 @@ Steps:
    failure naming `_capability_verdict` (red for the right reason).
 2. Implement `_capability_verdict` and `_capability_probe`; delete `_keepalive_ping`; change the call site at `:4055` to
    `verdict = _capability_probe(with_creds[0]["dir"])`: `ok` → today's re-read of the token and usage; `refused` →
-   `_auto_park(email, source="ping", row=row)` and NOT `ping_failed` (the chain is alive, only the capability is gone —
+   `_auto_park(email, source="ping", cfg_dir=with_creds[0]["dir"], row=row)` and NOT `ping_failed` (the chain is alive, only the capability is gone —
    D4); `inconclusive` → `row["ping_failed"] = True` as today. Repoint `tests/test_claude_fleet.py:1400-1440` (argv
    expectation becomes the JSON argv; `is True` becomes `== "ok"`) and `:1767-1779` (`== "ok"`). Re-run step 1 → green.
-3. Write A5–A8, then implement `_parked_lock_fd`, `_parked_update`, `_auto_park` and the `_cmd_park` refactor:
+3. Write A5–A9, then implement `_parked_lock_fd`, `_parked_update`, `_auto_park` and the `_cmd_park` refactor:
    - A5: `_auto_park` on a known email → `parked.json` lists it, one `auto-park` ledger row carrying the email and
      `source`, one `_tick_telegram` call with `key="capability-<email>"`, `capsys` stdout empty.
    - A6: two writers racing — a monkeypatched `_write_json_atomic` that sleeps between the read and the write, two
@@ -187,6 +191,8 @@ Steps:
      drops the first).
    - A7: the stale-reading ping returning the refusal → the row carries `capability_refused` and NOT `ping_failed`,
      and the account is parked; the ping returning a timeout → `ping_failed` true and nothing parked.
+   - A9: the first probe `refused`, the confirmation `ok` → nothing parked, nothing walled, no ledger row, no alert;
+     both `refused` → parked, and the alert text begins with "check this account's billing".
    - A8: a `parked.json` holding invalid JSON → `_auto_park` leaves its bytes unchanged, returns `False`, and still
      walls the row it was given; `cr.main(["--park", <email>])` on the same file still repairs it (today's operator
      behaviour). An unknown email and `pending-login` → nothing written.
@@ -213,7 +219,8 @@ Steps:
 - **Given** a result at exit 0 with `is_error` false, or a non-JSON stdout at exit 0, **When** it is classified, **Then** the verdict is `ok` (spec § The delta D1)
 - **Given** a timeout, an `OSError`, or an `is_error` result for another cause such as "Not logged in", **When** it is classified, **Then** the verdict is `inconclusive` (spec § Lifecycle)
 - **Given** an `is_error: false` result whose text quotes `oauth_org_not_allowed`, **When** it is classified, **Then** the verdict is `ok`, never `refused` (Global Constraints, the quoted-code class)
-- **Given** a refused account, **When** `_auto_park` runs, **Then** `parked.json` lists it, the ledger has one `auto-park` row, one Telegram alert names the `--unpark` fix, and stdout is empty (spec § The delta D3)
+- **Given** an account refused twice in a row, **When** `_auto_park` runs, **Then** `parked.json` lists it, the ledger has one `auto-park` row, one Telegram alert leads with the billing check and names the `--unpark` fix, and stdout is empty (spec § The delta D3)
+- **Given** a refusal whose confirmation probe returns `ok`, **When** `_auto_park` runs, **Then** nothing is parked, walled, logged or alerted (spec § The delta D3)
 - **Given** two park writers racing, **When** both complete, **Then** both emails are in `parked.json` (spec § The delta D5)
 - **Given** the stale-reading ping returns the refusal, **When** the tick builds its rows, **Then** the account is parked and its row is not marked `ping_failed` (spec § The delta D4)
 - **Given** a broken `parked.json` or an unknown identity, **When** an automated park runs, **Then** the file is left untouched and only the in-tick row is walled, while the operator's `--park` still repairs the file (spec § Constraints digest)
@@ -223,7 +230,7 @@ Steps:
 Appetite: 120
 
 **Interfaces — Consumes** (Phase A): `_capability_probe(cfg_dir) -> str`, `_capability_verdict(rc, stdout) -> str`,
-`_auto_park(email, *, source, status=None, row=None) -> bool`.
+`_auto_park(email, *, source, cfg_dir, status=None, row=None) -> bool`.
 
 **Interfaces — Produces** (`spec § The delta` D2, D4b, D6):
 - `_probe_trust_s() -> float` — `ROTATE_PROBE_TRUST_S` (default 21600), non-finite or ≤0 → the default (the
@@ -239,9 +246,19 @@ Appetite: 120
   just probed. The flip leg's own flips are dwell-exempt
   (`ignore_dwell=True` at `:5722`, `:5740`, `:5843`, `:5894`), so the dwell bounds nothing here — these two windows
   are the only bound.
-- `_probe_account(email: str, slug: str) -> str` — returns the cached verdict without a call while it is younger than
-  its window (`ok`: `_probe_trust_s()`; `inconclusive`: `_PROBE_RETRY_S`); otherwise runs
-  `_capability_probe(_fleet_root() / slug)`, stores the verdict with `_record_probe`, and returns it.
+- `_active_probe_s() -> float` — `ROTATE_ACTIVE_PROBE_S` (default 1800), parsed like `_probe_trust_s`: the ACTIVE
+  account's `ok` window (spec § The delta D6), separate from the 6 h standby window.
+- `_ACTIVE_PROBE_TIMEOUT_S = 45` — the D6 probe's timeout, inconclusive on expiry, so it cannot hold the tick's
+  `flock -n` (`docs/workstation/claude-account-rotation.md:395`) long enough to delay a due flip.
+- `_session_refusal_epoch() -> float | None` — the newest epoch among `<_selfwatch_lock_dir()>/*.errparked` records
+  (`:5950`) whose class token is exactly `oauth_org_not_allowed`, parsed as `<class> <epoch>` the way
+  `scripts/sysadmin/kaizen_coroner.py:269-294` does (malformed records skipped, an unreadable dir → `None`, never
+  raises) — spec § The delta D7.
+- `_probe_account(email: str, slug: str, *, window: float | None = None, timeout: int | None = None, expired_after:
+  float | None = None) -> str` — returns the cached verdict without a call while it is younger than its window (`ok`:
+  `window` or `_probe_trust_s()`; `inconclusive`: `_PROBE_RETRY_S`) AND not older than `expired_after` (a session
+  refusal newer than the verdict expires it — D7); otherwise runs `_capability_probe(_fleet_root() / slug, timeout)`,
+  stores the verdict with `_record_probe`, and returns it.
 - `_record_probe(email: str, verdict: str) -> None` — writes an `ok` or `inconclusive` verdict with `ts = _now()`
   atomically into the cache (a `refused` is never written). It never raises: a write that fails with
   `_STATE_DIR_ERRORS` prints one stderr line and returns, the rule of the row pass's own cache write (`:4088-4089`,
@@ -251,14 +268,16 @@ Appetite: 120
   unchanged into `_validated_pick_reading(accounts, exclude, *, verbose)`; the wrapper loops: take the reading-validated
   pick; `probe` false or `None` → return it; `_probe_account` → `ok` → return the pick; `inconclusive` → return the
   pick and print one stdout tick line `tick: <email> capability probe inconclusive — picked anyway` (every caller that
-  probes; the tick's stdout is its log); `refused` → `_auto_park(email, source="promote", row=<its row>)`, add the
-  email to its own exclude set, loop. The four flip-leg callers (`:5717`, `:5737`, `:5832`, `:5878`) pass
+  probes; the tick's stdout is its log); `refused` → `_auto_park(email, source="promote", cfg_dir=_fleet_root() / slug, row=<its row>)`, and the
+  email joins its own exclude set whether or not the confirmation parked it (an account that just refused once is
+  never promoted onto this tick), loop. The four flip-leg callers (`:5717`, `:5737`, `:5832`, `:5878`) pass
   `probe=True`; the advisory caller (`:6683`) does not. The docstring (`:3562-3567`) gains one sentence naming the
   probe, its two windows and the auto-park (spec § Documentation landing sites).
 - In `_fleet_flip_leg` (`:5706`), right after the active row resolves (`:5727-5730`) and BEFORE the dead-chain branch
   (`:5736`): when the active account is not already parked (`_is_parked(row.get("weekly_cap"))`, `:6110-6115`, is
-  false) and `_probe_account(row["email"], active_slug)` returns `refused`, call `_auto_park(row["email"],
-  source="active", row=row)`. Then, when the active account is parked — this tick's refusal or any earlier park, the
+  false) and `_probe_account(row["email"], active_slug, window=_active_probe_s(), timeout=_ACTIVE_PROBE_TIMEOUT_S,
+  expired_after=_session_refusal_epoch())` returns `refused`, call `_auto_park(row["email"], source="active",
+  cfg_dir=_fleet_root() / active_slug, row=row)`. Then, when the active account is parked — this tick's refusal or any earlier park, the
   operator's included (D-443: "an ACTIVE parked account is flipped away from on the next tick") — run
   `pick = _validated_pick(accounts, {row["email"]}, probe=True)`. A pick → `_flip_active(slug, ignore_dwell=True,
   kind="refused" if row.get("capability_refused") else "parked")`; on `True` one stdout tick line and one
@@ -267,6 +286,9 @@ Appetite: 120
   reasons (`_flip_exclusion_reasons`, `:5752`). Either way `return`. A parked active account is never re-probed (its
   `weekly_cap` reads 0 every tick), and the branch does not depend on a quota reading (the `no quota reading` early
   return at `:5767-5769` would otherwise strand a parked active account that has none).
+- `_flip_candidate_verdict`'s parked reason (`:3512`) reads `parked (`--unpark` restores it)` instead of `parked by
+  the operator (…)`, so an automated park is never shown as the operator's; the alert and the ledger's `auto-park` row
+  carry the cause.
 - In `run_claude` (`:735`): BEFORE each `subprocess.run` (`:765`, `:826`), snapshot the account the call is bound
   to — `cfg = env.get("CLAUDE_CONFIG_DIR")` (`env` is a required parameter, `:736`); when it is set and
   `Path(cfg).resolve()` lies directly inside `_fleet_root().resolve()`, the slug is that directory's name (a session
@@ -275,7 +297,7 @@ Appetite: 120
   one during a long call would get the healthy one parked too. After the result and BEFORE the usage-limit/401
   classification (`:801-804`): when `_capability_verdict(result.returncode, result.stdout or "") == "refused"`, park
   the SNAPSHOT slug's account — its email is the slug's `identity` in `_load_assignments(strict=False)`; then
-  `_auto_park(email, source="wrapper")` (which refuses an unknown or `pending-login` identity). Any other case — no
+  `_auto_park(email, source="wrapper", cfg_dir=_fleet_root() / <snapshot slug>)` (which refuses an unknown or `pending-login` identity). Any other case — no
   `CLAUDE_CONFIG_DIR`, the shared `~/.claude`, a dir outside the fleet root, a host with no fleet (the VPS callers,
   `scripts/aro-wake/main.py:543`) — writes one stderr line `capability refused outside the fleet — nothing parked` and
   parks nothing. Then `break`. The result is returned to the caller unchanged.
@@ -290,7 +312,7 @@ Steps:
   (92 `_cmd_tick()` / `_fleet_tick_inner(` calls) can launch the real `claude` binary once the flip leg probes. It
   stubs `_probe_account`, NOT `_capability_probe`, so the two repointed tests (`:1400`, `:1767`) still exercise the
   real `_capability_probe` against their own stubbed `subprocess.run`; the D4 ping path is unchanged in reach — it calls
-  `_capability_probe` exactly where today's tests already meet `_keepalive_ping`, so it adds no new launch. The new test file sets its own stubs per test. Then implement `_probe_trust_s`, `_PROBE_RETRY_S`, `_probe_cache_path`, `_probe_account`,
+  `_capability_probe` exactly where today's tests already meet `_keepalive_ping`, so it adds no new launch. The new test file sets its own stubs per test. Then implement `_probe_trust_s`, `_active_probe_s`, `_ACTIVE_PROBE_TIMEOUT_S`, `_session_refusal_epoch`, `_PROBE_RETRY_S`, `_probe_cache_path`, `_probe_account`,
   `_record_probe` (and its call at the D4 ping site, `:4055`) and the `_fleet_flip_leg` branch. Re-run B5 → green. Add its mirrors: the same fleet with an `ok` cached 1 h ago → zero probe calls on that
   tick; an operator-parked active account with NO quota reading → flipped away with kind `parked` and zero probe
   calls; `_flip_active` withheld (pause marker set) → no Telegram call and the `withheld` tick line.
@@ -313,6 +335,12 @@ Steps:
    `_PROBE_RETRY_S` makes no `claude` call; past it, one. A D4 ping that returned `ok` this tick → D6 makes no probe
    call for that account on the same tick. An unwritable state dir (`ROTATE_STATE_DIR` pointing at a read-only
    directory) → the tick still completes and still flips away from a refused active account.
+4b. Add B8, the session-refusal expiry (D7): an `.errparked` record `oauth_org_not_allowed <epoch>` newer than the
+   active account's cached `ok` (cached 5 minutes ago, inside the 30-minute window) → that tick probes the active
+   account; a record of class `rate_limit`, or one older than the cached verdict, or a malformed one → no probe. And
+   B9, the active window: an active `ok` cached 31 minutes ago → probed; 29 minutes ago → not; a standby's `ok`
+   cached 31 minutes ago → not probed (its window is `ROTATE_PROBE_TRUST_S`); the active probe is called with
+   `timeout=45`.
 5. `cp scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py && cmp scripts/sysadmin/claude_rotate.py
    scripts/aro-wake/claude_rotate.py` → no output, rc 0.
 6. **Phase gate**: `.venv/bin/python -m pytest tests/test_claude_rotate_capability_probe.py tests/test_claude_fleet.py
@@ -339,6 +367,8 @@ Steps:
 - **Given** a probe returned `inconclusive`, **When** the same account is probed again within `_PROBE_RETRY_S`, **Then** no `claude` call is made (spec § Cost)
 - **Given** the pointer moves from `a` to `b` while a wrapper call bound to `<root>/active` is running, **When** that call returns the refusal, **Then** `a` is parked and `b` is not (spec § The delta D4b)
 - **Given** the D4 ping probed an account this tick, **When** D6 considers that account, **Then** no second probe call is made (spec § Cost)
+- **Given** a session's `.errparked` record of class `oauth_org_not_allowed` newer than the active account's cached `ok`, **When** the tick runs, **Then** the active account is probed at once; any other class, or an older record, probes nothing (spec § The delta D7)
+- **Given** the active account's `ok` is older than `ROTATE_ACTIVE_PROBE_S` (30 minutes) while a standby's equally old `ok` is not, **When** the tick runs, **Then** only the active account is probed, with a 45-second timeout (spec § The delta D6)
 
 ## Phase C — docs and Finish
 
@@ -349,8 +379,11 @@ Appetite: 60
 Steps:
 1. `docs/workstation/claude-account-rotation.md` § Parking (`:189-202`): one paragraph on the auto-park — when it fires
    (a definitive `oauth_org_not_allowed` refusal on promote, on the active re-check, on the stale-reading ping, or in a
-   session call), what it writes (`parked.json`, the `auto-park` ledger row, one Telegram alert), the
-   `ROTATE_PROBE_TRUST_S` window, and that only `--unpark` restores it. The `--status` section's flip-kind list
+   session call, each confirmed by a second probe), what it writes (`parked.json`, the `auto-park` ledger row, one
+   Telegram alert that leads with the billing check, at most once per account per 30 minutes), the
+   `ROTATE_PROBE_TRUST_S` (standby) and `ROTATE_ACTIVE_PROBE_S` (active) windows, that a session's own
+   `oauth_org_not_allowed` refusal makes the next tick re-probe the active account, and that only `--unpark` restores
+   it. The `--status` section's flip-kind list
    (`trip / perishable / repair / dead-chain / switch`, `:213`) gains `refused` and `parked`; one sentence says an ACTIVE
    parked account is now flipped away even with no quota reading.
 2. `python3 scripts/render_doc_script_links.py --check` and `python3 scripts/enforcement/check_doc_sync.py` → green.
@@ -441,8 +474,9 @@ account out of service`); the twin pin: `tests/test_mail_addressing.py:228`.
   so `refused` requires `is_error` true; (3) a mid-tick park must also wall the in-memory row; (4) the D6 flip must not
   sit behind the no-reading early return; (5) `_keepalive_ping`'s two pinning tests are a named mirror cost (Phase A
   step 2).
-- (a) Coverage: D1 → A1–A4; D3 → A5 and A8; D4 → A7; D5 → A6; D2 → B1–B4 and B7 (the cache windows); D6 → B5 and
-  its three mirrors (cached `ok`, parked with no reading, withheld flip); D4b → B6; Validation's twin row → every phase's `cp`/`cmp` step and `tests/test_mail_addressing.py:228`;
+- (a) Coverage: D1 → A1–A4; D3 → A5, A8 and A9 (the confirmation and the billing-first alert); D4 → A7; D5 → A6;
+  D2 → B1–B4 and B7 (the cache windows); D6 → B5, its three mirrors (cached `ok`, parked with no reading, withheld
+  flip) and B9 (the active window and timeout); D7 → B8; D4b → B6; the neutral parked reason → Phase B Interfaces; Validation's twin row → every phase's `cp`/`cmp` step and `tests/test_mail_addressing.py:228`;
   the documentation landing sites → Phase C step 1 (the rotation doc), Phase B's `_validated_pick` Interface (its
   docstring), each phase's commit (`CHANGELOG.md`) and D-614 plus the approval row (the D-rows); U3's backlog row →
   Phase C step 5. No gap.
@@ -450,7 +484,9 @@ account out of service`); the twin pin: `tests/test_mail_addressing.py:228`.
   parameters Phase A's Interfaces name; `source` values used in B (`promote`, `active`, `wrapper`) and A (`ping`) are the
   four the Interface lists; the flip kinds `refused` and `parked` are named once in B and documented in C;
   `_parked_update`'s `repair` keyword is passed by both of its callers (`_auto_park` False, `_cmd_park` True);
-  `_record_probe` is the one cache writer, called by `_probe_account` and the D4 ping site.
+  `_record_probe` is the one cache writer, called by `_probe_account` and the D4 ping site; every `_auto_park` call
+  site passes the `cfg_dir` its confirmation probe runs against (promote: the candidate's dir; active: the pointer's
+  target; ping: `with_creds[0]["dir"]`; wrapper: the snapshot slug's dir).
 - Fixed point: not yet — `/fabrik-plan-review` grades it.
 
 ## Residual unknowns
@@ -461,11 +497,11 @@ account out of service`); the twin pin: `tests/test_mail_addressing.py:228`.
   returned `is_error: false`, `terminal_reason: "completed"` at rc 0 (Evidence, Phase A).
 - **Open — U2** (does every refusal carry `api_error_status: 403`?): resolution: D1 does not require it; A1's framing
   cases include `null`; the ledger records the observed status so the first real refusal settles it.
-- **Open — R4, the approval question** carried from the judge split: is a ≤6 h detection window for a refusal that first
-  appears on the ACTIVE account acceptable? Resolution: `/fabrik-plan-review`'s approval gate puts it to the panel
-  standing in for the operator (D-613). D4b narrows the window only for calls that pass through `run_claude` bound to a
-  fleet dir — the script's own CLI passthrough; interactive Claude Code sessions on the box never pass through it, and
-  the VPS callers have no fleet — so for interactive work the window is the full trust window.
+- **Resolved — R4, the approval question** carried from the judge split (is a ≤6 h detection window for a refusal that
+  first appears on the ACTIVE account acceptable?): the design-approval panel (D-613) answered no. The active account
+  now has its own 30-minute window (`ROTATE_ACTIVE_PROBE_S`, D6), and a session's own `oauth_org_not_allowed` marker
+  expires it at once (D7), so an interactive refusal is caught within about one tick; D4b still covers only calls
+  through `run_claude` bound to a fleet dir.
 - **Open — U3** (other credentials-not-capability probes on the box): resolution: the `docs/STRATEGIC_BACKLOG.md` row
   in Phase C step 5.
 - **Open — real-refusal end-to-end**: no account is refusing today, so the refused path is exercised against the
