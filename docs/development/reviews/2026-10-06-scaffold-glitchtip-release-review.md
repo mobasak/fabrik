@@ -1,7 +1,7 @@
 # Review — 2026-10-06-scaffold-glitchtip-release
 
-**Status:** CONVERGED — Pass 2 quiet (confirmed: 0), every slice verified (R 4/4, D 1/1, S 1/1)
-**Surface:** `git rev-parse HEAD` = 9bfccaf0ce08f6be7254ef8760ff2017e38a2679; range tip 9bfccaf0ce08f6be7254ef8760ff2017e38a2679; `git diff 351b6604a..9bfccaf0c -- templates/scaffold/python/glitchtip_init.py templates/scaffold/docker/compose.yaml.template src/fabrik/scaffold.py src/fabrik/orchestrator/deployer_ssh.py tests/test_scaffold_glitchtip_release.py tests/orchestrator/test_deployer_git_sha.py tests/orchestrator/test_deployer_ssh.py tests/test_scaffold_glitchtip_security.py tests/test_scaffold_compose_traefik.py` md5 eb0355337af8bf3ea6c205d3161eac6e (84063 bytes)
+**Status:** CONVERGED
+**Surface:** `git rev-parse HEAD` = f12c1d6b8d7a1a99e8b4a5e4749ffdc584c1b42d; range tip f12c1d6b8d7a1a99e8b4a5e4749ffdc584c1b42d; `git diff 351b6604a..f12c1d6b8 -- templates/scaffold/python/glitchtip_init.py templates/scaffold/docker/compose.yaml.template src/fabrik/scaffold.py src/fabrik/orchestrator/deployer_ssh.py tests/test_scaffold_glitchtip_release.py tests/orchestrator/test_deployer_git_sha.py tests/orchestrator/test_deployer_ssh.py tests/test_scaffold_glitchtip_security.py tests/test_scaffold_compose_traefik.py` md5 4261a99af0081bdd43d7c4eb51097624 (90287 bytes)
 **Command:** /fabrik-review · **Changed:** `templates/scaffold/python/glitchtip_init.py`, `templates/scaffold/docker/compose.yaml.template`, `src/fabrik/scaffold.py`, `src/fabrik/orchestrator/deployer_ssh.py`, `tests/test_scaffold_glitchtip_release.py`, `tests/orchestrator/test_deployer_git_sha.py`, `tests/orchestrator/test_deployer_ssh.py`, `tests/test_scaffold_glitchtip_security.py`, `tests/test_scaffold_compose_traefik.py`
 
 ## Coverage Checklist
