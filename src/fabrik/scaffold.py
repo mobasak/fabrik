@@ -2328,12 +2328,13 @@ transaction so PostgreSQL RLS appends the tenant filter automatically.
 Developers then write plain queries — the ``tenant_isolation`` policy scopes
 them transparently.
 """
+
 from __future__ import annotations
 
 from contextvars import ContextVar
 from typing import Any
 
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
@@ -2386,6 +2387,7 @@ async def _is_member(tenant_id: str, user_id: str) -> bool:
     ``False`` means the header path is DENIED until you implement it, rather than
     letting any authenticated user cross into any tenant by setting a header.
     """
+    del tenant_id, user_id  # bound as $1 / $2 once the real lookup is wired
     return False
 
 
@@ -2401,7 +2403,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
     A present-but-invalid bearer token is rejected with 401; public paths skip auth.
     """
 
-    async def dispatch(self, request: Request, call_next: Any) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if (
             request.url.path in _PUBLIC_PREFIXES
             or request.url.path.startswith("/metrics")
@@ -2476,8 +2478,10 @@ native-mode tenant RLS). This module also ships the standard security-headers
 middleware and a CORS allow-list (never ``*`` with credentials), plus a
 ``decode_token`` helper the TenantMiddleware uses to validate the request bearer.
 """
+
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 from functools import lru_cache
@@ -2494,7 +2498,6 @@ from fastapi_user_auth import (
     make_sessionmaker,
 )
 from fastapi_user_auth.tokens import NullDenylist, RedisDenylist, decode_access_token
-
 from __PKG__.audit import ChainAuditLogger
 
 
@@ -2554,7 +2557,11 @@ class _LogEmailSender:
     async def send(
         self, *, to_email: str, subject: str, html: str, plain_text: str | None = None
     ) -> None:
-        print(f"[email:stub] to={to_email} subject={subject!r} — wire email-transport")
+        text = "yes" if plain_text else "no"
+        print(
+            f"[email:stub] to={to_email} subject={subject!r} html={len(html)} chars "
+            f"text={text} — wire email-transport"
+        )
 
 
 def build_saas_auth_router() -> APIRouter:
@@ -2609,10 +2616,8 @@ async def aclose() -> None:
     if client is not None:
         closer = getattr(client, "aclose", None) or getattr(client, "close", None)
         if closer is not None:
-            try:
+            with contextlib.suppress(Exception):  # best-effort shutdown
                 await closer()
-            except Exception:  # noqa: BLE001 — best-effort shutdown
-                pass
 
 
 async def require_user(request: Request) -> dict[str, Any]:
@@ -2675,9 +2680,11 @@ This is an asyncio implementation tuned for I/O-bound jobs. CPU-bound work belon
 a process pool the handler awaits (``loop.run_in_executor`` with a
 ``concurrent.futures.ProcessPoolExecutor``), never in the event loop.
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import pathlib
 import random
@@ -2732,7 +2739,7 @@ def _retry_delay(attempts: int) -> float:
     """
     exponent = min(max(attempts - 1, 0), 40)  # 2**40 * base is far past any sane cap
     backoff = min(RETRY_MAX_SEC, RETRY_BASE_SEC * 2**exponent)
-    return backoff + random.uniform(0, backoff)
+    return float(backoff + random.uniform(0, backoff))
 
 
 async def _handle(row: asyncpg.Record) -> None:
@@ -2745,10 +2752,9 @@ async def _handle(row: asyncpg.Record) -> None:
 
 async def _claim_one(pool: asyncpg.Pool) -> bool:
     """Claim and run a single job. Returns True if a job was processed."""
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            row = await conn.fetchrow(
-                """
+    async with pool.acquire() as conn, conn.transaction():
+        row = await conn.fetchrow(
+            """
                 SELECT id, task_name, payload, attempts, max_retries
                 FROM jobs
                 WHERE status = 'pending' AND run_at <= NOW()
@@ -2756,13 +2762,13 @@ async def _claim_one(pool: asyncpg.Pool) -> bool:
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
                 """
-            )
-            if row is None:
-                return False
-            await conn.execute(
-                "UPDATE jobs SET status = 'processing', updated_at = NOW() WHERE id = $1",
-                row["id"],
-            )
+        )
+        if row is None:
+            return False
+        await conn.execute(
+            "UPDATE jobs SET status = 'processing', updated_at = NOW() WHERE id = $1",
+            row["id"],
+        )
     # Process OUTSIDE the claim txn so a slow handler never holds the row lock.
     try:
         await _handle(row)
@@ -2809,10 +2815,8 @@ async def _claim_loop(pool: asyncpg.Pool, worker_id: int) -> None:
         if did:
             continue  # keep draining while work remains
         _wake.clear()
-        try:
+        with contextlib.suppress(TimeoutError):  # safety-net poll — re-check the queue
             await asyncio.wait_for(_wake.wait(), timeout=POLL_FALLBACK_SEC)
-        except asyncio.TimeoutError:
-            pass  # safety-net poll — re-check the queue
 
 
 async def _listen_loop() -> None:
@@ -2913,10 +2917,8 @@ async def _heartbeat_loop() -> None:
             hb.touch()
         except OSError as exc:  # noqa: PERF203 — log + keep beating
             log.warning("heartbeat_write_failed", path=str(hb), error=str(exc))
-        try:
+        with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(_shutdown.wait(), timeout=HEARTBEAT_TICK_SEC)
-        except asyncio.TimeoutError:
-            pass
 
 
 def _install_signals() -> None:
@@ -2943,10 +2945,8 @@ async def _await_pool() -> asyncpg.Pool | None:
                 log.warning("worker_db_unavailable_retrying", error=str(exc))
         else:
             log.info("worker_waiting_for_database_url")
-        try:
+        with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(_shutdown.wait(), timeout=5)
-        except asyncio.TimeoutError:
-            pass
     return None
 
 
@@ -2990,6 +2990,7 @@ Wires the layers the saas-skeleton mandates:
   * Self-hosted Pattern-A auth (this app is the IdP; /auth router) + security headers + CORS allow-list (35)
   * Tenant context middleware feeding PostgreSQL RLS (95)
 """
+
 from __future__ import annotations
 
 import os
@@ -3002,9 +3003,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
-from fastapi_user_auth import CsrfOriginMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from fastapi_user_auth import CsrfOriginMiddleware
 from __PKG__.auth import (
     SecurityHeadersMiddleware,
     aclose,
@@ -3093,7 +3094,7 @@ async def _http_exc(request: Request, exc: StarletteHTTPException) -> JSONRespon
 
 
 @app.exception_handler(RequestValidationError)
-async def _validation_exc(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def _validation_exc(request: Request, _exc: RequestValidationError) -> JSONResponse:
     return _problem(422, "Unprocessable Entity", "Request validation failed", request)
 
 
@@ -3148,7 +3149,7 @@ async def list_widgets(claims: dict[str, Any] = Depends(require_user)) -> list[W
     Wire a real asyncpg pool + ``tenant.apply_tenant(conn)`` here; returns [] until
     then so the scaffold runs end-to-end without a populated database.
     """
-    logger.info("list_widgets", tenant=get_tenant_id())
+    logger.info("list_widgets", tenant=get_tenant_id(), user=claims.get("sub"))
     return []
 
 
@@ -3160,7 +3161,12 @@ async def create_widget(
 ) -> WidgetOut:
     """Create a widget. Honour ``X-Idempotency-Key`` for safe retries (15:57)."""
     idempotency_key = request.headers.get("X-Idempotency-Key", "")
-    logger.info("create_widget", tenant=get_tenant_id(), idempotency_key=idempotency_key)
+    logger.info(
+        "create_widget",
+        tenant=get_tenant_id(),
+        user=claims.get("sub"),
+        idempotency_key=idempotency_key,
+    )
     return WidgetOut(id="00000000-0000-0000-0000-000000000000", name=body.name)
 
 
@@ -3321,6 +3327,7 @@ with. DB-backed signup/login is a separate integration test (needs a live
 DATABASE_URL); these run with NO DB/Redis (create_async_engine is lazy; REDIS_URL
 unset -> NullDenylist).
 """
+
 import os
 
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://u@localhost/x")
@@ -3337,7 +3344,6 @@ def test_auth_router_mounted() -> None:
 
 def test_access_token_round_trip() -> None:
     from fastapi_user_auth.tokens import issue_access_token
-
     from __PKG__.auth import decode_token
 
     secret = os.environ["JWT_SECRET"]
@@ -3346,6 +3352,44 @@ def test_access_token_round_trip() -> None:
     assert claims["sub"] == "u1"
     assert claims["tid"] == "t1"
 '''
+
+
+def _write_server_lint_config(server_dir: Path, package_name: str) -> None:
+    """Give a ``server/`` backend the root project's ruff and mypy config (W-1c722f35).
+
+    The server ships the vendored ``glitchtip_init.py`` and would lint it under the project's own
+    rules — the defect the python template's ``extend-exclude`` / ``force-exclude`` and mypy
+    override fix at the root. ruff and mypy read the NEAREST ``pyproject.toml``, so the server gets
+    its own: the ``[tool.ruff*]`` and ``[tool.mypy*]`` tables copied out of the one template, never a
+    second hand-kept copy that could drift from it."""
+    template = (TEMPLATE_DIR / "python" / "pyproject.toml.template").read_text()
+    keep: list[str] = []
+    take = False
+    for line in template.splitlines():
+        header = line.strip()
+        if header.startswith("["):
+            take = header.lstrip("[").startswith(("tool.ruff", "tool.mypy"))
+        if take:
+            keep.append(line)
+    body = "\n".join(keep).replace("<package_name>", package_name).strip() + "\n"
+    # The server also vendors fabrik-lib's fastapi_user_auth (``_vendor_fastapi_user_auth``): upstream
+    # code too, so it is excluded the same way rather than linted under this project's rules.
+    vendored = f'extend-exclude = ["src/{package_name}/glitchtip_init.py"]'
+    if vendored not in body:
+        raise RuntimeError(f"pyproject template lost its glitchtip_init exclusion: {vendored!r}")
+    body = body.replace(
+        vendored,
+        f'extend-exclude = ["src/{package_name}/glitchtip_init.py", "src/fastapi_user_auth"]',
+    )
+    body += (
+        "\n# Vendored fastapi_user_auth (see extend-exclude): its typing is upstream's.\n"
+        '[[tool.mypy.overrides]]\nmodule = "fastapi_user_auth.*"\nignore_errors = true\n'
+    )
+    (server_dir / "pyproject.toml").write_text(
+        "# Lint and type config for the server/ backend — the root template's [tool.ruff] and\n"
+        "# [tool.mypy] tables, so the vendored glitchtip_init.py and fastapi_user_auth stay\n"
+        "# excluded here too.\n\n" + body
+    )
 
 
 def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> None:
@@ -3358,6 +3402,7 @@ def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> N
     """
     server_dir = project_dir / "server"
     _scaffold_fastapi_backend(server_dir, name, package_name)
+    _write_server_lint_config(server_dir, package_name)
 
     def _sub(text: str) -> str:
         return text.replace("__PKG__", package_name).replace("__NAME__", name)
