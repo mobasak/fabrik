@@ -160,6 +160,51 @@ def test_dsn_injection_keeps_the_sha() -> None:
     assert env["GIT_SHA"] == NEW
 
 
+def test_a_spec_interpolation_literal_never_clobbers_a_real_value() -> None:
+    """A generated spec copies compose's `SENTRY_DSN: ${SENTRY_DSN:-}` into env:. On a re-apply
+    that literal must not overwrite the registrar's real DSN in .env (it would blank reporting
+    until the registrar re-injects); on a first deploy there is nothing to keep, so it is written."""
+    spec_env = {
+        "SENTRY_DSN": "${SENTRY_DSN:-}",
+        "LOG_LEVEL": "${LOG_LEVEL:-INFO}",
+        "APP_GIT_SHA": "${GIT_SHA}",
+        "GIT_SHA": "${GIT_SHA:-unknown}",
+    }
+    vps = _Vps("SENTRY_DSN=https://k@g/1\nLOG_LEVEL=DEBUG\nAPP_GIT_SHA=abc\n")
+    _apply(vps, _ctx(spec_env))
+    env = vps.last_env()
+    assert env["SENTRY_DSN"] == "https://k@g/1"
+    assert env["LOG_LEVEL"] == "DEBUG"
+    assert env["APP_GIT_SHA"] == "abc"
+    assert env["GIT_SHA"] == NEW  # the deploy-time override still wins over the spec literal
+
+    first = _Vps(None)
+    _apply(first, _ctx(spec_env))
+    env = first.last_env()
+    assert env["SENTRY_DSN"] == "${SENTRY_DSN:-}"
+    assert env["LOG_LEVEL"] == "${LOG_LEVEL:-INFO}"
+    assert env["GIT_SHA"] == NEW
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("${SENTRY_DSN:-}", True),
+        ("${LOG_LEVEL:-INFO}", True),
+        ("${GIT_SHA}", True),
+        ("${X-default}", True),
+        ("https://k@g/1", False),
+        ("prefix-${X}", False),
+        ("${X}-suffix", False),
+        ("${X}${Y}", False),
+        ("${1BAD}", False),
+        ("", False),
+    ],
+)
+def test_is_placeholder_recognises_one_bare_interpolation(value, expected) -> None:
+    assert deployer_ssh._is_placeholder(value) is expected
+
+
 def test_redeploy_and_rollback_persist_their_sha() -> None:
     # Success: the pulled SHA lands in .env before the stack comes up.
     vps = _Vps("GIT_SHA=" + OLD + "\nSENTRY_DSN=x\n")
