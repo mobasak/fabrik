@@ -1,7 +1,7 @@
 # Review — w-07b8f192-pytest-against-pins
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = 56acdcda2e40cd0592faf31e7fec7af213fb5ee3; `git diff HEAD -- .claude/workflows/fabrik-review-loop.js tests/test_review_loop_workflow.py` md5 9063fab51e80ed67128b0dee0525232f (15103 bytes)
+**Surface:** `git rev-parse HEAD` = f4c735e7b7d5ab439d37d5aa00950f3c03932c39; range tip f4c735e7b7d5ab439d37d5aa00950f3c03932c39; `git diff 56acdcda2..f4c735e7b -- .claude/workflows/fabrik-review-loop.js tests/test_review_loop_workflow.py` md5 f1c7eba524e0bb7c7b0faa62a1741ee4 (16670 bytes)
 **Command:** /fabrik-review · **Changed:** `.claude/workflows/fabrik-review-loop.js`, `tests/test_review_loop_workflow.py`
 **Lane:** fabrik-task
 
