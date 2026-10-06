@@ -4442,7 +4442,7 @@ QUEUED_TAG = "queued"
 HELD_TAGS = frozenset({"runtime", "hold"})
 HELD_PREFIX = "waits-"
 _HARNESS_RE = re.compile(r"agent-[0-9a-f]{16,}")
-_PLAN_DONE = frozenset({"EXECUTED", "COMPLETE", "SUPERSEDED", "SHIPPED"})
+_PLAN_DONE = frozenset({"EXECUTED", "COMPLETE", "SUPERSEDED", "SHIPPED", "ARCHIVED"})
 
 
 def _tags(item: dict) -> set[str]:
@@ -4611,8 +4611,14 @@ def _open_plans(main: Path) -> list[str]:
         # Sets are matched as `_iter_plan_spines` matches them; top-level files keep the wider
         # `*.md` glob, so an undated plan this view always listed is not dropped
         spines = [d / f"{d.name}.md" for d in plans.glob("*/") if _PLAN_DIR_NAME_RE.match(d.name)]
-        for path in sorted([*plans.glob("*.md"), *(s for s in spines if s.is_file())]):
-            status = str(mod.parse_plan_status(path)[0]).upper().strip()
+        for path in sorted([*plans.glob("*.md"), *spines]):
+            # one unreadable plan is skipped, never the whole view (review round 1)
+            try:
+                if not path.is_file():
+                    continue  # a dated set directory holding tickets but no spine
+                status = str(mod.parse_plan_status(path)[0]).upper().strip()
+            except OSError:
+                continue
             if (status.split() or [""])[0] not in _PLAN_DONE:
                 out.append(f"{path.relative_to(main).as_posix()} ({status})")
         return out

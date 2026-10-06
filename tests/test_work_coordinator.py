@@ -321,9 +321,25 @@ def test_an_open_plan_set_is_listed_by_its_spine(tmp_path):
     (plans / "notes" / "scratch.md").write_text("# n\n\nStatus: DRAFT\n", encoding="utf-8")
     # an undated directory is not a plan set, even with a same-stem file
     (plans / "notes" / "notes.md").write_text("# n\n\nStatus: DRAFT\n", encoding="utf-8")
-    listed = _queue(repo, env)["plans"]
+    # review round 1: a dated set holding only tickets, an ARCHIVED spine still in plans/, and an
+    # unreadable plan are skipped without emptying the view
+    (plans / "2026-01-06-plan-4-tickets-only").mkdir()
+    (plans / "2026-01-06-plan-4-tickets-only" / "T01-a.md").write_text("Status: DRAFT\n")
+    (plans / "2026-01-07-plan-5-archived").mkdir()
+    (plans / "2026-01-07-plan-5-archived" / "2026-01-07-plan-5-archived.md").write_text(
+        "# a\n\nStatus: ARCHIVED\n", encoding="utf-8"
+    )
+    locked = plans / "2026-01-08-plan-6-locked"
+    locked.mkdir()
+    (locked / f"{locked.name}.md").write_text("# l\n\nStatus: DRAFT\n", encoding="utf-8")
+    locked.chmod(0)
+    try:
+        listed = _queue(repo, env)["plans"]
+    finally:
+        locked.chmod(0o755)
     joined = " ".join(listed)
     assert "2026-01-03-plan-1-open-set/2026-01-03-plan-1-open-set.md" in joined, listed
+    assert "tickets-only" not in joined and "plan-5-archived" not in joined, listed
     assert "done-set" not in joined and "plan-3-old" not in joined, listed
     assert "T01-ticket" not in joined and "notes/" not in joined, listed
 
