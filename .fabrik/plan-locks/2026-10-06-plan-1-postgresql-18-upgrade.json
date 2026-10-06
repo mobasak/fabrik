@@ -90,9 +90,15 @@
     }
   },
   "wave2": {
-    "integration": "pg18-wave2@860aa3119",
+    "integration": "pg18-wave2@72ad885b8 (pushed)",
     "review": "docs/development/reviews/2026-10-06-plan-1-postgresql-18-upgrade-T04b-review.md",
     "round1_confirmed": 21,
-    "next": "Pass-2 closing round on seats E1 opus aa7fabae9ccba6937, E2 sonnet a329be56b8802f53d, D sonnet a91237122de8e3a6b"
+    "next": "Pass-2 closing round on seats E1 opus aa7fabae9ccba6937, E2 sonnet a329be56b8802f53d, D sonnet a91237122de8e3a6b",
+    "pass2": {
+      "D": "D1 NOW_FALSE; D1-NEW (v16/version 16 spellings) found and fixed 72ad885b8 \u2014 re-verify in pass 3",
+      "E2": "E2-1..E2-5 NOW_FALSE; NEW-1 (A1 heading vs Send field unchecked) and NEW-2 (leftover-container test greps tokens, never executes) open \u2014 route to T05 coder a4ceab0d74302f8e1",
+      "E1": "pending \u2014 seat aa7fabae9ccba6937 re-verifying E1-1..E1-15"
+    },
+    "quota": "can 97% 5h, no successor, reset ~2h51 after 20:03Z \u2014 resume from here"
   }
 }
