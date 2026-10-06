@@ -43,7 +43,7 @@ On 2026-09-29/30, mob and then ob were refused on every Claude Code call: "Your 
 
 - `_validated_pick` (`claude_rotate.py:3559-3625`) returns the first candidate whose reading is live, or whose cached reading passes a live usage probe; it never runs inference.
 - `_flip_active` (`:3139`) is the only place the pointer moves; its gates are credentials, chain liveness, pause and dwell (`:3157-3167`).
-- `_keepalive_ping` (`:7129-7158`) runs `claude -p ping` bound to one fleet dir with `CLAUDE_MESH_HEADLESS=1` and `CLAUDE_SOUND_NO_REVIVE=1`, and returns only `returncode == 0`. Its caller marks any failure `ping_failed` (`:4060`), the dead-chain flip trigger.
+- `_keepalive_ping` (`:7129-7157`) runs `claude -p ping` bound to one fleet dir with `CLAUDE_MESH_HEADLESS=1` and `CLAUDE_SOUND_NO_REVIVE=1`, and returns only `returncode == 0`. Its caller marks any failure `ping_failed` (`:4060`), the dead-chain flip trigger.
 - Parking (D-443): `_cmd_park` (`:3873-3900`) read-modify-writes `<fleet_root>/parked.json` with no lock; `_parked_accounts` (`:3827-3850`) reads it and a broken file parks nothing; `_account_caps` reads a parked account as cap 0, so every reader that handles a cap wall already handles a park.
 - The file is vendored byte-identical into `scripts/aro-wake/claude_rotate.py` (header `:1-4`).
 
@@ -63,7 +63,7 @@ On 2026-09-29/30, mob and then ob were refused on every Claude Code call: "Your 
 | Rule | Quote | Source | Applies |
 |---|---|---|---|
 | every external call bounded | "every external call has timeout + retry with backoff. Circuit-breaker for repeated failures. Graceful fallback when dependencies are down." | .windsurf/rules/core/58-resilience.md:88 | the probe has a timeout and falls back to today's pick when inconclusive |
-| timeouts owned by resilience | "Timeouts/retries on every outbound call are owned by `58-resilience.md`." | .windsurf/rules/core/10-python.md:218 | the probe reuses `_keepalive_ping`'s bounded subprocess timeout |
+| timeouts owned by resilience | "Timeouts/retries on every outbound call are owned by" | .windsurf/rules/core/10-python.md:218 | the probe reuses `_keepalive_ping`'s bounded subprocess timeout |
 | parked means never picked | "A parked account stays listed, pinned and logged in, but is never an automated flip target" | docs/DECISIONS.md:158 | auto-park writes the same `parked.json`, so every reader handles it already |
 | broken park state fails open | "A broken `parked.json` parks NOTHING and warns loudly" | docs/DECISIONS.md:158 | an auto-park write failure is logged and the candidate is still excluded for this tick only |
 
@@ -71,11 +71,11 @@ Stdlib-only, byte-identical vendoring (`claude_rotate.py:1-4`) rules out new imp
 
 ## The delta
 
-- **D1 — a classifying probe.** `_capability_probe(cfg_dir) -> "ok" | "refused" | "inconclusive"` runs `claude -p ok --output-format json --max-turns 1 --tools ""` with `_keepalive_ping`'s headless environment and timeout. It returns `refused` only when the stdout JSON has `is_error` true AND either `api_error_status == 403` with `oauth_org_not_allowed` in the result text, or the text names `oauth_org_not_allowed` (G1, G3). It returns `ok` on exit 0 with `is_error` false. Anything else is `inconclusive`. It never keys on `subtype`, whose enum spellings were not fetched raw (§ Open unknowns U1). The headless env vars keep the box's session hooks from treating the probe as a session (I8).
+- **D1 — a classifying probe.** `_capability_probe(cfg_dir) -> "ok" | "refused" | "inconclusive"` runs `claude -p ok --output-format json --max-turns 1 --tools ""` with `_keepalive_ping`'s headless environment and timeout. It returns `refused` only when the stdout result JSON has `is_error` true AND its `result` text names `oauth_org_not_allowed` or the incident's "disabled Claude subscription access" (G1, G3); `api_error_status` is recorded, never required (U2). It returns `ok` on exit 0 with no `is_error` result. Anything else is `inconclusive`. It never keys on `subtype`, which reads `success` on a failed call (§ Open unknowns U1). The headless env vars keep the box's session hooks from treating the probe as a session (I8).
 - **D2 — probe on promote.** Before `_validated_pick` returns an automated flip target, it runs D1 bound to that candidate's config dir. It skips the probe when the candidate holds an `ok` verdict younger than 6 h (`<state>/capability-probe.json`, keyed by email; `ROTATE_PROBE_TRUST_S`, default 21600). On `refused` it applies D3, excludes the candidate and considers the next one, exactly as the loop's existing exclude-and-continue does for a walled live reading (`:3612-3615`). On `inconclusive` it returns the pick as today and logs one line. On `ok` it records the verdict and returns. A manual `--switch` never runs the probe (D-443's escape hatch).
 - **D3 — auto-park.** A `refused` verdict parks the account through the same writer as `--park`, under a lock (D5), appends a `{"event": "auto-park", "email", "cause": "oauth_org_not_allowed", "ts"}` row to `rotate-ledger.jsonl`, and sends one alert through the existing Telegram path naming the account, the cause and the one-step fix (`--unpark <email>` after the org or billing is fixed). The operator owns un-parking (D-443); nothing auto-unparks.
-- **D4 — the existing ping classifies too.** `_keepalive_ping` returns the D1 verdict instead of a bool. `refused` auto-parks (D3) instead of marking `ping_failed`, since the chain is alive and only the capability is gone. `inconclusive` keeps today's `ping_failed`.
-- **D4b — the CLI wrapper classifies too.** The wrapper that already rotates on a usage limit or a `401` (module docstring `:11-17`) recognises the `oauth_org_not_allowed` refusal the same way: it auto-parks (D3) and rotates. This adds no new call.
+- **D4 — the existing ping classifies too.** D1's `_capability_probe` replaces `_keepalive_ping`, whose one caller (`:4055`) now reads the verdict instead of a bool. `refused` auto-parks (D3) instead of marking `ping_failed`, since the chain is alive and only the capability is gone. `inconclusive` keeps today's `ping_failed`.
+- **D4b — the CLI wrapper classifies too.** The wrapper that already rotates on a usage limit or a `401` (module docstring `:11-17`) classifies each result with D1's rule: on `refused` it auto-parks the active account (D3), stops retrying and returns the result. It does not rotate: on a fleet host its rotate is withheld by design (`claude_rotate.py:541-548`), so the next tick flips away from the parked active account (D-443). This adds no new call.
 - **D6 — the active account is re-validated.** A refusal can first appear on the account that is ALREADY active, mid-session. D2 never sees that case, and with healthy readings the staleness-gated ping (`:4040`) never fires either (judge 2's split, § Chosen approach). So the tick also runs D1 against the ACTIVE account whenever that account's `ok` verdict is older than the D2 trust window. That is one probe per 6 h, about 4 per day, never every tick. `refused` → D3, and the parked active account is flipped away from on the same tick, like any cap-walled one (D-443). `inconclusive` → nothing changes.
 - **D5 — one lock for `parked.json`.** `_cmd_park` and the auto-park take the same `fcntl` lock (the assignments lock pattern, `:3692-3716`) around the read-modify-write, so a dashboard click and a tick park cannot lose one another's write.
 
@@ -90,7 +90,7 @@ One probe is one Claude Code turn with no tools on a one-word prompt, drawn from
 - A manual `--switch` to the refused dir is never probed and still flips (D-443's escape hatch).
 - Two concurrent `_cmd_park` calls each land their email (D5).
 - The ACTIVE account's dir returning the refusal, with an expired `ok` verdict, is parked and flipped away from on that tick (D6). With a fresh `ok` verdict it is not probed.
-- The wrapper running a session call that returns the refusal parks the account and rotates (D4b).
+- The wrapper running a session call that returns the refusal parks the active account, makes no retry and returns the result; the next tick flips away (D4b).
 - The vendored twin is byte-identical (`cmp`).
 
 ## Chosen approach
@@ -122,6 +122,6 @@ None: a box-local cron script, no service, no `shape:` flags.
 
 ## Open unknowns
 
-- U1 — the exact `subtype` enum spellings of the result JSON were not fetched raw. Resolution: D1 does not key on `subtype`; the plan's red test pins the fields D1 does read.
+- U1 — RESOLVED 2026-10-06: the probe argv run against an empty config dir returned `"is_error":true,"subtype":"success"` at exit 1 (the plan's Phase A Evidence), so `subtype` cannot tell a failure; D1 never reads it.
 - U2 — whether a `refused` result always carries `api_error_status == 403`. Resolution: D1 also accepts the documented `oauth_org_not_allowed` code in the text alone.
 - U3 — other box probes may share the credentials-not-capability blind spot (mail 01M3QG6G § SYSTEMIC). Resolution: out of scope here; filed as a backlog row with the plan.

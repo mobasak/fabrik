@@ -21,7 +21,7 @@ Three inline phases the orchestrator codes itself in the worktree; no coder is d
   update (D5) and the auto-park (D3), with their tests.
 - **B — the wiring**: probe on promote inside `_validated_pick` (D2), active re-validation in the flip leg (D6), and the
   wrapper's classification (D4b), with their tests.
-- **C — docs and Finish**: the rotation doc, the spec's D4b amendment, the whole-plan `/fabrik-review`, the gate.
+- **C — docs and Finish**: the rotation doc, the whole-plan `/fabrik-review`, the gate.
 
 Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy `/fabrik-review` (the
 `/fabrik-execute-plan` D7 floor) and one receipt.
@@ -35,7 +35,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | I3 | *"D1 classifying probe … D6 active-account re-validation per trust window"* (the brief's six deltas) | IN | A: D1, D3, D4, D5 · B: D2, D4b, D6 |
 | I4 | *"both copies … byte-identical"* | IN | Global Constraints; every phase's commit step |
 | I5 | *"The plan-review flips spec+plan to CONVERGED and holds the approval gate (open question … ≤6 h detection window)"* | IN | `/fabrik-plan-review` at Phase 5; Residual unknowns R4 |
-| I6 | Grounding finding (this run): on a fleet host `run_claude` never moves the pointer — its rotate is withheld (`scripts/sysadmin/claude_rotate.py:541-548`), so spec D4b's "and rotates" cannot hold as written | IN — D4b re-scoped to park only; the next tick flips away | Phase B step 5; Phase C step 2 amends the spec |
+| I6 | Grounding finding (this run): on a fleet host `run_claude` never moves the pointer — its rotate is withheld (`scripts/sysadmin/claude_rotate.py:541-548`), so spec D4b's "and rotates" cannot hold as written | IN — D4b re-scoped to park only; the next tick flips away | Phase B step 4; the spec's D4b, D4, D1, Validation and U1 amended in this plan's `/fabrik-plan-review` |
 
 ## What we already agreed (citations, not restatement)
 
@@ -91,6 +91,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 |---|---|---|
 | `.windsurf/rules/core/10-python.md` (MATCHED) | no deps-file edit; timeouts owned by the resilience pack | `core/10-python.md:30`, `:218` |
 | `.windsurf/rules/core/45-testing-strategy.md` (MATCHED) | one test per behaviour; watched-fail-first; a guard proven five ways | `core/45-testing-strategy.md` Behavior Contract, Watched-fail-first and BANNED rows |
+| `.windsurf/rules/core/40-documentation.md` (MATCHED — the rotation doc) | structured docs; Doc Sync in the same change | `core/40-documentation.md:240` |
 | `.windsurf/rules/core/58-resilience.md` (AVAILABLE, matches the work) | every external call bounded; graceful fallback | `core/58-resilience.md:88` |
 | `docs/DECISIONS.md` D-443 | parked = never picked; operator un-parks; broken state parks nothing | `docs/DECISIONS.md:158` |
 | `fabrik-lib` | none covers Claude subscription rotation — BUILD in place | `spec § fabrik-lib verdict` |
@@ -108,6 +109,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | "every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one**" | .windsurf/rules/core/45-testing-strategy.md:20 | Behaviour Contract |
 | "**Watched-fail-first** (for tests this change adds or modifies" | .windsurf/rules/core/45-testing-strategy.md:22 | Red first |
 | "**No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes." | .windsurf/rules/core/45-testing-strategy.md:21 | Assert state, not prose |
+| "**No skipped heading levels** — `##` to `###`, never `##` to `####`" | .windsurf/rules/core/40-documentation.md:240 | Docs (the § Parking paragraph stays under its `###`; no new heading) |
 
 ## Phase A — the primitives: the classifying probe, the parked lock, the auto-park
 
@@ -268,7 +270,7 @@ Steps:
 - **Given** a candidate's `ok` verdict is younger than `ROTATE_PROBE_TRUST_S`, **When** it is picked, **Then** no probe call is made, and an older verdict makes exactly one (spec § The delta D2)
 - **Given** the probe times out, **When** the flip leg picks, **Then** the candidate is picked as today and nothing is parked (spec § Lifecycle)
 - **Given** the relief advisory or a manual `--switch`, **When** either runs, **Then** no probe call is made and the manual switch still flips (spec § The delta D2)
-- **Given** a session call through `run_claude` returns the refusal result on a fleet host, **When** the wrapper classifies it, **Then** the active account is parked, no retry is made, the result is returned unchanged and stdout carries nothing extra (spec § The delta D4b, as amended in Phase C)
+- **Given** a session call through `run_claude` returns the refusal result on a fleet host, **When** the wrapper classifies it, **Then** the active account is parked, no retry is made, the result is returned unchanged and stdout carries nothing extra (spec § The delta D4b)
 
 ## Phase C — docs and Finish
 
@@ -282,20 +284,15 @@ Steps:
    session call), what it writes (`parked.json`, the `auto-park` ledger row, one Telegram alert), the
    `ROTATE_PROBE_TRUST_S` window, and that only `--unpark` restores it. The `--status` section's flip-kind list
    (`trip / perishable / repair / dead-chain / switch`) gains `refused`.
-2. Amend the spec (`docs/superpowers/specs/2026-10-06-rotation-capability-probe-design.md`, still DRAFT, graded with
-   this plan): § The delta D4b → "auto-parks (D3) and returns the result; the next tick flips away from the parked
-   active account (D-443) — on a fleet host `run_claude` never moves the pointer (`claude_rotate.py:541-548`)"; § Open
-   unknowns U1 → resolved by this run's probe (`subtype` reads `success` on a failed call); § Validation's wrapper row
-   → "parks the account; the next tick flips away".
-3. `python3 scripts/render_doc_script_links.py --check` and `python3 scripts/enforcement/check_doc_sync.py` → green.
-4. **Finish — the heavy `/fabrik-review`** over the whole-plan diff (the plan's commits vs its base commit): the D7 floor
+2. `python3 scripts/render_doc_script_links.py --check` and `python3 scripts/enforcement/check_doc_sync.py` → green.
+3. **Finish — the heavy `/fabrik-review`** over the whole-plan diff (the plan's commits vs its base commit): the D7 floor
    — file partition, a Sonnet and a Haiku finder per slice (D-344), the orchestrator executing every refutation,
    stamped with `command_run.py dispatch` first — to its closing pass confirming zero defects; receipt
    `docs/development/reviews/2026-10-06-plan-2-rotation-capability-probe-review.md` embedding the verbatim
    `final_gate.py --json` success. Then `/fabrik-docs-review` over the edited doc.
-5. The full gate: `python scripts/final_gate.py --check --json` → `"status": "success"` (necessary, not sufficient —
+4. The full gate: `python scripts/final_gate.py --check --json` → `"status": "success"` (necessary, not sufficient —
    the Evidence below is the design proof), and `python scripts/enforcement/check_convergence.py` → exit 0.
-6. Commit Phase C (explicit pathspecs; `CHANGELOG.md`, `docs/STRATEGIC_BACKLOG.md` (spec U3's backlog row) via the
+5. Commit Phase C (explicit pathspecs; `CHANGELOG.md`, `docs/STRATEGIC_BACKLOG.md` (spec U3's backlog row) via the
    private-index recipe; trailers `Agent-Phase: C`), push; `merge_request.py request --review <receipt> --item
    W-f8bfe7eb` and the `SendMessage` lines it prints.
 
@@ -309,7 +306,6 @@ Steps:
 - tests/test_claude_rotate_capability_probe.py
 - tests/test_claude_fleet.py
 - docs/workstation/claude-account-rotation.md
-- docs/superpowers/specs/2026-10-06-rotation-capability-probe-design.md
 - docs/development/reviews/2026-10-06-plan-2-rotation-capability-probe-review.md
 
 ## Evidence
@@ -362,13 +358,13 @@ account out of service`); the twin pin: `tests/test_mail_addressing.py:228`.
   they returned re-read by the orchestrator at 99b111443 (two drifted anchors corrected: `cap_trip` is `:5790`, the
   seat said `:5778`); the probe argv executed live (Evidence, Phase A).
 - Findings that changed the design: (1) `run_claude` cannot rotate on a fleet host, so D4b parks and leaves the flip to
-  the tick (I6, Phase C step 2 amends the spec); (2) the wrapper's existing text classifier would park on a quoted code,
+  the tick (I6; the spec was amended in this plan's review); (2) the wrapper's existing text classifier would park on a quoted code,
   so `refused` requires `is_error` true; (3) a mid-tick park must also wall the in-memory row; (4) the D6 flip must not
   sit behind the no-reading early return; (5) `_keepalive_ping`'s two pinning tests are a named mirror cost (Phase A
   step 2).
 - (a) Coverage: D1 → A1–A4; D3 → A5; D4 → A7; D5 → A6; D2 → B1–B4 (the two cache rows included); D6 → B5 and its
   cached mirror; D4b → B6; Validation's twin row → every phase's `cp`/`cmp` step and `tests/test_mail_addressing.py:228`;
-  the documentation landing sites → Phase C step 1; U3's backlog row → Phase C step 6. No gap.
+  the documentation landing sites → Phase C step 1; U3's backlog row → Phase C step 5. No gap.
 - (b) Signatures: Phase B consumes `_capability_probe`, `_capability_verdict` and `_auto_park` with the exact
   parameters Phase A's Interfaces name; `source` values used in B (`promote`, `active`, `wrapper`) and A (`ping`) are the
   four the Interface lists; the flip kind `refused` is named once in B and documented in C.
@@ -385,7 +381,7 @@ account out of service`); the twin pin: `tests/test_mail_addressing.py:228`.
   appears on the ACTIVE account acceptable? Resolution: `/fabrik-plan-review`'s approval gate puts it to the operator;
   D4b already parks on the first refused session call, so the window bounds only an idle box.
 - **Open — U3** (other credentials-not-capability probes on the box): resolution: the `docs/STRATEGIC_BACKLOG.md` row
-  in Phase C step 6.
+  in Phase C step 5.
 - **Open — real-refusal end-to-end**: no account is refusing today, so the refused path is exercised against the
   documented shape (G1, G3) and the incident's text, never a live 403. Resolution: the ledger's `auto-park` row and the
   Telegram alert are the live proof on the first real refusal; the operator un-parks after confirming.
@@ -394,15 +390,15 @@ account out of service`); the twin pin: `tests/test_mail_addressing.py:228`.
 
 | Class | Status |
 |---|---|
-| Hunt: `scripts/sysadmin/claude_rotate.py` + its twin — every changed function, its callers | OPEN |
-| Hunt: `tests/test_claude_rotate_capability_probe.py`, `tests/test_claude_fleet.py` — every new or repointed test | OPEN |
-| Hunt: `docs/workstation/claude-account-rotation.md`, the spec amendment — every changed claim against the code | OPEN |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | OPEN |
-| Recurrence: boundary/sentinel/prefix — a prefix-vs-exact match | OPEN |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | OPEN |
-| Recurrence: denominator on every count — bounded searches state their bound | OPEN |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | OPEN |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | OPEN |
+| Hunt: `scripts/sysadmin/claude_rotate.py` + its twin — every changed function, its callers | UNCHECKED |
+| Hunt: `tests/test_claude_rotate_capability_probe.py`, `tests/test_claude_fleet.py` — every new or repointed test | UNCHECKED |
+| Hunt: `docs/workstation/claude-account-rotation.md` — every changed claim against the code | UNCHECKED |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
+| Recurrence: boundary/sentinel/prefix — a prefix-vs-exact match | UNCHECKED |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
+| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
 
 Rubric invocation (verbatim output — the gate reads the generated header):
 
