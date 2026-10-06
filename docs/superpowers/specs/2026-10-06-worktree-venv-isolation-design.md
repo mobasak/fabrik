@@ -1,7 +1,7 @@
 # Worktree venv isolation — each linked worktree owns its venv
 
 **Status:** CONVERGED
-**Size:** small (≈250 lines, 3 code files + 3 config files)
+**Size:** small (≈310 lines, 3 code files + 3 config files)
 **Profile:** delta
 **Owner:** infra
 **Work item:** W-46d148b0 · trade-intelligence mail 01M3RYGETKD5HQZRBTDF3EK3EK · UPGRADE: tradeoffs from `/fabrik-task` (2026-10-06)
@@ -24,7 +24,7 @@
 - **Automated consumers:** `scripts/final_gate.py` (runs `<cwd>/.venv/bin/python`,
   `scripts/final_gate.py:70-80`), the Stop hook (`.claude/hooks/final_gate_stop.py:229-234`),
   `scripts/merge_request.py`'s owner tests (MAIN venv + sitecustomize shim,
-  `scripts/merge_request.py:1073-1115` — unaffected), the governance sync
+  `scripts/merge_request.py:1073-1115` — unchanged code, one new merge-owner step after a dependency change, D6), the governance sync
   (`scripts/sync_enforcement_to_projects.py`, which distributes the settings file and hooks).
 - **The operator** in a plain terminal: outside every hook; protected only by the structural fix.
 
@@ -64,7 +64,7 @@ the shared mutable state, so both failures stop at the root.
 | Owner tests run under the MAIN venv with a shim putting the worktree's src first | `scripts/merge_request.py:1073-1115` |
 | The operating model states the shared venv's (false) safety condition | `docs/reference/multi-agent-operating-model.md:95-96` |
 | Rule packs order `uv run pytest` / `uv sync` | `.windsurf/rules/core/10-python.md:25-27`; `.windsurf/rules/core/45-testing-strategy.md:48` |
-| Fleet survey (2026-10-06): 51 repos carry `/opt/*/.claude/settings.json` (archived excluded), 48 of them with `symlinkDirectories`; 11 run linked worktrees; 100 worktree `.venv` entries are symlinks (`find /opt -maxdepth 5 -path '*/.claude/worktrees/*/.venv' -type l`; seo's 28 worktrees have none); uv.lock tracked in 4 (fabrik, brand-identiy-creator, candle, job-agent); path-style editable `.pth` in 8, a finder-style editable in 1 (youtube `mt_router`); several requirements.txt-only | Explore seat survey, this run |
+| Fleet survey (2026-10-06): 51 repos carry `/opt/*/.claude/settings.json` (archived excluded), 48 of them with `symlinkDirectories`; 11 run linked worktrees; 100 worktree `.venv` entries were symlinks when this review began, a count that grows as agents create worktrees — 102 during round 6 (`find /opt -maxdepth 5 -path '*/.claude/worktrees/*/.venv' -type l`; seo's 28 worktrees have none); uv.lock tracked in 4 (fabrik, brand-identiy-creator, candle, job-agent); path-style editable `.pth` in 8, a finder-style editable in 1 (youtube `mt_router`); several requirements.txt-only | Explore seat survey, this run |
 
 Measured in a scratch repo (uv 0.11.31, main + `git worktree add` + `.venv` symlinked to main's;
 the editable `.pth` target after each command is the oracle), by me and both critique seats:
@@ -101,40 +101,71 @@ compare misfires in a subdirectory). When that worktree's `.venv` is missing, is
 PENDING marker of step 3 exists:
 1. a symlink is removed with `os.unlink` — never a recursive delete (`rm -rf .venv/` through the
    link empties the main venv; measured);
-2. it builds the worktree's own venv. A `pyproject.toml` with a `[project]` table (`tomllib`): when the
-   worktree has no `uv.lock` and the main checkout has one, copy it in first (uv then keeps
-   main's pins wherever the worktree's own pyproject still agrees), then `uv sync` — never `--frozen`,
-   which installs a stale lock silently (executed: a dependency the worktree added was missing, rc 0). Otherwise, when
-   `requirements*.txt` exist: `uv venv --clear .venv` (plain `uv venv` refuses an existing venv at rc 2,
-   so a retry after a half-built venv would never complete) and `uv pip install -r` per file. Otherwise
-   nothing;
-3. a PENDING marker at `git rev-parse --git-path fabrik-venv-bootstrap.pending` (the worktree's own
-   git dir — never a file in the working tree) is written before the build and removed on success; a
-   later session rebuilds when the marker exists, so a timed-out or half-built venv is retried, never
-   trusted;
-4. bounded by a timeout inside the hook's own budget; on timeout or failure it prints one banner
-   line naming the exact command to run by hand and exits 0 (fail-open: a bootstrap failure never
-   blocks a session);
+2. it builds the worktree's own venv by MIRRORING the main checkout's (design critiques, Opus + Fable,
+   executed: a plain `uv sync` installs no `[project.optional-dependencies]` — where 16 of 27 pyproject
+   repos keep pytest, mypy and ruff — picks the newest managed interpreter (3.13 against main's 3.12),
+   ignores `requirements*.txt` beside a `[project]` table and writes an untracked `uv.lock`):
+   Two values, never interchanged: INTERP = `realpath(<main>/.venv/bin/python)` (the base interpreter)
+   and MAINENV = `<main>/.venv/bin/python` unresolved (the venv itself — a freeze through INTERP lists the
+   system site-packages; executed).
+   - interpreter: `uv venv --python INTERP .venv`;
+   - packages: `uv pip freeze --python MAINENV --exclude-editable` installed into the new venv
+     with `uv pip install -r` — the worktree starts on exactly the versions main runs, so the I3 drift
+     cannot appear and no lock is written;
+   - then what the branch itself declares, inexact (installed pins kept): every `requirements*.txt` in
+     one `uv pip install -r … -r …`, and `uv pip install -e .` when the project declares a build system;
+   - a repo that tracks `uv.lock` (4 today) runs `uv sync --all-extras --python INTERP` instead —
+     the lock is the pin (`core/10-python.md:32`);
+   - no main venv: `uv sync --all-extras` for a `[project]` table, else `uv venv`; then, in both cases,
+     the same inexact requirements install (a `[project]` table beside a `requirements.txt` otherwise
+     never gets its requirements; executed), and the banner says so.
+   Executed on a scratch project with pytest in a `dev` extra: pytest present, Python equal to main's,
+   `1 passed`, no `uv.lock` written.
+3. two files in the worktree's own git dir (`git rev-parse --git-path …`, never the working tree): a LOCK
+   file `fabrik-venv-bootstrap.lock`, created once and never removed, and a PENDING marker
+   `fabrik-venv-bootstrap.pending`. A build takes an exclusive non-blocking `flock` on the lock file (held
+   → another build is running, return at once) and, under that lock only, re-checks: `.venv` real and
+   no PENDING marker → nothing to do, release and return. Otherwise it writes the marker, builds, and
+   removes the marker only when the venv VALIDATES (its python minor equals INTERP's, it imports the
+   project when one is installed, and it has pytest when main's venv has it; with no main venv, only
+   the import). Every read and write of the marker happens under the lock, and the lock file is never
+   unlinked, so two sessions can neither build at once nor rebuild a venv the other just validated. A
+   failed or timed-out build leaves the marker with the failing command and its exit code written in
+   it; the next banner prints them and the next session or `--bootstrap` rebuilds — the hook writes no
+   log file (`core/10-python.md:294`);
+4. the build runs DETACHED (a heavy repo — iterative_image_editor's main venv is 2.6 GB with torch —
+   cannot finish inside a SessionStart budget): SessionStart starts it with its output discarded,
+   prints one banner line naming `python3 <absolute hook path> --bootstrap` as the fix (run in the
+   background for a heavy repo), and exits 0 at once (fail-open: a bootstrap
+   failure never blocks a session; the PENDING marker carries a failed build to the next session);
 5. when `VIRTUAL_ENV` resolves to another checkout's `.venv`, the banner says so (that inherited
    variable makes `uv pip install` and `uv run --active` write the other checkout's venv).
-A real `.venv` directory is never touched unless the PENDING marker says its build did not finish. The
+A real `.venv` directory is never touched unless the PENDING marker, read under the lock, says its last
+build did not finish. The
 main checkout is never touched.
 
-**D3 — guard (PreToolUse, Bash), only while a link remains.** The same file, registered for
+**D3 — guard (PreToolUse, Bash), only while a link remains or no own venv exists yet.** The same file, registered for
 PreToolUse with matcher `Bash`, matches WORDS, never shell grammar (the parser failures above). It
 denies when BOTH hold:
-1. a TARGET is a linked worktree whose `.venv` is still a symlink — targets are the payload `cwd` (it
+1. a TARGET is a linked worktree whose `.venv` is still a symlink, OR is missing in a worktree that
+   has a `pyproject.toml` or a `requirements*.txt` (subagent `isolation: worktree` checkouts get no
+   SessionStart — 92 of the 101 worktree links counted at the start of round 6 were `agent-*` worktrees — so a
+   missing venv is the same window; a worktree of a repo with no Python manifest is never a target,
+   since nothing could build it) — targets are the payload `cwd` (it
    follows Claude's `cd`) and every token of the command — split on whitespace and on `;&|()<>`, with
    quotes, a leading `NAME=` or `--name=` and a trailing `/` stripped — that resolves (relative to `cwd`, `~` expanded) to an
    existing path inside a linked worktree;
 2. the raw command text contains, as a whole word (not preceded or followed by `[A-Za-z0-9_.-]`),
-   `uv`, `uvx`, `pip`, `pip3`, `ensurepip`, `virtualenv` or `venv` (`python3 -m venv --clear .venv`
-   empties the main venv through the link; executed), or the substring `.venv/`.
-The fix itself carries no trigger — `rm .venv` (no slash) and `python3 .claude/hooks/worktree_venv.py
---bootstrap` match neither list — so it is never denied. Over-deny is accepted on purpose:
-while a link remains even a mention (`grep "uv sync"`) is denied, the deny says why and names the
-fix — `rm .venv` (no trailing slash) then `python3 .claude/hooks/worktree_venv.py --bootstrap` — and
-the window closes at the next session start. Once the worktree has its own venv the guard never
+   `uv`, `uvx`, `pip`, `pip3`, `ensurepip`, `virtualenv`, `venv`, `poetry`, `pdm`, `pip-sync`,
+   `pip-compile` or `piptools` (`python3 -m venv --clear .venv` empties the main venv through the link;
+   executed), or — after removing quote characters — the substring `.venv/`.
+The fix itself carries no trigger — `rm .venv` (no slash) and `python3 <absolute hook path>
+--bootstrap` match neither list — so it is never denied; the deny prints the ABSOLUTE hook path, so the
+fix works from any subdirectory. Over-deny is accepted on purpose:
+inside the window even a mention (`grep "uv sync"`) is denied, the deny says why and names the
+fix — `rm .venv` (no trailing slash) when it is a link, then `python3 <absolute hook path> --bootstrap`
+— and the window closes at the next session start or when that `--bootstrap` runs (a subagent worktree
+has no session start; the deny is how it learns the command). Once the worktree has its own venv the guard never
 fires there. Writers it cannot see (a script or Makefile that runs uv) are covered only by D1+D2,
 the structural part. The deny is JSON on stdout with exit 0; no mode exits 2. Fail-open on any
 error.
@@ -145,9 +176,18 @@ the hook ship in the same sync; the registration's command also checks the file 
 (`[ -f "$f" ] && python3 "$f" <mode> || exit 0`), because a missing hook file would otherwise fail
 every Bash call with exit 2.
 
+**D6 — the merge owner after a dependency change.** Owner tests run a branch's `src` under the MAIN
+venv (`scripts/merge_request.py:1073-1115`); with D1 no worktree syncs that venv any more, so after a
+merge that changes `pyproject.toml`, `requirements*.txt` or `uv.lock` the merge owner refreshes it
+the way it was built — `uv sync --all-extras` where `uv.lock` is tracked; otherwise the inexact
+`uv pip install -r` of each requirements file and `uv pip install -e .` — so no untracked `uv.lock`
+appears in main — before the next owner test. The operating model
+states the step; the refusal text that names it on a `ModuleNotFoundError` is routed to the owner of the
+concurrent `merge_request.py` work (mail 01M46NZM).
+
 **D5 — docs.** `docs/reference/multi-agent-operating-model.md` § Environment inside a worktree and
-its table row 2 (`:87`, `:95-96`, `:326-332`, `:345-346`) state the new contract (own venv, bootstrap, guard, the old
-precondition's measured falsity); `docs/workstation/hooks-index.md` lists the hook; the rule packs
+its table row 2 (`:87`, `:95-96`, `:326-332`, `:345-346`) state the new contract (own venv mirrored from main, bootstrap,
+guard, the merge owner's D6 step, the old precondition's measured falsity); `docs/workstation/hooks-index.md` lists the hook; the rule packs
 are unchanged (`uv run pytest` is correct in an own venv).
 
 ## Contract deltas
@@ -184,7 +224,7 @@ created before D1 lands.
   round 1 of this review executed spellings that hide a writer from it (a newline, a mid-word `#`,
   `bash -c`, `$(…)`, uv global options such as `uv -q sync`); matching words needs no
   grammar and its only cost, over-deny during a closing window, is visible and self-correcting.
-- **B alone — own venvs with no guard.** Leaves the 100 existing symlinked worktree venvs and pre-D1 subagent
+- **B alone — own venvs with no guard.** Leaves every existing symlinked worktree venv (§ What exists today) and pre-D1 subagent
   checkouts writing through the link until their next SessionStart, silently. C adds the guard for
   that window. Panel: ranked below C by all three.
 - **`UV_NO_SYNC=1` in settings `env`.** Neutralises every `uv run` form, but `env` applies to the
@@ -220,7 +260,11 @@ created before D1 lands.
   `sys.executable` and reports missing tools/deps loudly (`scripts/final_gate.py:80`). Guard parse
   error → allow.
 - **Retirement:** D3 goes inert once no worktree has a symlinked `.venv`; it can be removed by a
-  later change when the scan in § Open/blocking unknowns (`-maxdepth 5`) reads 0.
+  later change when the scan in § Open/blocking unknowns (`-maxdepth 5`), counted over LIVE worktrees,
+  reads 0. Dead `agent-*` worktrees never get another session; `scripts/scratch_sweep.py --worktrees`
+  removes them (its removal unlinks a `.venv` link and never follows it). `fabrik-lib` is sync-excluded,
+  carries no `worktree` block and has 10 linked worktrees with venv links today: it is outside this
+  change and is told by mail.
 
 ## External dependencies
 
@@ -270,19 +314,20 @@ repos (no raw pip); no deps file is edited; the rule packs' `uv run pytest` stay
 
 - **Resolved:** whether `cwd` follows `cd` (yes, documented); whether `no-sync` is a uv setting (no);
   bootstrap cost (5.4–15 s, measured).
-- **Open — requirements-only repo + subagent worktree after D1:** no SessionStart, no `.venv`; the
-  gate falls back to `sys.executable` and fails loudly on missing deps. Resolution step: the plan
-  adds a `python3 .claude/hooks/worktree_venv.py --bootstrap` CLI form and names it in the operating
-  model's worktree section, so a subagent can self-serve.
+- **Resolved — subagent worktrees after D1:** they get no SessionStart, so D3 treats a missing `.venv`
+  like a link: a trigger command is denied with the absolute `--bootstrap` line, which builds the mirror.
+- **Open — version drift in the 23 pyproject repos that track no `uv.lock`:** the mirror starts a
+  worktree on main's versions, but a later `uv run` there resolves fresh. Resolution step: a fleet work
+  item to track `uv.lock` in those repos (`core/10-python.md:32` already says the lock is the pin).
 - **Open — a non-Claude shell writing through a not-yet-converted symlink:** outside every hook;
   closed only as worktrees convert. Resolution step: the plan's validation counts symlinked
   worktree venvs fleet-wide (`find /opt -maxdepth 5 -path '*/.claude/worktrees/*/.venv' -type l | wc -l`
-  — 100 on 2026-10-06; `-maxdepth 4` reads 0 because the link sits at depth 5) after the sync and
+  — 100 when this review began, 102 during round 6; `-maxdepth 4` reads 0 because the link sits at depth 5) after the sync and
   reports the residue.
 
 ## Cost
 
-≈250 lines across 3 code files (the new hook ~220, `scripts/fabrik_synced_manifest.py` +1 entry and a
+≈310 lines across 3 code files (the new hook ~280, `scripts/fabrik_synced_manifest.py` +1 entry and a
 comment, `scripts/sync_enforcement_to_projects.py` the comment block `:97-101` that cites the worktree symlink)
 and 3 config files (`.claude/settings.json` registration + block, `templates/governance/.worktreeinclude`
 regenerated, the hub `.worktreeinclude` header comment) plus
@@ -290,10 +335,13 @@ tests (~150) and docs. One governance-sync commit after the full `/fabrik-review
 
 ## Validation
 
-- V1: a scratch repo + linked worktree with a symlinked `.venv`: SessionStart (hook invoked with a
-  SessionStart payload) replaces the link with an own venv; the main venv's editable `.pth` is
-  byte-identical before and after; a `uv run` in the worktree imports the worktree's src.
-- V2: a requirements-only scratch repo gets an own venv with its requirements installed.
+- V1: a scratch repo + linked worktree with a symlinked `.venv`, pytest in a `dev` extra: SessionStart
+  replaces the link with an own venv whose interpreter version equals main's and which has pytest; the
+  main venv's listing and editable `.pth` are byte-identical before and after; the worktree's python
+  imports the worktree's src; no `uv.lock` appears. And once on the hub itself: a throwaway
+  `git worktree add` of the hub, bootstrapped, passes `final_gate.py --lean --check --json`.
+- V2: a requirements-only scratch repo, and a `[project]` table with no dependencies beside a
+  `requirements.txt`, each get an own venv with their requirements installed.
 - V3: a real `.venv` directory in a worktree and the main checkout are never modified.
 - V4: while a worktree's `.venv` is a symlink, the guard denies every command naming a trigger word
   there — each writer form in the table above, the multi-line, mid-word `#`, `bash -c` and uv
@@ -313,7 +361,13 @@ Each V is red on HEAD first.
 - Per-worktree venvs replace the shared symlinked venv fleet-wide (supersedes the 2026-09-03
   design's "`.venv` symlinked" choice and its D4 safety reasoning) — REVERSIBLE (re-adding the key
   restores sharing).
-- A guard covers only the window while a symlink remains; it is not a permanent policy layer.
+- A guard covers only the window while a link remains or no own venv exists yet; it is not a permanent
+  policy layer.
+- The worktree venv MIRRORS the main checkout's interpreter and installed set rather than resolving
+  fresh (design critiques, both seats; executed), and is built detached under a PENDING marker held by
+  `flock`.
+- `uv.lock` is not added to the synced ignore block (one critique proposed it): it would fight
+  `core/10-python.md:32`, and the lock-tracking work item is the fix for the drift.
 - The guard matches trigger WORDS over the raw command and accepts over-denying a mention during the
   window, instead of parsing shell grammar (a parser was measured to miss writers behind a newline,
   a mid-word `#`, `bash -c` and uv's global options).
@@ -328,14 +382,18 @@ Each V is red on HEAD first.
 | I2 | *"the editable install of trade_intelligence re-pointed at agent-3's worktree src, so any process started from main imported another agent's code"* | IN | D1+D2 (own venvs); V1 |
 | I3 | *"SQLAlchemy 2.0.52 -> 2.1.1, which red-lit the gate's mypy leg for every agent"* | IN | D1+D2 — a worktree's resolution no longer reaches main |
 | I4 | Direction (1): *"worktree setup sets UV_PROJECT_ENVIRONMENT / a uv config so a worktree `uv run` refuses to sync, or gives each worktree its own venv"* | IN | Chosen approach (own venv); the config half rejected (§ Rejected) |
-| I5 | Direction (2): *"a PreToolUse hook refuses `uv run|uv sync|pip install` from a linked worktree"* | IN (narrowed) | D3 — only while a link remains |
+| I5 | Direction (2): *"a PreToolUse hook refuses `uv run|uv sync|pip install` from a linked worktree"* | IN (narrowed) | D3 — only while a link remains or no own venv exists yet |
 | I6 | Direction (3): *"the seat-brief and operating-model docs name it as a serialising act"* | IN | D5 (operating model); seat briefs already ban package-manager verbs (D-587) |
 | I7 | The hub recurrence 2026-10-06 (`_editable_impl_fabrik.pth` → intel's src) | IN | § Why this exists; restored by hand, prevented by D1+D2 |
 | I8 | Critique: a worktree's tests import main's code while sharing (Opus critique 1) | IN | § Goal; V1 |
 | I9 | Critique: Makefile wrappers (12 repos) bypass a command guard | IN | structural fix covers them once converted; § Open unknowns |
 | I10 | Critique: rule packs order `uv run pytest` | IN | unchanged — correct under own venvs |
 | I11 | Critique: `.worktreeinclude` enumerates hooks; missing hook file blocks Bash | IN | D4; V6 |
-| I12 | Judge flaw: requirements-only subagent worktree gets no venv | IN | § Open unknowns (CLI bootstrap form) |
+| I12 | Judge flaw: requirements-only subagent worktree gets no venv | IN | D3.1 (a missing venv is guarded and the deny names `--bootstrap`); § Open/blocking unknowns (resolved) |
 | I13 | Judge flaw: non-Claude shells are outside any hook | IN | § Chosen approach (structural part); § Open unknowns |
+| I14 | Design critique (Opus, at the approval gate): *"plain `uv sync` does not install the dev tools"*; the interpreter and `requirements*.txt` gaps | IN | D2.2 (mirror main); V1, V2 |
+| I15 | Design critique (Fable): *"the lock-copy branch is dead code fleet-wide and the stray-lock complaint is not addressed"* | IN | D2.2 (no lock written); § Open/blocking unknowns (lock-tracking work item) |
+| I16 | Design critique (Fable): owner tests run main's venv, which no worktree syncs after D1 | IN | D6 |
+| I17 | Design critique (Opus): 92 of 101 links are subagent worktrees with no SessionStart | IN | D3.1 (missing venv); § Lifecycle |
 
-Intake: 13 items — 13 IN, 0 OUT-OF-SCOPE, 0 ASK.
+Intake: 17 items — 17 IN, 0 OUT-OF-SCOPE, 0 ASK.

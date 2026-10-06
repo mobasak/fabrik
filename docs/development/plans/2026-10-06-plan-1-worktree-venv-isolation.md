@@ -3,7 +3,7 @@
 Status: CONVERGED
 Profile: small
 **Owner:** infra
-**Surface:** `git rev-parse HEAD` = 4f1c2a181fd9b6d8955b5e71ebea533a65c70013; reviewed pins: plan md5 fe4f3d1f1a898350850eb9ee7f6eb999 (Pass 5), spec md5 130822e212ca674a881141b3ae5dbe69 (Passes 3-5)
+**Surface:** `git rev-parse HEAD` = 0cfde5ef5627db2d7adb28b4abe8313ddfb21677; reviewed pins: plan md5 26db34ccebae361605e3991b310e7aed, spec md5 02e54a4090125c98f3420f0d2dbd73d8 (Pass 9)
 
 Spec: `docs/superpowers/specs/2026-10-06-worktree-venv-isolation-design.md` (DRAFT at 1cd1a2c97, `Size: small`,
 `Profile: delta` — `/fabrik-plan-review` grades its sections together with this plan and flips both). Source:
@@ -123,29 +123,47 @@ Appetite: 120
   for a main checkout, a non-repo, a path inside a `.git` directory (an empty `--show-toplevel`), or any git failure
   (realpath compare per Global Constraints).
 - `venv_is_link(root: Path) -> bool` — `(root / ".venv").is_symlink()`.
-- `bootstrap(root: Path, *, main_root: Path, timeout_s: float) -> str | None` — writes the PENDING marker
-  (`git -C root rev-parse --git-path fabrik-venv-bootstrap.pending`), unlinks a symlinked `.venv` (`os.unlink`), then:
-  a `pyproject.toml` with a `[project]` table (`tomllib`) → copy `<main_root>/uv.lock` in when `root` has none and main
-  has one, then `uv sync` (cwd=root; never `--frozen`, which installs a stale lock silently); else `requirements*.txt`
-  present → `uv venv --clear .venv` then `uv pip install --python .venv/bin/python -r <f>` per file (sorted); else nothing. Removes the
-  marker on success. Returns `None` on success or no-op, else the one-line banner naming the exact command. Never
-  touches a real `.venv` directory unless the PENDING marker says the last build did not finish.
-- `needs_bootstrap(root: Path) -> bool` — `.venv` missing, a symlink, or the PENDING marker present.
+- `bootstrap(root: Path, *, main_root: Path) -> str | None` — takes an exclusive non-blocking `fcntl.flock` on the
+  LOCK file `<git -C root rev-parse --git-path fabrik-venv-bootstrap.lock>` (created on first use, never unlinked; held →
+  return at once, another build is running). Under the lock it re-checks: a real `.venv` and no PENDING marker
+  (`…/fabrik-venv-bootstrap.pending`) → release and return (nothing to build; another session may just have
+  validated it). Otherwise it writes the marker, unlinks a symlinked `.venv`
+  (`os.unlink`) and MIRRORS main (`spec § The delta` D2.2) with
+  INTERP = `realpath(main_root/.venv/bin/python)` and MAINENV = `main_root/.venv/bin/python` (unresolved): `uv venv
+  --clear --python INTERP .venv`; `uv pip freeze --python MAINENV --exclude-editable` → `uv pip install --python
+  .venv/bin/python -r <frozen>`; then, inexact, one `uv pip install -r <each requirements*.txt>` and `uv pip install
+  -e .` when `pyproject.toml` declares a build system. A repo tracking `uv.lock` runs `uv sync --all-extras --python
+  INTERP` instead; no main venv → `uv sync --all-extras` for a `[project]` table (`tomllib`), else `uv venv`, then the
+  requirements install in both cases. Removes the marker only when `validate()` passes; on failure writes the failing
+  command and its exit code into the marker. Returns `None` on success or no-op, else the one-line banner naming
+  `python3 <absolute hook path> --bootstrap`.
+- `validate(root: Path, main_root: Path) -> bool` — the worktree python imports the project's top-level package when
+  one is installed; and, when main has a venv, its `sys.version_info[:2]` equals INTERP's and it has pytest whenever
+  MAINENV has it.
+- `start_detached(root: Path, main_root: Path) -> None` — spawns `python3 <hook> --bootstrap <root>` in its own session
+  (`start_new_session=True`, stdin/stdout/stderr to `os.devnull` — no log file, `core/10-python.md:294`; a failure is
+  carried by the marker) so SessionStart returns at once.
+- `needs_bootstrap(root: Path) -> bool` — `.venv` missing, a symlink, or the PENDING marker present (SessionStart's
+  cheap pre-check; `bootstrap` repeats it under the lock file before building).
 - `guard_targets(command: str, cwd: Path) -> list[Path]` — `cwd` plus every token (split on whitespace and `;&|()<>`)
   that, after stripping quotes, a leading `NAME=` or `--name=` and a trailing `/`, resolves (relative to `cwd`, `~` expanded) to an existing path;
   each mapped through `linked_worktree_root`, `None`s dropped, deduplicated.
+- `needs_guard(root: Path) -> bool` — `.venv` is a symlink, or it is absent (`not os.path.lexists`) and `root` holds a
+  `pyproject.toml` or a `requirements*.txt` (`spec § The delta` D3.1).
 - `has_trigger(command: str) -> bool` — the raw text contains, as a whole word (`(?<![A-Za-z0-9_.-])…(?![A-Za-z0-9_.-])`),
-  `uv`, `uvx`, `pip`, `pip3`, `ensurepip`, `virtualenv` or `venv`, or the substring `.venv/` (`spec § The delta` D3).
+  `uv`, `uvx`, `pip`, `pip3`, `ensurepip`, `virtualenv`, `venv`, `poetry`, `pdm`, `pip-sync`, `pip-compile` or
+  `piptools`, or — after deleting quote characters — the substring `.venv/` (`spec § The delta` D3).
 - `foreign_virtual_env(root: Path) -> Path | None` — `realpath($VIRTUAL_ENV)` when it is a `.venv` outside `root`.
 - `main(argv) -> int` — modes: `session-start` (reads the SessionStart payload's `cwd`; bootstraps only in a linked
-  worktree where `needs_bootstrap`; prints the banner when one is returned, and a line naming `foreign_virtual_env` when
+  worktree where `needs_bootstrap`, by `start_detached`; prints the banner, and a line naming `foreign_virtual_env` when
   set), `pre-tool-use` (reads the
-  payload; for `tool_name == "Bash"`, when `has_trigger` and any of `guard_targets` has `venv_is_link`, prints the deny JSON `{"hookSpecificOutput": {"hookEventName": "PreToolUse",
+  payload; for `tool_name == "Bash"`, when `has_trigger` and any of `guard_targets` has `needs_guard`, prints the deny JSON `{"hookSpecificOutput": {"hookEventName": "PreToolUse",
   "permissionDecision": "deny", "permissionDecisionReason": <reason>}}`), `--bootstrap [PATH]` (the CLI form; bootstraps
-  `PATH` or the cwd's linked worktree, prints the outcome, exit 0 even on failure, exit 2 only on a usage error). Every
+  `PATH` or the cwd's linked worktree in the foreground, prints the outcome, exit 0 even on failure, exit 2 only on a usage error). Every
   mode returns 0 on any exception.
-- The deny reason names: why (the main checkout's venv is shared through the link), the fix (`rm .venv` — no trailing
-  slash — then `python3 .claude/hooks/worktree_venv.py --bootstrap`), and that the guard stops firing once `.venv` is a
+- The deny reason names: why (the main checkout's venv is shared through the link, or there is no venv yet), the fix
+  (`rm .venv` — no trailing slash — when it is a link, then `python3 <ABSOLUTE hook path> --bootstrap`, run in the
+  background for a heavy repo), and that the guard stops firing once `.venv` is a
   real directory.
 
 **Consumes:** nothing.
@@ -165,12 +183,16 @@ Appetite: 120
    rows pass, not skip, on this box: `uv` is on PATH).
 4. Prove red on revert in a throwaway worktree (copy the hook to its exact path, grep a marker to confirm the copy
    landed): replace `os.unlink` with `shutil.rmtree(p, ignore_errors=True)` on the resolved path → A2 fails (the main
-   venv's listing changes); make `linked_worktree_root` a string compare → A1's main-subdirectory case fails; drop the
+   venv's listing changes); drop the `--python INTERP` from the venv build → A2's version case fails; drop the
+   freeze mirror → A2's pytest case fails; drop the requirements install when `[project]` exists → A3's mixed case
+   fails; drop the missing-venv target → A4's missing-worktree case fails; make `linked_worktree_root` a string compare → A1's main-subdirectory case fails; drop the
    path-token targets from `guard_targets` → A4's `cd <wt> && uv sync` case fails; drop the word boundary from
-   `has_trigger` → A5's `ls build_uvicorn` case fails; skip the PENDING marker → A6's retry case fails; let an exception
+   `has_trigger` → A5's `ls build_uvicorn` case fails; skip the PENDING marker → A6's retry case fails; drop the `flock` → A6's concurrent case fails; read the marker outside the lock → A6's just-validated case fails; let an exception
    escape `main` → A6 fails; remove the worktree.
 5. Measure the guard's cost: time 1,000 `pre-tool-use` invocations of a command with no trigger word (`ls -la`) and of
-   a triggering command in a main checkout; record the per-call median in Evidence.
+   a triggering command in a main checkout; record the per-call median in Evidence. Then time one `--bootstrap` into a
+   scratch venv mirroring iterative_image_editor's frozen set (read with `uv pip freeze --python
+   /opt/iterative_image_editor/.venv/bin/python`, read-only) and record seconds and `du` beside it.
 6. `python scripts/enforcement/check_doc_sync.py` → exit 0.
 7. **`/fabrik-review-scoped`** on Phase A's surface (`.claude/hooks/worktree_venv.py`, `tests/test_worktree_venv.py`),
    run to its closing pass confirming 0 — BLOCKING before Phase B. Phase A is NOT committed alone (Global Constraints:
@@ -179,11 +201,11 @@ Appetite: 120
 ### Behavior Contract — Phase A
 
 - **Given** a scratch main repo and a linked worktree, **When** `linked_worktree_root` is asked about the worktree root, a subdirectory of it, the main checkout, a subdirectory of the main checkout, a non-repo directory and `<main>/.git/worktrees/<name>`, **Then** it returns the worktree root for the first two and `None` for the other four (A1; spec D2, Fable critique 4)
-- **Given** a linked worktree whose `.venv` symlinks the main repo's venv, **When** the `session-start` mode runs with that `cwd`, **Then** the worktree's `.venv` becomes a real directory, `import demo` under it resolves to the worktree's `src`, and the main venv's file listing and editable `.pth` are byte-identical before and after; with a `uv.lock` only in the main checkout, the worktree resolves from a copy of it (A2; spec V1, D2)
-- **Given** a requirements-only main repo and its linked worktree with a symlinked `.venv`, and separately a worktree whose `.venv` is already a real directory and the main checkout itself, **When** `session-start` runs in each, **Then** the first gets an own venv with its requirement installed, the other two are untouched (directory listing and mtimes unchanged), and with `VIRTUAL_ENV` set to the main venv the banner names it (A3; spec V2, V3, D2)
-- **Given** a linked worktree with a symlinked `.venv`, **When** `pre-tool-use` sees, with `cwd` = the worktree: `uv run`, `uv run --frozen`, `uv run --no-sync pytest`, `uv sync`, `uv -q sync`, `uv add x`, `uv pip install -e .`, `uv venv --clear`, `pip install x`, `python3 -m pip install x`, `rm -rf .venv/`, `echo ok` + newline + `uv sync`, `echo a#b; uv sync`, `bash -c "uv sync"`, `python3 -m venv --clear .venv`, `grep -rn "uv sync" docs`; and with `cwd` = the main checkout: `cd <wt> && uv sync`, `cd <wt>&&uv sync`, `UV_PROJECT=<wt> uv sync`, `uv --directory <wt> sync`, **Then** every one is denied with the deny JSON naming `rm .venv` and `--bootstrap` (A4; spec V4, D3)
-- **Given** the A4 commands, **When** the worktree's `.venv` is a real directory or every target is the main checkout; and, in the symlinked worktree, `rm .venv`, `python3 .claude/hooks/worktree_venv.py --bootstrap`, `ls build_uvicorn`, `git status`, **Then** nothing is denied (A5; spec V4, D3)
-- **Given** a malformed payload, a payload with no `cwd`, a git binary that fails, and a requirements-only worktree whose fake `uv` creates a real `.venv/` and then sleeps past the timeout, **When** each mode runs, **Then** it exits 0, prints no deny, and the bootstrap prints exactly one banner line naming the command to run; after that timeout the PENDING marker exists, and a second `session-start` completes the venv and removes it (A6; spec V5)
+- **Given** a main repo whose `.venv` is built with a `dev` extra holding pytest, and its linked worktree whose `.venv` is a link to it, **When** `--bootstrap` runs there (the code path SessionStart starts detached), **Then** the worktree's `.venv` is a real directory whose python's `sys.version_info[:2]` equals main's, `.venv/bin/python -m pytest --version` exits 0, `import demo` resolves to the worktree's `src`, the main venv's file listing and editable `.pth` are byte-identical before and after, and `git status --porcelain` shows no `uv.lock` (A2; spec V1, D2)
+- **Given** a requirements-only main repo, a main repo with a `[project]` table and no dependencies beside a `requirements.txt` (once with a main venv and once without), each with a linked worktree whose `.venv` is a link, and separately a worktree whose `.venv` is already a real directory and the main checkout itself, **When** `--bootstrap` and `session-start` run in each, **Then** the first two get an own venv with their requirement installed, the other two are untouched (directory listing and mtimes unchanged), and with `VIRTUAL_ENV` set to the main venv the banner names it (A3; spec V2, V3, D2)
+- **Given** a linked worktree whose `.venv` is a link, and a second whose `.venv` is missing, **When** `pre-tool-use` sees, with `cwd` = the worktree: `uv run`, `uv run --frozen`, `uv run --no-sync pytest`, `uv sync`, `uv -q sync`, `uv add x`, `uv pip install -e .`, `uv venv --clear`, `pip install x`, `python3 -m pip install x`, `rm -rf .venv/`, `echo ok` + newline + `uv sync`, `echo a#b; uv sync`, `bash -c "uv sync"`, `python3 -m venv --clear .venv`, `pip-sync r.txt`, `rm -rf ".venv"/`, `grep -rn "uv sync" docs`; and with `cwd` = the main checkout: `cd <wt> && uv sync`, `cd <wt>&&uv sync`, `UV_PROJECT=<wt> uv sync`, `uv --directory <wt> sync`, **Then** every one is denied in both worktrees with the deny JSON naming an absolute `--bootstrap` path that exists (and `rm .venv` for the link) (A4; spec V4, D3)
+- **Given** the A4 commands, **When** the worktree's `.venv` is a real directory or every target is the main checkout; and, in the symlinked worktree, `rm .venv`, `python3 <absolute hook path> --bootstrap`, `ls build_uvicorn`, `git status`; and `uvx ruff --version` in a linked worktree of a repo with no `pyproject.toml` and no `requirements*.txt`, **Then** nothing is denied (A5; spec V4, D3)
+- **Given** a malformed payload, a payload with no `cwd`, a git binary that fails, and a requirements-only worktree whose fake `uv` creates a real `.venv/` and then exits 1 mid-install, **When** each mode runs, **Then** it exits 0 and prints no deny; the failed build leaves the PENDING marker, `needs_bootstrap` is true, and a second `--bootstrap` completes the venv and removes the marker; while one `--bootstrap` holds the marker's lock, a second returns at once without building; a `--bootstrap` on an already-valid worktree (real `.venv`, no marker) builds nothing and leaves no marker, so the next `needs_bootstrap` is false; and the failing command and exit code are in the marker after the failed build (A6; spec V5, D2.3)
 
 ## Phase B — distribution, docs, Finish
 
@@ -228,7 +250,13 @@ edit.
    `python3 -c "import json; json.load(open('.claude/settings.json'))"` → no error.
 4. Prove the guard-on-existence form: in a scratch dir with a copy of the settings command and no hook file, run the
    command string under `sh -c` with `CLAUDE_PROJECT_DIR` set → exit 0, no output.
-5. The doc edits per the Interfaces; `CHANGELOG.md` and `docs/DECISIONS.md` through the shared-append private-index
+4a. The hub-level V1 run (`spec § Validation` V1): `git worktree add --detach <scratch>/hubwt HEAD`, copy the working
+   tree's changed files into it, run `python3 <scratch>/hubwt/.claude/hooks/worktree_venv.py --bootstrap
+   <scratch>/hubwt`, then from `<scratch>/hubwt`: `.venv/bin/python scripts/final_gate.py --lean --check --json` →
+   `"status": "success"`, and `.venv/bin/python -c "import fabrik; print(fabrik.__file__)"` prints the throwaway's
+   `src`; record both in Evidence, then `git worktree remove --force <scratch>/hubwt`.
+5. The doc edits per the Interfaces, including the merge owner's D6 step (after a merge that changes `pyproject.toml`,
+   `requirements*.txt` or `uv.lock`, refresh the main venv before the next owner test) in the operating model; `CHANGELOG.md` and `docs/DECISIONS.md` through the shared-append private-index
    recipe (`CLAUDE.md` § Behavior, the shared-repo bullet), the D-id minted with `python3 scripts/decisions.py
    --reserve-id .` inside that shell. Then `python scripts/enforcement/check_doc_sync.py`,
    `python scripts/enforcement/check_doc_index.py` and `python scripts/render_doc_script_links.py --check` → all exit 0.
@@ -244,11 +272,15 @@ edit.
    Evidence below is the design proof), and `python scripts/enforcement/check_convergence.py` → exit 0.
 9. ONE commit (explicit pathspecs + provenance trailers, `Agent-Phase: A,B`), push; the post-commit governance sync
    distributes it — read its summary line (projects synced, 0 failed). Then reply to trade-intelligence (mail
-   01M3RYGETKD5HQZRBTDF3EK3EK; ack: no — the reply closes the loop) and close W-46d148b0 with `work.py done`.
+   01M3RYGETKD5HQZRBTDF3EK3EK; ack: no — the reply closes the loop) and close W-46d148b0 with `work.py done`. File
+   the lock-tracking work item for fleet (`spec § Open/blocking unknowns`: track `uv.lock` in the 23 pyproject repos
+   that track none), mail fabrik-lib that its 10 linked worktrees still share its venv (sync-excluded, so this change
+   never reaches it), and send intel the D6 refusal-text request for its `merge_request.py` item (mail 01M46NZM).
 10. Validation residue (`spec § Open/blocking unknowns`): count symlinked worktree `.venv` entries fleet-wide —
     `find /opt -maxdepth 5 -path '*/.claude/worktrees/*/.venv' -type l | wc -l` (the link sits at depth 5; `-maxdepth 4`
-    reads 0 — 100 on 2026-10-06) — before the commit and again after the
-    hub's own worktree sessions restart; record both numbers in the receipt.
+    reads 0 — 100 when this review began, 102 during round 6), and the same scan restricted to LIVE worktrees (a worktree with a running `claude`
+    process, `/proc/*/cwd`), before the commit and again after the hub's own worktree sessions restart; record both
+    numbers in the receipt. Dead `agent-*` worktrees are `scratch_sweep.py --worktrees` territory, never edited here.
 
 ### Behavior Contract — Phase B
 
@@ -312,8 +344,8 @@ The docs that state the old contract: `docs/reference/multi-agent-operating-mode
   two design critiques (Opus, Fable) of the `/fabrik-task` design, the three-seat judge panel; every `path:line` above
   re-read this run.
 - (a) Coverage: spec D1 → Phase B step 2; D2 → Phase A (A2, A3); D3 → Phase A (A4, A5); D4 → Phase B (B1); D5 → Phase B
-  step 5; V1 → A2; V2 and V3 → A3; V4 → A4 and A5; V5 → A6; A1 carries D2's detection rule (no V of its own);
-  V6 → B1; the open unknown's CLI form → Phase A `main --bootstrap`; the residue count → Phase B
+  step 5 (D6 in the same step); V1 → A2 and Phase B step 4a (the hub run); V2 and V3 → A3; V4 → A4 and A5; V5 → A6;
+  A1 carries D2's detection rule (no V of its own); V6 → B1; the resolved subagent case's `--bootstrap` line → Phase A `main --bootstrap` and A4; the residue count → Phase B
   step 10; the reply and the work-item close → Phase B step 9. No gap.
 - (b) Signatures: Phase B consumes only `main`'s mode names (`session-start`, `pre-tool-use`, `--bootstrap`) and the
   file path; both are defined once in Phase A's Interfaces and used verbatim in B's settings commands and B1.
@@ -325,8 +357,12 @@ The docs that state the old contract: `docs/reference/multi-agent-operating-mode
   the scaffold carries the hook to new projects with no edit (`src/fabrik/scaffold.py:1295-1305`).
 - **Open — the guard's per-call cost:** resolution step: Phase A step 5 measures it; a median above 50 ms moves the
   string pre-filter earlier before Phase B.
-- **Open — requirements-only subagent worktrees after D1:** resolution step: the `--bootstrap` CLI form (Phase A) and
-  its line in the operating model (Phase B step 5).
+- **Resolved — subagent worktrees after D1:** D3 treats a missing `.venv` like a link and its deny names the absolute
+  `--bootstrap` line (A4's missing-worktree case).
+- **Open — heavy repos:** the mirror install of a 2.6 GB venv (iterative_image_editor) runs detached; resolution step:
+  Phase A step 5 also times one `--bootstrap` against a scratch copy of a heavy repo's frozen set and records it.
+- **Open — drift in repos with no tracked `uv.lock`:** a later `uv run` in a worktree resolves fresh; resolution step:
+  the fleet lock-tracking work item filed in Phase B step 9.
 - **Open — non-Claude shells writing through a not-yet-converted link:** resolution step: Phase B step 10 counts the
   residue; recorded in the receipt.
 
@@ -341,6 +377,10 @@ Joint loop over this plan and its `Size: small` spec (md5 pairs: plan · spec).
 | Pass 3 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-2 fix hunks + one hop; the monolith flip gates run on a flipped scratch copy | found: 5, new: 5, confirmed: 2, fixed: 2, unexecuted: 0, edits: 2 | method: re-derivation — A 12/12 and B 9/9 re-executed (word guard over every A4/A5 command, the `uv venv --clear` retry, the copied-lock `uv sync`, the size accounting, the Pass 2 counters); the two confirmed — the Constraints Digest named no `core/40-documentation.md` mandate though the rubric matches it (`check_rule_grounding` on the flipped copy), and Residual A2-C6 cited a `.claude/commands` that does not exist; flip gates: `check_spec_convergence` 1 examined 0 findings, `check_plan_quality` 0 findings with a red control, `check_rule_grounding` 0 findings after the fix, `check_convergence` live (red only on the open checklist and the last Pass row) | plan 8bda5955 · spec 130822e2 → plan b42b7d20 · spec 130822e2 |
 | Pass 4 | sonnet×1 (slice B owner; slice A held no open claim — its 12 claims were re-executed in Pass 3) · delta over the round-3 hunks | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 5 | method: re-derivation — B 4/4 re-executed (the digest quote at `core/40-documentation.md:241`, `commands/` and the 0-pairing grep, the Pass 3 start hashes, the Residual grammar); confirmed own-fix: Pass 3 `found:` read 6 where the rulings sum to 5; scope-growth stop: Passes 2 and 4 were both all own-fix, so hunting stops and the next pass re-verifies only this fixed cell; residue before the pin: the Coverage Checklist adjudicated (9 rows + the cost/quota class), A-C16 re-worded to `measured`, Pass 3's method cell re-worded so its prose no longer parses as a counter | plan 7c78e97d · spec 130822e2 → plan 8297c549 (Pass 4 row deleted) · spec 130822e2 |
 | Pass 5 | sonnet×1 (slice B owner) · remainder round after the scope-growth stop — the round-4 fixed set only | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — B 3/3 re-executed (Pass 3 counters now reconcile 5 = 2 + 3 Residual rows; the filled Coverage Checklist rows against the Pass rows and Residual table they cite; the Pass 4 start hashes equal the round-4 pins); the one candidate is a round-tag label in this review's own checklist and is RECORDED, never edited in a closing round; standing clean since Pass 3: slice A (12/12) and every class of the ledger | plan fe4f3d1f · spec 130822e2 → plan fe4f3d1f · spec 130822e2 ✓ |
+| Pass 6 | opus×1 + sonnet×1 (round-1 slice owners) · delta re-opened by the approval-gate design critiques (Opus, Fable: both sound-with-changes; 11 concerns accepted, 1 rejected) | found: 12, new: 12, confirmed: 11, fixed: 11, unexecuted: 0, edits: 12 | method: re-derivation — A 13/19 claims held and 6 fell (each executed: the no-main-venv mixed fixture, the freeze through the base interpreter, a non-Python worktree denied forever, the unlinked-marker inode race), B 7/7 re-executed (92 of 101, 16 of 27, 4 and 23, fabrik-lib 10 of 17); the eleven fixed — two named Python values, the no-main-venv requirements install, `needs_guard` in `main`, no log file, the D3 heading, Decision and fix path, manifest-only missing targets, `validate` without a main venv, the post-lock re-check, D6 refreshing main without writing a lock, the stale worktree-link count, two stale open-unknown references | plan 31e0ec27 · spec 5fa5ecb5 → plan d8d4f348 · spec 941e65e1 |
+| Pass 7 | opus×1 + sonnet×1 (round-1 slice owners) · remainder round — the round-6 fixed set only | found: 5, new: 5, confirmed: 2, fixed: 2, unexecuted: 0, edits: 5 | method: re-derivation — A 9 of 10 fixes held (each re-executed: the no-main-venv requirements fixture, `needs_guard` against the non-Python worktree, INTERP vs MAINENV), B 4/4; the two confirmed were both in the round-6 marker fix (an early return left the marker it created, so the next run rebuilt a valid venv; an opener racing the unlink locked a stale inode — both executed), so the marker paragraph was REWRITTEN in one batch around a never-removed lock file with every marker read and write under it; class rewrite — spec D2.3 and the plan's `bootstrap` | plan dd2d1660 · spec 941e65e1 → plan 885fb41a · spec 48ea39d1 |
+| Pass 8 | opus×1 + sonnet×1 (round-1 slice owners) · remainder round — the round-7 fixed set only (the lock-file rewrite, I5, the Pass 7 rows) | found: 2, new: 2, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — A 6/8 (the rewritten rule executed literally in all four scenarios: a no-op leaves no marker, a held lock returns, a run after validation builds nothing, a failed build leaves the command and rc and the next run rebuilds), B 4/4; the two items are own-fix text in this review's round-7 rows and are RECORDED, never edited in a closing pass (A8-N1, A8-N2) | plan 327c8fd4 · spec 48ea39d1 → plan 327c8fd4 · spec 48ea39d1 ✓ |
+| Pass 9 | opus×1 (slice A owner); slice B restated at its Pass 8 4/4 · closing pass over the Pass 8 rows, Status and Surface lines (spec body unchanged since Pass 8) | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — A 8/8: A8-N1 and A8-N2 state their findings accurately, and A8-N1's destination test was run against the rule and the mutant (a complete `bootstrap` injected through a wrapped `fcntl.flock`: rule builds nothing, mutant rebuilds — the test discriminates); the other six round-8 checks re-run true; standing clean since Pass 8: every class of the ledger | plan 26db34cc · spec 02e54a40 → plan 26db34cc · spec 02e54a40 ✓ |
 
 ## Residual
 
@@ -354,6 +394,12 @@ Joint loop over this plan and its `Size: small` spec (md5 pairs: plan · spec).
 | A3-R2 | RECORDED — measured (the deny's fix line names `.claude/hooks/worktree_venv.py` relative to the worktree root; executed from a subdirectory it does not resolve, rc 2 — one hop out of the round-2 hunks; destination: Phase A step 2 prints the absolute hook path, and A4 asserts the path in the reason exists) |
 | B3-N2 | REFUTED (the receipt grammar is `REFUTED (<the disproving line>)`, which carries no kind segment) |
 | B5-N1 | RECORDED — measured (wording; changes no behaviour — the denominator checklist row tags the Pass 3 `found:` correction `FIXED r3` where Pass 4 made it) |
+| A6-R2 | RECORDED — measured (advice; changes no behaviour — a foreground `--bootstrap` of a heavy repo can outlive the Bash tool's timeout, so the deny now says to run it in the background) |
+| A7-R1 | RECORDED — measured (one hop out: the Phase A mutant list still named `--python <main python>`; renamed to INTERP in the same batch) |
+| A7-R2 | RECORDED — measured (one hop out: Intake I5 still read "only while a link remains"; aligned with D3 in the same batch) |
+| B7-N1 | RECORDED — measured (wording; changes no behaviour — Pass 6's method cell lists twelve phrases for eleven fixes, the D3 heading and the Decision bullet carrying one sentence) |
+| A8-N1 | RECORDED — measured (own-fix, remainder round: row A6's just-validated case is sequential, so the mutant "read the marker outside the lock" survives it — destination: Phase A step 1 builds A6 with an interleaved case, a complete `bootstrap` run injected through a wrapped `fcntl.flock` just before the second run takes the lock, asserting the second builds nothing) |
+| A8-N2 | RECORDED — measured (wording; changes no behaviour — row A6 says "the marker's lock" where the lock is the lock file's `flock`; destination: Phase A step 1 names it so in the test) |
 
 ## Coverage Checklist
 
