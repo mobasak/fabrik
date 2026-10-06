@@ -62,6 +62,9 @@ def test_the_pytest_leg_takes_test_database_url_from_env_files_in_order(project,
     (project / ".env").write_text(f"{KEY}={GOOD}\n", encoding="utf-8")
     name, ok, text = _row()
     assert not ok and name == "pytest" and "from .env" in text, (name, text)
+    assert "TEST_DATABASE_URL from .env (value redacted)." in text, (
+        text
+    )  # the one-key note, unchanged
 
     (project / ".env.local").write_text(
         f"{KEY}=postgresql://u:p@localhost/other_test\n", encoding="utf-8"
@@ -211,3 +214,74 @@ def test_a_short_password_in_pytests_own_diff_line_is_redacted(project):
     import re
 
     assert not ok and not re.search(r"[+-] ab$", text, re.MULTILINE), text
+
+
+APP_KEY = "TEST_APP_DATABASE_URL"
+APP_SECRET = "appR0lePassw0rd"
+APP_GOOD = f"postgresql://app_user:{APP_SECRET}@localhost:5432/shop_test"
+# An RLS-style suite: it connects as the app role and fails printing the URL, so a passed value is
+# observable and any echo of it lands in pytest's output (brand-identiy-creator 01M473WBS4VSQPQ7)
+APP_TEST = f'''
+import os, pytest
+URL = os.getenv("{APP_KEY}", "")
+
+@pytest.mark.skipif(not URL, reason="needs {APP_KEY}")
+def test_rls():
+    print("connecting as the app role to", URL)
+    raise AssertionError("rls: " + URL)
+'''
+
+
+@pytest.fixture
+def rls_project(project, monkeypatch):
+    (project / "tests" / "test_db.py").unlink()
+    (project / "tests" / "test_rls.py").write_text(APP_TEST, encoding="utf-8")
+    for k in (APP_KEY, "TEST_MIGRATION_DATABASE_URL", "TEST_REDIS_URL"):
+        monkeypatch.delenv(k, raising=False)
+    return project
+
+
+def test_the_app_role_key_reaches_the_suite_from_an_env_file_redacted(rls_project):
+    (rls_project / ".env").write_text(
+        f"{APP_KEY}={APP_GOOD}\nTEST_REDIS_URL=redis://localhost:6379/9\n", encoding="utf-8"
+    )
+    name, ok, text = _row()
+    assert not ok and name == "pytest" and "test_rls" in text, (name, text)  # ran, not skipped
+    assert f"{APP_KEY} from .env" in text, text
+    assert APP_GOOD not in text and APP_SECRET not in text, text
+    assert "<TEST_APP_DATABASE_URL>" in text and "(value redacted)." in text, text  # its own label
+    values, notes, refusal = fg._resolve_extra_test_database_urls(rls_project)
+    assert refusal is None and set(values) == {APP_KEY}, (values, notes)  # TEST_REDIS_URL is not
+
+
+def test_a_non_disposable_app_role_value_is_refused(rls_project):
+    bad = "postgresql://app_user:p@localhost/shop"
+    (rls_project / ".env").write_text(f"{APP_KEY}={bad}\n", encoding="utf-8")
+    name, ok, text = _row()
+    assert not ok and "REFUSED" in name and APP_KEY in text, (name, text)
+    assert bad not in text and "p@localhost" not in text, text
+
+
+def test_only_the_database_url_family_is_resolved():
+    family = fg._TDB_FAMILY
+    assert family.match(APP_KEY) and family.match("TEST_MIGRATION_DATABASE_URL")
+    assert not family.match("TEST_DATABASE_URL")  # the primary key keeps its own path
+    assert not family.match("TEST_REDIS_URL") and not family.match("TEST__DATABASE_URL")
+
+
+def test_two_keys_sharing_a_password_or_a_prefix_each_keep_their_label(rls_project, monkeypatch):
+    """Review round 2: with a shared one-letter password, or one URL a prefix of the other, the
+    first key's pass rewrote the second URL before its own replace ran — unlabeled or mislabeled."""
+    tdb = "postgresql://u:p@localhost/test"
+    app = "postgresql://u:p@localhost/test_app_test"
+    monkeypatch.setenv(KEY, tdb)
+    monkeypatch.setenv(APP_KEY, app)
+    (rls_project / "tests" / "test_rls.py").write_text(
+        "import os\n\ndef test_both():\n"
+        f"    raise AssertionError('A=' + os.environ['{KEY}'] + ' B=' + os.environ['{APP_KEY}'])\n",
+        encoding="utf-8",
+    )
+    name, ok, text = _row()
+    assert not ok, (name, text)
+    assert "A=<TEST_DATABASE_URL> B=<TEST_APP_DATABASE_URL>" in text, text
+    assert "localhost/test" not in text, text
