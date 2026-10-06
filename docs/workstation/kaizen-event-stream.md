@@ -134,7 +134,10 @@ so a misspelled sensor is visible the day it ships.
 **The Stop hook fires once per TURN, not once per session.** So its pass-through is `stop_pass`,
 and **session liveliness derives from a session's LAST `stop_pass` timestamp** — the hole in the
 data is a session that produced **no `stop_pass` ever**, not a missing "session end". `session_end`
-is reserved for the coroner's post-hoc close of a session that is already gone.
+is reserved for the coroner's post-hoc close of a session that is already gone. Only a session the
+hook INSTRUMENTS can be a hole: its recorded cwd holds `scripts/final_gate.py` (`hole_count` v4,
+W-97de2aa3 — headless `claude -p` runs from `~` or `/tmp` never reach a Stop pass), and the quota
+hold's `stop_allowed_quota_hold` counts as a pass.
 
 **`stop_block.outcome` separates enforcement that HELD from enforcement that gave up.** After `CAP`
 consecutive blocked stops each cause warns through and lets the turn end; that give-up used to be

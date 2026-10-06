@@ -1120,11 +1120,15 @@ METRIC_DEFS: tuple[dict, ...] = (
         "id": "hole_count",
         # v3 (fix-wave 3): the W2-F3 population change (a BLIND sweep is None → —,
         # never a measured-looking 0) ships with its owed version bump (S5).
-        "version": 3,
+        # v4 (W-97de2aa3): only transcripts the Stop hook instruments count — 392 of
+        # 10-05's 393 holes were headless `claude -p` runs from ~ and /tmp.
+        "version": 4,
         "counter_metric": "unclassified_rate",
         "formula": (
-            "kaizen_coroner.holes(): transcripts-with-activity minus sessions with a "
-            "stop_pass OR session_end for the day — the documented liveliness "
+            "kaizen_coroner.holes(): transcripts-with-activity whose recorded cwd holds "
+            "scripts/final_gate.py (the Stop hook's instrumented population) minus "
+            "sessions with a stop_pass, stop_allowed_quota_hold OR session_end for the "
+            "day — the documented liveliness "
             "semantics (a normally-ended session's liveliness is its last stop_pass; "
             "session_end is the coroner's post-hoc close). A BLIND probe (missing/"
             "unreadable transcripts dir, crashed sweep) is None → the cell renders "
@@ -1809,8 +1813,9 @@ def compute_metrics(
             id="hole_count",
             cell=str(int(holes)),
             detail=(
-                "transcripts with activity but no stop_pass and no session_end "
-                "(coroner hole metric)"
+                "Stop-hook-instrumented transcripts (recorded cwd holds "
+                "scripts/final_gate.py) with activity but no stop_pass, quota-hold pass "
+                "or session_end (coroner hole metric, v4)"
             ),
             value=int(holes),
             numerator=int(holes),

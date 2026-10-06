@@ -51,9 +51,10 @@ The Stop hook blocks ONLY on ``state == "running"``
 (.claude/hooks/final_gate_stop.py:482,1029,1263 — verified on the merged file
 2026-08-20), so a coroner-closed record never pins its project.
 
-The hole metric: ``holes = transcripts-with-activity − sessions-with-a-stop_pass-or-
-session_end`` per day (a normally-ended session's liveliness is its last ``stop_pass``
-— H4) — :func:`holes` returns the NUMBER for T06 to consume as a first-class
+The hole metric: ``holes = instrumented-transcripts-with-activity − sessions-with-a-
+pass-or-session_end`` per day — only sessions whose recorded cwd the Stop hook instruments
+count (W-97de2aa3, hole_count v4), and a normally-ended session's liveliness is its last
+``stop_pass`` (H4) — :func:`holes` returns the NUMBER for T06 to consume as a first-class
 instrument-health input.
 
 HARD BOUNDARIES
@@ -80,6 +81,7 @@ import datetime as dt
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 import time
@@ -487,7 +489,9 @@ def _stream_state(events_dir: Path, sid: str) -> tuple[bool, bool, bool, dict | 
             continue
         if row.get("event") == "session_end":
             has_end = True
-        if row.get("event") == "stop_pass":
+        # the quota hold's exit is the hook passing the turn too (final_gate_stop.py
+        # `stop_allowed_quota_hold`) — a held session is not a lost one (W-97de2aa3)
+        if row.get("event") in ("stop_pass", "stop_allowed_quota_hold"):
             has_stop_pass = True
         if row.get("event") == "death" and row.get("reconstructed"):
             has_recon_death = True
@@ -642,9 +646,60 @@ def _emit_ttl_end(sources: Sources, raw_sid: str, report: CoronerReport) -> None
 # ── the hole metric — for T06 ────────────────────────────────────────────────────────
 
 
+# The head read for a transcript's recorded cwd: no transcript carries `cwd` on its first
+# row (0 of 814 measured 2026-10-06 — queue/title rows come first); the first row that does
+# sat at most 183,652 bytes in.
+CWD_HEAD_BYTES = 1024 * 1024
+
+
+def _session_cwd(path: Path) -> str | None:
+    """The first ABSOLUTE string ``cwd`` recorded in the transcript's head, or None."""
+    # Line by line, stopping at the first cwd (typically ~5 KB in) — never a full 1 MB
+    # read per transcript per sweep; a line straddling the bound is truncated, fails to
+    # parse and is skipped (the session then leaves the denominator — measured max 183 KB).
+    read = 0
+    try:
+        with open(path, "rb") as fh:
+            while read < CWD_HEAD_BYTES:
+                raw = fh.readline(CWD_HEAD_BYTES - read)
+                if not raw:
+                    return None
+                read += len(raw)
+                if b'"cwd"' not in raw:
+                    continue
+                try:
+                    row = json.loads(raw.decode("utf-8", "replace"))
+                except ValueError:
+                    continue  # a torn line at the bound, or a malformed row
+                cwd = row.get("cwd") if isinstance(row, dict) else None
+                if isinstance(cwd, str) and os.path.isabs(cwd):
+                    return cwd
+    except OSError:
+        return None
+    return None
+
+
+def _instrumented(path: Path) -> bool:
+    """Would the Stop hook have instrumented this session? Its own predicate
+    (final_gate_stop.py main: the project check before any stop_pass) applied to the
+    session's recorded cwd: a directory holding ``scripts/final_gate.py``."""
+    cwd = _session_cwd(path)
+    return cwd is not None and (Path(cwd) / "scripts" / "final_gate.py").is_file()
+
+
 def holes(sources: Sources | None = None, day: dt.date | None = None) -> int | None:
-    """``transcripts-with-activity − sessions-with-a-stop_pass-or-session_end`` for
-    one day.
+    """``instrumented-transcripts-with-activity − sessions-with-a-pass-or-session_end``
+    for one day.
+
+    W-97de2aa3 (hole_count v4): only a transcript the Stop hook INSTRUMENTS enters the
+    count — its recorded cwd holds ``scripts/final_gate.py`` (:func:`_instrumented`). A
+    headless ``claude -p`` from ``~`` or ``/tmp`` can never get a stop_pass, so counting
+    it measured probe volume, not lost sessions (10-05: 392 of 393 holes). Residual: the
+    hook tests the payload cwd per TURN, this tests the session's first cwd — a session
+    that only ever stops ``cd``'d out of its project is a false hole (22 of 2,182 Stops
+    ran cd'd away on 10-05/10-06; no whole session). The real hole shape is a
+    ``session_start`` with no Stop ever. A pass is a ``stop_pass`` or the quota hold's
+    ``stop_allowed_quota_hold``.
 
     A first-class instrument-health input (spec :121-123): a transcript active on
     ``day`` (mtime date, local time) whose event stream carries NO ``stop_pass`` and
@@ -677,7 +732,13 @@ def holes(sources: Sources | None = None, day: dt.date | None = None) -> int | N
                 if path.stem.startswith("agent-"):
                     continue  # subagent sidecars are not sessions
                 try:
-                    if dt.date.fromtimestamp(path.stat().st_mtime) == target:
+                    st = path.stat()
+                    # a regular file only: opening a FIFO or a device would block the sweep
+                    if (
+                        stat.S_ISREG(st.st_mode)
+                        and dt.date.fromtimestamp(st.st_mtime) == target
+                        and _instrumented(path)
+                    ):
                         active.add(path.stem)
                 except (OSError, OverflowError, ValueError):
                     continue

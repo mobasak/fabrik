@@ -80,9 +80,27 @@ def sources(tmp_path) -> kc.Sources:
 # ── fixture builders ─────────────────────────────────────────────────────────────────
 
 
-def _write_transcript(sources: kc.Sources, sid: str, rows: list[dict]) -> Path:
+def _project_repo(sources: kc.Sources) -> Path:
+    """A tmp checkout the Stop hook would instrument: it holds scripts/final_gate.py."""
+    repo = sources.transcripts_dir.parent / "repo"
+    (repo / "scripts").mkdir(parents=True, exist_ok=True)
+    (repo / "scripts" / "final_gate.py").touch()
+    return repo
+
+
+def _write_transcript(
+    sources: kc.Sources, sid: str, rows: list[dict], cwd: str | None = None
+) -> Path:
+    """A transcript with a REAL head: no transcript carries `cwd` on row 1 (0 of 814
+    measured 2026-10-06) — a cwd-less queue row first, then the row that records the
+    session's cwd (a tmp project by default; `cwd=""` writes none)."""
+    if cwd is None:
+        cwd = str(_project_repo(sources))
+    head: list[dict] = [{"type": "queue-operation", "operation": "enqueue"}]
+    if cwd:
+        head.append({"type": "attachment", "cwd": cwd})
     path = sources.transcripts_dir / "-opt-fabrik" / f"{sid}.jsonl"
-    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    path.write_text("".join(json.dumps(r) + "\n" for r in head + rows))
     return path
 
 
@@ -859,3 +877,57 @@ def test_holes_today_is_none_when_the_sweep_fails_open(tmp_path, monkeypatch):
     report = kc.sweep(ghost)
     assert report.errors, "the fail-open path must record the error"
     assert report.holes_today is None, "a crashed sweep must not report holes=0"
+
+
+# ── W-97de2aa3: the hole denominator is the Stop hook's instrumented population ─────
+
+
+def test_non_project_session_is_not_a_hole(sources, tmp_path):
+    """A headless `claude -p` from a directory with no scripts/final_gate.py never gets a
+    stop_pass (the hook returns at its project check) — it is not a lost session."""
+    (tmp_path / "home").mkdir()
+    _write_transcript(sources, "ping-1", [_normal_assistant_row()], cwd=str(tmp_path / "home"))
+    assert kc.holes(sources) == 0
+
+
+def test_project_session_with_realistic_head_is_a_hole(sources):
+    """The cwd row sits after cwd-less leading rows; a project session with no pass is a hole."""
+    _write_transcript(sources, "lost-1", [_normal_assistant_row()])
+    assert kc.holes(sources) == 1
+
+
+def test_quota_hold_exit_is_not_a_hole(sources):
+    """The quota hold ends the turn with stop_allowed_quota_hold, a legitimate hook pass."""
+    _write_transcript(sources, "held-1", [_normal_assistant_row()])
+    assert kaizen_events.emit("stop_allowed_quota_hold", sid="held-1")
+    assert kc.holes(sources) == 0
+
+
+def test_transcript_without_cwd_is_not_counted(sources, tmp_path, monkeypatch):
+    """No absolute cwd in the head: the instrument cannot say the hook covered it. The
+    relative cwd DOES resolve to a project from the process cwd, so only the isabs guard
+    keeps it out."""
+    (tmp_path / "relative" / "dir" / "scripts").mkdir(parents=True)
+    (tmp_path / "relative" / "dir" / "scripts" / "final_gate.py").touch()
+    monkeypatch.chdir(tmp_path)
+    _write_transcript(sources, "nocwd-1", [_normal_assistant_row()], cwd="")
+    _write_transcript(sources, "relcwd-1", [_normal_assistant_row()], cwd="relative/dir")
+    assert kc.holes(sources) == 0
+
+
+def test_hole_count_is_version_4(monkeypatch):
+    """The population change ships with its owed version bump (S5) — a new series file, so
+    the probe-inflated v3 history never averages with the instrumented v4 one."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "kc2_v4", REPO / "scripts" / "sysadmin" / "kaizen_collect_v2.py"
+    )
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    # its dataclasses resolve their module through sys.modules — scoped to this test
+    monkeypatch.setitem(sys.modules, "kc2_v4", mod)
+    spec.loader.exec_module(mod)
+    rows = [d for d in mod.METRIC_DEFS if d["id"] == "hole_count"]
+    assert len(rows) == 1 and rows[0]["version"] == 4
+    assert "scripts/final_gate.py" in rows[0]["formula"]
