@@ -31,6 +31,12 @@ _HUB_RUFF = Path(sys.executable).parent / "ruff"
 RUFF = str(_HUB_RUFF) if _HUB_RUFF.exists() else shutil.which("ruff")
 
 
+# The scaffold default, a name that sorts BEFORE ``fastapi_user_auth`` (an import order that depended on
+# the name passed only for names after it), and the longest name the scaffolder accepts (50 characters —
+# a line carrying the name must not reflow under ruff format).
+NAMES = ["gate-clean", "acme-svc", "an-extremely-long-saas-application-name-for-reflow"]
+
+
 def _run(argv: list[str], cwd: Path) -> subprocess.CompletedProcess:
     return subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=600)
 
@@ -40,18 +46,19 @@ def _run_input(argv: list[str], cwd: Path, stdin: str) -> subprocess.CompletedPr
 
 
 @requires_fabrik_env
+@pytest.mark.parametrize("name", [NAMES[0], NAMES[2]])
 @pytest.mark.parametrize("project_type", ["python-api", "python-api-gpu"])
-def test_scaffolded_python_project_passes_its_own_lint_and_types(tmp_path, project_type):
+def test_scaffolded_python_project_passes_its_own_lint_and_types(tmp_path, project_type, name):
     assert RUFF, f"ruff is neither beside {sys.executable} nor on PATH"
     create_project(
-        name="gate-clean",
+        name=name,
         project_type=project_type,
         description="scaffold output passes its own gate",
         base=tmp_path,
         generate_spec=False,
     )
-    proj = tmp_path / "gate-clean"
-    pkg = Path("src") / "gate_clean"
+    proj = tmp_path / name
+    pkg = Path("src") / name.replace("-", "_")
     vendored = pkg / "glitchtip_init.py"
     assert (proj / vendored).is_file()
     # The project's OWN Python files, passed by name as the gate passes changed files. Never a
@@ -85,57 +92,56 @@ def test_scaffolded_python_project_passes_its_own_lint_and_types(tmp_path, proje
 
 
 @requires_fabrik_env
+@pytest.mark.parametrize("name", NAMES)
 @pytest.mark.parametrize("project_type", ["saas-skeleton", "static-site", "office-extension"])
-def test_scaffolded_server_backend_passes_its_own_lint_and_types(tmp_path, project_type):
-    """W-1c722f35: the saas family's server/ backend ships the same vendored scrubber; ruff and mypy
-    read the NEAREST pyproject.toml, so server/ needs its own exclusion or it lints upstream code."""
+def test_scaffolded_server_backend_passes_its_own_lint_and_types(tmp_path, project_type, name):
+    """W-1c722f35: the saas family's server/ backend ships three vendored trees (glitchtip_init.py,
+    fastapi_user_auth, libs/audit_log). ruff resolves the nearest pyproject.toml per file and mypy reads
+    its working directory's, so server/ carries its own config, and the WHOLE directory is linted, as a
+    gate rooted at server/ would."""
     assert RUFF, f"ruff is neither beside {sys.executable} nor on PATH"
     create_project(
-        name="gate-clean",
+        name=name,
         project_type=project_type,
         description="server backend passes its own gate",
         base=tmp_path,
         generate_spec=False,
     )
-    server = tmp_path / "gate-clean" / "server"
-    pkg = Path("src") / "gate_clean"
-    vendored = pkg / "glitchtip_init.py"
+    server = tmp_path / name / "server"
+    vendored = Path("src") / name.replace("-", "_") / "glitchtip_init.py"
     assert (server / vendored).is_file() and (server / "pyproject.toml").is_file()
-    own = sorted(
-        str(f.relative_to(server)) for d in ("src", "tests") for f in (server / d).rglob("*.py")
-    )
-    assert str(vendored) in own, own
+    assert (server / "src" / "fastapi_user_auth").is_dir() and (server / "libs").is_dir()
     checks = {
-        "ruff check <server .py>": [RUFF, "check", *own],
+        "ruff check .": [RUFF, "check", "."],
         "ruff check <vendored file>": [RUFF, "check", str(vendored)],
-        "ruff format --check <server .py>": [RUFF, "format", "--check", *own],
-        "mypy server/src/<pkg>": [
-            sys.executable,
-            "-m",
-            "mypy",
-            "--config-file=pyproject.toml",
-            str(pkg),
-        ],
+        "ruff format --check .": [RUFF, "format", "--check", "."],
+        "mypy src": [sys.executable, "-m", "mypy", "--config-file=pyproject.toml", "src"],
     }
     failures = {}
     for label, argv in checks.items():
         r = _run(argv, server)
         if r.returncode != 0:
             failures[label] = (r.stdout + r.stderr).strip()[-2000:]
-    assert failures == {}, (project_type, RUFF, failures)
+    assert failures == {}, (project_type, name, RUFF, failures)
 
 
 @requires_fabrik_env
-def test_make_lint_types_src_not_the_whole_tree(tmp_path):
+@pytest.mark.parametrize(
+    ("project_type", "typed"),
+    [("python-api", "mypy src"), ("file-worker", "mypy --explicit-package-bases worker")],
+)
+def test_make_lint_types_the_package_not_the_whole_tree(tmp_path, project_type, typed):
     """W-1c722f35: `mypy .` walked scripts/enforcement (hub-synced, duplicate module names) and was
-    red on a fresh project; lint and gate-lean type `src`, as the completion gate does."""
+    red on a fresh project; lint and gate-lean type the project's own package — src for python-api,
+    worker/ for file-worker (which has no src/)."""
     create_project(
         name="gate-clean",
-        project_type="python-api",
-        description="make lint types src",
+        project_type=project_type,
+        description="make lint types the package",
         base=tmp_path,
         generate_spec=False,
     )
     makefile = (tmp_path / "gate-clean" / "Makefile").read_text()
     assert "mypy ." not in makefile, makefile
-    assert makefile.count("mypy src") == 2, makefile
+    assert makefile.count(typed) == 2, makefile
+    assert (tmp_path / "gate-clean" / typed.split()[-1]).is_dir(), typed

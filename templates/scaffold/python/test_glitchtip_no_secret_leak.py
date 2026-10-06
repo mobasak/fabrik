@@ -122,7 +122,10 @@ def _error_events(capture: CaptureTransport) -> list:
 
 def test_no_secret_reaches_the_wire(monkeypatch):
     # the scaffolder substitutes this project's package name into the module path
-    init_glitchtip = importlib.import_module("{pkg}.glitchtip_init").init_glitchtip
+    module = importlib.import_module(
+        "{pkg}.glitchtip_init",
+    )
+    init_glitchtip = module.init_glitchtip
 
     monkeypatch.setenv("SENTRY_DSN", FAKE_DSN)
     monkeypatch.setenv("GLITCHTIP_TRACES_SAMPLE_RATE", "1.0")

@@ -8,10 +8,14 @@ All notable changes to this project will be documented in this file.
 saas-skeleton, static-site and office-extension emitted a `server/` backend with no `pyproject.toml`, so ruff and
 mypy linted the vendored `glitchtip_init.py` and `fastapi_user_auth` under default rules, and the hub-authored server
 bodies carried 18 ruff findings, format drift and 3 mypy errors. `src/fabrik/scaffold.py` now writes
-`server/pyproject.toml` from the one template's `[tool.ruff]` / `[tool.mypy]` tables (both vendored modules excluded)
-and the five body constants are cleaned at source; `templates/scaffold/docker/Makefile.python`'s `lint` and
-`gate-lean` type `src` instead of `.` (which walked the hub-synced `scripts/enforcement/`). Graders in
-`tests/test_scaffold_output_passes_gate.py`, red on the pre-change code (W-1c722f35).
+`server/pyproject.toml` from the one template's `[tool.ruff]` / `[tool.mypy]` / `[tool.pytest]` tables, with all
+three vendored trees excluded (`glitchtip_init.py`, `src/fastapi_user_auth`, `libs`) and isort told which modules are
+the package and which are vendored, so the generated import order no longer depends on the project's name; the five
+body constants are cleaned at source, and the lines that carry the name are written so ruff format keeps them at any
+length up to the 50-character cap. The root template now also excludes `libs/` (python-api with a database carried
+`libs/audit_log` into `ruff check .`). `templates/scaffold/docker/Makefile.python`'s `lint` and `gate-lean` type `src`
+instead of `.` (which walked the hub-synced `scripts/enforcement/`); file-worker types `worker/`. Graders in
+`tests/test_scaffold_output_passes_gate.py` over three names, red on the pre-change code (W-1c722f35).
 
 ### Fixed — account rotation consumes the soonest-resetting quota first and rides each account to its exact cap (2026-10-06)
 `scripts/sysadmin/claude_rotate.py` (and its byte-identical `scripts/aro-wake/` twin) flipped the active account away as
