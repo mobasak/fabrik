@@ -4452,6 +4452,19 @@ def test_a_clean_round_one_is_not_terminal_but_round_two_is(run_dir: Path) -> No
     assert "NOT TERMINAL" not in two.stdout, two.stdout
 
 
+def test_the_terminal_banner_separates_swept_this_round_from_standing_clean(run_dir: Path) -> None:
+    """A one-seat delta close that swept only one class must not be told it "swept every known
+    class (a, b)": the banner names the classes this round swept apart from those standing clean
+    from an earlier round, so a receipt copying it carries no false coverage claim (W-d44d0d7e)."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--confirmed", "0", "--classes-swept", "auth,races")
+    two = _cr(run_dir, "round", "--confirmed", "0", "--classes-swept", "auth")
+    assert "TERMINAL VERDICT" in two.stdout, two.stdout
+    assert "swept every known class" not in two.stdout, two.stdout
+    assert "swept (auth) clean" in two.stdout, two.stdout
+    assert "(races) standing clean from an earlier round" in two.stdout, two.stdout
+
+
 def test_the_legacy_findings_rule_also_needs_two_rounds(run_dir: Path) -> None:
     """DD4's backward-compatible caller gets the same bar — the receipt gate does not
     exempt a record that never typed `--confirmed`."""

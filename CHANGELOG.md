@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the TERMINAL banner no longer claims a sweep that did not happen (2026-10-06)
+- `scripts/command_run.py`'s TERMINAL VERDICT said "swept every known class (a, b) clean" even when the closing round swept only one class and the rest stood clean from an earlier round, so a receipt copying the banner carried a false coverage claim. It now names the classes this round swept apart from those "standing clean from an earlier round". A red-first test covers a two-class record; tests/test_command_run.py 275 passed. W-d44d0d7e.
+
 ### Fixed — Constraints Digest columns found by header; review-loop pin layout stated (2026-10-06)
 - `scripts/enforcement/check_rule_grounding.py` reads the digest's quote from a header named exactly `Quote` (or `Verbatim`) and the cited file from `Source`, in any order; without those headers it keeps the positional rule. A digest laid out `| Rule | Quote | Source | Applies |` no longer draws QUOTE-NOT-FOUND on every row (fabrik-lib 01M3T5RK). Over the 55 existing digests, 224 → 252 of 473 rows grade green and none turn red.
 - An absolute or `..` cited path is now a QUOTE-NOT-FOUND finding for that row, and an unreadable path no longer aborts the whole census with PermissionError.

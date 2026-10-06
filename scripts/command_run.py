@@ -824,9 +824,19 @@ def _round_report(rec: dict[str, Any]) -> str:
             "adopted it — quiet is zero CONFIRMED defects, never zero raised (D-206)."
         )
     if terminal:
+        # Name what THIS round swept apart from what stood clean from an earlier round: a one-seat
+        # delta close that swept one class was told it "swept every known class (a, b)", and a
+        # receipt copying the banner carried a sweep that never happened (W-d44d0d7e).
+        swept_now = sorted(set(last.get("swept") or []) & set(clean_c))
+        standing = sorted(c for c in clean_c if c not in swept_now)
         lines.append(
-            f"✅ TERMINAL VERDICT — round {len(rounds)} swept every known class "
-            f"({', '.join(clean_c)}) clean and "
+            f"✅ TERMINAL VERDICT — round {len(rounds)} swept ({', '.join(swept_now)}) clean"
+            + (
+                f", ({', '.join(standing)}) standing clean from an earlier round"
+                if standing
+                else ""
+            )
+            + " — every known class is clean — and "
             + (
                 "CONFIRMED 0 defects"
                 if last_confirmed is not None
