@@ -352,6 +352,132 @@ def _answered_ts(command: str, path: Path | None = None) -> set[str]:
     return _answered_index(path).get(command, set())
 
 
+def _rejected_ts(command: str, path: Path | None = None) -> set[str]:
+    """The `ts` set a reject (not an edit) silenced for one command — the COBRA reader for
+    `reject`: `--queue` prints this count beside the answered one, so a queue emptied by refusals
+    is visible as such. Same fail-open read as `_answered_ts`."""
+    path = path if path is not None else _answered_path()
+    if path is None:
+        return set()
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+    out: set[str] = set()
+    for ln in text.splitlines():
+        try:
+            row = json.loads(ln)
+        except ValueError:
+            continue
+        if isinstance(row, dict) and str(row.get("command") or "") == command:
+            if str(row.get("commit") or "") == "rejected":
+                out.add(_ts_key(row.get("ts")))
+    return out
+
+
+REJECT_REASON_MIN = 20  # characters — a reject is final, so its reason must stand on its own
+
+
+def reject(
+    command: str,
+    ts_rows: list[str],
+    reason: str,
+    repo: Path,
+    path: Path | None = None,
+    ledger: Path | None = None,
+    by: str = "",
+) -> tuple[int, str]:
+    """Silence rows of one command's queue WITHOUT an edit — a verdict that is wrong, already
+    answered by an earlier change, or asks for something the command never said. Same handle
+    validation as `mark_answered`; the answered-index row records `commit: "rejected"`, the
+    reason and who rejected, so every reader of the index treats the row as handled while
+    `--queue`'s header counts it apart from the answered ones.
+
+    COBRA (D-253): the cheapest way to empty a queue is to reject everything. Counter: the reason
+    must carry at least `REJECT_REASON_MIN` characters, the row names `by`, and the rejected count
+    is printed beside the answered count on every `--queue` read. A reject is final — only a new
+    verdict re-raises the point — so the reason is written for the reader who disagrees later."""
+    command = command.strip().lstrip("/").strip()
+    if not command:
+        return 0, "REFUSED — --reject needs a command name."
+    reason = " ".join(str(reason or "").split())
+    if len(reason) < REJECT_REASON_MIN:
+        return 0, (
+            f"REFUSED — nothing rejected: --reason carries {len(reason)} characters, the floor is "
+            f"{REJECT_REASON_MIN}. A reject is final; say why the verdict is wrong, in full."
+        )
+    known = _known_handles(command, ledger)
+    wanted = list(dict.fromkeys(ts_rows))
+    if not wanted:
+        return 0, "REFUSED — --rows named no handles."
+    unknown = [t for t in wanted if t not in known]
+    if unknown:
+        return 0, (
+            f"REFUSED — nothing rejected: {len(unknown)} of {len(wanted)} handle(s) match no row of "
+            f"/{command}'s queue: {', '.join(unknown[:5])}. Copy them from `--queue {command}`."
+        )
+    shared = {t: known[t] for t in wanted if known[t] > 1}  # disclosed, as mark_answered does
+    path = path if path is not None else _answered_path(ledger)
+    if path is None:
+        return 0, "REFUSED — no resolvable state dir for the answered index."
+    already = _answered_ts(command, path)
+    fresh = [t for t in wanted if t not in already]
+    if not fresh:
+        return 0, f"nothing to do — all {len(wanted)} row(s) were already handled for /{command}."
+    now = time.time()
+    by = by or (os.environ.get("CLAUDE_AGENT") or "").strip() or "?"
+    written, err = _append_answered(
+        path,
+        [
+            {
+                "ts": t,
+                "command": command,
+                "commit": "rejected",
+                "reason": reason,
+                "by": by,
+                "at": now,
+            }
+            for t in fresh
+        ],
+    )
+    if err:
+        return written, (
+            f"PARTIAL — {written} of {len(fresh)} row(s) rejected for /{command} before the write "
+            f"failed: {err}. Re-run `--queue {command}` before rejecting again."
+        )
+    if queue_depths(ledger, answered_path=path).get(command, 0) == 0:
+        _drop_feedback_work_item(repo, command, reason)
+    skipped = len(wanted) - len(fresh)
+    tail = f" ({skipped} already handled)" if skipped else ""
+    if shared:
+        tail += (
+            f" ⚠️ {len(shared)} handle(s) are carried by more than one ledger row and silence "
+            f"every row sharing them: {', '.join(f'{t}x{n}' for t, n in list(shared.items())[:5])}"
+        )
+    return written, f"rejected {written} row(s) of /{command}{tail} — reason recorded"
+
+
+def _drop_feedback_work_item(repo: Path, command: str, reason: str) -> None:
+    """The reject counterpart of `_close_feedback_work_item`: the queue emptied by refusals closes
+    its linked item `dropped`, never "answered by rejected"."""
+    w = _work()
+    if w is None:
+        return
+    try:
+        w.close_linked(
+            repo,
+            kind="feedback",
+            link=("command", command),
+            status="dropped",
+            note=f"rejected: {reason[:160]}",
+        )
+    except Exception as exc:
+        print(
+            f"command_feedback_report: feedback item not dropped — {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+
+
 def _known_handles(command: str, ledger: Path | None = None) -> dict[str, int]:
     """Every `ts` handle the ledger carries for one command, spelled the way `--queue` PRINTS it,
     mapped to HOW MANY rows carry it — a handle shared by two rows silences both, and the ledger
@@ -563,8 +689,11 @@ _GRAMMAR_PHRASES: tuple[str, ...] = (
     "steps, turns or tokens spent without",
     "steps/turns/tokens spent without changing the outcome",
     "surfaces exercised: <what your run touched",
-    "mail id(s) to infra|fleet|intel | none",
-    "mail id(s) to <infra|fleet|intel> | none",
+    # the fourth hub beat (kaizen, 2026-10-06) replaced the three-beat spellings outright: measured
+    # at the change, 0 of 1,956 ledger rows carried either old phrase, so nothing is un-bucketed,
+    # and the pin test needs every phrase here to live in the fragment or `_USAGE_GRAMMAR`
+    "mail id(s) to infra|fleet|intel|kaizen | none",
+    "mail id(s) to <infra|fleet|intel|kaizen> | none",
 )
 
 
@@ -1403,7 +1532,9 @@ def queue(rows: list[dict], command: str, ledger: Path | None = None) -> str:
     # identical group. The count is STATED, never silent — an exclusion you cannot see is a
     # denominator you cannot check.
     answered = _answered_ts(command, _answered_path(ledger))
+    rejected = _rejected_ts(command, _answered_path(ledger))
     excluded = [r for r in mine if _ts_key(r.get("ts")) in answered]
+    n_rejected = sum(1 for r in excluded if _ts_key(r.get("ts")) in rejected)
     mine = [r for r in mine if _ts_key(r.get("ts")) not in answered]
     # the denominator is the rows FOR THIS COMMAND, never the whole ledger: "2 of 5 rows carry a
     # verdict for it" is false of a 5-row ledger where only 3 rows are about it at all, and this is
@@ -1417,7 +1548,8 @@ def queue(rows: list[dict], command: str, ledger: Path | None = None) -> str:
         f"queue /{command} — {len(mine)} unanswered of "
         f"{len(mine) + len(excluded)} verdict row(s), "
         f"{len(for_it)} row(s) for it in all ({len(rows)} in the window)"
-        + (f"; {len(excluded)} already answered and excluded" if excluded else "")
+        + (f"; {len(excluded) - n_rejected} already answered and excluded" if excluded else "")
+        + (f"; {n_rejected} rejected" if n_rejected else "")
         + (f"; {nones} filed as `none`" if nones else "")
     )
     if command == "fabrik-task":
@@ -2129,7 +2261,24 @@ def main(argv: list[str] | None = None) -> int:
             "commit must touch a corpus path or nothing is marked."
         ),
     )
-    ap.add_argument("--rows", default="", help="--mark-answered: comma-separated ts handles")
+    ap.add_argument(
+        "--reject",
+        default=None,
+        metavar="COMMAND",
+        help=(
+            "silence rows of this command's queue WITHOUT an edit — a wrong, stale or unfounded "
+            "verdict — needs --rows and --reason (≥20 characters; a reject is final)"
+        ),
+    )
+    ap.add_argument("--reason", default="", help="--reject: why the verdict is wrong, in full")
+    ap.add_argument(
+        "--depths",
+        action="store_true",
+        help="print every command's unanswered depth as one JSON object and exit (the watcher's input)",
+    )
+    ap.add_argument(
+        "--rows", default="", help="--mark-answered/--reject: comma-separated ts handles"
+    )
     ap.add_argument("--commit", default="", help="--mark-answered: the SHA of the applied edit")
     ap.add_argument(
         "--repo",
@@ -2170,6 +2319,8 @@ def main(argv: list[str] | None = None) -> int:
             ("--queue", a.queue is not None),
             ("--observer-rank", a.observer_rank),
             ("--mark-answered", a.mark_answered is not None),
+            ("--reject", a.reject is not None),
+            ("--depths", a.depths),
             ("--take", a.take is not None),
             ("--stages", a.stages),
             ("--rows", bool(a.rows)),
@@ -2199,6 +2350,45 @@ def main(argv: list[str] | None = None) -> int:
         # ledger are indistinguishable in stdout, so the difference goes to stderr where a human
         # sees it and a parsing caller does not.
         print(f"ledger: {a.ledger} is not a readable file — reporting zero rows", file=sys.stderr)
+    # --depths and --reject run ALONE, like --take and --mark-answered: a write-bearing flag
+    # beside --depths used to be silently skipped at rc 0 (review pass 1, B-S1), and --reject
+    # used to accept --json and the report filters it then ignored (B-S2)
+    _other = [
+        n
+        for n, v in (
+            ("--queue", a.queue is not None),
+            ("--observer-rank", a.observer_rank),
+            ("--mark-answered", a.mark_answered is not None),
+            ("--take", a.take is not None),
+            ("--stages", a.stages),
+            ("--commit", bool(a.commit)),
+            ("--json", a.json),
+            ("--command", a.command is not None),
+            ("--since", a.since is not None),
+            ("--agent", a.agent is not None),
+        )
+        if v
+    ]
+    if a.depths:
+        if _other or a.reject is not None or a.rows or a.reason:
+            print(
+                "REFUSED — --depths prints the queue depths and takes no other flag "
+                f"({', '.join(_other + [f for f, v in (('--reject', a.reject is not None), ('--rows', bool(a.rows)), ('--reason', bool(a.reason))) if v])}); run it alone."
+            )
+            return 2
+        # the watcher's input: every command's unanswered depth, one JSON object, nothing else
+        print(json.dumps(queue_depths(ledger), sort_keys=True))
+        return 0
+    if a.reject is not None:
+        if _other:
+            print(
+                f"REFUSED — --reject WRITES and takes no report flag ({', '.join(_other)}); run it alone."
+            )
+            return 2
+        handles = [t.strip() for t in str(a.rows or "").split(",") if t.strip()]
+        written, msg = reject(a.reject, handles, a.reason, a.repo, ledger=ledger)
+        print(msg)
+        return 0 if (written or msg.startswith("nothing to do")) else 1
     if a.take is not None:
         # T04 review C-H1/C-O2: dispatched HERE, before `rows = _rows(ledger)` below — `--take`
         # never uses `rows` (it reads the ledger itself, exactly once, inside `queue_depths`), so
@@ -2211,6 +2401,7 @@ def main(argv: list[str] | None = None) -> int:
                 ("--queue", a.queue is not None),
                 ("--observer-rank", a.observer_rank),
                 ("--mark-answered", a.mark_answered is not None),
+                ("--reject", a.reject is not None),
                 ("--rows", bool(a.rows)),
                 ("--commit", bool(a.commit)),
                 ("--json", a.json),

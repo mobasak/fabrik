@@ -297,8 +297,10 @@ analysis half. The digest surfaces what exists; those decide what exists next.
 
 The daily `kaizen_collect_v2.py` cron job carries a rider: `scripts/sysadmin/feedback_relay.py`
 mails every not-yet-relayed command-close FEEDBACK verdict (D-055 persisted text) to the `fabrik`
-inbox addressed to **infra** — an AGENT is the reader (operator ruling: "i dont read anything,
-you read"), and handle-now applies to the digest like any finding mail. Watermarked
+inbox addressed to **kaizen** — the fourth hub agent, the feedback loop's owner since 2026-10-06
+(infra before that); an AGENT is the reader (operator ruling: "i dont read anything, you read").
+The digest is informational (`ack: no`): kaizen reads the ledger directly and is woken by
+`scripts/sysadmin/feedback_watch_arm.sh` when a queue rises, so the digest is the day's audit trail. Watermarked
 (`~/.claude/state/feedback-relay.watermark`), at-most-once per verdict, non-fatal to the collector.
 
 The same job carries two more riders: `scripts/sysadmin/rules_currency_watch.py` (mails infra when a pack's

@@ -298,7 +298,12 @@ hazards were closed. **infra is agent-1**, the merge owner, alone in `/opt/fabri
 `python3 scripts/decisions.py --merge-owner .` reads `infra`. Fleet and intel work in
 `.claude/worktrees/fleet` and `.claude/worktrees/intel`; infra is also the distributor
 (`.fabrik/work/config.json`, D-471, superseding D-395's intel), so one agent holds both roles
-here as in every repo (§ Ownership surfaces, above).
+here as in every repo (§ Ownership surfaces, above). A fourth hub agent, **kaizen**, works in
+`.claude/worktrees/kaizen` since 2026-10-06 and owns the feedback loop — every command-feedback
+queue, a command's or rule's wording, ways-of-working mail — through the store's `feedback_owner`
+key rather than by being the distributor; it is not a pool worker (`work.py::_workers` drops it),
+so triage never routes general backlog to it. Launch: `CLAUDE_AGENT=kaizen claude --worktree kaizen
+-n kaizen-fabrik`; its charter is `docs/reference/agents/kaizen.md`.
 
 **Two acts stay main-checkout-only, both closed hazards the hub carried that projects never did:**
 - **The corpus render.** `commands/assemble_commands.py` PRUNES every installed command/skill absent

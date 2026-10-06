@@ -55,7 +55,7 @@ def test_it_reaches_every_source_not_just_the_ones_that_opted_in():
 
 def test_the_fragment_names_all_three_beats_so_routing_is_possible():
     body = (REPO / "commands" / "_fragments" / "close-feedback.md").read_text(encoding="utf-8")
-    for beat in ("infra", "fleet", "intel"):
+    for beat in ("infra", "fleet", "intel", "kaizen"):  # kaizen: the fourth beat, 2026-10-06
         assert f"**{beat}**" in body, f"{beat} has no row — an unroutable duty is not a duty"
     assert "mail.py send" in body, "must name the actual mechanism, not just the obligation"
 

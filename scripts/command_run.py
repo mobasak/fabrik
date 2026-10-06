@@ -1445,9 +1445,9 @@ def _evidence_hash(text: str) -> str:
     return hashlib.blake2s((text or "").encode("utf-8", "replace"), digest_size=8).hexdigest()
 
 
-# The three hub beats a finding can be routed to (charters: docs/reference/agents/). Matched as
+# The four hub beats a finding can be routed to (charters: docs/reference/agents/). Matched as
 # whole words so "infrastructure" does not read as a route to `infra`.
-_BEATS = ("infra", "fleet", "intel")
+_BEATS = ("infra", "fleet", "intel", "kaizen")
 
 # Runs STARTED before this instant close without a verdict, exactly as they always could. They
 # were dispatched under a contract that did not require one, and trapping a peer mid-run to
@@ -1543,7 +1543,7 @@ _USAGE_GRAMMAR = (
     "confusion: <what in the command text was ambiguous or misleading | none> · "
     "waste: <steps/turns/tokens spent without changing the outcome | none> · "
     "change: <axis>: <the ONE concrete edit to this command or a rule that would have made this "
-    "run faster or more accurate | none> · filed: <mail id(s) to <infra|fleet|intel> | none — surfaces "
+    "run faster or more accurate | none> · filed: <mail id(s) to <infra|fleet|intel|kaizen> | none — surfaces "
     "exercised: <what your run touched>> [· cost: <pool $>]"
 )
 
@@ -1685,8 +1685,11 @@ _GRAMMAR_PHRASES = (
     "steps, turns or tokens spent without",
     "steps/turns/tokens spent without changing the outcome",
     "surfaces exercised: <what your run touched",
-    "mail id(s) to infra|fleet|intel | none",
-    "mail id(s) to <infra|fleet|intel> | none",
+    # the fourth hub beat (kaizen, 2026-10-06) replaced the three-beat spellings outright: measured
+    # at the change, 0 of 1,956 ledger rows carried either old phrase, so nothing is un-bucketed,
+    # and the pin test needs every phrase here to live in the fragment or `_USAGE_GRAMMAR`
+    "mail id(s) to infra|fleet|intel|kaizen | none",
+    "mail id(s) to <infra|fleet|intel|kaizen> | none",
 )
 
 
@@ -5279,7 +5282,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         msg = (
             f"REFUSED — closing /{live} needs its FEEDBACK verdict. You are the only witness to "
             "how the machinery behaved on this run, and this is the last moment you can say so.\n"
-            f"  Filed something:  --feedback 'filed <what> to <infra|fleet|intel>'\n"
+            f"  Filed something:  --feedback 'filed <what> to <infra|fleet|intel|kaizen>'\n"
             "  Genuinely nothing: --feedback 'none — <the surfaces you exercised>'\n"
             "`none` is a valid verdict and is counted separately; silence is not a verdict. "
             "See commands/_fragments/close-feedback.md."
@@ -5400,7 +5403,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         msg = (
             f"REFUSED — a bare 'none' is byte-equivalent to the silence this field exists to end "
             f"(D-036 substance floor). Close /{live} with the filed: field as either:\n"
-            "  a filing:          filed: <what> to <infra|fleet|intel> (<id>)\n"
+            "  a filing:          filed: <what> to <infra|fleet|intel|kaizen> (<id>)\n"
             "  a substantive none: filed: none — surfaces exercised: <what your run actually "
             "touched of the machinery>\n"
             "Name the surfaces so the reader knows what your 'nothing' covers."

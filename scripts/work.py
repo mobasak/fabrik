@@ -4508,13 +4508,37 @@ def _worktrees(repo: Path) -> list[Path]:
     return trees or [repo.resolve()]
 
 
+def _feedback_owner(main: Path) -> str:
+    """The agent the command-feedback queues are walked for: `config.json["feedback_owner"]`,
+    else the distributor — a repo without the key behaves as it always did. A fourth hub agent,
+    `kaizen`, owns the hub's queues this way (operator ruling 2026-10-06) without becoming the
+    distributor, so coordination and the feedback loop are two agents, not one."""
+    try:
+        cfg = _read_config(main)
+    except Exception:
+        return ""
+    owner = str(cfg.get("feedback_owner") or "").strip()
+    if owner and _valid_name(owner):
+        return owner
+    return str(cfg.get("distributor") or "").strip()
+
+
 def _workers(main: Path) -> dict[str, Path]:
-    """Registered `<main>/.claude/worktrees/<name>` trees that are not harness worktrees."""
+    """Registered `<main>/.claude/worktrees/<name>` trees that are not harness worktrees. A feedback
+    owner that is not the distributor is NOT a pool worker: its tree is dropped here, so the doorbell
+    rung never fires for it and the distributor's triage never routes general backlog to it — its
+    queue is the feedback ledger, not the pool (design critique, Opus #4)."""
     base = (main / ".claude" / "worktrees").resolve()
     out: dict[str, Path] = {}
+    owner = _feedback_owner(main)
+    distributor = (
+        str(_read_config(main).get("distributor") or "").strip() if _has_store(main) else ""
+    )
     for tree in _worktrees(main)[1:]:
         tree = tree.resolve()
         if tree.parent == base and not _HARNESS_RE.fullmatch(tree.name) and _valid_name(tree.name):
+            if owner and tree.name == owner and owner != distributor:
+                continue
             out[tree.name] = tree
     return out
 
@@ -4643,6 +4667,12 @@ def _stop_action(tree: Path, session: str) -> dict:
     is_worker = tree in workers.values()
     if not agent and is_worker:
         agent = next(n for n, t in workers.items() if t == tree)
+    if not agent:
+        # the feedback owner's tree is dropped from the pool, so it gets the same name fallback
+        # the pool workers have — else an unset CLAUDE_AGENT silences its whole ladder (pass 1, A-S3)
+        owner = _feedback_owner(main)
+        if owner and tree == (main / ".claude" / "worktrees" / owner).resolve():
+            agent = owner
     if not agent and tree == main and coordinator:
         agent = coordinator
     none = {"agent": agent, "role": "", "action": None, "fp": "", "text": ""}
@@ -4913,8 +4943,9 @@ def _autonomy_candidates(
     coordinator: str,
     none: dict,
 ) -> list[dict]:
-    """The ordered ladder (design: held claims → mail → queued → coordinator rungs → owned →
-    the distributor's feedback queues), one candidate per subject, deduplicated by fingerprint.
+    """The ordered ladder (design: held claims → mail → [the feedback owner's queues, when it is
+    not the distributor] → queued → coordinator rungs → owned → the distributor's feedback
+    queues), one candidate per subject, deduplicated by fingerprint.
     `_stop_action` puts the main checkout's `commit-items` subject in front of it."""
     items = list(_iter_items(tree))
     closed = _closed_ids(tree)
@@ -4946,6 +4977,10 @@ def _autonomy_candidates(
             }
         )
     cands.extend(_mail_candidates(main, agent, coordinator))
+    owner = _feedback_owner(main)
+    if agent and agent == owner and owner != coordinator:
+        # the feedback owner's job IS the queue: right after its mail, never behind its backlog
+        cands.extend(_feedback_candidates(tree))
     classic = _classic_rungs(tree, main, agent, is_worker, workers, coordinator, none)
     if classic.get("action"):
         # a STABLE subject per rung: the classic fps carry live counts and worker names, and a
@@ -4983,7 +5018,7 @@ def _autonomy_candidates(
                 f"start it{_ESCAPE}",
             }
         )
-    if agent and agent == coordinator:
+    if agent and agent == coordinator and owner == coordinator:
         cands.extend(_feedback_candidates(tree))
     seen: set[str] = set()
     out = []

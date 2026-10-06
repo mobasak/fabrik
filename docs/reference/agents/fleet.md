@@ -17,6 +17,8 @@ lives on the fleet," and the monitoring that proves it stays alive.
 - **Scaffolding new projects**: `fabrik scaffold` with `--github-create` by default, spec
   authoring, `templates/` and the scaffold machinery — EXCEPT `templates/governance/`, which is
   infra's (it is the governance-sync source payload, a sync-trigger surface)
+- A FEEDBACK verdict or a ways-of-working mail about a deploy command's wording goes to kaizen
+  (the fourth hub agent, 2026-10-06); it reaches you as a mail when the fix needs your code.
 
 ## Kaizen (binding — weekly analysis pass, timeboxed ≤90 min)
 

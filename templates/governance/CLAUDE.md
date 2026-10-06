@@ -429,7 +429,8 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
 - **Send / reach others:** `python scripts/mail.py send --to <recipient> --kind <k> [--ack required] < body`.
   Reach **the hub** (`--to fabrik` — REQUIRES an addressee: `--to-agent infra` for
   commands/rules/enforcement/hooks/mail defects · `fleet` for VPS/deploy/spec-yaml/monitoring ·
-  `intel` for models/benchmarks — or `--broadcast --ack no` when genuinely all-agents; an
+  `intel` for models/benchmarks · `kaizen` for a command's or rule's WORDING, a workflow step or
+  a way of working (the feedback loop) — or `--broadcast --ack no` when genuinely all-agents; an
   unaddressed hub send is REFUSED with this guide; threaded `--re` replies are exempt) or **fabrik-lib**
   (`--to fabrik-lib --kind upstream-feedback --ack required` — a bug/fix in a vendored module). `kind` ∈
   `request|finding|relay|reply|upstream-feedback`; a mail is a **pointer, not a payload** (64 KB cap;

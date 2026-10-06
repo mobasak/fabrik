@@ -22,6 +22,11 @@ would fork `config.json`). Without `--distributor`, it runs `<the current interp
 /opt/fabrik/scripts/decisions.py --merge-owner <the resolved absolute repo root>` (hub-only, 30 s
 timeout); a name that isn't a valid agent name is warned about on stderr and dropped. With no name
 recorded either way, the store's `distributor` field is left empty and `assign` is open to any agent.
+A second, optional key, `feedback_owner` (set by hand, like `autonomy`), names the agent whose Stop
+ladder walks the command-feedback queues — the hub's fourth agent, `kaizen`, since 2026-10-06; absent,
+the distributor walks them as before. A feedback owner that is not the distributor is not a pool
+worker: `_workers` drops its worktree, so triage never routes general backlog to it, and its feedback
+candidates come right after its mail on the autonomy ladder.
 
 ## Two homes
 
@@ -168,7 +173,8 @@ one-window repo (or one with no distributor) is its own coordinator. A repo whos
 operator ruling 2026-10-04, D-558) — gets the AUTONOMY LADDER instead: `queue --stop` returns ordered
 `candidates`, one per subject — a claim this session holds, `ack: required` mail for the agent,
 queued work, the coordinator rungs above, the agent's other owned ready items, and for the
-distributor the command-feedback queues — and the Stop hook blocks on each subject in turn, three
+distributor the command-feedback queues (for a `feedback_owner` that is not the distributor, its
+queues come right after its mail instead — § above) — and the Stop hook blocks on each subject in turn, three
 times at most, so holding a claim no longer silences it. Self-service claiming from
 `ready` stays the fallback — `docs/reference/multi-agent-operating-model.md` § Claim or assign.
 
