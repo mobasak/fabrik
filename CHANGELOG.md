@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — mypy is clean on `scripts/mail.py` (2026-10-06)
+- `_verify_merge_sha` refused an empty `--merge-sha` with `(merge_sha or "").strip()`, then stripped `merge_sha` again for the lookup, which mypy read as `str | None` (W-57c88c6f). The stripped value is now bound once and used for both. A None value never reached the lookup, so behaviour is unchanged. Tests: tests/test_mail*.py 369 passed.
+
 ### Fixed — a merge's owner tests see the gitignored `.env`, as a worktree does (2026-10-06)
 - `scripts/merge_request.py` ran the owner's tests in a fresh build tree that lacks every gitignored file. A pydantic-settings app whose `Settings()` reads `.env` failed at import, and a correct merge request was refused (brand-identiy-creator 01M46NZMP4F08KBP7WC8KF1Z37). Both test legs now first get the base's `.worktreeinclude` set copied in from the main checkout. That is the set Claude Code copies into every new worktree. A file the tree tracks is never overwritten, a path outside the checkout is never read, and symlinks are skipped (D-610). The app reads the file with its own loader, so there is no second `.env` parser. Across the fleet the set is `.env` plus the synced rule and enforcement directories, about 4.4 MB and 186 files in brand-identiy-creator. Test: tests/test_merge_request_merge.py, red before the fix with the reported `FileNotFoundError: '.env'`.
 

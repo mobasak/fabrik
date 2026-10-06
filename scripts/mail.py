@@ -1687,14 +1687,15 @@ def _verify_merge_sha(msg_id: str, body: str, merge_sha: str | None) -> str:
     Git runs in the CWD's repository. Returns the FULL SHA; raises MailRefusedError otherwise.
     Cobra note: the cheapest pass without a merge is a commit that merges the head AND names the
     id — which is a real merge by construction; ancestry of base is what makes it landed."""
-    if not (merge_sha or "").strip():
+    wanted = (merge_sha or "").strip()  # bound once: the refusal and the lookup read the same str
+    if not wanted:
         raise MailRefusedError(
             f"{msg_id}: ack --disposition done of a merge-request needs --merge-sha <sha> "
             "(the merge commit that landed the request's head in base)"
         )
     fields = _body_fields(body)
     base_ref, head_ref = fields.get("base", ""), fields.get("head", "")
-    sha = _commit_sha(merge_sha.strip())
+    sha = _commit_sha(wanted)
     if not sha:
         raise MailRefusedError(f"{msg_id}: --merge-sha {merge_sha!r} is not a commit in this repo")
     base = _commit_sha(base_ref)
