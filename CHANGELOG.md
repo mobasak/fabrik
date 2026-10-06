@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Constraints Digest columns found by header; review-loop pin layout stated (2026-10-06)
+- `scripts/enforcement/check_rule_grounding.py` reads the digest's quote from a header named exactly `Quote` (or `Verbatim`) and the cited file from `Source`, in any order; without those headers it keeps the positional rule. A digest laid out `| Rule | Quote | Source | Applies |` no longer draws QUOTE-NOT-FOUND on every row (fabrik-lib 01M3T5RK). Over the 55 existing digests, 224 → 252 of 473 rows grade green and none turn red.
+- An absolute or `..` cited path is now a QUOTE-NOT-FOUND finding for that row, and an unreadable path no longer aborts the whole census with PermissionError.
+- `commands/_fragments/grounding-rules.md` names the columns; `subagents-core.md`, `/fabrik-review-scoped` and `docs/reference/review-loop-workflow.md` state that the review-loop pins each file at `<pins_dir>/<repo-relative path>` (`cp --parents`).
+
 ### Fixed — the observability matrix is pinned to the scaffolder; the Node SIGTERM pack stops claiming a Traefik drain (2026-10-06)
 - `.windsurf/rules/core/55-observability.md`: 13 matrix cells corrected (file-api, static-site, chrome-extension, mobile-app, desktop-app), :227 (node-api scaffolds a prom-client `/metrics`) and three prose paragraphs; `tests/test_observability_matrix.py` scaffolds every listed type and pins the `/metrics`, GlitchTip and structured-logging columns. `.windsurf/rules/core/12-node.md`: the /health 503 is a truth signal for external probes — Traefik routes until the process exits — and the 20s backstop needs a compose `stop_grace_period` the scaffolded app compose does not set yet (fleet mailed). `CLAIMS.yaml` restated and cited. W-a63d61a2, D-603, mail 01M3T5B3.
 

@@ -11,6 +11,8 @@ Before the first architecture, tool, or dependency selection:
 - Emit the **CONSTRAINTS DIGEST** as a checkpoint artifact — a table, one row per MUST / BAN /
   anti-pattern relevant to this scope, **every row carrying a VERBATIM quote from the pack +
   `file:line`**: you cannot quote a line from a pack you did not open, which is the whole proof.
+  Head the columns `Quote` (or `Verbatim`) and `Source` (a repo-relative `path:line` alone in its
+  cell); without those headers the checker reads the first column as the quote and the next as the source.
   `scripts/enforcement/check_rule_grounding.py` grades the countable subset on CONVERGED plans
   (quote-integrity + MATCHED-pack completeness, advisory); reading QUALITY stays with
   `/fabrik-plan-review`'s audit — the check never claims otherwise.
