@@ -34,10 +34,10 @@ DOCS = [
 # case-insensitive and word-boundary-anchored so it never fires on an unrelated "16" (a count, a
 # date fragment, a checklist item number) that merely sits near the word "postgres" or "pg".
 STALE_PATTERNS = [
-    # PostgreSQL 16 / Postgres 16 / postgres-16 / PostgreSQL_16 / postgres:16 / PostgreSQL16 ...
-    re.compile(r"\bpostgres(?:ql)?[\s:_-]*16\b", re.IGNORECASE),
+    # PostgreSQL 16 / Postgres v16 / Postgres version 16 / postgres-16 / PostgreSQL_16 / postgres:16 / PostgreSQL16 ...
+    re.compile(r"\bpostgres(?:ql)?[\s:_-]*(?:version[\s:_-]*)?v?16\b", re.IGNORECASE),
     # pg16 / PG16 / pg-16 / pg_16 / pg 16 (but not e.g. "pg_isready" ... "16" elsewhere on the line)
-    re.compile(r"\bpg[\s_-]?16\b", re.IGNORECASE),
+    re.compile(r"\bpg[\s_-]?(?:version[\s:_-]*)?v?16\b", re.IGNORECASE),
     # pgvector/pgvector:pg16, pgvector:0.8.6-pg16, pgvector/pgvector:PG16, …
     re.compile(r"pgvector[:/][^\s|`]*pg16\b", re.IGNORECASE),
 ]
@@ -58,7 +58,7 @@ RESPELLING_MUTATIONS = [
     "pg16",
     "PG16",
     "postgres-16",
-    "PostgreSQL-16",
+    "PostgreSQL-16", "Postgres v16", "Postgres version 16", "pg v16",
 ]
 
 
