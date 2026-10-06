@@ -84,6 +84,7 @@
 | **tests/test_scaffold_audit_log.py** | Per-type audit-log emission, the committed and rendered jobs companion, the no-window, concurrent-writer, cursor and probe real-PostgreSQL rows, and the jobs' idle-when-unconfigured row. | The scaffolder's audit-log delivery changes | pytest |
 | **tests/test_app_role_real_pg.py** | Real PostgreSQL 18 tests of the `<db>_app` role from a real login session (append-only `audit_log`, grant-option chains, memberships, CREATE, legacy PUBLIC grants), each seeding the bad state; hosts the shared `scratch_pg()` helper T05 imports. | The app-role driver changes | pytest (docker) |
 | **tests/test_payments_ingest_real_pg.py** | Real PostgreSQL 16 tests of the payments-ingest grants over fabrik-lib's payments schema: `payments_grant_ingest` extends the policies and grants columns only; a missing `jobs` fails the step, a missing schema defers, a refusal from the function fails the step; the legacy block runs only without the function, and an upgrade narrows a legacy grant. | The payments-ingest driver block | pytest (docker + /opt/fabrik-lib) |
+| **tests/test_pg18_runbook.py** | Grades the PG major-upgrade runbook: every D1/WSL/release step has a command, verify and rollback; destructive lines gated on the operator's word; behavioural checks of the WSL-step-2 guard, step-5 port, GO block and drill leftovers; T02/T03 seam tests (PG18 plan T05). | The runbook, the hub compose or the DR restore list changes | pytest |
 | **tests/test_large_docs_pg18.py** | Guards the PG18 sweep of vps-complete-inventory.md and fabrik-workflow.md: no current-major statement of PostgreSQL 16 in any spelling (separators, ver/version, v prefix) and the pgvector tag pinned to 0.8.6-pg18 (PG18 plan T04b). | Either doc changes | pytest |
 | **tests/test_live_docs_pg18.py** | Guards the PG18 doc sweep of T04a: none of README.md, docs/workstation/session-recall.md, scripts/container_images.py, scripts/generate_vps_inventory.py or tests/test_app_role_real_pg.py states PostgreSQL 16 as current. | Any of those files changes | pytest |
 | **tests/test_dr_chain_pg18.py** | Guards the PG18 DR chain: the restore list names `postgres18-data` and never the retired volume; the DR doc's restore loop equals the config array and its count comment says 11; both bootstrap-hub database probes list databases without SQL literal quoting and require both names on the live `if` line (PG18 plan T03). | The bootstrap restore list, step 12c/14 probes or the DR docs change | pytest |
@@ -798,6 +799,7 @@ docs/
 │   ├── gpu-rent.md
 │   ├── hub-restore-inventory.md
 │   ├── n8n-webhooks.md             # n8n webhook configuration
+│   ├── postgres-major-upgrade-runbook.md # PostgreSQL major upgrade (16→18) operator runbook
 │   ├── spoke-restore-inventory.md
 │   └── wsl-environment.md
 ├── orchestrator
@@ -1115,6 +1117,7 @@ docs/
 | [vps-status.md](docs/infrastructure/vps-status.md) | Current VPS state and configuration |
 | [vps-urls.md](docs/infrastructure/vps-urls.md) | All deployed service URLs |
 | [disaster-recovery.md](docs/operations/disaster-recovery.md) | Backup and recovery procedures |
+| [postgres-major-upgrade-runbook.md](docs/operations/postgres-major-upgrade-runbook.md) | PostgreSQL major upgrade (16→18): WSL rehearsal, hub dump/restore window, release, project requests |
 <!-- duplicati-setup.md archived 2026-04-28; Backrest is the live backup tool — see backup.vps1.ocoron.com and AGENTS.md -->
 | [coolify-migration.md](docs/infrastructure/archive/coolify-migration.md) | Coolify migration procedures |
 

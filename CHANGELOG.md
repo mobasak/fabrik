@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the PostgreSQL major-upgrade operator runbook (16 → 18) (2026-10-06)
+
+- `docs/operations/postgres-major-upgrade-runbook.md`: pre-window probes, the WSL window (D2), the hub window (disk gate, D1 steps 1-8 with 6a — each a command block, a verify line and a rollback), release after the soak (the V8 DR drill first, every removal gated on the operator's word), and the D5/D6/D7 request texts. Its SQL and shell were rehearsed on throwaway 16 and 18.6 containers; the review fixed a WSL-step-2 guard that could drop the upgraded cluster, a settings port that would stop 18 from booting, a truncated-dump check, and a password file inside a backed-up path. The Backrest snapshot is a precondition of the DR-chain merge. `tests/test_pg18_runbook.py` (56 tests, several behavioural) grades it, including the T02/T03 seam tests. PG18 plan T05.
+
 ### Changed — the two large current-state docs say PostgreSQL 18 (2026-10-06)
 
 - `docs/infrastructure/vps-complete-inventory.md` and `docs/traycer/fabrik-workflow.md` name PostgreSQL 18 and `pgvector/pgvector:0.8.6-pg18` as the current stack; history lines are left. `tests/test_large_docs_pg18.py` guards both docs with spelling-blind patterns (any separator, `ver`/`version`, a `v` prefix). PG18 plan T04b; merges after the hub window.
