@@ -1445,6 +1445,11 @@ def _first_set(*values: str | None) -> str | None:
     return None
 
 
+# HUB NOTE: the docstring below is upstream's and describes SITE-PROVISIONER — its
+# `api/main.py:3`, its hub spec's `GIT_SHA: ""` and its W-16322a6e build-arg item. In a
+# scaffolded service, compose sets `APP_GIT_SHA=${GIT_SHA:-unknown}` at runtime and the fabrik
+# deployer persists `GIT_SHA` (the deployed commit) in the app's `.env`, so APP_GIT_SHA carries
+# the real SHA with no build arg involved.
 def _release() -> str | None:
     """The deployed SHA, or None — never a placeholder.
 
@@ -1564,6 +1569,11 @@ def _init_sdk(sentry_sdk, FastApiIntegration, StarletteIntegration, LoggingInteg
             #
             # Unhandled errors are still reported via the Starlette/FastAPI integrations, and
             # explicit sentry_sdk.capture_exception() still works.
+            #
+            # HUB NOTE: the inherited upstream sentence above — "`before_send_log` — a hook this
+            # module does not register" — is stale upstream: the hook IS registered above
+            # (`before_send_log=_drop_log`), and `_drop_log` drops every log item.
+            #
             # FLEET DEFAULT (D-126), and it DEPENDS ON THE ALLOWLIST ABOVE. Upstream uses
             # event_level=None, closing the log channel by never creating an event at all.
             # ERROR keeps the event — the fleet wants error records visible in GlitchTip —
@@ -1588,9 +1598,10 @@ def _init_sdk(sentry_sdk, FastApiIntegration, StarletteIntegration, LoggingInteg
             # token=BEARER_TOKEN_ABC123"}}` returns that string unchanged.
             # A SECOND residual, same root: `logger.error(..., exc_info=True)` on a CAUGHT
             # exception builds `exception.values[].value` from the exception's own message.
-            # Since a13c801 that field IS run through the text redactor, so a URL-shaped
-            # credential is caught there too — but, exactly as for the template, a BARE token
-            # has no shape to key on: re-measured at a13c801,
+            # This field IS run through the text redactor (already so at 6715c29; re-measured
+            # at a13c801), so a URL-shaped credential is caught there too — and an earlier
+            # version of this comment wrongly said it was not. But, exactly as for the
+            # template, a BARE token has no shape to key on: re-measured at a13c801,
             # `{"exception": {"values": [{"value": "bad key sk-live-DEADBEEF"}]}}` survives
             # scrubbing intact. For an UNCAUGHT exception this is a wash (the ASGI
             # integration reports it either way), but a caught-and-logged one becomes an
