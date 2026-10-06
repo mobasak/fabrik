@@ -1,0 +1,21 @@
+[Unit]
+Description=wsl-mcp — Claude Desktop/Code bridge into WSL (streamable-HTTP MCP on 127.0.0.1:8040)
+After=network.target
+
+[Service]
+Type=simple
+User=ozgur
+Group=ozgur
+WorkingDirectory=/home/ozgur
+Environment=WSL_MCP_HOST=127.0.0.1
+Environment=WSL_MCP_PORT=8040
+Environment=WSL_MCP_DEFAULT_CWD=/home/ozgur
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/fabrik/tools/wsl-mcp/.venv/bin/python /opt/fabrik/tools/wsl-mcp/server.py
+Restart=always
+RestartSec=3
+StandardOutput=append:/var/log/fabrik/wsl-mcp.log
+StandardError=append:/var/log/fabrik/wsl-mcp.log
+
+[Install]
+WantedBy=multi-user.target
