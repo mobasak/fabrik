@@ -672,8 +672,18 @@ class SSHDeployer:
                 continue  # keep the registrar-injected real value
             merged[key] = value
 
-        # Layer secrets (highest precedence)
-        for key, value in ctx.secrets.items():
+        # Layer secrets (highest precedence) — except a value THIS run invented (ctx.minted_secrets)
+        # when the remote .env already holds one: the hub never keeps the value it minted on the
+        # first apply, so overwriting would replace a stable key (an encryption master key) on every
+        # re-apply (W-023bdd59). The kept value is mirrored into ctx.secrets so every later reader in
+        # this run sees what is actually deployed. Rotating such a secret means setting it on the hub.
+        minted = getattr(ctx, "minted_secrets", set())
+        for key, value in list(ctx.secrets.items()):
+            kept = merged.get(key)
+            if key in minted and kept:
+                ctx.secrets[key] = kept
+                logger.info("Kept the deployed value of generated secret %s (mint-once)", key)
+                continue
             merged[key] = str(value)
 
         return _format_env(merged)

@@ -357,6 +357,7 @@ class DeploymentOrchestrator:
 
         if isinstance(secrets_config, list):
             self._warn_fabricated_secrets(secrets_config)
+            ctx.minted_secrets = self._minted_keys(secrets_config)
             ctx.secrets = self.secrets_manager.load_all(secrets_config)
             return
 
@@ -364,6 +365,7 @@ class DeploymentOrchestrator:
             return
 
         all_secrets: dict[str, str] = {}
+        minted: set[str] = set()
 
         required = secrets_config.get("required", [])
         if required:
@@ -374,10 +376,12 @@ class DeploymentOrchestrator:
             # is silently dead. Loud, itemised warning; still non-fatal (a generated password is a
             # legitimate use), so the operator sees it instead of debugging a 401 later.
             self._warn_fabricated_secrets(required)
+            minted |= self._minted_keys(required)
             all_secrets.update(self.secrets_manager.load_all(required))
 
         generate = secrets_config.get("generate", [])
         if generate:
+            minted |= self._minted_keys(generate)
             all_secrets.update(self.secrets_manager.load_all(generate))
 
         from_env = secrets_config.get("from_env", [])
@@ -415,6 +419,16 @@ class DeploymentOrchestrator:
                     logger.warning("Failed to read file for secret %s: %s", env_var, e)
 
         ctx.secrets = all_secrets
+        ctx.minted_secrets = minted
+
+    def _minted_keys(self, keys: list[str]) -> set[str]:
+        """The keys the secrets manager can resolve only by INVENTING a value (W-023bdd59).
+
+        Those values exist nowhere the hub can read again — the first apply writes them only into
+        the remote ``.env`` — so the deploy-time merge must keep the remote copy instead of them.
+        """
+        resolved = self.secrets_manager.load_all(keys, generate_if_missing=False)
+        return {key for key in keys if key not in resolved}
 
     def refresh_infrastructure(
         self,

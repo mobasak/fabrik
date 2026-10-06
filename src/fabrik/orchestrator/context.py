@@ -32,6 +32,11 @@ class DeploymentContext:
     # Secrets loaded from env/.env/generated
     secrets: dict[str, str] = field(default_factory=dict)
 
+    # The secret keys THIS run invented (the hub could not resolve them, so SecretsManager minted a
+    # value). The deploy-time .env merge keeps an existing remote value for these instead of
+    # overwriting it — mint-once, so a re-apply never replaces a stable key (W-023bdd59).
+    minted_secrets: set[str] = field(default_factory=set)
+
     # Resources created (for rollback)
     created_resources: list[ResourceRecord] = field(default_factory=list)
 
