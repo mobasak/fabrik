@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T16:14:58.624078Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-07ad6be5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M48VP8FTAQ5KD2JC5YMZ6502",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: site-provisioner needs a way to deploy a visitor-country redirect for a Cloudflare Pages site (lussobotanica.com)."
+}
