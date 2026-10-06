@@ -1,0 +1,131 @@
+# Rotation capability probe — an account that refuses inference is never the next account
+
+Status: CONVERGED
+Profile: delta
+Size: small (≈300 lines, 2 files — `claude_rotate.py` and its byte-identical `scripts/aro-wake/` twin)
+Work item: W-f8bfe7eb · Evidence: fleet mail 01M3QG6GG5NQNVG5MZE6SAME1G · Detection half: W-ffd390d2 (done)
+
+## Personas
+
+- **The operator** (primary). Their own words, D-443: *"make it unusable untill i say it is avaiable again"* and *"enabling it must be easy. even put a button in the gui so i can enable disable them manually too"*. Their loop when an account's billing lapses is **3 steps** (the frozen step budget): (1) read the alert naming the account and the cause; (2) fix the billing or the org setting outside the box; (3) re-enable the account with one action (`--unpark <email>` or the dashboard's enable button). Today it is 5+: notice sessions failing, diagnose the refusal text, find the account, `--switch` away by hand, `--park` it by hand (mail 01M3QG6G § WHEN).
+- **Every Claude Code session on the box** (automated consumer). It follows the `active` pointer. It holds no duty here, but it is the one trapped when the pointer names a refusing account ("Typing 'proceed' does not help, because every retry hits the same account" — mail 01M3QG6G § WHEN).
+- **The rotation tick** (`claude_rotate.py --tick`, cron every 5 min; automated). It holds the new duty: probe a candidate before promoting it, and auto-park on a definitive refusal.
+- **The quota dashboard and `--status`** (automated readers of `parked.json` and the ledger). They hold no new duty but must render an auto-parked account the same way as an operator-parked one (D-443: listed, never capacity).
+
+## Lifecycle
+
+Adoption: it lands in the tick with no flag and no new file; the first refusing candidate it meets is parked and alerted. Growth: one probe per account per verdict window — an `ok` verdict is trusted for 6 h and an `inconclusive` one is not retried for 30 minutes, one cache keyed by email for both D2 and D6. The flip leg's flips are dwell-exempt, so the dwell bounds nothing here; the two windows are the only bound. That is at most ~4 probes per healthy standby per day, and at most 48 for the active account on its 30-minute window (D6). Revisit if the fleet passes ~10 accounts or a probe's p95 latency exceeds 60 s. Failure: an inconclusive probe (timeout, network, any error that is not the definitive refusal) changes nothing. The pick proceeds as today and the result is logged, so a probe outage can never take accounts out of service (D-443's fail-open-on-broken-state stance). Retirement: if Anthropic ships a documented capability or entitlement read for subscription OAuth, the probe is replaced by that read.
+
+## Intake Inventory
+
+| I# | Item (anchored) | Disposition | Where |
+|---|---|---|---|
+| I1 | "Spec the prevention half" (W-f8bfe7eb title) | IN | § The delta |
+| I2 | "probe-on-flip vs per-tick" | IN | § Chosen approach, § Rejected alternatives |
+| I3 | "claude -p (full CLI, fires hooks) vs a minimal OAuth messages call (undocumented contract — ground it first)" | IN — the OAuth call is cut by grounding | § External dependencies G2, § Rejected alternatives |
+| I4 | "the quota cost" | IN | § Cost |
+| I5 | "auto-park on the refusal" | IN | § The delta D3 |
+| I6 | "W-ffd390d2 (alert hook) is the detection half" | OUT-OF-SCOPE — already built; this spec only reuses its alert path | W-ffd390d2 (done) |
+| I7 | "SYSTEMIC: every health probe that checks credentials rather than the capability actually used has this blind spot" (mail 01M3QG6G) | OUT-OF-SCOPE — other probes on the box are not this item | recorded in § Open unknowns U3 |
+| I8 | "fires hooks" (the CLI probe runs session hooks) | IN | § The delta D1 (headless env) |
+
+Intake: 8 items — 6 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
+
+## Goal
+
+When the tick is about to promote an account to `active`, it first proves the account can actually serve a Claude Code call. An account refused with `oauth_org_not_allowed` is parked, alerted and skipped, so the pointer never lands on it. The operator's 3-step re-enable loop is unchanged.
+
+## Why this exists
+
+On 2026-09-29/30, mob and then ob were refused on every Claude Code call: "Your organization has disabled Claude subscription access for Claude Code". The tick kept ob as successor and then active, and every session on the box was trapped until the operator switched by hand at 00:07 (mail 01M3QG6G). The picker's checks are a usage reading and refresh-chain liveness (`scripts/sysadmin/claude_rotate.py:3559-3625`, `_chain_stale_reason` `:3044`), and neither exercises inference. The one inference call the tick does make, the refresh ping (`:4040-4060`), runs only when a reading is stale, so a healthy reading hid the refusal.
+
+## What exists today (grounded)
+
+- `_validated_pick` (`claude_rotate.py:3559-3625`) returns the first candidate whose reading is live, or whose cached reading passes a live usage probe; it never runs inference.
+- `_flip_active` (`:3139`) is the only place the pointer moves; its gates are credentials, chain liveness, pause and dwell (`:3157-3167`).
+- `_keepalive_ping` (`:7129-7157`) runs `claude -p ping` bound to one fleet dir with `CLAUDE_MESH_HEADLESS=1` and `CLAUDE_SOUND_NO_REVIVE=1`, and returns only `returncode == 0`. Its caller marks any failure `ping_failed` (`:4060`), the dead-chain flip trigger.
+- Parking (D-443): `_cmd_park` (`:3873-3900`) read-modify-writes `<fleet_root>/parked.json` with no lock; `_parked_accounts` (`:3827-3850`) reads it and a broken file parks nothing; `_account_caps` reads a parked account as cap 0, so every reader that handles a cap wall already handles a park.
+- The file is vendored byte-identical into `scripts/aro-wake/claude_rotate.py` (header `:1-4`).
+
+## External dependencies
+
+| # | Fact | Source (fetched 2026-10-06) |
+|---|---|---|
+| G1 | `claude -p --output-format json` reports an in-run failure on stdout as the result JSON with `is_error` and `api_error_status`, and exits non-zero: "When a failure happens inside the run, such as missing authentication, Claude Code prints the failure as the result on stdout." | https://code.claude.com/docs/en/headless |
+| G2 | Subscription OAuth "is intended exclusively for purchasers of Claude Free, Pro, Max, Team, and Enterprise subscription plans and is designed to support ordinary use of Claude Code and other native Anthropic applications"; no OAuth Messages endpoint is documented. | https://code.claude.com/docs/en/legal-and-compliance · https://platform.claude.com/docs/en/api/beta-headers |
+| G3 | The refusal "is a server-side organization setting, so it can't be overridden from local settings, environment variables, or CLI flags. The Agent SDK and `-p` non-interactive mode surface this as the `oauth_org_not_allowed` error code." | https://code.claude.com/docs/en/errors |
+| G4 | `--max-turns`: "Limit the number of agentic turns (print mode only)"; `--tools ""` disables all tools. | https://code.claude.com/docs/en/cli-reference |
+| G5 | Approach: a check of a dependency belongs on the gate that admits traffic (readiness), not on the reflexive one — "the readiness probe additionally checks that each required back-end service is available. This helps you avoid directing traffic to Pods that can only respond with error messages." | https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/ |
+| G6 | Approach: re-admit a target only after a trial of the real operation — "a circuit breaker can periodically ping the remote service or resource to determine whether it's available. This ping can either attempt to invoke a previously failed operation or use a special health-check operation". Dependency checks acted on automatically need thresholding (AWS Builders' Library, quoted via siddharthsarda.com; the canonical page did not render). | https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker · https://www.siddharthsarda.com/p/service-health-and-health-checks |
+
+## Constraints digest
+
+| Rule | Quote | Source | Applies |
+|---|---|---|---|
+| every external call bounded | "every external call has timeout + retry with backoff. Circuit-breaker for repeated failures. Graceful fallback when dependencies are down." | .windsurf/rules/core/58-resilience.md:88 | the probe has a timeout and falls back to today's pick when inconclusive |
+| timeouts owned by resilience | "Timeouts/retries on every outbound call are owned by" | .windsurf/rules/core/10-python.md:218 | the probe reuses `_keepalive_ping`'s bounded subprocess timeout |
+| parked means never picked | "A parked account stays listed, pinned and logged in, but is never an automated flip target" | docs/DECISIONS.md:158 | auto-park writes the same `parked.json`, so every reader handles it already |
+| broken park state fails open | "A broken `parked.json` parks NOTHING and warns loudly" | docs/DECISIONS.md:158 | an auto-park write failure is logged and the candidate is still excluded for this tick only |
+
+Stdlib-only, byte-identical vendoring (`claude_rotate.py:1-4`) rules out new imports; the FastAPI-only rules of `core/10-python.md` (structlog, `HTTPException`) do not apply to this script.
+
+## The delta
+
+- **D1 — a classifying probe.** `_capability_probe(cfg_dir) -> "ok" | "refused" | "inconclusive"` runs `claude -p ok --output-format json --max-turns 1 --tools ""` with `_keepalive_ping`'s headless environment and timeout. It returns `refused` only when the stdout result JSON has `is_error` true AND its `result` text names `oauth_org_not_allowed` or the incident's "disabled Claude subscription access" (G1, G3); `api_error_status` is recorded, never required (U2). It returns `ok` on exit 0 with no `is_error` result. Anything else is `inconclusive`. It never keys on `subtype`, which reads `success` on a failed call (§ Open unknowns U1). The headless env vars keep the box's session hooks from treating the probe as a session (I8).
+- **D2 — probe on promote.** Before `_validated_pick` returns an automated flip target, it runs D1 bound to that candidate's config dir. It skips the probe when the candidate holds an `ok` verdict younger than 6 h (`<state>/capability-probe.json`, keyed by email; `ROTATE_PROBE_TRUST_S`, default 21600). On `refused` it applies D3, excludes the candidate and considers the next one, exactly as the loop's existing exclude-and-continue does for a walled live reading (`:3612-3615`). On `inconclusive` it returns the pick as today, logs one tick line, and caches the verdict for 30 minutes so the next tick does not re-probe. On `ok` it records the verdict and returns. A manual `--switch` never runs the probe (D-443's escape hatch).
+- **D3 — auto-park.** A `refused` verdict is first CONFIRMED by one immediate second D1 probe of the same dir (a refused call spends no quota, and G6 asks for thresholding before an automated action); only two refusals in a row park. Parking goes through the same writer as `--park`, under a lock (D5), appends a `{"event": "auto-park", "email", "cause": "oauth_org_not_allowed", "ts"}` row to `rotate-ledger.jsonl`, and sends one alert through the existing Telegram path that leads with the likely cause — "check this account's billing" (the 2026-09-30 refusals were a payment problem, `docs/TROUBLESHOOTING.md:255`) — then names the account and the one-step fix (`--unpark <email>`). The alert key is per account, so one account alerts at most once per 30 minutes. The operator owns un-parking (D-443); nothing auto-unparks.
+- **D4 — the existing ping classifies too.** D1's `_capability_probe` replaces `_keepalive_ping`, whose one caller (`:4055`) now reads the verdict instead of a bool. `refused` auto-parks (D3) instead of marking `ping_failed`, since the chain is alive and only the capability is gone. `inconclusive` keeps today's `ping_failed`.
+- **D4b — the CLI wrapper classifies too.** The wrapper that already rotates on a usage limit or a `401` (module docstring `:11-17`) classifies each result with D1's rule: on `refused` it auto-parks the account THAT ANSWERED — the fleet dir the call's own `CLAUDE_CONFIG_DIR` resolves to, never the pointer's account, which can differ — then stops retrying and returns the result. A call bound to no fleet dir (the shared `~/.claude`, or a VPS host with no fleet) parks nothing and says so on stderr. It does not rotate: on a fleet host its rotate is withheld by design (`claude_rotate.py:541-548`), so the next tick flips away from the parked active account (D-443). It adds one call only on a refusal — D3's confirmation probe, with the 45-second timeout so the caller waits at most that much longer.
+- **D6 — the active account is re-validated.** A refusal can first appear on the account that is ALREADY active, mid-session. D2 never sees that case, and with healthy readings the staleness-gated ping (`:4040`) never fires either (judge 2's split, § Chosen approach). So the tick also runs D1 against the ACTIVE account whenever its cached verdict is older than the ACTIVE window — `ROTATE_ACTIVE_PROBE_S`, default 1800 (30 minutes), separate from D2's 6 h standby window because a refusal on the active account stops every session on the box at once (the 2026-09-29 incident). That is at most 48 one-word calls a day, on the account already carrying the fleet's traffic, never every tick. The active probe uses a 45-second timeout (inconclusive on expiry) so it cannot hold the tick's `flock` long enough to delay a flip that is due. It binds `CLAUDE_CONFIG_DIR` and `CLAUDE_QUOTA_HOME` to the active dir itself, exactly as every interactive session already shares `<root>/active` — one more session on the dir, not the retired copied-credential pattern. `refused` → D3, and the parked active account is flipped away from on the same tick. That flip-away branch covers ANY parked active account, the operator's park included, and does not need a quota reading — the existing trip path returns before deciding when the active row has none (`claude_rotate.py:5767-5769`). A parked active account is never re-probed. `inconclusive` → nothing changes.
+- **D7 — a session's own refusal expires the active verdict.** The StopFailure hook already writes `<lockdir>/<safe-sess>.errparked` holding `<class> <epoch>` on every failed interactive session, and names `oauth_org_not_allowed` as a class it leaves to humans (`docs/superpowers/specs/2026-08-09-stopfailure-resume-mesh-design.md:65`; the read-only parser `scripts/sysadmin/kaizen_coroner.py:269-294`). The tick already walks that lock dir. When it finds a marker of that class whose epoch is newer than the active account's cached verdict, it treats that verdict as expired and runs D6's probe now. The marker names a session, not an account, so it never parks anything by itself; the D1 probe stays the definitive act. With D7 an interactive refusal on the active account is caught within about one tick, at no quota, and D6's window is only the backstop.
+- **D5 — one lock for `parked.json`.** `_cmd_park` and the auto-park take the same `fcntl` lock (the assignments lock pattern, `:3692-3716`) around the read-modify-write, so a dashboard click and a tick park cannot lose one another's write.
+
+## Cost
+
+One probe is one Claude Code turn with no tools on a one-word prompt, drawn from the probed account's subscription quota. D2 and D6 share one cache keyed by email. A standby's `ok` is trusted for 6 h (D2), at most ~4 probes a day; the active account's for 30 minutes (D6), at most 48 a day; at 4-5 accounts that is ≤64 small calls per day across the fleet. D7 adds a probe only when a session has actually been refused. During a probe outage an `inconclusive` verdict is retried at most every 30 minutes, a worst case of 48 calls per account per day that ends with the outage. The stale-reading refresh ping (D4) is not new cost: it is today's call, run only for a reading older than an hour and capped per tick by `ROTATE_REFRESH_MAX_PER_RUN`, unchanged in count; it now writes its verdict into the same cache, so D6 never probes an account the ping has just probed. A refused account costs two probes (the refusal and its confirmation), then none, because it is parked.
+
+## Validation
+
+- A fixture `claude` stub on PATH prints the documented refusal JSON (`is_error: true`, `api_error_status: 403`, text with `oauth_org_not_allowed`) for one fleet dir. `_validated_pick` must skip it, `parked.json` must list it, and the ledger must carry the `auto-park` row; red before the change.
+- The same stub timing out yields `inconclusive`: the pick proceeds and nothing is parked.
+- A manual `--switch` to the refused dir is never probed and still flips (D-443's escape hatch).
+- Two concurrent `_cmd_park` calls each land their email (D5).
+- The ACTIVE account's dir returning the refusal, with an expired `ok` verdict, is parked and flipped away from on that tick (D6). With a fresh `ok` verdict it is not probed.
+- The wrapper running a session call bound to a fleet dir that returns the refusal parks THAT dir's account, makes no retry and returns the result; the next tick flips away if it was active (D4b). Bound to no fleet dir, it parks nothing.
+- An active account already parked, with no quota reading, is flipped away and not probed (D6). An `inconclusive` verdict is not re-probed within 30 minutes (D2).
+- An `.errparked` marker of class `oauth_org_not_allowed` newer than the active account's cached `ok` makes the next tick probe the active account at once (D7); a marker of any other class, or an older one, does not.
+- A single refusal followed by an `ok` confirmation parks nothing (D3).
+- The vendored twin is byte-identical (`cmp`).
+
+## Chosen approach
+
+**Probe on promote** (D1-D5). The real operation is tried once, at the moment an account is about to receive the fleet's traffic: the readiness and circuit-breaker shape (G5, G6). A definitive refusal quarantines the account through D-443's existing park, and the operator re-admits it. The judge panel was three independent Sonnet seats, given the approaches unlabeled and in alphabetical order. Two ranked probe-on-promote first. **The split:** judge 2 ranked passive classification first, because neither promote-time nor stale-ping probing can see a refusal that first appears on the already-active account mid-session. That gap is real, and the design closes it rather than recording it: D4b adds the wrapper's zero-cost classification, and D6 re-validates the active account on its own window. The split was carried to the approval gate as an open question — is a ≤6 h detection window for an active-account refusal acceptable? — and the design-approval panel (D-613) answered no: the active account gets its own 30-minute window (D6), and a session's own refusal marker expires it at once (D7).
+
+## Rejected alternatives
+
+- **Passive classification only.** This reads the refusal from the existing ping and from failed sessions, and adds no new call. It is kept as D4, a free part of the chosen approach, but rejected as the whole answer. The ping fires only on a stale reading (`:4040`), so on 2026-09-29 it would never have run before promotion, and the box would still have been trapped once.
+- **Probe every standby every tick.** Killed. It spends a call per standby every 5 minutes on accounts nobody is about to promote, and the cited practice warns that deep checks acted on automatically every tick produce correlated false positives (G6).
+- **A raw Messages API call with the subscription OAuth token.** Cut by grounding: it is outside "ordinary use of Claude Code", and no endpoint for it is documented (G2).
+- **Auto-unpark after a timer, or on a later successful probe.** Cut by D-443: the operator owns re-enabling.
+
+## Decisions taken
+
+D-614 records the placement decision, minted in this spec's commit. It covers probe on promote, auto-park on the definitive refusal, and un-parking owned by the operator.
+
+## fabrik-lib verdict
+
+One line: no fabrik-lib module covers Claude subscription rotation; this is a delta inside the hub's own `claude_rotate.py` (BUILD, in place).
+
+## Shape / infra implications
+
+None: a box-local cron script, no service, no `shape:` flags.
+
+## Documentation landing sites
+
+`docs/workstation/claude-account-rotation.md` § Parking (an auto-park and its alert), the module docstring of `_validated_pick`, `CHANGELOG.md`, and the D-row.
+
+## Open unknowns
+
+- U1 — RESOLVED 2026-10-06: the probe argv run against an empty config dir returned `"is_error":true,"subtype":"success"` at exit 1 (the plan's Phase A Evidence), so `subtype` cannot tell a failure; D1 never reads it.
+- U2 — whether a `refused` result always carries `api_error_status == 403`. Resolution: D1 also accepts the documented `oauth_org_not_allowed` code in the text alone.
+- U3 — other box probes may share the credentials-not-capability blind spot (mail 01M3QG6G § SYSTEMIC). Resolution: out of scope here; filed as a backlog row with the plan.

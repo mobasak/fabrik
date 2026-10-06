@@ -982,3 +982,67 @@ def test_a_shell_less_researcher_finder_gets_no_shell_recipe() -> None:
     assert "PYTEST" not in p and "git archive" not in p and "python -P" not in p
     # nor the SCRATCH shell rules (closing pass A2-S1, the same class as the refuter's A-S4)
     assert "timeout 120" not in p and "mkdir" not in p and "you have no shell" in p
+
+
+_PIN_ARGS = {
+    **_ARGS,
+    "pins_dir": "/s/pins",
+    "scratch_dir": "/s/scratch",
+    "slices": [{"name": "S", "files": ["src/a.py", "tests/b.py", "c.md"], "priority": "p"}],
+}
+
+
+def _gaps(files_read: list, pins_dir: str | None = "/s/pins") -> list[str]:
+    seat = {"files_read": files_read, "notes": "", "candidates": []}
+    args = {**_PIN_ARGS, "pins_dir": pins_dir}
+    ledger, _ = _run_ledger(args, {"find:S:sonnet": seat, "find:S:haiku": seat})
+    return ledger["slices"][0]["gaps"]
+
+
+def test_every_files_read_shape_a_seat_really_returns_counts_as_read() -> None:
+    """W-b491da86/W-cd7979d3, web-ecommerce-factory 01M46BNT62: seats list an ABSOLUTE path inside the pin
+    or a scratch archive of it, cite `path:line`, or annotate the entry ("tests/x.py (pinned copy at …)");
+    compared verbatim, every one read as UNREAD and the slice went not-closable."""
+    assert (
+        _gaps(
+            [
+                "/s/pins/src/a.py",  # absolute, inside the pin
+                "tests/b.py (pinned copy at /s/pins/tests/b.py (base 1d0a7b8))",  # nested annotation
+                "/s/scratch/S-opus/arch/c.md",  # the seat's SCRATCH/arch copy of the pin
+            ]
+        )
+        == []
+    )
+    assert _gaps(["./src/a.py:120", "  `tests/b.py` — pinned  ", "file:///s/pins/c.md"]) == []
+    assert _gaps(["pins/src/a.py", "tests/b.py, read whole", "c.md [pin]"], pins_dir="pins") == []
+    assert _gaps([None, 7, "", "src/a.py"]) == ["tests/b.py", "c.md"], (
+        "a non-string entry never crashes"
+    )
+    # a trailing-slash pins_dir is the same root, and a `#L` anchor is a cite (pass 1, code-S1 · tests-S2)
+    assert _gaps(["/s/pins/src/a.py", "tests/b.py#L120", "c.md"], pins_dir="/s/pins/") == []
+
+
+def test_an_unset_empty_or_regex_special_root_never_credits_a_file() -> None:
+    """Pass 1, code-S2/S3: an unset pins_dir must not become the root `undefined/`, an empty one must not strip
+    every absolute path, and a pins_dir holding a regex metacharacter matches only itself (escRe)."""
+    assert _gaps(["undefined/src/a.py", "tests/b.py", "c.md"], pins_dir=None) == ["src/a.py"]
+    assert _gaps(["/src/a.py", "tests/b.py", "c.md"], pins_dir="") == ["src/a.py"]
+    assert _gaps(["/s/pXins/src/a.py", "/s/p.ins/tests/b.py", "c.md"], pins_dir="/s/p.ins") == [
+        "src/a.py"
+    ]
+
+
+def test_a_different_file_with_the_same_name_is_still_unread() -> None:
+    """The mirror (design critique, Opus + Fable): normalising must never credit a DIFFERENT file — a sibling
+    pin of the same name, a relative basename, a longer name, or the live tree the brief forbids."""
+    assert _gaps(
+        [
+            "/s/pins/other/c.md",  # another pinned file with the same name
+            "/s/pins/vendor/src/a.py",  # a nested path sharing the tail
+            "b.py",  # a relative basename
+            "src/a.py.bak",
+            "tests/b.py-old",
+            "/opt/fabrik/c.md",  # the live checkout — not the pin
+            "/s/scratch/S-opus/other/arch/c.md",  # not SCRATCH/arch
+        ]
+    ) == ["src/a.py", "tests/b.py", "c.md"]

@@ -202,6 +202,29 @@ function sameDefect(a, b) {
   )
 }
 
+// Does one `files_read` entry name slice file `f`? Seats report a file they opened as the repo path, as its pin
+// (`<pins_dir>/f`), as their SCRATCH/arch copy (`<scratch_dir>/<seat>/arch/f`), cited (`f:120`) or annotated
+// (`f (pinned copy at …)`) — a verbatim compare read all but the first as UNREAD (W-b491da86, W-cd7979d3,
+// web-ecommerce-factory 01M46BNT62). Only those two roots are stripped and `f` must then LEAD the entry: no suffix
+// match, so a sibling pin of the same name (`<pins_dir>/other/f`) or the live checkout the brief forbids stays a gap
+// (design critique, Opus + Fable: a suffix rule credited 23 of 4796 tracked paths with a different file).
+const escRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+// a root is built only from a dir that is a non-empty string once its trailing slashes go: an unset dir must not
+// become the literal `^undefined/`, an empty one `^/` (which would strip every absolute path), and `<dir>/` must
+// not demand a double slash
+const rootDir = (d) => (typeof d === 'string' ? d.replace(/\/+$/, '') : '')
+function readsFile(entry, f) {
+  let n = String(entry ?? '').trim().replace(/`/g, '').replace(/^file:\/\//, '').replace(/^\.\//, '')
+  const pins = rootDir(args.pins_dir)
+  const scratch = rootDir(args.scratch_dir)
+  const roots = [
+    ...(pins ? [new RegExp(`^${escRe(pins)}/`)] : []),
+    ...(scratch ? [new RegExp(`^${escRe(scratch)}/[^/]+/arch/`)] : []),
+  ]
+  for (const root of roots) if (root.test(n)) { n = n.replace(root, ''); break }
+  return n === f || (n.startsWith(f) && /^[\s:#(\[,—]/.test(n.slice(f.length)))
+}
+
 function unionSlice(r) {
   const candidates = []
   let overlap = 0
@@ -222,8 +245,8 @@ function unionSlice(r) {
       }
     }
   }
-  const read = new Set(r.seats.flatMap((s) => s.files_read || []))
-  const gaps = r.slice.files.filter((f) => !read.has(f))
+  const read = r.seats.flatMap((s) => s.files_read || [])
+  const gaps = r.slice.files.filter((f) => !read.some((e) => readsFile(e, f)))
   const counts = r.seats.map((s) => (s.candidates || []).length)
   const distinct = candidates.length
   // Chapman's capture-recapture estimator over the two finders' candidate sets — ADVICE, never a gate; any other

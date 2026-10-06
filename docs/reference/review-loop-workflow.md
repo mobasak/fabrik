@@ -42,7 +42,12 @@ The tool returns `async_launched`; the ledger arrives as one result — the lead
 - `candidates` — the two finders' union: two DIFFERENT seats citing the same file and class within five lines are one candidate (`also` carries the twin's id, `also_seat` its seat); the same seat's neighbours are never merged. A candidate both raised credits both seats' `confirmed`.
 - `verdicts` — one per candidate from the slice's Sonnet refuter (`effort: high`; the finders run at `medium`): `confirmed | refuted | recorded | unverified`; the script writes `unverified` for a candidate the refuter never answered and for a `refuted` with no command or output (refutation needs counter-evidence); a `refuted` whose command is a placeholder (`n/a`, `none`, `-`) or whose output is empty counts as none, and two rows for one id that disagree are `unverified`; the `id` is always the candidate's — the union suffixes a reused id (`#2`) before the refuter sees it — never the seat's echo; with
   the command it ran, the output (≤ 1500 chars), the mechanism, a destination when recorded.
-- `gaps` — slice files no finder listed in `files_read`; logged, and the slice is UNVERIFIED until read.
+- `gaps` — slice files no finder listed in `files_read`; logged, and the slice is UNVERIFIED until read. An entry
+  counts for a slice file `f` when, after stripping one `<pins_dir>/` or `<scratch_dir>/<seat>/arch/` prefix (and
+  backticks, `file://`, `./`), it is `f` or begins with `f` followed by whitespace, `:`, `#`, `(`, `[`, `,` or `—` —
+  so `f:120`, `f#L120` and `f (pinned copy at …)` count. A trailing slash on either dir is ignored, and an unset or
+  empty dir strips nothing. A path under any other root (the live checkout) or a sibling of the same
+  name never does (`readsFile` in the script).
 - `closable` / `open` — a slice may close only with no gap, no failed seat, no `confirmed` or `unverified` verdict and, on a later pass, every ledger claim reported by a seat; `open` names each reason. It is a floor for "may close", never a stop signal: ≤ 3 passes is a target, not a cap (D-355).
 - `estimate_unseen` — Chapman's capture-recapture estimate over the two finders' candidate sets (`null` unless the slice has exactly two); advice for the
   re-dispatch brief, never a gate (`command-loop-performance.md` § 4.9 finding 18).

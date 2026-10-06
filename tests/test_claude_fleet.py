@@ -45,6 +45,15 @@ OVER_LINE = cr._rotate_threshold() + 1.0
 SENTINEL = "SENTINEL-ACCESS-TOKEN"
 
 
+@pytest.fixture(autouse=True)
+def _no_real_capability_probe(monkeypatch):
+    """The flip leg probes the active account and every promotion candidate (plan 2026-10-06-plan-2,
+    D2/D6). This file's tick tests never meant to launch the real `claude` for that, so the D2/D6
+    entry point answers `ok`. It stubs `_probe_account`, NOT `_capability_probe`, so the tests of
+    the probe itself still run it against their own stubbed `subprocess.run`."""
+    monkeypatch.setattr(cr, "_probe_account", lambda *a, **k: "ok")
+
+
 def _canonical(tmp_path, monkeypatch):
     """A fake ~/.claude + ~/.claude.json + an empty fleet root. Returns (fleet, cdir, home)."""
     home = tmp_path / "home"
@@ -1400,7 +1409,7 @@ def test_empty_fleet_root_keeps_the_legacy_view_and_one_dir_flips_it(tmp_path, m
 def test_keepalive_ping_runs_claude_in_place_and_never_reads_credential_bytes(
     tmp_path, monkeypatch
 ):
-    """`_keepalive_ping` is KEPT for the tick's stale-reading refresh and it is the in-place
+    """`_capability_probe` (the old `_keepalive_ping`) is KEPT for the tick's stale-reading refresh and it is the in-place
     SOLE-OWNER shape: `claude -p ping` with CLAUDE_CONFIG_DIR == CLAUDE_QUOTA_HOME == the dir
     itself, no temp-dir copy (a copy's refresh consumes the single-use refresh token — mob@
     2026-09-12), and not one credential byte read by this script."""
@@ -1432,8 +1441,18 @@ def test_keepalive_ping_runs_claude_in_place_and_never_reads_credential_bytes(
     monkeypatch.setattr(Path, "read_bytes", guarded_bytes)
     monkeypatch.setattr(Path, "read_text", guarded_text)
 
-    assert cr._keepalive_ping(fleet / "old") is True
-    assert seen["argv"] == ["claude", "-p", "ping"]
+    assert cr._capability_probe(fleet / "old") == "ok"
+    assert seen["argv"] == [
+        "claude",
+        "-p",
+        "ok",
+        "--output-format",
+        "json",
+        "--max-turns",
+        "1",
+        "--tools",
+        "",
+    ]
     env = seen["env"]
     assert env["CLAUDE_CONFIG_DIR"] == env["CLAUDE_QUOTA_HOME"] == str(fleet / "old")
     assert env["CLAUDE_MESH_HEADLESS"] == "1" and env["CLAUDE_SOUND_NO_REVIVE"] == "1"
@@ -1765,7 +1784,7 @@ def test_drain_mail_never_raises_on_an_unencodable_message(monkeypatch):
 
 
 def test_keepalive_ping_survives_undecodable_output(tmp_path, monkeypatch):
-    """`_keepalive_ping` captures the ping's text; a single invalid UTF-8 byte from `claude` raised
+    """`_capability_probe` (the old `_keepalive_ping`) captures the ping's text; a single invalid UTF-8 byte from `claude` raised
     `UnicodeDecodeError` past `(OSError, SubprocessError)` mid-liveness-pass (round 16, executed).
     The text is never read — only the status — so it is decoded with `errors="replace"`."""
     fake_bin = tmp_path / "bin"
@@ -1776,7 +1795,7 @@ def test_keepalive_ping_survives_undecodable_output(tmp_path, monkeypatch):
         cr, "_with_claude_on_path", lambda env: env.__setitem__("PATH", str(fake_bin))
     )
     monkeypatch.setenv("KEEPALIVE_TIMEOUT", "20")
-    assert cr._keepalive_ping(tmp_path) is True
+    assert cr._capability_probe(tmp_path) == "ok"
 
 
 def test_argv_safe_spells_out_what_argv_refuses():
@@ -7875,7 +7894,7 @@ def test_the_tier_reader_does_not_hang_or_shift_on_a_hostile_stamp(tmp_path):
     _cr_path = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "claude_rotate.py"
 
     s = tmp_path / "fleet-exhausted"
-    for sep in ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " "):
+    for sep in ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "", ""):
         s.write_text(f"0{sep}urgent-90\nwalled\n")
         assert cr._stamp_tier(s) == "walled", f"{sep!r} in line 1 must not shift the tier read"
     import subprocess as _sp
