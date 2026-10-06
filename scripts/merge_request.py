@@ -1080,7 +1080,7 @@ def _fallback_env(wt: Path, shim: Path) -> dict:
     return {**os.environ, "PYTHONPATH": str(shim), "FABRIK_MERGE_SRC": str(root)}
 
 
-def _copy_worktree_include(ctx: _Ctx, wt: Path, old: str) -> None:
+def _copy_worktree_include(ctx: _Ctx, wt: Path, old: str) -> str | None:
     """Copy the base's ``.worktreeinclude`` set from the main checkout into the build tree.
 
     The build tree is a fresh checkout, so a gitignored ``.env`` was absent and a pydantic-settings
@@ -1089,12 +1089,34 @@ def _copy_worktree_include(ctx: _Ctx, wt: Path, old: str) -> None:
     what a worktree sees, read by the app's own loader rather than a second ``.env`` parser
     (D-610). The list comes from the BASE, never the branch; a file the tree already holds (tracked)
     is never overwritten; a path that leaves the checkout, or a symlink, is skipped. The build tree
-    lives in a private mkdtemp directory and is removed after the merge."""
+    lives in a private mkdtemp directory and is removed after the merge.
+
+    Every synced project IGNORES ``.worktreeinclude`` (the synced .gitignore block writes it, the sync
+    owns it), so the base never holds it there: an ignored, regular list is then read from the main
+    checkout's working tree — never the branch's (brand-identiy-creator 01M48K5ZGYWBX1F4S8K8GQ32E0).
+    A TRACKED list still governs from the base only (``check-ignore`` without ``--no-index`` answers 1
+    for a tracked path). With no readable list the copy returns a NOTE instead of passing silently;
+    the caller puts it in the refusal and on stderr."""
     res = _run(["git", "show", f"{old}:.worktreeinclude"], GIT_TIMEOUT_S, cwd=ctx.main)
-    if res.returncode != 0:
-        return
+    text = res.stdout if res.returncode == 0 else None
+    listed_file = ctx.main / ".worktreeinclude"
+    if text is None and listed_file.is_file() and not listed_file.is_symlink():
+        ignored = _run(
+            ["git", "check-ignore", "-q", ".worktreeinclude"], GIT_TIMEOUT_S, cwd=ctx.main
+        )
+        if ignored.returncode == 0:
+            try:
+                text = listed_file.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                text = None
+    if text is None:
+        # no sha in the text: the base moves between rebuilds, and the caller dedups by text
+        return (
+            "`.worktreeinclude` is neither tracked at the base nor an ignored regular file in the "
+            "main checkout — nothing copied into the build tree"
+        )
     main = ctx.main.resolve()
-    for line in res.stdout.splitlines():
+    for line in text.splitlines():
         rel = line.strip()
         if not rel or rel.startswith("#"):
             continue
@@ -1117,6 +1139,7 @@ def _copy_worktree_include(ctx: _Ctx, wt: Path, old: str) -> None:
                 shutil.copy2(f, dst)
             except OSError:
                 continue  # a tracked FILE where the list has a directory: the merge's tree wins
+    return None
 
 
 def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -> str:
@@ -1126,7 +1149,9 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
     over the merged ``tests/`` files the diff touched, under the main checkout's ``.venv`` python
     when it has one, the merged ``src`` placed after the stdlib by the shim above. A red test
     refuses. Both legs first get the base's ``.worktreeinclude`` set (``_copy_worktree_include``)."""
-    _copy_worktree_include(ctx, wt, old)
+    note = _copy_worktree_include(ctx, wt, old)
+    if note and note not in ctx.notes:  # once per merge: this runs per rebuild and per catch-up
+        ctx.notes.append(note)
     res = _run(["git", "show", f"{old}:.fabrik/merge-tests"], GIT_TIMEOUT_S, cwd=ctx.main)
     if res.returncode == 0 and res.stdout.strip():
         pythonpath = os.pathsep.join(
@@ -1155,7 +1180,8 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
             run = _run([py, "-m", "pytest", "-q", *touched], TEST_TIMEOUT_S, cwd=wt, env=env)
     if run.returncode != 0:
         tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
-        raise RefusedError(f"owner tests red ({label}, exit {run.returncode}): {tail}")
+        why = f"; NOTE: {note}" if note else ""
+        raise RefusedError(f"owner tests red ({label}, exit {run.returncode}): {tail}{why}")
     return f"{label}: green"
 
 
@@ -1732,6 +1758,8 @@ def _drive(ctx: _Ctx, rec: dict, *, resuming: bool) -> int:
         _merge_request_steps(ctx, rec, remote)  # a start: the origin-ahead refusal applies
     if rec["phase"] == "refused":
         _reply_and_ack(ctx, rec)
+        for note in ctx.notes:
+            print(f"merge_request: {note}", file=sys.stderr)
         print(f"merge_request: REFUSED {rec['id']} — {rec['reason']}", file=sys.stderr)
         return EXIT_REFUSED
     try:
@@ -1744,8 +1772,9 @@ def _drive(ctx: _Ctx, rec: dict, *, resuming: bool) -> int:
             f"{' '.join(str(exc).split())} — the merge {rec.get('merge_sha')} is committed "
             f"locally; left: {left}; finish with `merge_request.py resume {rec['id']}`"
         ) from exc
-    for note in ctx.notes:
-        print(f"merge_request: {note}", file=sys.stderr)
+    finally:  # merged or PARTIAL alike: a note is never swallowed by the exit it took
+        for note in ctx.notes:
+            print(f"merge_request: {note}", file=sys.stderr)
     print(f"merged {rec['id']} as {rec.get('merge_sha')}")
     for line in rec.get("not_carried", []):
         print(f"merge_request: NOT CARRIED — {line}", file=sys.stderr)

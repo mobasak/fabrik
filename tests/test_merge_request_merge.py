@@ -753,6 +753,76 @@ def test_owner_tests_see_the_worktreeinclude_files_the_main_checkout_holds(world
     assert world.scratch_left() == []
 
 
+def test_owner_tests_read_an_ignored_worktreeinclude_from_the_main_checkout(world):
+    """brand-identiy-creator 01M48K5ZGYWBX1F4S8K8GQ32E0: every synced project IGNORES
+    `.worktreeinclude` (the synced .gitignore block), so `git show <base>:.worktreeinclude` failed,
+    nothing was copied and the owner tests refused every correct merge. An ignored list is read
+    from the main checkout's working tree."""
+    probe = world.tmp / "env-probe"
+    world.write(".gitignore", ".worktreeinclude\n.env\nlocal/\n")
+    script = (
+        f"import pathlib; pathlib.Path({str(probe)!r}).write_text("
+        "open('.env').read().strip() + ' ' + open('local/deep/a.txt').read().strip())"
+    )
+    world.write(".fabrik/merge-tests", f'python3 -c "{script}"\n')
+    world.commit_main("ignore + owner tests", ".gitignore", ".fabrik/merge-tests")
+    world.write(".worktreeinclude", ".env\nlocal/\n")  # sync-written, ignored, never tracked
+    world.write(".env", "DATABASE_URL=postgresql://u:p@h/app\n")
+    world.write("local/deep/a.txt", "a\n")
+    _git(world.wt, "merge", "-q", "--ff-only", "master")
+    world.send(world.branch({"x.txt": "x\n"}))
+
+    assert world.run("merge") == 0
+    assert probe.read_text() == "DATABASE_URL=postgresql://u:p@h/app a"
+    assert world.scratch_left() == []
+
+
+def test_no_readable_worktreeinclude_is_named_in_the_refusal_not_silent(world):
+    """The same report: the failed read was a silent no-op, so the refusal named only the red test.
+    With no list at the base and none ignored in the main checkout, the owner-tests refusal says
+    so — the reason the requester reads carries it."""
+    world.write(".fabrik/merge-tests", "exit 1\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    world.write(".worktreeinclude", ".env\n")  # untracked but NOT ignored: never read
+    _git(world.wt, "merge", "-q", "--ff-only", "master")
+    msg = world.send(world.branch({"x.txt": "x\n"}))
+
+    assert world.run("merge") != 0
+    reason = world.record(msg)["reason"]
+    assert "owner tests red" in reason and ".worktreeinclude" in reason, reason
+
+
+def test_no_worktreeinclude_on_a_green_merge_prints_a_note(world, capsys):
+    """A green merge with no readable list still says so on stderr, once."""
+    world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge") == 0
+    err = capsys.readouterr().err
+    assert err.count(".worktreeinclude") == 1, err
+
+
+def test_the_note_survives_a_rebuild_and_a_partial_exit_once(world, capsys):
+    """Review pass 1 (A-S1, B-S1): a base that moves mid-build rebuilds with a new `old`, and a
+    note keyed on the sha printed twice; a post-CAS push rejection exits PARTIAL past the only
+    print of the notes. One note, on the PARTIAL exit too."""
+    world.send(world.branch({"x.txt": "x\n"}))
+    calls: list[str] = []
+    pushed: list[str] = []
+
+    def phase(name):
+        if name == "after-build":
+            calls.append(name)
+            if len(calls) == 1:
+                world.write("bump.txt", "bump\n")
+                world.commit_main("pipeline commit", "bump.txt")
+        if name == "before-push" and not pushed:
+            pushed.append(world.push_from_elsewhere("README.md", "elsewhere\n"))
+
+    assert world.run("merge", phase=phase) == 4
+    assert len(calls) == 2  # it did rebuild
+    err = capsys.readouterr().err
+    assert err.count(".worktreeinclude") == 1, err
+
+
 # --- (c) fallback: touched tests run with the merged src AFTER the stdlib (wef 01M453XP8W) ------
 _SHADOW_TEST = """\
 import os, pathlib, subprocess, sys
@@ -1310,6 +1380,7 @@ def test_a_tracked_file_where_the_include_list_has_a_directory_never_crashes_the
 
     ctx = _Ctx()
     ctx.main = main
-    mod._copy_worktree_include(ctx, wt, _git(main, "rev-parse", "HEAD"))
+    ctx.notes = []
+    assert mod._copy_worktree_include(ctx, wt, _git(main, "rev-parse", "HEAD")) is None
     assert (wt / "local").read_text(encoding="utf-8") == "a tracked file\n"
     assert (wt / ".env").read_text(encoding="utf-8") == "A=1\n"  # the rest is still copied

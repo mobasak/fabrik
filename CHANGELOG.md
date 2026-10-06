@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — merge_request copies a gitignored `.worktreeinclude` and says so when it cannot (2026-10-06)
+- Every synced project ignores the sync-written `.worktreeinclude`, so `merge_request.py` read it only from the base, found nothing, copied nothing (`.env` included) into the build tree, and the owner tests refused every correct merge (brand-identiy-creator 01M48K5ZGYWBX1F4S8K8GQ32E0). An ignored, regular main-checkout list is now read; a tracked list still governs from the base only.
+- With no readable list the merge says so: a note in the owner-tests refusal reason (the reply the requester reads) and on stderr on the refused, PARTIAL and merged exits, once per merge. Four graders in `tests/test_merge_request_merge.py`; D-621; review `docs/development/reviews/2026-10-06-w-2005a1a5-worktreeinclude-fallback-review.md`.
+
 ### Fixed — the kaizen death metrics are measured on death-free days (2026-10-06)
 - `death_occurrences` / `death_classes` read NOT MEASURED every day since 09-14: the collector only accepted a `death` or `session_end` event as proof the coroner ran, and a healthy day has neither. Each coroner sweep now appends one line to `~/.claude/state/kaizen/coroner-sweeps.jsonl`; a clean sweep that closed the day (0 errors, not blind, no inconclusive death marker on a Stop-hook-instrumented session) makes it a measured 0. The collector job runs that closing sweep first, and both metrics move to version 2 (W-97de2aa3).
 
