@@ -7356,23 +7356,20 @@ def _capability_verdict(rc: int | None, stdout: str) -> str:
         return "inconclusive"  # a timeout or a spawn failure decides nothing, whatever was printed
     obj: dict | None = None
     text = stdout or ""
-    # Decode the TOP-LEVEL JSON objects in order — one-line or pretty-printed, with warnings or a
-    # trailer around them — jumping past each decoded object so a dict nested inside one is never
-    # read on its own; the LAST whose `type` is "result" is the result. Deep nesting raises
-    # RecursionError (not ValueError) and ends the scan rather than retrying at every brace.
-    decoder = json.JSONDecoder()
-    pos = text.find("{")
-    while pos != -1:
+    # `--output-format json` prints ONE result object on one line. Read the whole stdout first (that
+    # line alone, or a purely pretty-printed result), else the LAST line that itself begins with `{`
+    # (a warning printed before it). Linear in the output; a nested dict is never read on its own;
+    # any other shape — a pretty-printed result followed by a trailer included — finds no result and
+    # fails open. Deep nesting raises RecursionError, not ValueError.
+    lines = [ln for ln in reversed(text.splitlines()) if ln.lstrip().startswith("{")]
+    for span in (text, *lines):
         try:
-            cand, end = decoder.raw_decode(text, pos)
-        except ValueError:
-            pos = text.find("{", pos + 1)
+            cand = json.loads(span)
+        except (ValueError, RecursionError):
             continue
-        except RecursionError:
-            break
         if isinstance(cand, dict) and cand.get("type") == "result":
             obj = cand
-        pos = text.find("{", end)
+            break
     is_error = isinstance(obj, dict) and obj.get("is_error") is True
     if is_error:
         blob = json.dumps(obj).lower()

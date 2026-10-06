@@ -352,9 +352,12 @@ def test_r2_deeply_nested_stdout_is_inconclusive_not_a_crash():
     assert cr._capability_verdict(1, deep) == "inconclusive"
 
 
-def test_r3_a_pretty_printed_refusal_with_a_trailer_line_is_still_refused():
+def test_r3_a_pretty_printed_result_followed_by_a_trailer_fails_open():
+    """Not a shape `--output-format json` prints (it writes one single-line result). The classifier
+    keeps no heuristic for it — round 3 measured the span and scan heuristics as the defects — so it
+    finds no result and fails open: never `refused`, never a crash."""
     out = json.dumps(_refusal(), indent=2) + "\nwarn: telemetry disabled\n"
-    assert cr._capability_verdict(1, out) == "refused"
+    assert cr._capability_verdict(1, out) == "inconclusive"
 
 
 def test_r4_a_lock_that_cannot_be_taken_writes_nothing_and_never_raises(
@@ -411,24 +414,30 @@ def test_r7_the_confirmation_is_bounded_at_45_seconds_and_the_board_flag_is_set(
 # ── Phase A scoped review, round 2 ──────────────────────────────────────────────────────────────
 
 
-def test_r8_the_last_top_level_result_wins_and_a_nested_dict_is_never_read_alone():
-    """The result is the LAST top-level `type: result` object, one-line or pretty-printed."""
+def test_r8_the_last_result_line_wins_and_neither_a_nested_nor_an_embedded_object_counts():
+    """The result is the LAST line that begins with `{` and parses as `type: result`; a dict nested
+    inside it, or a JSON object embedded mid-way in a log line, is never read on its own."""
     early_healthy = json.dumps({"type": "result", "is_error": False, "result": "x"})
-    late_refusal = json.dumps(_refusal(), indent=2)
-    assert cr._capability_verdict(1, early_healthy + "\n" + late_refusal) == "refused"
-    early_refusal = REFUSAL
-    late_healthy = json.dumps(json.loads(HEALTHY), indent=2)
-    assert cr._capability_verdict(0, early_refusal + "\n" + late_healthy) == "ok"
+    assert cr._capability_verdict(1, early_healthy + "\n" + REFUSAL) == "refused"
+    assert cr._capability_verdict(0, REFUSAL + "\n" + HEALTHY) == "ok"
     nested = json.dumps(
         {
             "type": "result",
             "is_error": False,
             "result": "Hi.",
             "echo": {"type": "result", "is_error": True, "result": "oauth_org_not_allowed"},
-        },
-        indent=2,
+        }
     )
-    assert cr._capability_verdict(0, nested + "\nwarn: trailer\n") == "ok"
+    assert cr._capability_verdict(0, "warn: x\n" + nested) == "ok"
+    assert cr._capability_verdict(0, HEALTHY + "\nlog: " + REFUSAL) == "ok"
+
+
+def test_r10_the_classifier_is_linear_on_a_long_stdout_full_of_unmatched_braces():
+    """Round 3 measured the raw_decode scan as quadratic (≈30 s at 400 kB); the line reader is not."""
+    started = time.monotonic()
+    assert cr._capability_verdict(1, "{" * 400_000) == "inconclusive"
+    assert cr._capability_verdict(1, "{x\n" * 100_000) == "inconclusive"
+    assert time.monotonic() - started < 5.0
 
 
 def test_r9_a_park_that_could_not_be_written_never_shows_as_parked(tmp_path, monkeypatch):
