@@ -891,10 +891,14 @@ def test_v8_drill_leftover_container_is_handled_by_state(doc, tmp_path, state, r
     """NEW-2 (E2-5): R1's leftover block EXECUTED with a recording docker stub — a non-running leftover
     is removed then recreated, a running one is reused, an absent one is created."""
     _, sections = doc
+    block = _drill_leftover_block(sections)
+    # NEW-4: runbook text that reads the harness's own variables could fabricate the log the test
+    # checks while doing nothing real in production — the block must never name them.
+    assert not re.search(r"\$\{?(FAKE_STATE|LOG)\b", block), "R1's block reads a test-harness variable"
     log = tmp_path / "log"
     log.write_text("")
     out = _run_bash(
-        _DRILL_STUBS + "V=/opt/backups/pg18-drill-verify-x\n" + _drill_leftover_block(sections),
+        _DRILL_STUBS + "V=/opt/backups/pg18-drill-verify-x\n" + block,
         {"FAKE_STATE": state, "LOG": str(log)},
     )
     calls = log.read_text().splitlines()
