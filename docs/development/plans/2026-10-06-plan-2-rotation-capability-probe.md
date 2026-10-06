@@ -232,7 +232,7 @@ Steps:
 - **Given** the stale-reading ping returns the refusal, **When** the tick builds its rows, **Then** the account is parked and its row is not marked `ping_failed` (spec § The delta D4)
 - **Given** a broken `parked.json` or an unknown identity, **When** an automated park runs, **Then** the file is left untouched and only the in-tick row is walled, while the operator's `--park` still repairs the file (spec § Constraints digest)
 
-## Phase B — the wiring: probe on promote, active re-validation, the wrapper
+## Phase B — the wiring: probe on promote, active re-validation, the wrapper — ✅ EXECUTED 2026-10-06 (563c601db)
 
 Appetite: 120
 
@@ -447,8 +447,10 @@ Steps:
   the 401-onto-a-refusal alert names the billing check instead of "all credentials are dead", a defect round 1's own
   fix introduced; the skew clamp is pinned by br9); pass 3 confirmed 1 (ca512f21b — the pass-2 gate read the bare
   `_switch_paused()`, which raises on an unreadable state dir; all four tick-side pause gates now read the tri-state
-  `_pause_state()`, two of them older than this plan). Guards `test_br1`–`test_br10`, each red on the pre-fix code
-  or by mutation. The doc gained the 45 s promote timeout and the pause rule (§ Parking, § Pause semantics).
+  `_pause_state()`, two of them older than this plan); pass 4, after the quota wall, confirmed 1 (563c601db — an
+  unreadable pause state held the D6 re-check silently; the tick now says so) and refuted one as a regression (the
+  urgent broadcast's "every sibling is walled" wording under a pause, older than this plan, filed as backlog).
+  Guards `test_br1`–`test_br11`, each red on the pre-fix code or by mutation. The doc gained the 45 s promote timeout and the pause rule (§ Parking, § Pause semantics).
 
 ## Evidence
 

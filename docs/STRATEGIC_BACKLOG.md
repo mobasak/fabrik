@@ -59,6 +59,7 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 - **[unassigned]** Chain stage consolidation for full-profile specs (operator: the cycle 'must be bigger modules') (`W-8fcd2eb1`)
 - **[unassigned]** Same-ruling Kilo residue outside the scaffold: final_gate Kilo CLI Health row (:2393-2400), --post-kilo gate_issues.jsonl (:2573), cli.py review-pack help naming Kilo (:2759-2795) (`W-9a50a9a1`)
 - **[unassigned]** docusaurus scaffold: the remaining 42-docusaurus divergences (onBrokenLinks warn vs throw, colour tokens, dark default, frontmatter check, OpenAPI placeholder artifacts) (`W-9aca7862`)
+- **[unassigned]** claude_rotate's urgent fleet broadcast says every sibling is walled even when the hold is the operator's pause marker or an unreadable pause state and a healthy sibling exists (_fleet_active_wall_advisory, :7077) — the stall is real, the stated cause is wrong (`W-a0292080`)
 - **[unassigned]** Retire .windsurf/hooks.json (and .windsurf/workflows) from scaffold, fix and the sync — Cascade-only, emitted in 50 /opt repos (`W-a24fe72a`)
 - **[unassigned]** docs/reference/command-run-protocol.md:52's lane-v2 start row says 4+ files are admitted but not that more than 5 counted files selects the full /fabrik-review (task_lane._FULL_REVIEW_FILES) — pre-existing, found by the D-LANEV2 review (C-S-3) (`W-b5655f56`)
 - **[unassigned]** gpu_rent: concurrent rentals are invisible to the daily envelope — today_total counts only finished sessions, so two live rentals can each pass the $50 cap (`W-b9dd649f`)
