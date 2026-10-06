@@ -2,7 +2,7 @@
 
 **Status:** CONVERGED
 **Lane:** fabrik-task
-**Surface:** `git rev-parse HEAD` = a48ccb58eb04b55c154ddab8ef739eb374acba13; `git diff HEAD -- scripts/enforcement/check_doc_links.py tests/enforcement/test_check_doc_links.py docs/workflows/FINAL_GATE_WORKFLOW.md` md5 f35f07ae86e681c2be6233cae27f0cb8 (7299 bytes)
+**Surface:** `git rev-parse HEAD` = 7847d5ee3f634621fbb51c2790870955fbd88181; range tip 7847d5ee3f634621fbb51c2790870955fbd88181; `git diff a48ccb58e..7847d5ee3 -- scripts/enforcement/check_doc_links.py tests/enforcement/test_check_doc_links.py docs/workflows/FINAL_GATE_WORKFLOW.md docs/reference/multi-agent-operating-model.md` md5 7899fae9fe82be97325f4f23f81c9596 (9074 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/enforcement/check_doc_links.py`, `tests/enforcement/test_check_doc_links.py`, `docs/workflows/FINAL_GATE_WORKFLOW.md`
 
 ## Coverage Checklist
