@@ -189,7 +189,7 @@ OFF the host — into the Backrest B2 repository `b2-vps1` (`docs/operations/dis
    pg_backend_pid()` is 0. Never `ALLOW_CONNECTIONS false`: `pg_dumpall` silently leaves such a database out of
    the dump (exit 0) and `pg_dump` and the manifest cannot connect to it (measured in review); a connection
    limit still dumps and still admits the superuser. Because every host-side admin path is a superuser
-   (`_run_sql` is `docker exec … psql -U postgres`, `src/fabrik/drivers/postgres.py:137`), the freeze is closed in
+   (`_run_sql` is `docker exec … psql -U postgres`, `src/fabrik/drivers/postgres.py:136`), the freeze is closed in
    the database too: `ALTER SYSTEM SET default_transaction_read_only = on` and `SELECT pg_reload_conf()`, which
    binds superusers; the operator's own session runs `SET default_transaction_read_only = off` for the freeze
    statements, and `pg_dumpall` reads only (its script also sets the parameter off for the restore session).
