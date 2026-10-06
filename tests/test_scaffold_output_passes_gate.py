@@ -126,6 +126,48 @@ def test_scaffolded_server_backend_passes_its_own_lint_and_types(tmp_path, proje
 
 
 @requires_fabrik_env
+@pytest.mark.parametrize("name", NAMES)
+@pytest.mark.parametrize("project_type", ["chrome-extension", "mobile-app"])
+def test_every_server_src_backend_lints_and_types_under_its_own_config(tmp_path, project_type, name):
+    """01M47Z0D: chrome-extension and mobile-app also ship a server/src backend, and got no
+    server/pyproject.toml — ruff ran with no project config and mypy on its defaults. Each now carries
+    the root template's rules, and passes them from server/."""
+    assert RUFF, f"ruff is neither beside {sys.executable} nor on PATH"
+    create_project(
+        name=name,
+        project_type=project_type,
+        description="server backend passes its own gate",
+        base=tmp_path,
+        generate_spec=False,
+    )
+    server = tmp_path / name / "server"
+    config = (server / "pyproject.toml").read_text()
+    assert "[tool.ruff" in config and "[tool.mypy]" in config, config
+    checks = {
+        "ruff check .": [RUFF, "check", "."],
+        "ruff format --check .": [RUFF, "format", "--check", "."],
+        "mypy src": [sys.executable, "-m", "mypy", "--config-file=pyproject.toml", "src"],
+    }
+    failures = {}
+    for label, argv in checks.items():
+        r = _run(argv, server)
+        if r.returncode != 0:
+            failures[label] = (r.stdout + r.stderr).strip()[-2000:]
+    assert failures == {}, (project_type, name, failures)
+
+
+def test_the_hub_ruff_passes_every_template_file():
+    """A template file is graded by two configs: the scaffolded project's (above) and the hub's own,
+    which an editor or a bare `ruff check` uses on the bytes in templates/. 10c243a6d sorted the
+    mobile-app server imports for the project config and broke the hub's (2 I001); the template's
+    hub-only server/pyproject.toml names the same first-party packages."""
+    assert RUFF, f"ruff is neither beside {sys.executable} nor on PATH"
+    repo = Path(__file__).resolve().parents[1]
+    r = _run([RUFF, "check", "--output-format=concise", "templates/"], repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+@requires_fabrik_env
 @pytest.mark.parametrize(
     ("project_type", "typed"),
     [("python-api", "mypy src"), ("file-worker", "mypy --explicit-package-bases worker")],

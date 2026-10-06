@@ -98,6 +98,14 @@ All notable changes to this project will be documented in this file.
 - On trade-intelligence's real tree it keeps 20 of 20 comments, where HEAD kept 17, and leaves both plan sets collapsed. A second run is a no-op.
 - 7 graders. Follow-up W-3efb9553 covers `--only` and plan-set directories.
 
+### Fixed — chrome-extension and mobile-app server/ backends lint and type under the project's own rules (2026-10-06)
+
+- `_write_server_lint_config` now runs for every type that ships a `server/src` backend. chrome-extension and mobile-app used to get no `server/pyproject.toml`, so ruff ran with no project config and mypy on its defaults (mail 01M47Z0D, intel). The writer takes the backend's first-party packages (mobile-app has two: `app` and `mobile_config`).
+- The mobile-app server template now passes those rules. Its imports are sorted, two tests are reformatted, and a `Usage:` line keeps the `mobile_config` docstring example indented.
+- Graded by `tests/test_scaffold_output_passes_gate.py::test_every_server_src_backend_lints_and_types_under_its_own_config`, which runs ruff check, ruff format --check and mypy from `server/` for both types × 3 names. It failed 6/6 before the fix.
+- The template bytes also pass the hub's own ruff again. A hub-only `templates/mobile-app/server/pyproject.toml` extends the root config with the same first-party packages, and the scaffold overwrites it. Graded by `test_the_hub_ruff_passes_every_template_file`.
+- Project names whose package would shadow a vendored module (`fastapi-user-auth`, `audit-log`) are refused. Before, the server lint config excluded that name as vendored, so the project's own code went unlinted and its mypy errors were swallowed.
+
 ### Fixed — scaffolded app services set a 30 s stop grace, so a SIGTERM drain is not SIGKILLed at 10 s (2026-10-06)
 
 - Every routed app service a scaffold emits now sets `stop_grace_period: 30s`. That covers the canonical compose (node-api, file-api, docusaurus …), the python-api template, and the saas-family web and api services. Before this, Docker's 10 s default killed the node-api drain before its 20 s backstop could fire (mail 01M470F5YW, W-a63d61a2).

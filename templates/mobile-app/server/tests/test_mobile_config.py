@@ -64,7 +64,11 @@ def test_unknown_platform_never_blocks():
 
 
 def test_kill_switch_propagates():
-    r = evaluate(_config(kill_switch=True, kill_switch_message="Back at 5pm"), platform="ios", app_version="1.5.0")
+    r = evaluate(
+        _config(kill_switch=True, kill_switch_message="Back at 5pm"),
+        platform="ios",
+        app_version="1.5.0",
+    )
     assert r.kill_switch
     assert r.kill_switch_message == "Back at 5pm"
 
@@ -92,7 +96,9 @@ def test_is_feature_enabled_absent_is_off():
 
 
 def test_to_dict_shape():
-    r = evaluate(_config(features={"x": True}, paywall_id="pw"), platform="ios", app_version="1.3.0")
+    r = evaluate(
+        _config(features={"x": True}, paywall_id="pw"), platform="ios", app_version="1.3.0"
+    )
     d = r.to_dict()
     assert d == {
         "update_required": False,

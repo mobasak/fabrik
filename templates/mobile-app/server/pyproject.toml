@@ -1,0 +1,9 @@
+# HUB-ONLY: lets the hub's own ruff lint this template under the hub rules while knowing the
+# backend's first-party packages (the image runs with PYTHONPATH=server/src). A scaffolded project
+# never keeps this file: _scaffold_mobile_app overwrites it with the project's full lint and type
+# config (_write_server_lint_config), which names the same first-party packages.
+[tool.ruff]
+extend = "../../../pyproject.toml"
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "mobile_config"]
