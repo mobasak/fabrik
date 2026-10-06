@@ -98,125 +98,203 @@
 - [watchdog](../AGENTS.md) (owner: fleet): watchdog registrar (auto-provisioned per spec shape)
 
 ## script
-- [scripts/audit_authelia_gates.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/reference/health-monitoring.md
-- [scripts/audit_infra_vs_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/infrastructure/vps-status.md
+- [scripts/aro-wake/claude_rotate.py](../INDEX.md) (owner: infra): NB: this file is vendored BYTE-IDENTICAL into scripts/sysadmin/ and scripts/aro-wake/
+- [scripts/audit_all_projects.py](../INDEX.md) (owner: infra): Deep audit all /opt projects for Fabrik scaffold compliance (v2).
+- [scripts/audit_all_registrars.py](../INDEX.md) (owner: infra): T4-04 G-G5 — hourly drift audit across all 9 registrars × all specs.
+- [scripts/audit_authelia_gates.py](../INDEX.md) (owner: infra): Weekly drift audit for Authelia gating on admin dashboards.
+- [scripts/audit_capability_docs.py](../INDEX.md) (owner: infra): Capability doc-audit — consume capabilities.json defects[], resolve the fixable set, ledger the rest.
+- [scripts/audit_envs.py](../INDEX.md) (owner: infra): Audit .env files across all /opt/* projects.
+- [scripts/audit_infra_vs_docs.py](../INDEX.md) (owner: infra): Probe-vs-doc audit for the VPS fleet.
+- [scripts/backfill_ci.py](../INDEX.md) (owner: infra): Backfill the fabrik-managed CI (`.github/workflows/ci.yml` + `scripts/ci_local.sh`) onto an
 - [scripts/bootstrap/bootstrap-hub.sh](../INDEX.md) (owner: infra): bootstrap-hub.sh — Fabrik hub disaster-recovery bootstrap
 - [scripts/bootstrap/bootstrap-spoke-restore.sh](../INDEX.md) (owner: infra): bootstrap-spoke-restore.sh — Fabrik spoke disaster-recovery bootstrap
 - [scripts/bootstrap/bootstrap-vps.sh](../INDEX.md) (owner: infra): bootstrap-vps.sh — Fabrik W-Multi M1
-- [scripts/check_zed_extensions.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/ci_fix_dispatcher.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_ci_fix_dispatcher.py, INDEX.md, CHANGELOG.md
-- [scripts/classify_services.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/tests/test_gather_envs.py tests/test_external_services_chain.py scripts/external_services_chain.sh docs/reference/external-services-registry
-- [scripts/claude_p_cost.py](../INDEX.md) (owner: infra): AFTER-EDIT: kilo-benchmarks/claude_price_ratios.json (the ① price source incl. `_model_cache`) · tests/test_claude_p_cost.py · tests/test_claude_p_cost_refresh.
-- [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_command_feedback_report.py, tests/test_command_feedback_report_lane.py, docs/reference/command-run-protocol.md, docs/reference/work-track
-- [scripts/command_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md | docs/reference/command-run-protocol.md | .claude/hooks/final_gate_stop.py | commands/_sources/fabrik-re
-- [scripts/container_images.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/reference/prebuilt-app-containers.md
-- [scripts/decisions.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md, scripts/docs_updater.py (keep MERGE_OWNER_RE identical) | NOT the 2026-08-30 desi
-- [scripts/declare_subscription.py](../INDEX.md) (owner: infra): AFTER-EDIT: db/services_registry_schema.sql
-- [scripts/deploy_doc_policy.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/DATA_SYNC_WORKFLOW.md
-- [scripts/doc_reconcile.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/docs_updater.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/development/PLANS.md, scripts/decisions.py (keep MERGE_OWNER_RE identical),
-- [scripts/enforcement/_check_runner.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/final_gate.py | tests/test_check_runner_activation.py
-- [scripts/enforcement/check_android_env.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/enforcement/check_certification_coverage.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_certification_coverage.py | scripts/final_gate.py | docs/reference/certification-denominator.md | commands/_sources/fabrik-us
-- [scripts/enforcement/check_configuration_md.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md, docs/workflows/FINAL_GATE_WORKFL
-- [scripts/enforcement/check_corpus_weight.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/final_gate.py, docs/TROUBLESHOOTING.md, tests/enforcement/test_check_corpus_weight.py
-- [scripts/enforcement/check_doc_stubs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/enforcement/check_doc_sync.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/enforcement/check_duplicates.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_env_example.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_env_updates.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_feedback_duty.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_feedback_duty.py
-- [scripts/enforcement/check_governance_tables.py](../INDEX.md) (owner: infra): AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md
-- [scripts/enforcement/check_health.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_hooks_index.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/hooks-index.md, tests/enforcement/test_check_hooks_index.py
-- [scripts/enforcement/check_index_md.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_no_host_ports.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_pack_reachability.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_pack_reachability.py
-- [scripts/enforcement/check_plan_lock_release.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_plan_lock_release.py
-- [scripts/enforcement/check_plans.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py | scripts/enforcement/check_plan_quality.py
-- [scripts/enforcement/check_ports.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_readme_md.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_retired_terms.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_retired_terms.py docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_reusable_modules.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/enforcement/check_review_hygiene.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_review_hygiene.py docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_rivals_dossier.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rivals_dossier.py
-- [scripts/enforcement/check_rule_grounding.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rule_grounding.py
-- [scripts/enforcement/check_script_headers.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_script_headers.py
-- [scripts/enforcement/check_spec_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_spec_convergence.py
-- [scripts/enforcement/check_spec_db_match.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_synced_unmodified.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/enforcement/check_traefik_labels.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_traycer_chain.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/enforcement/check_trigger_routing.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_trigger_routing.py, scripts/final_gate.py | none
-- [scripts/enforcement/check_user_guide.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_vps_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_vps_docs_severity.py docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_watchdog.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/validate_conventions.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/epic_order.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/orchestrator/mega-epic-breakdown/EPIC-ARTIFACT-SCHEMA.md
-- [scripts/final_gate.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/fleet_doc_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_fleet_doc_audit.py | none
-- [scripts/gather_envs.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/service_catalog.json scripts/tests/test_gather_envs.py scripts/registry_sync.py
-- [scripts/gen_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/reference/external-services-registry.md tests/test_external_services_chain.py
-- [scripts/generate_capability_index.py](../INDEX.md) (owner: infra): AFTER-EDIT: INDEX.md, docs/README.md, scripts/kilo-benchmarks/daily_refresh.sh, tests/test_generate_capability_index.py
-- [scripts/health_check_autonomous.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/health_checker.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/HEALTH_CHECKER_WORKFLOW.md
-- [scripts/health_summary.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/HEALTH_SUMMARY_WORKFLOW.md
-- [scripts/inject_deploy_resources.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/kilo-benchmarks/build_task_baselines.py](../INDEX.md) (owner: intel): AFTER-EDIT: rank_task_subagents.py (retained) engine/rank_coding_subagents.py (ai-model-catalog) libs/subagents/select.py
-- [scripts/kilo-benchmarks/check_daily_refresh_freshness.py](../INDEX.md) (owner: intel): AFTER-EDIT: scripts/kilo-benchmarks/daily_refresh.sh, scripts/wsl_startup_hook.sh, tests/test_external_services_chain.py | none
-- [scripts/kilo-benchmarks/flush_subagent_outboxes.py](../INDEX.md) (owner: intel): AFTER-EDIT: autocommit_pipeline_outputs.sh (none) | daily_refresh.sh (wires this) | tests/test_flush_subagent_outboxes.py
-- [scripts/kilo-benchmarks/reclassify_cap_rows.py](../INDEX.md) (owner: intel): AFTER-EDIT: tests/test_reclassify_cap_rows.py | rank_task_subagents.py (reads the status it writes)
-- [scripts/kilo-benchmarks/update_gateway_counts.py](../INDEX.md) (owner: intel): AFTER-EDIT: docs/workflows/KILO_BENCHMARK_WORKFLOW.md
-- [scripts/kilo_terminal_runner.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/lane_replay_capture.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/fixtures/lane_replay.json (re-capture it, then --check) · tests/test_lane_replay_capture.py · scripts/task_lane.py (expected_verdict delegates
-- [scripts/lint_fix_agent.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/mail.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mail.py, docs/reference/fabrik-mail.md, docs/workstation/fabrik-mail.md, .env.example, docs/CONFIGURATION.md, docs/reference/work-trackin
-- [scripts/migrate_db_rename.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/probes/glitchtip_webhook_capture.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/check_ai_pack_freshness.py](../INDEX.md) (owner: infra): Warn when AI rule packs in .windsurf/rules/ai/*.md are >90 days unverified.
+- [scripts/check_commit_trailers.py](../INDEX.md) (owner: infra): Reject a commit whose Agent Provenance Trailers do not actually PARSE.
+- [scripts/check_research_ledger.py](../INDEX.md) (owner: infra): Refuse a research ledger that leaves a returned fact undispositioned.
+- [scripts/check_zed_extensions.py](../INDEX.md) (owner: infra): Gate: verify every Zed extension that settings.json depends on is installed.
+- [scripts/ci_fix_dispatcher.py](../INDEX.md) (owner: infra): CI-fix dispatcher — GitHub Actions failure -> local coder-AI fix run.
+- [scripts/classify_services.py](../INDEX.md) (owner: infra): Web-ground the uncatalogued services (category=? in all-envs.env) via the OpenRouter pool.
+- [scripts/claude_p_cost.py](../INDEX.md) (owner: infra): Per-call `claude -p` cost measurement for ANY project — self-contained, no engine import.
+- [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): Per-command optimisation report over the fleet-wide close-out ledger (D-175).
+- [scripts/command_run.py](../INDEX.md) (owner: infra): COMMAND RUN-RECORD — the in-flight state of the `/fabrik-*` command an agent is running.
+- [scripts/container_images.py](../INDEX.md) (owner: infra): Container Image Discovery Tool for Fabrik
+- [scripts/dashboard_server.py](../INDEX.md) (owner: infra): LIVE external-services dashboard — a tiny localhost server that queries the registry on every
+- [scripts/decisions.py](../INDEX.md) (owner: infra): Fleet decision-ledger query — grep every repo's docs/DECISIONS.md in one command.
+- [scripts/declare_subscription.py](../INDEX.md) (owner: infra): Declare a subscription (renewal date / price / account email) for a service.
+- [scripts/deploy_doc_policy.py](../INDEX.md) (owner: infra): Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes).
+- [scripts/dev_tracker.py](../INDEX.md) (owner: infra): Development Tracker - Track pre-kilo, kilo review, post-kilo workflow costs.
+- [scripts/doc_reconcile.py](../INDEX.md) (owner: infra): Tier-1 doc reconcile — cheap-pool author → verify → converge, per fired Doc-Sync trigger.
+- [scripts/docs_updater.py](../INDEX.md) (owner: infra): scripts/enforcement/check_doc_links.py (keep the scaffold-template predicate identical)
+- [scripts/enforcement/_check_refresh_before_ranker.py](../INDEX.md) (owner: infra): Assert the cost-sidecar rebuild runs BEFORE the ranking regen — in BOTH pipeline entry points.
+- [scripts/enforcement/_check_runner.py](../INDEX.md) (owner: infra): Shared repo-walking `__main__` for the per-file enforcement checks.
+- [scripts/enforcement/check_android_env.py](../INDEX.md) (owner: infra): Verify WSL-to-Windows Android SDK communication.
+- [scripts/enforcement/check_certification_coverage.py](../INDEX.md) (owner: infra): Certification coverage gate — the grader the certification contract never had.
+- [scripts/enforcement/check_changelog.py](../INDEX.md) (owner: infra): Smart CHANGELOG.md enforcement for meaningful code and infrastructure changes.
+- [scripts/enforcement/check_citations_resolve.py](../INDEX.md) (owner: infra): check_citations_resolve — do a document's `path:line` citations LAND? (ADVISORY, exit 0 always)
+- [scripts/enforcement/check_command_corpus.py](../INDEX.md) (owner: infra): Command-corpus integrity — the /fabrik-* commands must reference things that EXIST.
+- [scripts/enforcement/check_compose_services.py](../INDEX.md) (owner: infra): Enforce compose.yaml service documentation.
+- [scripts/enforcement/check_configuration_md.py](../INDEX.md) (owner: infra): Enforce configuration documentation pattern.
+- [scripts/enforcement/check_convergence.py](../INDEX.md) (owner: infra): Convergence-evidence gate — run by final_gate via run_optional_check (non-zero = fail).
+- [scripts/enforcement/check_corpus_weight.py](../INDEX.md) (owner: infra): Corpus weight — a BYTE trend signal on the governance surfaces this repo OWNS.
+- [scripts/enforcement/check_decisions_unique.py](../INDEX.md) (owner: infra): Duplicate decision-id guard for docs/DECISIONS.md (upstream 01M1CBJWQS, D-057 sequencing).
+- [scripts/enforcement/check_deps_sync.py](../INDEX.md) (owner: infra): Check dependency synchronization between pyproject.toml and requirements.txt.
+- [scripts/enforcement/check_doc_index.py](../INDEX.md) (owner: infra): INDEX.md ↔ docs/ tree drift gate (docs-truth convergence, 2026-07-20).
+- [scripts/enforcement/check_doc_links.py](../INDEX.md) (owner: infra): Link integrity for the live docs tree — every repo-path reference must resolve.
+- [scripts/enforcement/check_doc_sprawl.py](../INDEX.md) (owner: infra): Default-deny policy for new .md files - systematic anti-sprawl enforcement.
+- [scripts/enforcement/check_doc_stubs.py](../INDEX.md) (owner: infra): Force-fill advisory — WARN when a seeded doc still carries template placeholders AFTER its
+- [scripts/enforcement/check_doc_sync.py](../INDEX.md) (owner: infra): Doc Sync Matrix enforcement — the single "did you update docs when code changed" gate.
+- [scripts/enforcement/check_docker.py](../INDEX.md) (owner: infra): Check Docker conventions (base images, healthcheck, port consistency).
+- [scripts/enforcement/check_duplicates.py](../INDEX.md) (owner: infra): Check for code duplication using jscpd.
+- [scripts/enforcement/check_env_contract.py](../INDEX.md) (owner: infra): Check ENV contract across .env.example, compose.yaml, and docs/CONFIGURATION.md.
+- [scripts/enforcement/check_env_example.py](../INDEX.md) (owner: infra): Enforce .env.example completeness.
+- [scripts/enforcement/check_env_updates.py](../INDEX.md) (owner: infra): Enforce .env file population when secrets are mentioned.
+- [scripts/enforcement/check_env_vars.py](../INDEX.md) (owner: infra): Check for hardcoded localhost/127.0.0.1 in code.
+- [scripts/enforcement/check_feedback_duty.py](../INDEX.md) (owner: infra): Close-out feedback gate — ADVISORY. A command run owes a FEEDBACK verdict before it closes.
+- [scripts/enforcement/check_frozen_chain.py](../INDEX.md) (owner: infra): Frozen-chain drift gate — a consumer's version PIN must not predate its input.
+- [scripts/enforcement/check_governance_tables.py](../INDEX.md) (owner: infra): A governance RULE that lives in a markdown table row must survive rendering.
+- [scripts/enforcement/check_health.py](../INDEX.md) (owner: infra): Check that health endpoints test actual dependencies.
+- [scripts/enforcement/check_hooks_index.py](../INDEX.md) (owner: infra): Hooks-index freshness gate (hub-side only).
+- [scripts/enforcement/check_imports_resolvable.py](../INDEX.md) (owner: infra): Every module imported by SHIPPED code must be resolvable FROM A CLEAN CHECKOUT.
+- [scripts/enforcement/check_index_md.py](../INDEX.md) (owner: infra): Enforce INDEX.md existence and updates.
+- [scripts/enforcement/check_lint_ratchet.py](../INDEX.md) (owner: infra): Repo-wide lint RATCHET — the count of ruff errors may only ever go DOWN.
+- [scripts/enforcement/check_mutation.py](../INDEX.md) (owner: infra): Advisory diff-scoped mutation-testing runner (mutmut) — the Behavior Contract's substance-mechanical layer.
+- [scripts/enforcement/check_no_host_ports.py](../INDEX.md) (owner: infra): Tier 1 enforcement: ban host-bound ``ports:`` in Traefik-routed compose templates.
+- [scripts/enforcement/check_openapi_sync.py](../INDEX.md) (owner: infra): Enforce OpenAPI/API documentation synchronization.
+- [scripts/enforcement/check_pack_reachability.py](../INDEX.md) (owner: infra): Rule-pack reachability gate — ADVISORY wrapper around `pack_layout_audit.audit_layout()`
+- [scripts/enforcement/check_phase_tests.py](../INDEX.md) (owner: infra): Behavior-Contract test-accompaniment advisory — WARN when a plan-execution window
+- [scripts/enforcement/check_plan_lock_release.py](../INDEX.md) (owner: infra): Plan-lock release gate — ADVISORY. A finished plan must not hold its scope lock.
+- [scripts/enforcement/check_plan_tickets.py](../INDEX.md) (owner: infra): Spine↔ticket plan-set contract gate (the spine+ticket plan shape).
+- [scripts/enforcement/check_plans.py](../INDEX.md) (owner: infra): Check plan document conventions.
+- [scripts/enforcement/check_ports.py](../INDEX.md) (owner: infra): Check port registration in PORTS.md and validate port ranges.
+- [scripts/enforcement/check_print_ban.py](../INDEX.md) (owner: infra): Tier 1 enforcement: bans print() in production .py files and console.log() in
+- [scripts/enforcement/check_readme_md.py](../INDEX.md) (owner: infra): Enforce README.md updates when structure changes.
+- [scripts/enforcement/check_retired_terms.py](../INDEX.md) (owner: infra): Retired-tech tripwire — WARN-only, ALWAYS exits 0 (docs-truth convergence 2026-07-20).
+- [scripts/enforcement/check_reusable_modules.py](../INDEX.md) (owner: infra): Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
+- [scripts/enforcement/check_review_hygiene.py](../INDEX.md) (owner: infra): Review hygiene — the grep-shaped classes every review re-sweeps. ADVISORY, ALWAYS exits 0.
+- [scripts/enforcement/check_rivals_dossier.py](../INDEX.md) (owner: infra): Rivals-dossier gate — ADVISORY. A competitive dossier must satisfy its own terminal contract.
+- [scripts/enforcement/check_routing_policy.py](../INDEX.md) (owner: infra): The operator's routing policy is ENFORCED, not merely written down (D-159).
+- [scripts/enforcement/check_rule_grounding.py](../INDEX.md) (owner: infra): Rule-grounding gate — ADVISORY. A CONVERGED plan must PROVE its packs were open, not assert it.
+- [scripts/enforcement/check_schema_sync.py](../INDEX.md) (owner: infra): Enforce database schema synchronization.
+- [scripts/enforcement/check_script_headers.py](../INDEX.md) (owner: infra): Enforce the `# AFTER-EDIT:` coupling header on staged scripts.
+- [scripts/enforcement/check_secrets.py](../INDEX.md) (owner: infra): Check for hardcoded secrets and credentials.
+- [scripts/enforcement/check_spec_convergence.py](../INDEX.md) (owner: infra): Spec-convergence gate — ADVISORY. A spec claiming CONVERGED must show it was actually converged.
+- [scripts/enforcement/check_spec_db_match.py](../INDEX.md) (owner: infra): Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.
+- [scripts/enforcement/check_stage_artifacts.py](../INDEX.md) (owner: infra): Stage-skip artifact gate — run by final_gate via run_optional_check, Tier-2 ONLY
+- [scripts/enforcement/check_structure.py](../INDEX.md) (owner: infra): Enforce project documentation structure.
+- [scripts/enforcement/check_subagent_flywheel.py](../INDEX.md) (owner: infra): Subagent-pool enforcement gate — two layers.
+- [scripts/enforcement/check_sync_trigger_coverage.py](../INDEX.md) (owner: infra): Gate: every FLEET-SYNCED surface must either TRIGGER the governance-sync or be declared a
+- [scripts/enforcement/check_synced_unmodified.py](../INDEX.md) (owner: infra): Gate check: Fabrik-synced files must not be modified locally.
+- [scripts/enforcement/check_test_coverage.py](../INDEX.md) (owner: infra): Enforce test coverage for new code.
+- [scripts/enforcement/check_test_proposal.py](../INDEX.md) (owner: infra): Check that the latest plan carries a Behavior Contract (the STRUCTURE gate).
+- [scripts/enforcement/check_ticket_breadth.py](../INDEX.md) (owner: infra): Ticket-breadth advisory — predict a ticket's review cost BEFORE it is executed.
+- [scripts/enforcement/check_traefik_labels.py](../INDEX.md) (owner: infra): Tier 1 enforcement: every Traefik-enabled service declares the full §7 label set.
+- [scripts/enforcement/check_traycer_chain.py](../INDEX.md) (owner: infra): Semantic detectors for the mega chain's corpus sources (formerly the Traycer chain).
+- [scripts/enforcement/check_trigger_routing.py](../INDEX.md) (owner: infra): Every command's ADVERTISED trigger phrase must not route to a DIFFERENT command.
+- [scripts/enforcement/check_undeclared_imports.py](../INDEX.md) (owner: infra): Fail when the app source imports a package that is declared in no manifest.
+- [scripts/enforcement/check_user_guide.py](../INDEX.md) (owner: infra): Tier 2 enforcement: verifies docs/user-guide/ exists and contains at least one
+- [scripts/enforcement/check_vendored_drift.py](../INDEX.md) (owner: infra): Vendored-enforcement drift report for sync-EXCLUDED repos — advisory, hub-only.
+- [scripts/enforcement/check_vps_docs.py](../INDEX.md) (owner: infra): Check VPS documentation freshness.
+- [scripts/enforcement/check_watchdog.py](../INDEX.md) (owner: infra): Check that services have watchdog scripts.
+- [scripts/enforcement/pack_layout_audit.py](../INDEX.md) (owner: infra): Pack-layout audit engine — which `.windsurf/rules` packs CLAIM to govern a scaffold
+- [scripts/enforcement/validate_conventions.py](../INDEX.md) (owner: infra): Fabrik Convention Validator - Orchestrates all convention checks.
+- [scripts/epic_order.py](../INDEX.md) (owner: infra): epic_order.py — deterministic epic integrity + phased-ordering over the epic
+- [scripts/fabrik_synced_manifest.py](../INDEX.md) (owner: infra): Single source of truth for files Fabrik centrally distributes to every /opt project.
+- [scripts/final_gate.py](../INDEX.md) (owner: infra): Final Gate - Deterministic checks for coder AI before Traycer commit.
+- [scripts/fix_balanced_tier_agents.py](../INDEX.md) (owner: infra): Apply Self-Review Workflow to Balanced Tier Agents
+- [scripts/fix_economy_tier_agents.py](../INDEX.md) (owner: infra): Apply Self-Review Workflow to Economy Tier Agents
+- [scripts/fleet_doc_audit.py](../INDEX.md) (owner: infra): Fleet-wide doc-freshness audit — the MECHANICAL rot detector for /opt projects.
+- [scripts/gather_envs.py](../INDEX.md) (owner: infra): Consolidate all /opt/*/.env files into a single deduped, service-annotated registry.
+- [scripts/gen_dashboard.py](../INDEX.md) (owner: infra): Render the external-services registry (fabrik_services) as a self-contained HTML dashboard.
+- [scripts/generate_capability_index.py](../INDEX.md) (owner: infra): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
+- [scripts/generate_vps_inventory.py](../INDEX.md) (owner: infra): Generate the VPS container inventory table for vps-complete-inventory.md.
+- [scripts/health_check_autonomous.py](../INDEX.md) (owner: infra): FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
+- [scripts/health_checker.py](../INDEX.md) (owner: infra): Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
+- [scripts/health_summary.py](../INDEX.md) (owner: infra): Scan /opt/* project directories and report health status.
+- [scripts/implement_self_review_workflow.py](../INDEX.md) (owner: infra): Implement Complete Traycer→Kilo Self-Review Workflow
+- [scripts/inject_deploy_resources.py](../INDEX.md) (owner: infra): F5 backfill: inject deploy.resources.limits into a service compose.yaml.
+- [scripts/kilo-benchmarks/audit_usage_cost.py](../INDEX.md) (owner: intel): Price the fleet's REAL token usage from ~/.claude/.claude-manager/usage-history.json.
+- [scripts/kilo-benchmarks/build_task_baselines.py](../INDEX.md) (owner: intel): Per-(model, task_type) quality PRIOR, derived from benchmarks that actually measure the task.
+- [scripts/kilo-benchmarks/check_daily_refresh_freshness.py](../INDEX.md) (owner: intel): Heartbeat check for daily_refresh.sh — fires an alert when stale.
+- [scripts/kilo-benchmarks/flush_subagent_outboxes.py](../INDEX.md) (owner: intel): Fleet-wide outbox flusher — replay every repo's stranded subagent rows into the flywheel.
+- [scripts/kilo-benchmarks/guard_selection_freshness.py](../INDEX.md) (owner: intel): Freshness filter for the pipeline auto-commit: never let a generated doc go BACKWARDS.
+- [scripts/kilo-benchmarks/rank_task_subagents.py](../INDEX.md) (owner: intel): Rank models per task_type from the shared subagent_runs table, emit a synced doc.
+- [scripts/kilo-benchmarks/reclassify_cap_rows.py](../INDEX.md) (owner: intel): One-off: reclassify the default-price-cap rejections that are recorded as model FAILURES.
+- [scripts/kilo-benchmarks/stage_ai_rule_renders.py](../INDEX.md) (owner: intel): Marker-scoped stage-list feeder for the ai-model-catalog engine's rule-pack renders.
+- [scripts/kilo-benchmarks/update_gateway_counts.py](../INDEX.md) (owner: intel): Inject GATEWAY_COUNTS marker blocks into the 7 LLM-bearing
+- [scripts/kilo_terminal_runner.py](../INDEX.md) (owner: infra): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrappers.
+- [scripts/lane_replay_capture.py](../INDEX.md) (owner: infra): Capture the /fabrik-task lane replay fixture — read-only git, re-derivable (plan T01, spec D12 (1)).
+- [scripts/lint_fix_agent.py](../INDEX.md) (owner: infra): Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
+- [scripts/mail.py](../INDEX.md) (owner: infra): fabrik-mail — durable hub↔project AI message store + protocol (stdlib-only).
+- [scripts/merge_request.py](../INDEX.md) (owner: infra): merge_request — finishing work in a linked worktree sends ONE merge request; the merge owner
+- [scripts/migrate_db_rename.py](../INDEX.md) (owner: infra): Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
+- [scripts/probes/glitchtip_webhook_capture.py](../INDEX.md) (owner: infra): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
+- [scripts/process_monitor.py](../INDEX.md) (owner: infra): Process Monitor - Detect stuck/hung subprocess states.
+- [scripts/proof_run.py](../INDEX.md) (owner: infra): End-to-end deploy harness: prove every scaffold type deploys live on VPS.
 - [scripts/provision_glitchtip_project.sh](../INDEX.md) (owner: infra): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
-- [scripts/registry_sync.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/registry_db.py db/services_registry_schema.sql scripts/tests/test_registry_sync.py scripts/gen_dashboard.py
-- [scripts/release_cut.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_release_cut.py, commands/_sources/fabrik-release.md
-- [scripts/render_chat_history.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/chat-history-render.md | tests/test_render_chat_history.py
-- [scripts/render_doc_script_links.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_doc_script_links.py | docs/reference/doc-script-coupling.md | scripts/enforcement/check_script_headers.py
-- [scripts/retype_project.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_retype_project.py | docs/workstation/mcp-roster.md
-- [scripts/review_loop_ledger.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/reference/review-loop-workflow.md | tests/test_review_loop_ledger.py | commands/_sources/fabrik-review.md
-- [scripts/review_receipt.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_review_receipt.py, tests/test_task_lane_receipt.py, scripts/task_lane.py (check_review_receipt reads the Command and Surface lines), comm
-- [scripts/review_rubric.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/select_rules.py scripts/rules_match.py tests/test_review_rubric.py
-- [scripts/rivals_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: commands/_sources/fabrik-rivals.md | docs/reference/rivals-command.md | INDEX.md
-- [scripts/scratch_sweep.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/cleanup-automation.md | docs/workstation/hooks-index.md | tests/test_scratch_sweep.py
-- [scripts/seed_real_ports.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/select_rules.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/rules_match.py scripts/review_rubric.py tests/test_select_rules.py
-- [scripts/snapshot_vps_state.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/provision_watchdog_ro.py](../INDEX.md) (owner: infra): Provision the ``watchdog_ro`` read-only Postgres role (deploy-readiness follow-on).
+- [scripts/registry_sync.py](../INDEX.md) (owner: infra): Load secrets/all-envs.env (the #svc-annotated consolidation) into the local Postgres registry.
+- [scripts/release_cut.py](../INDEX.md) (owner: infra): Cut a release: graduate CHANGELOG's [Unreleased] into a semver section,
+- [scripts/render_chat_history.py](../INDEX.md) (owner: infra): Render a project's FULL Claude Code chat history to markdown — the "load more" the
+- [scripts/render_doc_script_links.py](../INDEX.md) (owner: infra): render_doc_script_links — the doc side of the doc↔script coupling.
+- [scripts/retype_project.py](../INDEX.md) (owner: infra): Retype a project + backfill its new type's missing scaffold files — WITHOUT data loss.
+- [scripts/review_loop_ledger.py](../INDEX.md) (owner: infra): review_loop_ledger — a review pass's ledger, read from its workflow run into a FILE (row 5b, D-357).
+- [scripts/review_receipt.py](../INDEX.md) (owner: infra): Review-artifact skeleton — `--init` emits the grammar `check_review_coverage.py` grades.
+- [scripts/review_rubric.py](../INDEX.md) (owner: infra): Armed-review rubric extractor — turns Tier-3 reviews from "reviewer reads the packs
+- [scripts/rivals_run.py](../INDEX.md) (owner: infra): Hub-side driver for the vendored `competitor-intel` engine — the executable half of `/fabrik-rivals`.
+- [scripts/scratch_sweep.py](../INDEX.md) (owner: infra): Sweep YOUR OWN session scratch, YOUR OWN agent worktrees, and DEAD sessions' scratch — never blindly.
+- [scripts/seed_real_ports.py](../INDEX.md) (owner: infra): One-time script: extract real host ports from compose.yaml/.env and update project.yaml.
+- [scripts/select_rules.py](../INDEX.md) (owner: infra): Select the .windsurf/rules packs applicable to this project — run BEFORE planning.
+- [scripts/snapshot_vps_state.py](../INDEX.md) (owner: infra): Pre/post-deploy VPS state snapshot for the dev→VPS workflow test.
 - [scripts/sync_gatus_to_vps.sh](../INDEX.md) (owner: infra): Sync /opt/fabrik/configs/gatus/ → vps1's /opt/monitoring/configs/gatus/.
+- [scripts/sync_projects.py](../INDEX.md) (owner: infra): Sync /opt/* projects into data/projects.yaml + docs/PROJECT_CATALOG.md
 - [scripts/sync_prometheus_to_vps.sh](../INDEX.md) (owner: infra): Sync /opt/fabrik/configs/prometheus/ → vps1's /opt/monitoring/configs/prometheus/.
-- [scripts/sync_schema_to_projects.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/DATA_SYNC_WORKFLOW.md
-- [scripts/sysadmin/archive_transcripts.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/development/plans/2026-09-06-plan-1-session-history-retention.md | docs/superpowers/specs/2026-09-05-session-history-retention-design.md
-- [scripts/sysadmin/claude_broker.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_claude_broker.py | scripts/sysadmin/quota_governor.py
-- [scripts/sysadmin/dispatch_headroom.py](../INDEX.md) (owner: infra): AFTER-EDIT: .windsurf/rules/core/62-using-subagents.md, docs/workstation/claude-account-rotation.md, commands/_fragments/subagents-core.md
-- [scripts/sysadmin/emit_mcp_project_config.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/mcp-roster.md (per-type sets + per-repo overlays are CANONICAL there) · tests/test_emit_mcp_project_config.py | none
+- [scripts/sync_schema_to_projects.py](../INDEX.md) (owner: infra): Sync db/schema.sql to all /opt projects that don't have it.
+- [scripts/sysadmin/archive_transcripts.py](../INDEX.md) (owner: infra): archive_transcripts — Phase A of the session-history retention plan (revision 2026-10-05).
+- [scripts/sysadmin/bot.py](../INDEX.md) (owner: infra): VPS AI Sysadmin Telegram Bot.
+- [scripts/sysadmin/canary_grounding.py](../INDEX.md) (owner: infra): Grounding-integrity canary — the refuses-ungrounded flywheel axis (weekly batch).
+- [scripts/sysadmin/ci_health_probe.py](../INDEX.md) (owner: infra): Fleet CI-health probe — catch CI that NEVER RAN, and the quota curve that kills it.
+- [scripts/sysadmin/claude_broker.py](../INDEX.md) (owner: infra): Completion-only container broker — subscription-billed Claude for Docker workloads.
+- [scripts/sysadmin/claude_rotate.py](../INDEX.md) (owner: infra): NB: this file is vendored BYTE-IDENTICAL into scripts/sysadmin/ and scripts/aro-wake/
+- [scripts/sysadmin/detect_reversals.py](../INDEX.md) (owner: infra): Detect operator reversals of AI actions (trio plan Phase 5.1.a).
+- [scripts/sysadmin/dispatch_headroom.py](../INDEX.md) (owner: infra): dispatch_headroom — the seat budget for a native fan-out, from the BOX and the FLEET, not from prose.
+- [scripts/sysadmin/emit_mcp_project_config.py](../INDEX.md) (owner: infra): Emit each /opt repo's project-scope `.mcp.json` from the MCP split rulings.
 - [scripts/sysadmin/ensure-apprise-alerts-config.sh](../INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
-- [scripts/sysadmin/feedback_relay.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/weekly_catchup.sh | none
-- [scripts/sysadmin/install_user_hooks.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_install_user_hooks.py | docs/workstation/hooks-index.md | scripts/sysadmin/user_hook_gate.py | scripts/sysadmin/selfwatch_check.py
-- [scripts/sysadmin/kaizen_backfill.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_backfill.py | none
-- [scripts/sysadmin/kaizen_collect.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/archived/kaizen_metrics.py | none
-- [scripts/sysadmin/kaizen_collect_v2.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_collect_v2.py, tests/fixtures/kaizen-golden/, docs/workstation/kaizen.md
-- [scripts/sysadmin/kaizen_events.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_events.py, docs/workstation/kaizen-event-stream.md | none
-- [scripts/sysadmin/kaizen_outcomes.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_outcomes.py | none
-- [scripts/sysadmin/kaizen_shrink_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_kaizen_shrink_audit.py, docs/workstation/kaizen-shrink-audit.md | none
-- [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_liveness_audit.py | docs/workstation/liveness.md | .fabrik/liveness-registry.json | INDEX.md
-- [scripts/sysadmin/mcp_health.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_mcp_health.py · docs/workstation/mcp-roster.md (§ fix-first) | none
-- [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/quota-dashboard.md, PORTS.md, docs/workstation/claude-account-rotation.md
-- [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): AFTER-EDIT: .windsurf/rules/versions.yaml, scripts/sysadmin/rules_currency_watch.py, tests/sysadmin/test_rules_render_versions.py | none
-- [scripts/sysadmin/stop_mine.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/hooks-index.md, docs/reference/thread-anchors.md, docs/workstation/kaizen-event-stream.md
-- [scripts/task_lane.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_task_lane_admission.py · tests/test_task_lane_close.py · tests/test_task_lane_receipt.py · tests/test_task_lane_review_stop.py · scripts/
-- [scripts/traycer_write_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/update_vps_docs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/verify_prod_parity.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/DEPLOYMENT.md, docs/OPERATIONS.md | none
-- [scripts/vps_apply_limits.sh](../INDEX.md) (owner: fleet): AFTER-EDIT: docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md | docs/STRATEGIC_BACKLOG.md
-- [scripts/vps_sync.py](../INDEX.md) (owner: fleet): AFTER-EDIT: none
-- [scripts/whoami_agent.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_whoami_agent.py, docs/workstation/agent-identity.md
-- [scripts/work.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_work.py, tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py, docs/reference/work-tracking.md, tests/test_work
+- [scripts/sysadmin/feedback_relay.py](../INDEX.md) (owner: infra): FEEDBACK relay — closes the loop the operator asked for five times (D-055, then the 6th ask:
+- [scripts/sysadmin/incident_context.py](../INDEX.md) (owner: infra): Incident context marshaller — the HOST side of the pool-diagnosis path.
+- [scripts/sysadmin/install_user_hooks.py](../INDEX.md) (owner: infra): Install / verify the USER-LEVEL hook registrations in every account dir (review 2026-09-06, B10).
+- [scripts/sysadmin/kaizen_backfill.py](../INDEX.md) (owner: infra): Kaizen T08 — noise-floor backfill over the pre-event transcript corpus.
+- [scripts/sysadmin/kaizen_collect.py](../INDEX.md) (owner: infra): Kaizen collector — measure how agents ACTUALLY behave, fleet-wide, daily.
+- [scripts/sysadmin/kaizen_collect_v2.py](../INDEX.md) (owner: infra): Kaizen M1 collector v2 — derived facts, versioned metrics, paired-counter registry.
+- [scripts/sysadmin/kaizen_coroner.py](../INDEX.md) (owner: infra): Kaizen M1 coroner — reconstructs `death`/`revival`/`session_end` events post-hoc and
+- [scripts/sysadmin/kaizen_digest.py](../INDEX.md) (owner: infra): Kaizen daily digest — the READER half of the measurement pipeline.
+- [scripts/sysadmin/kaizen_events.py](../INDEX.md) (owner: infra): CONSUMERS (re-verify on any SCHEMA/envelope change; not coupled to ordinary edits):
+- [scripts/sysadmin/kaizen_outcomes.py](../INDEX.md) (owner: infra): Kaizen M1 outcome tier — rework miner, fleet-health sweep, premature-stop reader.
+- [scripts/sysadmin/kaizen_shrink_audit.py](../INDEX.md) (owner: infra): M0 shrink audit — the usage-evidence census over every governance artifact.
+- [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): LIVENESS AUDIT — we verify correctness at write-time and never verify liveness at run-time.
+- [scripts/sysadmin/mail_escalate.py](../INDEX.md) (owner: infra): fabrik-mail escalation digest — the destination-side half of the addressing plan.
+- [scripts/sysadmin/mcp_health.py](../INDEX.md) (owner: infra): Assigned-vs-LIVE MCP diff for the current repo (D-033 forcing pair, advisory).
+- [scripts/sysadmin/next_census.py](../INDEX.md) (owner: infra): next_census — the NEXT: line measurement, as one script (T06, spec
+- [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): The account-quota dashboard: a localhost page showing every Claude account's session +
+- [scripts/sysadmin/quota_governor.py](../INDEX.md) (owner: infra): Quota governor — headroom-aware router for the single-key ob@ VPS Claude.
+- [scripts/sysadmin/quota_posture_hook.py](../INDEX.md) (owner: infra): The box-local quota-posture hook — one injected line per prompt, one hold at RED.
+- [scripts/sysadmin/rules_currency_watch.py](../INDEX.md) (owner: infra): Rules-pack version-pin tripwire (operator question 2026-09-01: "what will happen
+- [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): Version injection for the rules corpus (D-062 — no version literals in packs).
+- [scripts/sysadmin/selfwatch_check.py](../INDEX.md) (owner: infra): UserPromptSubmit (USER level — every window, every project) — is this session's self-watch ARMED?
+- [scripts/sysadmin/stop_mine.py](../INDEX.md) (owner: infra): stop_mine — the promoted research miner (spec 2026-09-23-stop-and-compaction-enforcement-design
+- [scripts/sysadmin/user_hook_gate.py](../INDEX.md) (owner: infra): USER-level hook gate: run a hub hook for every window UNLESS the project already wires it.
+- [scripts/sysadmin/vps_script_drift.py](../INDEX.md) (owner: infra): Read-only drift check: is every VPS still running the hub's committed scripts? (W-c792a205)
+- [scripts/sysadmin/worktree_transcript_link.py](../INDEX.md) (owner: infra): SessionStart + Stop (USER level, every window, every repo): keep a worktree session listed in its repo's window.
+- [scripts/test_process_monitor.py](../INDEX.md) (owner: infra): Test Suite for ProcessMonitor
+- [scripts/thread_anchor.py](../INDEX.md) (owner: infra): Thread anchors — the NEXT: line, made durable, multi-slot, and read-back.
+- [scripts/traycer_write_report.py](../INDEX.md) (owner: infra): Traycer Report Writer
+- [scripts/update_vps_docs.py](../INDEX.md) (owner: infra): update_vps_docs.py — regenerate dynamic sections of VPS documentation.
+- [scripts/verify_prod_parity.py](../INDEX.md) (owner: infra): Status: DRAFT · Version: v0 · Date: —
+- [scripts/vps_apply_limits.sh](../INDEX.md) (owner: fleet): vps_apply_limits.sh — assert Docker MEMORY ceilings on vps1 containers that did
+- [scripts/vps_sync.py](../INDEX.md) (owner: fleet): Refresh VPS documentation from live state.
+- [scripts/whoami_agent.py](../INDEX.md) (owner: infra): Bind THIS live session to an agent name, and resolve that binding — no relaunch (D-267/D-268).
+- [scripts/work.py](../INDEX.md) (owner: infra): Work tracking — one open-work record per repo, shared by its agents (spec 2026-09-24).
+- [scripts/wsl_startup_hook.sh](../INDEX.md) (owner: infra): WSL Startup Hook - Daily Fabrik Maintenance
 
 ## lib-module
 - [abuse-prevention](/opt/fabrik-lib/abuse-prevention/README.md) (owner: external:fabrik-lib): abuse-prevention
@@ -364,6 +442,15 @@
 - [saas/87-abuse-detection.md](../.windsurf/rules/saas/87-abuse-detection.md) (owner: infra): Abuse detection discipline — registration gating, progressive unlock, fingerprinting, disposable email blocking for SaaS free tiers
 - [saas/88-saas-launch-checklist.md](../.windsurf/rules/saas/88-saas-launch-checklist.md) (owner: infra): SaaS product completeness — launch-blocking checklist, legal pages, payment routing, KVKK/GDPR, abuse prevention, onboarding, tenant settings, Teknokent tax
 - [saas/95-multi-tenant-saas.md](../.windsurf/rules/saas/95-multi-tenant-saas.md) (owner: infra): Multi-tenant SaaS discipline — tenant isolation, PostgreSQL RLS, context propagation, what RLS does not cover, the fabrik-lib modules' tenancy contracts
+
+## hook
+- [agent_role.py](workstation/hooks-index.md) (owner: infra): SessionStart hook — inject the named agent's role charter, if one exists (Fabrik-synced, fleet-safe).
+- [final_gate_stop.py](workstation/hooks-index.md) (owner: infra): Claude Code SessionStart + Stop hooks — enforce final_gate as the definition of done.
+- [mail_notify.py](workstation/hooks-index.md) (owner: infra): SessionStart + UserPromptSubmit hook — surface unread fabrik-mail (Fabrik-synced).
+- [mcp_watch.py](workstation/hooks-index.md) (owner: infra): UserPromptSubmit hook — the PER-MESSAGE MCP forcing layer (D-041; Fabrik-synced).
+- [quota_stop.py](workstation/hooks-index.md) (owner: infra): PreToolUse — the fleet-wide GRACEFUL STOP when the quota is exhausted with nothing to rotate to.
+- [session_orient.py](workstation/hooks-index.md) (owner: infra): SessionStart orientation (Fabrik-synced, stdlib-only, fail-open).
+- [skill_router.py](workstation/hooks-index.md) (owner: infra): Claude Code UserPromptSubmit hook — bilingual (EN+TR) skill router.
 
 ## command
 - [design-review](../CLAUDE.md) (owner: infra): Complete a design review of the pending changes on the current branch — rendered UI visual, accessibility, and front-end implementation quality against Stripe/Airbnb/Linear-grade standards. TRIGGER — EN: "review this UI", "check the design and accessibility of this screen"; TR: "bu arayüzü incele", "tasarımı ve erişilebilirliği kontrol et"…
