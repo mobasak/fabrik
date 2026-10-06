@@ -709,6 +709,38 @@ def test_owner_tests_see_the_merged_src_first_and_the_fabrik_lib_link(world):
     assert world.scratch_left() == []
 
 
+def test_owner_tests_see_the_worktreeinclude_files_the_main_checkout_holds(world):
+    """brand-identiy-creator 01M46NZMP4F08KBP7WC8KF1Z37: the build tree is a fresh checkout, so a
+    pydantic-settings app whose Settings() reads the gitignored `.env` failed at import and a
+    correct request was refused. The base's `.worktreeinclude` set is copied in from the main
+    checkout, as Claude Code copies it into a new worktree — a file the tree already tracks is
+    never overwritten, and a path outside the checkout is never read."""
+    probe = world.tmp / "env-probe"
+    world.write(".worktreeinclude", "# comment\n.env\nlocal/\ntracked.cfg\n../outside.txt\n")
+    world.write("tracked.cfg", "base\n")
+    world.commit_main("include list", ".worktreeinclude", "tracked.cfg")
+    world.write(".env", "DATABASE_URL=postgresql://u:p@h/app\n")  # untracked, as gitignored
+    world.write("local/deep/a.txt", "a\n")
+    world.write("tracked.cfg", "dirty in main\n")  # the owner's uncommitted edit
+    (world.tmp / "outside.txt").write_text("never\n", encoding="utf-8")
+    script = (
+        "import os, pathlib; "
+        f"pathlib.Path({str(probe)!r}).write_text(' '.join(["
+        "open('.env').read().strip(), open('local/deep/a.txt').read().strip(), "
+        "open('tracked.cfg').read().strip(), str(os.path.exists('../outside.txt'))]))"
+    )
+    world.write(".fabrik/merge-tests", f'python3 -c "{script}"\n')
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    _git(world.wt, "merge", "-q", "--ff-only", "master")
+    world.send(world.branch({"x.txt": "x\n"}))
+
+    assert world.run("merge") == 0
+    assert probe.read_text() == "DATABASE_URL=postgresql://u:p@h/app a base False", (
+        probe.read_text()
+    )
+    assert world.scratch_left() == []
+
+
 # --- (c) fallback: touched tests run with the merged src AFTER the stdlib (wef 01M453XP8W) ------
 _SHADOW_TEST = """\
 import os, pathlib, subprocess, sys
