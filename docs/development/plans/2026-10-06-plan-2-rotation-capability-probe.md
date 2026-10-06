@@ -145,10 +145,14 @@ Appetite: 90
   (`_STATE_DIR_ERRORS`, `:450`) returns `None` with one stderr line and writes nothing — the assignments site's rule
   (`:3692-3694`: "cannot lock → apply in memory only; never risk clobbering the table"). Unlock and close each in their
   own `try` (`:3712-3716`).
-- `_auto_park(email: str, *, source: str, cfg_dir: Path, status: object = None, row: dict | None = None) -> bool` —
-  `source` ∈ `promote` · `active` · `ping` · `wrapper`. It first CONFIRMS: one immediate `_capability_probe(cfg_dir)`
-  must also return `refused` (spec § The delta D3 — two refusals in a row; a refused call spends no quota); any other
-  verdict returns `False` with one stdout-free stderr line and parks nothing, walls nothing. Then it normalises `email = email.strip().lower()` first (as `_cmd_park` does,
+- `_auto_park(email: str, *, source: str, cfg_dir: Path, timeout: int | None = None, status: object = None, row: dict
+  | None = None) -> bool` — `source` ∈ `promote` · `active` · `ping` · `wrapper`. It first CONFIRMS: one immediate
+  `_capability_probe(cfg_dir, timeout)` must also return `refused` (spec § The delta D3 — two refusals in a row; a
+  refused call spends no quota). The D6 and wrapper paths pass `timeout=_ACTIVE_PROBE_TIMEOUT_S` (45), so the
+  confirmation cannot stretch the tick's `flock` or the wrapper's caller past that; promote and ping pass none (the
+  probe's default). Any other confirmation verdict is written to the cache with `_record_probe` (so an account that
+  refuses intermittently is held off by the cache windows, never re-probed every tick), returns `False` with one
+  stderr line, and parks nothing, walls nothing. Then it normalises `email = email.strip().lower()` first (as `_cmd_park` does,
   `:3877`), then refuses (stderr, returns `False`) an email not in `_known_account_emails()` (`:3861-3870`), so a `pending-login` identity (`:3699`) is never written. Calls `_parked_update(email, True,
   repair=False)`; on `True` appends
   `{"event": "auto-park", "email", "cause": "oauth_org_not_allowed", "source", "api_error_status": status, "ts": _now()}`
@@ -192,7 +196,9 @@ Steps:
    - A7: the stale-reading ping returning the refusal → the row carries `capability_refused` and NOT `ping_failed`,
      and the account is parked; the ping returning a timeout → `ping_failed` true and nothing parked.
    - A9: the first probe `refused`, the confirmation `ok` → nothing parked, nothing walled, no ledger row, no alert;
-     both `refused` → parked, and the alert text begins with "check this account's billing".
+     both `refused` → parked, and the alert text begins with "check this account's billing"; the first `refused`,
+     the confirmation `inconclusive` → nothing parked, and a `_probe_account` call for that account within
+     `_PROBE_RETRY_S` makes no `claude` call (the confirmation's verdict was cached).
    - A8: a `parked.json` holding invalid JSON → `_auto_park` leaves its bytes unchanged, returns `False`, and still
      walls the row it was given; `cr.main(["--park", <email>])` on the same file still repairs it (today's operator
      behaviour). An unknown email and `pending-login` → nothing written.
@@ -253,7 +259,8 @@ Appetite: 120
 - `_session_refusal_epoch() -> float | None` — the newest epoch among `<_selfwatch_lock_dir()>/*.errparked` records
   (`:5950`) whose class token is exactly `oauth_org_not_allowed`, parsed as `<class> <epoch>` the way
   `scripts/sysadmin/kaizen_coroner.py:269-294` does (malformed records skipped, an unreadable dir → `None`, never
-  raises) — spec § The delta D7.
+  raises), each epoch capped at `_now()` so a marker dated in the future by clock skew cannot force a probe every tick
+  (the module's own skew tolerance, `_CLOCK_SKEW_TOLERANCE_S`, `:72`) — spec § The delta D7.
 - `_probe_account(email: str, slug: str, *, window: float | None = None, timeout: int | None = None, expired_after:
   float | None = None) -> str` — returns the cached verdict without a call while it is younger than its window (`ok`:
   `window` or `_probe_trust_s()`; `inconclusive`: `_PROBE_RETRY_S`) AND not older than `expired_after` (a session
@@ -277,7 +284,7 @@ Appetite: 120
   (`:5736`): when the active account is not already parked (`_is_parked(row.get("weekly_cap"))`, `:6110-6115`, is
   false) and `_probe_account(row["email"], active_slug, window=_active_probe_s(), timeout=_ACTIVE_PROBE_TIMEOUT_S,
   expired_after=_session_refusal_epoch())` returns `refused`, call `_auto_park(row["email"], source="active",
-  cfg_dir=_fleet_root() / active_slug, row=row)`. Then, when the active account is parked — this tick's refusal or any earlier park, the
+  cfg_dir=_fleet_root() / active_slug, timeout=_ACTIVE_PROBE_TIMEOUT_S, row=row)`. Then, when the active account is parked — this tick's refusal or any earlier park, the
   operator's included (D-443: "an ACTIVE parked account is flipped away from on the next tick") — run
   `pick = _validated_pick(accounts, {row["email"]}, probe=True)`. A pick → `_flip_active(slug, ignore_dwell=True,
   kind="refused" if row.get("capability_refused") else "parked")`; on `True` one stdout tick line and one
@@ -297,7 +304,8 @@ Appetite: 120
   one during a long call would get the healthy one parked too. After the result and BEFORE the usage-limit/401
   classification (`:801-804`): when `_capability_verdict(result.returncode, result.stdout or "") == "refused"`, park
   the SNAPSHOT slug's account — its email is the slug's `identity` in `_load_assignments(strict=False)`; then
-  `_auto_park(email, source="wrapper", cfg_dir=_fleet_root() / <snapshot slug>)` (which refuses an unknown or `pending-login` identity). Any other case — no
+  `_auto_park(email, source="wrapper", cfg_dir=_fleet_root() / <snapshot slug>, timeout=_ACTIVE_PROBE_TIMEOUT_S)`
+  (which refuses an unknown or `pending-login` identity). Any other case — no
   `CLAUDE_CONFIG_DIR`, the shared `~/.claude`, a dir outside the fleet root, a host with no fleet (the VPS callers,
   `scripts/aro-wake/main.py:543`) — writes one stderr line `capability refused outside the fleet — nothing parked` and
   parks nothing. Then `break`. The result is returned to the caller unchanged.
@@ -339,8 +347,9 @@ Steps:
    active account's cached `ok` (cached 5 minutes ago, inside the 30-minute window) → that tick probes the active
    account; a record of class `rate_limit`, or one older than the cached verdict, or a malformed one → no probe. And
    B9, the active window: an active `ok` cached 31 minutes ago → probed; 29 minutes ago → not; a standby's `ok`
-   cached 31 minutes ago → not probed (its window is `ROTATE_PROBE_TRUST_S`); the active probe is called with
-   `timeout=45`.
+   cached 31 minutes ago → not probed (its window is `ROTATE_PROBE_TRUST_S`); the active probe AND its confirmation are both
+   called with `timeout=45`; a marker epoch an hour in the future is capped at `_now()` (it expires a verdict cached
+   before now, never one cached after).
 5. `cp scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py && cmp scripts/sysadmin/claude_rotate.py
    scripts/aro-wake/claude_rotate.py` → no output, rc 0.
 6. **Phase gate**: `.venv/bin/python -m pytest tests/test_claude_rotate_capability_probe.py tests/test_claude_fleet.py
