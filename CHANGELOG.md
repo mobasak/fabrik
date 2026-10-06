@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the watchdog pack names the real Tier-D dispatch key and where the fork runs (2026-10-06)
+- `.windsurf/rules/core/60-watchdog.md` named a Tier-D action `apply_code_fix` that no code dispatches; the key is `create_fix_pr`, which the coordinator's code-class fork (`coordinator.py::_is_code_fix`) routes to REMEDIATE — only for a trigger-bus signal, while the always-on poll path runs it as the Tier-C branch push (fabrik-lib 01M48Q42FAVJ5A8FD848HR7X5C). Review `docs/development/reviews/2026-10-06-watchdog-tier-d-action-name-review.md`.
+
 ### Fixed — merge_request copies a gitignored `.worktreeinclude` and says so when it cannot (2026-10-06)
 - Every synced project ignores the sync-written `.worktreeinclude`, so `merge_request.py` read it only from the base, found nothing, copied nothing (`.env` included) into the build tree, and the owner tests refused every correct merge (brand-identiy-creator 01M48K5ZGYWBX1F4S8K8GQ32E0). An ignored, regular main-checkout list is now read; a tracked list still governs from the base only.
 - With no readable list the merge says so: a note in the owner-tests refusal reason (the reply the requester reads) and on stderr on the refused, PARTIAL and merged exits, once per merge. Four graders in `tests/test_merge_request_merge.py`; D-621; review `docs/development/reviews/2026-10-06-w-2005a1a5-worktreeinclude-fallback-review.md`.
