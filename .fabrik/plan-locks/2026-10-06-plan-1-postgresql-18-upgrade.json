@@ -67,7 +67,7 @@
       "acceptance_commit": "12ef919a0"
     },
     "T04b": {
-      "state": "returned",
+      "state": "merged",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a9f1c0d80a80d62fc",
       "branch": "worktree-agent-a9f1c0d80a80d62fc",
       "commit": "a069029d7",
@@ -75,10 +75,11 @@
       "started_at": "2026-10-06T17:19:30+00:00",
       "fixups": [
         "65df3ffd7"
-      ]
+      ],
+      "acceptance_commit": "801aa4b46"
     },
     "T05": {
-      "state": "returned",
+      "state": "merged",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a4ceab0d74302f8e1",
       "branch": "worktree-agent-a4ceab0d74302f8e1",
       "commit": "cea025a1f",
@@ -86,19 +87,16 @@
       "started_at": "2026-10-06T17:19:30+00:00",
       "fixups": [
         "d2f3fe95b"
-      ]
+      ],
+      "acceptance_commit": "6af528803"
     }
   },
   "wave2": {
-    "integration": "pg18-wave2@72ad885b8 (pushed)",
-    "review": "docs/development/reviews/2026-10-06-plan-1-postgresql-18-upgrade-T04b-review.md",
-    "round1_confirmed": 21,
-    "next": "Pass-2 closing round on seats E1 opus aa7fabae9ccba6937, E2 sonnet a329be56b8802f53d, D sonnet a91237122de8e3a6b",
-    "pass2": {
-      "D": "D1 NOW_FALSE; D1-NEW (v16/version 16 spellings) found and fixed 72ad885b8 \u2014 re-verify in pass 3",
-      "E2": "E2-1..E2-5 NOW_FALSE; NEW-1 (A1 heading vs Send field unchecked) and NEW-2 (leftover-container test greps tokens, never executes) open \u2014 route to T05 coder a4ceab0d74302f8e1",
-      "E1": "pending \u2014 seat aa7fabae9ccba6937 re-verifying E1-1..E1-15"
-    },
-    "quota": "can 97% 5h, no successor, reset ~2h51 after 20:03Z \u2014 resume from here"
-  }
+    "review": "docs/development/reviews/2026-10-06-plan-1-postgresql-18-upgrade-T04b-review.md CONVERGED (1a849a1ed)",
+    "merged": [
+      "801aa4b46",
+      "6af528803"
+    ]
+  },
+  "next": "T01a, T01b \u2014 infra precondition landed on origin/master 075f8feae (pgvector_version 0.8.6; literals frozen); then T06 integration"
 }
