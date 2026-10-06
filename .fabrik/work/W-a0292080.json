@@ -8,7 +8,7 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-10-06-plan-2-rotation-capability-probe.md",
+    "plan": "docs/development/plans/archived/2026-10-06-plan-2-rotation-capability-probe.md",
     "spec": ""
   },
   "next": "name the pause (marker or unreadable state) as the hold reason in the advisory text when _validated_pick finds a sibling; one test per cause",

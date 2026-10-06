@@ -1,6 +1,8 @@
 # Plan — an account that refuses inference is never the next account (W-f8bfe7eb)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-10-07
+Completed: 8af87fd90 on worktree-intel — final gate `final_gate.py --check --json` success; the five rotation suites 608 passed; mypy 17 (the pre-plan baseline).
+Whole-plan review: docs/development/reviews/2026-10-06-plan-2-rotation-capability-probe-review.md
 Profile: small
 **Owner:** —
 **Surface:** `git rev-parse HEAD` = 99b111443 at authoring; `scripts/sysadmin/claude_rotate.py` 7560 lines, byte-identical to `scripts/aro-wake/claude_rotate.py`
@@ -381,7 +383,7 @@ Steps:
 - **Given** a session's `.errparked` record of class `oauth_org_not_allowed` newer than the active account's cached `ok`, **When** the tick runs, **Then** the active account is probed at once; any other class, or an older record, probes nothing (spec § The delta D7)
 - **Given** the active account's `ok` is older than `ROTATE_ACTIVE_PROBE_S` (30 minutes) while a standby's equally old `ok` is not, **When** the tick runs, **Then** only the active account is probed, with a 45-second timeout (spec § The delta D6)
 
-## Phase C — docs and Finish
+## Phase C — docs and Finish — ✅ EXECUTED 2026-10-07 (8af87fd90)
 
 Appetite: 60
 
@@ -451,6 +453,14 @@ Steps:
   unreadable pause state held the D6 re-check silently; the tick now says so) and refuted one as a regression (the
   urgent broadcast's "every sibling is walled" wording under a pause, older than this plan, filed as backlog).
   Guards `test_br1`–`test_br11`, each red on the pre-fix code or by mutation. The doc gained the 45 s promote timeout and the pause rule (§ Parking, § Pause semantics).
+- Phase C (2026-10-07): the Finish whole-plan `/fabrik-review` over bc3c7895f..015059505 converged at pass 3
+  (confirmed 2 → 1 → 0): a text-mode wrapped call that met the refusal parked nothing (`_call_refused`, br12,
+  9968dff43), and that fix's text fallback outranked a 401 (br13, 015059505). `/fabrik-docs-review` of the rotation
+  doc converged at pass 4 (confirmed 5 → 1 → 1 → 0, the scope-growth stop at round 3; the withheld-flip wording routed
+  to W-61fa6e00): the pause now holds an auto-park from EVERY path, the ping and
+  the wrapper included (`_auto_park`, br14, 6437f373d), and § Parking states the ping's 150 s timeout, the
+  unconfirmed refusal, the broken-`parked.json` hold and the ping's dead-chain flip (6437f373d, 4cf06a111).
+  U3 is backlog item W-058e5ba2; the broadcast's pause wording W-a0292080.
 
 ## Evidence
 
