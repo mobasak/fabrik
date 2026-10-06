@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T17:54:31.867911Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6ce1c37d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M48Q42FAVJ5A8FD848HR7X5C",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: The fleet rule pack .windsurf/rules/core/60-watchdog.md disagrees with the watchdog module's code on two points."
+}
