@@ -112,17 +112,17 @@ def test_the_template_render_sees_the_deployed_value() -> None:
     ctx = _ctx(spec, {"MASTERKEY": "fresh"}, {"MASTERKEY": "fresh"})
     seen: dict[str, str] = {}
 
-    class _Stop(Exception):
+    class _StopRenderError(Exception):
         pass
 
     def _render(self, spec, secrets=None, dry_run=False):  # noqa: ARG001
         seen.update(secrets or {})
-        raise _Stop
+        raise _StopRenderError
 
     with patch("fabrik.drivers.ssh.ssh", _Ssh("MASTERKEY=first-apply\n")), \
          patch.object(SSHDeployer, "find_existing", return_value={"name": "my-app"}), \
          patch("fabrik.template_renderer.TemplateRenderer.render", _render), \
-         pytest.raises(_Stop):
+         pytest.raises(_StopRenderError):
         SSHDeployer()._deploy_inner(ctx)
     assert seen["MASTERKEY"] == "first-apply"
 
