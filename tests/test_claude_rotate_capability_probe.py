@@ -928,3 +928,44 @@ def test_br11_an_unreadable_pause_state_says_the_active_re_check_is_held(
     assert "capability re-check HELD — pause state unreadable" in capsys.readouterr().out
     assert [c for c in calls if c["timeout"] == 45] == []
     assert not (fleet / "parked.json").exists()
+
+
+# ── Finish review (whole plan), pass 1 ──────────────────────────────────────────────────────────
+
+
+def test_br12_a_text_mode_call_that_is_refused_parks_its_account_after_the_json_confirmation(
+    tmp_path, monkeypatch
+):
+    """rest-S1/S2: most wrapped callers run claude in TEXT mode, so the refusal arrives as text, not
+    a JSON result. A failed call carrying the code parks — through `_auto_park`'s own JSON probe,
+    so a call that merely quotes the code (rc 0) or a false positive the probe answers healthy
+    parks nothing."""
+    fleet = _fleet_b(tmp_path, monkeypatch, active="seo")
+    _alerts(monkeypatch)
+    text_refusal = 'API Error: 403 {"error":{"type":"oauth_org_not_allowed"}}\n'
+    env = {"CLAUDE_CONFIG_DIR": str(fleet / "active"), "PATH": os.environ.get("PATH", "")}
+
+    def wrapped(call_rc, call_out, probe_out):
+        def run(argv, **kw):
+            if "--output-format" in argv:  # _auto_park's confirmation probe
+                return subprocess.CompletedProcess(
+                    argv, 1 if probe_out is REFUSAL else 0, probe_out, ""
+                )
+            return subprocess.CompletedProcess(argv, call_rc, call_out, "")
+
+        return run
+
+    monkeypatch.setattr(cr.subprocess, "run", wrapped(1, text_refusal, REFUSAL))
+    cr.run_claude(["claude", "-p", "do the thing"], 30, str(tmp_path), env)
+    assert json.loads((fleet / "parked.json").read_text()) == ["sarp@ocoron.com"]
+
+    (fleet / "parked.json").unlink()
+    monkeypatch.setattr(
+        cr.subprocess, "run", wrapped(0, "it said oauth_org_not_allowed\n", REFUSAL)
+    )
+    cr.run_claude(["claude", "-p", "do the thing"], 30, str(tmp_path), env)
+    assert not (fleet / "parked.json").exists(), "a successful call quoting the code never parks"
+
+    monkeypatch.setattr(cr.subprocess, "run", wrapped(1, text_refusal, HEALTHY))
+    cr.run_claude(["claude", "-p", "do the thing"], 30, str(tmp_path), env)
+    assert not (fleet / "parked.json").exists(), "the confirmation probe stops a false positive"

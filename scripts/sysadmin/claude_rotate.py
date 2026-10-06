@@ -747,6 +747,21 @@ def _bound_fleet_slug(env: dict[str, str]) -> str | None:
     return dest.name if dest.parent == root and dest.is_dir() else None
 
 
+def _call_refused(result: subprocess.CompletedProcess) -> bool:
+    """Did a wrapped ``claude`` call meet the organisation refusal? A JSON caller's result is
+    classified exactly (:func:`_capability_verdict`); a text-mode caller (no ``--output-format
+    json``, most headless jobs) prints the refusal as text, so a FAILED call (rc not 0) whose
+    output carries a refusal marker counts too. A successful call that merely quotes the code never
+    does, and a false positive costs one probe, never a park: :func:`_auto_park` parks only on a
+    confirming JSON probe of its own (Finish review, rest-S1)."""
+    if _capability_verdict(result.returncode, result.stdout or "") == "refused":
+        return True
+    if result.returncode in (0, None):
+        return False
+    blob = ((result.stdout or "") + "\n" + (result.stderr or "")).lower()
+    return any(marker in blob for marker in _REFUSAL_MARKERS)
+
+
 def _wrapper_park(slug: str | None) -> None:
     """Park the account behind *slug* after a refused ``run_claude`` call (spec D4b) — confirmed
     by :func:`_auto_park`'s second probe of that same dir, 45 s bounded. Stderr only: the CLI
@@ -827,7 +842,7 @@ def run_claude(
     # (max_rotations == 0 — a 1-snapshot host) correctly stays "exhausted".
     withheld_reason: str | None = None
     while True:
-        if _capability_verdict(result.returncode, result.stdout or "") == "refused":
+        if _call_refused(result):
             # The organisation refuses Claude Code on this account (spec D4b): park the account the
             # call was BOUND to (snapshotted before it ran — the pointer may have moved since) and
             # stop — every retry would meet the same refusal. On a fleet host the rotate below is
@@ -886,7 +901,7 @@ def run_claude(
     if died_account is not None:
         final = (result.stdout or "") + "\n" + (result.stderr or "")
         host = _hostname()
-        refused = _capability_verdict(result.returncode, result.stdout or "") == "refused"
+        refused = _call_refused(result)
         recovered = (
             last_target is not None
             and not is_auth_401(final)
