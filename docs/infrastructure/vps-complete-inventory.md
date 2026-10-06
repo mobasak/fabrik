@@ -117,7 +117,7 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 | :--- | :--- | :--- |
 | `traefik` | — | Public HTTPS termination, Let's Encrypt, Authelia forward-auth dispatch |
 | `authelia` | 512m | SSO + 2FA forward-auth for all `*.vps1.ocoron.com` admin dashboards |
-| `postgres-main` | 2g | Shared PostgreSQL 16 — multi-tenant, one DB per service via registrar |
+| `postgres-main` | 2g | Shared PostgreSQL 18 — multi-tenant, one DB per service via registrar |
 | `redis-main` | — | Shared Redis 7 — one logical DB per service |
 | `postgres-exporter` | — | Postgres metrics for Prometheus |
 | `redis-exporter` | — | Redis metrics for Prometheus |
@@ -165,7 +165,7 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 ├── monitoring/      — Prometheus + Grafana + Loki + Alertmanager + cAdvisor + exporters stack
 ├── n8n/             — Automation
 ├── ocoron-com/      — WordPress tenant
-├── postgres/        — Shared PostgreSQL 16
+├── postgres/        — Shared PostgreSQL 18
 ├── redis/           — Shared Redis 7
 ├── site-provisioner/ — INTERIM git-clone of mobasak/site-provisioner@main (compose.yaml hand-patched coolify→fabrik on the VPS; upstream push pending). Container "site-provisioner" runs from here.
 ├── traefik/         — Reverse proxy + Let's Encrypt
