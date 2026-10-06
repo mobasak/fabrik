@@ -4,7 +4,7 @@ Depends: —
 Parallel: ⚡
 Complexity: complex
 Appetite: 75
-Gate: python -m pytest tests/test_ci_scaffold.py -q
+Gate: python -m pytest tests/test_ci_scaffold.py tests/test_scaffold_test_db_guard.py -q
 Docs: none (CHANGELOG is the orchestrator's)
 
 ## Scope
@@ -15,9 +15,10 @@ Implements spec § The delta › D3 (the `ci_scaffold.py` bullet). `CiConfig.pg_
 - tests/test_ci_scaffold.py
 
 ## Behavior Contract
-- **Given** a registry with `postgres_major: "16"` and `pgvector_version: "0.8.6"`, **When** `ci_files` renders a config with and without `db_extensions=("pgvector",)`, **Then** the workflow and the local script both name `pgvector/pgvector:0.8.6-pg16` and `postgres:16` respectively (src/fabrik/ci_scaffold.py:47; spec § The delta › D3)
-- **Given** the registry path monkeypatched to one with `postgres_major: "18"`, **When** the same configs render, **Then** they name `pgvector/pgvector:0.8.6-pg18` and `postgres:18` (spec § The delta › D3)
-- **Given** a registry lacking `pgvector_version`, **When** `fabrik.ci_scaffold` is imported, **Then** the import succeeds, and **When** `pg_image()` runs for a pgvector config, **Then** it raises `VersionRegistryError` naming `pgvector_version` (src/fabrik/version_registry.py:33)
+- **Given** `fabrik.version_registry.VERSIONS_FILE` monkeypatched to a registry with `postgres_major: "16"` and `pgvector_version: "0.8.6"`, **When** `ci_files` renders a config with and without `db_extensions=("pgvector",)`, **Then** the workflow and the local script both name `pgvector/pgvector:0.8.6-pg16` and `postgres:16` respectively (src/fabrik/ci_scaffold.py:47; spec § The delta › D3)
+- **Given** `VERSIONS_FILE` monkeypatched to a registry with `postgres_major: "18"`, **When** the same configs render, **Then** they name `pgvector/pgvector:0.8.6-pg18` and `postgres:18` (spec § The delta › D3)
+- **Given** `VERSIONS_FILE` monkeypatched to a registry lacking `pgvector_version`, **When** `fabrik.ci_scaffold` is reloaded with `importlib.reload`, **Then** the reload succeeds, and **When** `pg_image()` runs for a pgvector config, **Then** it raises `VersionRegistryError` naming `pgvector_version` (src/fabrik/version_registry.py:22)
+- **Given** the live `.windsurf/rules/versions.yaml`, **When** it is loaded, **Then** it carries non-empty `postgres_major` and `pgvector_version` (the only test bound to the live registry, so infra's later flip to 18 never reds the others) (spec § The delta › D3)
 
 ## Context Files
 - .windsurf/rules/core/10-python.md

@@ -22,11 +22,14 @@ restates nothing that section settles.
 - Decided HERE, from the grounding (no new operator question):
   - The plan ends at WINDOW READINESS. The WSL window and the hub window are executed by the operator from the runbook
     (T05) behind their own gates (T06 boards them; the hub window is Gate 2, production data). No ticket touches a live host or database.
-  - `.windsurf/rules/versions.yaml` and `agents-fabrik.md` are governance-sync triggers (measured below), so — with the
-    packs and `CLAIMS.yaml` — they are infra's: T06 mails infra the drafted edits; no ticket's Touches holds them.
+  - `.windsurf/rules/versions.yaml`, `agents-fabrik.md`, `docs/reference/prebuilt-app-containers.md` and
+    `docs/reference/technology-stack-decision-guide.md` are governance-sync triggers (measured below over every File Scope
+    path), so — with the packs and `CLAIMS.yaml` — they are infra's: T06 mails infra the drafted edits; no ticket's Touches holds them.
   - PRECONDITION of T01a: infra adds `pgvector_version: "0.8.6"` to `.windsurf/rules/versions.yaml` with `postgres_major`
-    still `"16"` (requested by mail when this plan is approved; tag `0.8.6-pg16` is a released pgvector build, spec pg-47).
-    T01a is not dispatched until that key is on master; T01b and T02–T05 are not blocked by it.
+    still `"16"`, and re-dates the two unmarked `postgres:16-alpine` literals (`.windsurf/rules/core/30-ops.md:320`,
+    `.windsurf/rules/core/25-data-postgres.md:23`) as history — one PRE-dispatch mail, sent by the orchestrator at execute
+    start. Tag `pgvector/pgvector:0.8.6-pg16` is published (probed below: HTTP 200). T01a waits for the key and T01b for
+    the two literals; T02–T05 are not blocked.
   - Of the spec's "29 live docs", only the current-state docs change (T04a, T04b, T03); dated plans, specs, research ledgers,
     retired orchestrator docs, `docs/DECISIONS.md` and `docs/LESSONS_LEARNT.md` are frozen history and are never rewritten.
   - The runbook is a NEW dedicated doc, `docs/operations/postgres-major-upgrade-runbook.md` — no runbook for a Postgres
@@ -64,7 +67,9 @@ restates nothing that section settles.
 8. T06
 
 T01a, T01b, T02, T03, T04a and T04b are independent (disjoint Touches). T05 waits for T02 and T03 because the runbook cites their final lines. T06 is last.
-T03 is merged to master by infra INSIDE the hub window (runbook step 8); every other ticket's commits merge after the window.
+T03 is committed on its own branch `fleet-pg18-dr`, cut from master, which infra merges ALONE inside the hub window
+(runbook step 8); the fleet branch also merges `fleet-pg18-dr` so T05 reads T03's lines, and everything on the fleet branch
+merges after the window (T03's commits are then already on master).
 No two Depends-unconnected tickets share a path.
 
 Breadth advisory (`check_ticket_breadth.py`): T01 was split on it (the CI derivation and the `_LOOSE` sweep are two risk
@@ -94,7 +99,7 @@ probes and one rollback chain, so a split would put half a window in each ticket
 | No host ports for services | No `ports:` section. | .windsurf/rules/core/30-ops.md:148 |
 | Stable container names | `container_name: <name>` is mandatory. | .windsurf/rules/core/30-ops.md:150 |
 | amd64 pin | `platform: linux/amd64` is mandatory. | .windsurf/rules/core/30-ops.md:151 |
-| Runbook steps idempotent | every step must be a no-op when its outcome is already present | .windsurf/rules/core/90-bootstrap-scripts.md:169 |
+| Runbook steps idempotent | every step must be a no-op when its outcome is already present | .windsurf/rules/core/90-bootstrap-scripts.md:169-170 |
 | Probe tools with command -v | Probe with `command -v` | .windsurf/rules/core/90-bootstrap-scripts.md:143 |
 | The exporter must actually serve | `exposes_metrics: true` ⇒ the metrics path actually SERVES. | .windsurf/rules/core/30-ops.md:213 |
 | CHANGELOG for config/compose changes | Any change to code (`src/`, `scripts/`, `templates/`) or config | .windsurf/rules/core/40-documentation.md:130 |
@@ -106,7 +111,7 @@ probes and one rollback chain, so a split would put half a window in each ticket
 | Scrape follows the shape flag (T02's exporter) | Prometheus scrapes it when the spec has `shape.exposes_metrics: true` | .windsurf/rules/core/55-observability.md:200 |
 | A guard is never the only thing before an irreversible act (T03's DR drill path) | is never the only thing between the agent and an irreversible act. | .windsurf/rules/ai/50-agentic.md:49 |
 
-The hub `postgres-main` keeps its mesh port `10.99.0.1:5432` (`infra/vps1/postgres/compose.yaml:22`) — the spokes reach the
+The hub `postgres-main` keeps its mesh port `10.99.0.1:5432` (`infra/vps1/postgres/compose.yaml:23`) — the spokes reach the
 shared cluster through it; T02 changes no port.
 
 ## Execution Discipline (binding on /fabrik-execute-plan)
@@ -121,27 +126,28 @@ shared cluster through it; T02 changes no port.
 - **Precondition gate** — T01a is not dispatched while `.windsurf/rules/versions.yaml` on master lacks `pgvector_version`.
 - **Operator gates** — no ticket executes the WSL window or the hub window; T06 boards both, and the hub window is Gate 2.
 - **Parallelism + merge** — T01a, T01b, T02, T03, T04a and T04b fan out concurrently (disjoint Touches), T01a once its precondition holds;
-  T05 starts when T02 and T03 are merged; every merge happens in the fleet worktree branch in § Merge Order, and the
+  T05 starts when T02 is merged into the fleet branch and T03 is committed on `fleet-pg18-dr` and merged into the fleet branch; every merge happens in the fleet worktree branch in § Merge Order, and the
   results merge/dedupe at T06, which re-runs every ticket's gate on the merged branch.
 - **Ids** — every D-row this plan mints uses `python3 scripts/decisions.py --reserve-id .`.
 
 ## Behavior Contract
 
-- **Given** a registry with `postgres_major: "16"` and `pgvector_version: "0.8.6"`, **When** `ci_files` renders a config with and without `db_extensions=("pgvector",)`, **Then** the workflow and the local script both name `pgvector/pgvector:0.8.6-pg16` and `postgres:16` respectively (src/fabrik/ci_scaffold.py:47; spec § The delta › D3)
-- **Given** the registry path monkeypatched to one with `postgres_major: "18"`, **When** the same configs render, **Then** they name `pgvector/pgvector:0.8.6-pg18` and `postgres:18` (spec § The delta › D3)
-- **Given** a registry lacking `pgvector_version`, **When** `fabrik.ci_scaffold` is imported, **Then** the import succeeds, and **When** `pg_image()` runs for a pgvector config, **Then** it raises `VersionRegistryError` naming `pgvector_version` (src/fabrik/version_registry.py:33)
+- **Given** `fabrik.version_registry.VERSIONS_FILE` monkeypatched to a registry with `postgres_major: "16"` and `pgvector_version: "0.8.6"`, **When** `ci_files` renders a config with and without `db_extensions=("pgvector",)`, **Then** the workflow and the local script both name `pgvector/pgvector:0.8.6-pg16` and `postgres:16` respectively (src/fabrik/ci_scaffold.py:47; spec § The delta › D3)
+- **Given** `VERSIONS_FILE` monkeypatched to a registry with `postgres_major: "18"`, **When** the same configs render, **Then** they name `pgvector/pgvector:0.8.6-pg18` and `postgres:18` (spec § The delta › D3)
+- **Given** `VERSIONS_FILE` monkeypatched to a registry lacking `pgvector_version`, **When** `fabrik.ci_scaffold` is reloaded with `importlib.reload`, **Then** the reload succeeds, and **When** `pg_image()` runs for a pgvector config, **Then** it raises `VersionRegistryError` naming `pgvector_version` (src/fabrik/version_registry.py:22)
+- **Given** the live `.windsurf/rules/versions.yaml`, **When** it is loaded, **Then** it carries non-empty `postgres_major` and `pgvector_version` (the only test bound to the live registry, so infra's later flip to 18 never reds the others) (spec § The delta › D3)
 - **Given** the strings `postgres:18-alpine`, `postgres:18.6-alpine` and `pgvector/pgvector:0.8.6-pg18`, **When** `_LOOSE` searches each, **Then** each matches, the existing `PostgreSQL 16` and `pgvector:pg16` cases still match, and `port 5432` does not (scripts/sysadmin/rules_render_versions.py:36)
 - **Given** `infra/vps1/postgres/compose.yaml`, **When** it is parsed, **Then** postgres-main runs `postgres:18.6-alpine`, mounts the external volume `postgres18-data` at `/var/lib/postgresql`, keeps `deploy.resources.limits.memory`, `container_name` and the `fabrik` network, and no service mounts anything at `/var/lib/postgresql/data` (infra/vps1/postgres/compose.yaml:3; spec § The delta › D1)
 - **Given** `infra/vps1/monitoring/compose.yaml`, **When** it is parsed, **Then** postgres-exporter runs `prometheuscommunity/postgres-exporter:v0.20.1` with `--collector.stat_checkpointer` and keeps its memory limit (infra/vps1/monitoring/compose.yaml:178; spec § Compatibility checks)
 - **Given** `scripts/bootstrap/bootstrap-config.sh`, **When** `FABRIK_HUB_VOLUMES_TO_RESTORE` is sourced in bash, **Then** it contains `postgres18-data` and not `postgres-data` (scripts/bootstrap/bootstrap-config.sh:201; spec § The delta › D3)
-- **Given** the DR scripts and docs this ticket owns, **When** they are searched for a restore instruction naming `postgres-data`, **Then** none remains outside an explicit release-time note (docs/operations/disaster-recovery.md:74)
+- **Given** the DR scripts and docs this ticket owns, **When** every line naming `postgres-data` is listed, **Then** the only ones left carry the marker `until release` (the allowlist; today only `disaster-recovery.md:264`) (docs/operations/disaster-recovery.md:74)
 - **Given** the files this ticket owns, **When** they are searched for `PostgreSQL 16`, `Postgres 16`, `postgres:16` or `PG16`, **Then** none matches (README.md:859; spec § Documentation landing sites)
 - **Given** docker on WSL, **When** `tests/test_app_role_real_pg.py` runs, **Then** its scratch container is `postgres:18.6-alpine` and the suite passes (tests/test_app_role_real_pg.py:30; spec § Validation V4)
-- **Given** the two docs, **When** they are searched for a statement that the fleet or postgres-main runs `PostgreSQL 16` or `postgres:16`, **Then** none matches (docs/infrastructure/vps-complete-inventory.md:120; spec § Documentation landing sites)
-- **Given** the runbook, **When** its hub-window section is read, **Then** every D1 step (the disk gate, 1–8 and 6a) has a command block, a verify line and a rollback line, in the spec's order (spec § The delta › D1)
-- **Given** the runbook, **When** its WSL section is read, **Then** D2 steps 0–6 appear in order and the local-writer stop list names session-recall, the youtube financials cron, the trade-intelligence GTIP refresh and the MCP tunnel (docs/operations/wsl-environment.md:52; spec § The delta › D2)
-- **Given** the runbook, **When** its release section is read, **Then** no step removes a docker volume or a cluster without the operator's explicit word (CLAUDE.md volumes HARD STOP; spec § Lifecycle)
-- **Given** the runbook's appendix, **When** it is read, **Then** it carries one request text per D5 project, each naming that project's exact files from spec § What exists today (spec § The delta › D5)
+- **Given** the two docs, **When** they are searched for `PostgreSQL 16`, `postgres:16` or `pgvector:pg16` stated as the current major, **Then** none matches (docs/infrastructure/vps-complete-inventory.md:120; spec § Documentation landing sites)
+- **Given** the runbook, **When** its hub-window section is read, **Then** every D1 step (the disk gate, 1–8 and 6a) has a command block, a verify line and a rollback line, in the spec's order, and step 6's verify carries the § Compatibility checks items (spec § The delta › D1; § Compatibility checks)
+- **Given** the runbook, **When** its WSL section is read, **Then** D2 steps 0–6 appear in order and the local-writer stop list names session-recall, the youtube financials cron and the trade-intelligence GTIP refresh (docs/operations/wsl-environment.md:52; spec § The delta › D2)
+- **Given** the runbook, **When** its release section is read, **Then** the V8 DR drill precedes any release step, and no step removes a docker volume or a cluster without the operator's explicit word (CLAUDE.md volumes HARD STOP; spec § Lifecycle; § Validation V8)
+- **Given** the runbook's appendix, **When** it is read, **Then** it carries one request text per spec D5 bullet and for D6, each naming its projects' exact files from spec § What exists today, the 27 doc-only projects in one broadcast (spec § The delta › D5)
 - **Given** the scratch rehearsal, **When** it runs the runbook's hub window from a seeded 16 cluster, **Then** V1 is green on 18.6 — counts, content hashes, roles, ACLs, settings and the recorded connection limit — and the restore stderr holds only `role "postgres" already exists` (spec § Validation V1)
 - **Given** the hand-offs, **When** infra's and brand-identiy-creator's inboxes are read, **Then** each holds one request naming its exact files, and the two operator gates are open awaiting items (spec § The delta › D4, D7; § Lifecycle)
 
@@ -175,8 +181,6 @@ shared cluster through it; T02 changes no port.
 - docs/operations/disaster-recovery.md
 - docs/operations/hub-restore-inventory.md
 - docs/operations/postgres-major-upgrade-runbook.md
-- docs/reference/prebuilt-app-containers.md
-- docs/reference/technology-stack-decision-guide.md
 - docs/traycer/fabrik-workflow.md
 - docs/workstation/session-recall.md
 - infra/vps1/monitoring/compose.yaml
@@ -196,7 +200,6 @@ shared cluster through it; T02 changes no port.
 - tests/test_large_docs_pg18.py
 - tests/test_live_docs_pg18.py
 - tests/test_pg18_runbook.py
-- docs/development/reviews/2026-10-06-plan-1-postgresql-18-upgrade-review.md
 
 ## Intake Inventory
 
@@ -207,26 +210,34 @@ shared cluster through it; T02 changes no port.
 | I3 | "all vps servers" | IN — the hub window, compose, DR chain; spokes reconnect only (they run no Postgres) | T02, T03, T05 |
 | I4 | "our rules must be updated in .windsurf/rules" | IN — drafted edits mailed to infra (governance-sync paths) | T06 |
 | I5 | "use fable 5.1 and opus 5.5 subagents and consult them, revise if needed then proceed" | IN — done before planning (D-617); this plan is the "proceed" | spec |
-| I6 | "when can i start db in wsl and my docer for trade-intelligence?" | IN — trade-intelligence's GTIP cron is in the WSL writer stop list; nothing stops WSL before the window | T05 |
+| I6 | "when can i start db in wsl and my docer for trade-intelligence?" (the operator, this session, 2026-10-06) | IN — trade-intelligence's GTIP cron is in the WSL writer stop list; nothing stops WSL before the window | T05 |
 | I7 | the stale 2026-05-25 plan's operator steps | IN — carried into the runbook | T05 |
 
 Intake: 7 items — 7 IN, 0 OUT-OF-SCOPE, 0 ASK.
 
 ## Evidence
 
-Governance-sync triggers among the paths this work touches (regex read from `.pre-commit-config.yaml`), verbatim:
+Governance-sync triggers among the paths this work touches (regex read from `.pre-commit-config.yaml`). The four routed-out
+paths, then every File Scope path of the pre-fix revision (28), verbatim:
 
 ```text
 True agents-fabrik.md
 True .windsurf/rules/versions.yaml
 True .windsurf/rules/core/25-data-postgres.md
 True .windsurf/rules/CLAIMS.yaml
-False src/fabrik/ci_scaffold.py
-False scripts/sysadmin/rules_render_versions.py
-False scripts/bootstrap/bootstrap-config.sh
-False README.md
-False docs/operations/disaster-recovery.md
-False infra/vps1/postgres/compose.yaml
+28
+SYNC docs/reference/prebuilt-app-containers.md
+SYNC docs/reference/technology-stack-decision-guide.md
+```
+
+Both SYNC docs moved to infra's hand-off (T06 b); no File Scope path is a trigger now.
+
+The pgvector tag the precondition relies on (Docker Hub tags API, probed 2026-10-06):
+
+```text
+0.8.6-pg16 200
+0.8.6-pg18 200
+0.8.7-pg16 200
 ```
 
 The current CI literals and registry loader:
@@ -245,7 +256,7 @@ The hub compose today (`infra/vps1/postgres/compose.yaml`):
 3:    image: postgres:16-alpine
 8:    - postgres-data:/var/lib/postgresql/data
 14:          memory: 2G
-22:    - 10.99.0.1:5432:5432
+23:    - 10.99.0.1:5432:5432
 25:  postgres-data:
 26:    external: true
 ```
@@ -260,14 +271,14 @@ Primary paths, one per ticket: `src/fabrik/ci_scaffold.py:47` (T01a), `scripts/s
   their corrections are applied above — `scripts/backfill_ci.py` asserts only `RUFF_VERSION`, not image strings; three spec
   citations corrected; five more DR-doc lines and four more WSL writers found.
 - (a) Coverage: D1 → T05 (+ T02 mirror); D2 → T05; D3 → T01a, T01b, T02, T03, T04a, T04b; D4 → T06 (infra mail); D5 → T05 appendix;
-  D6 → T05 appendix (trade-intelligence's six pins); D7 → T06; Validation V1 → T06 rehearsal, V4 → T04a, V2/V3/V5/V6/V8 →
-  runbook verify lines (T05), V7 → infra's registry flip after the window.
+  D6 → T05 appendix (trade-intelligence's six pins); D7 → T06; Validation V1 → T06 rehearsal, V4 → T04a, V2/V3/V5/V6 →
+  runbook verify lines (T05), V7 → infra's registry flip after the window; V8 → the runbook's release section (T05).
 - (b) Interfaces: the runbook's compose and volume strings are asserted against T02's and T03's files by T05's seam test.
 - Not yet converged — `/fabrik-plan-review` owns the fixed point.
 
 ## Coverage Checklist
 
-Armed by `python scripts/review_rubric.py --changed <the 28 File Scope paths>`, output verbatim (the promote tail elided, declared):
+Armed by `python scripts/review_rubric.py --changed <the 28 File Scope paths of the round-1 revision; the two routed-out docs/reference files add no pack>`, output verbatim (the promote tail elided, declared):
 
 ```text
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)

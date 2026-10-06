@@ -8,7 +8,7 @@ Gate: python -m pytest tests/test_dr_chain_pg18.py -q
 Docs: docs/operations/disaster-recovery.md, docs/operations/hub-restore-inventory.md, docs/infrastructure/vps-hub-rebuild.md
 
 ## Scope
-Implements spec § The delta › D3 (the DR-chain hunk), extended by the grounding to every live `postgres-data` line. `scripts/bootstrap/bootstrap-config.sh:201` lists `postgres18-data` in `FABRIK_HUB_VOLUMES_TO_RESTORE`; the comments and log strings at `scripts/bootstrap/bootstrap-hub.sh:78,83,1170,1315,1324,1334` and `src/fabrik/orchestrator/vultr_drill.py:310` name it; the docs `docs/operations/hub-restore-inventory.md:97,186,193`, `docs/operations/disaster-recovery.md:74,264,266,279,453` and `docs/infrastructure/vps-hub-rebuild.md:105,107,130` say it (the volume count at `disaster-recovery.md:264` stays true while both volumes are snapshotted until release). This hunk is the ONE part of the branch infra merges INSIDE the hub window, at runbook step 8 after V1 is green (spec D1 step 8; D-617). DO-NOT: remove `postgres-data` from anything that describes the live Backrest plan before release.
+Implements spec § The delta › D3 (the DR-chain hunk), extended by the grounding to every live `postgres-data` line. `scripts/bootstrap/bootstrap-config.sh:201` lists `postgres18-data` in `FABRIK_HUB_VOLUMES_TO_RESTORE`; the comments and log strings at `scripts/bootstrap/bootstrap-hub.sh:78,83,1170,1315,1324,1334` and `src/fabrik/orchestrator/vultr_drill.py:310` name it; the docs `docs/operations/hub-restore-inventory.md:97,186,193`, `docs/operations/disaster-recovery.md:74,264,266,279,453` and `docs/infrastructure/vps-hub-rebuild.md:105,107,130` say it; the count comment at `docs/operations/disaster-recovery.md:264` becomes '11 until release (both Postgres volumes), the loop restores 10'. The lines that describe the LIVE Backrest plan until release keep `postgres-data` beside `postgres18-data`, each carrying the marker `until release` — `docs/operations/disaster-recovery.md:264` — and are the test's allowlist. This hunk is the ONE part of the work infra merges INSIDE the hub window, at runbook step 8 after V1 is green (spec D1 step 8; D-617), so T03 is committed on its OWN branch `fleet-pg18-dr` cut from master (no CHANGELOG hunk — the orchestrator's entry rides the main branch), which the fleet branch also merges so T05 sees it. DO-NOT: remove `postgres-data` from a line that describes the live Backrest plan before release.
 
 ## Touches
 - scripts/bootstrap/bootstrap-config.sh — PRIMARY PATH
@@ -21,7 +21,7 @@ Implements spec § The delta › D3 (the DR-chain hunk), extended by the groundi
 
 ## Behavior Contract
 - **Given** `scripts/bootstrap/bootstrap-config.sh`, **When** `FABRIK_HUB_VOLUMES_TO_RESTORE` is sourced in bash, **Then** it contains `postgres18-data` and not `postgres-data` (scripts/bootstrap/bootstrap-config.sh:201; spec § The delta › D3)
-- **Given** the DR scripts and docs this ticket owns, **When** they are searched for a restore instruction naming `postgres-data`, **Then** none remains outside an explicit release-time note (docs/operations/disaster-recovery.md:74)
+- **Given** the DR scripts and docs this ticket owns, **When** every line naming `postgres-data` is listed, **Then** the only ones left carry the marker `until release` (the allowlist; today only `disaster-recovery.md:264`) (docs/operations/disaster-recovery.md:74)
 
 ## Context Files
 - .windsurf/rules/core/90-bootstrap-scripts.md
