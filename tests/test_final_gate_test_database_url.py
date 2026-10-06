@@ -267,3 +267,21 @@ def test_only_the_database_url_family_is_resolved():
     assert family.match(APP_KEY) and family.match("TEST_MIGRATION_DATABASE_URL")
     assert not family.match("TEST_DATABASE_URL")  # the primary key keeps its own path
     assert not family.match("TEST_REDIS_URL") and not family.match("TEST__DATABASE_URL")
+
+
+def test_two_keys_sharing_a_password_or_a_prefix_each_keep_their_label(rls_project, monkeypatch):
+    """Review round 2: with a shared one-letter password, or one URL a prefix of the other, the
+    first key's pass rewrote the second URL before its own replace ran — unlabeled or mislabeled."""
+    tdb = "postgresql://u:p@localhost/test"
+    app = "postgresql://u:p@localhost/test_app_test"
+    monkeypatch.setenv(KEY, tdb)
+    monkeypatch.setenv(APP_KEY, app)
+    (rls_project / "tests" / "test_rls.py").write_text(
+        "import os\n\ndef test_both():\n"
+        f"    raise AssertionError('A=' + os.environ['{KEY}'] + ' B=' + os.environ['{APP_KEY}'])\n",
+        encoding="utf-8",
+    )
+    name, ok, text = _row()
+    assert not ok, (name, text)
+    assert "A=<TEST_DATABASE_URL> B=<TEST_APP_DATABASE_URL>" in text, text
+    assert "localhost/test" not in text, text

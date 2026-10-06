@@ -1220,7 +1220,13 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
         timeout=TIMEOUTS["pytest"],
         extra_env=child_env or None,
     )
-    for _k, _v in ((_TDB_KEY, tdb), *extra.items()):
+    # Every whole URL first, longest first, and only then the passwords: one key's password pass
+    # (or a URL that prefixes another) would otherwise rewrite a later URL before its own replace
+    # runs, leaving it unlabeled or under the wrong key's label (review round 2)
+    pairs = [(k, v) for k, v in ((_TDB_KEY, tdb), *extra.items()) if v]
+    for _k, _v in sorted(pairs, key=lambda kv: -len(kv[1])):
+        out = out.replace(_v, f"<{_k}>")
+    for _k, _v in pairs:
         out = _redact_test_database_url(out, _v, _k)
     if _module_absent(out, "pytest"):
         return ("pytest (NOT RUN)", True, "pytest is not installed in this interpreter")
