@@ -375,8 +375,9 @@ def test_no_emitter_writes_the_retired_coolify_path_into_a_project(tmp_path, emi
     else:
         scaffold._write_saas_compose(proj, "svc")
     # src/svc/glitchtip_init.py is VENDORED verbatim from site-provisioner (its own header says
-    # so); its retired COOLIFY_DEPLOYMENT_UUID release fallback is fixed upstream, then
-    # re-vendored. .venv is third-party code the scaffold installs, not text it writes.
+    # so). Since the a13c801 re-vendor it no longer READS the retired Coolify deployment id, but
+    # upstream's `_release` docstring still names it as history, and the vendored bytes are not
+    # ours to edit. .venv is third-party code the scaffold installs, not text it writes.
     vendored = {"src/svc/glitchtip_init.py"}
     written = [
         p

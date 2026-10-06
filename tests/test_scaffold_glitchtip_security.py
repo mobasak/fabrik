@@ -297,8 +297,10 @@ def test_vendored_module_is_deny_by_default_and_registers_both_hooks():
     # `ipaddress` arrived with the @-less credential fix: the authority is accepted only if it
     # provably PARSES, and a ":" survives solely as a numeric port or inside a bracketed IPv6
     # literal — which is what `ipaddress.IPv6Address` adjudicates. Widened deliberately, with
-    # the reason recorded, rather than relaxed to make a red guard green.
-    assert top <= {"ipaddress", "os", "re", "logging", "sentry_sdk", "structlog"}, (
+    # the reason recorded, rather than relaxed to make a red guard green. `bisect` arrived with
+    # the a13c801 re-vendor: the redactor's per-match position lookup bisects a sorted index
+    # list (O(log n) per match) — stdlib, so the "a scaffolded project can run it" bar holds.
+    assert top <= {"bisect", "ipaddress", "os", "re", "logging", "sentry_sdk", "structlog"}, (
         f"unexpected top-level imports: {top}"
     )
 
