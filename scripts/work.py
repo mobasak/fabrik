@@ -5077,6 +5077,7 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
                 "tree": str(tree),
             }
         )
+    open_plans = _open_plans(main)  # typed here: the mixed-value report dict widens it to a union
     report = {
         "coordinator": coordinator or None,
         "floor": floor,
@@ -5084,7 +5085,7 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
         "routable": len(pool["routable"]),
         "backlog_waiting": len(pool["backlog"]),
         "held": len(pool["held"]),
-        "plans": _open_plans(main),
+        "plans": open_plans,
     }
     if args.json:
         print(json.dumps(report, sort_keys=True))
@@ -5101,7 +5102,7 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
         f"routable {report['routable']} · backlog waiting {report['backlog_waiting']} · "
         f"held {report['held']} (runtime/hold/waits-*)"
     )
-    for plan in report["plans"]:
+    for plan in open_plans:
         print(f"plan not executed: {plan}")
     return 0
 

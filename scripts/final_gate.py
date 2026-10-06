@@ -47,6 +47,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 # Kaizen M1 sensor (T04) — OBSERVATION ONLY. Additive, idempotent path append + a
 # defensive import: a project that never receives the box-local module behaves exactly
@@ -377,21 +378,23 @@ def _dotenv_value(path: Path, key: str) -> str | None:
     return found
 
 
-def _resolve_test_database_url(root: Path) -> tuple[str | None, str, str | None, list[str]]:
-    """(value, source, refusal, paths checked) for the pytest leg's TEST_DATABASE_URL.
+def _resolve_test_database_url(
+    root: Path, key: str = _TDB_KEY
+) -> tuple[str | None, str, str | None, list[str]]:
+    """(value, source, refusal, paths checked) for one of the pytest leg's database keys.
 
     The environment wins (the operator's own value, passed as-is). Otherwise the first file of
     ``_TDB_FILES`` that names the key; a file value must end its database name in ``_test``,
     ``throwaway`` or ``scratch`` (the scaffold's bar) and differ from that file's DATABASE_URL, or
     it is refused — never passed."""
-    env = os.environ.get(_TDB_KEY, "")
+    env = os.environ.get(key, "")
     if env:
         return env, "the environment", None, []
     checked: list[str] = []
     for name in _TDB_FILES:
         path = root / name
         checked.append(str(path))
-        value = _dotenv_value(path, _TDB_KEY)
+        value = _dotenv_value(path, key)
         if not value:
             continue
         from urllib.parse import urlsplit  # noqa: PLC0415 — only on this path
@@ -402,7 +405,7 @@ def _resolve_test_database_url(root: Path) -> tuple[str | None, str, str | None,
             return (
                 None,
                 name,
-                f"TEST_DATABASE_URL in {path} does not name a disposable database (its name must "
+                f"{key} in {path} does not name a disposable database (its name must "
                 "end `_test`, `throwaway` or `scratch` and differ from that file's DATABASE_URL) — "
                 "refused, NOT passed to pytest: the gate runs the DB suite on every completion "
                 "gate, and a suite without a throwaway guard drops or truncates what the key names.",
@@ -410,6 +413,47 @@ def _resolve_test_database_url(root: Path) -> tuple[str | None, str, str | None,
             )
         return value, name, None, checked
     return None, "", None, checked
+
+
+# The other database keys of the same family (brand-identiy-creator 01M473WBS4VSQPQ7XAJZZYNSFT):
+# an RLS suite connects as a NON-superuser through TEST_APP_DATABASE_URL, and one reading only the
+# superuser key bypasses RLS and fails its tenant-isolation tests. Measured 2026-10-06 over 3,382
+# test files in /opt: TEST_DATABASE_URL (8 repos), TEST_APP_DATABASE_URL and
+# TEST_MIGRATION_DATABASE_URL (brand-identiy-creator) are the only `TEST_*DATABASE_URL` keys read.
+# Every key of the family takes the primary key's path — environment first, else a file value
+# under the same disposable refusal — so none is one more literal. TEST_REDIS_URL is NOT in it: a
+# Redis URL carries no database NAME, so the disposable test cannot apply. COBRA: a suite keeps
+# its RLS tests out of the gate by naming its key outside the family; the review reads that.
+_TDB_FAMILY = re.compile(r"^TEST_[A-Z0-9]+(?:_[A-Z0-9]+)*_DATABASE_URL$")
+_TDB_FAMILY_LINE = re.compile(r"^\s*(?:export\s+)?(TEST_[A-Z0-9_]+_DATABASE_URL)\s*=")
+
+
+def _resolve_extra_test_database_urls(root: Path) -> tuple[dict[str, str], list[str], str | None]:
+    """({key: value} to pass, "KEY from source" notes, refusal) for the family's OTHER keys.
+
+    A key is in play when the environment or one of ``_TDB_FILES`` names it; each is resolved as
+    ``_resolve_test_database_url`` resolves the primary key, and one refused value refuses the
+    leg."""
+    names = {k for k in os.environ if _TDB_FAMILY.match(k)}
+    for name in _TDB_FILES:
+        try:
+            text = (root / name).read_text(encoding="utf-8-sig", errors="replace")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            m = _TDB_FAMILY_LINE.match(line)
+            if m and _TDB_FAMILY.match(m.group(1)):
+                names.add(m.group(1))
+    values: dict[str, str] = {}
+    notes: list[str] = []
+    for key in sorted(names):
+        value, source, refusal, _ = _resolve_test_database_url(root, key)
+        if refusal:
+            return {}, [], refusal
+        if value:
+            values[key] = value
+            notes.append(f"{key} from {source}")
+    return values, notes, None
 
 
 def _redact_test_database_url(text: str, value: str | None) -> str:
@@ -509,7 +553,12 @@ _SKIP_MARKERS: tuple[str, ...] = (
 )
 
 
-def _summarize_skipped(rows: list[tuple[str, bool, str]]) -> dict[str, object]:
+class _Skipped(TypedDict):
+    skipped: int
+    skipped_checks: list[str]
+
+
+def _summarize_skipped(rows: list[tuple[str, bool, str]]) -> _Skipped:
     """The rows that are GREEN BUT NEVER RAN — a missing tool, a pytest that did not execute or
     collected nothing, or the whole static tier skipped on a docs-only diff. Green by contract (a
     skip never traps an agent) but asserting nothing, so `status: success, passed: 55` must not be
@@ -1142,6 +1191,13 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
     tdb, source, refusal, checked = _resolve_test_database_url(PROJECT_ROOT)
     if refusal:
         return ("pytest (TEST_DATABASE_URL REFUSED — not a disposable database)", False, refusal)
+    extra, extra_notes, extra_refusal = _resolve_extra_test_database_urls(PROJECT_ROOT)
+    if extra_refusal:
+        return (
+            "pytest (TEST_*_DATABASE_URL REFUSED — not a disposable database)",
+            False,
+            extra_refusal,
+        )
     where = ", ".join(checked)
     if not tdb and (PROJECT_ROOT.joinpath(*_TDB_SENTINEL)).exists():
         return (
@@ -1153,13 +1209,16 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
             "disposable database: its name ends `_test`, `throwaway` or `scratch`) to "
             ".env.local, or delete the sentinel.",
         )
-    note = f"TEST_DATABASE_URL from {source} (value redacted)." if tdb else ""
+    sources = ([f"TEST_DATABASE_URL from {source}"] if tdb else []) + extra_notes
+    note = f"{', '.join(sources)} (values redacted)." if sources else ""
+    child_env = ({_TDB_KEY: tdb} if tdb else {}) | extra
     code, out = run_cmd(
         [PYTHON, "-m", "pytest", "tests/", "-x", "-q", "--color=no", "-p", "no:cacheprovider"],
         timeout=TIMEOUTS["pytest"],
-        extra_env={_TDB_KEY: tdb} if tdb else None,
+        extra_env=child_env or None,
     )
-    out = _redact_test_database_url(out, tdb)
+    for _v in (tdb, *extra.values()):
+        out = _redact_test_database_url(out, _v)
     if _module_absent(out, "pytest"):
         return ("pytest (NOT RUN)", True, "pytest is not installed in this interpreter")
     elif code == 5:  # pytest exit 5 = no tests collected
