@@ -38,11 +38,17 @@ _POSTGRES_DATA_WHOLE_WORD = re.compile(r"(?<![\w-])postgres-data(?![\w-])")
 # A whole-word "11" — a bare substring check would false-pass on "110" (B4).
 _ELEVEN_WHOLE_WORD = re.compile(r"\b11\b")
 
-# A double-quoted SQL identifier inside a `datname IN (...)` clause: `remote '...'` is itself
-# single-quoted, so psql receives literal `"glitchtip"` as a DOUBLE-QUOTED IDENTIFIER, not a
-# string literal — the query errors, `dblist` comes back empty via the `|| true`/`|| echo ""`
-# fallback, and the probe silently never matches anything (B1).
-_DATNAME_IN_DOUBLE_QUOTED = re.compile(r'datname\s+IN\s*\(\s*\\"')
+# A `datname IN (...)` clause whose first literal isn't single-quoted: `remote '...'` is itself
+# single-quoted, so EITHER double-quote spelling — the escaped `\"glitchtip\"` B1 found, or a bare
+# `"glitchtip"` — reaches psql as a DOUBLE-QUOTED IDENTIFIER, not a string literal; the query
+# errors, `dblist` comes back empty via the `|| true`/`|| echo ""` fallback, and the probe
+# silently never matches anything (B1, generalized by N1). A single-quoted `'glitchtip'` is the
+# only spelling that would survive.
+_DATNAME_IN_NOT_SINGLE_QUOTED = re.compile(r"datname\s+IN\s*\(\s*(?!')")
+
+# The exact, quoting-free query both postgres18-data restore probes must send — it sidesteps
+# literal quoting entirely rather than getting it right inside a nested-quote remote string.
+_EXPECTED_PSQL_QUERY = 'psql -U postgres -tAc "SELECT datname FROM pg_database"'
 
 DISASTER_RECOVERY_MD = REPO_ROOT / "docs" / "operations" / "disaster-recovery.md"
 
@@ -51,6 +57,23 @@ DISASTER_RECOVERY_MD = REPO_ROOT / "docs" / "operations" / "disaster-recovery.md
 # "a|b"`, which means a half-restored cluster missing one of the two databases would read as
 # "intact" and skip the pg_dump fallback that would have fixed it.
 _PROBE_FUNCTIONS = ("step_12c_start_core_services_drill", "step_14_pg_dump_restore_fallback")
+
+# The live (non-comment) `if` line both probe sites must carry, requiring BOTH names — anchored
+# to line start so a whole-body substring search can't be satisfied by a COMMENTED-OUT copy of
+# the same text sitting beside a live broken check (N2).
+_REQUIRES_BOTH_IF_LINE = re.compile(
+    r'^\s*if echo "\$dblist" \| grep -qx glitchtip && echo "\$dblist" \| grep -qx site_provisioner; then',
+    re.M,
+)
+
+
+def _strip_bash_comments(body: str) -> str:
+    """Drop full-line bash comments from a function body.
+
+    A structural check reads what the function actually RUNS; a comment — whether it shows the
+    right pattern (and would wrongly pass a search over the raw body) or the old wrong pattern
+    (and would wrongly fail one) — is not code (N2)."""
+    return "\n".join(line for line in body.splitlines() if not line.strip().startswith("#"))
 
 
 def _extract_bash_function(text: str, name: str) -> str:
@@ -151,34 +174,47 @@ def test_disaster_recovery_restore_loop_matches_bootstrap_config_volumes() -> No
     )
 
 
-def test_bootstrap_hub_no_double_quoted_identifier_in_datname_in_clause() -> None:
-    """No probe may send psql a `datname IN (\\"glitchtip\\", ...)` clause — inside the
-    single-quoted `remote '...'` string the backslash-quote reaches psql as a DOUBLE-QUOTED
-    IDENTIFIER, not a string literal, so the query errors and the probe always reads empty (B1,
-    CONFIRMED against a scratch cluster: `ERROR: column "glitchtip" does not exist`)."""
+def test_bootstrap_hub_probe_sites_query_datname_without_literal_quoting() -> None:
+    """Each probe site must send psql a bare `SELECT datname FROM pg_database` — no `datname IN
+    (...)` clause at all. EITHER double-quote spelling of its literals breaks inside the
+    single-quoted `remote '...'` wrapper — the escaped `\\"glitchtip\\"` form B1 found, and a bare
+    `"glitchtip"` form are equally broken, both reaching psql as a DOUBLE-QUOTED IDENTIFIER, not a
+    string literal (N1, generalizing B1: CONFIRMED against a scratch cluster with the escaped form,
+    `ERROR: column "glitchtip" does not exist`). The exact-string check on each probe site locks in
+    the fix that sidesteps literal quoting entirely, rather than merely swapping one broken spelling
+    for the other."""
     text = BOOTSTRAP_HUB.read_text()
     offenders = [
         f"{lineno}: {line.strip()}"
         for lineno, line in enumerate(text.splitlines(), start=1)
-        if _DATNAME_IN_DOUBLE_QUOTED.search(line)
+        if _DATNAME_IN_NOT_SINGLE_QUOTED.search(line)
     ]
     assert not offenders, (
-        "double-quoted identifier(s) survive in a datname IN clause:\n" + "\n".join(offenders)
+        "a `datname IN (...)` clause survives without single-quoted literals:\n"
+        + "\n".join(offenders)
     )
+    for name in _PROBE_FUNCTIONS:
+        body = _extract_bash_function(text, name)
+        assert _EXPECTED_PSQL_QUERY in body, (
+            f"{name}() does not query exactly `{_EXPECTED_PSQL_QUERY}`:\n{body}"
+        )
 
 
 def test_bootstrap_hub_probe_sites_require_both_databases() -> None:
     """Both postgres18-data restore probes (step_12c, step_14) must require BOTH `glitchtip`
-    AND `site_provisioner` present before declaring the restore intact — step_14 used to accept
-    EITHER one via `grep -qE "glitchtip|site_provisioner"`, so a half-restored cluster missing
-    one database would read as intact and skip the pg_dump fallback that would have fixed it
-    (B1)."""
+    AND `site_provisioner` present, on a REAL (non-comment) `if` line — step_14 used to accept
+    EITHER one via `grep -qE "glitchtip|site_provisioner"`, so a half-restored cluster missing one
+    database would read as intact and skip the pg_dump fallback that would have fixed it (B1). A
+    whole-body substring search is comment-blind: a commented-out
+    `# grep -qx glitchtip && grep -qx site_provisioner` sitting beside a live broken check would
+    wrongly pass it (N2)."""
     text = BOOTSTRAP_HUB.read_text()
     for name in _PROBE_FUNCTIONS:
-        body = _extract_bash_function(text, name)
-        assert re.search(r"grep -qx glitchtip\b.*&&.*grep -qx site_provisioner\b", body), (
-            f"{name}() does not require BOTH glitchtip AND site_provisioner:\n{body}"
+        body = _strip_bash_comments(_extract_bash_function(text, name))
+        assert _REQUIRES_BOTH_IF_LINE.search(body), (
+            f"{name}() has no live (non-comment) if-line requiring BOTH "
+            f"glitchtip AND site_provisioner:\n{body}"
         )
         assert "glitchtip|site_provisioner" not in body, (
-            f"{name}() still carries the either-one alternation pattern:\n{body}"
+            f"{name}() still carries a live either-one alternation pattern:\n{body}"
         )
