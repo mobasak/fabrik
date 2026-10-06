@@ -302,6 +302,32 @@ def test_a_shipped_plan_is_not_listed_as_open(tmp_path):
     assert "plan-2" in listed and "plan-1" not in listed, listed
 
 
+def test_an_open_plan_set_is_listed_by_its_spine(tmp_path):
+    """web-ecommerce-factory 01M46V7T0CR4MAXBF3K5D0FSDD: the plans glob was one level deep, so a
+    directory-form set (`plans/<stem>/<stem>.md` + `T##` tickets) was never listed while open."""
+    env, repo, _ = _setup(tmp_path)
+    plans = repo / "docs" / "development" / "plans"
+    for stem, status in (
+        ("2026-01-03-plan-1-open-set", "CONVERGED"),
+        ("2026-01-04-plan-2-done-set", "EXECUTED"),
+    ):
+        (plans / stem).mkdir(parents=True)
+        (plans / stem / f"{stem}.md").write_text(f"# s\n\nStatus: {status}\n", encoding="utf-8")
+        (plans / stem / "T01-ticket.md").write_text("# T01\n\nStatus: DRAFT\n", encoding="utf-8")
+    (plans / "archived" / "2026-01-05-plan-3-old").mkdir(parents=True)
+    old = plans / "archived" / "2026-01-05-plan-3-old" / "2026-01-05-plan-3-old.md"
+    old.write_text("# o\n\nStatus: DRAFT\n", encoding="utf-8")
+    (plans / "notes").mkdir()
+    (plans / "notes" / "scratch.md").write_text("# n\n\nStatus: DRAFT\n", encoding="utf-8")
+    # an undated directory is not a plan set, even with a same-stem file
+    (plans / "notes" / "notes.md").write_text("# n\n\nStatus: DRAFT\n", encoding="utf-8")
+    listed = _queue(repo, env)["plans"]
+    joined = " ".join(listed)
+    assert "2026-01-03-plan-1-open-set/2026-01-03-plan-1-open-set.md" in joined, listed
+    assert "done-set" not in joined and "plan-3-old" not in joined, listed
+    assert "T01-ticket" not in joined and "notes/" not in joined, listed
+
+
 def test_triage_reports_only_what_it_wrote_when_an_item_was_taken_meanwhile(
     tmp_path, monkeypatch, capsys
 ):

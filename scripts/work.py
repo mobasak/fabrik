@@ -4605,7 +4605,13 @@ def _open_plans(main: Path) -> list[str]:
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         out = []
-        for path in sorted((main / "docs" / "development" / "plans").glob("*.md")):
+        plans = main / "docs" / "development" / "plans"
+        # a plan SET is `plans/<stem>/<stem>.md` + T## tickets; its spine carries the status
+        # (web-ecommerce-factory 01M46V7T0CR4MAXBF3K5D0FSDD: a one-level glob never listed one).
+        # Sets are matched as `_iter_plan_spines` matches them; top-level files keep the wider
+        # `*.md` glob, so an undated plan this view always listed is not dropped
+        spines = [d / f"{d.name}.md" for d in plans.glob("*/") if _PLAN_DIR_NAME_RE.match(d.name)]
+        for path in sorted([*plans.glob("*.md"), *(s for s in spines if s.is_file())]):
             status = str(mod.parse_plan_status(path)[0]).upper().strip()
             if (status.split() or [""])[0] not in _PLAN_DONE:
                 out.append(f"{path.relative_to(main).as_posix()} ({status})")
