@@ -1003,13 +1003,15 @@ def _validate_compose(content: str) -> list[str]:
         # configured", rc 1 — compose 2.40.3), which every git and redeploy path runs; a service with
         # NO healthcheck block passes. Refused here, before `up`, with the two shapes that work.
         # A healthcheck is disabled when `disable` is true (bool or the string "true") or when its
-        # `test` names no command — `["NONE"]`, the bare "NONE", or an EMPTY list/string. Every one
-        # of these fails `--wait` identically (all measured on compose 2.40.3).
+        # `test` names no command — `["NONE"]`, the bare "NONE", or an EMPTY list. Every one of these
+        # fails `--wait` identically (all measured on compose 2.40.3). NOT the empty STRING: compose runs
+        # `test: ""` as `CMD-SHELL ""`, which exits 0 — a valid, always-passing check. A block with no
+        # `test` inherits the image HEALTHCHECK, which this static check cannot see, so it is not judged.
         healthcheck = svc_config.get("healthcheck")
         if isinstance(healthcheck, dict):
             test = healthcheck.get("test", "absent")
             disabled = str(healthcheck.get("disable")).strip().lower() == "true" or (
-                test in ("NONE", "", []) or (isinstance(test, list) and test[:1] == ["NONE"])
+                test in ("NONE", []) or (isinstance(test, list) and test[:1] == ["NONE"])
             )
             if disabled:
                 errors.append(

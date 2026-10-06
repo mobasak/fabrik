@@ -253,6 +253,16 @@ class TestValidateCompose:
         )
         assert _validate_compose(probe) == []
 
+    def test_an_empty_string_healthcheck_test_is_not_refused(self):
+        """compose runs `test: ""` as `CMD-SHELL ""`, which exits 0 and passes `--wait` (measured,
+        compose 2.40.3) — a valid check, never a disabled one (review round 3 of ee2e55362)."""
+        compose = self._valid_compose().replace(
+            "    networks:\n      - fabrik\n",
+            '    healthcheck:\n      test: ""\n    networks:\n      - fabrik\n',
+            1,
+        )
+        assert _validate_compose(compose) == []
+
     def test_missing_restart(self):
         compose = self._valid_compose().replace("    restart: unless-stopped\n", "")
         errors = _validate_compose(compose)
