@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scaffolded services report to GlitchTip with a release and environment (2026-10-06)
+
+- python-api, python-api-gpu and node-api containers now receive `SENTRY_DSN`/`GLITCHTIP_DSN`, `APP_GIT_SHA=${GIT_SHA:-unknown}` and `ENVIRONMENT` (before, the DSN never reached them, so they sent nothing). `fabrik apply` and `redeploy` persist the deployed commit as `GIT_SHA` in the app's `.env`, after the spec's env so a spec `GIT_SHA: ""` cannot blank it, and a rollback writes the rolled-back SHA. A failed `rev-parse` leaves `.env` alone and the deploy goes on. `_is_placeholder` also treats one bare `${NAME[:-default]}` as a placeholder, so a spec copying the compose lines never overwrites a real `.env` value. The vendored `glitchtip_init.py` is re-vendored from site-provisioner a13c801 (release from `APP_GIT_SHA` then `GIT_SHA`, environment from `APP_ENV` then `ENVIRONMENT`, 12 upstream scrubber fixes); the node module reads the same names in the same order. Graders: `tests/test_scaffold_glitchtip_release.py`, `tests/orchestrator/test_deployer_git_sha.py`. Site-provisioner mail 01M491AE33, D-626.
+
 ### Added — the PostgreSQL major-upgrade operator runbook (16 → 18) (2026-10-06)
 
 - `docs/operations/postgres-major-upgrade-runbook.md`: pre-window probes, the WSL window (D2), the hub window (disk gate, D1 steps 1-8 with 6a — each a command block, a verify line and a rollback), release after the soak (the V8 DR drill first, every removal gated on the operator's word), and the D5/D6/D7 request texts. Its SQL and shell were rehearsed on throwaway 16 and 18.6 containers; the review fixed a WSL-step-2 guard that could drop the upgraded cluster, a settings port that would stop 18 from booting, a truncated-dump check, and a password file inside a backed-up path. The Backrest snapshot is a precondition of the DR-chain merge. `tests/test_pg18_runbook.py` (56 tests, several behavioural) grades it, including the T02/T03 seam tests. PG18 plan T05.
