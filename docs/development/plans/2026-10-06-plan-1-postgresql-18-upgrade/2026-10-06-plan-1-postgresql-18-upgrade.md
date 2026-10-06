@@ -123,9 +123,11 @@ shared cluster through it; T02 changes no port.
   `python3 scripts/command_run.py dispatch --seats N` before each fan-out. Coders: Sonnet for T02, T03, T04a, T04b (`simple`),
   T01a (`complex`), T01b (`simple`); Opus for T05 (`native`, design-heavy); T06 is the orchestrator's. Haiku never codes. Seats never read
   `$HOME/.claude*` or any `.env`, never ssh, never touch a live database; a scratch docker rehearsal uses named containers removed after.
-- **Precondition gate** — T01a is not dispatched while `.windsurf/rules/versions.yaml` on master lacks `pgvector_version`.
+- **Precondition gate** — T01a is not dispatched while `.windsurf/rules/versions.yaml` on master lacks `pgvector_version`;
+  T01b is not dispatched while `.windsurf/rules/core/30-ops.md:320` or `.windsurf/rules/core/25-data-postgres.md:23` still
+  carries an unmarked `postgres:16-alpine` on master.
 - **Operator gates** — no ticket executes the WSL window or the hub window; T06 boards both, and the hub window is Gate 2.
-- **Parallelism + merge** — T01a, T01b, T02, T03, T04a and T04b fan out concurrently (disjoint Touches), T01a once its precondition holds;
+- **Parallelism + merge** — T01a, T01b, T02, T03, T04a and T04b fan out concurrently (disjoint Touches), T01a and T01b once their preconditions hold;
   T05 starts when T02 is merged into the fleet branch and T03 is committed on `fleet-pg18-dr` and merged into the fleet branch; every merge happens in the fleet worktree branch in § Merge Order, and the
   results merge/dedupe at T06, which re-runs every ticket's gate on the merged branch.
 - **Ids** — every D-row this plan mints uses `python3 scripts/decisions.py --reserve-id .`.
@@ -140,7 +142,7 @@ shared cluster through it; T02 changes no port.
 - **Given** `infra/vps1/postgres/compose.yaml`, **When** it is parsed, **Then** postgres-main runs `postgres:18.6-alpine`, mounts the external volume `postgres18-data` at `/var/lib/postgresql`, keeps `deploy.resources.limits.memory`, `container_name` and the `fabrik` network, and no service mounts anything at `/var/lib/postgresql/data` (infra/vps1/postgres/compose.yaml:3; spec § The delta › D1)
 - **Given** `infra/vps1/monitoring/compose.yaml`, **When** it is parsed, **Then** postgres-exporter runs `prometheuscommunity/postgres-exporter:v0.20.1` with `--collector.stat_checkpointer` and keeps its memory limit (infra/vps1/monitoring/compose.yaml:178; spec § Compatibility checks)
 - **Given** `scripts/bootstrap/bootstrap-config.sh`, **When** `FABRIK_HUB_VOLUMES_TO_RESTORE` is sourced in bash, **Then** it contains `postgres18-data` and not `postgres-data` (scripts/bootstrap/bootstrap-config.sh:201; spec § The delta › D3)
-- **Given** the DR scripts and docs this ticket owns, **When** every line naming `postgres-data` is listed, **Then** the only ones left carry the marker `until release` (the allowlist; today only `disaster-recovery.md:264`) (docs/operations/disaster-recovery.md:74)
+- **Given** the DR scripts and docs this ticket owns, **When** they are searched for `postgres-data` as a whole word (so `postgres18-data` never matches), **Then** no line matches, and `disaster-recovery.md`'s volume-count comment reads 11 until release (docs/operations/disaster-recovery.md:74)
 - **Given** the files this ticket owns, **When** they are searched for `PostgreSQL 16`, `Postgres 16`, `postgres:16` or `PG16`, **Then** none matches (README.md:859; spec § Documentation landing sites)
 - **Given** docker on WSL, **When** `tests/test_app_role_real_pg.py` runs, **Then** its scratch container is `postgres:18.6-alpine` and the suite passes (tests/test_app_role_real_pg.py:30; spec § Validation V4)
 - **Given** the two docs, **When** they are searched for `PostgreSQL 16`, `postgres:16` or `pgvector:pg16` stated as the current major, **Then** none matches (docs/infrastructure/vps-complete-inventory.md:120; spec § Documentation landing sites)
@@ -157,17 +159,17 @@ shared cluster through it; T02 changes no port.
 - Never-Route: agents-fabrik.md
 - No ticket touches a live host, a live database, the hub's `/opt/postgres/compose.yaml`, or a docker volume.
 - Shared tree: sibling WIP is never staged, reverted or stashed; ledger rows go through the private-index recipe in ONE shell.
-- Infra merges this branch (`scripts/merge_request.py request`); T03's hunk is merged inside the hub window, the rest after it.
+- Infra merges two branches (`scripts/merge_request.py request` for each): `fleet-pg18-dr` (T03 alone) inside the hub window, the fleet branch after it.
 
 ## Context Ledger
 
 | Source | What binds | Grounded ref |
 |---|---|---|
 | Spec (CONVERGED, approved D-617) | every design choice | `docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md` |
-| Research ledger (61 rows) | every external fact (image tags, pg_dumpall behaviour, exporter version) | `docs/reference/research/2026-10-06-postgresql-18-upgrade-ledger.md` |
+| Research ledger (61 rows) | every external fact (image tags, pg_dumpall behaviour, exporter version), except the `0.8.6-pg16` tag probed in § Evidence | `docs/reference/research/2026-10-06-postgresql-18-upgrade-ledger.md` |
 | `.windsurf/rules/core/25-data-postgres.md` (ACTIVE) | real-PG tests, the uuidv7 rule D4 rewrites | `.windsurf/rules/core/25-data-postgres.md:163,270` |
 | `.windsurf/rules/core/30-ops.md` (ACTIVE) | compose invariants, never hot-patch, probe live | `.windsurf/rules/core/30-ops.md:148-151,268,320` |
-| `.windsurf/rules/core/90-bootstrap-scripts.md` (MATCHED) | idempotent bootstrap/runbook steps | `.windsurf/rules/core/90-bootstrap-scripts.md:143,169` |
+| `.windsurf/rules/core/90-bootstrap-scripts.md` (MATCHED) | idempotent bootstrap/runbook steps | `.windsurf/rules/core/90-bootstrap-scripts.md:143,169-170` |
 | `agents-fabrik.md` § Tech Stack Defaults / § Infrastructure Services | postgres-main is the shared hub cluster | `agents-fabrik.md:170` |
 | fabrik-lib | none needed — no new capability; the CI derivation reuses the hub's own `fabrik.version_registry` | `src/fabrik/version_registry.py:33` |
 | `specs/services/*.yaml` shape | unchanged — no service gains or loses a database | n/a |
