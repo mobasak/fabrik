@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-06T14:00:24.030725Z",
   "creator": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
-  "evidence": "",
+  "evidence": "95eb2f210c3c3fc4e2518cf8fed5af06854145c4",
   "id": "W-0f8f8706",
   "kind": "next",
   "legacy": false,
@@ -17,6 +17,6 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "When it reports, write the plan set at docs/development/plans/2026-10-06-plan-1-postgresql-18-upgrade/ (registry/CI, hub compose, DR chain, pins+docs, runbook, integration), run check_plan_tickets, then /fabrik-plan-review on the directory."
 }
