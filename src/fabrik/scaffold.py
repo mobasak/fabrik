@@ -1074,10 +1074,12 @@ def _write_canonical_compose(
     else:
         traefik_labels = ""
 
-    # NOTE: concrete literals, never a shell-fallback `${VAR:-default}` — the
-    # fallback form once broke BuildKit builds (`Extra characters after
-    # interpolation expression`) when forwarded as a --build-arg. These
-    # `environment:` values win over any .env, so change them here.
+    # NOTE: PORT and LOG_LEVEL are concrete literals; these `environment:` values
+    # win over any .env, so change them here. Never put the shell-fallback
+    # `${VAR:-default}` form in a value FORWARDED AS A BUILD ARG — it once broke
+    # BuildKit builds (`Extra characters after interpolation expression`). This
+    # template has no `build.args`, so an `extra_env_lines` entry may use it
+    # (node-api's GlitchTip lines do, to read the deployer's .env).
     env_section = f"""    environment:
       - PORT={port}
       - LOG_LEVEL=INFO
@@ -4451,9 +4453,25 @@ export default logger;
  *
  * Provision a project + DSN: scripts/provision_glitchtip_project.sh <service-name> --platform javascript-node
  * On `fabrik apply`, the GlitchTip registrar writes SENTRY_DSN to /opt/<name>/.env on the
- * VPS; the app sees it only if its compose passes it on (env_file: .env, or
- * SENTRY_DSN=${SENTRY_DSN} under environment:).
+ * VPS and the git deploy writes GIT_SHA (the deployed commit); compose.yaml passes them on
+ * as SENTRY_DSN and APP_GIT_SHA.
+ *
+ * release: APP_GIT_SHA, then GIT_SHA — each skipped when blank or the compose placeholder
+ * "unknown", so a placeholder never files every event under one bogus release.
+ * environment: APP_ENV, then ENVIRONMENT, then 'production' — blank values skipped.
  */
+const firstSet = (...values) => {
+  for (const value of values) {
+    const trimmed = (value || '').trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+};
+export const glitchtipRelease = (env = process.env) =>
+  firstSet(...[env.APP_GIT_SHA, env.GIT_SHA].filter((value) => (value || '').trim() !== 'unknown'));
+export const glitchtipEnvironment = (env = process.env) =>
+  firstSet(env.APP_ENV, env.ENVIRONMENT) || 'production';
+
 const dsn = (process.env.SENTRY_DSN || process.env.GLITCHTIP_DSN || '').trim();
 
 let Sentry = null;
@@ -4463,8 +4481,8 @@ if (dsn) {
     Sentry = await import('@sentry/node');
     Sentry.init({
       dsn,
-      environment: process.env.ENVIRONMENT || 'production',
-      release: process.env.GIT_SHA || undefined,
+      environment: glitchtipEnvironment(),
+      release: glitchtipRelease(),
       tracesSampleRate: parseFloat(process.env.GLITCHTIP_TRACES_SAMPLE_RATE || '0.05'),
       profilesSampleRate: parseFloat(process.env.GLITCHTIP_PROFILES_SAMPLE_RATE || '0'),
       sendDefaultPii: false,
@@ -4614,6 +4632,14 @@ process.on('SIGTERM', () => {
         name,
         port=3000,
         healthcheck_path="/api/health",
+        # src/glitchtip_init.js reads these: the registrar's DSN and the deployer's GIT_SHA live
+        # in .env, and compose hands the container only what `environment:` lists.
+        extra_env_lines=(
+            "- SENTRY_DSN=${SENTRY_DSN:-}",
+            "- GLITCHTIP_DSN=${GLITCHTIP_DSN:-}",
+            "- APP_GIT_SHA=${GIT_SHA:-unknown}",
+            "- ENVIRONMENT=${ENVIRONMENT:-production}",
+        ),
     )
 
     # With a database: the audit table and its revokes (no Node writer yet).

@@ -26,6 +26,12 @@ services:
       # Required (have defaults)
       - PORT=${PORT:-8000}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # GlitchTip: the registrar writes the DSN into .env and the git deploy writes GIT_SHA
+      # (the deployed commit, the event release); blank DSN = reporting off.
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - GLITCHTIP_DSN=${GLITCHTIP_DSN:-}
+      - APP_GIT_SHA=${GIT_SHA:-unknown}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
       # Optional (uncomment if using database)
       # - DATABASE_URL=${DATABASE_URL}
     healthcheck:

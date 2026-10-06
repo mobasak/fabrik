@@ -30,6 +30,9 @@ logger = logging.getLogger(__name__)
 # Shell-safe name pattern — prevents injection in SSH commands.
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 
+# A full SHA-1 commit id as `git rev-parse HEAD` prints it — the only GIT_SHA the deployer writes.
+_GIT_SHA_RE = re.compile(r"[0-9a-f]{40}")
+
 # health.disabled readiness poll (see _compose_up): `docker compose up --wait` needs a
 # healthcheck a FROM-scratch image can't have, so we `up -d` then poll `docker inspect` for a
 # STABLE running state. Requires _HEALTH_STABLE_REQUIRED consecutive polls at running + an
@@ -392,6 +395,9 @@ class SSHDeployer:
             # contract, which redeploy previously lacked.
             old_sha = _ssh(f"cd /opt/{name} && sudo git rev-parse HEAD", timeout=30).strip()
             _ssh(f"cd /opt/{name} && sudo git pull", timeout=60)
+            new_sha = _read_head_sha(name, _ssh)
+            if new_sha:
+                _persist_git_sha(name, new_sha, _ssh)
             build_flags = " --no-cache" if force else ""
             _ssh(
                 f"cd /opt/{name} && sudo docker compose build{build_flags}", timeout=_BUILD_TIMEOUT
@@ -410,6 +416,9 @@ class SSHDeployer:
                             f"cd /opt/{name} && sudo git reset --hard {old_sha}",
                             timeout=60,
                         )
+                        # The rebuilt container runs old_sha's code; label its events so.
+                        if _GIT_SHA_RE.fullmatch(old_sha):
+                            _persist_git_sha(name, old_sha, _ssh)
                         _ssh(
                             f"cd /opt/{name} && sudo docker compose build{build_flags}",
                             timeout=_BUILD_TIMEOUT,
@@ -571,6 +580,9 @@ class SSHDeployer:
             _ssh(f"cd /opt/{name} && sudo git pull", timeout=60)
         else:
             _ssh(f"sudo git clone -b {branch} {repository} /opt/{name}", timeout=120)
+        # The commit just checked out → GIT_SHA in .env, so a scaffolded service's GlitchTip
+        # release names the code it runs.
+        sha = _read_head_sha(name, _ssh)
 
         # D1: validate the git-sourced compose against the Fabrik invariants BEFORE build/up.
         # Git-sourced is the STANDARD project deploy path, so the memory-limit / no-host-ports /
@@ -585,8 +597,10 @@ class SSHDeployer:
             )
         _assert_claude_cli_mounts(compose_content, ctx.spec)
 
-        # Write .env (read-merge to preserve registrar-injected vars)
-        env_content = self._build_env_content(ctx, name, existing)
+        # Write .env (read-merge to preserve registrar-injected vars).
+        env_content = self._build_env_content(
+            ctx, name, existing, overrides={"GIT_SHA": sha} if sha else None
+        )
         _write_file_to_vps(name, ".env", env_content)
 
         _ssh(f"cd /opt/{name} && sudo docker compose build", timeout=_BUILD_TIMEOUT)
@@ -675,12 +689,17 @@ class SSHDeployer:
         name: str,
         existing: dict[str, Any] | None,
         app_path: str | None = None,
+        *,
+        overrides: dict[str, str] | None = None,
     ) -> str:
         """Build .env content by merging spec env + secrets over existing vars.
 
         Read-merge strategy: reads existing .env on VPS first (if any) to
         preserve registrar-injected vars (SENTRY_DSN, REDIS_URL, etc.) that
         were added after the initial deploy.
+
+        *overrides* are deploy-time facts (the git deploy's ``GIT_SHA``): layered AFTER the
+        spec env, so a spec ``GIT_SHA: ""`` cannot blank them, and BEFORE secrets.
         """
         from fabrik.drivers.ssh import ssh as _ssh
 
@@ -712,6 +731,8 @@ class SSHDeployer:
             if _is_placeholder(value) and existing_val and not _is_placeholder(existing_val):
                 continue  # keep the registrar-injected real value
             merged[key] = value
+
+        merged.update(overrides or {})
 
         # Layer secrets (highest precedence). A secret this run minted was already swapped for
         # the deployed value by _preserve_minted_secrets, before anything rendered.
@@ -883,6 +904,38 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
         raise DeployError(f"cannot read {env_path}: {e}") from e
     return _parse_env(content)
+
+
+def _read_head_sha(name: str, _ssh: Any) -> str | None:
+    """The commit checked out at ``/opt/{name}``, or None — never a guess.
+
+    A failed read or an answer that is not 40 lowercase hex logs a warning and returns None: the
+    caller then leaves ``.env``'s ``GIT_SHA`` as it was, because a missing GlitchTip release is not
+    worth a failed deploy.
+    """
+    try:
+        out = _ssh(f"sudo git -C /opt/{name} rev-parse HEAD", timeout=30).strip()
+    except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+        logger.warning("GIT_SHA not updated for %s: rev-parse failed: %s", name, e)
+        return None
+    if not _GIT_SHA_RE.fullmatch(out):
+        logger.warning("GIT_SHA not updated for %s: rev-parse answered %r", name, out[:60])
+        return None
+    return out
+
+
+def _persist_git_sha(name: str, sha: str, _ssh: Any) -> None:
+    """Read-merge-write ``GIT_SHA`` into ``/opt/{name}/.env`` (the shape ``inject_env`` uses).
+
+    Fails OPEN for the deploy and CLOSED for the file: a failed read or write logs a warning and
+    writes nothing — a truncated ``.env`` is never written, and the redeploy proceeds.
+    """
+    try:
+        merged = _read_env_file(f"/opt/{name}", _ssh)
+        merged["GIT_SHA"] = sha
+        _write_file_to_vps(name, ".env", _format_env(merged))
+    except (DeployError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+        logger.warning("GIT_SHA not updated for %s: .env read-merge-write failed: %s", name, e)
 
 
 def _write_file_to_vps(name: str, filename: str, content: str) -> None:
