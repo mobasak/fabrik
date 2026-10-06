@@ -139,6 +139,11 @@ RESERVED_NAMES = frozenset(
     }
 )
 
+# Modules the scaffold vendors beside a project's own package (``src/fastapi_user_auth``,
+# ``libs/audit_log``). A project whose package bears one of these names would shadow it at import,
+# and ``_write_server_lint_config`` excludes these names as vendored — its own code would go unlinted.
+VENDORED_MODULE_NAMES = frozenset({"fastapi_user_auth", "audit_log"})
+
 SCAFFOLD_TYPES = frozenset(
     {
         "python-api",
@@ -728,6 +733,11 @@ def _validate_project_name(name: str) -> None:
         )
     if name in RESERVED_NAMES:
         raise ValueError(f"Reserved project name: '{name}'")
+    if _get_package_name(name) in VENDORED_MODULE_NAMES:
+        raise ValueError(
+            f"Reserved project name: '{name}' — its package would shadow the vendored "
+            f"'{_get_package_name(name)}' module (and the lint config would exclude it as vendored)"
+        )
     if len(name) > 50:
         raise ValueError(f"Project name too long: {len(name)} chars (max 50)")
 

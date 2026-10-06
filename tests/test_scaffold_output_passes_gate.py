@@ -156,6 +156,17 @@ def test_every_server_src_backend_lints_and_types_under_its_own_config(tmp_path,
     assert failures == {}, (project_type, name, failures)
 
 
+def test_the_hub_ruff_passes_every_template_file():
+    """A template file is graded by two configs: the scaffolded project's (above) and the hub's own,
+    which an editor or a bare `ruff check` uses on the bytes in templates/. 10c243a6d sorted the
+    mobile-app server imports for the project config and broke the hub's (2 I001); the template's
+    hub-only server/pyproject.toml names the same first-party packages."""
+    assert RUFF, f"ruff is neither beside {sys.executable} nor on PATH"
+    repo = Path(__file__).resolve().parents[1]
+    r = _run([RUFF, "check", "--output-format=concise", "templates/"], repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
 @requires_fabrik_env
 @pytest.mark.parametrize(
     ("project_type", "typed"),

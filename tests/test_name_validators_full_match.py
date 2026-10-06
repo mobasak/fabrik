@@ -22,6 +22,15 @@ def test_a_plain_project_name_still_passes():
     scaffold._validate_project_name("ok-name")
 
 
+@pytest.mark.parametrize("name", ["fastapi-user-auth", "audit-log"])
+def test_a_project_named_after_a_vendored_module_is_rejected(name):
+    """Its package would shadow the vendored module, and _write_server_lint_config excludes that
+    name as vendored: the project's own code went unlinted and its mypy errors were swallowed
+    (review of 10c243a6d)."""
+    with pytest.raises(ValueError, match="vendored"):
+        scaffold._validate_project_name(name)
+
+
 def test_destroy_refuses_an_app_name_with_a_trailing_newline_before_any_ssh(monkeypatch):
     calls = []
     monkeypatch.setattr(ssh_driver, "ssh", lambda cmd, **_kw: calls.append(cmd) or "")
