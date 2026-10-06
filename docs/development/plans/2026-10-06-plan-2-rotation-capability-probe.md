@@ -7,11 +7,11 @@ Profile: small
 
 Spec: `docs/superpowers/specs/2026-10-06-rotation-capability-probe-design.md` (DRAFT at 99b111443, `Size: small`,
 `Profile: delta` — `/fabrik-plan-review` grades its sections together with this plan and flips both). Decision: D-614.
-Source: fleet mail 01M3QG6GG5NQNVG5MZE6SAME1G; work item W-f8bfe7eb. Estimated diff: ≈190 code lines in ONE source
-file, copied byte-identical to its twin (2 code files), tests excluded — `_capability_probe` + `_capability_verdict` ≈55
-(replacing `_keepalive_ping`'s 30), the parked lock + `_parked_update` + `_auto_park` ≈45, the probe cache ≈25,
-`_validated_pick` split ≈15, the D6 branch in `_fleet_flip_leg` ≈30, the D4 call site ≈8, the D4b hook in `run_claude`
-≈15. Tests ≈260 lines in one new file.
+Source: fleet mail 01M3QG6GG5NQNVG5MZE6SAME1G; work item W-f8bfe7eb. Estimated diff: ≈250 code lines in ONE source
+file, copied byte-identical to its twin (2 code files), tests excluded — `_capability_probe` + `_capability_verdict` ≈60
+(replacing `_keepalive_ping`'s 30), the parked lock + `_parked_update` + `_auto_park` ≈60, the probe cache and its two
+windows ≈35, `_validated_pick` split and docstring ≈20, the D6 branch in `_fleet_flip_leg` ≈45, the D4 call site ≈8,
+the D4b hook in `run_claude` ≈25 (sum 253). Tests ≈330 lines in one new file plus two repointed tests.
 
 ## What this plan is
 
@@ -61,6 +61,8 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
   result proceed exactly as today (`spec § Lifecycle`, failure clause).
 - **`refused` needs `is_error: true` in the result JSON** — never a bare text match over stdout, so a conversation that
   merely quotes the code (the class `run_claude`'s own comment admits at `:796-798`) can never park an account.
+- **The probe's `result` text is never logged, stored or alerted** — a healthy result echoes the account's private
+  session context (Evidence, Phase A); the ledger row carries the verdict, the source and `api_error_status` only.
 - **Never key on `subtype`** — measured this run: a failed call reports `"is_error":true,"subtype":"success"` (Evidence,
   Phase A).
 - **Stdout is never written** from the auto-park or the wrapper path: the CLI passthrough mirrors stdout to its callers
@@ -116,12 +118,16 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 Appetite: 90
 
 **Interfaces — Produces** (all in `scripts/sysadmin/claude_rotate.py`; `spec § The delta` D1, D3, D4, D5):
-- `_capability_verdict(rc: int | None, stdout: str) -> str` — pure. Parses the LAST line of `stdout` that parses as a
-  JSON object with `"type": "result"`. Returns `"refused"` when that object has `is_error` true AND its `result` text
-  contains `oauth_org_not_allowed` or `disabled Claude subscription access` (case-insensitive) — `api_error_status` is
-  read for the ledger only, never required (spec U2). Returns `"ok"` when `rc == 0` and no parsed object has
-  `is_error` true (a non-JSON stdout at rc 0 is `ok`, keeping `tests/test_claude_fleet.py:1767`'s semantics). Everything
-  else, `rc is None` included, is `"inconclusive"`.
+- `_capability_verdict(rc: int | None, stdout: str) -> str` — pure. The result object is `json.loads(stdout)` when the
+  whole stdout parses as a JSON object (a pretty-printed result), else the LAST line of `stdout` that parses as a JSON
+  object with `"type": "result"` (a result after a warning line). Returns `"refused"` when that object has `is_error`
+  true AND its whole serialisation (`json.dumps(obj)` — so `result`, `error` or `errors` alike) contains
+  `oauth_org_not_allowed` or `disabled claude subscription access`, compared lower-cased — `api_error_status` is read
+  for the ledger only, never required (spec U2). Returns `"ok"` when `rc == 0` and no result object has `is_error` true
+  (a non-JSON stdout at rc 0 is `ok`, keeping `tests/test_claude_fleet.py:1767`'s semantics). Everything else, `rc is
+  None` and a refusal printed only on stderr before the run starts included, is `"inconclusive"` (G1 covers in-run
+  failures only; a pre-run failure fails open). The `result` text is never logged or stored — a healthy result echoes
+  the account's private session context (Evidence, Phase A).
 - `_capability_probe(cfg_dir: Path) -> str` — replaces `_keepalive_ping` (`:7129-7157`), same env, same
   `KEEPALIVE_TIMEOUT` (default 150) and `errors="replace"`; argv `["claude", "-p", "ok", "--output-format", "json",
   "--max-turns", "1", "--tools", ""]`; returns `_capability_verdict(p.returncode, p.stdout)`, and `"inconclusive"` on
@@ -129,32 +135,43 @@ Appetite: 90
   name.
 - `_parked_lock_fd() -> int` — `<fleet_root>/parked.lock`, `O_CREAT|O_RDWR|O_NOFOLLOW`, `0o600`; the mirror of
   `_assignments_lock_fd` (`:1628-1638`).
-- `_parked_update(email: str, park: bool) -> bool | None` — under `fcntl.LOCK_EX` on that fd: re-read
-  `_parked_accounts()`, return `False` when nothing changes, else `_write_json_atomic(path, sorted(...), mode=0o644)`
-  and return `True`; `None` on `OSError` (write failed). A lock fd that cannot open falls back to the unlocked
-  read-modify-write with one stderr line (the assignments site's fail-open, `:3692-3694`). Unlock and close each in
-  their own `try` (`:3712-3716`).
+- `_parked_update(email: str, park: bool, *, repair: bool) -> bool | None` — under `fcntl.LOCK_EX` on that fd, re-reads
+  `<fleet_root>/parked.json` STRICTLY: missing → empty; unreadable or not a JSON list → with `repair=False` return
+  `None` and write nothing (an automated park never overwrites the operator's list — spec § Constraints digest, "broken
+  parked.json parks nothing"); with `repair=True` (the operator's `--park`/`--unpark`) proceed from empty, exactly as
+  `_cmd_park` does today (`:3885`). Return `False` when nothing changes, else `_write_json_atomic(path, sorted(...),
+  mode=0o644)` and return `True`; `None` on `OSError` (write failed). A lock fd that cannot open
+  (`_STATE_DIR_ERRORS`, `:450`) returns `None` with one stderr line and writes nothing — the assignments site's rule
+  (`:3692-3694`: "cannot lock → apply in memory only; never risk clobbering the table"). Unlock and close each in their
+  own `try` (`:3712-3716`).
 - `_auto_park(email: str, *, source: str, status: object = None, row: dict | None = None) -> bool` — `source` ∈
-  `promote` · `active` · `ping` · `wrapper`. Calls `_parked_update(email, True)`; on `True` appends
+  `promote` · `active` · `ping` · `wrapper`. Refuses (stderr, returns `False`) an email not in `_known_account_emails()`
+  (`:3859-3868`), so a `pending-login` identity (`:3699`) is never written. Calls `_parked_update(email, True,
+  repair=False)`; on `True` appends
   `{"event": "auto-park", "email", "cause": "oauth_org_not_allowed", "source", "api_error_status": status, "ts": _now()}`
   via `_ledger_append` and sends `_tick_telegram(<msg>, key=f"capability-{email}")` naming the account, the cause and
   the one-step fix `claude_rotate.py --unpark <email>`; when `row` is given sets `row["weekly_cap"] = 0` and
   `row["capability_refused"] = True`, so every later reader of this tick walls it through the cap path it already has
-  (`_flip_candidate_verdict`, `:3509-3510`). Writes nothing to stdout. Returns `True` when the account is parked after
-  the call (newly or already).
-- `_cmd_park` (`:3873-3900`) keeps its CLI output and return codes and calls `_parked_update` for the write.
+  (`_flip_candidate_verdict`, `:3509-3510`) — the row is walled even when the write returned `None`, so a broken or
+  unlockable `parked.json` still excludes the account for this tick. Writes nothing to stdout. Returns `True` when the
+  account is parked after the call (newly or already).
+- `_cmd_park` (`:3873-3900`) keeps its CLI output and return codes and calls `_parked_update(…, repair=True)` for the
+  write.
 
 **Consumes:** nothing from later phases.
 
 Steps:
 1. **Test first (the highest-risk behaviour, A1)**: create `tests/test_claude_rotate_capability_probe.py`, importing the
    fleet harness helpers (`_canonical`, `_fleet_creds`, `_pin`, `_point`, `_fake_oauth`, `_usage_blob`) from
-   `tests.test_claude_fleet` (`tests/__init__.py` exists). Write A1–A4 against `_capability_verdict` with these stdout
-   fixtures: the refusal with `api_error_status: 403`; the refusal with `api_error_status: null`; the incident's human
-   text "Your organization has disabled Claude subscription access for Claude Code" with no code; the refusal JSON
-   preceded by one non-JSON warning line; the refusal with the code in mixed case — five legitimate spellings, all
-   `refused` (5/5 or it is a finding). The verbatim not-logged-in result captured this run (Evidence) is
-   `inconclusive`; an `is_error: false` result whose `result` text quotes `oauth_org_not_allowed` is `ok`. Run
+   `tests.test_claude_fleet` (`tests/__init__.py` exists). Write A1–A4 against `_capability_verdict`. A1's five
+   legitimate spellings of the refusal, all `refused` (5/5 or it is a finding): the code in `result`; the incident's
+   human text "Your organization has disabled Claude subscription access for Claude Code" in `result` with no code;
+   the code in an `error` field rather than `result`; the result pretty-printed across several lines; the code in mixed
+   case. Two framing cases beside them, also `refused`: the one-line result preceded by a non-JSON warning line, and
+   `api_error_status: null` instead of `403`. The verbatim not-logged-in result captured this run (Evidence) is
+   `inconclusive`; the verbatim healthy result's keys (`is_error: false`, `terminal_reason: "completed"`) at rc 0 are
+   `ok`; an `is_error: false` result whose `result` text quotes `oauth_org_not_allowed` is `ok`; empty stdout with
+   the refusal on stderr only is `inconclusive`. Run
    `.venv/bin/python -m pytest tests/test_claude_rotate_capability_probe.py -q` → expect a collection/attribute
    failure naming `_capability_verdict` (red for the right reason).
 2. Implement `_capability_verdict` and `_capability_probe`; delete `_keepalive_ping`; change the call site at `:4055` to
@@ -162,7 +179,7 @@ Steps:
    `_auto_park(email, source="ping", row=row)` and NOT `ping_failed` (the chain is alive, only the capability is gone —
    D4); `inconclusive` → `row["ping_failed"] = True` as today. Repoint `tests/test_claude_fleet.py:1400-1440` (argv
    expectation becomes the JSON argv; `is True` becomes `== "ok"`) and `:1767-1779` (`== "ok"`). Re-run step 1 → green.
-3. Write A5–A7, then implement `_parked_lock_fd`, `_parked_update`, `_auto_park` and the `_cmd_park` refactor:
+3. Write A5–A8, then implement `_parked_lock_fd`, `_parked_update`, `_auto_park` and the `_cmd_park` refactor:
    - A5: `_auto_park` on a known email → `parked.json` lists it, one `auto-park` ledger row carrying the email and
      `source`, one `_tick_telegram` call with `key="capability-<email>"`, `capsys` stdout empty.
    - A6: two writers racing — a monkeypatched `_write_json_atomic` that sleeps between the read and the write, two
@@ -170,6 +187,9 @@ Steps:
      drops the first).
    - A7: the stale-reading ping returning the refusal → the row carries `capability_refused` and NOT `ping_failed`,
      and the account is parked; the ping returning a timeout → `ping_failed` true and nothing parked.
+   - A8: a `parked.json` holding invalid JSON → `_auto_park` leaves its bytes unchanged, returns `False`, and still
+     walls the row it was given; `cr.main(["--park", <email>])` on the same file still repairs it (today's operator
+     behaviour). An unknown email and `pending-login` → nothing written.
    Run `.venv/bin/python -m pytest tests/test_claude_rotate_capability_probe.py tests/test_claude_fleet.py -q -k
    "capability or keepalive or park"` → all pass.
 4. `cp scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py && cmp scripts/sysadmin/claude_rotate.py
@@ -189,13 +209,14 @@ Steps:
    the `CHANGELOG.md` hunk via the private-index recipe; trailers `Agent-Role: primary`, `Agent-Phase: A`), push.
 
 **Behavior Contract (Phase A):**
-- **Given** a `claude -p` result with `is_error` true and `oauth_org_not_allowed` (or the incident's "disabled Claude subscription access" text) in `result`, **When** it is classified, **Then** the verdict is `refused` for all five spellings (spec § The delta D1)
+- **Given** a `claude -p` result with `is_error` true naming `oauth_org_not_allowed` (or the incident's "disabled Claude subscription access" text) anywhere in the result object, **When** it is classified, **Then** the verdict is `refused` for all five spellings and both framings (spec § The delta D1)
 - **Given** a result at exit 0 with `is_error` false, or a non-JSON stdout at exit 0, **When** it is classified, **Then** the verdict is `ok` (spec § The delta D1)
 - **Given** a timeout, an `OSError`, or an `is_error` result for another cause such as "Not logged in", **When** it is classified, **Then** the verdict is `inconclusive` (spec § Lifecycle)
 - **Given** an `is_error: false` result whose text quotes `oauth_org_not_allowed`, **When** it is classified, **Then** the verdict is `ok`, never `refused` (Global Constraints, the quoted-code class)
 - **Given** a refused account, **When** `_auto_park` runs, **Then** `parked.json` lists it, the ledger has one `auto-park` row, one Telegram alert names the `--unpark` fix, and stdout is empty (spec § The delta D3)
 - **Given** two park writers racing, **When** both complete, **Then** both emails are in `parked.json` (spec § The delta D5)
 - **Given** the stale-reading ping returns the refusal, **When** the tick builds its rows, **Then** the account is parked and its row is not marked `ping_failed` (spec § The delta D4)
+- **Given** a broken `parked.json` or an unknown identity, **When** an automated park runs, **Then** the file is left untouched and only the in-tick row is walled, while the operator's `--park` still repairs the file (spec § Constraints digest)
 
 ## Phase B — the wiring: probe on promote, active re-validation, the wrapper
 
@@ -208,39 +229,54 @@ Appetite: 120
 - `_probe_trust_s() -> float` — `ROTATE_PROBE_TRUST_S` (default 21600), non-finite or ≤0 → the default (the
   `_env_float` refusal pattern).
 - `_probe_cache_path() -> Path` — `_rotate_state_dir() / "capability-probe.json"` (`:2225-2231`); content
-  `{email: {"verdict": "ok", "ts": <epoch>}}`. Only `ok` verdicts are stored; an unreadable file reads as empty
-  (the next probe runs — fail toward probing, bounded by the dwell).
-- `_probe_account(email: str, slug: str) -> str` — returns `"ok"` without a call when the cache holds an `ok` younger
-  than `_probe_trust_s()`; otherwise runs `_capability_probe(_fleet_root() / slug)`, stores an `ok` atomically, and
-  returns the verdict.
+  `{email: {"verdict": "ok" | "inconclusive", "ts": <epoch>}}`. A `refused` verdict is never cached (the account is
+  parked instead). An unreadable file reads as empty (the next probe runs, bounded by the windows below).
+- `_PROBE_RETRY_S = 1800` — a module constant: an `inconclusive` verdict is not re-probed for 30 minutes, so a probe
+  outage costs at most two calls per account per hour, never one per tick. The flip leg's own flips are dwell-exempt
+  (`ignore_dwell=True` at `:5722`, `:5740`, `:5843`, `:5894`), so the dwell bounds nothing here — these two windows
+  are the only bound.
+- `_probe_account(email: str, slug: str) -> str` — returns the cached verdict without a call while it is younger than
+  its window (`ok`: `_probe_trust_s()`; `inconclusive`: `_PROBE_RETRY_S`); otherwise runs
+  `_capability_probe(_fleet_root() / slug)`, stores an `ok` or `inconclusive` atomically, and returns the verdict.
 - `_validated_pick(accounts, exclude, *, verbose=False, probe=False)` — the existing body (`:3559-3625`) moves
   unchanged into `_validated_pick_reading(accounts, exclude, *, verbose)`; the wrapper loops: take the reading-validated
-  pick; `probe` false or `None` → return it; `_probe_account` → `ok` or `inconclusive` → return the pick
-  (`inconclusive` logs one stdout line `tick: <email> capability probe inconclusive — picked anyway` when `verbose`);
-  `refused` → `_auto_park(email, source="promote", row=<its row>)`, add the email to its own exclude set, loop. The four
-  flip-leg callers (`:5717`, `:5737`, `:5832`, `:5878`) pass `probe=True`; the advisory caller (`:6683`) does not.
+  pick; `probe` false or `None` → return it; `_probe_account` → `ok` → return the pick; `inconclusive` → return the
+  pick and print one stdout tick line `tick: <email> capability probe inconclusive — picked anyway` (every caller that
+  probes; the tick's stdout is its log); `refused` → `_auto_park(email, source="promote", row=<its row>)`, add the
+  email to its own exclude set, loop. The four flip-leg callers (`:5717`, `:5737`, `:5832`, `:5878`) pass
+  `probe=True`; the advisory caller (`:6683`) does not. The docstring (`:3562-3567`) gains one sentence naming the
+  probe, its two windows and the auto-park (spec § Documentation landing sites).
 - In `_fleet_flip_leg` (`:5706`), right after the active row resolves (`:5727-5730`) and BEFORE the dead-chain branch
-  (`:5736`): when the row is not already `capability_refused` and `_probe_account(row["email"], active_slug)` returns
-  `refused`, call `_auto_park(row["email"], source="active", row=row)`. Then, when `row.get("capability_refused")`:
-  `pick = _validated_pick(accounts, {row["email"]}, probe=True)`; a pick → `_flip_active(slug, ignore_dwell=True,
-  kind="refused")`, one stdout tick line and one `_tick_telegram` naming both accounts; no pick → one stdout line naming
-  the exclusion reasons (`_flip_exclusion_reasons`, as the dead-chain branch does at `:5752`); either way `return`.
-  This branch does not depend on a quota reading (the `no quota reading` early return at `:5767-5769` would otherwise
-  skip a parked active account with no reading).
+  (`:5736`): when the active account is not already parked (`_is_parked(row.get("weekly_cap"))`, `:6110-6115`, is
+  false) and `_probe_account(row["email"], active_slug)` returns `refused`, call `_auto_park(row["email"],
+  source="active", row=row)`. Then, when the active account is parked — this tick's refusal or any earlier park, the
+  operator's included (D-443: "an ACTIVE parked account is flipped away from on the next tick") — run
+  `pick = _validated_pick(accounts, {row["email"]}, probe=True)`. A pick → `_flip_active(slug, ignore_dwell=True,
+  kind="refused" if row.get("capability_refused") else "parked")`; on `True` one stdout tick line and one
+  `_tick_telegram` naming both accounts; on `False` one stdout line `flip to <slug> withheld (see stderr)` and no
+  alert claiming a flip (the dead-chain branch's shape, `:5740-5747`). No pick → one stdout line naming the exclusion
+  reasons (`_flip_exclusion_reasons`, `:5752`). Either way `return`. A parked active account is never re-probed (its
+  `weekly_cap` reads 0 every tick), and the branch does not depend on a quota reading (the `no quota reading` early
+  return at `:5767-5769` would otherwise strand a parked active account that has none).
 - In `run_claude` (`:735`), after each `subprocess.run` result and BEFORE the usage-limit/401 classification
-  (`:801-804`): when `_capability_verdict(result.returncode, result.stdout or "") == "refused"`, resolve the active
-  account — `slug = _resolve_active()` (`:3031`), `email = _load_assignments(strict=False).get(slug, {}).get("identity")`
-  — and `_auto_park(email, source="wrapper")` when both resolve (stderr one line otherwise: `no fleet active account —
-  nothing parked`); then `break` (no retry: every retry would hit the same refusal until the tick flips). The result is
-  returned to the caller unchanged.
+  (`:801-804`): when `_capability_verdict(result.returncode, result.stdout or "") == "refused"`, identify the account
+  THAT ANSWERED from the call's own environment, never from the fleet pointer: `cfg = (env or os.environ).get(
+  "CLAUDE_CONFIG_DIR")`; when it is set and `Path(cfg).resolve()` lies directly inside `_fleet_root().resolve()`, its
+  slug is that directory's name and its email the slug's `identity` in `_load_assignments(strict=False)`; then
+  `_auto_park(email, source="wrapper")` (which refuses an unknown or `pending-login` identity). Any other case — no
+  `CLAUDE_CONFIG_DIR`, the shared `~/.claude`, a dir outside the fleet root, a host with no fleet (the VPS callers,
+  `scripts/aro-wake/main.py:543`) — writes one stderr line `capability refused outside the fleet — nothing parked` and
+  parks nothing. Then `break`. The result is returned to the caller unchanged.
 
 Steps:
 1. **Test first (the highest-risk behaviour, B5)**: write B5 — a fleet of two accounts (`_canonical`, `_pin`,
   `_fleet_creds`, `_point`), the ACTIVE account's probe returning the refusal with no cached verdict → after one
   `_fleet_tick_inner` the pointer names the other account, `parked.json` lists the refused one, the ledger carries one
   `auto-park` row with `source: "active"` and one flip row with `kind: "refused"`. Run it → red (no D6 branch).
-2. Implement `_probe_trust_s`, `_probe_cache_path`, `_probe_account` and the `_fleet_flip_leg` branch. Re-run B5 →
-  green. Add its mirror: the same fleet with an `ok` cached 1 h ago → zero probe calls on that tick.
+2. Implement `_probe_trust_s`, `_PROBE_RETRY_S`, `_probe_cache_path`, `_probe_account` and the `_fleet_flip_leg`
+  branch. Re-run B5 → green. Add its mirrors: the same fleet with an `ok` cached 1 h ago → zero probe calls on that
+  tick; an operator-parked active account with NO quota reading → flipped away with kind `parked` and zero probe
+  calls; `_flip_active` withheld (pause marker set) → no Telegram call and the `withheld` tick line.
 3. Write B1–B4, then implement the `_validated_pick` split and the four `probe=True` call sites:
    - B1: the top candidate refused, the second healthy → the pick is the second, the first is parked with
      `source: "promote"`, and the row of the first reads `weekly_cap == 0`.
@@ -248,9 +284,14 @@ Steps:
    - B3: the probe times out → the top candidate is returned and nothing is parked.
    - B4: `_fleet_active_wall_advisory`'s pick and `cr.main(["--switch", <refused slug>])` make zero probe calls, and the
      manual switch still flips (D-443's escape hatch).
-4. Write B6, then implement the `run_claude` hook: stdout carrying the refusal result on a fleet host → the active
-   account is parked with `source: "wrapper"`, the function returns the result, `capsys` stdout is empty, and only one
-   `subprocess.run` call was made; stdout carrying an `is_error: false` result that quotes the code → nothing parked.
+4. Write B6, then implement the `run_claude` hook: `env["CLAUDE_CONFIG_DIR"]` naming fleet dir `b` while the pointer
+   names `a`, stdout carrying the refusal result → `b`'s identity is parked with `source: "wrapper"` and `a`'s is not,
+   the function returns the result unchanged and `capsys` stdout is empty; the same result with `CLAUDE_CONFIG_DIR`
+   unset → nothing parked and the stderr line printed; an `is_error: false` result that quotes the code → nothing
+   parked. (A no-retry assertion is not used as the red signal: `is_usage_limit` and `is_auth_401` are both already
+   false on the refusal text, so the loop breaks without the hook — executed this review.)
+4a. Add B7, the inconclusive backoff: a probe returning `inconclusive` → a second `_probe_account` call within
+   `_PROBE_RETRY_S` makes no `claude` call; past it, one.
 5. `cp scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py && cmp scripts/sysadmin/claude_rotate.py
    scripts/aro-wake/claude_rotate.py` → no output, rc 0.
 6. **Phase gate**: `.venv/bin/python -m pytest tests/test_claude_rotate_capability_probe.py tests/test_claude_fleet.py
@@ -270,7 +311,11 @@ Steps:
 - **Given** a candidate's `ok` verdict is younger than `ROTATE_PROBE_TRUST_S`, **When** it is picked, **Then** no probe call is made, and an older verdict makes exactly one (spec § The delta D2)
 - **Given** the probe times out, **When** the flip leg picks, **Then** the candidate is picked as today and nothing is parked (spec § Lifecycle)
 - **Given** the relief advisory or a manual `--switch`, **When** either runs, **Then** no probe call is made and the manual switch still flips (spec § The delta D2)
-- **Given** a session call through `run_claude` returns the refusal result on a fleet host, **When** the wrapper classifies it, **Then** the active account is parked, no retry is made, the result is returned unchanged and stdout carries nothing extra (spec § The delta D4b)
+- **Given** a session call through `run_claude` bound to a fleet dir returns the refusal result, **When** the wrapper classifies it, **Then** the account of THAT dir is parked (never the pointer's, when they differ), the result is returned unchanged and stdout carries nothing extra (spec § The delta D4b)
+- **Given** the refusal reaches `run_claude` with no fleet `CLAUDE_CONFIG_DIR`, **When** the wrapper classifies it, **Then** nothing is parked and one stderr line says so (spec § The delta D4b)
+- **Given** an active account already parked — by the operator or an earlier refusal — with no quota reading, **When** the tick runs, **Then** it is flipped away with kind `parked` and is not probed (spec § The delta D6; D-443)
+- **Given** the flip away from a parked active account is withheld, **When** the tick runs, **Then** no alert claims a flip and the tick line says `withheld` (spec § The delta D6)
+- **Given** a probe returned `inconclusive`, **When** the same account is probed again within `_PROBE_RETRY_S`, **Then** no `claude` call is made (spec § Cost)
 
 ## Phase C — docs and Finish
 
@@ -283,7 +328,8 @@ Steps:
    (a definitive `oauth_org_not_allowed` refusal on promote, on the active re-check, on the stale-reading ping, or in a
    session call), what it writes (`parked.json`, the `auto-park` ledger row, one Telegram alert), the
    `ROTATE_PROBE_TRUST_S` window, and that only `--unpark` restores it. The `--status` section's flip-kind list
-   (`trip / perishable / repair / dead-chain / switch`) gains `refused`.
+   (`trip / perishable / repair / dead-chain / switch`, `:213`) gains `refused` and `parked`; one sentence says an ACTIVE
+   parked account is now flipped away even with no quota reading.
 2. `python3 scripts/render_doc_script_links.py --check` and `python3 scripts/enforcement/check_doc_sync.py` → green.
 3. **Finish — the heavy `/fabrik-review`** over the whole-plan diff (the plan's commits vs its base commit): the D7 floor
    — file partition, a Sonnet and a Haiku finder per slice (D-344), the orchestrator executing every refutation,
@@ -317,8 +363,18 @@ $ CLAUDE_CONFIG_DIR=<scratch>/probe-cfg … claude -p ok --output-format json --
 {… "terminal_reason":"api_error", … "is_error":true,"num_turns":1,"subtype":"success","api_error_status":null,"result":"Not logged in · Please run /login","type":"result", …}
 rc=1
 ```
-So the flags parse, a failure exits non-zero with `is_error: true`, and `subtype` reads `success` on a failure (spec U1
-resolved: never key on it). The function being replaced and its one caller:
+So the flags parse (the CLI returned a result object, not an argument error, before any API call), a failure exits
+non-zero with `is_error: true`, and `subtype` reads `success` on a failure (spec U1 resolved: never key on it). The
+healthy shape, captured during this plan's review with ONE real call (a one-word turn, no tools, on the session's own
+account — the `result` text omitted here because it echoes private session context, which is also why D1 never logs
+it):
+```text
+$ claude -p ok --output-format json --max-turns 1 --tools "" < /dev/null | <keys only>
+{'type': 'result', 'is_error': False, 'subtype': 'success', 'api_error_status': None, 'terminal_reason': 'completed', 'num_turns': 1, 'result': <omitted>}
+rc=0
+```
+So `--max-turns 1 --tools ""` completes a healthy turn and D1 reads it `ok`: the D4 ping keeps today's `ok` path on a
+healthy account. The function being replaced and its one caller:
 ```text
 scripts/sysadmin/claude_rotate.py:4055:                if _keepalive_ping(with_creds[0]["dir"]):
 scripts/sysadmin/claude_rotate.py:4060:                    row["ping_failed"] = True
@@ -345,7 +401,7 @@ scripts/sysadmin/claude_rotate.py:802:        is_401 = is_auth_401(combined)
 ```
 `_fleet_flip_leg` returns with no decision when the active row has no quota reading (`:5767-5769`), which is why D6 is
 its own branch ahead of the trip arithmetic rather than a forced `weekly_cap`. The picker reads parked state from the
-row's `weekly_cap` (`_is_parked`, `:6108-6113`; used at `:3509`), set when the rows are built — why `_auto_park` also
+row's `weekly_cap` (`_is_parked`, `:6110-6115`; used at `:3509`), set when the rows are built — why `_auto_park` also
 walls the in-memory row.
 
 **Phase C.** The doc section edited: `docs/workstation/claude-account-rotation.md:189` (`### Parking — taking an
@@ -362,29 +418,49 @@ account out of service`); the twin pin: `tests/test_mail_addressing.py:228`.
   so `refused` requires `is_error` true; (3) a mid-tick park must also wall the in-memory row; (4) the D6 flip must not
   sit behind the no-reading early return; (5) `_keepalive_ping`'s two pinning tests are a named mirror cost (Phase A
   step 2).
-- (a) Coverage: D1 → A1–A4; D3 → A5; D4 → A7; D5 → A6; D2 → B1–B4 (the two cache rows included); D6 → B5 and its
-  cached mirror; D4b → B6; Validation's twin row → every phase's `cp`/`cmp` step and `tests/test_mail_addressing.py:228`;
-  the documentation landing sites → Phase C step 1; U3's backlog row → Phase C step 5. No gap.
+- (a) Coverage: D1 → A1–A4; D3 → A5 and A8; D4 → A7; D5 → A6; D2 → B1–B4 and B7 (the cache windows); D6 → B5 and
+  its three mirrors (cached `ok`, parked with no reading, withheld flip); D4b → B6; Validation's twin row → every phase's `cp`/`cmp` step and `tests/test_mail_addressing.py:228`;
+  the documentation landing sites → Phase C step 1 (the rotation doc), Phase B's `_validated_pick` Interface (its
+  docstring), each phase's commit (`CHANGELOG.md`) and D-614 plus the approval row (the D-rows); U3's backlog row →
+  Phase C step 5. No gap.
 - (b) Signatures: Phase B consumes `_capability_probe`, `_capability_verdict` and `_auto_park` with the exact
   parameters Phase A's Interfaces name; `source` values used in B (`promote`, `active`, `wrapper`) and A (`ping`) are the
-  four the Interface lists; the flip kind `refused` is named once in B and documented in C.
+  four the Interface lists; the flip kinds `refused` and `parked` are named once in B and documented in C;
+  `_parked_update`'s `repair` keyword is passed by both of its callers (`_auto_park` False, `_cmd_park` True).
 - Fixed point: not yet — `/fabrik-plan-review` grades it.
 
 ## Residual unknowns
 
 - **Resolved — U1** (`subtype` spellings): measured this run; D1 never reads it.
-- **Resolved — the probe's flags**: `--max-turns` and `--tools ""` are absent from `claude --help` (2.1.280) but parse:
-  the Phase A Evidence run reached the API and returned the result JSON rather than an argument error.
-- **Open — U2** (does every refusal carry `api_error_status: 403`?): resolution: D1 does not require it; A1's five
-  spellings include `null`; the ledger records the observed status so the first real refusal settles it.
+- **Resolved — the probe's flags and healthy shape**: `--max-turns` and `--tools ""` are absent from `claude --help`
+  (2.1.280) but parse — the empty-dir run returned a result object, not an argument error — and a real healthy call
+  returned `is_error: false`, `terminal_reason: "completed"` at rc 0 (Evidence, Phase A).
+- **Open — U2** (does every refusal carry `api_error_status: 403`?): resolution: D1 does not require it; A1's framing
+  cases include `null`; the ledger records the observed status so the first real refusal settles it.
 - **Open — R4, the approval question** carried from the judge split: is a ≤6 h detection window for a refusal that first
-  appears on the ACTIVE account acceptable? Resolution: `/fabrik-plan-review`'s approval gate puts it to the operator;
-  D4b already parks on the first refused session call, so the window bounds only an idle box.
+  appears on the ACTIVE account acceptable? Resolution: `/fabrik-plan-review`'s approval gate puts it to the panel
+  standing in for the operator (D-613). D4b narrows the window only for calls that pass through `run_claude` bound to a
+  fleet dir — the script's own CLI passthrough; interactive Claude Code sessions on the box never pass through it, and
+  the VPS callers have no fleet — so for interactive work the window is the full trust window.
 - **Open — U3** (other credentials-not-capability probes on the box): resolution: the `docs/STRATEGIC_BACKLOG.md` row
   in Phase C step 5.
 - **Open — real-refusal end-to-end**: no account is refusing today, so the refused path is exercised against the
   documented shape (G1, G3) and the incident's text, never a live 403. Resolution: the ledger's `auto-park` row and the
   Telegram alert are the live proof on the first real refusal; the operator un-parks after confirming.
+
+## Pass Ledger
+
+Joint loop over this plan and its `Size: small` spec (md5 pairs: plan · spec).
+
+| Pass | seats · axes re-checked | counters | method | md5 (start → end) |
+|-----:|---|---|---|---|
+| Pass 1 | opus×1 (plan § Global Constraints, Phase A, Phase B; spec § The delta, § Validation, § Constraints digest) + sonnet×1 (every other section of both) · all axes; the monolith and spec flip gates run on flipped copies in a throwaway worktree | found: 15, new: 15, confirmed: 14, fixed: 14, unexecuted: 0, edits: 32 | method: citation — full pass; every candidate executed by the orchestrator (the four `ignore_dwell=True` flips, the assignments lock site `:3692-3694`, `is_usage_limit`/`is_auth_401` on the refusal text, `_is_parked` at `:6110-6115`, one real healthy probe call); confirmed: D4b parked the pointer's account not the answering one, the dwell bounded nothing and an inconclusive probe re-ran every tick, the unlocked-write citation said the opposite, an automated park overwrote a broken `parked.json`, an already-parked active account was re-probed and its withheld flip unspecified, three of five spellings, the "reached the API" contradiction and the uncaptured healthy shape, B6's vacuous no-retry assertion, D2's logging mismatch, R4 overstating D4b's reach, the `_validated_pick` docstring landing site, the spec/plan size mismatch, the `_is_parked` range, the digest missing `core/40-documentation.md` (flip gate) | plan 2957ecae · spec df9aaf05 → plan 67dcaa0b · spec be9ad375 |
+
+## Residual
+
+| Id | Verdict |
+|---|---|
+| A5 | RECORDED — measured (the pointer-repair fallback `_freshest_credentialed_slug`, `:5718`, can name a just-parked account when every candidate is parked; a missing pointer and a pointer on a refused account both fail every session, and each auto-park has already alerted the operator, so the fallback changes no outcome) |
 
 ## Coverage Checklist
 
