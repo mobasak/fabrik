@@ -220,8 +220,10 @@ The window runs clear of 01:30–03:30 (the backup cron and the Backrest snapsho
 2. The install auto-creates an `18/main` cluster on 5433; drop it (`pg_dropcluster 18 main --stop`), because
    `pg_upgradecluster` refuses while it exists.
 2a. brand-identiy-creator's dev database has the hand-built `pg_uuidv7` extension, which has no build for 18 on
-   this box and would fail the upgrade: take `pg_dump --data-only` of it to a dated file outside the repo, then
-   drop it. It is recreated on 18 in step 4 from its rewritten migrations (D7), and the dump reloads its rows if
+   this box and would fail the upgrade: take `pg_dump --data-only --exclude-table=alembic_version
+   --exclude-table=worker_pool_state` of it (the two tables the migrations themselves populate — migration
+   0005 seeds `worker_pool_state` id 1 — so a reload never collides with them) to a dated file outside the repo,
+   then drop it. It is recreated on 18 in step 4 from its rewritten migrations (D7), and the dump reloads its rows if
    they turn out not to be regenerable.
 3. `pg_upgradecluster 16 main` — its default method is dump/restore. Afterwards 18 owns port 5432 (every
    `{project}_dev` DSN keeps working) and 16 moves to 5433 with `start.conf` set to manual, kept until release.
@@ -232,10 +234,11 @@ The window runs clear of 01:30–03:30 (the backup cron and the Backrest snapsho
 5. **KILL** (D-612): a WSL verification that fails stops the hub window until fixed.
 6. **Parity gap, bounded:** between the windows WSL runs 18 and production 16. The hub window follows within 7
    days of the WSL window; past that, WSL rolls back until a hub window is scheduled: stop both clusters
-   (`pg_ctlcluster`), set `port` in each `postgresql.conf` (16 back to 5432, 18 to 5433), flip `start.conf` (16
-   auto, 18 manual), start 16. Dev writes made on 18 in the gap are lost (dev data). The one exception is
-   brand-identiy-creator: its D7 code calls native `uuidv7()`, absent on 16, so 18 keeps `start.conf` auto at
-   5433 and that project's dev DSN is repointed to port 5433 until the hub window.
+   (`pg_ctlcluster`), set `port` in each `postgresql.conf` (16 back to 5432, 18 to 5433), set 16's `start.conf`
+   to auto and leave 18's on auto, then start both (`pg_ctlcluster 16 main start`, `pg_ctlcluster 18 main
+   start`). 18 stays running at 5433 for brand-identiy-creator alone: its D7 code calls native `uuidv7()`, absent
+   on 16, so that project's dev DSN is repointed to port 5433 until the hub window. Every other project's DSN
+   reaches 16 at 5432; their dev writes made on 18 in the gap are lost (dev data).
 
 ### D3 — The hub repo changes (one branch, merged only after the hub window passes)
 
