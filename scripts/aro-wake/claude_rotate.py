@@ -3873,9 +3873,10 @@ def _known_account_emails() -> set[str]:
 def _parked_lock_fd() -> int:
     """The lock serialising every read-modify-write of ``parked.json`` (spec D5): the operator's
     ``--park`` and the tick's auto-park could otherwise each read the list, add their email, and
-    the slower write drop the faster one's. A dedicated lock file, the ``assignments.lock`` shape."""
+    the slower write drop the faster one's. A dedicated lock file, the ``assignments.lock`` shape —
+    but it never creates the fleet root (``--new-dir`` is its only creator): a missing root raises
+    here, and :func:`_parked_update` writes nothing."""
     root = _fleet_root()
-    root.mkdir(mode=0o700, parents=True, exist_ok=True)
     return os.open(str(root / "parked.lock"), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
 
 
@@ -3896,7 +3897,11 @@ def _parked_update(email: str, park: bool, *, repair: bool) -> bool | None:
         sys.stderr.write(f"claude_rotate: cannot lock {path} ({e}) — nothing changed\n")
         return None
     try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        except OSError as e:  # a filesystem that cannot lock: never risk the unlocked write
+            sys.stderr.write(f"claude_rotate: cannot lock {path} ({e}) — nothing changed\n")
+            return None
         try:
             data = json.loads(path.read_text())
         except FileNotFoundError:
@@ -3917,7 +3922,7 @@ def _parked_update(email: str, park: bool, *, repair: bool) -> bool | None:
         try:
             _write_json_atomic(path, sorted(parked), mode=0o644)
         except OSError as e:
-            sys.stderr.write(f"claude_rotate: cannot write {path} ({e})\n")
+            sys.stderr.write(f"claude_rotate: cannot write {path} ({e}) — nothing changed\n")
             return None
         return True
     finally:
@@ -3991,7 +3996,16 @@ def _probe_account(
     :data:`_PROBE_RETRY_S`; a session refusal newer than the verdict (*expired_after*, spec D7)
     expires it at once. Every fresh verdict is recorded with :func:`_record_probe`."""
     hit = _read_probe_cache().get(email)
-    if isinstance(hit, dict) and isinstance(hit.get("ts"), (int, float)):
+    ts = hit.get("ts") if isinstance(hit, dict) else None
+    # A bool is an int to isinstance, and a ts in the future (a backward clock step, or Infinity
+    # in the JSON) would read fresh until the clock caught up — or forever: both re-probe.
+    usable = (
+        isinstance(ts, (int, float))
+        and not isinstance(ts, bool)
+        and math.isfinite(ts)
+        and ts <= _now() + _CLOCK_SKEW_TOLERANCE_S
+    )
+    if usable and isinstance(hit, dict):
         life = (window or _probe_trust_s()) if hit.get("verdict") == "ok" else _PROBE_RETRY_S
         fresh = _now() - hit["ts"] < life
         stale_by_session = expired_after is not None and expired_after > hit["ts"]
@@ -4026,7 +4040,10 @@ def _auto_park(
             f"claude_rotate: capability refused for {email!r}, not a known account — nothing parked\n"
         )
         return False
-    confirm = _capability_probe(cfg_dir, timeout)
+    # The confirmation follows a refusal that came back fast, so it is always bounded at the active
+    # probe's 45 s: on the ping path (up to ROTATE_REFRESH_MAX_PER_RUN accounts a tick) an unbounded
+    # 150 s confirmation could stretch the tick past its */5 cron slot.
+    confirm = _capability_probe(cfg_dir, timeout or _ACTIVE_PROBE_TIMEOUT_S)
     if confirm != "refused":
         _record_probe(email, confirm)
         sys.stderr.write(
@@ -4036,6 +4053,8 @@ def _auto_park(
     if row is not None:
         row["weekly_cap"] = 0
         row["capability_refused"] = True
+        if "parked" in row:
+            row["parked"] = True  # the board reads this flag, set once when the row was built
     changed = _parked_update(email, True, repair=False)
     if changed is None:
         return False
@@ -4072,10 +4091,7 @@ def _cmd_park(email: str, park: bool) -> int:
         return 1
     changed = _parked_update(email, park, repair=True)
     if changed is None:
-        sys.stderr.write(
-            f"claude_rotate: cannot write {_fleet_root() / 'parked.json'} — nothing changed\n"
-        )
-        return 1
+        return 1  # _parked_update already said why, on one stderr line
     if not changed:
         print(f"{email} is already {'parked' if park else 'in service'} — nothing changed")
         return 0
@@ -7336,21 +7352,24 @@ def _capability_verdict(rc: int | None, stdout: str) -> str:
     (``rc is None``) and a refusal printed only on stderr included, is ``inconclusive``: it
     changes nothing, so a probe outage can never take an account out of service. The result
     TEXT is never logged — a healthy result echoes the account's private session context."""
+    if rc is None:
+        return "inconclusive"  # a timeout or a spawn failure decides nothing, whatever was printed
     obj: dict | None = None
     text = stdout or ""
-    try:
-        whole = json.loads(text)
-        if isinstance(whole, dict):
-            obj = whole
-    except ValueError:
-        for line in reversed(text.splitlines()):
-            try:
-                cand = json.loads(line)
-            except ValueError:
-                continue
-            if isinstance(cand, dict) and cand.get("type") == "result":
-                obj = cand
-                break
+    # Where the result object can sit: the whole stdout (one line, or pretty-printed), any single
+    # line (a warning before it), or the span from the first `{` to the last `}` (a pretty-printed
+    # result with a trailer). Only a dict whose `type` is "result" counts, on every path.
+    spans = [text, *reversed(text.splitlines())]
+    if "{" in text:
+        spans.append(text[text.find("{") : text.rfind("}") + 1])
+    for span in spans:
+        try:
+            cand = json.loads(span)
+        except (ValueError, RecursionError):  # deep nesting raises RecursionError, not ValueError
+            continue
+        if isinstance(cand, dict) and cand.get("type") == "result":
+            obj = cand
+            break
     is_error = isinstance(obj, dict) and obj.get("is_error") is True
     if is_error:
         blob = json.dumps(obj).lower()

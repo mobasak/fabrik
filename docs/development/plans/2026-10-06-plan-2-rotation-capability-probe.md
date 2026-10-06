@@ -148,9 +148,10 @@ Appetite: 90
 - `_auto_park(email: str, *, source: str, cfg_dir: Path, timeout: int | None = None, status: object = None, row: dict
   | None = None) -> bool` — `source` ∈ `promote` · `active` · `ping` · `wrapper`. It first CONFIRMS: one immediate
   `_capability_probe(cfg_dir, timeout)` must also return `refused` (spec § The delta D3 — two refusals in a row; a
-  refused call spends no quota). The D6 and wrapper paths pass `timeout=_ACTIVE_PROBE_TIMEOUT_S` (45), so the
-  confirmation cannot stretch the tick's `flock` or the wrapper's caller past that; promote and ping pass none (the
-  probe's default). Any other confirmation verdict is written to the cache with `_record_probe` (so an account that
+  refused call spends no quota). The confirmation is always bounded at `_ACTIVE_PROBE_TIMEOUT_S` (45) — `timeout or
+  45` — because it follows a refusal that came back fast; so it cannot stretch the tick's `flock` past its cron slot on
+  the ping path (up to `ROTATE_REFRESH_MAX_PER_RUN` accounts a tick) or the wrapper's caller past 45 s (Phase A review,
+  round 1; Fable's design-approval note). Any other confirmation verdict is written to the cache with `_record_probe` (so an account that
   refuses intermittently is held off by the cache windows, never re-probed every tick), returns `False` with one
   stderr line, and parks nothing, walls nothing. Then it normalises `email = email.strip().lower()` first (as `_cmd_park` does,
   `:3877`), then refuses (stderr, returns `False`) an email not in `_known_account_emails()` (`:3861-3870`), so a `pending-login` identity (`:3699`) is never written. Calls `_parked_update(email, True,

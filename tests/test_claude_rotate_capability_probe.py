@@ -334,3 +334,75 @@ def test_a8b_an_unknown_or_pending_identity_is_never_written(tmp_path, monkeypat
     assert calls == [], "an unknown identity is refused before any probe is spent"
     assert cr._auto_park("A@Ocoron.COM ", source="wrapper", cfg_dir=fleet / "d0") is True
     assert json.loads((fleet / "parked.json").read_text()) == ["a@ocoron.com"]
+
+
+# ── Phase A scoped review, round 1: one regression guard per confirmed defect ──────────────────
+
+
+def test_r1_a_non_result_object_never_refuses_and_a_timeout_decides_nothing():
+    """Only a `type: result` object is read, on every path; a timeout (`rc is None`) is
+    inconclusive whatever was printed."""
+    other = json.dumps({"type": "system", "is_error": True, "message": "oauth_org_not_allowed"})
+    assert cr._capability_verdict(1, other) == "inconclusive"
+    assert cr._capability_verdict(None, REFUSAL) == "inconclusive"
+
+
+def test_r2_deeply_nested_stdout_is_inconclusive_not_a_crash():
+    deep = "[" * 100_000 + "]" * 100_000
+    assert cr._capability_verdict(1, deep) == "inconclusive"
+
+
+def test_r3_a_pretty_printed_refusal_with_a_trailer_line_is_still_refused():
+    out = json.dumps(_refusal(), indent=2) + "\nwarn: telemetry disabled\n"
+    assert cr._capability_verdict(1, out) == "refused"
+
+
+def test_r4_a_lock_that_cannot_be_taken_writes_nothing_and_never_raises(
+    tmp_path, monkeypatch, capsys
+):
+    fleet = _fleet_one(tmp_path, monkeypatch)
+
+    def no_lock(fd, op):
+        if op == cr.fcntl.LOCK_EX:
+            raise BlockingIOError(11, "Resource temporarily unavailable")
+
+    monkeypatch.setattr(cr.fcntl, "flock", no_lock)
+    assert cr._parked_update("a@ocoron.com", True, repair=False) is None
+    assert not (fleet / "parked.json").exists()
+    capsys.readouterr()
+    assert cr.main(["--park", "a@ocoron.com"]) == 1
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1 and "cannot lock" in err, err
+
+
+def test_r5_the_parked_lock_never_creates_a_missing_fleet_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "no-fleet"))
+    assert cr._parked_update("a@ocoron.com", True, repair=True) is None
+    assert not (tmp_path / "no-fleet").exists()
+
+
+def test_r6_a_bool_infinite_or_future_cache_ts_is_re_probed(tmp_path, monkeypatch):
+    _fleet_one(tmp_path, monkeypatch)
+    calls = _probe_script(monkeypatch, [(0, HEALTHY)])
+    for ts in (True, "Infinity", FLEET_NOW + 3600.0):
+        raw = json.dumps({"a@ocoron.com": {"verdict": "ok", "ts": ts}})
+        if ts == "Infinity":
+            raw = raw.replace(
+                '"Infinity"', "Infinity"
+            )  # the bare JSON token json.loads reads as inf
+        cr._probe_cache_path().write_text(raw)
+        before = len(calls)
+        assert cr._probe_account("a@ocoron.com", "d0") == "ok"
+        assert len(calls) == before + 1, f"ts={ts!r} was trusted"
+
+
+def test_r7_the_confirmation_is_bounded_at_45_seconds_and_the_board_flag_is_set(
+    tmp_path, monkeypatch
+):
+    fleet = _fleet_one(tmp_path, monkeypatch)
+    calls = _probe_script(monkeypatch, [(1, REFUSAL)])
+    _alerts(monkeypatch)
+    row = {"email": "a@ocoron.com", "weekly_cap": None, "parked": False}
+    assert cr._auto_park("a@ocoron.com", source="ping", cfg_dir=fleet / "d0", row=row) is True
+    assert calls[0]["timeout"] == 45
+    assert row["parked"] is True
