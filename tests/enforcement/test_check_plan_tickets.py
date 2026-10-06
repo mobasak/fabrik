@@ -2861,6 +2861,11 @@ def test_a_gate_path_resolves_against_its_own_cd_and_a_subdir_prefixed_ghost_fir
     pushd_ghost = _errs_for("pushd-ghost", pushd, [])
     assert len(pushd_ghost) == 1 and f"`{spec}`" in pushd_ghost[0], pushd_ghost
     assert _errs_for("cd-dash", "cd - && npx playwright test tests/ui/disc-a.spec.ts", []) == []
+    # review round 2 (S5): `cd a || cd b` is an alternative, never `a/b`; `cd x || exit 1` keeps x
+    alt = "cd web || cd frontend && npx playwright test tests/ui/disc-a.spec.ts"
+    assert _errs_for("or-alternative", alt, [spec]) == []
+    keep = _errs_for("or-exit", cd_gate.replace(" && ", " || exit 1 && ", 1), [])
+    assert len(keep) == 1 and f"`{spec}`" in keep[0], keep
 
 
 def test_touches_shapes_round_two_a_plus_bullet_a_quoted_path_and_a_mid_bullet_comment(
