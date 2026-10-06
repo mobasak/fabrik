@@ -1,6 +1,6 @@
 # Rotation capability probe — an account that refuses inference is never the next account
 
-Status: DRAFT
+Status: CONVERGED
 Profile: delta
 Size: small (≈250 lines, 2 files — `claude_rotate.py` and its byte-identical `scripts/aro-wake/` twin)
 Work item: W-f8bfe7eb · Evidence: fleet mail 01M3QG6GG5NQNVG5MZE6SAME1G · Detection half: W-ffd390d2 (done)
