@@ -556,6 +556,30 @@ def test_appendix_send_timing_is_structural(doc):
     assert seen and set(seen.values()) == {"AFTER-HUB-WINDOW"}, seen
 
 
+_TIME_PHRASE = re.compile(r"\b(before|after)\s+the\s+(wsl|hub)\s+window\b", re.I)
+_FIELD_PHRASE = {"BEFORE-WSL-WINDOW": ("before", "wsl"), "AFTER-HUB-WINDOW": ("after", "hub")}
+
+
+def test_appendix_headings_and_prose_never_contradict_the_send_field(doc):
+    """NEW-1: the **Send:** field is the only place a send time lives — a heading names none, and an
+    item's own prose (its Send line excluded) names no time other than its field's."""
+    _, sections = doc
+    for sec in _appendix(sections):
+        assert not _TIME_PHRASE.search(sec.title), f"heading carries a send time: {sec.title}"
+        assert not re.search(r"\bsend\b", sec.title, re.I), (
+            f"heading carries send timing: {sec.title}"
+        )
+        field = next(ln.strip() for ln in sec.prose if ln.strip().startswith("**Send:**")).split()[
+            1
+        ]
+        prose = " ".join(ln for ln in sec.prose if not ln.strip().startswith("**Send:**"))
+        for m in _TIME_PHRASE.finditer(re.sub(r"\s+", " ", prose)):
+            got = (m.group(1).lower(), m.group(2).lower())
+            assert got == _FIELD_PHRASE.get(field), (
+                f"{sec.title}: prose says {m.group(0)!r}, field says {field}"
+            )
+
+
 # --- Wave-2 review fixups (pass 1) ---------------------------------------------------------------
 
 
@@ -666,6 +690,7 @@ def test_password_file_lives_in_ram_and_is_proven_and_shredded(doc):
         if re.match(r"PGENV_DIR=", ln):
             assert re.match(r"PGENV_DIR=\$\(mktemp -d /dev/shm/", ln), ln
         assert not re.search(r"--env-file\s+\S*(/opt|\$W|\$P)\b", ln), ln
+        assert not re.search(r"\$(W|P)/pgpass\.env", ln), f"a password-file path under /opt: {ln}"
     code = _code_lines(_hub_steps(sections)["3"].all_fences)
     proof = next(i for i, ln in enumerate(code) if "SELECT 1" in ln and "PGENV" in ln)
     first_dump = next(i for i, ln in enumerate(code) if "pg_dumpall" in ln)
@@ -825,15 +850,127 @@ def test_spoke_blocks_are_labelled_where_they_run(doc):
 
 def test_v8_drill_handles_leftovers_and_gates_its_cleanup(doc):
     """E2-4/E2-5: a non-running leftover is detected and recreated; the scratch rm is a gated command."""
-    lines, sections = doc
-    r1 = _release_steps(sections)[0][1]
-    code = _code_lines(r1.fences)
-    assert any(
-        re.search(r"docker inspect -f '\{\{\.State\.Status\}\}' pg18-drill-verify", ln)
-        for ln in code
-    )
-    assert any(re.search(r"docker rm pg18-drill-verify", ln) for ln in code)
+    lines, _ = doc
     rm_lines = [i for i, ln in enumerate(lines) if re.search(r'sudo rm -rf -- "\$V"', ln)]
     assert len(rm_lines) == 1
     start = max(a for a, b in _fence_ranges(lines) if a < rm_lines[0] < b)
     assert _has_marker(_preceding_prose(lines, start), GATE_MARKER), "the scratch rm is not gated"
+
+
+_DRILL_STUBS = r"""
+sudo() { "$@"; }
+docker() {
+  echo "DOCKER $*" >> "$LOG"
+  case "$1" in
+    inspect) [ "$FAKE_STATE" = absent ] && { echo "Error: No such object" >&2; return 1; }; echo "$FAKE_STATE" ;;
+  esac
+  return 0
+}
+"""
+
+
+def _drill_leftover_block(sections: list[Section]) -> str:
+    r1 = _release_steps(sections)[0][1]
+    block = _block_with(r1, "pg18-drill-verify --network none")
+    lines = block.splitlines()
+    start = next(i for i, ln in enumerate(lines) if re.search(r"\bstate=", ln))
+    end = next(i for i, ln in enumerate(lines) if "docker run -d --name pg18-drill-verify" in ln)
+    return "\n".join(lines[start : end + 1])
+
+
+@pytest.mark.parametrize(
+    ("state", "rm", "run"),
+    [
+        ("exited", True, True),
+        ("created", True, True),
+        ("running", False, False),
+        ("absent", False, True),
+    ],
+)
+def test_v8_drill_leftover_container_is_handled_by_state(doc, tmp_path, state, rm, run):
+    """NEW-2 (E2-5): R1's leftover block EXECUTED with a recording docker stub — a non-running leftover
+    is removed then recreated, a running one is reused, an absent one is created."""
+    _, sections = doc
+    log = tmp_path / "log"
+    log.write_text("")
+    out = _run_bash(
+        _DRILL_STUBS + "V=/opt/backups/pg18-drill-verify-x\n" + _drill_leftover_block(sections),
+        {"FAKE_STATE": state, "LOG": str(log)},
+    )
+    calls = log.read_text().splitlines()
+    rms = [i for i, c in enumerate(calls) if re.match(r"DOCKER rm\b.*pg18-drill-verify", c)]
+    runs = [
+        i for i, c in enumerate(calls) if re.match(r"DOCKER run -d --name pg18-drill-verify", c)
+    ]
+    assert any(c.startswith("DOCKER inspect") for c in calls), out
+    assert bool(rms) == rm and bool(runs) == run, (state, calls, out)
+    if rm and run:
+        assert rms[0] < runs[0], "the leftover is removed BEFORE the fresh container is created"
+
+
+_PORT_STUBS = r"""
+sudo() { "$@"; }
+docker() {
+  local sub=$1; shift
+  case "$sub" in
+    exec)
+      while [ "${1#-}" != "$1" ]; do case "$1" in -u) shift 2 ;; *) shift ;; esac; done
+      shift
+      [ "$1" = sh ] && [ "$2" = -c ] && PGDATA="$FAKE_VOL/18/docker" sh -c "$3" ;;
+    run)
+      local cmd=""
+      while [ $# -gt 0 ]; do case "$1" in -c) cmd=$2; shift 2 ;; *) shift ;; esac; done
+      sh -c "${cmd//\/var\/lib\/postgresql/$FAKE_VOL}" ;;
+  esac
+}
+"""
+
+
+def _port_block(sections: list[Section]) -> str:
+    step5 = _hub_steps(sections)["5"]
+    block = next(b for b in step5.all_fences if "conf16/postgresql.auto.conf" in b)
+    lines = block.splitlines()
+    start = next(
+        i for i, ln in enumerate(lines) if re.match(r"if .*(port-auto|pg18-window port)", ln)
+    )
+    end = next(i for i in range(start + 1, len(lines)) if lines[i] == "fi")
+    return "\n".join(lines[start : end + 1])
+
+
+def _port_rollback(sections: list[Section]) -> str:
+    rollback = _paragraph(_hub_steps(sections)["5"].all_prose, "**Rollback:**")
+    spans = [sp for sp in re.findall(r"`([^`]+)`", rollback) if "postgres18-data" in sp]
+    assert len(spans) == 1, f"step 5 Rollback must carry one runnable restore command: {rollback}"
+    return spans[0]
+
+
+def test_step_5_port_survives_an_alter_system_remedy_and_rolls_back(doc, tmp_path):
+    """E1-16: append once, an ALTER SYSTEM remedy rewrites the file (comments gone), a re-run of the
+    port must NOT re-append the 16 value, and the Rollback must restore the saved 18 file exactly."""
+    _, sections = doc
+    w, vol = tmp_path / "w", tmp_path / "vol"
+    (w / "conf16").mkdir(parents=True)
+    (vol / "18" / "docker").mkdir(parents=True)
+    auto = vol / "18" / "docker" / "postgresql.auto.conf"
+    fresh = (
+        "# Do not edit this file manually!\n# It will be overwritten by the ALTER SYSTEM command.\n"
+    )
+    auto.write_text(fresh)
+    (w / "conf16" / "postgresql.auto.conf").write_text(
+        "# Do not edit\nwork_mem = '8MB'\ndefault_transaction_read_only = 'on'\n"
+    )
+    env = {"W": str(w), "TS": "t", "FAKE_VOL": str(vol)}
+    port = _PORT_STUBS + _port_block(sections)
+    _run_bash(port, env)
+    assert (
+        "work_mem = '8MB'" in auto.read_text()
+        and "default_transaction_read_only" not in auto.read_text()
+    )
+    auto.write_text(
+        fresh + "work_mem = '16MB'\n"
+    )  # what ALTER SYSTEM SET work_mem = '16MB' leaves behind
+    _run_bash(port, env)
+    values = re.findall(r"^work_mem = '(\w+)'", auto.read_text(), re.M)
+    assert values[-1] == "16MB", f"a re-run re-appended the 16 value over the remedy: {values}"
+    out = _run_bash(_PORT_STUBS + _port_rollback(sections), env)
+    assert auto.read_text() == fresh, f"the Rollback did not restore the saved 18 file: {out}"

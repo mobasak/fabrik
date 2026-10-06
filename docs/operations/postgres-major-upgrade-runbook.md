@@ -313,7 +313,7 @@ or the config path differs — find the real one in the Backrest UI at `backup.v
 
 The rehearsal (spec § The delta › D2), run before the hub window. WSL runs native apt PostgreSQL 16 on 5432 with one
 dedicated `{project_name}_dev` database per project (`.windsurf/rules/core/25-data-postgres.md:37`; the name is built
-at `scripts/create_pg_dev_db.sh:11`). Before it opens: appendix A1 has been sent
+at `scripts/create_pg_dev_db.sh:12`). Before it opens: appendix A1 has been sent
 and brand-identiy-creator's D7 branch is ready (spec § The delta › D7).
 
 ```bash
@@ -784,7 +784,10 @@ step 5). The dump carries step 1's `CONNECTION LIMIT 0`, which stays until step 
 setting from `postgresql.auto.conf` — except step 1's own `default_transaction_read_only` and the parameters PG17
 removed (`old_snapshot_threshold`, `db_user_namespace`; pg-08, pg-10), with `ssl_ecdh_curve` renamed `ssl_groups`
 (pg-30) — and every `pg_hba`/`pg_ident` rule, check `max_connections` against P6, then `ANALYZE`. The settings are
-ported FAITHFULLY: the 16 cluster's own `postgresql.auto.conf` lines are appended to the 18 one, so a list setting
+ported FAITHFULLY: the 16 cluster's own `postgresql.auto.conf` lines (kept in `$W/port-auto.conf`) are appended to
+the 18 one exactly once — a FILE marker, `$W/port-auto.applied`, records the append, because any `ALTER SYSTEM` rewrites
+`postgresql.auto.conf` and strips comments, so a comment inside it cannot be the guard — and the 18 file is saved first
+to `$W/auto18.orig`. A list setting
 (`shared_preload_libraries`, `search_path`, `*_preload_libraries`, `temp_tablespaces`) keeps its list form — re-issuing
 it as `ALTER SYSTEM SET x = 'a, b'` would make it ONE item and 18 would refuse to start. `pg_file_settings` is read for
 errors before the restart.
@@ -792,7 +795,9 @@ errors before the restart.
 Edits made by hand to the 16 cluster's `postgresql.conf` (not `postgresql.auto.conf`) are NOT ported: the 18 image
 writes its own `postgresql.conf`. V1 catches them — a `setting|…|postgresql.conf` row that differs in step 6's
 `cluster.txt` diff — and the remedy is `ALTER SYSTEM SET` of that value on 18, a reload (or a restart when
-`pending_restart`), and step 6 again.
+`pending_restart`), and step 6 again. Step 5's port is NOT re-applied over such a remedy: the `port-auto.applied` marker
+makes a re-run of step 5 skip the append. To change a PORTED value instead, edit `$W/port-auto.conf`, take step 5's
+Rollback (which restores `auto18.orig` and clears the marker), and re-run step 5.
 
 **Operator's explicit word:** the restore runs ONLY into an empty cluster; the guard refuses otherwise. Redoing a
 failed restore means removing the PG18 volume this window created and repeating step 4 — that removal needs the
@@ -807,8 +812,9 @@ else
   echo "cluster already holds $n databases — restore NOT re-run (read $W/restore.err)"
 fi
 grep -c 'ERROR' "$W/restore.err"; grep 'ERROR' "$W/restore.err" | grep -v 'role "postgres" already exists' || echo "only the allowed error"
-if ! sudo docker exec postgres-main sh -c 'grep -q "^# pg18-window port" "$PGDATA/postgresql.auto.conf"'; then
-  { echo "# pg18-window port from the 16 cluster ($TS)"
+if [ ! -f "$W/port-auto.applied" ]; then
+  [ -s "$W/auto18.orig" ] || sudo docker exec postgres-main sh -c 'cat "$PGDATA/postgresql.auto.conf"' > "$W/auto18.orig"
+  [ -s "$W/port-auto.conf" ] || { echo "# pg18-window port from the 16 cluster ($TS)"
     awk -v skip='^(default_transaction_read_only|old_snapshot_threshold|db_user_namespace)$' '
       /^[[:space:]]*(#|$)/ { next }
       { n = $0; sub(/^[[:space:]]*/, "", n); sub(/[[:space:]]*=.*$/, "", n)
@@ -816,7 +822,7 @@ if ! sudo docker exec postgres-main sh -c 'grep -q "^# pg18-window port" "$PGDAT
         if (n == "ssl_ecdh_curve") sub(/ssl_ecdh_curve/, "ssl_groups")
         print }' "$W/conf16/postgresql.auto.conf"; } > "$W/port-auto.conf"
   cat "$W/port-auto.conf"
-  sudo docker exec -i -u postgres postgres-main sh -c 'cat >> "$PGDATA/postgresql.auto.conf"' < "$W/port-auto.conf"
+  sudo docker exec -i -u postgres postgres-main sh -c 'cat >> "$PGDATA/postgresql.auto.conf"' < "$W/port-auto.conf" && date -u +%FT%TZ > "$W/port-auto.applied"
 fi
 "${PSQL[@]}" -X -At -c "SELECT coalesce(name, '?') || ' — ' || error FROM pg_file_settings WHERE error IS NOT NULL AND error <> 'setting could not be applied'" | tee "$W/port-errors.txt"   # 'could not be applied' = needs the restart below, not an error
 for f in pg_hba.conf pg_ident.conf; do
@@ -835,9 +841,10 @@ sudo docker exec postgres-main vacuumdb -U postgres --all --analyze-only 2> "$W/
 empty and the container came back after any restart; every ported line reads back (`SHOW <name>` equals the 16 value —
 a list setting shows its items comma-separated, e.g. `pg_stat_statements, auto_explain`); `max_connections` covers P6's pool sum; `analyze clean` — an error there is
 the `search_path` change (pg-07): an expression index or matview on a non-default schema that must set its own.
-**Rollback:** a ported line that stops 18 from starting is cut from the 18 copy's file while the container is down —
-`sudo docker run --rm -v postgres18-data:/var/lib/postgresql --entrypoint sh postgres:18.6-alpine -c 'sed -i "/^# pg18-window port/,\$d" /var/lib/postgresql/18/docker/postgresql.auto.conf'`
-(it touches the PG18 copy only), then `sudo docker start postgres-main`; otherwise step 7's one-step rollback.
+**Rollback:** the port is undone by putting back the saved 18 file while the container is down —
+`sudo docker run --rm -i -v postgres18-data:/var/lib/postgresql --entrypoint sh postgres:18.6-alpine -c 'cat > /var/lib/postgresql/18/docker/postgresql.auto.conf' < "$W/auto18.orig" && rm -f "$W/port-auto.applied"`
+(it touches the PG18 copy only; the truncate-and-write keeps the file's owner), then `sudo docker start postgres-main`;
+otherwise step 7's one-step rollback.
 
 ### Hub step 6 — Diff the manifest on 18 (V1) and the compatibility checks
 
@@ -1165,13 +1172,14 @@ window_silences() { sudo docker exec alertmanager amtool silence query --alertma
 window_silences | xargs -r sudo docker exec alertmanager amtool silence expire --alertmanager.url=http://localhost:9093
 sudo docker exec prometheus wget -qO- --post-data "title=Maintenance complete&body=postgres-main runs PostgreSQL 18.6 ($TS). Services are back." http://apprise:8000/notify/alerts
 date -u -d '+7 days' +%F | sudo tee "$W/HOLD-UNTIL" >/dev/null; cat "$W/HOLD-UNTIL"
-[ -f "$W/pgpass.env" ] && shred -u "$W/pgpass.env"; ls "$W"
+for d in /dev/shm/pg18.*; do [ -d "$d" ] || continue; [ -f "$d/pgpass.env" ] && shred -u "$d/pgpass.env"; rmdir "$d"; done
+ls -d /dev/shm/pg18.* 2>/dev/null || echo "no password file left"
 ```
 
 **Verify:** no active silence carries the window's comment; the all-clear arrived on Telegram; `HOLD-UNTIL` reads today + 7
 days — the final dump (`pg16-final-$TS.sql` and its per-database dumps) is kept at least until then
 (`docs/development/plans/archived/2026-05-25-postgresql-18-upgrade.md:132`), in `$W` and in the step-3 snapshot; no
-`pgpass.env` remains.
+password file remains (`no password file left` printed — the RAM directories steps P3 and 3 created are gone).
 **Rollback:** none — closing actions.
 
 ## 4. Release after the soak
@@ -1324,7 +1332,7 @@ WSL window (spec D7). Every request names its lines from spec § What exists tod
 against the WSL 18 cluster before committing. A hub agent never edits another repo (`CLAUDE.md` § HARD STOPS); these
 are requests. Each item's `**Send:**` line says WHEN: `BEFORE-WSL-WINDOW`, `AFTER-HUB-WINDOW` or `NONE`.
 
-### A1 — brand-identiy-creator (D7) — send BEFORE the WSL window
+### A1 — brand-identiy-creator (D7)
 
 **Send:** BEFORE-WSL-WINDOW — D7: the change is prepared before the WSL window and merged after it.
 
