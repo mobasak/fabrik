@@ -1,8 +1,8 @@
 # Review — mint-once generated secrets (W-023bdd59)
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = 150c780d3; `git diff 2156653d3..150c780d3 -- src tests` md5 8aab56e46f0658b504c510a06654d47c (14783 bytes)
-**Command:** /fabrik-review (nested in /fabrik-task W-023bdd59 phase 4) · **Changed:** `src/fabrik/orchestrator/context.py`, `src/fabrik/orchestrator/__init__.py`, `src/fabrik/orchestrator/deployer_ssh.py`, `tests/orchestrator/test_generated_secret_mint_once.py`
+**Surface:** `git rev-parse HEAD` = d35da2752b3141bff8ed77d0bcf73b4794edf15a; range tip d35da2752b3141bff8ed77d0bcf73b4794edf15a; `git diff 2156653d3..d35da2752 -- src/fabrik/orchestrator/context.py src/fabrik/orchestrator/__init__.py src/fabrik/orchestrator/deployer_ssh.py tests/orchestrator/test_generated_secret_mint_once.py` md5 4c67c39d5708c514ffd2bf024cef166c (14816 bytes)
+**Command:** /fabrik-review · **Changed:** `src/fabrik/orchestrator/context.py`, `src/fabrik/orchestrator/__init__.py`, `src/fabrik/orchestrator/deployer_ssh.py`, `tests/orchestrator/test_generated_secret_mint_once.py` · nested in /fabrik-task W-023bdd59 phase 4
 **Origin:** work item W-023bdd59 — a re-apply re-minted `generate`/`required` secrets because the hub never keeps a value it minted; for a stable-forever key (Zitadel's `ZITADEL_MASTERKEY`) that is data loss. Design critiqued by Opus 5.5 and Fable 5.1 before this review.
 **Anchor:** no prior review report for this scope; full WIDE pass 1.
 
