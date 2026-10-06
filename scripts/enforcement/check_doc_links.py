@@ -14,7 +14,9 @@ target) pairs because nothing enforced links. This gate keeps the LIVE tree at z
   resolved both repo-root-relative and source-file-relative.
 - EXEMPT: http(s) URLs, anchors-only links, placeholder/example paths, the
   project-context allowlist (doc names that exist in scaffolded PROJECTS, cited
-  from synced/orchestrator docs — they are not hub paths), and
+  from synced/orchestrator docs — they are not hub paths), in a PROJECT the
+  Fabrik-synced docs named by ``.fabrik/synced.lock`` as SOURCES (a linked
+  worktree without its own lock reads the main checkout's), and
   ``docs/reference/LOCAL_LLM_INFRASTRUCTURE.md`` as a SOURCE (operator-excluded
   from the 2026-07-20 run; waiver removed with its deferred link fixups).
 
@@ -144,8 +146,18 @@ def _tracked_md_sources() -> list[Path]:
     # In a PROJECT, Fabrik-synced docs (gitignored, centrally distributed) are hub
     # CONTEXT, never a link-check target: their hub-relative refs cannot resolve
     # locally and cannot be fixed locally (synced-files gate forbids edits). The
-    # lock records exactly what was distributed.
+    # lock records exactly what was distributed. A linked worktree created between two
+    # syncs has the synced docs (.worktreeinclude copies them) but not the lock (the sync
+    # writes it there only at the NEXT run, and only under .claude/worktrees/), so a
+    # worktree without its own lock reads the MAIN checkout's — the same resolution
+    # command_run.py uses to answer "is this repo synced". Anything occupying the
+    # worktree's own lock path IS its lock: one that does not parse (or is a directory)
+    # keeps today's no-exemption, and nothing falls through to the other copy.
     lock = REPO / ".fabrik" / "synced.lock"
+    if not lock.exists():
+        main = _main_checkout()
+        if main is not None:
+            lock = main / ".fabrik" / "synced.lock"
     if lock.exists():
         try:
             import json as _json

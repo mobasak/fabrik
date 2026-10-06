@@ -344,7 +344,9 @@ resolution is worktree-aware, not the import system.
 gets the hub's self-exemptions and the vendored-drift check grades the worktree's OWN governance set;
 any git failure reads as "not the hub". From any linked worktree, `scripts/enforcement/check_doc_links.py`
 resolves a doc ref to a GITIGNORED path through the main checkout (a fresh worktree lacks generated
-files); a tracked file missing from the worktree, or an in-repo `../` ref, is still a real break.
+files); a tracked file missing from the worktree, or an in-repo `../` ref, is still a real break. In a
+PROJECT it also exempts the Fabrik-synced docs named by `.fabrik/synced.lock` as SOURCES, and a linked
+worktree without its own lock (`.worktreeinclude` never carries it) reads the main checkout's.
 
 T01b's settings block ships from the hub because the hub's `.claude/settings.json` is the synced
 source, and it is **not inert here**: on CLI 2.1.258 `baseRef: "head"` applies to `--worktree`,
