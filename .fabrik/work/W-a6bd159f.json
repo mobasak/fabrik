@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-04T08:01:16.531855Z",
+  "created": "2026-10-06T00:16:10.087976Z",
   "creator": "infra",
   "evidence": "",
-  "id": "W-ab678eb9",
+  "id": "W-a6bd159f",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M3T9H8EP4MHB6H8NNBGN38GW",
+    "mail": "01M478WHG2HYKZYA26J2QKGP0B",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "infra",
   "priority": 2,
   "status": "done",
-  "title": "WHAT: `python scripts/docs_updater.py --sync`, run in a linked worktree, regenerates INDEX.md's AUTO-GENERATED:STRUCTURE"
+  "title": "branch: worktree-fleet"
 }

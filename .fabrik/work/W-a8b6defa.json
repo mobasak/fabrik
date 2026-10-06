@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:48.023805Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "f6b15a90e0de43e438b878afde054cee3371e9d0",
   "id": "W-a8b6defa",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:67c5ec0d799d",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**`generate_capability_index.py` classifies a script from its first 4000 chars and takes the `# AFTER-EDIT:` comment as its summary** — a script whose `if __name__` sits past the window silently be..."
 }
