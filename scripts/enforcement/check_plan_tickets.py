@@ -123,63 +123,84 @@ _GATE_FILE_RE = re.compile(
     r"(?<![\w/.-])(?:\./)?((?:[\w.-]+/)*(?:tests?|src|scripts|server|app|lib)/[\w./-]+"
     r"\.(?:py|ts|tsx|js|mjs|sh))\b"
 )
-# `cd <dir>`, optionally anchored at the repo root's `$(git rev-parse --show-toplevel)`
+# `cd <dir>` or `pushd <dir>`, optionally anchored at the repo root's
+# `$(git rev-parse --show-toplevel)`; a dir starting with `-` (`cd -`, `cd -P x`) is not a path
 _GATE_CD_RE = re.compile(
-    r"^cd\s+(['\"]?)(?P<top>\$\(git rev-parse --show-toplevel\)/?)?(?P<dir>[\w./-]*)\1$"
+    r"^(?:cd|pushd)\s+(['\"]?)(?P<top>\$\(git rev-parse --show-toplevel\)/?)?"
+    r"(?P<dir>(?!-)[\w./-]*)\1$"
 )
+_GATE_CD_WORD_RE = re.compile(r"^(?:cd|pushd|popd)(?:\s|$)")
 
 
 def _gate_file_paths(cmd: str) -> list[tuple[str, ...]]:
     """The files a Gate command runs, each resolved against the directory its own `cd` set.
 
-    A Gate is split on `&&`, `||` and `;`; a `cd <dir>` segment moves the working directory for
-    every later segment, so `cd frontend && npx playwright test tests/ui/x.spec.ts` names
-    `frontend/tests/ui/x.spec.ts` (brand-identiy-creator 01M46WXVNQQRCEAVHWEQ5A7YEE: nine existing
-    specs read "exists nowhere" resolved against the root). A `cd` the checker cannot resolve to a
-    repo-relative directory (absolute, `~`, above the root, or a variable other than
-    `$(git rev-parse --show-toplevel)`, which is the root) leaves the paths after it unchecked
-    rather than guessed at — the cheapest way past this rule is such a `cd`, and the
-    review reads it.
+    A Gate is split on `&&`, `||` and `;`; a `cd <dir>` (or `pushd <dir>`) segment moves the
+    working directory for every later segment, so `cd frontend && npx playwright test
+    tests/ui/x.spec.ts` names `frontend/tests/ui/x.spec.ts` (brand-identiy-creator
+    01M46WXVNQQRCEAVHWEQ5A7YEE: nine existing specs read "exists nowhere" resolved against the
+    root). A subshell `( … )` keeps its `cd` inside the parentheses. A `cd` the checker cannot
+    resolve to a repo-relative directory (absolute, `~`, `-`, `popd`, above the root, quoted with
+    spaces, or a variable other than `$(git rev-parse --show-toplevel)`, which is the root) leaves
+    the paths after it unchecked rather than guessed at — the cheapest way past this rule is such a
+    `cd`, and the review reads it. `||` is read like `&&`: `cd x || exit 1` keeps `x`.
     """
     cwd: PurePosixPath | None = PurePosixPath()
+    stack: list[PurePosixPath | None] = []
     found: list[tuple[str, ...]] = []
     for seg in re.split(r"&&|\|\||;", cmd.replace("`", " ")):
         seg = seg.strip()
-        m = _GATE_CD_RE.match(seg)
-        if m and (m.group("top") or m.group("dir")):
-            base = PurePosixPath() if m.group("top") else cwd
-            target = PurePosixPath(m.group("dir") or ".")
-            if base is None or target.is_absolute():
-                cwd = None
-                continue
-            parts: list[str] = []
-            for part in (base / target).parts:
-                if part == "..":
-                    if not parts:
-                        cwd = None
-                        break
-                    parts.pop()
-                elif part != ".":
-                    parts.append(part)
-            else:
-                cwd = PurePosixPath(*parts) if parts else PurePosixPath()
-            continue
-        if seg.startswith("cd ") or seg == "cd":
-            cwd = None  # a cd this parser cannot read: stop resolving rather than guess
-            continue
-        if cwd is None:
-            continue
-        for f in _GATE_FILE_RE.findall(seg):
-            rel = (cwd / f).as_posix()
-            if rel.startswith("../"):
-                continue
-            # after a `cd`, a test runner's filter argument may still be spelled root-relative
-            # (Playwright matches `frontend/tests/ui/x.spec.ts` from inside frontend/), so both
-            # spellings name the file; the cwd-resolved one is reported
-            spellings = (rel,) if rel == f else (rel, f)
-            if spellings not in found:
-                found.append(spellings)
+        opens = len(seg) - len(seg.lstrip("("))
+        closes = len(seg) - len(seg.rstrip(")"))
+        seg = seg.strip("()").strip()
+        stack.extend([cwd] * opens)
+        _gate_segment(seg, cwd, found)
+        cwd = _gate_cd(seg, cwd)
+        for _ in range(min(closes, len(stack))):
+            cwd = stack.pop()
     return found
+
+
+def _gate_cd(seg: str, cwd: PurePosixPath | None) -> PurePosixPath | None:
+    """The working directory after one Gate segment: moved by a readable `cd`, None (stop
+    resolving) after an unreadable one, unchanged otherwise."""
+    if not _GATE_CD_WORD_RE.match(seg):
+        return cwd
+    m = _GATE_CD_RE.match(seg)
+    if not m or not (m.group("top") or m.group("dir")):
+        return None  # a cd this parser cannot read: stop resolving rather than guess
+    base = PurePosixPath() if m.group("top") else cwd
+    target = PurePosixPath(m.group("dir") or ".")
+    if base is None or target.is_absolute():
+        return None
+    parts: list[str] = []
+    for part in (base / target).parts:
+        if part == "..":
+            if not parts:
+                return None
+            parts.pop()
+        elif part != ".":
+            parts.append(part)
+    return PurePosixPath(*parts) if parts else PurePosixPath()
+
+
+def _gate_segment(seg: str, cwd: PurePosixPath | None, found: list[tuple[str, ...]]) -> None:
+    """Append the files one Gate segment runs, resolved against `cwd`, to `found`."""
+    if cwd is None or _GATE_CD_WORD_RE.match(seg):
+        return
+    here = cwd.as_posix()
+    for f in _GATE_FILE_RE.findall(seg):
+        rel = (cwd / f).as_posix()
+        if rel.startswith("../"):
+            continue
+        # after a `cd`, a test runner's filter argument may still be spelled root-relative
+        # (Playwright matches `frontend/tests/ui/x.spec.ts` from inside frontend/), so a raw
+        # spelling INSIDE the cd directory also names the file; one outside it does not, or a root
+        # `tests/x.py` would vouch for a missing `server/tests/x.py`. The cwd-resolved one is reported
+        inside = here != "." and f.startswith(here + "/")
+        spellings = (rel, f) if inside else (rel,)
+        if spellings not in found:
+            found.append(spellings)
 
 
 # a line the bullet collector (`_list_paths`) READS or a line that carries no path: a bullet (`-`,
@@ -2401,9 +2422,11 @@ def check_plan_dir(
         for _gm in GATE_CMD_RE.finditer(_scan_t):
             for _spellings in _gate_file_paths(_gm.group("cmd")):
                 _f = _spellings[0]
-                if not any(
-                    (root / _s).exists() or _norm_path(_s) in _touch_set for _s in _spellings
-                ):
+                _named = False
+                for _s in _spellings:
+                    _on_disk = root is not None and (root / _s).exists()
+                    _named = _named or _on_disk or _norm_path(_s) in _touch_set
+                if not _named:
                     results.append(
                         _err(
                             f"{t.tid}: Gate: runs `{_f}`, which exists nowhere and is in no "

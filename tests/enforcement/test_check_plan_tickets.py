@@ -2849,6 +2849,18 @@ def test_a_gate_path_resolves_against_its_own_cd_and_a_subdir_prefixed_ghost_fir
     # the anchor resets to the root even after an earlier `cd`
     after = _errs_for("top-after-cd", f"cd web && {top}", [])
     assert len(after) == 1 and f"`{spec}`" in after[0], after
+    # review round 1: a root file of the same name never vouches for the cd-resolved one (S1)
+    vouch = _errs_for("root-vouch", cd_gate, ["tests/ui/disc-a.spec.ts"])
+    assert len(vouch) == 1 and f"`{spec}`" in vouch[0], vouch
+    # a subshell's cd applies inside it and ends at its `)` (S4)
+    sub = "(cd frontend && npx playwright test tests/ui/disc-a.spec.ts) && pytest tests/x.py"
+    assert _errs_for("subshell", sub, [spec, "tests/x.py"]) == []
+    # `pushd` moves like `cd` (S3); `cd -` is not a directory named `-` (S2)
+    pushd = cd_gate.replace("cd ", "pushd ", 1)
+    assert _errs_for("pushd", pushd, [spec]) == []
+    pushd_ghost = _errs_for("pushd-ghost", pushd, [])
+    assert len(pushd_ghost) == 1 and f"`{spec}`" in pushd_ghost[0], pushd_ghost
+    assert _errs_for("cd-dash", "cd - && npx playwright test tests/ui/disc-a.spec.ts", []) == []
 
 
 def test_touches_shapes_round_two_a_plus_bullet_a_quoted_path_and_a_mid_bullet_comment(
