@@ -265,7 +265,8 @@ class DeploymentOrchestrator:
         for key in missing:
             logger.warning(
                 "SECRET %s is required but absent from the environment and .env — a RANDOM value "
-                "will be generated. Correct for a self-defined password; WRONG for an API key, "
+                "will be generated unless the deployed app's .env already holds one (mint-once "
+                "keeps that). Correct for a self-defined password; WRONG for an API key, "
                 "token, or DSN that must match an external system (the deploy will look green "
                 "while that integration is dead). Add the real value to /opt/fabrik/.env.",
                 key,
@@ -357,8 +358,9 @@ class DeploymentOrchestrator:
 
         if isinstance(secrets_config, list):
             self._warn_fabricated_secrets(secrets_config)
-            ctx.minted_secrets = self._minted_keys(secrets_config)
+            minted_keys = self._minted_keys(secrets_config)
             ctx.secrets = self.secrets_manager.load_all(secrets_config)
+            ctx.minted_secrets = {k: ctx.secrets[k] for k in minted_keys if k in ctx.secrets}
             return
 
         if not isinstance(secrets_config, dict):
@@ -419,7 +421,7 @@ class DeploymentOrchestrator:
                     logger.warning("Failed to read file for secret %s: %s", env_var, e)
 
         ctx.secrets = all_secrets
-        ctx.minted_secrets = minted
+        ctx.minted_secrets = {k: all_secrets[k] for k in minted if k in all_secrets}
 
     def _minted_keys(self, keys: list[str]) -> set[str]:
         """The keys the secrets manager can resolve only by INVENTING a value (W-023bdd59).
