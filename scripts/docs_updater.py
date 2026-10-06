@@ -868,6 +868,56 @@ def _parse_structure_rows(body: str) -> dict[str, tuple[str, bool, bool]]:
     return rows
 
 
+def _in_linked_worktree() -> bool:
+    """True only in a linked worktree: its git dir differs from the common dir. Absolute paths on
+    both sides, because a main checkout run from a subdirectory prints `--git-dir` absolute and
+    `--git-common-dir` relative. Any git failure reads as a main checkout (today's walk)."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    lines = proc.stdout.splitlines()
+    if proc.returncode != 0 or len(lines) != 2:
+        return False
+    return Path(lines[0]).resolve() != Path(lines[1]).resolve()
+
+
+def _carried_rows(
+    docs_dir: Path, existing: dict[str, tuple[str, bool, bool]]
+) -> dict[str, dict[str, bool]]:
+    """{parent rel: {name: is_dir}} of block rows a linked worktree must keep (W-ab678eb9).
+
+    A worktree lacks the main checkout's gitignored files, so a walk of its own disk rewrote the
+    committed block without them (tryton-crm 01M3T9H8). In a linked worktree, a row whose path is
+    absent here and ignored by this checkout's rules is carried forward; a deleted, non-ignored
+    row is not. A directory row is queried with its trailing `/`: a dir-only pattern matches a
+    missing path only then. The main checkout never carries — it is the block's authority."""
+    absent = {
+        rel: slash or shown
+        for rel, (_c, slash, shown) in existing.items()
+        if not os.path.lexists(docs_dir / rel)
+    }
+    if not absent or not _in_linked_worktree():
+        return {}
+    query = {f"docs/{rel}{'/' if is_dir else ''}": rel for rel, is_dir in absent.items()}
+    kept = {query[n] for n in _check_ignore(list(query)) if n in query}
+    carried: dict[str, dict[str, bool]] = {}
+    for rel in kept:
+        parts = rel.split("/")
+        for depth in range(len(parts)):
+            parent = "".join(f"{x}/" for x in parts[:depth])
+            is_dir = depth < len(parts) - 1 or absent[rel]
+            carried.setdefault(parent, {})
+            carried[parent][parts[depth]] = carried[parent].get(parts[depth], False) or is_dir
+    return carried
+
+
 def generate_docs_structure_tree(existing: dict[str, tuple[str, bool, bool]] | None = None) -> str:
     """Generate indented tree string of docs/ directory with comments.
 
@@ -927,31 +977,33 @@ def generate_docs_structure_tree(existing: dict[str, tuple[str, bool, bool]] | N
     hub_text = set(comments.values()) | _RETIRED_HUB_COMMENTS
 
     tree = ["docs/"]
+    carried = _carried_rows(docs_dir, existing)
 
     def walk(directory: Path, prefix: str = "", rel: str = "") -> None:
-        items = sorted(directory.iterdir())
-        # Filter items
-        items = [i for i in items if not i.name.startswith(".")]
+        kinds = {i.name: i.is_dir() for i in directory.iterdir()} if directory.is_dir() else {}
+        for name, is_dir in carried.get(rel, {}).items():
+            kinds.setdefault(name, is_dir)  # what is on disk wins a name clash
+        items = sorted((n, d) for n, d in kinds.items() if not n.startswith("."))
 
-        for i, item in enumerate(items):
+        for i, (name, is_dir) in enumerate(items):
             is_last = i == len(items) - 1
             connector = "└── " if is_last else "├── "
-            path = f"{rel}{item.name}"
+            path = f"{rel}{name}"
             own, slash, shown = existing.get(path, ("", False, False))
 
-            comment = own if own and own not in hub_text else comments.get(item.name, "")
+            comment = own if own and own not in hub_text else comments.get(name, "")
             # If directory, check with trailing slash
-            if item.is_dir() and not comment:
-                comment = comments.get(f"{item.name}/", "")
-            collapsed = item.is_dir() and slash and not shown
+            if is_dir and not comment:
+                comment = comments.get(f"{name}/", "")
+            collapsed = is_dir and slash and not shown
 
-            line = f"{prefix}{connector}{item.name}{'/' if collapsed else ''}"
+            line = f"{prefix}{connector}{name}{'/' if collapsed else ''}"
             if comment:
                 line = f"{line.ljust(35)} # {comment}"
 
             tree.append(line)
 
-            if item.is_dir() and not collapsed:
+            if is_dir and not collapsed:
                 # Skip expanding archive/ and trajectories/ (too noisy)
                 skip_dirs = {
                     "archive",
@@ -960,9 +1012,9 @@ def generate_docs_structure_tree(existing: dict[str, tuple[str, bool, bool]] | N
                     "previously-planned-fabrik-phases",
                     "issues",
                 }
-                if item.name not in skip_dirs:
+                if name not in skip_dirs:
                     new_prefix = prefix + ("    " if is_last else "│   ")
-                    walk(item, new_prefix, f"{path}/")
+                    walk(directory / name, new_prefix, f"{path}/")
 
     walk(docs_dir)
     tree_str = "\n".join(tree)
@@ -1784,14 +1836,19 @@ def _gitignored(paths: list[Path]) -> set[Path]:
     On ANY git failure this returns an empty set, i.e. check everything — a visible false positive
     beats silently skipping a doc the project really owns.
     """
-    if not paths:
+    return {PROJECT_ROOT / n for n in _check_ignore([str(p) for p in paths])}
+
+
+def _check_ignore(names: list[str]) -> set[str]:
+    """The subset of *names* git ignores — ONE batched `git check-ignore`, empty on any failure."""
+    if not names:
         return set()
     try:
         # `-z`: NUL-separated in and out, so paths with spaces/newlines survive intact.
         # Exit 1 means "nothing matched" and is NOT an error; 128 is.
         proc = subprocess.run(
             ["git", "check-ignore", "-z", "--stdin"],
-            input="\0".join(str(p) for p in paths),
+            input="\0".join(names),
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -1801,7 +1858,7 @@ def _gitignored(paths: list[Path]) -> set[Path]:
         return set()
     if proc.returncode not in (0, 1):
         return set()
-    return {PROJECT_ROOT / n for n in proc.stdout.split("\0") if n}
+    return {n for n in proc.stdout.split("\0") if n}
 
 
 def _is_scaffold_template(rel: str) -> bool:
@@ -2002,10 +2059,10 @@ def run_sync(dry_run: bool = False) -> None:
 
         if changed:
             if dry_run:
-                print("Would update: docs/INDEX.md (STRUCTURE block)")
+                print("Would update: INDEX.md (STRUCTURE block)")
             else:
                 README_PATH.write_text(new_content)
-                print("Updated: docs/INDEX.md (STRUCTURE block)")
+                print("Updated: INDEX.md (STRUCTURE block)")
 
     # Sync the PLANS block in docs/development/PLANS.md (opt-in by its markers)
     plans_changed, plans_msg = sync_plans_index(dry_run=dry_run)

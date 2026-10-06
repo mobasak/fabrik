@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `docs_updater.py --sync` in a linked worktree keeps the main checkout's gitignored STRUCTURE rows (2026-10-06)
+- A worktree lacks the main checkout's gitignored files, so `--sync` there rewrote INDEX.md's committed STRUCTURE block without them (tryton-crm 01M3T9H8). In a linked worktree, a block row that is absent on disk and gitignored by the checkout is now carried forward, comment and collapsed state included. A deleted tracked row is still dropped, and the main checkout's output is unchanged: 38 of 38 /opt blocks are byte-identical old vs new.
+- The run message names `INDEX.md` (the block lives in the root INDEX.md, not `docs/INDEX.md`).
+
 ### Fixed — Constraints Digest columns found by header; review-loop pin layout stated (2026-10-06)
 - `scripts/enforcement/check_rule_grounding.py` reads the digest's quote from a header named exactly `Quote` (or `Verbatim`) and the cited file from `Source`, in any order; without those headers it keeps the positional rule. A digest laid out `| Rule | Quote | Source | Applies |` no longer draws QUOTE-NOT-FOUND on every row (fabrik-lib 01M3T5RK). Over the 55 existing digests, 224 → 252 of 473 rows grade green and none turn red.
 - An absolute or `..` cited path is now a QUOTE-NOT-FOUND finding for that row, and an unreadable path no longer aborts the whole census with PermissionError.
