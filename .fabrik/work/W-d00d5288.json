@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "check_convergence: the closing-row rule binds plan SETS only — a MONOLITH flips CONVERGED on a non-quiet last Pass row"
 }

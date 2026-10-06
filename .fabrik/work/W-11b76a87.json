@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "WHAT: Multi-round review seats cannot return their round-2+ reports through SubagentHandback. The hand-back is one-shot per seat (\"already delivered\"), but the term-edit/term-coverage loops (D-335) require the SAME round-1 seat to be resumed (SendMessage) for every later round. Seats then either (a)"
 }

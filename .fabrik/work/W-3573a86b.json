@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "# A fabrik-review-loop.js seat reset the merge owner's main checkout and destroyed uncommitted work"
 }

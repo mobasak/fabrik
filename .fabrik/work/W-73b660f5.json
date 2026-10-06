@@ -13,8 +13,11 @@
   },
   "next": "**[infra]** **The coverage gate's TOKEN rule reaches every pipe table in a receipt, not only the Pass Ledger** (2026-09-09, owner: infra) — spec-frozen (D-205): a `confirmed:`/`unexecuted:` literal with a colon in ANY table cell (a checklist row quoting a JSON field, a citation `confirmed :63`) is refused; the plan's own receipts hit it four times and two project receipts carry it (mailed). A code-span carve-out is the candidate relaxation — measure its fire rate over the 789 receipts first.",
   "note": "migrated-digest:9579b01c9b10",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "**The coverage gate's TOKEN rule reaches every pipe table in a receipt, not only the Pass Ledger** (2026-09-09, owner: infra) — spec-frozen (D-205): a `confirmed:`/`unexecuted:` literal with a colo..."
 }

@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "FINDING — fabrik-review-loop.js: a refuter/finder seat's mutant leaked into the operator's LIVE worktree."
 }

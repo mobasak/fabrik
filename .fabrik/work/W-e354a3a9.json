@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "# Two review-seat brief gaps hit in one /fabrik-task + /fabrik-review-scoped run"
 }

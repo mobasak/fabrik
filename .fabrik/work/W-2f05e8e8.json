@@ -14,8 +14,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "handoff-2026-10-06"
+  ],
   "title": "WHAT: /fabrik-review-scoped and fabrik-review-loop.js have two machinery frictions, measured in web-ecommerce-factory/wef1 on 2026-10-02 (W-a9ecae9e, three review rounds)."
 }
