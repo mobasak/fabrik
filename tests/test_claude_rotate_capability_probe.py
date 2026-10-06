@@ -914,3 +914,17 @@ def test_br10_an_unreadable_pause_state_holds_the_probe_and_never_raises(tmp_pat
     )
     assert cr._validated_pick([], set(), probe=True) == ("intel", "ob@ocoron.com")
     assert calls == []
+
+
+def test_br11_an_unreadable_pause_state_says_the_active_re_check_is_held(
+    tmp_path, monkeypatch, capsys
+):
+    """Fail closed, but never silently: the operator never asked for this hold, so the tick names
+    it — and still spends no probe and parks nothing."""
+    fleet = _fleet_b(tmp_path, monkeypatch)
+    calls = _probe_by_dir(monkeypatch, refused={"seo"})
+    monkeypatch.setattr(cr, "_pause_state", lambda: cr._PAUSE_ERROR)
+    cr._fleet_flip_leg(cr._fleet_dirs(), cr._fleet_account_rows(cr._fleet_dirs())[0], 98.0)
+    assert "capability re-check HELD — pause state unreadable" in capsys.readouterr().out
+    assert [c for c in calls if c["timeout"] == 45] == []
+    assert not (fleet / "parked.json").exists()

@@ -6084,8 +6084,12 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     # path below returns before deciding when the row has none) and is never re-probed.
     # The operator's freeze (the pause marker) holds the whole D6 re-check, not only its flip: no
     # probe is spent and nothing is parked while they asked for no automated changes. An
-    # unreadable pause state holds it too (fail closed, like the install it guards).
-    if _pause_state() is None and not _is_parked(row.get("weekly_cap")):
+    # unreadable pause state holds it too (fail closed, like the install it guards) — and says so,
+    # because nobody asked for that silence.
+    pause = _pause_state()
+    if pause == _PAUSE_ERROR:
+        print("tick: capability re-check HELD — pause state unreadable (fail closed)")
+    if pause is None and not _is_parked(row.get("weekly_cap")):
         verdict = _probe_account(
             row["email"],
             active_slug,
