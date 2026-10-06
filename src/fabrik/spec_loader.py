@@ -451,7 +451,7 @@ _LLM_ACTION_REFUSALS: dict[str, str] = {
     "install_log_drop_rule": "is never offered to the model (being retired, fabrik-lib SB-095)",
     "scale_concurrency": "is never offered to the model (fabrik-lib SB-103)",
     "create_fix_pr": "is offered by its own lane — set propose_fix_prs instead",
-    "escalate_apprise": "is offered by its own lane and is always on",
+    "escalate_apprise": "is already in the default menu",
     "restart_container": "is already in the default menu",
 }
 

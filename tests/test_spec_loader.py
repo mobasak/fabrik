@@ -466,7 +466,7 @@ class TestWatchdogConfig:
             (["bogus"], "unknown"),
             (["scale_concurrency"], "never offered"),
             (["create_fix_pr"], "propose_fix_prs"),
-            (["escalate_apprise"], "own lane"),
+            (["escalate_apprise"], "default menu"),
             (["restart_container"], "default menu"),
             (["pause_worker,wipe_redis_cache"], "unknown"),
             ("pause_worker", "must be a list"),

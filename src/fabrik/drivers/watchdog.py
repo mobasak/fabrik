@@ -1023,7 +1023,8 @@ class WatchdogDriver:
         source = SIDECAR_SOURCE
         try:
             reads = any(
-                "WATCHDOG_LLM_ACTIONS" in f.read_text(errors="replace") for f in source.glob("*.py")
+                "WATCHDOG_LLM_ACTIONS" in f.read_text(errors="replace")
+                for f in source.rglob("*.py")
             )
         except OSError:
             reads = (

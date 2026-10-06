@@ -616,3 +616,10 @@ class TestLlmActions:
         with caplog.at_level("WARNING"):
             self._render({"llm_actions": ["pause_worker"]})
         assert any("does not read WATCHDOG_LLM_ACTIONS" in r.message for r in caplog.records)
+        # A source that reads it — here from a subpackage — stays quiet (no always-warn).
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "sub" / "menu.py").write_text('RAW = os.environ.get("WATCHDOG_LLM_ACTIONS", "")\n')
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            self._render({"llm_actions": ["pause_worker"]})
+        assert not any("does not read WATCHDOG_LLM_ACTIONS" in r.message for r in caplog.records)
