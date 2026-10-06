@@ -173,7 +173,10 @@ of the local base (up to three rebuilds), (e) the carry into the main checkout �
 overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
 hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
 --merge-sha`. A refusal acks `blocked` with the refused step; the requester fixes and sends a new
-request. Mail is the durable record; the doorbell only wakes an idle session (best effort, D-463).
+request. When the reason is a conflict with the base, the requester brings the base in by MERGING it
+into the branch (`git merge <base>`), never a rebase: the branch is already pushed, so a rebase could
+only be republished with `--force`. A refusal that names the main checkout (a dirty,
+staged or untracked owner file) is the owner's to clear and needs no change to the branch. Mail is the durable record; the doorbell only wakes an idle session (best effort, D-463).
 The Stop hook holds the owner's turn while a request waits unclaimed or a record is stranded
 (`docs/workstation/hooks-index.md`). To keep a plan's epic order, merge by id in
 `python3 scripts/epic_order.py` phase order. `/fabrik-execute-plan`'s § Finish (c) is the agent-side

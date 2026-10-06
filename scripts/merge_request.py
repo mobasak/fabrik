@@ -91,6 +91,16 @@ ITEM_RE = re.compile(r"^W-[0-9a-f]{8}$")
 HEADS = "refs/heads/"
 
 
+def _resend(base: str, branch: str = "your branch") -> str:
+    """The REQUESTER's remedy for a refused merge (W-9c2f371a, fabrik-lib 01M3TVN8): `request`
+    requires the branch pushed, so a rebase could be republished only with --force, a universal
+    HARD STOP. Merging the base in pushes fast-forward and keeps every SHA a receipt cites."""
+    return (
+        f"merge {base} into {branch} (`git merge {base}`), resolve, push, then run "
+        "`merge_request.py request` again — never a rebase: the branch is already pushed"
+    )
+
+
 class RefusedError(Exception):
     """A refusal: printed on stderr, exit 1, nothing sent."""
 
@@ -798,7 +808,7 @@ def _max_d(lines: list[str]) -> int:
     return max((int(m) for m in _D_ROW_RE.findall("".join(lines))), default=-1)
 
 
-def _resolve_insertions(path: str, text: str, base: str) -> str:
+def _resolve_insertions(path: str, text: str) -> str:
     """Keep BOTH sides of every conflict whose base section is EMPTY (both sides are pure
     insertions at the same point) — newest D-row first for DECISIONS, ours then theirs
     elsewhere. A conflict where a side edits an existing line refuses. The result is checked
@@ -818,10 +828,7 @@ def _resolve_insertions(path: str, text: str, base: str) -> str:
             state = "t"
         elif state == "t" and bare == f">>>>>>> {_L_THEIRS}":
             if orig:
-                raise RefusedError(
-                    f"{path}: a side edits an existing line at a conflict — rebase on {base} "
-                    "and resend"
-                )
+                raise RefusedError(f"{path}: a side edits an existing line at a conflict")
             first, second = ours, theirs
             if path == DECISIONS and _max_d(theirs) >= _max_d(ours):
                 first, second = theirs, ours
@@ -834,14 +841,14 @@ def _resolve_insertions(path: str, text: str, base: str) -> str:
         else:
             out.append(line)
     if state:
-        raise RefusedError(f"{path}: an unterminated conflict — rebase on {base} and resend")
+        raise RefusedError(f"{path}: an unterminated conflict")
     result = "".join(out)
     if _MARKER_RE.search(result):
         raise RefusedError(f"{path}: a conflict marker remains after the auto-resolve — refused")
     return result
 
 
-def _merge3(path: str, ours: str, orig: str, theirs: str, base: str) -> str:
+def _merge3(path: str, ours: str, orig: str, theirs: str) -> str:
     """``git merge-file -p --diff3`` of three texts; a conflict is auto-resolved only when it is
     a pure insertion (``_resolve_insertions``), otherwise this refuses."""
     with tempfile.TemporaryDirectory(prefix="fabrik-merge3-") as tmp:
@@ -855,7 +862,7 @@ def _merge3(path: str, ours: str, orig: str, theirs: str, base: str) -> str:
     if res.returncode < 0 or res.returncode > 127:
         raise RefusedError(f"{path}: git merge-file failed: {_decode(res.stderr).strip()}")
     merged = _decode(res.stdout)
-    return merged if res.returncode == 0 else _resolve_insertions(path, merged, base)
+    return merged if res.returncode == 0 else _resolve_insertions(path, merged)
 
 
 # --- (a)-(d): build, preflight, tests, CAS --------------------------------------------------
@@ -925,9 +932,7 @@ def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
             raise RefusedError(f"git merge failed: {res.stderr.strip() or res.stdout.strip()}")
         others = sorted(p for p in conflicted if p not in LEDGERS)
         if others:
-            raise ConflictError(
-                others, f"conflict in {', '.join(others)} — rebase on {base} and resend"
-            )
+            raise ConflictError(others, f"conflict in {', '.join(others)} — {_resend(base)}")
         for path in conflicted:
             stages: dict[str, str] = {}
             for entry in _gitc(wt, "ls-files", "-u", "-z", "--", path).split("\0"):
@@ -936,14 +941,13 @@ def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
                     _, sha, stage = meta.split()
                     stages[stage] = sha
             if "2" not in stages or "3" not in stages:
-                raise ConflictError(
-                    [path], f"{path}: deleted on one side — rebase on {base} and resend"
-                )
+                raise ConflictError([path], f"{path}: deleted on one side — {_resend(base)}")
             orig = _blob(wt, stages["1"]) if "1" in stages else ""
             try:
-                text = _merge3(path, _blob(wt, stages["2"]), orig, _blob(wt, stages["3"]), base)
+                text = _merge3(path, _blob(wt, stages["2"]), orig, _blob(wt, stages["3"]))
             except RefusedError as exc:
-                raise ConflictError([path], str(exc)) from exc
+                # the REQUESTER's conflict: only here does the remedy name their branch (W-9c2f371a)
+                raise ConflictError([path], f"{exc} — {_resend(base)}") from exc
             (wt / path).write_bytes(_encode(text))
             _gitc(wt, "add", "--", path)
         # The request's own message, never `--no-edit`: that reuses git's MERGE_MSG, whose
@@ -1031,7 +1035,14 @@ def _preflight(
         if wt is None or wt == "dir" or (ctx.main / path).is_symlink() or path not in new_b:
             raise RefusedError(f"{path} is dirty in the main checkout in a way no carry can merge")
         current = _decode((ctx.main / path).read_bytes())
-        _merge3(path, current, _blob(ctx.main, head), _blob(ctx.main, new_b[path]), base)
+        try:
+            _merge3(path, current, _blob(ctx.main, head), _blob(ctx.main, new_b[path]))
+        except RefusedError as exc:
+            # the OWNER's uncommitted ledger work conflicts, not the branch (W-9c2f371a)
+            raise RefusedError(
+                f"{exc} — the owner's uncommitted {path} in the main checkout conflicts with the "
+                "merge; the owner commits or moves it aside, and the branch needs no change"
+            ) from exc
     return merged, snap, True
 
 
@@ -1200,7 +1211,7 @@ def _carry(
             try:
                 current = _decode((ctx.main / path).read_bytes())
                 text = _merge3(
-                    path, current, _blob(ctx.main, old_b[path]), _blob(ctx.main, new_b[path]), ""
+                    path, current, _blob(ctx.main, old_b[path]), _blob(ctx.main, new_b[path])
                 )
             except RefusedError as exc:
                 keep(path, f"its 3-way carry conflicts ({exc})")
@@ -1365,8 +1376,9 @@ def _reply_body(rec: dict) -> str:
         )
     elif rec["outcome"] != "merged":
         lines.append(
-            f"HOW — rebase {rec.get('branch', 'the branch')} on {rec.get('base', 'base')}, fix "
-            "what the reason names, push, and run merge_request.py request again."
+            "HOW — do what the reason names; when it names a change to your branch, make it, "
+            "push, re-review, and run merge_request.py request again with the updated receipt — "
+            "never a rebase or a force-push: the branch is already pushed."
         )
     body = "\n".join(lines) + "\n"
     return body.replace("acked-by:", "acked by:")  # a body never carries a verbatim ack line

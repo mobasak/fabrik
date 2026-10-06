@@ -1184,3 +1184,61 @@ def test_a_dirty_ledger_with_no_snapshot_is_three_way_merged_keeping_the_wip(wor
     numstat = _git(world.main, "diff", "--numstat", "HEAD", "--", "CHANGELOG.md")
     assert numstat.split() == ["1", "0", "CHANGELOG.md"]
     assert "not carried" not in world.replies(msg_id)["fleet"]
+
+
+# --- W-9c2f371a (fabrik-lib 01M3TVN8): a refusal tells the REQUESTER to merge, never rebase ------
+# `request` requires the branch pushed, so a rebase could only be republished with --force, a
+# universal HARD STOP; `git merge <base>` into the branch pushes fast-forward.
+
+
+def _base_edits_readme(world):
+    head = world.branch({"README.md": "branch readme\n"})
+    world.write("README.md", "base readme\n")
+    world.commit_main("base edits readme", "README.md")
+    return head
+
+
+def _rebase_advice(text: str) -> list[str]:
+    """Every word-boundary `rebase` except the one sanctioned `never a rebase`."""
+    import re
+
+    return re.findall(r"[^\n]*\brebase\b[^\n]*", text.replace("never a rebase", ""))
+
+
+def test_a_ledger_conflict_refusal_says_merge_never_rebase(world):
+    head, _why = _ledger_edits_existing_line(world)
+    msg_id = world.send(head)
+    assert world.run("merge") == 1
+    reply = world.replies(msg_id)["fleet"]
+    reason = next(line for line in reply.splitlines() if line.startswith("reason:"))
+    assert "edits an existing line" in reason and "git merge master" in reason, reply
+    assert _rebase_advice(reply) == [], reply
+
+
+def test_a_conflict_refusal_and_its_how_line_say_merge_never_rebase(world):
+    msg_id = world.send(_base_edits_readme(world))
+    assert world.run("merge") == 1
+    reply = world.replies(msg_id)["fleet"]
+    assert "conflict in README.md" in reply and "HOW —" in reply, reply
+    reason = next(line for line in reply.splitlines() if line.startswith("reason:"))
+    how = next(line for line in reply.splitlines() if line.startswith("HOW —"))
+    assert "git merge master" in reason and "never a rebase" in how, reply
+    assert _rebase_advice(reply) == [], reply
+
+
+def test_an_owner_wip_conflict_never_sends_the_requester_to_merge(world):
+    """The owner's uncommitted ledger work conflicts, not the branch: the REASON names the owner
+    and never tells the requester to merge (the HOW line's generic advice may)."""
+    head, _why = _dirty_ledger_carry_conflicts(world)
+    msg_id = world.send(head)
+    assert world.run("merge") == 1
+    reason = next(
+        line for line in world.replies(msg_id)["fleet"].splitlines() if line.startswith("reason:")
+    )
+    assert "owner" in reason and "git merge" not in reason, reason
+    assert _rebase_advice(reason) == [], reason
+
+
+def test_no_requester_text_says_rebase():
+    src = SCRIPT.read_text(encoding="utf-8")
+    assert "rebase on" not in src and "rebase {" not in src

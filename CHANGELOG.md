@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `merge_request.py` refusals tell the requester to merge the base in, never to rebase a pushed branch (2026-10-06)
+- A refused merge used to tell the requester to "rebase on <base> and resend". The branch is already pushed (`request` requires it), so that rebase could only be republished with `--force`, a HARD STOP (fabrik-lib 01M3TVN8). The requester's conflict refusals now say `merge <base> into <branch> (git merge <base>), resolve, push, then run merge_request.py request again — never a rebase`.
+- A conflict with the OWNER's uncommitted ledger work now names the owner and never sends the requester to merge. The reply's HOW line is generic for every refusal.
+- `docs/reference/multi-agent-operating-model.md`, `agents-fabrik.md` and `/fabrik-epics-review` say the merge owner merges through `merge_request.py merge` and a pushed branch takes the base in by merging.
+
 ### Fixed — `docs_updater.py --sync` in a linked worktree keeps the main checkout's gitignored STRUCTURE rows (2026-10-06)
 - A worktree lacks the main checkout's gitignored files, so `--sync` there rewrote INDEX.md's committed STRUCTURE block without them (tryton-crm 01M3T9H8). In a linked worktree, a block row that is absent on disk and gitignored by the checkout is now carried forward, comment and collapsed state included. A deleted tracked row is still dropped, and the main checkout's output is unchanged: 38 of 38 /opt blocks are byte-identical old vs new.
 - The run message names `INDEX.md` (the block lives in the root INDEX.md, not `docs/INDEX.md`).
