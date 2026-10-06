@@ -1,6 +1,6 @@
 # PostgreSQL 16 → 18 — the fleet database upgrade
 
-Status: CONVERGED (/fabrik-spec-review, 2026-10-06 — 5 rounds, closing round confirmed 0; awaiting operator design approval)
+Status: CONVERGED — APPROVED for planning (D-617, 2026-10-06: /fabrik-spec-review 5 rounds to 0, then an Opus 5.5 + Fable 5.1 design critique the operator requested; 16 concerns applied, delta round and closing check confirmed 0)
 Profile: delta — every IN intake item maps to something that runs today (one production cluster, the WSL dev
 cluster, the hub's CI generator and test containers, the version registry and the rule packs that read it, the
 disaster-recovery chain that names the data volume, and the project pins measured below). The delta changes the
