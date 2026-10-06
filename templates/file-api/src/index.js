@@ -22,6 +22,15 @@ const { v4: uuidv4 } = require('uuid');
 const logger = require('./logger');
 
 const app = express();
+
+// Set on SIGTERM (handler at the bottom). Every response after that carries Connection: close, so a
+// keep-alive socket a proxy pools is closed once its in-flight response is sent and server.close()
+// can finish; without it a busy keep-alive connection keeps taking new requests until the backstop.
+let shuttingDown = false;
+app.use((req, res, next) => {
+  if (shuttingDown) res.set('Connection', 'close');
+  next();
+});
 app.use(cors());
 app.use(express.json());
 
@@ -137,6 +146,11 @@ async function healthHandler(req, res) {
     }
   } else {
     checks.storage = 'not_configured';
+  }
+  // Draining after SIGTERM: report 503 so probes see the truth (node-api does the same).
+  if (shuttingDown) {
+    checks.draining = true;
+    healthy = false;
   }
   res.status(healthy ? 200 : 503).json({
     status: healthy ? 'healthy' : 'degraded',
@@ -398,8 +412,10 @@ const server = app.listen(PORT, () => {
 
 // Graceful drain on SIGTERM (Docker stop). Node as PID 1 ignores SIGTERM unless it is handled,
 // so without this the container waits out its whole stop_grace_period and is SIGKILLed.
-// Stop idle conns -> close once in-flight finishes -> 20s hard backstop, inside the compose's 30s.
+// Stop idle conns -> answer in-flight requests with Connection: close -> close -> 20s hard backstop,
+// inside the compose's 30s stop_grace_period.
 process.on('SIGTERM', () => {
+  shuttingDown = true;
   logger.info({ event: 'service_stopping' });
   setTimeout(() => process.exit(1), 20_000).unref();
   server.closeIdleConnections?.();
