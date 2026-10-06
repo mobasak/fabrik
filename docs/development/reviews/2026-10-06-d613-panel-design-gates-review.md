@@ -97,11 +97,11 @@ Command: /fabrik-review (nested in /fabrik-task phase 4) · Owner: infra · 2026
 
 ## Pass Ledger
 
-| Pass | Seats | Counters | Method |
+| Pass | Finders | Counters | Method |
 |---|---|---|---|
-| Pass 1 | native sonnet×2 + haiku×1 finders, sonnet×3 refuters | found: 11 · confirmed: 8 · fixed: 8 · unexecuted: 0 | seats: A-sonnet 4/4 · B-sonnet 3/3 · C-haiku 2/4 (refuter A returned no result — A-S1..S4 executed by the orchestrator: A-S1/A-S3 cross-file and disagreeing quotes accepted, A-S2 fenced example fired); stop: confirmed 8; fix: VERDICT-line binding of both-approve quotes, fence/heading-span/whitespace in `_panel_brief_problem`, plan-review literal split block, ui NEXT entry, split-block grader |
-| Pass 2 | native sonnet×2 + haiku×1 finders (round-1 seats over their own ledgers), sonnet×2 refuters | found: 2 · confirmed: 1 · fixed: 1 · unexecuted: 0 | ledgers: A-S2, A-S3, B-S1..B-S3, C-H1, C-H3 NOW_FALSE; A-S1 STILL_TRUE (artifact check was a substring test — C-NEW1 the same defect); stop: confirmed 1; fix: the VERDICT line's path parsed and compared EXACTLY, longer-path grader red on the pass-2 pin |
-| Pass 3 | native sonnet×1 + haiku×1 finders (slices A and C; B closed clean in pass 2) | found: 0 · confirmed: 0 · fixed: 0 · unexecuted: 0 | ledgers: A-S1, C-NEW1 NOW_FALSE; one-hop hunt over backticked/punctuated/ASCII-dash VERDICT forms, backticked headings, split and stand-in paths — no new defect; slice A's `unread` gap is the workflow's files_read false gap (the seat's notes and executed pytest run cover both files); stop: closable |
+| Pass 1 | native sonnet×2 + haiku×1 finders, sonnet×3 refuters | found: 11, new: 11, confirmed: 8, fixed: 8, unexecuted: 0 | method: citation — seats: A-sonnet 4/4 · B-sonnet 3/3 · C-haiku 2/4 (refuter A returned no result — A-S1..S4 executed by the orchestrator: A-S1/A-S3 cross-file and disagreeing quotes accepted, A-S2 fenced example fired); stop: confirmed 8; fix: VERDICT-line binding of both-approve quotes, fence/heading-span/whitespace in `_panel_brief_problem`, plan-review literal split block, ui NEXT entry, split-block grader |
+| Pass 2 | native sonnet×2 + haiku×1 finders (round-1 seats over their own ledgers), sonnet×2 refuters | found: 2, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation — ledgers: A-S2, A-S3, B-S1..B-S3, C-H1, C-H3 NOW_FALSE; A-S1 STILL_TRUE (artifact check was a substring test — C-NEW1 the same defect); stop: confirmed 1; fix: the VERDICT line's path parsed and compared EXACTLY, longer-path grader red on the pass-2 pin |
+| Pass 3 | native sonnet×1 + haiku×1 finders (slices A and C; B closed clean in pass 2) | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — ledgers: A-S1, C-NEW1 NOW_FALSE; one-hop hunt over backticked/punctuated/ASCII-dash VERDICT forms, backticked headings, split and stand-in paths — no new defect; slice A's `unread` gap is the workflow's files_read false gap (the seat's notes and executed pytest run cover both files); stop: closable |
 
 ## Coverage Checklist
 
@@ -114,6 +114,10 @@ Command: /fabrik-review (nested in /fabrik-task phase 4) · Owner: infra · 2026
 | commands/assemble_commands.py | FIXED — ui-design-review NEXT (B-S2), EXTRACT mirror |
 | tests/test_design_critique_fragment.py | FIXED — split-block grader (B-S3) |
 | commands/_sources/fabrik-spec.md | FIXED (orchestrator) — Phase 6 still presented the table for the user's approval |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1/r2 (A-S2 fence, C-H1 spacing and A-S1 substring were all checks that read as success when they could not ask; the hook's outer try still fails OPEN on an exception, tests/test_decision_panel.py) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (.claude/hooks/final_gate_stop.py the panel is the existing two critique seats; no seat, quota or limit arithmetic is touched; `Panel: unavailable` stays RED/WALL-only) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r2 (A-S1/C-NEW1: the artifact match was substring; now the VERDICT line's parsed path must EQUAL the heading path) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | CLEAN (tests/test_decision_panel.py and tests/test_design_critique_fragment.py: every Behaviour and every fix red on the pin it fixed — pass-1 pin 2 failed, pass-2 pin 1 failed) |
 | CLAUDE.md | CLEAN — C-H4 REFUTED |
 | templates/governance/CLAUDE.md | CLEAN |
 | commands/_sources/fabrik-{spec,flows,ui-design}-review.md, design-critique.md, tests/test_plan_review_small_gate.py | CLEAN (pass 1) |
