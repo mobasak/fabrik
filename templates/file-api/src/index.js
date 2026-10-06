@@ -392,6 +392,16 @@ app.delete('/api/files/:id', authMiddleware, async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info({ event: 'service_starting', port: PORT });
+});
+
+// Graceful drain on SIGTERM (Docker stop). Node as PID 1 ignores SIGTERM unless it is handled,
+// so without this the container waits out its whole stop_grace_period and is SIGKILLed.
+// Stop idle conns -> close once in-flight finishes -> 20s hard backstop, inside the compose's 30s.
+process.on('SIGTERM', () => {
+  logger.info({ event: 'service_stopping' });
+  setTimeout(() => process.exit(1), 20_000).unref();
+  server.closeIdleConnections?.();
+  server.close(() => process.exit(0));
 });

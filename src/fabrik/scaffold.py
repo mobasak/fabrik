@@ -4484,8 +4484,8 @@ client.collectDefaultMetrics();
 // The pack's /health, plus /api/health: the compose healthcheck and the spec's health_path.
 const HEALTH_PATHS = new Set(['/health', '/api/health']);
 
-// Flipped true on SIGTERM so /health reports 503 to external probes while we drain.
-// Traefik keeps routing here until the container exits (one replica, no healthcheck label).
+// Flipped true on SIGTERM so /health reports 503 while we drain. Traefik keeps routing here
+// until exit: the compose healthcheck (30s x 3) cannot turn unhealthy inside the 20s drain.
 let isShuttingDown = false;
 
 const server = http.createServer((req, res) => {
@@ -5801,7 +5801,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY requirements.txt .
 COPY server/ ./server/
 
-CMD ["sh", "-c", "uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{PORT:-8000}}"]
+CMD ["sh", "-c", "exec uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{PORT:-8000}}"]
 """
     )
 
@@ -6114,7 +6114,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY requirements.txt .
 COPY server/ ./server/
 
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 """
     )
 

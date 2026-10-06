@@ -8,7 +8,12 @@ All notable changes to this project will be documented in this file.
 
 - Every routed app service a scaffold emits now sets `stop_grace_period: 30s`. That covers the canonical compose (node-api, file-api, docusaurus …), the python-api template, and the saas-family web and api services. Before this, Docker's 10 s default killed the node-api drain before its 20 s backstop could fire (mail 01M470F5YW, W-a63d61a2).
 - The node-api comments no longer say the 503 flip makes Traefik drain. It is a signal for external probes only: Traefik routes to the single replica until it exits.
-- Graded by `tests/test_scaffold_compose_traefik.py::test_app_service_outlives_its_own_drain_backstop`, which fails on all 7 HTTP types before the fix.
+- SIGTERM now reaches the app, so the grace is not just a longer wait for the same SIGKILL:
+  - the three uvicorn Dockerfile emitters run `sh -c "exec uvicorn …"`, where `sh` used to stay PID 1 and drop the signal;
+  - the file-api `src/index.js` drains on SIGTERM, where Node as PID 1 ignored it.
+- Graded by `tests/test_scaffold_compose_traefik.py`:
+  - `test_app_service_outlives_its_own_drain_backstop` covers 10 routed types and failed on all 7 HTTP types before the fix;
+  - `test_sigterm_reaches_the_app_process` failed on 8 of 10 types before the fix.
 
 ### Fixed — a scaffolded saas server/ passes the gate it ships into; make lint types src (2026-10-06)
 saas-skeleton, static-site and office-extension emitted a `server/` backend with no `pyproject.toml`, so ruff and
