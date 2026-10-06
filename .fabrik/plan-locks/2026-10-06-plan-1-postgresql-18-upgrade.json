@@ -48,7 +48,7 @@
       "state": "returned",
       "worktree_path": "/tmp/claude-1000/-opt-fabrik--claude-worktrees-fleet/1970a0ff-baa3-401b-ba52-fb0c5de43261/scratchpad/fleet-pg18-dr",
       "branch": "fleet-pg18-dr",
-      "commit": "09142b91d27a3bb188bf8375eb826ab763a6fdf2",
+      "commit": "027e78718", "fixups": ["027e78718"],
       "base_commit": "db43895f9",
       "started_at": "2026-10-06T15:50:30+00:00"
     },
