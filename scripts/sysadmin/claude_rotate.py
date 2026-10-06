@@ -4053,11 +4053,11 @@ def _auto_park(
     if row is not None:
         row["weekly_cap"] = 0
         row["capability_refused"] = True
-        if "parked" in row:
-            row["parked"] = True  # the board reads this flag, set once when the row was built
     changed = _parked_update(email, True, repair=False)
     if changed is None:
         return False
+    if row is not None and "parked" in row:
+        row["parked"] = True  # the board's flag — only once parked.json really holds the email
     if changed:
         _ledger_append(
             {
@@ -7356,20 +7356,23 @@ def _capability_verdict(rc: int | None, stdout: str) -> str:
         return "inconclusive"  # a timeout or a spawn failure decides nothing, whatever was printed
     obj: dict | None = None
     text = stdout or ""
-    # Where the result object can sit: the whole stdout (one line, or pretty-printed), any single
-    # line (a warning before it), or the span from the first `{` to the last `}` (a pretty-printed
-    # result with a trailer). Only a dict whose `type` is "result" counts, on every path.
-    spans = [text, *reversed(text.splitlines())]
-    if "{" in text:
-        spans.append(text[text.find("{") : text.rfind("}") + 1])
-    for span in spans:
+    # Decode the TOP-LEVEL JSON objects in order — one-line or pretty-printed, with warnings or a
+    # trailer around them — jumping past each decoded object so a dict nested inside one is never
+    # read on its own; the LAST whose `type` is "result" is the result. Deep nesting raises
+    # RecursionError (not ValueError) and ends the scan rather than retrying at every brace.
+    decoder = json.JSONDecoder()
+    pos = text.find("{")
+    while pos != -1:
         try:
-            cand = json.loads(span)
-        except (ValueError, RecursionError):  # deep nesting raises RecursionError, not ValueError
+            cand, end = decoder.raw_decode(text, pos)
+        except ValueError:
+            pos = text.find("{", pos + 1)
             continue
+        except RecursionError:
+            break
         if isinstance(cand, dict) and cand.get("type") == "result":
             obj = cand
-            break
+        pos = text.find("{", end)
     is_error = isinstance(obj, dict) and obj.get("is_error") is True
     if is_error:
         blob = json.dumps(obj).lower()

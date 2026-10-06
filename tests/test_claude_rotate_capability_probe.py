@@ -406,3 +406,37 @@ def test_r7_the_confirmation_is_bounded_at_45_seconds_and_the_board_flag_is_set(
     assert cr._auto_park("a@ocoron.com", source="ping", cfg_dir=fleet / "d0", row=row) is True
     assert calls[0]["timeout"] == 45
     assert row["parked"] is True
+
+
+# ── Phase A scoped review, round 2 ──────────────────────────────────────────────────────────────
+
+
+def test_r8_the_last_top_level_result_wins_and_a_nested_dict_is_never_read_alone():
+    """The result is the LAST top-level `type: result` object, one-line or pretty-printed."""
+    early_healthy = json.dumps({"type": "result", "is_error": False, "result": "x"})
+    late_refusal = json.dumps(_refusal(), indent=2)
+    assert cr._capability_verdict(1, early_healthy + "\n" + late_refusal) == "refused"
+    early_refusal = REFUSAL
+    late_healthy = json.dumps(json.loads(HEALTHY), indent=2)
+    assert cr._capability_verdict(0, early_refusal + "\n" + late_healthy) == "ok"
+    nested = json.dumps(
+        {
+            "type": "result",
+            "is_error": False,
+            "result": "Hi.",
+            "echo": {"type": "result", "is_error": True, "result": "oauth_org_not_allowed"},
+        },
+        indent=2,
+    )
+    assert cr._capability_verdict(0, nested + "\nwarn: trailer\n") == "ok"
+
+
+def test_r9_a_park_that_could_not_be_written_never_shows_as_parked(tmp_path, monkeypatch):
+    """The row is walled for this tick either way, but the board's `parked` flag waits for the write."""
+    fleet = _fleet_one(tmp_path, monkeypatch)
+    _probe_script(monkeypatch, [(1, REFUSAL)])
+    _alerts(monkeypatch)
+    (fleet / "parked.json").write_bytes(b"{broken")
+    row = {"email": "a@ocoron.com", "weekly_cap": None, "parked": False}
+    assert cr._auto_park("a@ocoron.com", source="active", cfg_dir=fleet / "d0", row=row) is False
+    assert row["weekly_cap"] == 0 and row["parked"] is False
