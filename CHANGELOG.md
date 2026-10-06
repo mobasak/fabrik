@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the two large current-state docs say PostgreSQL 18 (2026-10-06)
+
+- `docs/infrastructure/vps-complete-inventory.md` and `docs/traycer/fabrik-workflow.md` name PostgreSQL 18 and `pgvector/pgvector:0.8.6-pg18` as the current stack; history lines are left. `tests/test_large_docs_pg18.py` guards both docs with spelling-blind patterns (any separator, `ver`/`version`, a `v` prefix). PG18 plan T04b; merges after the hub window.
+
 ### Changed — the hub's live pins and current-state docs say PostgreSQL 18 (2026-10-06)
 
 - The real-PG scratch container in `tests/test_app_role_real_pg.py` is `postgres:18.6-alpine` (16 passed on it); `scripts/container_images.py`, `scripts/generate_vps_inventory.py`, `README.md` and `docs/workstation/session-recall.md` name 18. Merges after the hub window (PG18 plan T04a). `tests/test_live_docs_pg18.py` guards the files.
