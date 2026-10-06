@@ -4,7 +4,7 @@ Depends: T02, T03
 Parallel: ⛓️
 Complexity: native
 Appetite: 120
-Gate: python scripts/enforcement/check_doc_links.py
+Gate: python -m pytest tests/test_pg18_runbook.py -q
 Docs: docs/operations/postgres-major-upgrade-runbook.md
 
 ## Scope
