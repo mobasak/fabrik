@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scaffolded app services set a 30 s stop grace, so a SIGTERM drain is not SIGKILLed at 10 s (2026-10-06)
+
+- Every routed app service a scaffold emits now sets `stop_grace_period: 30s`. That covers the canonical compose (node-api, file-api, docusaurus …), the python-api template, and the saas-family web and api services. Before this, Docker's 10 s default killed the node-api drain before its 20 s backstop could fire (mail 01M470F5YW, W-a63d61a2).
+- The node-api comments no longer say the 503 flip makes Traefik drain. It is a signal for external probes only: Traefik routes to the single replica until it exits.
+- Graded by `tests/test_scaffold_compose_traefik.py::test_app_service_outlives_its_own_drain_backstop`, which fails on all 7 HTTP types before the fix.
+
 ### Fixed — a scaffolded saas server/ passes the gate it ships into; make lint types src (2026-10-06)
 saas-skeleton, static-site and office-extension emitted a `server/` backend with no `pyproject.toml`, so ruff and
 mypy linted the vendored `glitchtip_init.py` and `fastapi_user_auth` under default rules, and the hub-authored server

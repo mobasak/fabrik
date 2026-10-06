@@ -31,6 +31,7 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 from fabrik.scaffold import create_project
 
@@ -259,6 +260,23 @@ def test_traefik_host_uses_real_domain(tmp_path, project_type):
 # --------------------------------------------------------------------------- #
 # Worker-specific invariants                                                  #
 # --------------------------------------------------------------------------- #
+
+
+@requires_fabrik_env
+@pytest.mark.parametrize("project_type", DEPLOYABLE_TYPES_HTTP)
+def test_app_service_outlives_its_own_drain_backstop(tmp_path, project_type):
+    """Docker's default stop grace is 10 s; the node-api SIGTERM handler arms a 20 s hard-exit
+    backstop, so without an explicit stop_grace_period SIGKILL lands first and a slow drain is cut
+    (mail 01M470F5YW, W-a63d61a2). Every routed service (the saas family has two) sets a grace above
+    that backstop."""
+    project_dir = _scaffold(tmp_path, project_type)
+    services = yaml.safe_load(_read_compose(project_dir))["services"]
+    routed = {n: s for n, s in services.items() if "traefik.enable=true" in s.get("labels", [])}
+    assert project_dir.name in routed, (project_type, sorted(services))
+    for svc_name, svc in routed.items():
+        grace = str(svc.get("stop_grace_period", ""))
+        assert re.fullmatch(r"\d+s", grace), (project_type, svc_name, svc.get("stop_grace_period"))
+        assert int(grace[:-1]) > 20, (project_type, svc_name, grace)
 
 
 @requires_fabrik_env
