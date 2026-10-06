@@ -151,7 +151,8 @@ current doc states **16**; nothing is on 17 or 18; no `postgres:latest`.
   `CLAIMS.yaml`, the rule packs, `final_gate.py` and `check_docker.py` comments), which the governance sync
   refreshes from the hub.
 - **UUIDs:** 0 projects call native `uuidv7()`; 17 use `uuid_utils` app-side; **brand-identiy-creator** calls
-  `uuid_generate_v7()` from the `pg_uuidv7` extension at 72 call sites in 17 files — model `server_default`s
+  `uuid_generate_v7()` from the `pg_uuidv7` extension in 24 files (`grep -rl` over py, sql and md; the D7 request
+  re-measures) — model `server_default`s
   (e.g. `src/brand_identity/models/tenant.py:27`), raw INSERTs (`services/checkpoints.py:137,219`), migrations
   0001 (`CREATE EXTENSION "pg_uuidv7"`, `migrations/versions/0001_initial_schema.py:20`) /0008/0010/0018, tests —
   an extension `postgres-main` does not offer (a pre-existing deploy blocker, D7).
@@ -187,7 +188,11 @@ OFF the host — into the Backrest B2 repository `b2-vps1` (`docs/operations/dis
    and assert `SELECT count(*) FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <>
    pg_backend_pid()` is 0. Never `ALLOW_CONNECTIONS false`: `pg_dumpall` silently leaves such a database out of
    the dump (exit 0) and `pg_dump` and the manifest cannot connect to it (measured in review); a connection
-   limit still dumps and still admits the superuser.
+   limit still dumps and still admits the superuser. Because every host-side admin path is a superuser
+   (`_run_sql` is `docker exec … psql -U postgres`, `src/fabrik/drivers/postgres.py:137`), the freeze is closed in
+   the database too: `ALTER SYSTEM SET default_transaction_read_only = on` and `SELECT pg_reload_conf()`, which
+   binds superusers; the operator's own session runs `SET default_transaction_read_only = off` for the freeze
+   statements, and `pg_dumpall` reads only (its script also sets the parameter off for the restore session).
 2. **Take the manifest** on the 16 cluster: exact `count(*)` of every table in every database; every sequence's
    `last_value`/`is_called`; `pg_extension` names and versions; `pg_database` encoding, collation, ctype, locale
    provider and owner (PG17 renamed `daticulocale` to `datlocale`, pg-15 — the manifest query names each side's
@@ -195,7 +200,8 @@ OFF the host — into the Backrest B2 repository `b2-vps1` (`docs/operations/dis
    table and schema ACLs; a per-table content hash (`md5(string_agg(t::text, E'\n' ORDER BY <primary key>))`, or
    every column where there is no key), because D-612's TRIPWIRE is row counts OR checksums; and the server
    configuration a dump does not carry — `pg_settings` rows whose `source` is not `default`, `override`,
-   `client` or `session`, `pg_hba_file_rules`, and copies of `postgresql.auto.conf` and `pg_hba.conf` (an
+   `client` or `session` (with `sourcefile`), `pg_hba_file_rules`, `pg_ident_file_mappings`, and copies of
+   `postgresql.auto.conf`, `pg_hba.conf` and `pg_ident.conf` (an
    `ALTER SYSTEM` such as a raised `max_connections` is absent from `pg_dumpall` and silently reverts to the
    image default, measured in review).
 3. **Dump with the PG18 client** (pg-06), authenticating as the live superuser:
@@ -204,9 +210,13 @@ OFF the host — into the Backrest B2 repository `b2-vps1` (`docs/operations/dis
    TCP client without a password fails — measured), plus a per-database `pg_dump -Fc` with the same client for a
    granular restore. `$PGPW` is the superuser's live password; the plan proves it with a test connection before
    the window. A copy of every dump also goes off the host (the disk gate above), out of reach of any retention
-   in `pre-backup.sh`. Stop the 16 container the moment the dump completes: `CONNECTION LIMIT 0` still admits the
+   in `pre-backup.sh`. Then re-run the step-2 manifest on 16 and require it to equal step 2's, so the dump is
+   bracketed by two identical readings. Stop the 16 container (`docker stop postgres-main`) the moment that check
+   passes: `CONNECTION LIMIT 0` still admits the
    superuser (`docker exec postgres-main psql`), so no write may land between the dump and the swap.
-4. **Swap the container**: compose image → `postgres:18.6-alpine` (pg-34), volume → a NEW external volume
+4. **Swap the container**: `docker volume create postgres18-data` first (the compose declares its volume
+   `external: true`, `infra/vps1/postgres/compose.yaml:24-26`, so `up` fails without it); compose image →
+   `postgres:18.6-alpine` (pg-34), volume → the NEW external volume
    `postgres18-data` mounted at `/var/lib/postgresql` (the PG18 image's VOLUME; PGDATA
    `/var/lib/postgresql/18/docker`, pg-35 — confirmed by `docker image inspect` in review). The old
    `postgres-data` volume is untouched. The PG18 image refuses to start on any volume at
@@ -218,25 +228,41 @@ OFF the host — into the Backrest B2 repository `b2-vps1` (`docs/operations/dis
    stderr captured. Exactly one error is expected and allowed — `role "postgres" already exists`; any other error
    fails the window. The dump carries step 1's `CONNECTION LIMIT 0`, which stays in force on 18 until step 8, so
    nothing but the superuser can write before the cut-off. Port every non-default server setting and
-   `pg_hba` rule from the manifest (`ALTER SYSTEM` on 18, then a reload), then `ANALYZE`. The superuser keeps its old password (the dump's `ALTER ROLE postgres … PASSWORD`
+   `pg_hba`/`pg_ident` rule from the manifest (`ALTER SYSTEM` on 18, then a reload) — except step 1's own
+   `default_transaction_read_only`, and except any parameter PG17 removed (pg-08, pg-10), and with PG18's renamed `ssl_groups` for `ssl_ecdh_curve` (pg-30) — and check
+   `max_connections` against the sum of the services' pool sizes; then `ANALYZE`. The superuser keeps its old password (the dump's `ALTER ROLE postgres … PASSWORD`
    overrides the new container's `POSTGRES_PASSWORD`).
 6. **Diff the manifest** on 18 (V1). ACLs are compared after normalising PG17's new `m` (MAINTAIN) privilege,
    which every owner's ACL gains on restore; `datconnlimit` is still the frozen 0 on both sides; server settings
    and `pg_hba` rules are compared after step 5's port.
+6a. **glitchtip first.** glitchtip (`glitchtip/glitchtip:latest`, Django and Celery,
+   `infra/vps1/glitchtip/compose.yaml:3,7`) is the one application with no WSL rehearsal. Pin its image digest
+   for the window, start glitchtip-web alone against 18, and check `/health` and `manage.py migrate --check`.
+   If it wrote, re-restore the `glitchtip` database from the per-database `-Fc` dump before step 7; while
+   nothing else is up this costs minutes.
 7. **The rollback cut-off.** Until services restart, rollback is one step: revert the compose image and mount to
-   `postgres-data`, `up`, and restore step 1's pre-freeze limits on the 16 cluster — nothing was written to 18. Once services restart, rollback means a `pg_dumpall` from
+   `postgres-data`, `up`, `ALTER SYSTEM RESET default_transaction_read_only` and reload, and restore step 1's
+   pre-freeze limits on the 16 cluster — nothing was written to 18. Once services restart, rollback means a `pg_dumpall` from
    18 restored into 16, with hand edits where the dump uses 18-only syntax, and the writes since restart are
    carried manually; the plan treats the restart as the point of no return and requires V1 green before it.
 8. **Restart.** Reset each database the manifest lists as non-system to its recorded pre-freeze limit (`-1` unless
    step 1 recorded another value; never `template0`, which keeps `datallowconn = false`), merge the D3 DR-chain
    hunk (below), start the services, then the watchdog sidecars, re-enable `fabrik-compose-boot`, lift the deploy
-   freeze, and run the battery (V2–V6).
+   freeze, and run the battery (V2–V6). Before the window closes, add `postgres18-data` to the Backrest
+   `docker-volumes` plan (keep `postgres-data` until release), restart Backrest, trigger a manual snapshot and
+   confirm it holds `postgres18-data/_data/18/docker/PG_VERSION` — production never runs a night without a
+   volume snapshot.
 
 ### D2 — WSL first, as the rehearsal
 
+0. Before anything is installed, list `datname, extname, extversion` from `pg_extension` in every
+   `datallowconn` database. A `pg_uuidv7` row outside brand-identiy-creator's database is a KILL until handled
+   (`pg_upgradecluster` fails on any database that has it); the `vector` rows name the databases
+   `postgresql-18-pgvector` must serve.
 1. Add the PGDG apt repository and install `postgresql-18` and `postgresql-18-pgvector`. PGDG's
-   `postgresql-common` replaces Ubuntu's; `postgresql-16` follows only if PGDG's build sorts newer than the
-   installed `16.15-0ubuntu0.24.04.1`; the running 16 cluster may restart once (a short dev outage).
+   `postgresql-common` replaces Ubuntu's, and PGDG's `16.15-1.pgdg24.04+1` sorts newer than the installed
+   `16.15-0ubuntu0.24.04.1` (`dpkg --compare-versions`, measured), so `postgresql-16` and `postgresql-16-pgvector`
+   (0.6.0 → 0.8.x) are upgraded too and the running 16 cluster restarts once (a short dev outage).
 2. The install auto-creates an `18/main` cluster on 5433; drop it (`pg_dropcluster 18 main --stop`), because
    `pg_upgradecluster` refuses while it exists.
 2a. brand-identiy-creator's dev database has the hand-built `pg_uuidv7` extension, which has no build for 18 on
@@ -247,7 +273,8 @@ OFF the host — into the Backrest B2 repository `b2-vps1` (`docs/operations/dis
    they turn out not to be regenerable.
 3. Stop the local writers first — the session-recall service and any local watchdog or cost-ledger writer to
    `fabrik_analytics` — and assert no client backend is connected, as D1 step 1 does. Then
-   `pg_upgradecluster 16 main` — its default method is dump/restore. Afterwards 18 owns port 5432 (every
+   `pg_upgradecluster 16 main` — its default method is dump/restore. If it fails part-way it leaves a half-built
+   18 cluster: `pg_dropcluster 18 main --stop`, fix the cause, run it again (16 is untouched). Afterwards 18 owns port 5432 (every
    `{project}_dev` DSN keeps working) and 16 moves to 5433 with `start.conf` set to manual, kept until release.
 4. Verify every database, `fabrik_analytics` and session-recall's included, with the D1 manifest method; then run
    every project's suite against 18. This is where driver versions (pg-48), the `search_path` change (pg-07)
@@ -285,7 +312,7 @@ repo's DR volume list still restores `postgres-data`, and a DR in that gap canno
   `scripts/bootstrap/bootstrap-hub.sh` steps 12/12c/14 and their comments (`:78,83,1170,1315-1334`),
   `src/fabrik/orchestrator/vultr_drill.py:310`, `docs/operations/hub-restore-inventory.md:97,186,193`,
   `docs/operations/disaster-recovery.md:74,266`. The Backrest `docker-volumes` plan's volume list on the hub
-  gains `postgres18-data` — an operator step in the hub window.
+  gains `postgres18-data` — D1 step 8, proven by a manual snapshot before the window closes.
 - `tests/test_app_role_real_pg.py:30` and `tests/test_ci_scaffold.py:29-30,42` follow the registry; the real-PG
   test uses `postgres:18.6-alpine`, matching production.
 - `scripts/sysadmin/rules_render_versions.py`: add the `postgres:N(.N)?-alpine` and `pgvector:X.Y.Z-pgN` shapes to
@@ -308,8 +335,12 @@ repo's DR volume list still restores `postgres-data`, and a DR in that gap canno
 - `65-rag-search.md:61`: re-run the dated probe on the PG18 hub and rewrite its observation, including the
   sentence calling the span-rendered image "the same image the CI scaffold already uses" (after D3 the scaffold
   pins `0.8.6-pg18`).
-- `CLAIMS.yaml` rows `pg-fleet-major` (claim and its `verify:` grep), `pgvector-not-installed` and
-  `fleet-postgres-main-no-pgvector`: re-verify on 18; fix the stale `agents-fabrik.md:165` cite (now `:170`).
+- `CLAIMS.yaml` row `pg-fleet-major` is rewritten, because its tripwire demands the opposite of the decision above
+  ("DEFAULT uuidv7() becomes the fleet default"). New claim: "postgres-main runs major 18 (agents-fabrik.md:170;
+  EOL 2030-11), which ships native uuidv7(); app-side generation stays the scaffold default and DEFAULT uuidv7() is
+  permitted once a project's CI and dev run 18. TRIPWIRE: when every project CI image runs >=18, revisit making
+  DEFAULT uuidv7() the scaffold default." New `verify:` grep: `'PostgreSQL 18'` in `agents-fabrik.md`. Rows
+  `pgvector-not-installed` and `fleet-postgres-main-no-pgvector`: re-verify on 18.
 
 ### D5 — The projects (fabrik-mail requests)
 
