@@ -963,10 +963,8 @@ def _logger_py_content(name: str, package_name: str) -> str:
         f"\n"
         f"def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:\n"
         f'    """Return a structlog logger bound with service name."""\n'
-        "    service = os.getenv(\n"
-        '        "SERVICE_NAME",\n'
-        f'        "{name}",\n'
-        "    )\n"
+        # one line, 93 chars at the 50-char name cap (_validate_project_name) — fits line-length 100
+        f'    service = os.getenv("SERVICE_NAME", "{name}")\n'
         "    return structlog.get_logger(name, service=service)  # type: ignore[no-any-return]\n"
     )
 
