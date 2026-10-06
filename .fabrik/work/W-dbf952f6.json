@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T17:19:55.651342Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-dbf952f6",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Recorded by the W-2005a1a5 review (pass 1, A-S2, execution-confirmed by its refuter): cap the tail at a fixed width in _owner_tests (and any other str(exc) that reaches rec.reason) so a mail and its ack line stay readable; grader: a merge-tests that prints a 5,000-char line yields a bounded reason.",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "merge-request"
+  ],
+  "title": "merge_request.py: a refusal reason (rec.reason → the reply and mail.py ack --reason) is unbounded — the owner-tests tail carries 3 raw output lines of any length (5,241 chars measured)"
+}
