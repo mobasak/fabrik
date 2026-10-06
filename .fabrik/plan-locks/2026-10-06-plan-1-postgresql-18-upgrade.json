@@ -1,0 +1,39 @@
+{
+  "plan": "docs/development/plans/2026-10-06-plan-1-postgresql-18-upgrade/",
+  "owned_paths": [
+    "README.md",
+    "docs/infrastructure/vps-complete-inventory.md",
+    "docs/infrastructure/vps-hub-rebuild.md",
+    "docs/operations/disaster-recovery.md",
+    "docs/operations/hub-restore-inventory.md",
+    "docs/operations/postgres-major-upgrade-runbook.md",
+    "docs/traycer/fabrik-workflow.md",
+    "docs/workstation/session-recall.md",
+    "infra/vps1/monitoring/compose.yaml",
+    "infra/vps1/postgres/compose.yaml",
+    "scripts/bootstrap/bootstrap-config.sh",
+    "scripts/bootstrap/bootstrap-hub.sh",
+    "scripts/container_images.py",
+    "scripts/generate_vps_inventory.py",
+    "scripts/sysadmin/rules_render_versions.py",
+    "src/fabrik/ci_scaffold.py",
+    "src/fabrik/orchestrator/vultr_drill.py",
+    "tests/sysadmin/test_rules_render_versions.py",
+    "tests/test_app_role_real_pg.py",
+    "tests/test_ci_scaffold.py",
+    "tests/test_dr_chain_pg18.py",
+    "tests/test_infra_vps1_postgres_compose.py",
+    "tests/test_large_docs_pg18.py",
+    "tests/test_live_docs_pg18.py",
+    "tests/test_pg18_runbook.py"
+  ],
+  "branch": "worktree-fleet",
+  "started_at": "2026-10-06T15:50:30+00:00",
+  "status": "active",
+  "baseline_commit": "b9ffa57fed90028584fdb616b4075b1e0a803952",
+  "baseline_gate": {
+    "lean": "success",
+    "red": []
+  },
+  "tickets": {}
+}
