@@ -4197,6 +4197,14 @@ def _auto_park(
             f"claude_rotate: capability refused for {email!r}, not a known account — nothing parked\n"
         )
         return False
+    # The operator's freeze holds EVERY automated park, whichever path refused — the ping and the
+    # wrapper as well as the promote and active re-checks, which never get here under a pause; an
+    # unreadable pause state holds it too (fail closed, docs review pass 1, parking-O2).
+    if _pause_state() is not None:
+        sys.stderr.write(
+            f"claude_rotate: {email} refused — auto-park HELD by the pause, nothing parked\n"
+        )
+        return False
     # The confirmation follows a refusal that came back fast, so it is always bounded at the active
     # probe's 45 s: on the ping path (up to ROTATE_REFRESH_MAX_PER_RUN accounts a tick) an unbounded
     # 150 s confirmation could stretch the tick past its */5 cron slot.

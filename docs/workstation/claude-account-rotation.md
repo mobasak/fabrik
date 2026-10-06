@@ -206,13 +206,19 @@ deliberately, like any cap-walled one.
 reading and a refresh-chain check, so the tick now tries one real call — `claude -p ok --output-format json
 --max-turns 1 --tools ""` bound to the account's own dir — at four moments: before promoting a candidate (its
 `ok` trusted for `ROTATE_PROBE_TRUST_S`, default 6 h; 45 s timeout); on the ACTIVE account every
-`ROTATE_ACTIVE_PROBE_S` (default 30 min, 45 s timeout — skipped while `--pause-switch` holds); at once when an interactive session's own `oauth_org_not_allowed` death
+`ROTATE_ACTIVE_PROBE_S` (default 30 min, 45 s timeout); at once when an interactive session's own `oauth_org_not_allowed` death
 record (`<lockdir>/<sess>.errparked`) is newer than the active account's verdict; and in the stale-reading
-refresh ping. A refusal is confirmed by a second probe, then the account is parked through the same locked
-writer as `--park`, one `auto-park` row goes to the ledger, and one alert per account per 30 minutes says
+refresh ping (its own `KEEPALIVE_TIMEOUT`, default 150 s). A refusal is confirmed by a second probe (45 s) —
+an unconfirmed one parks nothing — then the account is parked through the same locked writer as `--park`
+(a broken `parked.json` holds the auto-park too: nothing is written, logged or alerted), one `auto-park` row goes to the ledger, and one alert per account per 30 minutes says
 "check this account's billing" and names `--unpark <email>`. A session call through `run_claude` that is
-refused parks the account it was bound to. An `inconclusive` probe (timeout, network, any other error) changes
-nothing and is retried after 30 minutes. A parked ACTIVE account — auto-parked or yours — is flipped away
+refused — a JSON result, or a failed text-mode call whose output carries the code (never a 401 or a usage
+limit) — parks the account it was bound to, after the same confirming probe. While `--pause-switch` holds
+nothing is auto-parked from any of these paths, and neither the promote probe nor the active re-check runs
+(§ Pause semantics). An `inconclusive` probe (timeout, network, any other error) at promotion or on the active
+re-check changes nothing and is retried after 30 minutes; in the stale-reading ping it counts as a failed ping,
+as before: on the ACTIVE account that marks its chain dead — a flip of `kind: dead-chain` when another account
+read live. A parked ACTIVE account — auto-parked or yours — is flipped away
 from on the same tick even when it has no quota reading. Only `--unpark` brings an account back.
 
 ## `--status` — the board
@@ -392,8 +398,9 @@ The `switch-paused` marker (`~/.claude/state/switch-paused`) gates automated ins
 
 - The tick prints the withheld successor instead of flipping; telemetry, keep-warm and drain
   warnings stay armed.
-- The active account's capability re-check (§ Parking, auto-park) is skipped while the marker is set: no
-  probe is spent and nothing is auto-parked.
+- Nothing is auto-parked while the marker is set, from any path (§ Parking, auto-park), and neither the active
+  account's capability re-check nor a candidate's probe before promotion runs; an unreadable pause state holds
+  them the same way, and the tick prints `capability re-check HELD — pause state unreadable (fail closed)`.
 - `--switch <name>` does NOT route through the gate — the deliberate manual escape hatch.
 - Tri-state: absent (running) · `marker` (operator pause) · `error` (state dir unreadable →
   **fail closed**, nothing installs, but an all-credentials-dead 401 alert still fires).

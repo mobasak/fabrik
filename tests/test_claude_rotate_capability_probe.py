@@ -981,3 +981,18 @@ def test_br13_a_401_that_quotes_the_refusal_code_still_rotates(monkeypatch):
     assert cr._call_refused(subprocess.CompletedProcess(["claude"], 1, plain, ""))
     assert cr._call_refused(subprocess.CompletedProcess(["claude"], 1, "", plain)), "stderr counts"
     assert not cr._call_refused(subprocess.CompletedProcess(["claude"], None, plain, "")), "timeout"
+
+
+def test_br14_the_pause_holds_an_auto_park_from_every_path(tmp_path, monkeypatch):
+    """Docs review pass 1, parking-O2: the ping and the wrapper reach `_auto_park` directly, so the
+    operator's pause (or an unreadable pause state) must hold the park there — no probe, no
+    parked.json, no ledger row, no alert."""
+    fleet = _fleet_one(tmp_path, monkeypatch)
+    calls = _probe_script(monkeypatch, [(1, REFUSAL)])
+    sent = _alerts(monkeypatch)
+    for state in (cr._PAUSE_MARKER, cr._PAUSE_ERROR):
+        monkeypatch.setattr(cr, "_pause_state", lambda s=state: s)
+        assert cr._auto_park("a@ocoron.com", source="ping", cfg_dir=fleet / "d0") is False
+    assert calls == [] and sent == []
+    assert not (fleet / "parked.json").exists()
+    assert [r for r in _ledger_rows(tmp_path) if r.get("event") == "auto-park"] == []
