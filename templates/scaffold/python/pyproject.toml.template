@@ -72,9 +72,11 @@ packages = ["src/<package_name>"]
 target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
-# glitchtip_init.py is VENDORED from site-provisioner (byte-parity with upstream): never lint or reformat it
-# here. force-exclude keeps the exclusion when a tool passes the file by name, as the completion gate does.
-extend-exclude = ["src/<package_name>/glitchtip_init.py"]
+# glitchtip_init.py is VENDORED from site-provisioner (byte-parity with upstream), and libs/ holds the vendored
+# fabrik-lib modules (app-audit-log): never lint or reformat them here. "libs/*" carries a slash, so it is
+# anchored to the project root and a project's own src/<pkg>/libs/ is still linted. force-exclude keeps the
+# exclusion when a tool passes a file by name, as the completion gate does.
+extend-exclude = ["src/<package_name>/glitchtip_init.py", "libs/*"]
 force-exclude = true
 
 [tool.ruff.lint]

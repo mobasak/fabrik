@@ -963,7 +963,9 @@ def _logger_py_content(name: str, package_name: str) -> str:
         f"\n"
         f"def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:\n"
         f'    """Return a structlog logger bound with service name."""\n'
-        f'    return structlog.get_logger(name, service=os.getenv("SERVICE_NAME", "{name}"))  # type: ignore[no-any-return]\n'
+        # one line, 93 chars at the 50-char name cap (_validate_project_name) — fits line-length 100
+        f'    service = os.getenv("SERVICE_NAME", "{name}")\n'
+        "    return structlog.get_logger(name, service=service)  # type: ignore[no-any-return]\n"
     )
 
 
@@ -2488,9 +2490,6 @@ from functools import lru_cache
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
-
 from fastapi_user_auth import (
     Settings,
     build_auth_router,
@@ -2498,6 +2497,9 @@ from fastapi_user_auth import (
     make_sessionmaker,
 )
 from fastapi_user_auth.tokens import NullDenylist, RedisDenylist, decode_access_token
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
 from __PKG__.audit import ChainAuditLogger
 
 
@@ -3001,11 +3003,11 @@ from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi_user_auth import CsrfOriginMiddleware
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from fastapi_user_auth import CsrfOriginMiddleware
 from __PKG__.auth import (
     SecurityHeadersMiddleware,
     aclose,
@@ -3018,7 +3020,10 @@ from __PKG__.glitchtip_init import init_glitchtip
 from __PKG__.logger import get_logger
 from __PKG__.metrics import metrics_app
 from __PKG__.middleware import CorrelationMiddleware
-from __PKG__.tenant import TenantMiddleware, get_tenant_id
+from __PKG__.tenant import (
+    TenantMiddleware,
+    get_tenant_id,
+)
 
 # Initialise error reporting BEFORE app construction.
 init_glitchtip()
@@ -3344,6 +3349,7 @@ def test_auth_router_mounted() -> None:
 
 def test_access_token_round_trip() -> None:
     from fastapi_user_auth.tokens import issue_access_token
+
     from __PKG__.auth import decode_token
 
     secret = os.environ["JWT_SECRET"]
@@ -3354,41 +3360,56 @@ def test_access_token_round_trip() -> None:
 '''
 
 
-def _write_server_lint_config(server_dir: Path, package_name: str) -> None:
-    """Give a ``server/`` backend the root project's ruff and mypy config (W-1c722f35).
+_TOML_TABLE_HEADER = re.compile(r"^\[\[?[\w.\-\"]+\]\]?\s*(#.*)?$")
 
-    The server ships the vendored ``glitchtip_init.py`` and would lint it under the project's own
-    rules — the defect the python template's ``extend-exclude`` / ``force-exclude`` and mypy
-    override fix at the root. ruff and mypy read the NEAREST ``pyproject.toml``, so the server gets
-    its own: the ``[tool.ruff*]`` and ``[tool.mypy*]`` tables copied out of the one template, never a
-    second hand-kept copy that could drift from it."""
+
+def _write_server_lint_config(server_dir: Path, package_name: str) -> None:
+    """Give a ``server/`` backend the root project's ruff, mypy and pytest config (W-1c722f35).
+
+    The server ships three VENDORED trees — ``src/<pkg>/glitchtip_init.py``, ``src/fastapi_user_auth``
+    (``_vendor_fastapi_user_auth``) and ``libs/audit_log`` (``_vendor_app_audit_log``) — and would lint
+    them under the project's own rules: the defect the root template's ``extend-exclude`` /
+    ``force-exclude`` and mypy override fix at the root. ruff resolves the nearest ``pyproject.toml``
+    per file, so a ``server/pyproject.toml`` covers it; mypy reads the config of its working directory
+    only, so it is run from ``server/`` (``mypy src``). The ``[tool.ruff*]``, ``[tool.mypy*]`` and
+    ``[tool.pytest*]`` tables are copied out of the ONE template, never a second hand-kept copy.
+
+    isort: ``known-first-party`` names the package and ``known-third-party`` the vendored modules, so the
+    import order of the generated bodies does not depend on where the project's name sorts against
+    ``fastapi_user_auth`` (``src = ["src", "tests"]`` would otherwise make the vendored module
+    first-party beside the package)."""
     template = (TEMPLATE_DIR / "python" / "pyproject.toml.template").read_text()
     keep: list[str] = []
     take = False
     for line in template.splitlines():
-        header = line.strip()
-        if header.startswith("["):
-            take = header.lstrip("[").startswith(("tool.ruff", "tool.mypy"))
+        if _TOML_TABLE_HEADER.match(line):  # a column-0 header — never an array row inside a value
+            take = line.lstrip("[").startswith(("tool.ruff", "tool.mypy", "tool.pytest"))
         if take:
             keep.append(line)
     body = "\n".join(keep).replace("<package_name>", package_name).strip() + "\n"
-    # The server also vendors fabrik-lib's fastapi_user_auth (``_vendor_fastapi_user_auth``): upstream
-    # code too, so it is excluded the same way rather than linted under this project's rules.
-    vendored = f'extend-exclude = ["src/{package_name}/glitchtip_init.py"]'
-    if vendored not in body:
-        raise RuntimeError(f"pyproject template lost its glitchtip_init exclusion: {vendored!r}")
-    body = body.replace(
-        vendored,
-        f'extend-exclude = ["src/{package_name}/glitchtip_init.py", "src/fastapi_user_auth"]',
+
+    def _swap(old: str, new: str) -> None:
+        nonlocal body
+        if old not in body:
+            raise RuntimeError(f"pyproject template changed; server config cannot patch {old!r}")
+        body = body.replace(old, new)
+
+    _swap(
+        f'extend-exclude = ["src/{package_name}/glitchtip_init.py", "libs/*"]',
+        f'extend-exclude = ["src/{package_name}/glitchtip_init.py", "libs/*", "src/fastapi_user_auth"]',
+    )
+    _swap(
+        'known-first-party = ["src"]',
+        f'known-first-party = ["{package_name}"]\nknown-third-party = ["fastapi_user_auth", "audit_log"]',
     )
     body += (
-        "\n# Vendored fastapi_user_auth (see extend-exclude): its typing is upstream's.\n"
-        '[[tool.mypy.overrides]]\nmodule = "fastapi_user_auth.*"\nignore_errors = true\n'
+        "\n# Vendored fastapi_user_auth and libs/audit_log (see extend-exclude): their typing is upstream's.\n"
+        '[[tool.mypy.overrides]]\nmodule = ["fastapi_user_auth.*", "audit_log.*"]\nignore_errors = true\n'
     )
     (server_dir / "pyproject.toml").write_text(
-        "# Lint and type config for the server/ backend — the root template's [tool.ruff] and\n"
-        "# [tool.mypy] tables, so the vendored glitchtip_init.py and fastapi_user_auth stay\n"
-        "# excluded here too.\n\n" + body
+        "# Lint, type and test config for the server/ backend — the root template's [tool.ruff],\n"
+        "# [tool.mypy] and [tool.pytest] tables, with the vendored trees excluded. Run mypy from here.\n\n"
+        + body
     )
 
 
@@ -4764,6 +4785,8 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
     if makefile_src.exists():
         content = makefile_src.read_text()
         content = content.replace("myproject", name)
+        # A file-worker keeps its code in worker/, not src/ (the template's lint/gate-lean type src).
+        content = content.replace("mypy src", "mypy --explicit-package-bases worker")
         # Replace the dev target body: match any uvicorn invocation on the line
         # following the "dev:" target and replace it with the worker command.
         # This handles the actual template command regardless of exact arguments.

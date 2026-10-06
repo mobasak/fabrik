@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T00:10:54.731593Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3bef3fe6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "give file-worker a pyproject.toml from the python template's [tool.ruff*]/[tool.mypy*] tables (as _write_server_lint_config does for server/), clean the generated worker/ bodies, and extend tests/test_scaffold_output_passes_gate.py to file-worker; found by the W-1c722f35 design critique (Fable)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "scaffold"
+  ],
+  "title": "file-worker scaffold: worker/ has no pyproject and fails mypy (11 errors under --explicit-package-bases) — make lint is red on a fresh project"
+}
