@@ -1,7 +1,7 @@
 # Review — w-ad6bd74a-digest-columns
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = bad0d6a0c347d4396f236830ab1031c3fd541b01; `git diff HEAD -- scripts/enforcement/check_rule_grounding.py tests/enforcement/test_rule_grounding.py commands/_fragments/grounding-rules.md commands/_fragments/subagents-core.md commands/_sources/fabrik-review-scoped.md docs/reference/review-loop-workflow.md` md5 639295a6c6fac4ada685cb8143cf1694 (18419 bytes)
+**Surface:** `git rev-parse HEAD` = 910a8e18b9d5e9457b92dfc4669ac096c06bdc9a; range tip 910a8e18b9d5e9457b92dfc4669ac096c06bdc9a; `git diff bad0d6a0c..910a8e18b -- scripts/enforcement/check_rule_grounding.py tests/enforcement/test_rule_grounding.py commands/_fragments/grounding-rules.md commands/_fragments/subagents-core.md commands/_sources/fabrik-review-scoped.md docs/reference/review-loop-workflow.md` md5 639295a6c6fac4ada685cb8143cf1694 (18419 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/enforcement/check_rule_grounding.py`, `tests/enforcement/test_rule_grounding.py`, `commands/_fragments/grounding-rules.md`, `commands/_fragments/subagents-core.md`, `commands/_sources/fabrik-review-scoped.md`, `docs/reference/review-loop-workflow.md`
 **Lane:** fabrik-task
 
