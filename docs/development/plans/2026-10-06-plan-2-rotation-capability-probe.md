@@ -114,7 +114,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | "**No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes." | .windsurf/rules/core/45-testing-strategy.md:21 | Assert state, not prose |
 | "**No skipped heading levels** — `##` to `###`, never `##` to `####`" | .windsurf/rules/core/40-documentation.md:240 | Docs (the § Parking paragraph stays under its `###`; no new heading) |
 
-## Phase A — the primitives: the classifying probe, the parked lock, the auto-park
+## Phase A — the primitives: the classifying probe, the parked lock, the auto-park — ✅ EXECUTED 2026-10-06 (04160d567)
 
 Appetite: 90
 
@@ -431,6 +431,15 @@ Steps:
 - Phase A also carries the probe cache (`_probe_trust_s`, `_active_probe_s`, `_PROBE_RETRY_S`,
   `_ACTIVE_PROBE_TIMEOUT_S`, `_read_probe_cache`, `_record_probe`, `_probe_account`) the plan scheduled for Phase B,
   because `_auto_park`'s confirmation records its verdict through `_record_probe` (A9).
+- Phase A `/fabrik-review-scoped` (2026-10-06): 4 rounds, confirmed 10 → 2 → 4 → 0 (scope-growth stop at round 3),
+  16 defects fixed with a red-then-green guard each (`test_r1`–`test_r10`); the classifier now reads the whole stdout or
+  the last line that begins with `{` — the CLI's own one-line output contract — after two heuristic drafts were
+  measured wrong (a span pick and a quadratic `raw_decode` scan). Recorded, not fixed: a top-level JSON array (not a CLI
+  shape), the cache windows' tests (Phase B's B7-B9), a1b's overlap with a1, non-dict stdout (covered by r1), and r8's
+  nested sub-assertion (documentary; r8 is red on the pre-fix code through its embedded-log case). The parked-list lock
+  is a heavy-surface trigger routed to the Finish `/fabrik-review`. The pass-4 seats first died on a transient
+  `oauth_org_not_allowed` refusal and were re-run; ozgurbasak probed healthy minutes later — the one-refusal case the
+  confirmation probe exists for.
 
 ## Evidence
 
