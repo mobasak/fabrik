@@ -35,5 +35,30 @@
     "lean": "success",
     "red": []
   },
-  "tickets": {}
+  "tickets": {
+    "T02": {
+      "state": "returned",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a8e081e52bab958d9",
+      "branch": "worktree-agent-a8e081e52bab958d9",
+      "commit": "bb4a3910f40c5e36173ed1bcd24266170f20bce1",
+      "base_commit": "b9ffa57fed90028584fdb616b4075b1e0a803952",
+      "started_at": "2026-10-06T15:50:30+00:00"
+    },
+    "T03": {
+      "state": "returned",
+      "worktree_path": "/tmp/claude-1000/-opt-fabrik--claude-worktrees-fleet/1970a0ff-baa3-401b-ba52-fb0c5de43261/scratchpad/fleet-pg18-dr",
+      "branch": "fleet-pg18-dr",
+      "commit": "09142b91d27a3bb188bf8375eb826ab763a6fdf2",
+      "base_commit": "db43895f9",
+      "started_at": "2026-10-06T15:50:30+00:00"
+    },
+    "T04a": {
+      "state": "returned",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a29210c3a155fc7ea",
+      "branch": "worktree-agent-a29210c3a155fc7ea",
+      "commit": "d6a360dfcb3c5ceaeec232087db1fcd1ab9d90cb",
+      "base_commit": "b9ffa57fed90028584fdb616b4075b1e0a803952",
+      "started_at": "2026-10-06T15:50:30+00:00"
+    }
+  }
 }
