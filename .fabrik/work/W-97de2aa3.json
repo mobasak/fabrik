@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T11:18:24.205880Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-97de2aa3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: run kaizen_coroner.py --sweep against a copy of the live sources and find why it reconstructs nothing (the daily stamp is 2026-10-06, imports load, --selftest passes)",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "kaizen coroner has emitted no session_end/death event since 2026-09-14 though it runs daily and its selftest passes — death_occurrences/death_classes NOT MEASURED for 3 weeks, hole_count 218→304→393"
+}
