@@ -81,7 +81,7 @@ Stdlib-only, byte-identical vendoring (`claude_rotate.py:1-4`) rules out new imp
 
 ## Cost
 
-One probe is one Claude Code turn with no tools on a one-word prompt, drawn from the probed account's subscription quota. D2 and D6 share one cache keyed by email: an `ok` verdict is trusted for 6 h, so a healthy account costs at most ~4 probes a day whichever path asks, and at 4-5 accounts that is ≤20 small calls per day across the fleet. During a probe outage an `inconclusive` verdict is retried at most every 30 minutes, a worst case of 48 calls per account per day that ends with the outage. A refused account costs one probe, then none, because it is parked.
+One probe is one Claude Code turn with no tools on a one-word prompt, drawn from the probed account's subscription quota. D2 and D6 share one cache keyed by email: an `ok` verdict is trusted for 6 h, so a healthy account costs at most ~4 probes a day whichever path asks, and at 4-5 accounts that is ≤20 small calls per day across the fleet. During a probe outage an `inconclusive` verdict is retried at most every 30 minutes, a worst case of 48 calls per account per day that ends with the outage. The stale-reading refresh ping (D4) is not new cost: it is today's call, run only for a reading older than an hour and capped per tick by `ROTATE_REFRESH_MAX_PER_RUN`, unchanged in count; it now writes its verdict into the same cache, so D6 never probes an account the ping has just probed. A refused account costs one probe, then none, because it is parked.
 
 ## Validation
 

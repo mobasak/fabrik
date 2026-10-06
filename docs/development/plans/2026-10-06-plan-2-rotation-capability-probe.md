@@ -145,8 +145,8 @@ Appetite: 90
   (`:3692-3694`: "cannot lock → apply in memory only; never risk clobbering the table"). Unlock and close each in their
   own `try` (`:3712-3716`).
 - `_auto_park(email: str, *, source: str, status: object = None, row: dict | None = None) -> bool` — `source` ∈
-  `promote` · `active` · `ping` · `wrapper`. Refuses (stderr, returns `False`) an email not in `_known_account_emails()`
-  (`:3859-3868`), so a `pending-login` identity (`:3699`) is never written. Calls `_parked_update(email, True,
+  `promote` · `active` · `ping` · `wrapper`. Normalises `email = email.strip().lower()` first (as `_cmd_park` does,
+  `:3877`), then refuses (stderr, returns `False`) an email not in `_known_account_emails()` (`:3861-3870`), so a `pending-login` identity (`:3699`) is never written. Calls `_parked_update(email, True,
   repair=False)`; on `True` appends
   `{"event": "auto-park", "email", "cause": "oauth_org_not_allowed", "source", "api_error_status": status, "ts": _now()}`
   via `_ledger_append` and sends `_tick_telegram(<msg>, key=f"capability-{email}")` naming the account, the cause and
@@ -231,13 +231,20 @@ Appetite: 120
 - `_probe_cache_path() -> Path` — `_rotate_state_dir() / "capability-probe.json"` (`:2225-2231`); content
   `{email: {"verdict": "ok" | "inconclusive", "ts": <epoch>}}`. A `refused` verdict is never cached (the account is
   parked instead). An unreadable file reads as empty (the next probe runs, bounded by the windows below).
-- `_PROBE_RETRY_S = 1800` — a module constant: an `inconclusive` verdict is not re-probed for 30 minutes, so a probe
-  outage costs at most two calls per account per hour, never one per tick. The flip leg's own flips are dwell-exempt
+- `_PROBE_RETRY_S = 1800` — a module constant: an `inconclusive` verdict is not re-probed by D2 or D6 for 30 minutes,
+  so a probe outage costs those two paths at most two calls per account per hour, never one per tick. The D4
+  stale-reading ping keeps its own budget (`_ping_slots`, `:5561`; at most `ROTATE_REFRESH_MAX_PER_RUN` accounts a
+  tick, each only when its reading is older than `ROTATE_READING_MAX_AGE_S`) — it is today's call, unchanged in count —
+  and it writes its verdict into the same cache through `_record_probe`, so D6 never re-probes an account the ping
+  just probed. The flip leg's own flips are dwell-exempt
   (`ignore_dwell=True` at `:5722`, `:5740`, `:5843`, `:5894`), so the dwell bounds nothing here — these two windows
   are the only bound.
 - `_probe_account(email: str, slug: str) -> str` — returns the cached verdict without a call while it is younger than
   its window (`ok`: `_probe_trust_s()`; `inconclusive`: `_PROBE_RETRY_S`); otherwise runs
-  `_capability_probe(_fleet_root() / slug)`, stores an `ok` or `inconclusive` atomically, and returns the verdict.
+  `_capability_probe(_fleet_root() / slug)`, stores the verdict with `_record_probe`, and returns it.
+- `_record_probe(email: str, verdict: str) -> None` — writes an `ok` or `inconclusive` verdict with `ts = _now()`
+  atomically into the cache (a `refused` is never written); called by `_probe_account` and by the D4 ping call site
+  (`:4055`), which Phase B step 2 amends to call it after `_capability_probe`.
 - `_validated_pick(accounts, exclude, *, verbose=False, probe=False)` — the existing body (`:3559-3625`) moves
   unchanged into `_validated_pick_reading(accounts, exclude, *, verbose)`; the wrapper loops: take the reading-validated
   pick; `probe` false or `None` → return it; `_probe_account` → `ok` → return the pick; `inconclusive` → return the
@@ -258,11 +265,14 @@ Appetite: 120
   reasons (`_flip_exclusion_reasons`, `:5752`). Either way `return`. A parked active account is never re-probed (its
   `weekly_cap` reads 0 every tick), and the branch does not depend on a quota reading (the `no quota reading` early
   return at `:5767-5769` would otherwise strand a parked active account that has none).
-- In `run_claude` (`:735`), after each `subprocess.run` result and BEFORE the usage-limit/401 classification
-  (`:801-804`): when `_capability_verdict(result.returncode, result.stdout or "") == "refused"`, identify the account
-  THAT ANSWERED from the call's own environment, never from the fleet pointer: `cfg = (env or os.environ).get(
-  "CLAUDE_CONFIG_DIR")`; when it is set and `Path(cfg).resolve()` lies directly inside `_fleet_root().resolve()`, its
-  slug is that directory's name and its email the slug's `identity` in `_load_assignments(strict=False)`; then
+- In `run_claude` (`:735`): BEFORE each `subprocess.run` (`:765`, `:826`), snapshot the account the call is bound
+  to — `cfg = env.get("CLAUDE_CONFIG_DIR")` (`env` is a required parameter, `:736`); when it is set and
+  `Path(cfg).resolve()` lies directly inside `_fleet_root().resolve()`, the slug is that directory's name (a session
+  bound to `<root>/active` resolves to the pointer's target AT CALL TIME, `:3022-3028`). Resolving after the call
+  would name whatever the pointer reached meanwhile — a tick that parks the refused account and flips to a healthy
+  one during a long call would get the healthy one parked too. After the result and BEFORE the usage-limit/401
+  classification (`:801-804`): when `_capability_verdict(result.returncode, result.stdout or "") == "refused"`, park
+  the SNAPSHOT slug's account — its email is the slug's `identity` in `_load_assignments(strict=False)`; then
   `_auto_park(email, source="wrapper")` (which refuses an unknown or `pending-login` identity). Any other case — no
   `CLAUDE_CONFIG_DIR`, the shared `~/.claude`, a dir outside the fleet root, a host with no fleet (the VPS callers,
   `scripts/aro-wake/main.py:543`) — writes one stderr line `capability refused outside the fleet — nothing parked` and
@@ -273,8 +283,11 @@ Steps:
   `_fleet_creds`, `_point`), the ACTIVE account's probe returning the refusal with no cached verdict → after one
   `_fleet_tick_inner` the pointer names the other account, `parked.json` lists the refused one, the ledger carries one
   `auto-park` row with `source: "active"` and one flip row with `kind: "refused"`. Run it → red (no D6 branch).
-2. Implement `_probe_trust_s`, `_PROBE_RETRY_S`, `_probe_cache_path`, `_probe_account` and the `_fleet_flip_leg`
-  branch. Re-run B5 → green. Add its mirrors: the same fleet with an `ok` cached 1 h ago → zero probe calls on that
+2. FIRST add a module-level autouse fixture to `tests/test_claude_fleet.py` that replaces `cr._capability_probe` with a
+  stub returning `"ok"` and counting its calls, so none of the file's existing tick tests (92 `_cmd_tick()` /
+  `_fleet_tick_inner(` calls) can launch the real `claude` binary once the flip leg probes; the new test file sets its
+  own stub per test. Then implement `_probe_trust_s`, `_PROBE_RETRY_S`, `_probe_cache_path`, `_probe_account`,
+  `_record_probe` (and its call at the D4 ping site, `:4055`) and the `_fleet_flip_leg` branch. Re-run B5 → green. Add its mirrors: the same fleet with an `ok` cached 1 h ago → zero probe calls on that
   tick; an operator-parked active account with NO quota reading → flipped away with kind `parked` and zero probe
   calls; `_flip_active` withheld (pause marker set) → no Telegram call and the `withheld` tick line.
 3. Write B1–B4, then implement the `_validated_pick` split and the four `probe=True` call sites:
@@ -290,8 +303,11 @@ Steps:
    unset → nothing parked and the stderr line printed; an `is_error: false` result that quotes the code → nothing
    parked. (A no-retry assertion is not used as the red signal: `is_usage_limit` and `is_auth_401` are both already
    false on the refusal text, so the loop breaks without the hook — executed this review.)
-4a. Add B7, the inconclusive backoff: a probe returning `inconclusive` → a second `_probe_account` call within
-   `_PROBE_RETRY_S` makes no `claude` call; past it, one.
+   Add the race case: the stubbed `subprocess.run` repoints `<root>/active` from `a` to `b` before returning the
+   refusal, with `env["CLAUDE_CONFIG_DIR"] = <root>/active` → `a` is parked and `b` is not.
+4a. Add B7, the cache windows: a probe returning `inconclusive` → a second `_probe_account` call within
+   `_PROBE_RETRY_S` makes no `claude` call; past it, one. A D4 ping that returned `ok` this tick → D6 makes no probe
+   call for that account on the same tick.
 5. `cp scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py && cmp scripts/sysadmin/claude_rotate.py
    scripts/aro-wake/claude_rotate.py` → no output, rc 0.
 6. **Phase gate**: `.venv/bin/python -m pytest tests/test_claude_rotate_capability_probe.py tests/test_claude_fleet.py
@@ -316,6 +332,8 @@ Steps:
 - **Given** an active account already parked — by the operator or an earlier refusal — with no quota reading, **When** the tick runs, **Then** it is flipped away with kind `parked` and is not probed (spec § The delta D6; D-443)
 - **Given** the flip away from a parked active account is withheld, **When** the tick runs, **Then** no alert claims a flip and the tick line says `withheld` (spec § The delta D6)
 - **Given** a probe returned `inconclusive`, **When** the same account is probed again within `_PROBE_RETRY_S`, **Then** no `claude` call is made (spec § Cost)
+- **Given** the pointer moves from `a` to `b` while a wrapper call bound to `<root>/active` is running, **When** that call returns the refusal, **Then** `a` is parked and `b` is not (spec § The delta D4b)
+- **Given** the D4 ping probed an account this tick, **When** D6 considers that account, **Then** no second probe call is made (spec § Cost)
 
 ## Phase C — docs and Finish
 
@@ -426,7 +444,8 @@ account out of service`); the twin pin: `tests/test_mail_addressing.py:228`.
 - (b) Signatures: Phase B consumes `_capability_probe`, `_capability_verdict` and `_auto_park` with the exact
   parameters Phase A's Interfaces name; `source` values used in B (`promote`, `active`, `wrapper`) and A (`ping`) are the
   four the Interface lists; the flip kinds `refused` and `parked` are named once in B and documented in C;
-  `_parked_update`'s `repair` keyword is passed by both of its callers (`_auto_park` False, `_cmd_park` True).
+  `_parked_update`'s `repair` keyword is passed by both of its callers (`_auto_park` False, `_cmd_park` True);
+  `_record_probe` is the one cache writer, called by `_probe_account` and the D4 ping site.
 - Fixed point: not yet — `/fabrik-plan-review` grades it.
 
 ## Residual unknowns
@@ -455,12 +474,16 @@ Joint loop over this plan and its `Size: small` spec (md5 pairs: plan · spec).
 | Pass | seats · axes re-checked | counters | method | md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (plan § Global Constraints, Phase A, Phase B; spec § The delta, § Validation, § Constraints digest) + sonnet×1 (every other section of both) · all axes; the monolith and spec flip gates run on flipped copies in a throwaway worktree | found: 15, new: 15, confirmed: 14, fixed: 14, unexecuted: 0, edits: 32 | method: citation — full pass; every candidate executed by the orchestrator (the four `ignore_dwell=True` flips, the assignments lock site `:3692-3694`, `is_usage_limit`/`is_auth_401` on the refusal text, `_is_parked` at `:6110-6115`, one real healthy probe call); confirmed: D4b parked the pointer's account not the answering one, the dwell bounded nothing and an inconclusive probe re-ran every tick, the unlocked-write citation said the opposite, an automated park overwrote a broken `parked.json`, an already-parked active account was re-probed and its withheld flip unspecified, three of five spellings, the "reached the API" contradiction and the uncaptured healthy shape, B6's vacuous no-retry assertion, D2's logging mismatch, R4 overstating D4b's reach, the `_validated_pick` docstring landing site, the spec/plan size mismatch, the `_is_parked` range, the digest missing `core/40-documentation.md` (flip gate) | plan 2957ecae · spec df9aaf05 → plan 67dcaa0b · spec be9ad375 |
+| Pass 2 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-1 fix hunks + one hop | found: 8, new: 8, confirmed: 5, fixed: 5, unexecuted: 0, edits: 10 | method: re-derivation — A 14/17 and B 12/15 re-executed (the 92 tick calls in `tests/test_claude_fleet.py`, `_known_account_emails` at `:3861-3870`, the two `subprocess.run` sites `:765`/`:826`, `ROTATE_REFRESH_MAX_PER_RUN` `:5564`, the pin-minus-ledger hash, D-613 on `origin/master`); confirmed, all in round-1 hunks (own-fix: round 1): the existing fleet tick tests would launch the real `claude` once the flip leg probes, the wrapper resolved the answering account after the call so a mid-call flip could park the healthy successor, the D4 ping was outside the cache and the cost sentence, `_auto_park` did not lower-case its email, the `_known_account_emails` span | plan d06380af · spec be9ad375 → plan 39c89b8e · spec dd0a5661 |
 
 ## Residual
 
 | Id | Verdict |
 |---|---|
 | A5 | RECORDED — measured (the pointer-repair fallback `_freshest_credentialed_slug`, `:5718`, can name a just-parked account when every candidate is parked; a missing pointer and a pointer on a refused account both fail every session, and each auto-park has already alerted the operator, so the fallback changes no outcome) |
+| B2-1 | REFUTED (the Pass 1 end hash is the plan with its own ledger sections deleted, per the in-plan-ledger anti-cheat rule: `awk` deleting `## Pass Ledger`…`## Coverage Checklist` from the pass-2 pin hashes to `67dcaa0b94727298f888bd9b72db5e61`) |
+| B2-2 | REFUTED (`git show origin/master:docs/DECISIONS.md` carries `| D-613 | 2026-10-06 | operator ruling 2026-10-06 …` — the design-approval panel ruling; this branch predates its merge) |
+| A2-1b | RECORDED — measured (one hop out: the three round-0 `probe=True` callers share the test-isolation gap; closed by the same autouse fixture in Phase B step 2) |
 
 ## Coverage Checklist
 
