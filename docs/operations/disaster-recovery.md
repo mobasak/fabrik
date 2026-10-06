@@ -261,9 +261,9 @@ SNAPSHOT_ID=$(restic snapshots --tag docker-volumes --json | python3 -c 'import 
 restic restore $SNAPSHOT_ID --target /var/restore
 
 # Recreate volumes + copy data in
-# The docker-volumes plan backs up 11 until release (both Postgres volumes); this loop
-# restores 10 — prometheus/loki/promtail-positions/ocoron-com_redis_data are excluded
-# from backup — they regenerate
+# The docker-volumes plan backs up 11 volumes until release (both Postgres volumes);
+# this loop restores 10 — the retired PG16 volume is not restored, and prometheus/loki/
+# promtail-positions/ocoron-com_redis_data are excluded from backup (they regenerate)
 for vol in postgres18-data redis_redis-data meilisearch-data n8n-data apprise-config \
            monitoring_grafana-data monitoring_alertmanager-data \
            ocoron-com_wp_html ocoron-com_db_data ocoron-com_backup_data; do

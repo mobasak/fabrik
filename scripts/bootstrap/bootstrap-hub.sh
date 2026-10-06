@@ -1226,10 +1226,11 @@ step_12c_start_core_services_drill() {
         return 1
     fi
 
-    # Confirm postgres has the canonical databases (proves volume restore was real)
+    # Confirm postgres has the canonical databases (checks the volume restore is real;
+    # the V8 DR drill after the hub window is what DEMONSTRATES it end to end)
     local dblist
-    dblist=$(remote 'sudo docker exec postgres-main psql -U postgres -tAc "SELECT datname FROM pg_database WHERE datname IN (\"glitchtip\", \"site_provisioner\")"' 2>/dev/null || echo "")
-    if echo "$dblist" | grep -q glitchtip && echo "$dblist" | grep -q site_provisioner; then
+    dblist=$(remote 'sudo docker exec postgres-main psql -U postgres -tAc "SELECT datname FROM pg_database"' 2>/dev/null || echo "")
+    if echo "$dblist" | grep -qx glitchtip && echo "$dblist" | grep -qx site_provisioner; then
         ok "  postgres-main: glitchtip + site_provisioner databases present (restored volume is real)"
     else
         warn "  postgres-main: missing one of glitchtip / site_provisioner — saw: ${dblist}"
@@ -1326,8 +1327,8 @@ step_14_pg_dump_restore_fallback() {
     # restore worked — skip. If they don't, the volume is empty/fresh and we
     # must replay from /opt/backups/pg_dump_<latest>.sql.
     local dblist
-    dblist=$(remote 'sudo docker exec postgres-main psql -U postgres -tAc "SELECT datname FROM pg_database WHERE datname IN (\"glitchtip\", \"site_provisioner\")"' 2>/dev/null || true)
-    if echo "$dblist" | grep -qE "glitchtip|site_provisioner"; then
+    dblist=$(remote 'sudo docker exec postgres-main psql -U postgres -tAc "SELECT datname FROM pg_database"' 2>/dev/null || true)
+    if echo "$dblist" | grep -qx glitchtip && echo "$dblist" | grep -qx site_provisioner; then
         ok "step_14 — volume restore intact (glitchtip + site_provisioner present), pg_dump fallback not needed"
         return 0
     fi
