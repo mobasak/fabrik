@@ -856,7 +856,7 @@ GUI scaffold types (saas-skeleton, static-site, desktop-app, chrome-extension, m
 | **Deployment** | SSH + Docker Compose |
 | **DNS** | Site Provisioner service (Namecheap + Cloudflare) |
 | **Reverse Proxy** | Traefik (automatic HTTPS) |
-| **Database** | PostgreSQL 16 (self-hosted `postgres-main`) |
+| **Database** | PostgreSQL 18 (self-hosted `postgres-main`) |
 | **Cache** | Redis |
 | **Storage** | Cloudflare R2 (S3-compatible) |
 | **Monitoring** | Gatus, Grafana, Prometheus, Alertmanager, Loki |

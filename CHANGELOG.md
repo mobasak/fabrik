@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the hub's live pins and current-state docs say PostgreSQL 18 (2026-10-06)
+
+- The real-PG scratch container in `tests/test_app_role_real_pg.py` is `postgres:18.6-alpine` (16 passed on it); `scripts/container_images.py`, `scripts/generate_vps_inventory.py`, `README.md` and `docs/workstation/session-recall.md` name 18. Merges after the hub window (PG18 plan T04a). `tests/test_live_docs_pg18.py` guards the files.
+
 ### Fixed — the disaster-recovery chain restores `postgres18-data`, and its database probe works (2026-10-06)
 
 - `FABRIK_HUB_VOLUMES_TO_RESTORE` and every DR script and doc name the new volume. The step 12c and step_14 probes queried double-quoted IDENTIFIERS inside `remote '…'`, so the query always errored, `|| true` emptied it, and a rebuild always replayed the old pg_dump over a good restored cluster; both now list databases and require `glitchtip` and `site_provisioner` exactly. Docs no longer claim step 12c demonstrates the restore — the V8 DR drill does. Committed on its own branch `fleet-pg18-dr`, which infra merges inside the hub window (PG18 plan T03). `tests/test_dr_chain_pg18.py` guards it, each guard seen red on its mutation.

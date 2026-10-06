@@ -69,7 +69,7 @@ PURPOSE_MAP = {
     "n8n": "Workflow automation",
     "netdata": "Real-time system monitoring",
     "node-exporter": "Host metrics for Prometheus",
-    "postgres-main": "Shared PostgreSQL 16 (all app DBs)",
+    "postgres-main": "Shared PostgreSQL 18 (all app DBs)",
     "promtail": "Log shipper → Loki",
     "site-provisioner": "DNS + Cloudflare + domain provisioning",
 }

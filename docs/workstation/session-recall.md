@@ -1,6 +1,6 @@
 # session-recall — workstation session history & recall
 
-**Last Updated:** 2026-08-03 (verified live — PostgreSQL 16.14 cluster online, index at 3 878 sessions / 138 971 turns fresh to the minute, `session-recall` MCP registered in `~/.claude.json`, the `SessionStart` hook installed in `~/.claude/settings.json` alongside the pre-existing claude-manager tap)
+**Last Updated:** 2026-08-03 (verified live — PostgreSQL cluster online, index at 3 878 sessions / 138 971 turns fresh to the minute, `session-recall` MCP registered in `~/.claude.json`, the `SessionStart` hook installed in `~/.claude/settings.json` alongside the pre-existing claude-manager tap); the cluster is now PostgreSQL 18 (fleet upgrade, docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md) — the session/turn counts above are the 2026-08-03 snapshot and owe a fresh live re-verification
 
 > **What this is:** the workstation-level overview of **session-recall** — the local index of every Claude
 > Code session on this box, exposed to every agent as MCP tools + an auto-injected session-start digest.
@@ -12,7 +12,7 @@
 ## What it does
 
 Every Claude Code conversation on this box is parsed from the raw transcripts under
-`~/.claude/projects/**/*.jsonl` into a **local PostgreSQL 16** index, and served back to any agent. It lets
+`~/.claude/projects/**/*.jsonl` into a **local PostgreSQL 18** index, and served back to any agent. It lets
 an agent answer, from the *real transcripts* rather than its own memory:
 
 - *"What did we decide about X?"* — keyword search across all history
