@@ -1080,13 +1080,53 @@ def _fallback_env(wt: Path, shim: Path) -> dict:
     return {**os.environ, "PYTHONPATH": str(shim), "FABRIK_MERGE_SRC": str(root)}
 
 
+def _copy_worktree_include(ctx: _Ctx, wt: Path, old: str) -> None:
+    """Copy the base's ``.worktreeinclude`` set from the main checkout into the build tree.
+
+    The build tree is a fresh checkout, so a gitignored ``.env`` was absent and a pydantic-settings
+    app failed at import — a correct request refused (brand-identiy-creator 01M46NZMP4F08KBP7WC8KF1Z37).
+    Claude Code copies this same set into every new linked worktree, so the owner's tests now see
+    what a worktree sees, read by the app's own loader rather than a second ``.env`` parser
+    (D-610). The list comes from the BASE, never the branch; a file the tree already holds (tracked)
+    is never overwritten; a path that leaves the checkout, or a symlink, is skipped. The build tree
+    lives in a private mkdtemp directory and is removed after the merge."""
+    res = _run(["git", "show", f"{old}:.worktreeinclude"], GIT_TIMEOUT_S, cwd=ctx.main)
+    if res.returncode != 0:
+        return
+    main = ctx.main.resolve()
+    for line in res.stdout.splitlines():
+        rel = line.strip()
+        if not rel or rel.startswith("#"):
+            continue
+        listed = main / rel
+        target = listed.resolve()
+        if listed.is_symlink() or not target.is_relative_to(main) or target == main:
+            continue  # a symlink, an absolute path or `..`: never read outside the checkout
+        # walk the LISTED path, never the resolved one, so each copy lands where it was listed
+        files = (
+            [listed] if listed.is_file() else (sorted(listed.rglob("*")) if listed.is_dir() else [])
+        )
+        for f in files:
+            if f.is_symlink() or not f.is_file() or not f.resolve().is_relative_to(main):
+                continue
+            dst = wt / f.relative_to(main)
+            if dst.exists():
+                continue  # tracked in the merged tree: the merge's copy wins
+            try:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dst)
+            except OSError:
+                continue  # a tracked FILE where the list has a directory: the merge's tree wins
+
+
 def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -> str:
     """(c): the OWNER's command — ``.fabrik/merge-tests`` read from the BASE, never the branch —
     with the throwaway's ``src`` first on ``PYTHONPATH`` (a contract owner commands rely on; one
     whose ``src`` holds a stdlib-named package runs ``env -u PYTHONPATH …`` itself). Else pytest
     over the merged ``tests/`` files the diff touched, under the main checkout's ``.venv`` python
     when it has one, the merged ``src`` placed after the stdlib by the shim above. A red test
-    refuses."""
+    refuses. Both legs first get the base's ``.worktreeinclude`` set (``_copy_worktree_include``)."""
+    _copy_worktree_include(ctx, wt, old)
     res = _run(["git", "show", f"{old}:.fabrik/merge-tests"], GIT_TIMEOUT_S, cwd=ctx.main)
     if res.returncode == 0 and res.stdout.strip():
         pythonpath = os.pathsep.join(

@@ -709,6 +709,50 @@ def test_owner_tests_see_the_merged_src_first_and_the_fabrik_lib_link(world):
     assert world.scratch_left() == []
 
 
+def test_owner_tests_see_the_worktreeinclude_files_the_main_checkout_holds(world):
+    """brand-identiy-creator 01M46NZMP4F08KBP7WC8KF1Z37: the build tree is a fresh checkout, so a
+    pydantic-settings app whose Settings() reads the gitignored `.env` failed at import and a
+    correct request was refused. The base's `.worktreeinclude` set is copied in from the main
+    checkout, as Claude Code copies it into a new worktree — a file the tree already tracks is
+    never overwritten, and a path outside the checkout is never read."""
+    probe = world.tmp / "env-probe"
+    world.write(
+        ".worktreeinclude",
+        "# comment\n.env\nlocal/\ntracked.cfg\n../outside.txt\nlink.env\nlink_dir/\n",
+    )
+    world.write("tracked.cfg", "base\n")
+    world.commit_main("include list", ".worktreeinclude", "tracked.cfg")
+    world.write(".env", "DATABASE_URL=postgresql://u:p@h/app\n")  # untracked, as gitignored
+    world.write("secret.txt", "unlisted\n")
+    world.write("realdir/x.txt", "unlisted\n")
+    (world.main / "link_dir").symlink_to(world.main / "realdir")  # a listed dir symlink too
+    (world.main / "link.env").symlink_to(world.main / "secret.txt")  # a listed symlink is skipped
+    # the owner's uncommitted edit to the list is never read: the BASE's list governs
+    world.write(".worktreeinclude", "# comment\n.env\nlocal/\ntracked.cfg\nextra.txt\n")
+    world.write("extra.txt", "never\n")
+    world.write("local/deep/a.txt", "a\n")
+    world.write("tracked.cfg", "dirty in main\n")  # the owner's uncommitted edit
+    (world.tmp / "outside.txt").write_text("never\n", encoding="utf-8")
+    script = (
+        "import os, pathlib; "
+        f"pathlib.Path({str(probe)!r}).write_text(' '.join(["
+        "open('.env').read().strip(), open('local/deep/a.txt').read().strip(), "
+        "open('tracked.cfg').read().strip(), str(os.path.exists('../outside.txt')), "
+        "str(os.path.lexists('link.env') or os.path.exists('secret.txt') "
+        "or os.path.lexists('link_dir')), "
+        "str(os.path.exists('extra.txt'))]))"
+    )
+    world.write(".fabrik/merge-tests", f'python3 -c "{script}"\n')
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    _git(world.wt, "merge", "-q", "--ff-only", "master")
+    world.send(world.branch({"x.txt": "x\n"}))
+
+    assert world.run("merge") == 0
+    got = probe.read_text()
+    assert got == "DATABASE_URL=postgresql://u:p@h/app a base False False False", got
+    assert world.scratch_left() == []
+
+
 # --- (c) fallback: touched tests run with the merged src AFTER the stdlib (wef 01M453XP8W) ------
 _SHADOW_TEST = """\
 import os, pathlib, subprocess, sys
@@ -1242,3 +1286,30 @@ def test_an_owner_wip_conflict_never_sends_the_requester_to_merge(world):
 def test_no_requester_text_says_rebase():
     src = SCRIPT.read_text(encoding="utf-8")
     assert "rebase on" not in src and "rebase {" not in src
+
+
+def test_a_tracked_file_where_the_include_list_has_a_directory_never_crashes_the_copy(tmp_path):
+    """Review round 2: a listed directory whose name the merged tree tracks as a FILE raised
+    FileExistsError out of the copy, an unhandled crash instead of a clean merge."""
+    mod = _load_module()
+    main = tmp_path / "main"
+    main.mkdir()
+    _git(main, "init", "-q", "-b", "master")
+    (main / ".worktreeinclude").write_text("local/\n.env\n", encoding="utf-8")
+    _git(main, "add", ".worktreeinclude")
+    _git(main, "-c", "user.name=t", "-c", "user.email=t@x", "commit", "-q", "-m", "list")
+    (main / "local").mkdir()
+    (main / "local" / "deep.txt").write_text("deep\n", encoding="utf-8")
+    (main / ".env").write_text("A=1\n", encoding="utf-8")
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    (wt / "local").write_text("a tracked file\n", encoding="utf-8")
+
+    class _Ctx:
+        pass
+
+    ctx = _Ctx()
+    ctx.main = main
+    mod._copy_worktree_include(ctx, wt, _git(main, "rev-parse", "HEAD"))
+    assert (wt / "local").read_text(encoding="utf-8") == "a tracked file\n"
+    assert (wt / ".env").read_text(encoding="utf-8") == "A=1\n"  # the rest is still copied
