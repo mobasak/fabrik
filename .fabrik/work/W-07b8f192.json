@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T06:24:04.764494Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-07b8f192",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M469D3VKXKNZ96GVP7H15C30",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: the fabrik-review-loop.js seat brief's PINS recipe (git archive + overlay + sys.path insert before site-packages + python -P) does not hold for pytest runs. In a project installed editable (uv/pip -e), the `.pth` wins and pytest imports the LIVE module. An Opus seat's first mutant run reported"
+}
