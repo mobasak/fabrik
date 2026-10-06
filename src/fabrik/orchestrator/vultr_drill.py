@@ -307,7 +307,7 @@ def _validate_hub(ip: str, name: str) -> dict[str, Any]:
     #
     # --drill-start-core-only: Bucket C1 (2026-06-15). Surgical add ON TOP
     #     of --skip-services. Starts postgres-main + redis-main only —
-    #     verifies the restored postgres-data + redis_redis-data volumes
+    #     verifies the restored postgres18-data + redis_redis-data volumes
     #     actually boot bootable DB state (pg_isready + redis PING). These
     #     2 services don't write to B2/Telegram/CF — safe under all 3
     #     other safety flags.

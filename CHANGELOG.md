@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the disaster-recovery chain restores `postgres18-data`, and its database probe works (2026-10-06)
+
+- `FABRIK_HUB_VOLUMES_TO_RESTORE` and every DR script and doc name the new volume. The step 12c and step_14 probes queried double-quoted IDENTIFIERS inside `remote '…'`, so the query always errored, `|| true` emptied it, and a rebuild always replayed the old pg_dump over a good restored cluster; both now list databases and require `glitchtip` and `site_provisioner` exactly. Docs no longer claim step 12c demonstrates the restore — the V8 DR drill does. Committed on its own branch `fleet-pg18-dr`, which infra merges inside the hub window (PG18 plan T03). `tests/test_dr_chain_pg18.py` guards it, each guard seen red on its mutation.
+
 ### Changed — the repo's hub compose files describe the PostgreSQL 18 cluster and exporter (2026-10-06)
 
 - `infra/vps1/postgres/compose.yaml` runs `postgres:18.6-alpine` (platform `linux/amd64`) on the new external volume `postgres18-data` mounted at `/var/lib/postgresql`; `infra/vps1/monitoring/compose.yaml` moves postgres-exporter to `v0.20.1` with `--collector.stat_checkpointer`. This is the repo mirror of the hand-edit the operator makes in the hub window (PG18 plan T02); it merges after that window. `tests/test_infra_vps1_postgres_compose.py` pins it.
