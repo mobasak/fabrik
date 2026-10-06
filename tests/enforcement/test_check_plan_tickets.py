@@ -2866,6 +2866,9 @@ def test_a_gate_path_resolves_against_its_own_cd_and_a_subdir_prefixed_ghost_fir
     assert _errs_for("or-alternative", alt, [spec]) == []
     keep = _errs_for("or-exit", cd_gate.replace(" && ", " || exit 1 && ", 1), [])
     assert len(keep) == 1 and f"`{spec}`" in keep[0], keep
+    # round 3: a cd that is itself the `||` fallback runs only on failure, so it never resolves
+    mirror = "pytest tests/x.py || cd web && npx playwright test tests/ui/disc-a.spec.ts"
+    assert _errs_for("or-mirror", mirror, ["tests/x.py", "tests/ui/disc-a.spec.ts"]) == []
 
 
 def test_touches_shapes_round_two_a_plus_bullet_a_quoted_path_and_a_mid_bullet_comment(

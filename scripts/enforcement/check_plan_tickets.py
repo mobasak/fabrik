@@ -144,8 +144,9 @@ def _gate_file_paths(cmd: str) -> list[tuple[str, ...]]:
     spaces, or a variable other than `$(git rev-parse --show-toplevel)`, which is the root) leaves
     the paths after it unchecked rather than guessed at — the cheapest way past this rule is such a
     `cd`, and the review reads it. A `cd x ||` keeps `x` only when the fallback is `exit` or
-    `return` (`cd x || exit 1`); any other fallback (`cd a || cd b`) leaves the directory unknown,
-    so the paths after it are unchecked rather than resolved against both.
+    `return` (`cd x || exit 1`); any other fallback (`cd a || cd b`), and a `cd` that is itself the
+    fallback (`pytest y || cd a`), leaves the directory unknown, so the paths after it are
+    unchecked rather than resolved against both. `cd a || true` is therefore unchecked too.
     """
     cwd: PurePosixPath | None = PurePosixPath()
     stack: list[PurePosixPath | None] = []
@@ -160,8 +161,10 @@ def _gate_file_paths(cmd: str) -> list[tuple[str, ...]]:
         seg = seg.strip("()").strip()
         stack.extend([cwd] * opens)
         _gate_segment(seg, cwd, found)
-        if ambiguous:
-            ambiguous = False  # the `||` alternative's own cd never resolves the directory
+        if ambiguous or (i > 0 and seps[i - 1] == "||" and _GATE_CD_WORD_RE.match(seg)):
+            # the `||` alternative's cd never resolves the directory: it runs only on failure
+            ambiguous = False
+            cwd = None if _GATE_CD_WORD_RE.match(seg) else cwd
         elif _GATE_CD_WORD_RE.match(seg) and seps[i] == "||":
             fallback = segs[i + 1].strip().strip("()").strip() if i + 1 < len(segs) else ""
             if re.match(r"(?:exit|return)\b", fallback):
