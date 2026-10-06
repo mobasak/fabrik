@@ -317,7 +317,7 @@ Spokes are full deploy targets, not standby boxes — a spoke-targeted service r
 - Mock/stub backends in dev that don't exist in prod
 
 **✅ Correct:**
-- WSL runs PostgreSQL + Redis at the SAME MAJOR as the VPS containers — probe the live truth, never copy a tag from a doc: `ssh vps "sudo docker inspect postgres-main redis-main --format '{{.Config.Image}}'"` (2026-09-01: `postgres:16-alpine` · `redis:7-alpine` — upstream official images, outside OUR-image Alpine ban per § Banned Patterns)
+- WSL runs PostgreSQL + Redis at the SAME MAJOR as the VPS containers — probe the live truth, never copy a tag from a doc: `ssh vps "sudo docker inspect postgres-main redis-main --format '{{.Config.Image}}'"` (probed 2026-09-01: the plain upstream PostgreSQL Alpine image at the fleet major recorded in `CLAIMS.yaml` row `pg-fleet-major` · `redis:7-alpine` — upstream official images, outside OUR-image Alpine ban per § Banned Patterns)
 - Parity is about MAJOR VERSION + engine, not the distro layer of an upstream image (native WSL PostgreSQL at the same major satisfies it — see `25-data-postgres.md` § Local Development)
 - Connection strings identical (`postgres-main:5432`, `redis-main:6379`)
 

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `pgvector_version` in the rules version registry; two dated Postgres probes frozen as history (2026-10-06)
+- `.windsurf/rules/versions.yaml` gains `pgvector_version: "0.8.6"` (fleet's PG18 plan precondition, D-617; mail 01M48YF4ZJHPDTDJQFE1ZPZK4K) so the CI scaffold can derive `pgvector/pgvector:<version>-pg<postgres_major>`; `postgres_major` stays 16.
+- `core/30-ops.md` and `core/25-data-postgres.md` no longer carry a `postgres:16-alpine` tag inside their 2026-09-01 probes — they name the image and cite the `CLAIMS.yaml` rows that hold the live fact, so T01b's new sweep shapes pass and a future major flip cannot rewrite a dated observation. Review `docs/development/reviews/2026-10-06-pgvector-version-key-review.md`.
+
 ### Fixed — the watchdog pack names the real Tier-D dispatch key and where the fork runs (2026-10-06)
 - `.windsurf/rules/core/60-watchdog.md` named a Tier-D action `apply_code_fix` that no code dispatches; the key is `create_fix_pr`, which the coordinator's code-class fork (`coordinator.py::_is_code_fix`) routes to REMEDIATE — only for a trigger-bus signal, while the always-on poll path runs it as the Tier-C branch push (fabrik-lib 01M48Q42FAVJ5A8FD848HR7X5C). Review `docs/development/reviews/2026-10-06-watchdog-tier-d-action-name-review.md`.
 
