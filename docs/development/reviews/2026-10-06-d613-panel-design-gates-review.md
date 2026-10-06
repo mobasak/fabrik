@@ -1,7 +1,9 @@
 # Review — D-613 panel-answered design gates
 
-Surface: HEAD 20ed43d69 · diff md5 2e84a9d211adba50b4b171c162984a26 (13 files, uncommitted; fragment design-gate-panel.md new)
-Command: /fabrik-review (nested in /fabrik-task phase 4) · Owner: infra · 2026-10-06
+**Status:** CONVERGED
+**Surface:** `git diff 20ed43d69..1b0c780c8 -- <the 15 files>` — pass 1 read the uncommitted tree at md5 2e84a9d211adba50b4b171c162984a26, pass 2 the fixed tree at 3f2c412f… minus the final fix (11a7a4ff00c969fe500a55c3399c9d1f), pass 3 3f2c412f0978a7dd2da5aef872a83b5d; committed as 1b0c780c8.
+**Command:** /fabrik-review (nested in /fabrik-task phase 4) · **Changed:** `.claude/hooks/final_gate_stop.py`, `commands/_fragments/design-gate-panel.md`, `commands/_fragments/design-critique.md`, `commands/_sources/fabrik-spec.md`, `commands/_sources/fabrik-spec-review.md`, `commands/_sources/fabrik-plan-review.md`, `commands/_sources/fabrik-flows-review.md`, `commands/_sources/fabrik-ui-design-review.md`, `commands/assemble_commands.py`, `CLAUDE.md`, `templates/governance/CLAUDE.md`, `tests/test_decision_panel.py`, `tests/test_design_critique_fragment.py`, `tests/test_plan_review_small_gate.py`, `docs/DECISIONS.md`, `CHANGELOG.md`, `INDEX.md`
+**Lane:** /fabrik-task v2, heavy (hook + governance-sync paths) — the full review, one sync commit (D-369)
 
 ## Rubric
 
@@ -105,22 +107,30 @@ Command: /fabrik-review (nested in /fabrik-task phase 4) · Owner: infra · 2026
 
 ## Coverage Checklist
 
-| File | Verdict |
+| Row | Verdict |
 |---|---|
-| .claude/hooks/final_gate_stop.py | FIXED — A-S1, A-S2, A-S3, C-H1, C-H3; A-S4 RECORDED → W-79a56d2c (pre-existing full-transcript read); C-H2 REFUTED (distinct-seat check rejects one seat) |
-| tests/test_decision_panel.py | FIXED — graders for every hook fix, red on the pass-1 pin |
-| commands/_fragments/design-gate-panel.md | FIXED — VERDICT line; "the command's DECISION block" (B-S1) |
-| commands/_sources/fabrik-plan-review.md | FIXED — literal split block (B-S1) |
-| commands/assemble_commands.py | FIXED — ui-design-review NEXT (B-S2), EXTRACT mirror |
-| tests/test_design_critique_fragment.py | FIXED — split-block grader (B-S3) |
-| commands/_sources/fabrik-spec.md | FIXED (orchestrator) — Phase 6 still presented the table for the user's approval |
+| Hunt: `.claude/hooks/final_gate_stop.py` — every changed hunk, its enclosing function, its callers | FIXED r1/r2 (A-S1, A-S2, A-S3, C-H1, C-H3 in pass 1; A-S1/C-NEW1 exact VERDICT path in pass 2); C-H2 REFUTED (the distinct-seat check rejects one seat quoted twice); A-S4 RECORDED → W-79a56d2c (the full-transcript read predates this change) |
+| Hunt: `tests/test_decision_panel.py` — every changed hunk, its enclosing function, its callers | FIXED r1/r2 (graders for every hook fix, each red on the pin it fixed) |
+| Hunt: `commands/_fragments/design-gate-panel.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (B-S1: the split points at the command's own DECISION block; seats open with the VERDICT line) |
+| Hunt: `commands/_fragments/design-critique.md` — every changed hunk, its enclosing function, its callers | CLEAN (the phase-2 / OPEN / presentation edits match the panel step that follows) |
+| Hunt: `commands/_sources/fabrik-spec.md` — every changed hunk, its enclosing function, its callers | FIXED (orchestrator, pass 1: Phase 6 still presented the table for the user's approval) |
+| Hunt: `commands/_sources/fabrik-spec-review.md` — every changed hunk, its enclosing function, its callers | CLEAN (split block parses as ground gate; next-command map unchanged) |
+| Hunt: `commands/_sources/fabrik-plan-review.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (B-S1: its own literal split DECISION block; never invokes /fabrik-execute-plan) |
+| Hunt: `commands/_sources/fabrik-flows-review.md` — every changed hunk, its enclosing function, its callers | CLEAN (Version / Independently-reviewed rule matches its attestation section) |
+| Hunt: `commands/_sources/fabrik-ui-design-review.md` — every changed hunk, its enclosing function, its callers | CLEAN (Traycer path kept) |
+| Hunt: `commands/assemble_commands.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (B-S2: ui-design-review NEXT names the panel; EXTRACT mirror regenerated from the source) |
+| Hunt: `tests/test_design_critique_fragment.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (B-S3: each panel holder states a split block) |
+| Hunt: `tests/test_plan_review_small_gate.py` — every changed hunk, its enclosing function, its callers | CLEAN (pins the amended small-spec gate wording) |
+| Hunt: `CLAUDE.md` — every changed hunk, its enclosing function, its callers | CLEAN (C-H4 REFUTED: the parenthetical names the panel as the approver) |
+| Hunt: `templates/governance/CLAUDE.md` — every changed hunk, its enclosing function, its callers | CLEAN (the clause names no hub-only mechanism; the commands carry the panel step in every repo) |
+| Hunt: `docs/DECISIONS.md` — every changed hunk, its enclosing function, its callers | CLEAN (D-613 row: six cells, minted via decisions.py --reserve-id) |
+| Hunt: `CHANGELOG.md` — every changed hunk, its enclosing function, its callers | CLEAN (one Changed entry atop [Unreleased]) |
+| Hunt: `INDEX.md` — every changed hunk, its enclosing function, its callers | CLEAN (receipt row beside today's other receipts) |
 | Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1/r2 (A-S2 fence, C-H1 spacing and A-S1 substring were all checks that read as success when they could not ask; the hook's outer try still fails OPEN on an exception, tests/test_decision_panel.py) |
 | Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (.claude/hooks/final_gate_stop.py the panel is the existing two critique seats; no seat, quota or limit arithmetic is touched; `Panel: unavailable` stays RED/WALL-only) |
 | Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r2 (A-S1/C-NEW1: the artifact match was substring; now the VERDICT line's parsed path must EQUAL the heading path) |
 | Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | CLEAN (tests/test_decision_panel.py and tests/test_design_critique_fragment.py: every Behaviour and every fix red on the pin it fixed — pass-1 pin 2 failed, pass-2 pin 1 failed) |
-| CLAUDE.md | CLEAN — C-H4 REFUTED |
-| templates/governance/CLAUDE.md | CLEAN |
-| commands/_sources/fabrik-{spec,flows,ui-design}-review.md, design-critique.md, tests/test_plan_review_small_gate.py | CLEAN (pass 1) |
+
 
 ## Gate
 
