@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T14:30:02.774074Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9512d108",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read stdout/stderr incrementally (asyncio streams) so a timeout returns what was produced, with a test that times out after printing",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "tools/wsl-mcp/server.py bash tool: on timeout the cancelled first communicate() drops the output the command already wrote, so a timed-out command returns empty stdout (pre-existing since 898eb1269; wsl-mcp lint review A-O1)"
+}
