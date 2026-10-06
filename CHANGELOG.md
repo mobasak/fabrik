@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review-loop seats can run pytest against the pinned files, not the live tree (2026-10-06)
+- The review-loop seat recipe for importing a pinned module did not hold for a pytest run. Run from the live repo, pytest prepends the live rootdir's ini `pythonpath` and conftest paths, and in a src layout with no such ini an editable install's `.pth` supplies the live package. A seat's mutant run reported a false "35 passed" against live code (brand-identiy-creator 01M469D3).
+- Both seat briefs now carry one shared clause (`PYTEST_PINS`):
+  - archive the tests, root conftest, pytest config and imported top-level dirs (only those `git ls-tree` lists);
+  - launch pytest in-process from INSIDE the archive, with the recipe's site-packages-index insert;
+  - grep the archived tests for the live repo's absolute path (a hit is unverifiable, never passed);
+  - never copy a `.env`, and use only unroutable dummies for import-failing vars, never `TEST_*` gates;
+  - print `__file__` from inside the run.
+- A shell-less `fabrik-researcher` finder no longer receives the shell recipe, matching the refuter.
+
 ### Fixed — `merge_request.py` refusals tell the requester to merge the base in, never to rebase a pushed branch (2026-10-06)
 - A refused merge used to tell the requester to "rebase on <base> and resend". The branch is already pushed (`request` requires it), so that rebase could only be republished with `--force`, a HARD STOP (fabrik-lib 01M3TVN8). The requester's conflict refusals now say `merge <base> into <branch> (git merge <base>), resolve, push, then run merge_request.py request again — never a rebase`.
 - A conflict with the OWNER's uncommitted ledger work now names the owner and never sends the requester to merge. The reply's HOW line is generic for every refusal.
