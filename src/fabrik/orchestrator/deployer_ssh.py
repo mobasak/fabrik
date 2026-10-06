@@ -202,6 +202,9 @@ class SSHDeployer:
         # Check for existing deployment
         existing = self.find_existing(name)
 
+        # Mint-once (W-023bdd59) — BEFORE any source path renders compose.yaml or builds .env.
+        self._preserve_minted_secrets(ctx, name, source, source_type)
+
         if source_type == SourceType.TEMPLATE:
             self._deploy_template(ctx, name, existing)
         elif source_type == SourceType.GIT:
@@ -222,6 +225,44 @@ class SSHDeployer:
 
         ctx.app_name = name
         return name
+
+    def _preserve_minted_secrets(
+        self, ctx: DeploymentContext, name: str, source: Any, source_type: SourceType
+    ) -> None:
+        """Swap every secret THIS run minted for the value the remote ``.env`` already holds.
+
+        The hub never keeps a value it minted (the first apply wrote it only into the remote
+        ``.env``), so without this every re-apply would render and write a NEW value — for a
+        stable-forever key such as an encryption master key, the stored data becomes unreadable
+        (W-023bdd59). It runs before any source path renders, because the template path bakes
+        ``ctx.secrets`` into ``compose.yaml`` (``environment:`` literals beat ``.env``).
+
+        The remote ``.env`` is read whenever anything was minted — never gated on
+        :meth:`find_existing`, which answers ``None`` on an ssh failure and only looks at
+        ``/opt/<name>``. ``_read_env_file`` fails closed: ``{}`` only for an absent file, any
+        other failure raises :class:`DeployError` before anything is written. A key whose value
+        no longer equals its minted one was set by something else this run and is left alone;
+        an empty remote value counts as absent. Rotating such a secret means setting it on the hub
+        (it is then not minted). Values are never logged.
+        """
+        minted = getattr(ctx, "minted_secrets", None) or {}
+        if not minted:
+            return
+        from fabrik.drivers.ssh import ssh as _ssh
+
+        if source_type == SourceType.LOCAL:
+            path = (
+                source.get("path") if isinstance(source, dict) else getattr(source, "path", None)
+            ) or f"/opt/{name}"
+        else:
+            path = f"/opt/{name}"
+        deployed = _read_env_file(path, _ssh)
+        for key, minted_value in minted.items():
+            current = ctx.secrets.get(key)
+            remote = deployed.get(key)
+            if current == minted_value and remote:
+                ctx.secrets[key] = remote
+                logger.info("Kept the deployed value of generated secret %s (mint-once)", key)
 
     def find_existing(self, name: str) -> dict[str, Any] | None:
         """Check whether an app directory with a compose file exists on the VPS."""
@@ -672,7 +713,8 @@ class SSHDeployer:
                 continue  # keep the registrar-injected real value
             merged[key] = value
 
-        # Layer secrets (highest precedence)
+        # Layer secrets (highest precedence). A secret this run minted was already swapped for
+        # the deployed value by _preserve_minted_secrets, before anything rendered.
         for key, value in ctx.secrets.items():
             merged[key] = str(value)
 

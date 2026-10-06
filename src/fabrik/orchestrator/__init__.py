@@ -265,7 +265,8 @@ class DeploymentOrchestrator:
         for key in missing:
             logger.warning(
                 "SECRET %s is required but absent from the environment and .env — a RANDOM value "
-                "will be generated. Correct for a self-defined password; WRONG for an API key, "
+                "will be generated unless the deployed app's .env already holds one (mint-once "
+                "keeps that). Correct for a self-defined password; WRONG for an API key, "
                 "token, or DSN that must match an external system (the deploy will look green "
                 "while that integration is dead). Add the real value to /opt/fabrik/.env.",
                 key,
@@ -357,13 +358,16 @@ class DeploymentOrchestrator:
 
         if isinstance(secrets_config, list):
             self._warn_fabricated_secrets(secrets_config)
+            minted_keys = self._minted_keys(secrets_config)
             ctx.secrets = self.secrets_manager.load_all(secrets_config)
+            ctx.minted_secrets = {k: ctx.secrets[k] for k in minted_keys if k in ctx.secrets}
             return
 
         if not isinstance(secrets_config, dict):
             return
 
         all_secrets: dict[str, str] = {}
+        minted: set[str] = set()
 
         required = secrets_config.get("required", [])
         if required:
@@ -374,10 +378,12 @@ class DeploymentOrchestrator:
             # is silently dead. Loud, itemised warning; still non-fatal (a generated password is a
             # legitimate use), so the operator sees it instead of debugging a 401 later.
             self._warn_fabricated_secrets(required)
+            minted |= self._minted_keys(required)
             all_secrets.update(self.secrets_manager.load_all(required))
 
         generate = secrets_config.get("generate", [])
         if generate:
+            minted |= self._minted_keys(generate)
             all_secrets.update(self.secrets_manager.load_all(generate))
 
         from_env = secrets_config.get("from_env", [])
@@ -415,6 +421,16 @@ class DeploymentOrchestrator:
                     logger.warning("Failed to read file for secret %s: %s", env_var, e)
 
         ctx.secrets = all_secrets
+        ctx.minted_secrets = {k: all_secrets[k] for k in minted if k in all_secrets}
+
+    def _minted_keys(self, keys: list[str]) -> set[str]:
+        """The keys the secrets manager can resolve only by INVENTING a value (W-023bdd59).
+
+        Those values exist nowhere the hub can read again — the first apply writes them only into
+        the remote ``.env`` — so the deploy-time merge must keep the remote copy instead of them.
+        """
+        resolved = self.secrets_manager.load_all(keys, generate_if_missing=False)
+        return {key for key in keys if key not in resolved}
 
     def refresh_infrastructure(
         self,

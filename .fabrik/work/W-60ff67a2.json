@@ -1,0 +1,26 @@
+{
+  "block_digest": "ea12a9b9e0e1da688ac18059a10c5a4efdb52c1961c843b722f026ac10cbbd71",
+  "blocked_by": [],
+  "created": "2026-10-06T12:11:03.725516Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-60ff67a2",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "87defcdbc5579c6ae4c27d6e2c4c1287f9cdb2204e12a97fb0073ed4c1ab6fec"
+  ],
+  "next": "",
+  "note": "use fable 5.1 and opus 5.5 subagents and consult them, revise if needed then proceed — consult done, D-617",
+  "owner": "",
+  "priority": 2,
+  "question": "Do you approve this converged PostgreSQL 16 → 18 fleet upgrade design so it can go to planning?",
+  "status": "done",
+  "title": "Do you approve this converged PostgreSQL 16 → 18 fleet upgrade design so it can go to planning?"
+}

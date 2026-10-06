@@ -32,6 +32,13 @@ class DeploymentContext:
     # Secrets loaded from env/.env/generated
     secrets: dict[str, str] = field(default_factory=dict)
 
+    # The secrets THIS run invented (key -> the minted value): the hub could not resolve them, so
+    # SecretsManager made one up. Before anything renders or writes, the deployer swaps each one
+    # for the value the remote .env already holds — mint-once, so a re-apply never replaces a
+    # stable key (W-023bdd59). A key reassigned after loading no longer equals its minted value
+    # and is left alone.
+    minted_secrets: dict[str, str] = field(default_factory=dict)
+
     # Resources created (for rollback)
     created_resources: list[ResourceRecord] = field(default_factory=list)
 

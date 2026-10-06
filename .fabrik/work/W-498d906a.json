@@ -1,0 +1,26 @@
+{
+  "block_digest": "917e35e87ac7d0e685524db7c26183aadfff1934b5cfcb5840ad684d7a8abfda",
+  "blocked_by": [],
+  "created": "2026-10-06T09:25:24.127092Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-498d906a",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "b46773aabf74a2377848d0ff6af58b3dc3ba9b733270b96473073da58df9e84c"
+  ],
+  "next": "",
+  "note": "yes it must be done in all opt projects, wsl, all vps servers and our rules must be updated in .windsurf/rules",
+  "owner": "",
+  "priority": 2,
+  "question": "Should the PostgreSQL 16 → 18 upgrade go ahead, and if so, in which maintenance window, given that it dumps and restores all 14 production databases on the shared hub server?",
+  "status": "done",
+  "title": "Should the PostgreSQL 16 → 18 upgrade go ahead, and if so, in which maintenance window, given that it dumps and restores all 14 production databases on the shared hub server?"
+}

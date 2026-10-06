@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-08-28T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "ff989a94bf3f3a7eba0b022e2fd28ff8d4449a55",
   "id": "W-023bdd59",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:281b80e3acbe",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "**`generate` secrets lack a remote-`.env` preservation read — re-apply re-mints a stable-forever key** (found live authoring the Zitadel deploy plan, 2026-08-28, `docs/development/plans/archived/20..."
 }
