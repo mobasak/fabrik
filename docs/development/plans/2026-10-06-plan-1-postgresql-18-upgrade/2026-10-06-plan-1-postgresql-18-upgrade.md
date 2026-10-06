@@ -1,6 +1,6 @@
 # Plan — PostgreSQL 16 → 18 across the fleet: hub branch, runbook and hand-offs ready for the operator's windows
 
-Status: DRAFT
+Status: CONVERGED
 **Owner:** fleet
 Spec: docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md
 Date: 2026-10-06
@@ -483,20 +483,30 @@ Armed by `python scripts/review_rubric.py --changed <the 28 File Scope paths of 
 
 | Class | State | Evidence (paths hunted) |
 |---|---|---|
-| core/35-security-auth (FLOOR) | UNCHECKED | |
-| core/25-data-postgres (FLOOR) | UNCHECKED | |
-| core/30-ops (FLOOR) | UNCHECKED | |
-| 12-FACTOR (FLOOR) | UNCHECKED | |
-| ai/50-agentic (MATCHED) | UNCHECKED | |
-| core/10-python (MATCHED) | UNCHECKED | |
-| core/40-documentation (MATCHED) | UNCHECKED | |
-| core/45-testing-strategy (MATCHED) | UNCHECKED | |
-| core/55-observability (MATCHED) | UNCHECKED | |
-| core/90-bootstrap-scripts (MATCHED) | UNCHECKED | |
-| fail-open vs fail-closed on every gate/guard | UNCHECKED | |
-| cost/quota/limit accounting edges | UNCHECKED | |
-| boundary/sentinel/prefix collisions | UNCHECKED | |
-| behavior-without-a-test | UNCHECKED | |
+| core/35-security-auth (FLOOR) | CLEAN | no ticket touches auth; seats A–C hunted the spine and every ticket — no secret, token or credential step (the runbook proves `$PGPW` by a test connection, never prints it) |
+| core/25-data-postgres (FLOOR) | CLEAN | real-PG tests kept (T04a `tests/test_app_role_real_pg.py:30`); the uuidv7 rule change is routed to infra (T06 b); seat C |
+| core/30-ops (FLOOR) | FIXED | compose invariants asserted by T02's BC; mesh port cite corrected to `infra/vps1/postgres/compose.yaml:23` (round 1 C8) |
+| 12-FACTOR (FLOOR) | CLEAN | no step daemonizes, hot-patches or migrates at startup; the restore is an operator one-off (T05); seat C |
+| ai/50-agentic (MATCHED) | CLEAN | the `src/fabrik/orchestrator/vultr_drill.py:310` edit is a comment; the V8 drill is operator-run (T05); seat A |
+| core/10-python (MATCHED) | FIXED | T01a reads the registry at call time with isolated tests (round 1 C4/C5); seat A refuted import-time calls |
+| core/40-documentation (MATCHED) | FIXED | T04b covers the `pgvector:pg16` tag at `docs/traycer/fabrik-workflow.md:412`; T04a covers `tests/test_app_role_real_pg.py:1,270` (round 1 slice B) |
+| core/45-testing-strategy (MATCHED) | FIXED | T01b gated on the two `CLEANED_PACKS` literals (round 1 B1, round 2 NEW-1); T03's BC made satisfiable (round 2 NEW-2; grep re-derived 18 lines) |
+| core/55-observability (MATCHED) | CLEAN | exporter v0.20.1 + `--collector.stat_checkpointer` in T02; no existing `command:` to merge (seat B read `infra/vps1/monitoring/compose.yaml:178`) |
+| core/90-bootstrap-scripts (MATCHED) | FIXED | T03 edits only the volume array and comments; the quote cite corrected to `:169-170` (round 1 C8, round 2 leftover) |
+| fail-open vs fail-closed on every gate/guard | CLEAN | the registry read raises a named `VersionRegistryError` (seat A, `src/fabrik/version_registry.py:57-66`); the freeze is closed by `default_transaction_read_only` (spec D1 step 1) |
+| cost/quota/limit accounting edges | CLEAN | the disk gate and the `max_connections` check are runbook probes (T05); seat C found no other limit edge |
+| boundary/sentinel/prefix collisions | FIXED | whole-word `postgres-data` search so `postgres18-data` never matches (round 2 NEW-2); restic include paths do not collide (seat A) |
+| behavior-without-a-test | FIXED | the T01a live-registry test split from the isolated ones, plus a reload test (round 1 C4/C5); T03's allowlist replaced by a zero-match assertion |
+
+## Pass Ledger
+
+| Pass | seats · axes re-checked | counters | method | plan md5 (start → end) |
+|-----:|---|---|---|---|
+| Pass 1 | opus×1 (spine, T01a, T03) + sonnet×2 (T01b/T02/T04a/T04b; T05/T06/roll-up) · all axes | found: 20, new: 20, confirmed: 20, fixed: 20, unexecuted: 0, edits: 20 | method: citation — full pass over the pinned set; every candidate executed (the tag probed: `0.8.6-pg16` HTTP 200; the sync regex re-run; the `_LOOSE` shapes run against `CLEANED_PACKS`) | 7de15c23… → 8694a13c… |
+| Pass 2 | opus×1 + sonnet×2 (the round-1 slice owners) · the fix hunks + one hop | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0, edits: 6 | method: re-derivation — each owner re-derived its round-1 claims (B: `_LOOSE` over all 7 `CLEANED_PACKS`; C: the roll-up's 18 rows by text diff); A confirmed 3 own-fix defects in round-1 hunks and 3 leftovers | 8694a13c… → 197c1b2b… |
+| Pass 3 | opus×1 (the round-1 slice A owner) · the round-2 hunks | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — `command grep -nw postgres-data` over T03's six files re-derived 18 lines, all in T03's edit list; standing clean since pass 2: slices B and C | 197c1b2b… → 197c1b2b… ✓ → **CONVERGED** |
+
+Recorded, not counted: the Execution Discipline line "every merge happens in the fleet worktree branch" reads awkwardly beside T03's own worktree (round 3, slice A) — wording only; the same line states T03's branch merges into the fleet branch.
 
 ## Residual unknowns
 
