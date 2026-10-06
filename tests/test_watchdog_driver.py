@@ -572,3 +572,47 @@ class TestBootstrapTemplate:
         # The bootstrap must hard-exit (not silently degrade) if Telegram is unset.
         assert "raise SystemExit" in _BOOTSTRAP_PY
         assert "TelegramBot.from_env()" in _BOOTSTRAP_PY
+
+
+class TestLlmActions:
+    """watchdog.llm_actions → WATCHDOG_LLM_ACTIONS (fabrik-lib D-412). `fabrik apply` takes the raw
+    spec dict, so the render context must apply the same check WatchdogConfig does."""
+
+    def _render(self, wcfg: dict):
+        d = WatchdogDriver()
+        spec = {"id": "demo", "watchdog": {"enabled": True, **wcfg}}
+        return d._render_env(d._build_render_context(spec, _ctx(spec)))
+
+    def test_llm_actions_rendered_only_when_set(self):
+        from fabrik.spec_loader import WatchdogConfig
+
+        env = self._render({"llm_actions": ["Pause_Worker", "clear_file_cache", "pause_worker"]})
+        assert env["WATCHDOG_LLM_ACTIONS"] == "pause_worker,clear_file_cache"
+        assert "WATCHDOG_LLM_ACTIONS" not in self._render({})
+        d = WatchdogDriver()
+        rctx = d._build_render_context({"id": "demo", "watchdog": {"enabled": True}}, _ctx({"id": "demo"}))
+        assert rctx.llm_actions == WatchdogConfig().llm_actions
+
+    @pytest.mark.parametrize("value", ["pause_worker", ["bogus"], ["create_fix_pr"]])
+    def test_render_context_validates_llm_actions(self, value):
+        with pytest.raises(ValueError, match="llm_actions"):
+            self._render({"llm_actions": value})
+
+    def test_tier_b_llm_action_without_auto_tier_b_warns(self, caplog):
+        with caplog.at_level("WARNING"):
+            env = self._render({"llm_actions": ["wipe_redis_cache"]})
+        assert env["WATCHDOG_LLM_ACTIONS"] == "wipe_redis_cache"
+        assert any("auto_tier_b" in r.message and "wipe_redis_cache" in r.message for r in caplog.records)
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            self._render({"llm_actions": ["wipe_redis_cache"], "auto_tier_b": True})
+        assert not any("auto_tier_b" in r.message for r in caplog.records)
+
+    def test_stale_sidecar_source_warns(self, caplog, tmp_path, monkeypatch):
+        import fabrik.drivers.watchdog as wd
+
+        (tmp_path / "actions.py").write_text("DEFAULT_MENU = ('restart_container',)\n")
+        monkeypatch.setattr(wd, "SIDECAR_SOURCE", tmp_path)
+        with caplog.at_level("WARNING"):
+            self._render({"llm_actions": ["pause_worker"]})
+        assert any("does not read WATCHDOG_LLM_ACTIONS" in r.message for r in caplog.records)

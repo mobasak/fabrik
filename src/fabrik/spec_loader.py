@@ -433,6 +433,55 @@ class WordPressConfig(BaseModel):
     disable_file_edit: bool = True
 
 
+# The actions a project may add to the watchdog model's menu through WATCHDOG_LLM_ACTIONS, with
+# their tier — fabrik-lib watchdog_sidecar/actions.py (D-412): every Tier A/B action that is neither
+# in DEFAULT_MENU nor NEVER_OFFERED. The sidecar holds a Tier-B name and offers it only while
+# WATCHDOG_AUTO_TIER_B is on. tests/test_spec_loader.py::test_llm_opt_ins_match_the_sidecar
+# compares this table with the sidecar's own.
+WATCHDOG_LLM_OPT_INS: dict[str, str] = {
+    "clear_file_cache": "A",
+    "pause_worker": "A",
+    "wipe_redis_cache": "B",
+    "reset_db_pool": "B",
+}
+# Names the sidecar knows but this variable cannot enable — refused with the reason, not as unknown.
+_LLM_ACTION_REFUSALS: dict[str, str] = {
+    "drop_queue_items": "is never offered to the model (fabrik-lib SB-103)",
+    "rotate_locks": "is never offered to the model (fabrik-lib SB-103)",
+    "install_log_drop_rule": "is never offered to the model (being retired, fabrik-lib SB-095)",
+    "scale_concurrency": "is never offered to the model (fabrik-lib SB-103)",
+    "create_fix_pr": "is offered by its own lane — set propose_fix_prs instead",
+    "escalate_apprise": "is offered by its own lane and is always on",
+    "restart_container": "is already in the default menu",
+}
+
+
+def normalize_llm_actions(value: object) -> list[str]:
+    """``watchdog.llm_actions`` as the sidecar will read it, or a ValueError naming the bad entry.
+
+    Lowercased, stripped and de-duplicated in order (the sidecar's own parse). Shared by
+    WatchdogConfig and the raw-dict render path, because ``fabrik apply`` never builds the model.
+    """
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"watchdog: llm_actions must be a list of action names; got {value!r}")
+    names: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(f"watchdog: llm_actions must be a list of strings; got {item!r}")
+        name = item.strip().lower()
+        if name in _LLM_ACTION_REFUSALS:
+            raise ValueError(f"watchdog: llm_actions entry {name!r} {_LLM_ACTION_REFUSALS[name]}")
+        if name not in WATCHDOG_LLM_OPT_INS:
+            raise ValueError(
+                f"watchdog: unknown llm_actions entry {item!r}; allowed: {sorted(WATCHDOG_LLM_OPT_INS)}"
+            )
+        if name not in names:
+            names.append(name)
+    return names
+
+
 class WatchdogConfig(BaseModel):
     """Per-project AI watchdog sidecar configuration (T-P2 watchdog platform).
 
@@ -678,6 +727,18 @@ class WatchdogConfig(BaseModel):
             "Optional shared-secret: set WATCHDOG_INGEST_TOKEN in the project .env."
         ),
     )
+    llm_actions: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Actions added to the watchdog model's menu, rendered to WATCHDOG_LLM_ACTIONS (csv). "
+            "Allowed: 'clear_file_cache', 'pause_worker' (Tier A) and 'wipe_redis_cache', "
+            "'reset_db_pool' (Tier B — offered only while auto_tier_b is true; listed without it they "
+            "are held, with a deploy warning, so auto_tier_b stays the one switch). Names are "
+            "case-insensitive. The menu always holds restart_container and escalate_apprise. A set "
+            "field overrides a WATCHDOG_LLM_ACTIONS line in the project .env; unset (default) leaves "
+            "that line in force, else the default menu. Mirrors fabrik-lib D-412."
+        ),
+    )
     project_system_prompt_file: str | None = Field(
         default=None,
         description=(
@@ -726,6 +787,11 @@ class WatchdogConfig(BaseModel):
                 "(Tier-D reuses the proposed-fix workspace clone)"
             )
         return self
+
+    @field_validator("llm_actions", mode="before")
+    @classmethod
+    def _check_llm_actions(cls, value: object) -> list[str]:
+        return normalize_llm_actions(value)
 
     @model_validator(mode="after")
     def _check_trigger_sources(self) -> "WatchdogConfig":
