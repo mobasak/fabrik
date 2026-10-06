@@ -211,7 +211,9 @@ OFF the host — into the Backrest B2 repository `b2-vps1` (`docs/operations/dis
    granular restore. `$PGPW` is the superuser's live password; the plan proves it with a test connection before
    the window. A copy of every dump also goes off the host (the disk gate above), out of reach of any retention
    in `pre-backup.sh`. Then re-run the step-2 manifest on 16 and require it to equal step 2's, so the dump is
-   bracketed by two identical readings. Stop the 16 container (`docker stop postgres-main`) the moment that check
+   bracketed by two identical readings. Trigger a manual Backrest `postgres-dumps` snapshot and confirm the dump
+   files are in it, so their off-host copy exists before anything is swapped (the nightly run is outside the
+   window). Stop the 16 container (`docker stop postgres-main`) the moment that check
    passes: `CONNECTION LIMIT 0` still admits the
    superuser (`docker exec postgres-main psql`), so no write may land between the dump and the swap.
 4. **Swap the container**: `docker volume create postgres18-data` first (the compose declares its volume
@@ -234,12 +236,14 @@ OFF the host — into the Backrest B2 repository `b2-vps1` (`docs/operations/dis
    overrides the new container's `POSTGRES_PASSWORD`).
 6. **Diff the manifest** on 18 (V1). ACLs are compared after normalising PG17's new `m` (MAINTAIN) privilege,
    which every owner's ACL gains on restore; `datconnlimit` is still the frozen 0 on both sides; server settings
-   and `pg_hba` rules are compared after step 5's port.
+   and `pg_hba` rules are compared after step 5's port, except step 1's own `default_transaction_read_only`,
+   which is expected on 16 and absent on 18.
 6a. **glitchtip first.** glitchtip (`glitchtip/glitchtip:latest`, Django and Celery,
    `infra/vps1/glitchtip/compose.yaml:3,7`) is the one application with no WSL rehearsal. Pin its image digest
    for the window, start glitchtip-web alone against 18, and check `/health` and `manage.py migrate --check`.
-   If it wrote, re-restore the `glitchtip` database from the per-database `-Fc` dump before step 7; while
-   nothing else is up this costs minutes.
+   If it wrote, re-restore the `glitchtip` database before step 7: `DROP DATABASE glitchtip`, then
+   `pg_restore --create -d postgres` from its per-database `-Fc` dump; while nothing else is up this costs
+   minutes.
 7. **The rollback cut-off.** Until services restart, rollback is one step: revert the compose image and mount to
    `postgres-data`, `up`, `ALTER SYSTEM RESET default_transaction_read_only` and reload, and restore step 1's
    pre-freeze limits on the 16 cluster — nothing was written to 18. Once services restart, rollback means a `pg_dumpall` from
@@ -261,8 +265,10 @@ OFF the host — into the Backrest B2 repository `b2-vps1` (`docs/operations/dis
    `postgresql-18-pgvector` must serve.
 1. Add the PGDG apt repository and install `postgresql-18` and `postgresql-18-pgvector`. PGDG's
    `postgresql-common` replaces Ubuntu's, and PGDG's `16.15-1.pgdg24.04+1` sorts newer than the installed
-   `16.15-0ubuntu0.24.04.1` (`dpkg --compare-versions`, measured), so `postgresql-16` and `postgresql-16-pgvector`
-   (0.6.0 → 0.8.x) are upgraded too and the running 16 cluster restarts once (a short dev outage).
+   `16.15-0ubuntu0.24.04.1` (`dpkg --compare-versions`, measured). The step names all four packages —
+   `apt install postgresql-18 postgresql-18-pgvector postgresql-16 postgresql-16-pgvector` — so the 16 pair
+   (pgvector 0.6.0 → 0.8.x) moves to PGDG's build in the same step, and the running 16 cluster restarts once (a
+   short dev outage).
 2. The install auto-creates an `18/main` cluster on 5433; drop it (`pg_dropcluster 18 main --stop`), because
    `pg_upgradecluster` refuses while it exists.
 2a. brand-identiy-creator's dev database has the hand-built `pg_uuidv7` extension, which has no build for 18 on
@@ -273,8 +279,8 @@ OFF the host — into the Backrest B2 repository `b2-vps1` (`docs/operations/dis
    they turn out not to be regenerable.
 3. Stop the local writers first — the session-recall service and any local watchdog or cost-ledger writer to
    `fabrik_analytics` — and assert no client backend is connected, as D1 step 1 does. Then
-   `pg_upgradecluster 16 main` — its default method is dump/restore. If it fails part-way it leaves a half-built
-   18 cluster: `pg_dropcluster 18 main --stop`, fix the cause, run it again (16 is untouched). Afterwards 18 owns port 5432 (every
+   `pg_upgradecluster 16 main` — its default method is dump/restore. On failure it drops the new cluster and
+   restarts 16 itself (`--keep-on-error` keeps the new one for diagnosis); fix the cause and run it again. Afterwards 18 owns port 5432 (every
    `{project}_dev` DSN keeps working) and 16 moves to 5433 with `start.conf` set to manual, kept until release.
 4. Verify every database, `fabrik_analytics` and session-recall's included, with the D1 manifest method; then run
    every project's suite against 18. This is where driver versions (pg-48), the `search_path` change (pg-07)
@@ -447,8 +453,9 @@ Run on the WSL 18 cluster (D2) and on the hub's restored cluster before services
 2. Hub branch changes land and are proven against a scratch PG18 container (no VPS). The D7 request goes out.
 3. **WSL window** (operator) — D2, then every project suite against 18. KILL on a failed verification.
 4. **Hub window** (operator, Gate 2 class: production data), within 7 days of step 3 — D1, the battery, the
-   Backrest plan step; spokes' reconnect checked.
-5. Merge the hub branch (infra), render the packs, governance sync; send the D5 project requests.
+   Backrest plan step; spokes' reconnect checked. Infra (the merge owner) is on call for the window and merges
+   the D3 DR-chain hunk at D1 step 8.
+5. Merge the rest of the hub branch (infra), render the packs, governance sync; send the D5 project requests.
 6. **Release** — after a soak (default 7 days of green backups and battery), the operator releases the old
    `postgres-data` volume and the WSL 16 cluster. Rollback after step 4's restart is the forward path of D1 step 7,
    not a volume revert.
@@ -498,7 +505,8 @@ the battery, sized by U1); no money.
 - **V1 — contents:** on every database the D1 step 2 manifest matches after restore — exact row counts per table,
   sequence values, extensions and versions, database encoding/collation/owner, role attributes and SCRAM prefixes,
   `pg_auth_members`, `pg_default_acl`, ACLs normalised for `m`, every table's content hash (D-612's checksum
-  tripwire), and the non-default server settings and `pg_hba` rules. The restore's stderr holds exactly the one allowed
+  tripwire), and the non-default server settings and `pg_hba` rules (less step 1's own
+  `default_transaction_read_only`). The restore's stderr holds exactly the one allowed
   error. A `pg_dumpall` of the new cluster restores into a scratch PG18 container under the same rule.
 - **V2 — version:** `SELECT version()` reports 18.6 on the hub and 18.x on WSL; `server_version_num >= 180000`.
 - **V3 — services:** every service's `/health` (a real `SELECT 1`) is green; Gatus green for every
@@ -519,6 +527,8 @@ the battery, sized by U1); no money.
 - Approach A over B and C (§ Rejected alternatives).
 - trade-intelligence follows the fleet (D6) — derived from its own docs; no project stays behind.
 - App-side UUIDv7 stays the scaffold default; native `uuidv7()` is permitted (D4).
+- D3 lands as one branch after the hub window, except its DR-chain hunk, which merges inside the window so no
+  disaster recovery runs against a repo that still lists `postgres-data` (D3, D1 step 8).
 
 ## Open / blocking unknowns
 
