@@ -1,4 +1,4 @@
-"""T02 — the ``<db>_app`` role against a REAL PostgreSQL 16 (throwaway container).
+"""T02 — the ``<db>_app`` role against a REAL PostgreSQL 18 (throwaway container).
 
 The driver's SQL runs verbatim (``_run_sql`` redirected into the container's
 ``psql -U postgres -tA``, the same flags the VPS path uses), and every refusal is
@@ -27,7 +27,7 @@ import pytest
 
 import fabrik.drivers.postgres as pg
 
-_IMAGE = "postgres:16"
+_IMAGE = "postgres:18.6-alpine"
 _READY_TIMEOUT_S = 90
 
 
@@ -99,7 +99,7 @@ class ScratchPg:
 
 @contextlib.contextmanager
 def scratch_pg() -> Iterator[ScratchPg]:
-    """Start a throwaway ``postgres:16`` container; yield ``run_sql`` / ``login_sql``.
+    """Start a throwaway ``postgres:18.6-alpine`` container; yield ``run_sql`` / ``login_sql``.
 
     Skips (with the reason) ONLY when docker itself is unavailable, and fails instead
     when ``FABRIK_REQUIRE_REAL_PG=1``. A missing image is pulled; a failed pull or
@@ -267,7 +267,7 @@ def test_probe_flags_legacy_public_grants_then_passes_after_ensure() -> None:
         assert s.login_sql(APP, first["password"], "SELECT 1;", db=DB) == "1"
 
 
-# ── Acceptance-review fixups (r1): each row seeds the bad state on a real PG16 ──
+# ── Acceptance-review fixups (r1): each row seeds the bad state on a real PG18 ──
 
 
 def _pw() -> str:
