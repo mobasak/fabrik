@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — chrome-extension and mobile-app server/ backends lint and type under the project's own rules (2026-10-06)
+
+- `_write_server_lint_config` now runs for every type that ships a `server/src` backend. chrome-extension and mobile-app used to get no `server/pyproject.toml`, so ruff ran with no project config and mypy on its defaults (mail 01M47Z0D, intel). The writer takes the backend's first-party packages (mobile-app has two: `app` and `mobile_config`).
+- The mobile-app server template now passes those rules. Its imports are sorted, two tests are reformatted, and a `Usage:` line keeps the `mobile_config` docstring example indented.
+- Graded by `tests/test_scaffold_output_passes_gate.py::test_every_server_src_backend_lints_and_types_under_its_own_config`, which runs ruff check, ruff format --check and mypy from `server/` for both types × 3 names. It failed 6/6 before the fix.
+
 ### Fixed — scaffolded app services set a 30 s stop grace, so a SIGTERM drain is not SIGKILLed at 10 s (2026-10-06)
 
 - Every routed app service a scaffold emits now sets `stop_grace_period: 30s`. That covers the canonical compose (node-api, file-api, docusaurus …), the python-api template, and the saas-family web and api services. Before this, Docker's 10 s default killed the node-api drain before its 20 s backstop could fire (mail 01M470F5YW, W-a63d61a2).

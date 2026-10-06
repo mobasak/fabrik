@@ -1,5 +1,7 @@
 """mobile-config — remote app-config / force-update / kill-switch / feature toggles.
 
+Usage:
+
     from mobile_config import AppConfig, evaluate
 
     # GET /app-config?platform=ios&version=1.2.0

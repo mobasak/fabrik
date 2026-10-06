@@ -3368,7 +3368,9 @@ def test_access_token_round_trip() -> None:
 _TOML_TABLE_HEADER = re.compile(r"^\[\[?[\w.\-\"]+\]\]?\s*(#.*)?$")
 
 
-def _write_server_lint_config(server_dir: Path, package_name: str) -> None:
+def _write_server_lint_config(
+    server_dir: Path, package_name: str, first_party: tuple[str, ...] = ()
+) -> None:
     """Give a ``server/`` backend the root project's ruff, mypy and pytest config (W-1c722f35).
 
     The server ships three VENDORED trees — ``src/<pkg>/glitchtip_init.py``, ``src/fastapi_user_auth``
@@ -3382,7 +3384,11 @@ def _write_server_lint_config(server_dir: Path, package_name: str) -> None:
     isort: ``known-first-party`` names the package and ``known-third-party`` the vendored modules, so the
     import order of the generated bodies does not depend on where the project's name sorts against
     ``fastapi_user_auth`` (``src = ["src", "tests"]`` would otherwise make the vendored module
-    first-party beside the package)."""
+    first-party beside the package). ``first_party`` names every package of a backend that has more
+    than one (mobile-app: ``app`` and ``mobile_config``); it defaults to ``package_name``.
+
+    Every type that ships a ``server/src`` backend calls this: the saas family through
+    ``_scaffold_saas_backend``, chrome-extension and mobile-app directly (01M47Z0D)."""
     template = (TEMPLATE_DIR / "python" / "pyproject.toml.template").read_text()
     keep: list[str] = []
     take = False
@@ -3405,7 +3411,9 @@ def _write_server_lint_config(server_dir: Path, package_name: str) -> None:
     )
     _swap(
         'known-first-party = ["src"]',
-        f'known-first-party = ["{package_name}"]\nknown-third-party = ["fastapi_user_auth", "audit_log"]',
+        "known-first-party = ["
+        + ", ".join(f'"{n}"' for n in first_party or (package_name,))
+        + ']\nknown-third-party = ["fastapi_user_auth", "audit_log"]',
     )
     body += (
         "\n# Vendored fastapi_user_auth and libs/audit_log (see extend-exclude): their typing is upstream's.\n"
@@ -5639,6 +5647,7 @@ ephemeral — never register in a bare global).
 
     # 2. Server files (FastAPI)
     server_pkg_dir = project_dir / "server" / "src" / package_name
+    _write_server_lint_config(project_dir / "server", package_name)
 
     # server/src/<package_name>/__init__.py
     (server_pkg_dir / "__init__.py").write_text("")
@@ -6148,7 +6157,10 @@ CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
         "*.log\n"
     )
 
-    # 9. With a database, the server/ backend gets the audit-log kit (D-390).
+    # 9. The server/ backend lints and types under the project's own rules (01M47Z0D).
+    _write_server_lint_config(project_dir / "server", "app", ("app", "mobile_config"))
+
+    # 10. With a database, the server/ backend gets the audit-log kit (D-390).
     if _db_enabled("mobile-app", kwargs):
         _emit_python_audit_log(project_dir, name, "mobile-app")
 
