@@ -2,8 +2,8 @@
 
 Every external fact the research seat of `/fabrik-spec` returned for
 `docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md` (W-fd1c7f7a, D-612), filed whole with
-its disposition (`CLAUDE.md` § External Knowledge; checked by `scripts/check_research_ledger.py`). One seat
-(fabrik-researcher), all sources read 2026-10-06. Fetch path per row: exa = `web_fetch_exa` raw extract, WF =
+its disposition (`CLAUDE.md` § External Knowledge; checked by `scripts/check_research_ledger.py`). Two seats
+(fabrik-researcher: the PG18 facts, rows pg-01..49; the postgres_exporter facts, rows ex-01..06), all sources read 2026-10-06. Fetch path per row: exa = `web_fetch_exa` raw extract, WF =
 `WebFetch` summariser, Brave = search snippets.
 
 | id | source | fact | url | disposition |
@@ -57,3 +57,9 @@ its disposition (`CLAUDE.md` § External Knowledge; checked by `scripts/check_re
 | pg-47 | seat (flag F2) | pgvector Docker Hub has `0.8.7-pg18` and `pg18` dated 2026-10-01 while the CHANGELOG still lists 0.8.7 as unreleased — pin `0.8.6-pg18` for a released build | https://hub.docker.com/v2/repositories/pgvector/pgvector/tags?name=pg18 | USED → spec § The delta (pin 0.8.6-pg18, not the floating pg18 tag) |
 | pg-48 | seat (flag F4) | the first asyncpg and psycopg releases officially supporting a PG18 server are not stated; only current support ranges were read | https://magicstack.github.io/asyncpg/current/ | USED → spec § Compatibility checks (the WSL phase measures the projects' pinned driver versions against 18) |
 | pg-49 | seat (flag F5) | the exact docker-entrypoint.sh guard text is quoted from third-party issues, not read from the docker-library source | https://github.com/docker/docs/issues/23789 | DUPLICATE of pg-36 |
+| ex-01 | exporter seat (exa + WF) | latest postgres_exporter is v0.20.1 (2026-07-07); v0.20.0 (2026-06-29) is breaking: `--collector.replication_slot` → `--collector.replication_slots` (metrics `pg_replication_slots_`), `--disable-settings-metrics` removed | https://github.com/prometheus-community/postgres_exporter/blob/master/CHANGELOG.md | USED → spec § Compatibility checks (exporter pin and its flag renames) |
+| ex-02 | exporter seat (exa) | v0.17.0 (2025-02-16): "[BIGFIX] Checkpoint related columns in PG 17 have been moved from pg_stat_bgwriter to pg_stat_checkpointer … #1072", plus "Fix pg_stat_statements for PG17 #1114" | https://github.com/prometheus-community/postgres_exporter/blob/master/CHANGELOG.md | USED → spec § Compatibility checks (the floor for a PG17+ server) |
+| ex-03 | exporter seat (WF) | on master the bgwriter collector branches on server ≥17; `pg_stat_checkpointer` collector exists from v0.17.0 but is disabled by default (`--collector.stat_checkpointer` enables it) | https://raw.githubusercontent.com/prometheus-community/postgres_exporter/master/collector/pg_stat_bgwriter.go | USED → spec § Compatibility checks (enable stat_checkpointer) |
+| ex-04 | exporter seat (WF) | the exporter reads no `pg_stat_wal` columns in any version (the wal collector uses `pg_ls_waldir()` only), so PG18's `pg_stat_wal` column removal does not affect it | https://github.com/prometheus-community/postgres_exporter/tree/master/collector | USED → spec § Compatibility checks |
+| ex-05 | exporter seat (WF) | README "CI Tested PostgreSQL versions" first lists 18 at v0.19.0 (2026-02-03); v0.18.0 lists 11–17 | https://raw.githubusercontent.com/prometheus-community/postgres_exporter/v0.19.0/README.md | USED → spec § Compatibility checks (pin ≥ v0.19.0) |
+| ex-06 | exporter seat (WF, code) + inference | v0.15.0's bgwriter collector runs one fixed query selecting `checkpoints_timed … buffers_backend, buffers_backend_fsync` from `pg_stat_bgwriter`, no version check, on by default — on PG17+ those columns are gone, so that collector fails (inferred, not run) | https://raw.githubusercontent.com/prometheus-community/postgres_exporter/v0.15.0/collector/pg_stat_bgwriter.go | USED → spec § Compatibility checks (v0.15.0 must move in the same window) |

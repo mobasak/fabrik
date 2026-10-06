@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T11:33:15.963380Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2f54dfd4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "give each spec its own database name (the generator's id-derived default) and a shape block; the reconciler refuses a doubly-claimed database",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Registrar naming hygiene: five specs claim the shared postgres database 'main' (ai-model-catalog, compliance-ops, exam-coach, gmail-account-creator, proxy) and four set depends.postgres with no shape: block (job-agent, proposal-creator, trading-core, triggered-content-orchestration)"
+}
