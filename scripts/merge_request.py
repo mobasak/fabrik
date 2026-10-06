@@ -1112,8 +1112,11 @@ def _copy_worktree_include(ctx: _Ctx, wt: Path, old: str) -> None:
             dst = wt / f.relative_to(main)
             if dst.exists():
                 continue  # tracked in the merged tree: the merge's copy wins
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(f, dst)
+            try:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dst)
+            except OSError:
+                continue  # a tracked FILE where the list has a directory: the merge's tree wins
 
 
 def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -> str:

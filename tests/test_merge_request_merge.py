@@ -1286,3 +1286,30 @@ def test_an_owner_wip_conflict_never_sends_the_requester_to_merge(world):
 def test_no_requester_text_says_rebase():
     src = SCRIPT.read_text(encoding="utf-8")
     assert "rebase on" not in src and "rebase {" not in src
+
+
+def test_a_tracked_file_where_the_include_list_has_a_directory_never_crashes_the_copy(tmp_path):
+    """Review round 2: a listed directory whose name the merged tree tracks as a FILE raised
+    FileExistsError out of the copy, an unhandled crash instead of a clean merge."""
+    mod = _load_module()
+    main = tmp_path / "main"
+    main.mkdir()
+    _git(main, "init", "-q", "-b", "master")
+    (main / ".worktreeinclude").write_text("local/\n.env\n", encoding="utf-8")
+    _git(main, "add", ".worktreeinclude")
+    _git(main, "-c", "user.name=t", "-c", "user.email=t@x", "commit", "-q", "-m", "list")
+    (main / "local").mkdir()
+    (main / "local" / "deep.txt").write_text("deep\n", encoding="utf-8")
+    (main / ".env").write_text("A=1\n", encoding="utf-8")
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    (wt / "local").write_text("a tracked file\n", encoding="utf-8")
+
+    class _Ctx:
+        pass
+
+    ctx = _Ctx()
+    ctx.main = main
+    mod._copy_worktree_include(ctx, wt, _git(main, "rev-parse", "HEAD"))
+    assert (wt / "local").read_text(encoding="utf-8") == "a tracked file\n"
+    assert (wt / ".env").read_text(encoding="utf-8") == "A=1\n"  # the rest is still copied
