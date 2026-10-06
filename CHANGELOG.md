@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — CLAUDE.md's line references into `scripts/final_gate.py` point at the right lines again (2026-10-06)
+- The GATE paragraph of both contracts cited `final_gate.py` lines that had moved since 173ac039e, and `test_the_gate_rows_line_citations_land_on_what_they_name` was red on master. Every reference is re-pointed from a line-level diff and each claim re-checked at its new line (W-42bde5ae).
+
 ### Changed — the Opus + Fable panel answers design-approval gates; the operator gets a short brief (2026-10-06)
 - `/fabrik-spec-review`, `/fabrik-plan-review` (Size: small), `/fabrik-flows-review` and `/fabrik-ui-design-review` no longer end on the long approval presentation: the two design-critique seats answer as the operator's stand-in, the agent applies and re-reviews their changes, mints the approval row and presents a ≤10-line `PANEL APPROVED (<path>)` brief, then runs the next design stage. A split panel still asks the operator (D-613).
 - The Stop hook, in autonomy mode, checks a design gate's `Panel: … → split` line and a brief's `Panel: … → both-approve` line against the seats' own returned VERDICT lines.
