@@ -22,6 +22,9 @@ source:
 depends:
   postgres: main
   redis: main
+deploy:
+  db_before_boot: true        # the app builds its engine at import and connects in lifespan — the
+                              # orchestrator pre-creates the DB + seeds DATABASE_URL before the first `up`
 infrastructure:
   database: local
   storage: local
@@ -53,6 +56,7 @@ secrets:
   - PORKBUN_SECRET_KEY
   - RESEND_API_KEY
   - EXA_API_KEY
+  - BRAVE_API_KEY            # deep-research Brave leg (src/brand_identity/config.py); fails closed without it
   - FIRECRAWL_API_KEY
   - SERVICE_INTERNAL_SECRET_KEY
   from_file: {}

@@ -55,10 +55,11 @@ def _health_disabled(spec: Any) -> bool:
 def _compose_up(name: str, health_disabled: bool, ssh_fn: Callable[..., str]) -> None:
     """Bring the compose stack up, waiting for readiness the RIGHT way for the service.
 
-    Healthchecked services use ``up -d --wait`` (unchanged). But ``--wait`` REQUIRES a
-    healthcheck — a ``health.disabled`` container (a FROM-scratch image can't run an in-container
-    probe) makes ``--wait`` exit rc=1 ("no healthcheck configured"), false-failing the deploy even
-    when the container is fine (live S3 halt, Zitadel 2026-08-28). For those, ``up -d`` (no --wait)
+    Healthchecked services use ``up -d --wait`` (unchanged). ``--wait`` refuses a service whose
+    healthcheck is DISABLED (``healthcheck: disable: true`` → rc=1, "no healthcheck configured";
+    a service with no healthcheck block at all passes — compose 2.40.3, 2026-10-06). The
+    ``health.disabled`` path (a FROM-scratch image can't run an in-container probe) false-failed
+    ``--wait`` live (S3 halt, Zitadel 2026-08-28), so it is not trusted to ``--wait``: ``up -d`` (no --wait)
     then an external readiness poll: the container must reach AND HOLD a running state; a crash-loop
     (exited / restarting / RestartCount climbing) exhausts the polls and raises — a broken container
     is never mistaken for a success.
@@ -983,8 +984,12 @@ def _validate_compose(content: str) -> list[str]:
                     "use Docker DNS on the fabrik network instead"
                 )
 
-        # No localhost in DATABASE_URL / REDIS_URL
+        # No localhost in DATABASE_URL / REDIS_URL. `environment:` is a mapping OR the fleet's
+        # documented list form (`- KEY=value`); a list was never checked, so the guard read the
+        # most common shape as clean (brand-identiy-creator 01M482YX).
         env = svc_config.get("environment", {})
+        if isinstance(env, list):
+            env = dict(str(item).partition("=")[::2] for item in env)
         if isinstance(env, dict):
             for env_key in ("DATABASE_URL", "REDIS_URL"):
                 val = env.get(env_key, "")
@@ -993,6 +998,17 @@ def _validate_compose(content: str) -> list[str]:
                         f"Service '{svc_name}': {env_key} contains 'localhost' — "
                         "use Docker DNS (postgres-main:5432 / redis-main:6379)"
                     )
+
+        # `healthcheck: {disable: true}` fails `docker compose up -d --wait` ("has no healthcheck
+        # configured", rc 1 — compose 2.40.3), which every git and redeploy path runs; a service with
+        # NO healthcheck block passes. Refused here, before `up`, with the two shapes that work.
+        healthcheck = svc_config.get("healthcheck")
+        if isinstance(healthcheck, dict) and healthcheck.get("disable") is True:
+            errors.append(
+                f"Service '{svc_name}': healthcheck `disable: true` fails `compose up --wait` — "
+                "give it a liveness probe (e.g. test: [\"CMD-SHELL\", \"kill -0 1\"]) or omit "
+                "the block when the image declares no HEALTHCHECK"
+            )
 
     # Network: fabrik external (renamed from `coolify` 2026-05-31; W12 of fleet-hardening plan).
     networks = data.get("networks", {})

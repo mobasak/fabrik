@@ -243,7 +243,8 @@ def test_python_api_spec_declares_audit_jobs_companion(
     assert set(jobs["environment"]) <= set(app["environment"]), "companion env must not diverge"
     # The jobs read DATABASE_URL_OWNER, which only the project .env carries (r1 item 1a).
     assert ".env" in jobs["env_file"]
-    assert jobs["healthcheck"] == {"disable": True}  # a scheduler serves no /health
+    # A liveness probe: `disable: true` fails `compose up --wait`, and the image probe is the app's.
+    assert jobs["healthcheck"]["test"] == ["CMD-SHELL", "kill -0 1"]
 
 
 # ── Row 5: absent owner DSN → log and idle, never exit ──────────────────────
@@ -491,7 +492,8 @@ def test_committed_compose_carries_the_audit_jobs_companion(
     assert svc["networks"] == ["fabrik"] and svc["restart"] == "unless-stopped"
     assert svc["container_name"] == companion.id
     assert "ports" not in svc and "labels" not in svc
-    assert svc["healthcheck"] == {"disable": True}  # the image's HTTP/process probe is the app's
+    # A liveness probe: `disable: true` fails `compose up --wait`, and the image probe is the app's.
+    assert svc["healthcheck"]["test"] == ["CMD-SHELL", "kill -0 1"]
     assert _validate_compose(raw) == []
 
 

@@ -208,6 +208,41 @@ class TestValidateCompose:
         errors = _validate_compose(compose)
         assert any("ports" in e.lower() for e in errors)
 
+    @pytest.mark.parametrize(
+        "env_block",
+        [
+            "    environment:\n      DATABASE_URL: postgresql://u:p@localhost:5432/db\n",
+            "    environment:\n      - DATABASE_URL=postgresql://u:p@localhost:5432/db\n",
+            "    environment:\n      - REDIS_URL=${REDIS_URL:-redis://localhost:6379/0}\n",
+        ],
+        ids=["mapping", "list", "list-default"],
+    )
+    def test_localhost_dsn_refused_in_either_environment_form(self, env_block):
+        """The list form (`- KEY=value`, the fleet's documented shape) was never checked, so a
+        localhost DSN in it read as clean (brand-identiy-creator 01M482YX)."""
+        compose = self._valid_compose().replace(
+            "    networks:\n      - fabrik\n", env_block + "    networks:\n      - fabrik\n", 1
+        )
+        errors = _validate_compose(compose)
+        assert any("localhost" in e for e in errors), errors
+
+    def test_disabled_healthcheck_refused_before_compose_up_wait(self):
+        """`healthcheck: disable: true` makes `docker compose up -d --wait` exit 1 ("has no
+        healthcheck configured", measured on compose 2.40.3); every git and redeploy path runs
+        --wait, so it is refused before `up`. A service with no healthcheck block still passes."""
+        disabled = self._valid_compose().replace(
+            "    networks:\n      - fabrik\n",
+            "    healthcheck:\n      disable: true\n    networks:\n      - fabrik\n",
+            1,
+        )
+        assert any("disable: true" in e for e in _validate_compose(disabled))
+        probe = self._valid_compose().replace(
+            "    networks:\n      - fabrik\n",
+            '    healthcheck:\n      test: ["CMD-SHELL", "kill -0 1"]\n    networks:\n      - fabrik\n',
+            1,
+        )
+        assert _validate_compose(probe) == []
+
     def test_missing_restart(self):
         compose = self._valid_compose().replace("    restart: unless-stopped\n", "")
         errors = _validate_compose(compose)

@@ -4105,8 +4105,9 @@ def _append_audit_jobs_service(project_dir: Path, name: str, project_type: str) 
     never drives, so the service the spec declares is written here too, from the same
     :func:`~fabrik.spec_generator.audit_jobs_companion`. ``env_file: .env`` is what carries
     ``DATABASE_URL_OWNER`` (compose ``environment:`` never holds it). The image's
-    HEALTHCHECK probes the APP (HTTP or its worker process), so the scheduler disables it
-    rather than report unhealthy and fail ``compose up --wait``.
+    HEALTHCHECK probes the APP (HTTP or its worker process), so the scheduler replaces it with a
+    liveness probe (``kill -0 1``). Never ``disable: true``: ``compose up --wait`` fails a service
+    whose healthcheck is disabled ("has no healthcheck configured"), measured on compose 2.40.3.
     """
     from fabrik.spec_generator import audit_jobs_companion
 
@@ -4131,7 +4132,13 @@ def _append_audit_jobs_service(project_dir: Path, name: str, project_type: str) 
         "    env_file:\n"
         "      - .env\n"
         "    healthcheck:\n"
-        "      disable: true\n"
+        # A liveness probe, never `disable: true`: compose `up --wait` refuses a disabled
+        # healthcheck ("has no healthcheck configured", rc 1).
+        '      test: ["CMD-SHELL", "kill -0 1"]\n'
+        "      interval: 15s\n"
+        "      timeout: 5s\n"
+        "      retries: 3\n"
+        "      start_period: 10s\n"
         "    restart: unless-stopped\n"
         "    deploy:\n"
         "      resources:\n"
