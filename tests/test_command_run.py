@@ -4465,6 +4465,24 @@ def test_the_terminal_banner_separates_swept_this_round_from_standing_clean(run_
     assert "(races) standing clean from an earlier round" in two.stdout, two.stdout
 
 
+def test_the_terminal_banner_never_prints_an_empty_swept_list() -> None:
+    """A record whose last round's swept names are unknown to the class ledger (hand-edited or
+    legacy) must not print "swept () clean" — the empty list is dropped (review of W-d44d0d7e)."""
+    cr = _cr_module("empty_swept")
+    rec = {
+        "command": "probe",
+        "classes": {"auth": "clean"},
+        "rounds": [
+            {"findings": 0, "confirmed": 0, "swept": ["auth"], "new": []},
+            {"findings": 0, "confirmed": 0, "swept": ["typo"], "new": []},
+        ],
+    }
+    out = cr._round_report(rec)
+    assert "TERMINAL VERDICT" in out, out
+    assert "swept ()" not in out, out
+    assert "(auth) standing clean from an earlier round" in out, out
+
+
 def test_the_legacy_findings_rule_also_needs_two_rounds(run_dir: Path) -> None:
     """DD4's backward-compatible caller gets the same bar — the receipt gate does not
     exempt a record that never typed `--confirmed`."""

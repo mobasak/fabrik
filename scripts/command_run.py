@@ -830,11 +830,18 @@ def _round_report(rec: dict[str, Any]) -> str:
         swept_now = sorted(set(last.get("swept") or []) & set(clean_c))
         standing = sorted(c for c in clean_c if c not in swept_now)
         lines.append(
-            f"✅ TERMINAL VERDICT — round {len(rounds)} swept ({', '.join(swept_now)}) clean"
-            + (
-                f", ({', '.join(standing)}) standing clean from an earlier round"
-                if standing
-                else ""
+            f"✅ TERMINAL VERDICT — round {len(rounds)} "
+            # an empty swept_now (a hand-edited or legacy record naming classes the ledger lacks)
+            # never prints "swept () clean" (review of W-d44d0d7e)
+            + ", ".join(
+                part
+                for part in (
+                    f"swept ({', '.join(swept_now)}) clean" if swept_now else "",
+                    f"({', '.join(standing)}) standing clean from an earlier round"
+                    if standing
+                    else "",
+                )
+                if part
             )
             + " — every known class is clean — and "
             + (
