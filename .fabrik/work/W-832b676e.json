@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: fabrik-review-loop.js marks a slice's files \"unread\" (closable: false, open: [\"unread: …\"]) when the seat reports files_read as ABSOLUTE paths inside the pin dir; the gap check compares them with the slice's repo-relative paths."
 }
