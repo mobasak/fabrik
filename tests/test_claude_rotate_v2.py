@@ -31,6 +31,14 @@ NOW = 1_800_000_000.0
 DAY = 86400
 
 
+@pytest.fixture(autouse=True)
+def _no_real_capability_probe(monkeypatch):
+    """The flip leg probes the active account and every promotion candidate (plan 2026-10-06-plan-2,
+    D2/D6); these tick tests never meant to launch the real `claude` for that, so the D2/D6 entry
+    point answers `ok`."""
+    monkeypatch.setattr(cr, "_probe_account", lambda *a, **k: "ok")
+
+
 def _acct(
     name,
     weekly_pct=10.0,
@@ -1084,7 +1092,7 @@ def test_dead_active_chain_flips_when_network_proven_up(monkeypatch, capsys):
     monkeypatch.setattr(cr, "_resolve_active", lambda: "dead")
     flips = []
     monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
-    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl: ("alive", "alive@test"))
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("alive", "alive@test"))
     alerts = []
     monkeypatch.setattr(cr, "_tick_telegram", lambda msg: alerts.append(msg))
     cr._fleet_flip_leg([], accounts, threshold=95.0)
