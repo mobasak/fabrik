@@ -1,288 +1,15 @@
-# Plan — PostgreSQL 16 → 18 across the fleet: hub branch, runbook and hand-offs ready for the operator's windows
+# Review — 2026-10-06-scaffold-glitchtip-release
 
-Status: IN-PROGRESS
-**Owner:** fleet
-Spec: docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md
-Date: 2026-10-06
-
-Built from the CONVERGED spec, approved for planning (D-617) after `/fabrik-spec-review` and the operator-requested Opus 5.5
-+ Fable 5.1 consult. Operator ruling D-612, verbatim: *"yes it must be done in all opt projects, wsl, all vps servers and our
-rules must be updated in .windsurf/rules"*. Work item W-fd1c7f7a. Each ticket cites the spec section it implements and
-restates nothing that section settles.
-
-## What we already agreed
-
-- The goal, personas and approach A (dump/restore into a new volume, the old one kept) — spec § Goal; spec § The delta.
-- The hub window, D1 (disk gate, freeze, manifest, dump, swap, restore, diff, glitchtip first, cut-off, restart) — spec § The delta › D1.
-- WSL first as the rehearsal, D2, with its KILL clause and 7-day parity bound — spec § The delta › D2.
-- The hub repo changes, D3, merged after the hub window except the DR-chain hunk — spec § The delta › D3; D-617.
-- The rule packs drafted here and handed to infra, D4 — spec § The delta › D4.
-- The project requests, D5; trade-intelligence follows the fleet, D6; brand-identiy-creator's `pg_uuidv7`, D7 — spec § The delta › D5–D7.
-- Rejected: pg_upgrade in place, logical replication, a spoke-side cluster — spec § Rejected alternatives.
-- Decided HERE, from the grounding (no new operator question):
-  - The plan ends at WINDOW READINESS. The WSL window and the hub window are executed by the operator from the runbook
-    (T05) behind their own gates (T06 boards them; the hub window is Gate 2, production data). No ticket touches a live host or database.
-  - `.windsurf/rules/versions.yaml`, `agents-fabrik.md`, `docs/reference/prebuilt-app-containers.md` and
-    `docs/reference/technology-stack-decision-guide.md` are governance-sync triggers (measured below over every File Scope
-    path), so — with the packs and `CLAIMS.yaml` — they are infra's: T06 mails infra the drafted edits; no ticket's Touches holds them.
-  - PRECONDITION of T01a: infra adds `pgvector_version: "0.8.6"` to `.windsurf/rules/versions.yaml` with `postgres_major`
-    still `"16"`, and re-dates the two unmarked `postgres:16-alpine` literals (`.windsurf/rules/core/30-ops.md:320`,
-    `.windsurf/rules/core/25-data-postgres.md:23`) as history — one PRE-dispatch mail, sent by the orchestrator at execute
-    start. Tag `pgvector/pgvector:0.8.6-pg16` is published (probed below: HTTP 200). T01a waits for the key and T01b for
-    the two literals; T02–T05 are not blocked.
-  - Of the spec's "29 live docs", only the current-state docs change (T04a, T04b, T03); dated plans, specs, research ledgers,
-    retired orchestrator docs, `docs/DECISIONS.md` and `docs/LESSONS_LEARNT.md` are frozen history and are never rewritten.
-  - The runbook is a NEW dedicated doc, `docs/operations/postgres-major-upgrade-runbook.md` — no runbook for a Postgres
-    major upgrade exists (searched docs/operations, docs/infrastructure, docs/workstation, docs/reference), and it serves
-    the next major too.
-  - The grounding corrected three spec citations; the runbook cites the corrected lines: the 01:30 cron is
-    `scripts/bootstrap/bootstrap-hub.sh:89` (the Backrest plans run 02:00–03:30, `docs/operations/disaster-recovery.md:43`);
-    the watchdog sidecar's container-state check is `docs/infrastructure/vps-complete-inventory.md:733` and only one sidecar
-    exists today (`:742`); the WSL tunnel command is `scripts/wsl_startup_hook.sh:227`. A spec text fix rides T06's receipt.
-  - The runbook adds the archived plan's operator steps the spec left implicit (maintenance notice, alert silence,
-    `fabrik audit-registrars`, GlitchTip check, per-service API call, 7-day dump hold) and the WSL writers the spec missed.
-
-## Ticket Board
-
-| Ticket | Title | Depends | Parallel | State | Commit |
-|---|---|---|---|---|---|
-| T01a | The CI scaffold derives its Postgres images from the version registry | — | ⚡ | ⬜ | |
-| T01b | The loose-literal sweep sees the PG18 image shapes | — | ⚡ | ⬜ | |
-| T02 | The repo's hub compose files describe the PG18 cluster and exporter | — | ⚡ | ✅ | a93a62b97 |
-| T03 | The disaster-recovery chain restores postgres18-data | — | ⚡ | ✅ | ee57ee3dc |
-| T04a | The hub's live pins and smaller current-state docs say 18 | — | ⚡ | ✅ | cb46e993c |
-| T04b | The two large current-state docs say 18 | — | ⚡ | ✅ | 6ed038389 |
-| T05 | The operator runbook for the WSL and hub windows | T02, T03 | ⛓️ | ✅ | 02d5c593f |
-| T06 | Integration: rehearsal, hand-offs, gates and the receipt | T01a, T01b, T04a, T04b, T05 | ⛓️ | ⬜ | |
-
-## Merge Order
-
-1. T01a
-2. T01b
-3. T02
-4. T03
-5. T04a
-6. T04b
-7. T05
-8. T06
-
-T01a, T01b, T02, T03, T04a and T04b are independent (disjoint Touches). T05 waits for T02 and T03 because the runbook cites their final lines. T06 is last.
-T03 is committed on its own branch `fleet-pg18-dr`, cut from master, which infra merges ALONE inside the hub window
-(runbook step 8); the fleet branch also merges `fleet-pg18-dr` so T05 reads T03's lines, and everything on the fleet branch
-merges after the window (T03's commits are then already on master).
-No two Depends-unconnected tickets share a path.
-
-Breadth advisory (`check_ticket_breadth.py`): T01 was split on it (the CI derivation and the `_LOOSE` sweep are two risk
-classes) into T01a and T01b. T05 (score 5) is **kept**: it is ONE runbook whose steps share one sequence, one set of
-probes and one rollback chain, so a split would put half a window in each ticket.
-
-## Interfaces
-
-- **T02 → T05 — the compose lines the runbook's swap and rollback steps cite.** Seam test: `tests/test_pg18_runbook.py` (T05) asserts the runbook's image and mount strings equal those `infra/vps1/postgres/compose.yaml` holds.
-- **T03 → T05 — the DR volume name.** Seam test: `tests/test_pg18_runbook.py` (T05) asserts the runbook's step 8 names the same volume `scripts/bootstrap/bootstrap-config.sh` restores.
-- **T01a → infra — the `pgvector_version` key.** Seam: T01a's tests read the live registry, so a missing key fails loudly.
-
-## Constraints Digest
-
-| Rule | Quote | Source |
-|---|---|---|
-| The registry flip is a fleet DB upgrade | postgres-main's actual major (FLEET STATE, not auto-watched; flip = fleet DB upgrade | .windsurf/rules/versions.yaml:17 |
-| Dev, test and CI track the same major | dev, test, and CI run real PostgreSQL too | .windsurf/rules/core/25-data-postgres.md:270 |
-| No SQLite stand-in | A test suite that passes on SQLite and fails on Postgres has tested nothing. | .windsurf/rules/core/45-testing-strategy.md:178 |
-| Real PostgreSQL in backend tests | Backend tests run against real PostgreSQL. | .windsurf/rules/core/45-testing-strategy.md:223 |
-| Watched-fail-first | Watch it fail first, or neuter the change → prove red → restore → re-run green | .windsurf/rules/core/45-testing-strategy.md:200 |
-| Native uuidv7 arrives with the newer major | newer PostgreSQL majors ship native `uuidv7()` (probe: `SELECT uuidv7()`); prefer `DEFAULT uuidv7()` at schema level where it exists | .windsurf/rules/core/25-data-postgres.md:163 |
-| Probe the live image, never a doc | probe the live truth, never copy a tag from a doc | .windsurf/rules/core/30-ops.md:320 |
-| Never hot-patch a container | NEVER hot‑patch a running container | .windsurf/rules/core/30-ops.md:268 |
-| Migrations are one-off, never startup | concurrent replicas race the Alembic version table → wedged deploy | .windsurf/rules/core/30-ops.md:436 |
-| Backups exist and are restore-verified | Verify restore quarterly on a throwaway database. | .windsurf/rules/core/25-data-postgres.md:332 |
-| No host ports for services | No `ports:` section. | .windsurf/rules/core/30-ops.md:148 |
-| Stable container names | `container_name: <name>` is mandatory. | .windsurf/rules/core/30-ops.md:150 |
-| amd64 pin | `platform: linux/amd64` is mandatory. | .windsurf/rules/core/30-ops.md:151 |
-| Runbook steps idempotent | every step must be a no-op when its outcome is already present | .windsurf/rules/core/90-bootstrap-scripts.md:169-170 |
-| Probe tools with command -v | Probe with `command -v` | .windsurf/rules/core/90-bootstrap-scripts.md:143 |
-| The exporter must actually serve | `exposes_metrics: true` ⇒ the metrics path actually SERVES. | .windsurf/rules/core/30-ops.md:213 |
-| CHANGELOG for config/compose changes | Any change to code (`src/`, `scripts/`, `templates/`) or config | .windsurf/rules/core/40-documentation.md:130 |
-| Memory limit on every compose service | a memory limit per service is a Fabrik invariant | CLAUDE.md:298 |
-| Volumes are data | Volumes are DATA — "dangling" ≠ disposable. | CLAUDE.md:306 |
-| Destructive steps dry-run first | destructive script on prod data w/o dry-run | CLAUDE.md:305 |
-| uv for Python tooling (T01a, T01b, T04a scripts) | is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`. | .windsurf/rules/core/10-python.md:22 |
-| Aware datetimes in any script touched | `datetime.now(UTC)`, never `datetime.utcnow()` | .windsurf/rules/core/10-python.md:220 |
-| Scrape follows the shape flag (T02's exporter) | Prometheus scrapes it when the spec has `shape.exposes_metrics: true` | .windsurf/rules/core/55-observability.md:200 |
-| A guard is never the only thing before an irreversible act (T03's DR drill path) | is never the only thing between the agent and an irreversible act. | .windsurf/rules/ai/50-agentic.md:49 |
-
-The hub `postgres-main` keeps its mesh port `10.99.0.1:5432` (`infra/vps1/postgres/compose.yaml:23`) — the spokes reach the
-shared cluster through it; T02 changes no port.
-
-## Execution Discipline (binding on /fabrik-execute-plan)
-
-- **Review floor** — every ticket, on the coder's return, runs `/fabrik-review` on its changed surface to a
-  coverage-adjudicated exit BEFORE its merge; no ticket merges on a first-pass green. T01a (`src/fabrik/ci_scaffold.py`
-  feeds every scaffold's CI) and T03 (the DR chain) take the full `/fabrik-review`; T05 is a production runbook and takes it too.
-- **Dispatch policy** — native Claude seats for every fan-out (the pool is OFF, D-181/D-182): `dispatch_headroom.py` then
-  `python3 scripts/command_run.py dispatch --seats N` before each fan-out. Coders: Sonnet for T02, T03, T04a, T04b (`simple`),
-  T01a (`complex`), T01b (`simple`); Opus for T05 (`native`, design-heavy); T06 is the orchestrator's. Haiku never codes. Seats never read
-  `$HOME/.claude*` or any `.env`, never ssh, never touch a live database; a scratch docker rehearsal uses named containers removed after.
-- **Precondition gate** — T01a is not dispatched while `.windsurf/rules/versions.yaml` on master lacks `pgvector_version`;
-  T01b is not dispatched while `.windsurf/rules/core/30-ops.md:320` or `.windsurf/rules/core/25-data-postgres.md:23` still
-  carries an unmarked `postgres:16-alpine` on master.
-- **Operator gates** — no ticket executes the WSL window or the hub window; T06 boards both, and the hub window is Gate 2.
-- **Parallelism + merge** — T01a, T01b, T02, T03, T04a and T04b fan out concurrently (disjoint Touches), T01a and T01b once their preconditions hold;
-  T05 starts when T02 is merged into the fleet branch and T03 is committed on `fleet-pg18-dr` and merged into the fleet branch; every merge happens in the fleet worktree branch in § Merge Order, and the
-  results merge/dedupe at T06, which re-runs every ticket's gate on the merged branch.
-- **Ids** — every D-row this plan mints uses `python3 scripts/decisions.py --reserve-id .`.
-
-## Behavior Contract
-
-- **Given** `fabrik.version_registry.VERSIONS_FILE` monkeypatched to a registry with `postgres_major: "16"` and `pgvector_version: "0.8.6"`, **When** `ci_files` renders a config with and without `db_extensions=("pgvector",)`, **Then** the workflow and the local script both name `pgvector/pgvector:0.8.6-pg16` and `postgres:16` respectively (src/fabrik/ci_scaffold.py:47; spec § The delta › D3)
-- **Given** `VERSIONS_FILE` monkeypatched to a registry with `postgres_major: "18"`, **When** the same configs render, **Then** they name `pgvector/pgvector:0.8.6-pg18` and `postgres:18` (spec § The delta › D3)
-- **Given** `VERSIONS_FILE` monkeypatched to a registry lacking `pgvector_version`, **When** `fabrik.ci_scaffold` is reloaded with `importlib.reload`, **Then** the reload succeeds, and **When** `pg_image()` runs for a pgvector config, **Then** it raises `VersionRegistryError` naming `pgvector_version` (src/fabrik/version_registry.py:22)
-- **Given** the live `.windsurf/rules/versions.yaml`, **When** it is loaded, **Then** it carries non-empty `postgres_major` and `pgvector_version` (the only test bound to the live registry, so infra's later flip to 18 never reds the others) (spec § The delta › D3)
-- **Given** the strings `postgres:18-alpine`, `postgres:18.6-alpine` and `pgvector/pgvector:0.8.6-pg18`, **When** `_LOOSE` searches each, **Then** each matches, the existing `PostgreSQL 16` and `pgvector:pg16` cases still match, and `port 5432` does not (scripts/sysadmin/rules_render_versions.py:36)
-- **Given** `infra/vps1/postgres/compose.yaml`, **When** it is parsed, **Then** postgres-main runs `postgres:18.6-alpine`, mounts the external volume `postgres18-data` at `/var/lib/postgresql`, keeps `deploy.resources.limits.memory`, `container_name` and the `fabrik` network, and no service mounts anything at `/var/lib/postgresql/data` (infra/vps1/postgres/compose.yaml:3; spec § The delta › D1)
-- **Given** `infra/vps1/monitoring/compose.yaml`, **When** it is parsed, **Then** postgres-exporter runs `prometheuscommunity/postgres-exporter:v0.20.1` with `--collector.stat_checkpointer` and keeps its memory limit (infra/vps1/monitoring/compose.yaml:178; spec § Compatibility checks)
-- **Given** `scripts/bootstrap/bootstrap-config.sh`, **When** `FABRIK_HUB_VOLUMES_TO_RESTORE` is sourced in bash, **Then** it contains `postgres18-data` and not `postgres-data` (scripts/bootstrap/bootstrap-config.sh:201; spec § The delta › D3)
-- **Given** the DR scripts and docs this ticket owns, **When** they are searched for `postgres-data` as a whole word (so `postgres18-data` never matches), **Then** no line matches, and `disaster-recovery.md`'s volume-count comment reads 11 until release (docs/operations/disaster-recovery.md:74)
-- **Given** the files this ticket owns, **When** they are searched for `PostgreSQL 16`, `Postgres 16`, `postgres:16` or `PG16`, **Then** none matches (README.md:859; spec § Documentation landing sites)
-- **Given** docker on WSL, **When** `tests/test_app_role_real_pg.py` runs, **Then** its scratch container is `postgres:18.6-alpine` and the suite passes (tests/test_app_role_real_pg.py:30; spec § Validation V4)
-- **Given** the two docs, **When** they are searched for `PostgreSQL 16`, `postgres:16` or `pgvector:pg16` stated as the current major, **Then** none matches (docs/infrastructure/vps-complete-inventory.md:120; spec § Documentation landing sites)
-- **Given** the runbook, **When** its hub-window section is read, **Then** every D1 step (the disk gate, 1–8 and 6a) has a command block, a verify line and a rollback line, in the spec's order, and step 6's verify carries the § Compatibility checks items (spec § The delta › D1; § Compatibility checks)
-- **Given** the runbook, **When** its WSL section is read, **Then** D2 steps 0–6 appear in order and the local-writer stop list names session-recall, the youtube financials cron and the trade-intelligence GTIP refresh (docs/operations/wsl-environment.md:52; spec § The delta › D2)
-- **Given** the runbook, **When** its release section is read, **Then** the V8 DR drill precedes any release step, and no step removes a docker volume or a cluster without the operator's explicit word (CLAUDE.md volumes HARD STOP; spec § Lifecycle; § Validation V8)
-- **Given** the runbook's appendix, **When** it is read, **Then** it carries one request text per spec D5 bullet and for D6, each naming its projects' exact files from spec § What exists today, the 27 doc-only projects in one broadcast (spec § The delta › D5)
-- **Given** the scratch rehearsal, **When** it runs the runbook's hub window from a seeded 16 cluster, **Then** V1 is green on 18.6 — counts, content hashes, roles, ACLs, settings and the recorded connection limit — and the restore stderr holds only `role "postgres" already exists` (spec § Validation V1)
-- **Given** the hand-offs, **When** infra's and brand-identiy-creator's inboxes are read, **Then** each holds one request naming its exact files, and the two operator gates are open awaiting items (spec § The delta › D4, D7; § Lifecycle)
-
-## Global Constraints
-
-- Never-Route: .windsurf/rules/
-- Never-Route: agents-fabrik.md
-- No ticket touches a live host, a live database, the hub's `/opt/postgres/compose.yaml`, or a docker volume.
-- Shared tree: sibling WIP is never staged, reverted or stashed; ledger rows go through the private-index recipe in ONE shell.
-- Infra merges two branches (`scripts/merge_request.py request` for each): `fleet-pg18-dr` (T03 alone) inside the hub window, the fleet branch after it.
-
-## Context Ledger
-
-| Source | What binds | Grounded ref |
-|---|---|---|
-| Spec (CONVERGED, approved D-617) | every design choice | `docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md` |
-| Research ledger (61 rows) | every external fact (image tags, pg_dumpall behaviour, exporter version), except the `0.8.6-pg16` tag probed in § Evidence | `docs/reference/research/2026-10-06-postgresql-18-upgrade-ledger.md` |
-| `.windsurf/rules/core/25-data-postgres.md` (ACTIVE) | real-PG tests, the uuidv7 rule D4 rewrites | `.windsurf/rules/core/25-data-postgres.md:163,270` |
-| `.windsurf/rules/core/30-ops.md` (ACTIVE) | compose invariants, never hot-patch, probe live | `.windsurf/rules/core/30-ops.md:148-151,268,320` |
-| `.windsurf/rules/core/90-bootstrap-scripts.md` (MATCHED) | idempotent bootstrap/runbook steps | `.windsurf/rules/core/90-bootstrap-scripts.md:143,169-170` |
-| `agents-fabrik.md` § Tech Stack Defaults / § Infrastructure Services | postgres-main is the shared hub cluster | `agents-fabrik.md:170` |
-| fabrik-lib | none needed — no new capability; the CI derivation reuses the hub's own `fabrik.version_registry` | `src/fabrik/version_registry.py:33` |
-| `specs/services/*.yaml` shape | unchanged — no service gains or loses a database | n/a |
-
-## File Scope (owned paths)
-
-- README.md
-- docs/development/reviews/2026-10-06-plan-1-postgresql-18-upgrade-review.md
-- docs/infrastructure/vps-complete-inventory.md
-- docs/infrastructure/vps-hub-rebuild.md
-- docs/operations/disaster-recovery.md
-- docs/operations/hub-restore-inventory.md
-- docs/operations/postgres-major-upgrade-runbook.md
-- docs/traycer/fabrik-workflow.md
-- docs/workstation/session-recall.md
-- infra/vps1/monitoring/compose.yaml
-- infra/vps1/postgres/compose.yaml
-- scripts/bootstrap/bootstrap-config.sh
-- scripts/bootstrap/bootstrap-hub.sh
-- scripts/container_images.py
-- scripts/generate_vps_inventory.py
-- scripts/sysadmin/rules_render_versions.py
-- src/fabrik/ci_scaffold.py
-- src/fabrik/orchestrator/vultr_drill.py
-- tests/sysadmin/test_rules_render_versions.py
-- tests/test_app_role_real_pg.py
-- tests/test_ci_scaffold.py
-- tests/test_dr_chain_pg18.py
-- tests/test_infra_vps1_postgres_compose.py
-- tests/test_large_docs_pg18.py
-- tests/test_live_docs_pg18.py
-- tests/test_pg18_runbook.py
-
-## Intake Inventory
-
-| I# | Item (anchored) | Disposition | Where |
-|---|---|---|---|
-| I1 | "it must be done in all opt projects" | IN — D5 request texts in the runbook appendix, D7 sent now | T05, T06 |
-| I2 | "wsl" | IN — the WSL window in the runbook, gated | T05, T06 |
-| I3 | "all vps servers" | IN — the hub window, compose, DR chain; spokes reconnect only (they run no Postgres) | T02, T03, T05 |
-| I4 | "our rules must be updated in .windsurf/rules" | IN — drafted edits mailed to infra (governance-sync paths) | T06 |
-| I5 | "use fable 5.1 and opus 5.5 subagents and consult them, revise if needed then proceed" | IN — done before planning (D-617); this plan is the "proceed" | spec |
-| I6 | "when can i start db in wsl and my docer for trade-intelligence?" (the operator, this session, 2026-10-06) | IN — trade-intelligence's GTIP cron is in the WSL writer stop list; nothing stops WSL before the window | T05 |
-| I7 | the stale 2026-05-25 plan's operator steps | IN — carried into the runbook | T05 |
-
-Intake: 7 items — 7 IN, 0 OUT-OF-SCOPE, 0 ASK.
-
-## Evidence
-
-Governance-sync triggers among the paths this work touches (regex read from `.pre-commit-config.yaml`). The four routed-out
-paths, then every File Scope path of the pre-fix revision (28), verbatim:
-
-```text
-True agents-fabrik.md
-True .windsurf/rules/versions.yaml
-True .windsurf/rules/core/25-data-postgres.md
-True .windsurf/rules/CLAIMS.yaml
-28
-SYNC docs/reference/prebuilt-app-containers.md
-SYNC docs/reference/technology-stack-decision-guide.md
-```
-
-Both SYNC docs moved to infra's hand-off (T06 b); no File Scope path is a trigger now.
-
-The pgvector tag the precondition relies on (Docker Hub tags API, probed 2026-10-06):
-
-```text
-0.8.6-pg16 200
-0.8.6-pg18 200
-0.8.7-pg16 200
-```
-
-The current CI literals and registry loader:
-
-```text
-src/fabrik/ci_scaffold.py:33  _PG_PLAIN = "postgres:16"
-src/fabrik/ci_scaffold.py:34  _PG_PGVECTOR = "pgvector/pgvector:pg16"  # postgres:16 + the vector extension
-src/fabrik/ci_scaffold.py:47      def pg_image(self) -> str:
-src/fabrik/ci_scaffold.py:48          return _PG_PGVECTOR if "pgvector" in self.db_extensions else _PG_PLAIN
-src/fabrik/version_registry.py:26  REQUIRED_KEYS: tuple[str, ...] = ("node_lts", "debian_codename", "node_engines_floor")
-```
-
-The hub compose today (`infra/vps1/postgres/compose.yaml`):
-
-```text
-3:    image: postgres:16-alpine
-8:    - postgres-data:/var/lib/postgresql/data
-14:          memory: 2G
-23:    - 10.99.0.1:5432:5432
-25:  postgres-data:
-26:    external: true
-```
-
-Primary paths, one per ticket: `src/fabrik/ci_scaffold.py:47` (T01a), `scripts/sysadmin/rules_render_versions.py:36` (T01b), `infra/vps1/postgres/compose.yaml:3` (T02),
-`scripts/bootstrap/bootstrap-config.sh:201` (T03), `tests/test_app_role_real_pg.py:30` (T04a), `docs/infrastructure/vps-complete-inventory.md:120` (T04b),
-`docs/operations/wsl-environment.md:52` and `scripts/bootstrap/bootstrap-hub.sh:89` (T05), `docs/operations/disaster-recovery.md:43` (T06's rehearsal window rule).
-
-## Self-audit
-
-- Grounding: three native seats (Opus on the window touchpoints, Sonnet on the hub code, Sonnet on the constraints digest);
-  their corrections are applied above — `scripts/backfill_ci.py` asserts only `RUFF_VERSION`, not image strings; three spec
-  citations corrected; five more DR-doc lines and four more WSL writers found.
-- (a) Coverage: D1 → T05 (+ T02 mirror); D2 → T05; D3 → T01a, T01b, T02, T03, T04a, T04b; D4 → T06 (infra mail); D5 → T05 appendix;
-  D6 → T05 appendix (trade-intelligence's six pins); D7 → T06; Validation V1 → T06 rehearsal, V4 → T04a, V2/V3/V5/V6 →
-  runbook verify lines (T05), V7 → infra's registry flip after the window; V8 → the runbook's release section (T05).
-- (b) Interfaces: the runbook's compose and volume strings are asserted against T02's and T03's files by T05's seam test.
-- Not yet converged — `/fabrik-plan-review` owns the fixed point.
+**Status:** CONVERGED — Pass 2 quiet (confirmed: 0), every slice verified (R 4/4, D 1/1, S 1/1)
+**Surface:** `git rev-parse HEAD` = 9bfccaf0ce08f6be7254ef8760ff2017e38a2679; range tip 9bfccaf0ce08f6be7254ef8760ff2017e38a2679; `git diff 351b6604a..9bfccaf0c -- templates/scaffold/python/glitchtip_init.py templates/scaffold/docker/compose.yaml.template src/fabrik/scaffold.py src/fabrik/orchestrator/deployer_ssh.py tests/test_scaffold_glitchtip_release.py tests/orchestrator/test_deployer_git_sha.py tests/orchestrator/test_deployer_ssh.py tests/test_scaffold_glitchtip_security.py tests/test_scaffold_compose_traefik.py` md5 eb0355337af8bf3ea6c205d3161eac6e (84063 bytes)
+**Command:** /fabrik-review · **Changed:** `templates/scaffold/python/glitchtip_init.py`, `templates/scaffold/docker/compose.yaml.template`, `src/fabrik/scaffold.py`, `src/fabrik/orchestrator/deployer_ssh.py`, `tests/test_scaffold_glitchtip_release.py`, `tests/orchestrator/test_deployer_git_sha.py`, `tests/orchestrator/test_deployer_ssh.py`, `tests/test_scaffold_glitchtip_security.py`, `tests/test_scaffold_compose_traefik.py`
 
 ## Coverage Checklist
 
-Armed by `python scripts/review_rubric.py --changed <the 28 File Scope paths of the round-1 revision; the two routed-out docs/reference files add no pack>`, output verbatim (the promote tail elided, declared):
+Rubric invocation (verbatim output — the gate reads the generated header, never a prose mention):
 
 ```text
+$ python scripts/review_rubric.py --changed templates/scaffold/python/glitchtip_init.py templates/scaffold/docker/compose.yaml.template src/fabrik/scaffold.py src/fabrik/orchestrator/deployer_ssh.py tests/test_scaffold_glitchtip_release.py tests/orchestrator/test_deployer_git_sha.py tests/orchestrator/test_deployer_ssh.py tests/test_scaffold_glitchtip_security.py tests/test_scaffold_compose_traefik.py
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
 # Honesty (L1): this arms the review — it raises compliance probability, it does not guarantee it.
 
@@ -370,12 +97,12 @@ Armed by `python scripts/review_rubric.py --changed <the 28 File Scope paths of 
 
 ## MATCHED — packs whose globs hit the changed paths
 
-### ai/50-agentic.md  (hit: src/fabrik/orchestrator/vultr_drill.py)
+### ai/50-agentic.md  (hit: src/fabrik/orchestrator/deployer_ssh.py, tests/orchestrator/test_deployer_git_sha.py, tests/orchestrator/test_deployer_ssh.py)
 - is never the only thing between the agent and an irreversible act.
 - **Auth boundary.** Agents run on the subscription's OAuth through the unmodified CLI, never `ANTHROPIC_API_KEY` (ai/00). Never pass `bare=True` on that lane: bare mode never reads OAuth credentials and fails with "Not logged in". A deployed service declares `shape.uses_claude_cli` and mounts the rotated `~/.claude`, never a static token. Anthropic's terms say subscription OAuth is for ordinary, individual use of Claude Code and its own apps; developers building products or services, including with the Agent SDK, should use an API key, and Anthropic does not permit routing requests through Free, Pro or Max credentials on behalf of their users, reserving the right to enforce that without notice. The operator's own development and automation through the unmodified CLI is the closest fit to that … (wrapped further — read the pack)
 - output, and some models never return them. Pick the rate per model from the bake-off browser (hub-only), using its tools chip.
 
-### core/10-python.md  (hit: scripts/container_images.py, scripts/generate_vps_inventory.py, scripts/sysadmin/rules_render_versions.py)
+### core/10-python.md  (hit: src/fabrik/orchestrator/deployer_ssh.py, src/fabrik/scaffold.py, templates/scaffold/python/glitchtip_init.py)
 **`uv`** is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`.
 - Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it.
 - its own reviewed commit, never as a side effect of unrelated work.
@@ -396,18 +123,7 @@ Armed by `python scripts/review_rubric.py --changed <the 28 File Scope paths of 
 **Factor XII — Admin processes. NEVER migrate from app startup.**
 **BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (see `30-ops.md` § Release & Admin Processes).
 
-### core/40-documentation.md  (hit: README.md, docs/development/reviews/2026-10-06-plan-1-postgresql-18-upgrade-review.md, docs/infrastructure/vps-complete-inventory.md)
-- > **⚠️ `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are FLEET-AI INTERFACES, not just docs (D-065).**
-- **Tier-1 (author → verify → converge; the author leg is NATIVE while the pool is OFF, D-181 — `scripts/doc_reconcile.py`'s pool author cannot dispatch):** for each **mechanically-detectable** doc whose Doc-Sync trigger fired (`docs/QUICKSTART.md` · `docs/CONFIGURATION.md` · `docs/data-contract.md` · `docs/SERVICES.md` · `docs/OPERATIONS.md` — the reliable-signal subset), `scripts/doc_reconcile.py` dispatches a cheap OpenRouter-pool author (`libs.subagents`, `pick_models("docs")`) to emit a **minimal structured patch**, **verifies it before applying** (a symbol cross-check catches invented endpoints; the orchestrator injects a higher-assurance native-Claude verify), and loops to a zero-edit round. Runs per phase in `/fabrik-execute-plan`; never blocks (fail-safe). The other docs (CHANGELOG, INDEX, FEATURES, RESILIENCE, PORTS, the READMEs, `db/schema.sql`, …) have no reliable mechanical content-signal → they rely on the touch-on-change backstop below + your own edit (force-update, not force-correct).
-- The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. `/fabrik-plan-after-chat` (the plan set's spine + tickets — the ticket-format authority) injects these rows per ticket as its `Docs:` line.
-- Standalone work (not plan execution) → `Agent-Role: primary`. Trailers go below a blank line, above `Co-Authored-By`. ⚠️ The trailer block must be its OWN paragraph with NO blank line inside it: git parses only the LAST paragraph, and only if it is all-trailers. A blank line before `Co-Authored-By:` demotes everything above it to prose; so does a prose line glued to the top of the block. Measured 2026-08-15: 200 of the last 200 hub commits carried `Agent-Role:` and only 10 parsed, because the old example here shipped the blank line.
-- **⚠️ Link it or it is decoration.** *Measured:* requests for files that do NOT exist came ~zero from AI bots — agents never go looking. It follows (inference, not measurement) that a file only gets read when something points at it: reference it from the docs index or README.
-- ⚠️ **In THIS repo `llms.txt` is GENERATED** (`scripts/generate_capability_index.py`, refreshed daily) — never hand-edit it; change the generator. A project writing one by hand owns it.
-- either way. Cheap and reversible — never at the expense of `OPERATIONS.md`/`DEPLOYMENT.md`, which are the load-bearing agent interfaces (D-065).
-- **No skipped heading levels** — `##` to `###`, never `##` to `####`
-- **Fenced code blocks only** — never indented code (AI treats it inconsistently)
-
-### core/45-testing-strategy.md  (hit: tests/sysadmin/test_rules_render_versions.py, tests/test_app_role_real_pg.py, tests/test_ci_scaffold.py)
+### core/45-testing-strategy.md  (hit: tests/orchestrator/test_deployer_git_sha.py, tests/orchestrator/test_deployer_ssh.py, tests/test_scaffold_compose_traefik.py)
 - **Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one** — one high-value integration/E2E test per behavior, risk-ordered, TDD for the risky ones. Skip trivia (getters / framework glue / config): **lean-but-complete, NOT 100%-line-coverage dogma**. Do not chase line coverage — ensure every behavior has a test that would fail if that behavior regressed. (Cheap pool subagents can author the per-behavior tests — the suggest→curate→author→fix workflow in `62-using-subagents.md` § Dispatch policy + `~/.claude/commands/fabrik-review.md`.)
 - **No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. Assert application state and user-visible outcomes only.
 - **Watched-fail-first** (for tests this change adds or modifies; trivia stays skipped per the Behavior Contract): a non-trivial behavior's test proves something only if it has been SEEN RED — either write it first and watch it fail, or (after the fact) neuter the fix/feature, prove the test goes red, then RESTORE and re-run to green. The neutered state is never staged, committed, or left in the tree. A green test never seen red is unverified — a suite can pass with its guard deleted.
@@ -426,7 +142,7 @@ Armed by `python scripts/review_rubric.py --changed <the 28 File Scope paths of 
 | A test THIS change adds/modifies that was never seen red (no fail-first, no red-on-revert proof) | Watch it fail first, or neuter the change → prove red → restore → re-run green |
 - [ ] Destructive DB tests call `require_throwaway(TEST_DATABASE_URL)` before connecting — never point them at a dev/shared DB.
 
-### core/55-observability.md  (hit: infra/vps1/monitoring/compose.yaml)
+### core/55-observability.md  (hit: templates/scaffold/python/glitchtip_init.py)
 - ⚠️ **The shipper is Promtail today and Promtail reached END OF LIFE (2026-03-02)** — no updates, no support. Grafana Alloy is the successor (`alloy convert` migrates the config). Fleet migration is an infra action, not a per-project one; until it lands, nothing about the rules below changes.
 - **The label set is the PIPELINE's, not yours** — live: `container_name`, `filename`, `host`, `job`, `service_name`, `stream`. An app cannot add labels by logging a field; a JSON field is queried with `| json`, never as a label.
 - > *"A twelve-factor app never concerns itself with routing or storage of its output stream. It should not attempt to write to or manage logfiles."*
@@ -465,53 +181,573 @@ Armed by `python scripts/review_rubric.py --changed <the 28 File Scope paths of 
 - Do not propose OTel instrumentation for a fleet service without new evidence. Measured against this stack: OTel **logs** remain the weakest-maturity signal in both Python and JS — exactly the one Loki already serves well — and adoption would mean a stateful Collector on memory-constrained VPSes plus re-instrumenting every project to gain distributed tracing nobody has asked for. The logs + metrics + errors triad stays.
 - GlitchTip DSN comes from `GLITCHTIP_DSN` env var injected by the orchestrator from the GlitchTip registrar — do NOT hardcode the DSN in the repo.
 
-### core/90-bootstrap-scripts.md  (hit: docs/infrastructure/vps-hub-rebuild.md, scripts/bootstrap/bootstrap-config.sh, scripts/bootstrap/bootstrap-hub.sh)
-**If you see this message, switch to `ozgur@<ip>` and re-run. Do not retry with `root@<ip>`.**
-- `ozgur@<ip>`. Do not test root first.
-- the single-quoted remote program as one string literal and never parses it, so the remote-bash syntax error WILL NOT be caught by `bash -n` of the local script — only by an actual ssh execution.
-- Every dependency-install step (apt, npm, pip, systemd-unit creation) MUST be a no-op when its outcome is already present. Probe with `command -v` (the POSIX builtin, which looks a name up the way the shell will) — not `which`, which is non-standard:
-- already-bootstrapped VPS — every step should print `already installed` or `already configured`, never re-do work.
-- higher unused number). Do not use `vps-drill` or other free-form names — the script will reject them.
-**Prevention:** fail2ban never bans an address in `ignoreip`. Adding the operator's IP and the mesh range in a `/etc/fail2ban/jail.d/*.local` drop-in (or at runtime with `sudo fail2ban-client set sshd addignoreip <ip>`) retires this whole lockout class; the bootstrap scripts do not do it yet.
-- the log, the script never runs, and the absent log looks like "it ran and printed nothing". Cron runs the line with `/bin/sh`; the shell's error goes to cron's mail (the crontab owner, or `MAILTO`), and on a box with no mail agent cron discards it. The journal (`journalctl -t CRON`) then shows only that the job ran and that its output was discarded — never the shell's error — so the writability probe below is the diagnostic, not the log.
-- Founding incident: `scripts/sysadmin/liveness_audit.py:10-11` — the Claude-config DR backup had never once run from cron for exactly this reason. Reproduced again 2026-08-29 (`touch /var/log/x` → `Permission denied` for the WSL user), when a plan copied an existing `>> /var/log/…` line verbatim from a working precedent and shipped the same defect; only a native Opus reviewer caught it.
-- naming — letters, digits, underscores and hyphens only), so a template installed as `vps-sysadmin.cron` never runs.
-- ⚠️ **Not mechanically gated, deliberately.** Dozens of `>> /var/log/` redirects exist across this repo's docs, scripts and templates, and most are correct — VPS root cron writing pre-created files. A check flagging all of them would fire mostly on legitimate lines, and a rule that is routinely waived teaches agents that the gate's findings are advisory. Writability depends on the user and the host; only the author can resolve it, which is why this is a rule you apply rather than a check that fires.
-
-# promote-to-check_*: tail elided (118 greppable mandates; the full mandates are above)
+# promote-to-check_*: 100 injected mandate(s) look deterministically greppable — their backtick literals, one line each (the full mandates are ABOVE, not repeated: re-emitting ~20 FLOOR lines verbatim doubled the rubric and got it skimmed — web-ecommerce-factory 01M1QEY5, 2026-09-05)
+- `fabrik-lib/fastapi-user-auth` `DELETE … RETURNING` `jti` `agents-fabrik.md § Supabase`
+- `chrome-extension` `chrome.identity.launchWebAuthFlow` `https://<ext-id>.chromiumapp.org/` `chrome.storage.session`
+- `desktop-app` `safeStorage` `desktop-app/72-desktop.md`
+- `fabrik` `X-Internal-Token` `internal_auth.py` `hmac.compare_digest` `APIKeyHeader`
+- `auth.uid()` `current_tenant_id()` `NULL` `EXCEPTION WHEN OTHERS THEN RETURN NULL` `SELECT auth.uid()` `NULL`
+- `openssl rand -hex 32`
+- `algorithms=["HS256"]` `alg` `alg: none`
+- `redis-main`
+- `expo-secure-store` `80-mobile.md`
+- `localStorage` `sessionStorage`
+- `chrome.storage.session` `TRUSTED_CONTEXTS` `chrome.runtime.sendMessage` `chrome.identity.launchWebAuthFlow` `code_verifier` `crypto.subtle` `storage.session`
+- `x-middleware-subrequest` `middleware.ts` `proxy.ts` `middleware.ts`
+- `CORSMiddleware` `allow_origins`
+- `X-Frame-Options: DENY` `frame-ancestors`
+- `APIKeyHeader` `require_api_key` `SERVICE_API_KEY` `PROXY_API_KEY` `python-api` `internal_auth.py` `metrics.py` `/metrics` `SERVICE_INTERNAL_SECRET_KEY`
+- `os.getenv("KEY", "default")` `config/production.yml` `settings.production`
+- `expo-secure-store`
+- `^/api/` `/api/*` `/api/v1` `/api/*` `shape.bearer_bypass_prefix: "^/api/v1"` `fabrik apply` `^/` `orchestrator/verifier.check_api_bypass` `/api/*` `^/api/`
+- `postgres-main` `fabrik-lib/rag` `postgres:16-alpine` `plpgsql` `postgres-main`
+- `postgres-main` `docs/DECISIONS.md`
 ```
 
-| Class | State | Evidence (paths hunted) |
-|---|---|---|
-| core/35-security-auth (FLOOR) | CLEAN | no ticket touches auth; seats A–C hunted the spine and every ticket — no secret, token or credential step (the runbook proves `$PGPW` by a test connection, never prints it) |
-| core/25-data-postgres (FLOOR) | CLEAN | real-PG tests kept (T04a `tests/test_app_role_real_pg.py:30`); the uuidv7 rule change is routed to infra (T06 b); seat C |
-| core/30-ops (FLOOR) | FIXED | compose invariants asserted by T02's BC; mesh port cite corrected to `infra/vps1/postgres/compose.yaml:23` (round 1 C8) |
-| 12-FACTOR (FLOOR) | CLEAN | no step daemonizes, hot-patches or migrates at startup; the restore is an operator one-off (T05); seat C |
-| ai/50-agentic (MATCHED) | CLEAN | the `src/fabrik/orchestrator/vultr_drill.py:310` edit is a comment; the V8 drill is operator-run (T05); seat A |
-| core/10-python (MATCHED) | FIXED | T01a reads the registry at call time with isolated tests (round 1 C4/C5); seat A refuted import-time calls |
-| core/40-documentation (MATCHED) | FIXED | T04b covers the `pgvector:pg16` tag at `docs/traycer/fabrik-workflow.md:412`; T04a covers `tests/test_app_role_real_pg.py:1,270` (round 1 slice B) |
-| core/45-testing-strategy (MATCHED) | FIXED | T01b gated on the two `CLEANED_PACKS` literals (round 1 B1, round 2 NEW-1); T03's BC made satisfiable (round 2 NEW-2; grep re-derived 18 lines) |
-| core/55-observability (MATCHED) | CLEAN | exporter v0.20.1 + `--collector.stat_checkpointer` in T02; no existing `command:` to merge (seat B read `infra/vps1/monitoring/compose.yaml:178`) |
-| core/90-bootstrap-scripts (MATCHED) | FIXED | T03 edits only the volume array and comments; the quote cite corrected to `:169-170` (round 1 C8, round 2 leftover) |
-| fail-open vs fail-closed on every gate/guard | CLEAN | the registry read raises a named `VersionRegistryError` (seat A, `src/fabrik/version_registry.py:57-66`); the freeze is closed by `default_transaction_read_only` (spec D1 step 1) |
-| cost/quota/limit accounting edges | CLEAN | the disk gate and the `max_connections` check are runbook probes (T05); seat C found no other limit edge |
-| boundary/sentinel/prefix collisions | FIXED | whole-word `postgres-data` search so `postgres18-data` never matches (round 2 NEW-2); restic include paths do not collide (seat A) |
-| behavior-without-a-test | FIXED | the T01a live-registry test split from the isolated ones, plus a reload test (round 1 C4/C5); T03's allowlist replaced by a zero-match assertion |
+| Class | Status |
+|---|---|
+| Hunt: `templates/scaffold/python/glitchtip_init.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (R1/R5 comment truth and R6 server_name, f12c1d6b8; slice R AST-compared the module with upstream a13c801 at f12c1d6b8 — code differs only by `import logging` and the three graded adaptations in `_init_sdk`) |
+| Hunt: `templates/scaffold/docker/compose.yaml.template` — every changed hunk, its enclosing function, its callers | CLEAN (templates/scaffold/docker/compose.yaml.template four env lines after LOG_LEVEL; the python-api-gpu anchor in src/fabrik/scaffold.py keys on LOG_LEVEL and still matches; resolved with real `docker compose config` by tests/test_scaffold_glitchtip_release.py — slice S) |
+| Hunt: `src/fabrik/scaffold.py` — every changed hunk, its enclosing function, its callers | CLEAN (src/fabrik/scaffold.py node module read order APP_GIT_SHA→GIT_SHA and APP_ENV→ENVIRONMENT→production, node-api extra_env_lines, the canonical comment narrowed to the build-arg cause; every other type's canonical body unchanged — slice S) |
+| Hunt: `src/fabrik/orchestrator/deployer_ssh.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (D2 — `_read_head_sha` coerces a None seam answer to not-a-SHA, f12c1d6b8; GIT_SHA override after spec env, redeploy write after pull, rollback writes old_sha after the reset; `_is_placeholder` widening and its second caller `_database_url_pin` recorded as D1 — slice D) |
+| Hunt: `tests/test_scaffold_glitchtip_release.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (S1 — autouse guard that FABRIK_ROOT and TEMPLATE_DIR resolve inside this repo, f12c1d6b8; docker/node legs skip cleanly when absent) |
+| Hunt: `tests/orchestrator/test_deployer_git_sha.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (D2 parametrized None case, f12c1d6b8; the seven Behaviours 4-7 graded with a fake ssh, no live host) |
+| Hunt: `tests/orchestrator/test_deployer_ssh.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/orchestrator/test_deployer_ssh.py ssh-call lists gain the rev-parse call only; no assertion weakened — slice D) |
+| Hunt: `tests/test_scaffold_glitchtip_security.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (R2 before_send_log wiring and _drop_log executed, R3 stale comment, R6 AST assert and behavioural server_name test, f12c1d6b8 — each mutation seen red in pass 2) |
+| Hunt: `tests/test_scaffold_compose_traefik.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_scaffold_compose_traefik.py comment-only change naming the extra env lines; no assertion touched — slice S) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (src/fabrik/orchestrator/deployer_ssh.py D2 — a malformed rev-parse answer raised instead of failing open to no-SHA; a failed read now logs and leaves .env alone, graded) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (no accounting code on this surface; three native seats stamped with command_run.py dispatch after scripts/sysadmin/dispatch_headroom.py) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | CLEAN (src/fabrik/orchestrator/deployer_ssh.py 40-hex fullmatch gate and `_INTERPOLATION_RE` fullmatch of one bare ${NAME[:-…]}; templates/scaffold/python/glitchtip_init.py blank and `unknown` skipped per name — slice D and R) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (tests/test_scaffold_glitchtip_security.py R2 and R6 had no killing test; pass 2 ran four mutations, each red) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (templates/scaffold/python/glitchtip_init.py AST statement counts stated 66 upstream vs 67 hub, the pass-1 figure of 70 corrected by the seat) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (tests/test_scaffold_glitchtip_release.py resolves the composes with real `docker compose config` and drives `init_glitchtip()`; pass-2 mutations run with pytest on a git archive of f12c1d6b8) |
+
+Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
+must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
+disproving line>)` · `RECORDED — unexecuted (<why>)` · `RECORDED — by design`, parenthesising the
+owning row's first-cell id and the EARLIER round that adjudicated it, or a `D-nnn` with no round
+(the § Residual block below shows the shape) · `RECORDED — measured (<why>)` ·
+`RECORDED — hygiene false positive (<why>)` — every RECORDED reason is PARENTHESISED, never
+colon-delimited (a colon would spell the `unexecuted: N` counter the ledger refuses). `UNCHECKED`
+may survive only under a `## BLOCKED` escalation (a finding + 3 failed attempts).
 
 ## Pass Ledger
 
-| Pass | seats · axes re-checked | counters | method | plan md5 (start → end) |
-|-----:|---|---|---|---|
-| Pass 1 | opus×1 (spine, T01a, T03) + sonnet×2 (T01b/T02/T04a/T04b; T05/T06/roll-up) · all axes | found: 20, new: 20, confirmed: 20, fixed: 20, unexecuted: 0, edits: 20 | method: citation — full pass over the pinned set; every candidate executed (the tag probed: `0.8.6-pg16` HTTP 200; the sync regex re-run; the `_LOOSE` shapes run against `CLEANED_PACKS`) | 7de15c23… → 8694a13c… |
-| Pass 2 | opus×1 + sonnet×2 (the round-1 slice owners) · the fix hunks + one hop | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0, edits: 6 | method: re-derivation — each owner re-derived its round-1 claims (B: `_LOOSE` over all 7 `CLEANED_PACKS`; C: the roll-up's 18 rows by text diff); A confirmed 3 own-fix defects in round-1 hunks and 3 leftovers | 8694a13c… → 197c1b2b… |
-| Pass 3 | opus×1 (the round-1 slice A owner) · the round-2 hunks | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — `command grep -nw postgres-data` over T03's six files re-derived 18 lines, all in T03's edit list; standing clean since pass 2: slices B and C | 197c1b2b… → 197c1b2b… ✓ → **CONVERGED** |
+ONE table, one row per pass, counts punctuated (`found: F, new: N, confirmed: C, fixed: X,
+unexecuted: U`) — the gate reads the LAST row as the exit round and refuses a second ledger group.
+`found:` counts raw candidates, `new:` is prose the graders do not parse, `confirmed:` counts the
+candidates EXECUTED and reproduced (the exit counter — a round is quiet at `confirmed: 0` and
+`fixed: 0` with `unexecuted:` 0 or absent), `unexecuted:` counts code candidates RECORDED
+unexecuted. Minimum two passes; the fixing pass is never the last; the closing pass re-derives
+every count and anchor and says so in its Method cell, and its Finders cell names the seats that
+read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alone read cannot close.
 
-Recorded, not counted: the Execution Discipline line "every merge happens in the fleet worktree branch" reads awkwardly beside T03's own worktree (round 3, slice A) — wording only; the same line states T03's branch merges into the fleet branch.
+| Pass | Finders | Counters | Method |
+|---|---|---|---|
+| Pass 1 | native opus×1 + sonnet×2 | found: 11, new: 11, confirmed: 7, fixed: 7, unexecuted: 0 | citation — slices R (re-vendored module: opus), D (deployer: sonnet), S (scaffold emit + tests: sonnet); confirmed R1, R2, R3, R5, R6, S1, D2, fixed in f12c1d6b8; D1, R4, S2 recorded below; the eleventh raw candidate's disposition was lost to a context compaction and is not reconstructed here |
+| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — each round-1 seat re-verified its own ledger at f12c1d6b8 by execution: R re-ran the AST diff against upstream a13c801 and four mutations (all red), D and S re-ran their rows; every row NOW_FALSE, nothing new in the fix hunks; stop: closable |
 
-## Residual unknowns
+Row shapes (quoted here, so the gate does not read them as passes):
 
-- Resolved: where the runbook lives (new doc); which of the 29 docs change (current-state only); who edits the registry (infra).
-- Open — U1 hub cluster size and free disk: read live by the runbook's pre-window probes; the disk gate decides.
-- Open — U2 `pre-backup.sh` retention: read live in the pre-window probes.
-- Open — infra's `pgvector_version` key: requested by mail on approval; T01a waits on it (precondition gate).
-- Open — every service's pool size vs `max_connections`: read live in the pre-window probes (project code and `.env` are not readable by agents).
+```text
+| Pass 1 | native opus×1 + sonnet×2 | found: N, new: N, confirmed: C, fixed: X, unexecuted: U | citation |
+| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |
+```
+
+## Residual
+
+Every candidate that did not enter `confirmed:` is recorded here, one row each, in the verdict
+grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading is an EXAMPLE, never rows).
+
+### Verdict grammar — an EXAMPLE, never rows
+
+(quoted so no reader — human or scan — takes this template's own sample rows for the receipt's residuals):
+
+```text
+| F12 | RECORDED — unexecuted (3 probe attempts timed out) |
+| F19 | RECORDED — by design (F4, round 3; D-203) |
+| F31 | RECORDED — measured (a prevalence figure; makes no code or doc claim) |
+```
+
+`RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that adjudicated
+it (or a `D-nnn` with no round); the gate refuses an absent owner and a round that is not below the
+closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
+`unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
+
+| Id | Disposition |
+|---|---|
+| D1 | RECORDED — by design (D-626) |
+| R4 | RECORDED — measured (upstream comments in site-provisioner api/glitchtip_init.py at a13c801 — the before_send_log comment at :1518 contradicts the registration at :1490, and the `_release` docstring goes stale once the deployer persists GIT_SHA; hub HUB NOTEs mark them, the fix belongs upstream and goes to site-provisioner in the reply to 01M491AE33) |
+| S2 | RECORDED — measured (informational; makes no code or doc claim) |
+
+## Per-phase verdicts
+
+### Phase 1 — scaffold GlitchTip DSN, release and environment + deployer GIT_SHA persistence: CONVERGED
+
+The change delivers the DSN to python-api and node-api containers, takes the release from the deployed git SHA the deployer persists in `.env`, and re-vendors the module at upstream a13c801 with only the three graded adaptations. Every confirmed defect is fixed with a guard seen red on its mutation.
+
+## Gate
+
+`final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
+`"status": "success"`):
+
+```json
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 62,
+  "failed": 0,
+  "skipped": 4,
+  "skipped_checks": [
+    "bandit",
+    "bandit scripts/",
+    "semgrep",
+    "pytest"
+  ],
+  "advisory": [
+    {
+      "check": "pytest (NOT RUN)",
+      "output": "this repo's CI does not invoke pytest, so the gate does not either \u2014 PERMANENT, not a per-diff skip. Deliberate (a CI that never reds has no red to prevent, and a hub-scale suite would brick every completion gate), but it means THIS GREEN ASSERTS NOTHING ABOUT THE TEST SUITE. Run it yourself: `python -m pytest tests/ -q`, or make the gate run it every time with `mkdir -p .fabrik && touch .fabrik/run-pytest` \u2014 required if this repo retires its GitHub workflows, since deleting them otherwise disarms this check \u2014 the suite is OUTSIDE this gate",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 53 identical \u00b7 12 declared-design \u00b7 24 UNREVIEWED diff \u00b7 13 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~15 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\n or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/core/60-watchdog.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 15,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    },
+    {
+      "check": "Review hygiene (advisory)",
+      "output": "hygiene: 0 hit(s) over 1 file(s), 15 rows ungraded",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Routing Policy (operator deny + allowlist)",
+      "output": "check_routing_policy: OK \u2014 6 of 6 task kinds have a routing section, 30 routable model entries, all allowed and none denied",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Governance Tables (rules must render)",
+      "output": "check_governance_tables: OK \u2014 every table row renders at its header width across 2 contract(s)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Plan-lock release",
+      "output": "0 stale | 0 likely-stale | 0 half-applied | 0 plan-field-stale | 0 orphan | 0 foreign | 0 unknown-status | 0 unevaluable\nOK - 0 stale of 85 plan lock(s) examined (2 non-terminal evaluated | 83 terminal/unevaluable | 0 foreign)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rivals dossier",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Spec convergence",
+      "output": "spec convergence: 47 CONVERGED spec(s) examined, 16 with findings (artifact-only; citations not re-fetched)\n  SILENT-1a: 2026-07-15-autonomous-factory-driver-design.md no cited source and no 'no external facts' statement - indistinguishable from skipping the research gate\n  ... 29 more finding(s) - run the check directly\n  -> run /fabrik-spec-review to a no-op; a spec with no external facts must SAY so, and a converged spec must enumerate its residual unknowns",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rule grounding (plans)",
+      "output": "rule grounding: 1 CONVERGED in-window plan(s) examined, 1 with findings (artifact-only; reading quality is the review's)\n  NO-DIGEST: 2026-09-05-plan-2-glitchtip-deny-by-default.md no '## Constraints Digest' section - a CONVERGED plan proves its packs were open with per-pack verbatim quotes, never by self-assertion\n  -> quote one mandate verbatim per MATCHED pack (file:line) in the Constraints Digest - the quote is the proof the pack was open; run review_rubric.py --changed <File Scope> for the MATCHED set",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Citations resolve (path:line lands)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Feedback duty",
+      "output": "feedback duty: 20 close(s) in 14d, all carried a verdict",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Trigger routing (advertised phrase -> its own command)",
+      "output": "trigger routing: 157 advertised phrase(s) - 108 reach their own command, 49 route nowhere, 0 mis-routed (sees whether an advertised phrase reaches its own command; cannot tell whether the phrase is one an operator would ever type, and deliberately does not grade phrases that route nowhere)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Corpus Weight (byte ratchet)",
+      "output": "corpus-weight: CLAUDE.md 107263 B \u00b7 baseline 98610 (+8653) \u00b7 base origin/worktree-fleet (\u2014)\ncorpus-weight: templates/governance/CLAUDE.md 104405 B \u00b7 baseline 91060 (+13345) \u00b7 base origin/worktree-fleet (\u2014)\ncorpus-weight: commands/_sources 1126155 B \u00b7 baseline 1053408 (+72747) \u00b7 base origin/worktree-fleet (\u2014)\ncorpus-weight: commands/_fragments 145554 B \u00b7 baseline 119777 (+25777) \u00b7 base origin/worktree-fleet (\u2014)\ncorpus-weight: commands/_agents 28439 B \u00b7 baseline 24465 (+3974) \u00b7 base origin/worktree-fleet (\u2014)\ncorpus-weight: .windsurf/rules 1789460 B \u00b7 baseline 1319893 (+469567) \u00b7 base origin/worktree-fleet (\u2014)\ncorpus-weight: OK \u2014 no owned surface grew vs origin/worktree-fleet\ncorpus-weight: worktree \u2014 reporting only, nothing written",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Frozen Chain (contract pins)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Mutation (opt-in FABRIK_MUTMUT)",
+      "output": "MUTATION (advisory): skipped in the per-commit gate \u2014 mutation testing is diff-scoped + nightly (45-testing-strategy.md), not per-PR blocking. Run it on changed code with:\n    FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Doc stub fill",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Script Coupling Header",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "User-Level Hooks Registered",
+      "output": "user-level hooks: present in every account dir",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Retired-Tech Tripwire",
+      "output": "WARN: docs/CAPABILITIES.md:17: unmarked retired-tech mention: - [fabrik domain ready](../AGENTS.md) (owner: fleet): Check if domain is ready for Coolify deployment.\nWARN: docs/CAPABILITIES.md:63: unmarked retired-tech mention: - [authelia](SERVICES.md) (owner: fleet): Authelia access-control rule provisioning for the Coolify-managed container.\nWARN: docs/CAPABILITIES.md:72: unmarked retired-tech mention: - [meilisearch](SERVICES.md) (owner: fleet): MeiliSearch index provisioning on the shared Coolify-managed instance.\nWARN: docs/CONFIGURATION.md:850: unmarked retired-tech mention: DATABASE_URL = os.getenv('DATABASE_URL')  # Supabase provides this, for the exception path only\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:398: unmarked retired-tech mention: | `/etc/iptables/add-docker-user-rules.sh` | DOCKER-USER chain rules. Only 80/443 serve traffic; the script also RETURNs\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:429: unmarked retired-tech mention: - **Allowed public TCP ports:** 80, 443 (the only ports serving traffic). The iptables script also still allows 6001/600\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:474: unmarked retired-tech mention: | **Iptables DOCKER-USER** | All Docker ports | `/etc/iptables/add-docker-user-rules.sh`. 80/443 serve traffic; 6001/600\nWARN: docs/FEATURES.md:894: unmarked retired-tech mention: 2. **No Coolify UUIDs.** `_strip_uuids` recurses both keys (14 known UUI\n\u2026 [truncated: ~39 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_retired_terms.py` for the FULL set; NEVER scope a fix to this preview] \u2026\ntion: - **Kilo CLI Health Check** - `check_kilo_health.sh` (shared with Tier 2, `tier >= 2`)\nWARN: docs/workflows/FINAL_GATE_WORKFLOW.md:497: unmarked retired-tech mention: - `scripts/check_kilo_health.sh` \u2014 Kilo CLI Health Check (Tier 2/3; appended outside `run_optional_check` \u2014 appended dir\nWARN: docs/workstation/WSL2-DNS-FIX.md:24: unmarked retired-tech mention: 5. Node.js relies on `getaddrinfo()`, so Kilo CLI fails\nWARN: docs/workstation/WSL2-DNS-FIX.md:150: unmarked retired-tech mention: Verified by: Kilo CLI connectivity test\ncheck_retired_terms: 50 WARN(s) \u2014 advisory only, not blocking",
+      "truncated": true,
+      "omitted_lines": 39,
+      "rerun": "python scripts/enforcement/check_retired_terms.py"
+    },
+    {
+      "check": "Rule-pack reachability",
+      "output": "reachable: core/75-workers-jobs.md @ file-worker \u2014 via worker\n  reachable: core/app-audit-log.md @ saas-skeleton \u2014 via server/db/schema.sql\n  reachable: core/app-audit-log.md @ python-api \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ python-api-gpu \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ node-api \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ file-api \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ file-worker \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ office-extension \u2014 via server/db/schema.sql\n  reachable: core/app-audit-log.md @ chrome-extension \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ mobile-app \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ desktop-app \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ static-site \u2014 via server/db/schema.sql\n  reachable: core/app-audit-log.md @ docusaurus \u2014 via db/schema.sql\n  reachable: saas/88-saas-launch-checklist.md @ saas-skeleton \u2014 via app/(marketing)/terms\n  reachable: saas/95-multi-tenant-saas.md @ saas-skeleton \u2014 via server/src/fastapi_user_auth/rls\nExamined 4 pack(s) / 15 claim-pair(s) declaring applies_to for a checked type (of 13 scaffold type(s) checked).\nOK \u2014 every VERIFIABLE applies_to claim reaches at least one emitted path (15 of 4 examined pack(s) verified).",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": ".env.example Completeness",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Phase Tests (plan-window)",
+      "output": "PHASE-TESTS (advisory): OK \u2014 no active plan window shipping behavior without tests.",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Ticket Breadth (plan sets)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    }
+  ],
+  "blocking": 36,
+  "checks": [
+    {
+      "name": "check json",
+      "outcome": "pass"
+    },
+    {
+      "name": "check yaml",
+      "outcome": "pass"
+    },
+    {
+      "name": "mypy",
+      "outcome": "pass"
+    },
+    {
+      "name": "bandit (diff-sensed skip \u2014 no src/ changes)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "bandit scripts/ (diff-sensed skip \u2014 no scripts/ changes)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "semgrep (diff-sensed skip \u2014 no src/ changes)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "pytest (NOT RUN)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "sqlfluff-lint",
+      "outcome": "pass"
+    },
+    {
+      "name": "vulture",
+      "outcome": "pass"
+    },
+    {
+      "name": "Convergence Evidence (plans + reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Coverage Checklist (reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Vendored Drift (sync-excluded repos)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Review hygiene (advisory)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Routing Policy (operator deny + allowlist)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Governance Tables (rules must render)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Certification Coverage (advisory; board mix-up BLOCKS)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-lock release",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rivals dossier",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Spec convergence",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule grounding (plans)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Citations resolve (path:line lands)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Feedback duty",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Trigger routing (advertised phrase -> its own command)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Secrets (Zero Hardcoding)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hardcoded localhost/127.0.0.1 Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "Imports Resolvable (clean checkout)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Lint Ratchet (repo-wide, no new debt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Corpus Weight (byte ratchet)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Frozen Chain (contract pins)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc Sync Matrix",
+      "outcome": "pass"
+    },
+    {
+      "name": "Subagent Flywheel (pool-or-declare \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mutation (opt-in FABRIK_MUTMUT)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc stub fill",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Script Coupling Header",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc-Script Links",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc-Script Coverage (ratchet)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Print/Console.log Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "No Host Ports on Traefik Services",
+      "outcome": "pass"
+    },
+    {
+      "name": "Full Traefik Label Set (\u00a77)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Spec <-> Project DB Name Match (Phase 1c)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Undeclared Imports (requirements.txt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Fabrik-Synced Files Unmodified",
+      "outcome": "pass"
+    },
+    {
+      "name": "Project Structure",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hooks Index Fresh",
+      "outcome": "pass"
+    },
+    {
+      "name": "User-Level Hooks Registered",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Sync Trigger Coverage",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc Link Integrity (live tree)",
+      "outcome": "pass"
+    },
+    {
+      "name": "INDEX.md \u2194 docs tree drift",
+      "outcome": "pass"
+    },
+    {
+      "name": "Retired-Tech Tripwire",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule-pack reachability",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Behavior Contract Proposal",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-Set Contract (Spine+Tickets)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Stage-Skip Artifact Gate (spec freshness + FROZEN header shape)",
+      "outcome": "pass"
+    },
+    {
+      "name": "README.md (Primary Entry Point)",
+      "outcome": "pass"
+    },
+    {
+      "name": ".env.example Completeness",
+      "outcome": "advisory"
+    },
+    {
+      "name": "User Guide Presence",
+      "outcome": "pass"
+    },
+    {
+      "name": "Phase Tests (plan-window)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Command Corpus (references resolve \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Ticket Breadth (plan sets)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Work items (sync)",
+      "outcome": "pass"
+    },
+    {
+      "name": "epic_order --check",
+      "outcome": "pass"
+    },
+    {
+      "name": "Kilo CLI Health Check",
+      "outcome": "pass"
+    }
+  ],
+  "failures": [],
+  "warnings": [
+    {
+      "check": "Coverage Checklist (reviews)",
+      "output": "\u26a0 check_review_coverage ADVISORY \u2014 committed review(s) needing attention:\n  \u26a0 docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) \u2014 committing a review does not converge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) \u2014 finders: pool fanout \u00d73 (deepseek-v3.2 raised 9 on the') \u2014 punctuate the counts or fence the quote\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026\n\u2026 [truncated: ~9 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nands forever\n  \u26a0 docs/development/reviews/2026-09-14-scope-growth-stop-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-09-18-fable-band-clamp-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\nNOTE: skip untracked in-flight draft (checked at staging): docs/development/reviews/2026-10-06-scaffold-glitchtip-release-review.md\ncheck_review_coverage: OK \u2014 0 unproven coverage claims across 0 changed review artifact(s)",
+      "truncated": true,
+      "omitted_lines": 9,
+      "rerun": "python scripts/enforcement/check_review_coverage.py"
+    },
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 53 identical \u00b7 12 declared-design \u00b7 24 UNREVIEWED diff \u00b7 13 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~15 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\n or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/core/60-watchdog.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 15,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    },
+    {
+      "check": "Work items (sync)",
+      "output": "\u26a0 work-store drift (advisory until blocking):\nDRIFT 1 (advisory)  docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md\nDRIFT 1 (advisory)  docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md\nDRIFT 1 (advisory)  docs/superpowers/specs/2026-09-17-review-scoped-scope-growth-exit-design.md\nDRIFT 1 (advisory)  docs/superpowers/specs/2026-09-19-enforcement-git-decoder-design.md\nDRIFT 4 (blocking)  docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-09-25-plan-1-work-store-single-tracker/2026-09-25-plan-1-work-store-single-tracker.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop/2026-09-30-plan-1-merge-request-loop.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-10-03-plan-1-scaffold-retired-agent-surface.md\nDRIFT 7 (advisory)  docs/STRATEGIC_BACKLOG.md\nDRIFT 8 (advisory)  docs/development/plans/2026-06-29-plan-watchdog-deploy-side.md\nDRIFT 8 (advisory)  docs/development/plans/2026-07-06-plan-1-universal-watchdog.md\nDRIFT 8 (advisory)  docs/development/plans/2026-07-12-plan-1-wavespeed-integration.md\nDRIFT 8 (advisory)  docs/development/plans/2026-08-11-plan-deploy-tryton-crm.md\nDRIFT 8 (advisory)  docs/development/plans/2026-08-27-plan-1-certification-denominator.md\nDRIFT 8 (advisory)  docs/development/plans/2026-10-02-plan-3-coordinator-assignment.md",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "untracked sources (advisory)",
+      "output": "\u26a0 1 untracked source file(s) NOT in gate scope (unstaged \u2192 unscanned): docs/development/reviews/2026-10-06-scaffold-glitchtip-release-review.md \u2014 if yours: `git add` them and RE-RUN the gate (they ship unlinted otherwise); if a sibling's: leave them.",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    }
+  ]
+}
+```

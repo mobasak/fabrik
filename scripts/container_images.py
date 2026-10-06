@@ -562,7 +562,7 @@ def cmd_recommend(args):
     """Get recommendations for common use cases."""
     recommendations = {
         "database": [
-            ("postgres:16-alpine", "PostgreSQL - lightweight Alpine variant"),
+            ("postgres:18-alpine", "PostgreSQL - lightweight Alpine variant"),
             ("mariadb:11", "MariaDB - MySQL compatible"),
             ("redis:7-alpine", "Redis - in-memory cache"),
         ],

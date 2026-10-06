@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T21:03:36.922599Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-329729b3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-626",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add APP_ENV and APP_GIT_SHA to the known-names allowlists in scripts/audit_envs.py and scripts/gather_envs.py",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "audit_envs/gather_envs: allowlist APP_ENV and APP_GIT_SHA (the scaffold now emits them)"
+}

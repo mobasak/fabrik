@@ -10,7 +10,7 @@ Import this module BEFORE FastAPI app creation in main.py:
 
 VENDORED — do not edit here expecting it to stick upstream.
   origin:   site-provisioner  api/glitchtip_init.py
-  revision: 6715c29
+  revision: a13c801
 Copied under the fabrik-lib law (vendor, never import across repos). It is a COPY: to
 pull a later upstream fix, re-vendor and move the revision above, so a reader can always
 diff this file against the sha it claims to be.
@@ -41,6 +41,7 @@ Apart from those, this file is byte-identical to the origin at the revision abov
 COMMENTS added here. When re-vendoring, diff with comments in mind: the executable bytes
 are the contract, not the prose.
 """
+import bisect
 import ipaddress
 import logging
 import os
@@ -224,6 +225,27 @@ def _keep(mapping: dict, allowed: frozenset) -> dict:
     }
 
 
+# A zone id must look like an INTERFACE NAME. Without this the IPv6 parse is an unbounded
+# escape hatch: `ipaddress.IPv6Address` accepts 93 of the 95 printable ASCII characters (all
+# but "/" and "%") in a zone, of any length, so `::1%admin:hunter2` and `[::1%S3cretPassword]` are
+# "valid addresses" and were returned VERBATIM by every caller that trusts the parse.
+#
+# The round-46 fix narrowed the bracket hatch from `[anything]` to `[<v6>%anything]` and
+# stopped there — and the claim shipped with it, "a credential cannot parse as an IPv6
+# address", was therefore false: the parse is a host validator only in the ABSENCE of a zone.
+_IPV6_ZONE_RE = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def _is_ipv6_literal(candidate: str) -> bool:
+    """True when `candidate` is an IPv6 address whose zone id, if any, is an interface name."""
+    try:
+        ipaddress.IPv6Address(candidate)
+    except ValueError:
+        return False
+    zone = candidate.partition("%")[2]
+    return not zone or bool(_IPV6_ZONE_RE.fullmatch(zone))
+
+
 def _is_bare_authority(host: str) -> bool:
     """True only if `host` is a host with, at most, a NUMERIC port.
 
@@ -247,6 +269,12 @@ def _is_bare_authority(host: str) -> bool:
     validator, not a credential detector. `user:1234` passes, because by the RFC grammar
     that IS host `user` port `1234`, indistinguishable from `example.com:8080`.
     """
+    # An EMPTY authority is not a valid one. `_safe_origin` guards this explicitly and the
+    # token path did not, so `https://user:PW@api.example.com/v1?x=@@@` split at the last `@`,
+    # got an empty host, called it bare, and emitted `https://[redacted]@` — the whole URL
+    # destroyed. Fail closed here so both callers agree.
+    if not host:
+        return False
     if host.startswith("["):
         # Bracketed IPv6 literal (`[::1]`, `[::1]:6379`) — the inner colons are address
         # separators, not a port, so the numeric rule must not be applied to them.
@@ -269,8 +297,18 @@ def _is_bare_authority(host: str) -> bool:
             ipaddress.IPv6Address(host[1:closing])
         except ValueError:
             return False
-        return True
+        return _is_ipv6_literal(host[1:closing])
     if ":" not in host:
+        return True
+    # An UNBRACKETED IPv6 address is not RFC 3986-valid in a URL, but it is what appears in
+    # real log lines (`http://fe80::1%eth0 unreachable`), and the multi-colon rule below read
+    # it as credential material and redacted the host. Parsing settles it with no heuristic
+    # and low risk: a credential does not parse as an IPv6 address UNLESS it hides in a
+    # ZONE ID, which is why `_is_ipv6_literal` constrains the zone rather than trusting the
+    # parse alone. An earlier version of this line asserted the unqualified universal and
+    # was refuted by `::1%admin:hunter2`. Without a zone: `admin:hunter2`,
+    # `nginx:1.25` and `a:b:c` all raise, while `fe80::1%eth0` (zone id included) does not.
+    if _is_ipv6_literal(host):
         return True
     name, _, port = host.rpartition(":")
     return bool(name) and port.isdigit() and ":" not in name
@@ -437,8 +475,9 @@ def _reduce_origin(value):
         #
         # Reducing it to an origin would destroy a legitimate identifier, so the free-text
         # redaction is applied instead: the identifier survives, a credential inside it
-        # does not.
-        return _redact_userinfo_in_text(value)
+        # does not — including its QUERY STRING, which the free-text rule alone does not
+        # remove and which `_safe_origin` would have dropped had the gate matched.
+        return _redact_query_in_identifier(value)
     return _safe_origin(value)  # a URL: origin only, or dropped if it will not parse
 
 
@@ -473,10 +512,24 @@ def _reduce_origin(value):
 #
 # FIRST alternative — `(scheme(?::/{1,2}|//))([^\s/:]*+:[^\s]*)@`
 #   Separator: `://`, `:/` or `//` — damaged OR intact.
-#   Userinfo:  REQUIRES a colon. The head `[^\s/:]*+` excludes whitespace, `/` and `:` and is
-#              POSSESSIVE, which gives the colon exactly one split point; without that the
-#              engine retried every split inside a single match attempt and the pattern was
+#   Userinfo:  REQUIRES a colon. The head `[^\s/:]*+` EXCLUDES the colon, which is what gives
+#              the required colon exactly one split point; without that exclusion the engine
+#              retried every split inside a single match attempt and the pattern was
 #              quadratic (15.6s at 60 KB) even though start positions were already pruned.
+#              ⚠️ ATTRIBUTION, corrected twice and now stated with its measurement, because
+#              THREE constructs here overlap and this comment has credited the wrong one in
+#              two consecutive rounds. In order of what actually caps the work today:
+#                * the `{0,256}` TAIL BOUND is the active guard. Without it the tail ran to
+#                  end-of-string at every scheme start on a separator-dense, `@`-free value —
+#                  14.7s at 128 KB, live, and past this file's own 5s test ceiling.
+#                * the COLON EXCLUSION in `[^\s/:]` was the active guard BEFORE that bound
+#                  existed. With the bound in place it is now belt-and-braces: removing it
+#                  changes 0 of 200,003 outputs and costs 1.5-3.1x, all linear.
+#                * the POSSESSIVE `*+` was never the guard at all, in either regime: 0 of
+#                  200,003 outputs, 1.02x.
+#              All three are kept — they are free — but only the first is load-bearing, and a
+#              comment that promotes a redundant construct to "the fix" is how the real one
+#              goes unmeasured for three rounds.
 #              The tail `[^\s]*` excludes ONLY whitespace, so it permits `/`, `?`, `#` and
 #              `@` — that is deliberate and it is what makes the match run to the LAST `@`.
 #              A password containing `@` (the canonical Azure `user@server` login) otherwise
@@ -518,10 +571,14 @@ def _reduce_origin(value):
 # refuted. Tokens are overwhelmingly `[A-Za-z0-9_-]`, so the residual is narrow; it is
 # asserted in the test rather than described only here.
 #
-# POSSESSIVE `*+`, and it is NOT on the scheme run — a claim this comment and decision row
-# D-019 both made, and both were wrong. It sits on the FIRST alternative's userinfo head,
-# `[^\s/:]*+`, where it gives the required colon exactly one split point instead of retrying
-# every split inside a single match attempt.
+# POSSESSIVE `*+` — and TWO things this comment said about it were wrong, one per round.
+# First it claimed the `*+` sits on the scheme run (D-019 said so too); it does not, it sits
+# on the FIRST alternative's userinfo head. Then it claimed that possessive quantifier is
+# what closes the in-match blowup; it is not. Measured directly: making it greedy changes
+# the output on 0 of 200,003 probed inputs and the timing by 1.02x at 128 KB. The construct
+# that actually closes it is the COLON EXCLUSION in `[^\s/:]` — with the colon outside the
+# class there is exactly one place the required `:` can sit, so there is nothing to retry.
+# The `*+` is kept as belt-and-braces and is documented as such rather than as the fix.
 #
 # The two quadratic blowups here are DIFFERENT and each needed its own fix, which is why one
 # fix kept looking like it had not worked. Across START POSITIONS: on one long unbroken
@@ -529,7 +586,10 @@ def _reduce_origin(value):
 # at 60 KB, synchronously inside `before_send`; that one is closed by the 32-char LENGTH
 # BOUND on the scheme run (below), not by a possessive quantifier, which was measured and
 # did not help. Inside a SINGLE match attempt: the userinfo head splitting at each candidate
-# colon; that one is closed by the possessive. An earlier comment claimed "requiring the
+# colon; that one is closed TODAY by the `{0,256}` tail bound, and was closed before that
+# bound existed by excluding the colon from the head class. Both are kept; only the bound is
+# load-bearing (measured — see the FIRST-alternative note above). An earlier comment
+# claimed "requiring the
 # scheme is what makes this linear" — necessary, not sufficient — and the measurement that
 # "proved" linearity used `"a:"*n`, where the colons break the runs and neither blowup can
 # appear. Wrong shape, confident number.
@@ -555,46 +615,354 @@ def _reduce_origin(value):
 # 32 characters caps the work at each start position, so the scan is linear in input length
 # without needing a boundary at all. A registered URI scheme is at most 30-odd characters;
 # 32 is generous and the bound is what makes the cost predictable.
-_URL_USERINFO_RE = re.compile(
-    # ⚠️ ORDER MATTERS, and having it the other way round was a HIGH leak. Both alternatives
-    # can match at the same position and Python's `|` takes the FIRST that does. With the
-    # `?#`-excluding rule leading, a DSN whose USERNAME itself contains an `@` — the
-    # canonical Azure Postgres `user@server` login form — matched only the part before that
-    # first `@`, emitted `[redacted]@`, and shipped the rest of the credential behind a
-    # marker that reads as a successful redaction. A rule that can match MORE of a credential
-    # must be tried before one that matches less. (Described rather than written out: the
-    # secrets check reads a literal DSN here as a real credential, correctly — it cannot
-    # tell one from the other.)
-    #
-    # ⚠️ ORDERING IS NOT THE WHOLE FIX, stated here because the paragraph above otherwise
-    # reads as one. It closes the cases where a DIFFERENT alternative can match more — `?`
-    # and `#` inside the password, both completely. It cannot close `/` or whitespace,
-    # because NO alternative crosses those characters. The `/` case is closed separately, by
-    # permitting `/` in the colon-requiring alternative's TAIL only — safe because that
-    # alternative also requires a colon, so `https://h/a@b` (no colon before the `@`) still
-    # does not match.
-    #
-    # WHITESPACE stays a residual, and deliberately: the tail is greedy to the last `@`, so
-    # permitting whitespace would let a match starting in a DSN run past the space and
-    # swallow whatever follows — an ordinary log line that mentions a DSN and then an email
-    # address would lose the email too. That is a far worse over-redaction than the leak it
-    # closes, and a space in a DSN password is not RFC 3986-valid unencoded. Asserted in the
-    # tests. (Described rather than written out: the secrets check reads a literal DSN in a
-    # comment as a real credential, correctly — it cannot tell one from the other.)
-    #
-    # `[^\s/:]*+` — colon-free AND possessive — gives the userinfo exactly ONE split point.
-    # Written as `[^\s/]*:[^\s/]*` the two unbounded greedy runs can be divided many ways,
-    # and on a colon-dense run with no `@` to terminate the match the engine tries all of
-    # them: 7.6s on a 32 KB value, synchronously inside `before_send`. Bounding the scheme
-    # did not help — that blowup is across start positions, this one is inside a SINGLE
-    # match attempt, and the first fix only closed one of the two.
-    r"([a-zA-Z][a-zA-Z0-9+.\-]{0,31}(?::/{1,2}|//))([^\s/:]*+:[^\s]*)@"
-    r"|"
-    # The colon-less fallback: the only rule that catches a bare-token userinfo
-    # (`https://<token>@host`). It excludes `?#` per RFC 3986, which keeps
-    # `https://h?a=1@2` intact.
-    r"([a-zA-Z][a-zA-Z0-9+.\-]{0,31}://)([^\s/?#]+)@"
+# The userinfo tail bound, named ONCE so the regex and the fail-closed net below cannot
+# drift apart — they encode the same threshold and a silent disagreement between them
+# would reopen the fail-open gap the net exists to close.
+# ⚠️ PARSER-BASED, replacing seven successive regex designs. Operator decision, 2026-09-05.
+#
+# The regex approach was refuted SEVEN times, on both directions and on complexity, each time
+# by a different reviewer: the failure mechanism, the separator form, the password alphabet,
+# `@`-in-password, two distinct quadratics, a token-boundary lookbehind that fail-OPENed, the
+# alternation order, a length bound that truncated behind its own marker, and the same bound
+# failing OPEN. The last one destroyed 43.2% of a realistic structured-log corpus, because a
+# rule that "runs to the last `@`" cannot know where a URL ENDS inside a JSON or logfmt
+# record — it happily ran from a URL's port-colon into an unrelated email address.
+#
+# That is the whole defect class, and it is not fixable by a better pattern: a regex over free
+# text has to GUESS the boundary. So the boundary is now READ instead.
+#
+# An authority ends at the first character that cannot appear in one. That single rule
+# replaces the alternation order, the last-`@` heuristic, the trailing-punctuation trim, the
+# length bound and its fail-closed net — all of which existed only to approximate it.
+# Square brackets are the one subtlety: they delimit an IPv6 literal and are ordinary text
+# anywhere else, so they extend the authority only when it opens with one.
+_AUTHORITY_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~%:[]@"
 )
+# Characters that may appear INSIDE an authority but cannot END one, so they belong to the
+# surrounding prose: `http://127.0.0.1:8000.` at the end of a sentence.
+_AUTHORITY_TRAILING = "._~%:-"
+# The scheme run stays length-bounded. Unlike the bound that was removed, this one cannot
+# change the ANSWER for a real scheme — the longest registered URI scheme is under 32
+# characters — and it is what keeps the scan linear across start positions.
+_REDACTED = "[redacted]"
+
+
+def _ends_url(char: str) -> bool:
+    """True when `char` terminates a URL run.
+
+    ⚠️ THIS ALSO TESTED `char.isspace()` for one round, and that clause was INERT — provably,
+    not arguably. This function is called only on characters drawn from a `_NON_SPACE_RE`
+    (`\\S+`) token, and an exhaustive scan of all 1,114,112 codepoints finds NONE that is both
+    `isspace()` and matched by `\\S`. It could never fire.
+
+    Worse, the comment justifying it named a leak it did not close: a password containing a
+    non-breaking space ships its tail byte-identically before and after that change. That
+    residual is real, it is the WHITESPACE residual this module has always had (`\\S+` splits
+    the token there and no match crosses a token boundary), and it is pinned by a test rather
+    than papered over. A fix written against a mechanism that cannot fire, with a confident
+    comment attached, is the defect this review keeps finding in other people's code.
+    """
+    return char in _URL_END_CHARS
+_NON_SPACE_RE = re.compile(r"\S+")
+# A URL run may contain the path/query/fragment delimiters; an AUTHORITY may not, which is
+# what `_first_delimiter` finds. Both stop at the characters that end a URL outright —
+# quotes, braces, angle brackets, the comma joining two of them in one log line.
+# ⚠️ The URL run is bounded by what ENDS a URL in prose, not by an ASCII allowlist. An
+# allowlist stopped at the first non-ASCII byte, so a password containing `ä` was cut in half
+# and its tail shipped. These are the characters that genuinely terminate a URL inside a log
+# line — quote, brace, angle bracket, pipe, backslash, caret, backtick, comma, parenthesis —
+# plus whitespace. Everything else, including non-ASCII, is URL content.
+#
+# ⚠️ CORRECTED: this sentence used to claim "a boundary rule, not a credential rule — deciding
+# whether what was found IS a credential stays with `_is_bare_authority`". That is FALSE, and
+# a reviewer was right to call it out. The boundary decides FIRST, by truncating the run
+# before `_is_bare_authority` ever sees it, so these characters are part of the credential
+# decision whether or not the comment says so.
+#
+# STATED RESIDUAL, and it is a deliberate trade rather than an oversight: a password
+# containing one of these characters has its TAIL survive after the marker —
+# `scheme://svc:Tr0ub4dor(3)@host` emits `[redacted](3)@host`. That is the "reads as a
+# successful redaction" shape this module treats as its worst, so the alternative was
+# measured rather than assumed: extending the run past an ender to a later `@` closes 4 of 4
+# such passwords AND destroys 4 of 7 realistic log records — the 43.2% structured-log
+# destruction that caused the engine to be replaced in the first place (D-030). Between a
+# tail surviving on a punctuation-bearing password and half of all logfmt records being
+# rewritten, this is the better trade, and this repo's own generated passwords are 32 chars
+# of `[a-zA-Z0-9]` (`secrets.choice`) and contain none of these characters.
+#
+# Not a defence, a boundary: `_is_bare_authority` still decides everything the run does reach.
+_URL_END_CHARS = frozenset(" \t\n\r\f\v\"'<>{}|\\^`,()")
+
+
+def _scan_delimiter(token: str, start: int, end: int) -> int:
+    """Index of the first `/?#` in the authority run, or -1. O(authority)."""
+    for index in range(start, end):
+        char = token[index]
+        if char in "/?#":
+            return index
+        if char not in _AUTHORITY_CHARS:
+            return -1
+    return -1
+
+
+def _scan_authority(token: str, start: int, end: int) -> int:
+    """One past the longest leading run that could BE an authority. O(authority)."""
+    index = start
+    while index < end and token[index] in _AUTHORITY_CHARS and token[index] not in "/?#":
+        index += 1
+    return index
+
+
+def _scan_for_any(token: str, start: int, end: int, chars: str) -> int:
+    """Index of the first character of `chars` in [start, end), or -1."""
+    for index in range(start, end):
+        if token[index] in chars:
+            return index
+    return -1
+
+
+def _first_delimiter(text: str) -> int:
+    """Index of the first `/`, `?` or `#`, or -1. This is where an authority ends."""
+    found = [i for i in (text.find("/"), text.find("?"), text.find("#")) if i != -1]
+    return min(found) if found else -1
+
+
+def _authority_prefix(text: str) -> str:
+    """The longest leading run of `text` that could actually BE an authority.
+
+    An ALLOWLIST, and it replaces a strip-set that kept needing new members: `;` after a
+    port, `*` from markdown emphasis, `=` from `key=value`, `&`, `+`, `$` — every abutting
+    character had to be enumerated, and the one not yet enumerated was collateral. Naming
+    what an authority may CONTAIN ends that, which is the same inversion this module made at
+    the field level and again at the character level.
+    """
+    end = 0
+    while end < len(text) and text[end] in _AUTHORITY_CHARS:
+        end += 1
+    return text[:end].rstrip(_AUTHORITY_TRAILING)
+_URL_START_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9+.\-]{0,31}(://|:/|//)")
+
+
+def _positions(token: str) -> "tuple[list[int], ...]":
+    """`@`, run-ender and bracket offsets in one pass.
+
+    ⚠️ PRECOMPUTED, and that is a complexity property rather than tidiness. Each of these was
+    previously re-derived per scheme start — `rfind`, a forward scan to the run end, a
+    `.find()` triple — so a token with many scheme starts cost O(n) per match. Measured at
+    103s on a 128 KB value once nested URLs made the scan per-match. Precomputing once and
+    bisecting makes every per-match lookup O(log n).
+    """
+    ats: list[int] = []
+    enders: list[int] = []
+    brackets: list[int] = []
+    cuts: list[int] = []
+    delims: list[int] = []
+    for index, char in enumerate(token):
+        if char == "@":
+            ats.append(index)
+        if _ends_url(char):
+            enders.append(index)
+        elif char in "[]":
+            brackets.append(index)
+        elif char in "?#":
+            cuts.append(index)
+        if char in "/?#":
+            delims.append(index)
+    return ats, enders, brackets, cuts, delims
+
+
+def _first_at_or_after(positions: "list[int]", index: int) -> "int | None":
+    """The first offset in `positions` at or after `index`."""
+    found = bisect.bisect_left(positions, index)
+    return positions[found] if found < len(positions) else None
+
+
+def _last_at_before(positions: "list[int]", low: int, high: int) -> int:
+    """The last offset in `positions` within [low, high), or -1."""
+    found = bisect.bisect_left(positions, high) - 1
+    return positions[found] if found >= 0 and positions[found] >= low else -1
+
+
+def _redact_token(token: str, drop_query: bool) -> str:
+    """Redact one whitespace-free token. Linear: every per-match lookup is O(log n)."""
+    ats, enders, brackets, cuts, delims = _positions(token)
+    out: list[str] = []
+    pos = 0        # everything before this index is already in `out`
+    scanned = 0    # everything before this index has already been EXAMINED
+    length = len(token)
+    for match in _URL_START_RE.finditer(token):
+        if match.start() < scanned:
+            continue
+        separator = match.group(1)
+        start = match.end()
+        hard_end = _first_at_or_after(enders, start)
+        hard_end = length if hard_end is None else hard_end
+        # Square brackets belong to a URL only as an IPv6 literal's delimiters — anywhere else
+        # they are ordinary text (markdown links, JSON arrays). But a bracketed host can also
+        # FOLLOW a userinfo, so a bracket ends the run only if it precedes the first `@`.
+        end = hard_end
+        if not (start < length and token[start] == "["):
+            first_at = _first_at_or_after(ats, start)
+            first_bracket = _first_at_or_after(brackets, start)
+            if (
+                first_bracket is not None
+                and first_bracket < hard_end
+                and (first_at is None or first_bracket < first_at)
+            ):
+                end = first_bracket
+        if end == start:
+            continue
+        # ⚠️ The FIRST `/?#` in the run, unconditionally. A version of this stopped at the
+        # first non-authority character and returned -1, which sends `bare_at` to the last
+        # `@` in the WHOLE run — precisely what the comment below says it must not do. The
+        # result was a FABRICATED HOST: `git+ssh://git+bot@github.com/org/repo.git@v1.2` came
+        # out as `git+ssh://[redacted]@v1.2`, the real host deleted and a tag shown in its
+        # place. Any of `+ = & ! ; * $` in the authority triggered it.
+        delimiter = _first_at_or_after(delims, start)
+        delimiter = -1 if delimiter is None or delimiter >= end else delimiter
+        last_at = _last_at_before(ats, start, end)
+        bare_at = _last_at_before(ats, start, delimiter if delimiter != -1 else end)
+        replacement = None
+        keep_from = None
+        if last_at != -1:
+            userinfo_delimiter = _scan_for_any(token, start, last_at, "/?#")
+            colon = token.find(":", start, last_at)
+            # A COLON BEFORE THE FIRST `/?#` separates a userinfo from a path, and it is the
+            # whole distinction: `scheme://a/b@c` is either host `a` with path `/b@c`, or
+            # userinfo `a/b` with host `c`, and nothing else tells them apart. Getting it
+            # wrong permissively destroyed 43.2% of a structured-log corpus.
+            colon_first = colon != -1 and (
+                userinfo_delimiter == -1 or colon < userinfo_delimiter
+            )
+            # An INTACT `://` also accepts a colon-less BARE TOKEN userinfo — the only rule
+            # catching `https://<token>@host` — but its `@` is the last one BEFORE the first
+            # delimiter, not the last overall.
+            bare_token = separator == "://" and bare_at != -1
+            if not colon_first and bare_token:
+                last_at = bare_at
+            if colon_first or bare_token:
+                host_end = _scan_authority(token, last_at + 1, end)
+                host = token[last_at + 1:host_end].rstrip(_AUTHORITY_TRAILING)
+                # The HOST must itself parse, or the secret simply sits after the `@`.
+                replacement = (
+                    f"[redacted]@{host}" if _is_bare_authority(host) else "[redacted]"
+                )
+                keep_from = last_at + 1 + len(host) - start
+        if replacement is None:
+            authority_end = _scan_authority(token, start, end)
+            authority = token[start:authority_end].rstrip(_AUTHORITY_TRAILING)
+            if token.startswith(_REDACTED, start):
+                # Our own marker is inert — but ONLY standing alone. A bare `startswith` here
+                # is a fail-open: it would wave `scheme://[redacted]:<secret>` through.
+                remainder = token[start + len(_REDACTED):authority_end]
+                if ":" not in remainder and "@" not in remainder:
+                    scanned = end
+                    continue
+            # An absent `@` is not an absent credential: a truncated DSN leaves
+            # `scheme://user:secret`, shape-identical to `host:port` and separated from it
+            # only by whether the port is numeric.
+            if authority and "@" not in authority and not _is_bare_authority(authority):
+                replacement = "[redacted]"
+                keep_from = len(authority)
+        tail_cut = -1
+        if drop_query:
+            base = start + (keep_from if keep_from is not None else 0)
+            if keep_from is None:
+                base = _scan_authority(token, start, end)
+            tail_cut = _first_at_or_after(cuts, base)
+            tail_cut = -1 if tail_cut is None or tail_cut >= end else tail_cut
+            if tail_cut != -1 and token.startswith(_REDACTED, tail_cut + 1):
+                tail_cut = -1
+        if replacement is None and tail_cut == -1:
+            # Resume past the AUTHORITY, not the whole run: a URL NESTED in this one's query
+            # lives inside the same run, and skipping to the end hid it —
+            # `https://proxy/?next=https://user:<secret>@host` shipped whole, 6 of 6 shapes.
+            scanned = end if delimiter == -1 else delimiter
+            continue
+        out.append(token[pos:match.start()])
+        if replacement is None:
+            out.append(token[match.start():tail_cut])
+        else:
+            out.append(f"{token[match.start():start]}{replacement}")
+        if tail_cut != -1:
+            # Emit the PATH between the authority and the delimiter. The credential branch
+            # jumped straight to `token[tail_cut]` and silently deleted it, so a value with
+            # BOTH a userinfo and a query lost its path — contradicting this module's own
+            # promise to leave "the message, scheme, host and path". No test saw it: every
+            # query-cut case in the suite is credential-free, so the path-preserving branch
+            # was always the one taken.
+            if replacement is not None:
+                out.append(token[start + keep_from:tail_cut])
+            out.append(f"{token[tail_cut]}{_REDACTED}")
+            pos = scanned = length
+            break
+        # Emit the scheme and replacement ONLY; the tail is left for the loop to re-examine,
+        # which is where a nested URL lives, and is emitted by the next prefix append or the
+        # final one. Emitting it here AND rewinding past it duplicated it.
+        pos = scanned = start + keep_from
+    if not out:
+        return token
+    out.append(token[pos:])
+    return "".join(out)
+
+
+def _redact_urls(value: str, drop_query: bool = False) -> str:
+    """Strip credentials from URLs embedded in free text, keeping the text.
+
+    Closes the residual the originating report named and left open: "never interpolate a
+    secret into a log message or exception string". Allowlisting cannot help, because these
+    fields are allowlisted precisely BECAUSE triage needs them.
+
+    The DRIVER is a URL-PARSE failure, not a connection failure — a refused connection raises
+    `ConnectionRefusedError`, DNS `gaierror`, auth `InvalidPasswordError`, and none carries
+    the URL. What quotes it is `ArgumentError: Could not parse SQLAlchemy URL from string
+    '<the whole DSN>'`. So the separator may be DAMAGED (`:/`, `//`) — that is the case being
+    redacted, not an edge one.
+
+    Deliberately narrow: it removes the credential and leaves the message, scheme, host and
+    path, so an operator still sees which host refused. It is NOT a general secret scanner —
+    a bare token in prose is still the developer's responsibility.
+
+    Work is done PER WHITESPACE TOKEN, which is a complexity property rather than a
+    convenience: every character class here excludes whitespace, so no match can cross a
+    token.
+    """
+    if "://" not in value and ":/" not in value and "//" not in value:
+        return value
+    out: list[str] = []
+    last = 0
+    for token_match in _NON_SPACE_RE.finditer(value):
+        token = token_match.group(0)
+        redacted = _redact_token(token, drop_query)
+        if redacted != token:
+            out.append(value[last:token_match.start()])
+            out.append(redacted)
+            last = token_match.end()
+    if not out:
+        return value
+    out.append(value[last:])
+    return "".join(out)
+
+
+def _redact_userinfo_in_text(value):
+    """Free-text fields: strip the credential, keep the query string (D-026)."""
+    if not isinstance(value, str):
+        return value
+    return _redact_urls(value)
+
+
+def _redact_query_in_identifier(value: str) -> str:
+    """SDK-populated URL-shaped fields: strip the credential AND the query/fragment.
+
+    `request.url` and `query_string` are dropped from the allowlist and `referer` is reduced
+    to a bare origin, all because a query string carries tokens; `_safe_origin` keeps only
+    `scheme://host`. The leak was the FALLBACK `origin` and `transaction` share when their
+    positional URL gate misses. The free-text fields are deliberately NOT included — that is
+    D-026's scope decision, pinned by a test.
+    """
+    return _redact_urls(value, drop_query=True)
+
 
 
 # The `@`-LESS half. `_URL_USERINFO_RE` requires a literal `@` in both alternatives, so a
@@ -612,8 +980,10 @@ _URL_USERINFO_RE = re.compile(
 #      failed the authority test and took the delimiter with it, yielding
 #      `http://[redacted]`. Same for a quote, brace, comma, semicolon or colon, which is
 #      most structured log output: `{"url": "redis://redis-main:6379"}` came out with its
-#      JSON truncated. 14.6% over-redaction — against the 16.3% for which this very module
-#      RECORDS having rejected an earlier design as too destructive.
+#      JSON truncated. ⚠️ The rate was 22.9% (11 of 48), not the 14.6% first reported —
+#      re-measured by replaying the rule at its own commit. That INVERTS the comparison: it
+#      is worse than the 16.3% for which this very module records rejecting an earlier
+#      design as too destructive, not "in the same band" as first written.
 #      The shipped grader could not see it: all 12 of its entries terminated the URL with a
 #      space or a `/`. That is exactly the corpus blindness this file's own docstring
 #      accuses the 26,880-case fuzz corpus of — committed in the same file, the same day.
@@ -621,8 +991,10 @@ _URL_USERINFO_RE = re.compile(
 #      after, so a delimiter is never part of the decision nor collateral in the result.
 #
 #   2. QUADRATIC — the third time in this file. The old `(?![^\s/?#]*@)` lookahead rescanned
-#      forward for every backtracked length of the authority run: 197 SECONDS on a 120 KB
-#      value, synchronously inside `before_send`. It was masked (anything that made it
+#      forward for every backtracked length of the authority run — 118-140 SECONDS at
+#      120-128 KB, synchronously inside `before_send`. (The first report of this said "197s
+#      at 120 KB"; it does not reproduce, and the grader's payload is 128 KB, not 120.)
+#      It was masked (anything that made it
 #      backtrack also matched the rule above, which replaced the region first) and so latent
 #      rather than live — but one reordering away from live, shipped with no complexity
 #      measurement, in a file that documents two prior quadratics. The lookahead existed
@@ -637,91 +1009,80 @@ _URL_USERINFO_RE = re.compile(
 #   4. The authority CLASS also has to exclude the characters that separate one URL from
 #      the next, or a comma-joined pair is read as a single authority:
 #      `http://a.example:80,http://b.example:80` matched the run `a.example:80,http:` — not
-#      an authority — and redacted across the boundary. Quotes and brackets are excluded for
-#      the same reason; `,` is technically an RFC 3986 sub-delim, but in log prose it is a
-#      separator every time.
-_TRAILING_AUTHORITY_RE = re.compile(
-    r"([a-zA-Z][a-zA-Z0-9+.\-]{0,31}(?::/{1,2}|//))([^\s/?#@,\"'<>{}|\\^`]+)"
-)
+#      an authority — and redacted across the boundary. Quotes and the comma end the run for
+#      the same reason. SQUARE BRACKETS DO NOT and must not: they delimit an IPv6 literal and
+#      are the one bracket pair that legitimately appears inside an authority. An earlier
+#      version of this comment said brackets were excluded; they never were, and could not
+#      be — the class is what is right and the sentence was what was wrong.
 
-# Characters that routinely ABUT a URL in log output and can never end an authority. Trimmed
-# before the test and restored after it.
-_AUTHORITY_TRAILING_PUNCT = "\"'`.,;:!?)]}>"
-
-
-def _redact_trailing_authority(m: "re.Match") -> str:
-    """Drop an authority that does not provably parse as one; keep every real host."""
-    scheme, authority = m.group(1), m.group(2)
-    # The sentinel test, replacing a lookahead that was quadratic (see 2. above). Pass 1 runs
-    # first and emits `[redacted]@`; this declines to re-redact that output.
-    #
-    # HONESTY ABOUT ITS CURRENT STATUS: it is DEFENCE IN DEPTH, not a load-bearing guard, and
-    # the difference is worth stating because the version of this comment that shipped first
-    # claimed the latter. Mutation says so: deleting this branch changes the output on 0 of
-    # 4,539 probed inputs — including `scheme://[redacted]@host/path`, the exact shape it
-    # exists for — and leaves the whole suite green. The pass-2 match simply does not reach a
-    # redaction on pass-1 output in the current design. It is kept because the reasoning that
-    # made it necessary under the LOOKAHEAD design is one edit away from applying again, and
-    # because a constant-time guard against re-redacting our own marker costs nothing. It is
-    # NOT kept because a test proves it fires — no test does, and none is contorted to.
-    if authority.startswith("[redacted]"):
-        return m.group(0)
-    core = authority.rstrip(_AUTHORITY_TRAILING_PUNCT)
-    # A bracketed literal's own closing `]` is in the punctuation set, so trimming ate it and
-    # `[admin:hunter2]` was rebuilt as `[redacted]]`. Safe (the credential was gone) but
-    # wrong-looking, and a redaction that emits visible garbage teaches readers to distrust
-    # it. Put the bracket back before deciding; `[::1]:6379.` still trims only the full stop.
-    if authority.startswith("[") and "]" not in core:
-        closing = authority.find("]")
-        if closing != -1:
-            core = authority[: closing + 1]
-    if not core or _is_bare_authority(core):
-        return m.group(0)
-    return f"{scheme}[redacted]{authority[len(core):]}"
+# ⚠️ ALLOWLIST, because the DENYLIST version destroyed anything it had not enumerated. It
+# listed 13 punctuation characters as "characters that routinely ABUT a URL", and the comment
+# beside it claimed "a delimiter is never part of the decision nor collateral in the result".
+# Measured, 14 of 21 abutting shapes were altered: `**http://api:8000** is up` came out as
+# `**http://[redacted] is up`, and `=`, `+`, `&`, `!`, `(`, `*` all took the tail with them.
+# Enumerating the bad is the same failure this whole module was rewritten to stop doing, and
+# it recurred here at the character level.
+#
+# So the authority CLASS above now names what an authority may CONTAIN — alphanumerics, the
+# unreserved marks, `%` for percent-encoding, `:` for the port, `[`/`]` for IPv6, and `@`
+# for the userinfo split. Anything else simply ends the run and is never seen by the
+# decision. This set is only what may not END one: a trailing dot, colon or mark is legal
+# inside a host and never terminates it.
 
 
-def _redact_userinfo_match(m: "re.Match") -> str:
-    """Rebuild the matched prefix, dropping whichever alternative's userinfo matched."""
-    if m.group(1) is not None:
-        return f"{m.group(1)}[redacted]@"
-    return f"{m.group(3)}[redacted]@"
+
+# ⚠️ THE QUERY STRING IS CREDENTIAL-BEARING, and this module had already decided that
+# everywhere except here. `request.url` and `query_string` are dropped from the allowlist,
+# and a `referer` header is reduced to a bare origin — all three because a query string
+# carries tokens. But the FREE-TEXT redaction stripped userinfo only, so the same secret
+# survived in SIX other fields: `transaction`, `contexts.trace.origin`, `spans[].origin`,
+# `exception.values[].value`, `logentry.message` and TOP-LEVEL `message`.
+#
+# ⚠️ This inventory said "five" and omitted top-level `message` — the same field a previous
+# round singled out for being omitted from a DIFFERENT inventory in this same module, under
+# a comment reading "it covered the field the comment says cannot be reached and missed the
+# field the comment says is reached". Same omission, one round later, inside the fix written
+# to close the previous one. Measured over the 10 allowlist-kept URL-capable fields: 3 closed
+# here, 3 left as the stated residual, 6 total.
+#
+# ⚠️ "the 10 allowlist-kept URL-capable fields" was a number a reader could not
+# re-derive, and the set is NINE when enumerated: the six above plus `spans[].description`,
+# `headers.referer` and `headers.origin`, which are closed elsewhere. There is no tenth —
+# `request.url` and `query_string` are not allowlist-kept, so they cannot be it. Stated as
+# the enumeration rather than a count, because the count is what rotted.
+#
+# Measured end-to-end through `_scrub_event`: `?token=<secret>` reached the wire in all six
+# while `referer` was correctly reduced — one module, two opposite answers about the same
+# substring, decided by which field it happened to land in.
+#
+# This is NOT the "general secret scanner" the module's docstring declines to be. A bare
+# `token=abc123` in prose is still free text and still the developer's problem. A QUERY
+# STRING is a structured URL component this module already treats as dangerous; leaving it
+# in five fields was the inconsistency, not closing it.
+#
+# COST, measured before shipping: 1 of the 48-entry benign corpus is altered — a legitimate
+# `https://example.com?q=1` loses its parameters. That is the identical cost already accepted
+# for `request.url` and `referer`, and the host and path survive so triage keeps the part
+# that identifies the request.
+# ⚠️ NOT A LENGTH-BOUNDED REGEX, and the bounded one it replaces is why. Spanning
+# `scheme://<path>\?<query>` in a single pattern needs both runs bounded or it is quadratic
+# (41s on a 128 KB repeated-scheme value). Bounding them traded that for TWO leaks and a
+# false claim, all shipped together:
+#   * a query longer than the bound left its remainder in the output, immediately AFTER the
+#     `[redacted]` marker — the "reads as a successful redaction and is strictly worse than
+#     not matching at all" failure this file already names three times;
+#   * a PATH longer than the bound meant no length could satisfy the run before the literal
+#     `?`, so the match failed and the query was emitted WHOLE — fail-open;
+#   * and the comment claimed "no match lost", which was asserted rather than measured. Both
+#     boundaries were one probe away.
+# A bound that silently changes the ANSWER is not a safe way to buy linearity.
+#
+# exact one-repo-two-answers split this rule exists to close (`#access_token=` is the OAuth
+# implicit-flow shape, i.e. the realistic case).
 
 
-def _redact_userinfo_in_text(value):
-    """Strip credentials out of URLs embedded in a free-text field, keeping the text.
 
-    This closes the residual the ORIGINATING report named and left open: "never interpolate
-    a secret into a log message or exception string". Allowlisting cannot help here, because
-    the field is allowlisted precisely BECAUSE triage needs it — `exception.values[].value`
-    is the exception message and `logentry.message` is the log template.
 
-    ⚠️ The DRIVER MECHANISM here was asserted wrongly once and is worth stating correctly,
-    because the fix's shape depends on it. The first version claimed a connection failure
-    quotes the DSN. Measured against this service's real stack (SQLAlchemy 2.0.25 +
-    asyncpg), it does not: a refused connection raises `ConnectionRefusedError`, a DNS
-    failure `gaierror`, an auth failure `InvalidPasswordError` — none carries the URL.
-
-    The shape that DOES quote it is a URL-PARSE failure: `ArgumentError: Could not parse
-    SQLAlchemy URL from string '<the entire DSN>'`. That reverses the design constraint,
-    because a URL fails to parse precisely because its separator is damaged — so the first
-    fix, which required `://`, missed the only case that actually reaches this field.
-    This service has a `DATABASE_URL`, so the path is real rather than theoretical.
-
-    Deliberately narrow, and the narrowness is the point. It removes ONLY the userinfo
-    segment and leaves the message, the scheme, the host and the path — so the operator
-    still sees which host refused the connection, which is the whole reason the field is
-    kept. It is not a general secret scanner: a bare token in prose ("token=abc123") is
-    still free text and still the developer's responsibility. Claiming otherwise would be
-    the denylist mistake this module was rewritten to avoid.
-    """
-    if not isinstance(value, str):
-        return value
-    # TWO passes, and both are needed: the first handles a userinfo terminated by `@`, the
-    # second the `@`-less shape a truncated DSN leaves behind. Keying on `@` alone was the
-    # gap, and it was invisible for 43 rounds because this function's 26,880-case corpus
-    # builds every entry from a template with a literal `@` in it.
-    value = _URL_USERINFO_RE.sub(_redact_userinfo_match, value)
-    return _TRAILING_AUTHORITY_RE.sub(_redact_trailing_authority, value)
 
 
 def _reduce_logentry(logentry: dict) -> dict:
@@ -962,8 +1323,12 @@ def _scrub_event(event: dict, hint: dict) -> dict:
             #
             # Reducing it to an origin here would destroy legitimate names, so the same
             # free-text redaction the message fields use is applied instead: the name
-            # survives, the credential does not.
-            event["transaction"] = _redact_userinfo_in_text(transaction)
+            # survives, the credential does not — including its QUERY STRING, which the
+            # free-text rule alone does not remove. `transaction` and `origin` share this
+            # positional gate and therefore share its fallback; the last time only one of
+            # them was fixed, the identical string was redacted in one field and shipped
+            # whole in the other.
+            event["transaction"] = _redact_query_in_identifier(transaction)
 
     _reduce_metadata(event)
 
@@ -1071,12 +1436,52 @@ def _drop_metric(metric, hint):
     return None
 
 
+def _first_set(*values: str | None) -> str | None:
+    """The first value that is non-blank after stripping, or None."""
+    for value in values:
+        value = (value or "").strip()
+        if value:
+            return value
+    return None
+
+
+# HUB NOTE: the docstring below is upstream's and describes SITE-PROVISIONER — its
+# `api/main.py:3`, its hub spec's `GIT_SHA: ""` and its W-16322a6e build-arg item. In a
+# scaffolded service, compose sets `APP_GIT_SHA=${GIT_SHA:-unknown}` at runtime and the fabrik
+# deployer persists `GIT_SHA` (the deployed commit) in the app's `.env`, so APP_GIT_SHA carries
+# the real SHA with no build arg involved.
+def _release() -> str | None:
+    """The deployed SHA, or None — never a placeholder.
+
+    ⚠️ Read the names the CONTAINER actually receives. `compose.yaml` passes `GIT_SHA` only as
+    a BUILD ARG and puts `APP_GIT_SHA` in the runtime `environment:`; this read `GIT_SHA` and
+    the retired Coolify deployment id, so every event since Coolify's retirement shipped with
+    release=None. compose's own default is the literal "unknown", which is not a release:
+    sending it would file every unbuilt deploy under one bogus release.
+
+    ⚠️ Reading the right name does not by itself put a SHA in production. The hub spec sets
+    `GIT_SHA: ""`, so compose's `${GIT_SHA:-unknown}` yields "unknown" and this returns None
+    until the deploy passes the build arg (W-16322a6e). `GIT_SHA` is a fallback only for a run
+    that EXPORTS it: `init_glitchtip()` runs at `api/main.py:3`, before anything loads `.env`.
+
+    Each name is read with its own literal `os.environ.get("<NAME>")` so the env-example check,
+    which matches literal reads, can see both.
+    """
+    candidates = (os.environ.get("APP_GIT_SHA"), os.environ.get("GIT_SHA"))
+    # "unknown" is filtered PER NAME, so a placeholder APP_GIT_SHA falls through to a real
+    # GIT_SHA rather than masking it.
+    return _first_set(*(v for v in candidates if (v or "").strip() != "unknown"))
+
+
 def _init_sdk(sentry_sdk, FastApiIntegration, StarletteIntegration, LoggingIntegration, dsn):
     """Call sentry_sdk.init with this service's hardened configuration."""
     sentry_sdk.init(
         dsn=dsn,
-        environment=os.environ.get("ENVIRONMENT", "production"),
-        release=os.environ.get("GIT_SHA") or os.environ.get("COOLIFY_DEPLOYMENT_UUID"),
+        # `APP_ENV` is what compose sets; `ENVIRONMENT` only for a run that exports it. A blank
+        # or whitespace value falls through rather than shipping as the environment name.
+        environment=_first_set(os.environ.get("APP_ENV"), os.environ.get("ENVIRONMENT"))
+        or "production",
+        release=_release(),
         traces_sample_rate=float(os.environ.get("GLITCHTIP_TRACES_SAMPLE_RATE", "0.05")),
         profiles_sample_rate=float(os.environ.get("GLITCHTIP_PROFILES_SAMPLE_RATE", "0")),
         send_default_pii=False,
@@ -1164,6 +1569,11 @@ def _init_sdk(sentry_sdk, FastApiIntegration, StarletteIntegration, LoggingInteg
             #
             # Unhandled errors are still reported via the Starlette/FastAPI integrations, and
             # explicit sentry_sdk.capture_exception() still works.
+            #
+            # HUB NOTE: the inherited upstream sentence above — "`before_send_log` — a hook this
+            # module does not register" — is stale upstream: the hook IS registered above
+            # (`before_send_log=_drop_log`), and `_drop_log` drops every log item.
+            #
             # FLEET DEFAULT (D-126), and it DEPENDS ON THE ALLOWLIST ABOVE. Upstream uses
             # event_level=None, closing the log channel by never creating an event at all.
             # ERROR keeps the event — the fleet wants error records visible in GlitchTip —
@@ -1187,8 +1597,11 @@ def _init_sdk(sentry_sdk, FastApiIntegration, StarletteIntegration, LoggingInteg
             # `_scrub_event` on `{"logentry": {"message": "auth failed for
             # token=BEARER_TOKEN_ABC123"}}` returns that string unchanged.
             # A SECOND residual, same root: `logger.error(..., exc_info=True)` on a CAUGHT
-            # exception builds `exception.values[].value` from the exception's own message,
-            # and that field is allowlisted and NOT run through the text redactor —
+            # exception builds `exception.values[].value` from the exception's own message.
+            # This field IS run through the text redactor (already so at 6715c29; re-measured
+            # at a13c801), so a URL-shaped credential is caught there too — and an earlier
+            # version of this comment wrongly said it was not. But, exactly as for the
+            # template, a BARE token has no shape to key on: re-measured at a13c801,
             # `{"exception": {"values": [{"value": "bad key sk-live-DEADBEEF"}]}}` survives
             # scrubbing intact. For an UNCAUGHT exception this is a wash (the ASGI
             # integration reports it either way), but a caught-and-logged one becomes an
@@ -1201,8 +1614,9 @@ def _init_sdk(sentry_sdk, FastApiIntegration, StarletteIntegration, LoggingInteg
             # is why scaffolded services log with %-style placeholders and keep secrets out
             # of exception messages.
             # `sentry_logs_level=None` is kept EXACTLY as upstream: that third handler goes
-            # out through `before_send_log`, which this module does not register, so
-            # `_scrub_event` has zero reach into it. Raising it is not ours to do.
+            # out through `before_send_log`, where `_scrub_event` has zero reach — the
+            # registered `_drop_log` hook drops every log item instead of scrubbing it.
+            # Raising it is not ours to do.
             LoggingIntegration(
                 event_level=logging.ERROR, level=None, sentry_logs_level=None
             ),

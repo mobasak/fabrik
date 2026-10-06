@@ -145,6 +145,30 @@ All notable changes to this project will be documented in this file.
 - On trade-intelligence's real tree it keeps 20 of 20 comments, where HEAD kept 17, and leaves both plan sets collapsed. A second run is a no-op.
 - 7 graders. Follow-up W-3efb9553 covers `--only` and plan-set directories.
 
+### Fixed — scaffolded services report to GlitchTip with a release and environment (2026-10-06)
+
+- python-api, python-api-gpu and node-api containers now receive `SENTRY_DSN`/`GLITCHTIP_DSN`, `APP_GIT_SHA=${GIT_SHA:-unknown}` and `ENVIRONMENT` (before, the DSN never reached them, so they sent nothing). `fabrik apply` and `redeploy` persist the deployed commit as `GIT_SHA` in the app's `.env`, after the spec's env so a spec `GIT_SHA: ""` cannot blank it, and a rollback writes the rolled-back SHA. A failed `rev-parse` leaves `.env` alone and the deploy goes on. `_is_placeholder` also treats one bare `${NAME[:-default]}` as a placeholder, so a spec copying the compose lines never overwrites a real `.env` value. The vendored `glitchtip_init.py` is re-vendored from site-provisioner a13c801 (release from `APP_GIT_SHA` then `GIT_SHA`, environment from `APP_ENV` then `ENVIRONMENT`, 12 upstream scrubber fixes); the node module reads the same names in the same order. Graders: `tests/test_scaffold_glitchtip_release.py`, `tests/orchestrator/test_deployer_git_sha.py`. Site-provisioner mail 01M491AE33, D-626.
+
+### Added — the PostgreSQL major-upgrade operator runbook (16 → 18) (2026-10-06)
+
+- `docs/operations/postgres-major-upgrade-runbook.md`: pre-window probes, the WSL window (D2), the hub window (disk gate, D1 steps 1-8 with 6a — each a command block, a verify line and a rollback), release after the soak (the V8 DR drill first, every removal gated on the operator's word), and the D5/D6/D7 request texts. Its SQL and shell were rehearsed on throwaway 16 and 18.6 containers; the review fixed a WSL-step-2 guard that could drop the upgraded cluster, a settings port that would stop 18 from booting, a truncated-dump check, and a password file inside a backed-up path. The Backrest snapshot is a precondition of the DR-chain merge. `tests/test_pg18_runbook.py` (56 tests, several behavioural) grades it, including the T02/T03 seam tests. PG18 plan T05.
+
+### Changed — the two large current-state docs say PostgreSQL 18 (2026-10-06)
+
+- `docs/infrastructure/vps-complete-inventory.md` and `docs/traycer/fabrik-workflow.md` name PostgreSQL 18 and `pgvector/pgvector:0.8.6-pg18` as the current stack; history lines are left. `tests/test_large_docs_pg18.py` guards both docs with spelling-blind patterns (any separator, `ver`/`version`, a `v` prefix). PG18 plan T04b; merges after the hub window.
+
+### Changed — the hub's live pins and current-state docs say PostgreSQL 18 (2026-10-06)
+
+- The real-PG scratch container in `tests/test_app_role_real_pg.py` is `postgres:18.6-alpine` (16 passed on it); `scripts/container_images.py`, `scripts/generate_vps_inventory.py`, `README.md` and `docs/workstation/session-recall.md` name 18. Merges after the hub window (PG18 plan T04a). `tests/test_live_docs_pg18.py` guards the files.
+
+### Fixed — the disaster-recovery chain restores `postgres18-data`, and its database probe works (2026-10-06)
+
+- `FABRIK_HUB_VOLUMES_TO_RESTORE` and every DR script and doc name the new volume. The step 12c and step_14 probes queried double-quoted IDENTIFIERS inside `remote '…'`, so the query always errored, `|| true` emptied it, and a rebuild always replayed the old pg_dump over a good restored cluster; both now list databases and require `glitchtip` and `site_provisioner` exactly. Docs no longer claim step 12c demonstrates the restore — the V8 DR drill does. Committed on its own branch `fleet-pg18-dr`, which infra merges inside the hub window (PG18 plan T03). `tests/test_dr_chain_pg18.py` guards it, each guard seen red on its mutation.
+
+### Changed — the repo's hub compose files describe the PostgreSQL 18 cluster and exporter (2026-10-06)
+
+- `infra/vps1/postgres/compose.yaml` runs `postgres:18.6-alpine` (platform `linux/amd64`) on the new external volume `postgres18-data` mounted at `/var/lib/postgresql`; `infra/vps1/monitoring/compose.yaml` moves postgres-exporter to `v0.20.1` with `--collector.stat_checkpointer`. This is the repo mirror of the hand-edit the operator makes in the hub window (PG18 plan T02); it merges after that window. `tests/test_infra_vps1_postgres_compose.py` pins it.
+
 ### Fixed — a re-apply no longer re-mints a generated secret; the deployed value is kept (2026-10-06)
 
 - `fabrik apply` minted a fresh value for every `secrets.generate`/`required` key the hub could not resolve, on EVERY apply, and the template path baked it into `compose.yaml` — so a re-apply replaced passwords and a stable encryption key such as Zitadel's `ZITADEL_MASTERKEY`. `SSHDeployer._preserve_minted_secrets` now keeps the value the deployed `.env` holds, before anything renders; to rotate such a secret, set it on the hub. A failed read of the remote `.env` aborts the deploy when anything was minted. W-023bdd59, D-619; review receipt `docs/development/reviews/2026-10-06-mint-once-secrets-review.md`.

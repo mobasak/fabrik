@@ -1,0 +1,102 @@
+{
+  "plan": "docs/development/plans/2026-10-06-plan-1-postgresql-18-upgrade/",
+  "owned_paths": [
+    "README.md",
+    "docs/infrastructure/vps-complete-inventory.md",
+    "docs/infrastructure/vps-hub-rebuild.md",
+    "docs/operations/disaster-recovery.md",
+    "docs/operations/hub-restore-inventory.md",
+    "docs/operations/postgres-major-upgrade-runbook.md",
+    "docs/traycer/fabrik-workflow.md",
+    "docs/workstation/session-recall.md",
+    "infra/vps1/monitoring/compose.yaml",
+    "infra/vps1/postgres/compose.yaml",
+    "scripts/bootstrap/bootstrap-config.sh",
+    "scripts/bootstrap/bootstrap-hub.sh",
+    "scripts/container_images.py",
+    "scripts/generate_vps_inventory.py",
+    "scripts/sysadmin/rules_render_versions.py",
+    "src/fabrik/ci_scaffold.py",
+    "src/fabrik/orchestrator/vultr_drill.py",
+    "tests/sysadmin/test_rules_render_versions.py",
+    "tests/test_app_role_real_pg.py",
+    "tests/test_ci_scaffold.py",
+    "tests/test_dr_chain_pg18.py",
+    "tests/test_infra_vps1_postgres_compose.py",
+    "tests/test_large_docs_pg18.py",
+    "tests/test_live_docs_pg18.py",
+    "tests/test_pg18_runbook.py"
+  ],
+  "branch": "worktree-fleet",
+  "started_at": "2026-10-06T15:50:30+00:00",
+  "status": "active",
+  "baseline_commit": "b9ffa57fed90028584fdb616b4075b1e0a803952",
+  "baseline_gate": {
+    "lean": "success",
+    "red": []
+  },
+  "tickets": {
+    "T02": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a8e081e52bab958d9",
+      "branch": "worktree-agent-a8e081e52bab958d9",
+      "commit": "bb4a3910f40c5e36173ed1bcd24266170f20bce1",
+      "base_commit": "b9ffa57fed90028584fdb616b4075b1e0a803952",
+      "started_at": "2026-10-06T15:50:30+00:00",
+      "acceptance_commit": "63da08d67"
+    },
+    "T03": {
+      "state": "merged",
+      "worktree_path": "/tmp/claude-1000/-opt-fabrik--claude-worktrees-fleet/1970a0ff-baa3-401b-ba52-fb0c5de43261/scratchpad/fleet-pg18-dr",
+      "branch": "fleet-pg18-dr",
+      "commit": "027e78718",
+      "fixups": [
+        "027e78718"
+      ],
+      "base_commit": "db43895f9",
+      "started_at": "2026-10-06T15:50:30+00:00",
+      "acceptance_commit": "b54bb5cde"
+    },
+    "T04a": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a29210c3a155fc7ea",
+      "branch": "worktree-agent-a29210c3a155fc7ea",
+      "commit": "d6a360dfcb3c5ceaeec232087db1fcd1ab9d90cb",
+      "base_commit": "b9ffa57fed90028584fdb616b4075b1e0a803952",
+      "started_at": "2026-10-06T15:50:30+00:00",
+      "acceptance_commit": "12ef919a0"
+    },
+    "T04b": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a9f1c0d80a80d62fc",
+      "branch": "worktree-agent-a9f1c0d80a80d62fc",
+      "commit": "a069029d7",
+      "base_commit": "387ef61a4",
+      "started_at": "2026-10-06T17:19:30+00:00",
+      "fixups": [
+        "65df3ffd7"
+      ],
+      "acceptance_commit": "801aa4b46"
+    },
+    "T05": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a4ceab0d74302f8e1",
+      "branch": "worktree-agent-a4ceab0d74302f8e1",
+      "commit": "cea025a1f",
+      "base_commit": "12ef919a0",
+      "started_at": "2026-10-06T17:19:30+00:00",
+      "fixups": [
+        "d2f3fe95b"
+      ],
+      "acceptance_commit": "6af528803"
+    }
+  },
+  "wave2": {
+    "review": "docs/development/reviews/2026-10-06-plan-1-postgresql-18-upgrade-T04b-review.md CONVERGED (1a849a1ed)",
+    "merged": [
+      "801aa4b46",
+      "6af528803"
+    ]
+  },
+  "next": "T01a, T01b \u2014 infra precondition landed on origin/master 075f8feae (pgvector_version 0.8.6; literals frozen); then T06 integration"
+}
