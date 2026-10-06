@@ -1140,12 +1140,15 @@ METRIC_DEFS: tuple[dict, ...] = (
         "id": "death_occurrences",
         # v1 (fix-wave 6, W6-1): the death cell's day series — the weekly log cell
         # aggregates PUBLISHED day points, never a row recompute.
-        "version": 1,
+        # v2 (W-97de2aa3): a clean coroner sweep that closed the day is evidence too.
+        "version": 2,
         "counter_metric": "death_classes",
         "formula": (
             "attributed death events summed over the day's delta rows (envelope "
             "count — a truncated death line still counts). Measurable only on a day "
-            "whose rows carry coroner evidence (a death or session_end event): a 0 "
+            "with coroner evidence — a death or session_end event in its rows, or a "
+            "clean coroner sweep that closed the day (coroner-sweeps.jsonl: errors 0, "
+            "not blind, no inconclusive marker on an instrumented session): a 0 "
             "without evidence would fabricate a coroner that never ran (M9, "
             "day-scoped). Attribution-floor guarded like every event-family metric. "
             "The weekly log cell is the SUM of the ISO week's published day values — "
@@ -1156,7 +1159,8 @@ METRIC_DEFS: tuple[dict, ...] = (
     {
         "id": "death_classes",
         # v1 (fix-wave 6, W6-1): the class half of the death cell's day series.
-        "version": 1,
+        # v2 (W-97de2aa3): bumped WITH death_occurrences — the shared evidence gate changed.
+        "version": 2,
         "counter_metric": "death_occurrences",
         "formula": (
             "the {class: count} distribution of the day's NEW death classes — the "
@@ -1441,7 +1445,10 @@ def unattributed_unknowable_reason(cause: str | None, what: str) -> str:
 
 
 def compute_metrics(
-    rows: list[dict], holes: int | None = None, holes_reason: str = "no hole source provided"
+    rows: list[dict],
+    holes: int | None = None,
+    holes_reason: str = "no hole source provided",
+    coroner_swept: bool = False,
 ) -> dict[str, MetricResult]:
     """Compute the M1 registered set over derived-facts rows. Every unmeasurable
     metric is ``—`` with its reason — never a fabricated 0.
@@ -1775,9 +1782,10 @@ def compute_metrics(
         out["death_classes"] = MetricResult.unavailable(
             "death_classes", death_guard + _gap_note("death_classes")
         )
-    elif coroner_evidence <= 0:
+    elif coroner_evidence <= 0 and not coroner_swept:
         no_coroner = (
-            "no coroner evidence in the day's rows (no death or session_end event) — "
+            "no coroner evidence for the day (no death or session_end event in its rows, "
+            "and no clean coroner sweep that closed it in coroner-sweeps.jsonl) — "
             "a 0 would fabricate a coroner run (M9, day-scoped)"
         )
         out["death_occurrences"] = MetricResult.unavailable(
@@ -2655,6 +2663,40 @@ def _emit_alarm(reason: str, mismatches: list[str]) -> None:
 # ── daily mode ────────────────────────────────────────────────────────────────────────
 
 
+def _coroner_swept(day: dt.date, state: Path) -> bool:
+    """Did a CLEAN coroner sweep close ``day``? (W-97de2aa3) — a line in
+    ``<state>/coroner-sweeps.jsonl`` (written by kaizen_coroner.sweep) with 0 errors, not
+    blind, no inconclusive marker on an instrumented session, taken AFTER the day ended
+    (local) and looking back past its start. A same-day sweep saw only part of the day, so
+    it never evidences it; a collector run before the closing sweep leaves the day
+    unmeasured — fail-closed. Any qualifying line suffices. Unreadable → False."""
+    # each bound is ITS date's real local midnight — never start + 24 h, which is an hour
+    # off on a daylight-saving change day (23 h / 25 h)
+    start = dt.datetime.combine(day, dt.time()).astimezone()
+    end = dt.datetime.combine(day + dt.timedelta(days=1), dt.time()).astimezone()
+    try:
+        lines = (state / "coroner-sweeps.jsonl").read_text("utf-8", errors="replace").splitlines()
+    except OSError:
+        return False
+    for raw in lines:
+        try:
+            row = json.loads(raw)
+            ts = dt.datetime.fromisoformat(str(row["ts"]))
+            if ts.tzinfo is None:
+                continue  # an offset-less stamp cannot be placed against local midnight
+            clean = (
+                int(row.get("errors", 1)) == 0
+                and row.get("blind") is False
+                and int(row.get("inconclusive", 1)) == 0
+            )
+            reach = ts - dt.timedelta(hours=float(row["lookback_h"]))
+        except (ValueError, KeyError, TypeError):
+            continue  # a torn or foreign line never evidences
+        if clean and ts >= end and reach <= start:
+            return True
+    return False
+
+
 def _coroner_holes(day: dt.date, events: Path | None = None) -> tuple[int | None, str]:
     """The coroner hole probe. ``events`` pins the probe's event store to the SAME
     dir this daily pass consumes (L4) — the default-source probe silently counted a
@@ -2885,7 +2927,12 @@ def daily(
         holes, holes_reason = holes_fn(day), ""
     else:
         holes, holes_reason = _coroner_holes(day, ev)
-    metrics_day = compute_metrics(day_deltas, holes, holes_reason or "no hole source provided")
+    metrics_day = compute_metrics(
+        day_deltas,
+        holes,
+        holes_reason or "no hole source provided",
+        coroner_swept=_coroner_swept(day, st),
+    )
     written = publish_series(day_stamp, metrics_day, reg, st)
     # M7: the store-derived outcome tier publishes its series days here too —
     # guarded, fail-open (a warn, never a lost T06 publish).

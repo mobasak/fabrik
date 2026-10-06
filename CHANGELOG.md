@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the kaizen death metrics are measured on death-free days (2026-10-06)
+- `death_occurrences` / `death_classes` read NOT MEASURED every day since 09-14: the collector only accepted a `death` or `session_end` event as proof the coroner ran, and a healthy day has neither. Each coroner sweep now appends one line to `~/.claude/state/kaizen/coroner-sweeps.jsonl`; a clean sweep that closed the day (0 errors, not blind, no inconclusive death marker on a Stop-hook-instrumented session) makes it a measured 0. The collector job runs that closing sweep first, and both metrics move to version 2 (W-97de2aa3).
+
 ### Fixed — the completion gate is green again after the wsl-mcp bridge landed (2026-10-06)
 - `tools/wsl-mcp/server.py` carried 8 ruff errors and `docs/workstation/wsl-mcp.md` had no `INDEX.md` entry (both from 898eb1269), which turned the repo-wide lint ratchet and the INDEX↔docs check red for every session. The lint rewrites are behaviour-neutral on the service's Python 3.12 (the five tool schemas are byte-identical to before).
 

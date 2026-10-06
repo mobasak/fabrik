@@ -13,6 +13,8 @@ READ-ONLY, always, and no test touches the operator's real ``~/.claude/state``: 
 from __future__ import annotations
 
 import contextlib
+import dataclasses
+import datetime as dt
 import json
 import os
 import subprocess
@@ -931,3 +933,84 @@ def test_hole_count_is_version_4(monkeypatch):
     rows = [d for d in mod.METRIC_DEFS if d["id"] == "hole_count"]
     assert len(rows) == 1 and rows[0]["version"] == 4
     assert "scripts/final_gate.py" in rows[0]["formula"]
+
+
+# ── W-97de2aa3 part 2: the coroner's own sweep log ───────────────────────────────────
+
+
+def _with_log(sources: kc.Sources, tmp_path: Path) -> kc.Sources:
+    return dataclasses.replace(sources, sweeps_log=tmp_path / "state" / "coroner-sweeps.jsonl")
+
+
+def test_sweep_appends_its_line(sources, tmp_path):
+    """Behaviour 1: one bounded line per sweep, carrying what the collector checks."""
+    src = _with_log(sources, tmp_path)
+    kc.sweep(src)
+    lines = src.sweeps_log.read_text().splitlines()
+    assert len(lines) == 1 and len(lines[0]) < kc.SWEEP_LINE_MAX
+    row = json.loads(lines[0])
+    for key in (
+        "ts",
+        "deaths",
+        "session_ends",
+        "inconclusive",
+        "markers_seen",
+        "holes_today",
+        "errors",
+        "lookback_h",
+        "blind",
+    ):
+        assert key in row, key
+    assert row["errors"] == 0 and row["blind"] is False and row["lookback_h"] > 0
+    assert dt.datetime.fromisoformat(row["ts"]).tzinfo is not None
+
+
+def test_fixture_sweep_writes_no_line(sources, tmp_path, monkeypatch):
+    """Behaviour 2: a Sources without sweeps_log (every fixture, --selftest) writes nothing —
+    even with KAIZEN_STATE_DIR pointing somewhere writable."""
+    monkeypatch.setenv("KAIZEN_STATE_DIR", str(tmp_path / "live"))
+    assert sources.sweeps_log is None
+    kc.sweep(sources)
+    assert not (tmp_path / "live").exists()
+
+
+def test_inconclusive_counts_instrumented_only(sources, tmp_path):
+    """Behaviour 3: an undecidable marker on an instrumented session makes the line
+    unclean; the same marker on a probe ping from a non-project directory does not."""
+    undecided = {
+        "type": "assistant",
+        "isApiErrorMessage": True,
+        "message": {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "API Error: 403 org not allowed."}],
+        },
+    }
+    _write_transcript(sources, SID, [undecided])
+    _write_marker(sources, SID, "oauth_org_not_allowed")
+    src = _with_log(sources, tmp_path)
+    kc.sweep(src)
+    assert json.loads(src.sweeps_log.read_text().splitlines()[-1])["inconclusive"] == 1
+    (tmp_path / "home").mkdir()
+    other = "bbbb1111-2222-3333-4444-555566667777"
+    _write_transcript(sources, other, [undecided], cwd=str(tmp_path / "home"))
+    _write_marker(sources, other, "oauth_org_not_allowed")
+    (sources.transcripts_dir / "-opt-fabrik" / f"{SID}.jsonl").unlink()
+    (sources.lock_dir / f"{kc._mesh_safe(SID)}.errparked").unlink()
+    kc.sweep(src)
+    last = json.loads(src.sweeps_log.read_text().splitlines()[-1])
+    assert last["inconclusive"] == 0 and last["markers_seen"] == 1
+
+
+def test_a_failed_record_close_is_counted_in_the_line(sources, tmp_path, monkeypatch):
+    """A-S1/A-S4: a record-closure failure used to only warn, so the sweep line read
+    errors 0 after an error; it is counted now, which keeps that sweep from evidencing."""
+    _write_record(sources, "stale-1", age_s=13 * 3600.0)
+
+    def boom(*_a, **_k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(kc, "_command_run_save", boom)
+    src = _with_log(sources, tmp_path)
+    report = kc.sweep(src)
+    assert any("record close" in e for e in report.errors)
+    assert json.loads(src.sweeps_log.read_text().splitlines()[-1])["errors"] >= 1

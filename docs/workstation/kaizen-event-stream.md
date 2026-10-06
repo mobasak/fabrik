@@ -233,7 +233,7 @@ them.
 | `rule_activation` | `gate_failure_taxonomy` | run-closing sessions | T06 collector |
 | `unclassified_rate` | `hole_count` | instrument health (metric zero) | T06 collector |
 | `hole_count` | `unclassified_rate` | coroner holes | T06 collector |
-| `death_occurrences` | `death_classes` | day's death events (coroner-evidence-gated) | T06 collector |
+| `death_occurrences` | `death_classes` | day's death events (coroner-evidence-gated: a death/session_end event, or a clean closing sweep in `coroner-sweeps.jsonl`) | T06 collector |
 | `death_classes` | `death_occurrences` | day's NEW class distribution (delta suffix) | T06 collector |
 | `rework_rate` | `review_rounds` | git-mined commits, `/opt/*` | T07 `--rework` |
 | `review_rounds` | `rework_rate` | round-carrying sessions | T07 (from store rows) |

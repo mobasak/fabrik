@@ -27,7 +27,10 @@ can compute.** The cron measures; the agent thinks.
 
 The third line is the **daily coroner sweep** (`kaizen_coroner.py --sweep`): post-hoc
 death/revival reconstruction plus closure of run records that can no longer close themselves —
-the hole metric and the record TTLs depend on it, and nothing else on the box runs it. Each
+the hole metric and the record TTLs depend on it. The collector line also runs one coroner sweep
+first, under the coroner's own lock and never fatally, so the day it publishes always has the sweep
+that closed it (each sweep appends a line to `~/.claude/state/kaizen/coroner-sweeps.jsonl`, the death
+pair's evidence — W-97de2aa3). Each
 job's liveness evidence is its **success stamp** (`~/.claude/state/daily-<job>.stamp`, touched
 only on success — the log files are also written by nudges and failures, so they are not
 heartbeats); the three surfaces are registered in `.fabrik/liveness-registry.json`.
@@ -195,7 +198,7 @@ version · every week day gapped/unpublished:
 | Column | Status | Source |
 |---|---|---|
 | Gate first-pass rate | **real** (M1) | `first_attempt_gate_pass` day points, week-summed — sessions whose FIRST attributed **non-check** `gate_run` succeeded (`--check` self-reviews, incl. the Stop hook's automatic run, never define a first attempt). |
-| Death-classes /wk | **real** (M1) | the `death_occurrences` ⟂ `death_classes` day series (coroner-reconstructed, delta-honest at publish: the day's NEW deaths/classes only) — `<occurrences> occ / <distinct classes> cls`. A day without coroner evidence (no death/session_end event) publishes nothing — a `0` there would be fabricated (M9, day-scoped). |
+| Death-classes /wk | **real** (M1) | the `death_occurrences` ⟂ `death_classes` day series (coroner-reconstructed, delta-honest at publish: the day's NEW deaths/classes only) — `<occurrences> occ / <distinct classes> cls`. A day without coroner evidence publishes nothing — a `0` there would be fabricated (M9, day-scoped). Evidence is a death/session_end event in the day's rows, OR (v2, W-97de2aa3) a clean coroner sweep that closed the day: a line in `~/.claude/state/kaizen/coroner-sweeps.jsonl` taken after the day ended, looking back past its start, with 0 errors, not blind, and no inconclusive death marker on an instrumented session. |
 | Lesson-class recurrence | `—` | Lessons carry no class tag; recurrence is the analysis half's judgement. |
 | Review rounds /plan | **real** (M1) | the single-source law's ONE carve-out (W8-1): recomputed latest-per-sid over the ISO week's day-scoped delta rows via `kaizen_outcomes.review_rounds(days=<week days>)` — never the day points (anonymous points cannot per-session-deduplicate a multi-day session). All windowed honesty (growth-only population, the 20% attribution floor, bootstrap/bump-day/pre-v3/shrink causes) runs at week scope; the detail rides stderr with the row (W9-2). A day whose point was never published still contributes when its store rows exist — the weekly value is not reconcilable against the day series by design (W9-4). |
 | Missed crons | `—` in this row | Not an event-stream metric — the liveness audit owns the answer (`scripts/sysadmin/liveness_audit.py`, `docs/workstation/liveness.md`); the reason rides stderr + mail. |
