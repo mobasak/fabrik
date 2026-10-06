@@ -241,7 +241,7 @@ OFF the host — into the Backrest B2 repository `b2-vps1` (`docs/operations/dis
 6a. **glitchtip first.** glitchtip (`glitchtip/glitchtip:latest`, Django and Celery,
    `infra/vps1/glitchtip/compose.yaml:3,7`) is the one application with no WSL rehearsal. Pin its image digest
    for the window, start glitchtip-web alone against 18, and check `/health` and `manage.py migrate --check`.
-   If it wrote, re-restore the `glitchtip` database before step 7: `DROP DATABASE glitchtip`, then
+   If it wrote, re-restore the `glitchtip` database before step 7: stop glitchtip-web, `DROP DATABASE glitchtip WITH (FORCE)`, then
    `pg_restore --create -d postgres` from its per-database `-Fc` dump; while nothing else is up this costs
    minutes.
 7. **The rollback cut-off.** Until services restart, rollback is one step: revert the compose image and mount to
