@@ -1,11 +1,12 @@
 services:
   postgres-main:
-    image: postgres:16-alpine
+    image: postgres:18.6-alpine
+    platform: linux/amd64
     container_name: postgres-main
     restart: unless-stopped
     env_file: .env
     volumes:
-    - postgres-data:/var/lib/postgresql/data
+    - postgres18-data:/var/lib/postgresql
     networks:
     - fabrik
     deploy:
@@ -22,7 +23,7 @@ services:
     ports:
     - 10.99.0.1:5432:5432
 volumes:
-  postgres-data:
+  postgres18-data:
     external: true
 networks:
   fabrik:

@@ -175,10 +175,12 @@ services:
         limits:
           memory: 256M
   postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:v0.15.0
+    image: prometheuscommunity/postgres-exporter:v0.20.1
     platform: linux/amd64
     container_name: postgres-exporter
     restart: unless-stopped
+    command:
+    - --collector.stat_checkpointer
     environment:
       DATA_SOURCE_NAME: postgresql://postgres:postgres@postgres-main:5432/postgres?sslmode=disable
       PG_EXPORTER_AUTO_DISCOVER_DATABASES: 'true'

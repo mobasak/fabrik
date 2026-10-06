@@ -48,7 +48,7 @@ restates nothing that section settles.
 |---|---|---|---|---|---|
 | T01a | The CI scaffold derives its Postgres images from the version registry | — | ⚡ | ⬜ | |
 | T01b | The loose-literal sweep sees the PG18 image shapes | — | ⚡ | ⬜ | |
-| T02 | The repo's hub compose files describe the PG18 cluster and exporter | — | ⚡ | 🟡 | |
+| T02 | The repo's hub compose files describe the PG18 cluster and exporter | — | ⚡ | ✅ | a93a62b97 |
 | T03 | The disaster-recovery chain restores postgres18-data | — | ⚡ | 🟡 | |
 | T04a | The hub's live pins and smaller current-state docs say 18 | — | ⚡ | 🟡 | |
 | T04b | The two large current-state docs say 18 | — | ⚡ | ⬜ | |

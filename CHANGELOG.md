@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the repo's hub compose files describe the PostgreSQL 18 cluster and exporter (2026-10-06)
+
+- `infra/vps1/postgres/compose.yaml` runs `postgres:18.6-alpine` (platform `linux/amd64`) on the new external volume `postgres18-data` mounted at `/var/lib/postgresql`; `infra/vps1/monitoring/compose.yaml` moves postgres-exporter to `v0.20.1` with `--collector.stat_checkpointer`. This is the repo mirror of the hand-edit the operator makes in the hub window (PG18 plan T02); it merges after that window. `tests/test_infra_vps1_postgres_compose.py` pins it.
+
 ### Fixed — a re-apply no longer re-mints a generated secret; the deployed value is kept (2026-10-06)
 
 - `fabrik apply` minted a fresh value for every `secrets.generate`/`required` key the hub could not resolve, on EVERY apply, and the template path baked it into `compose.yaml` — so a re-apply replaced passwords and a stable encryption key such as Zitadel's `ZITADEL_MASTERKEY`. `SSHDeployer._preserve_minted_secrets` now keeps the value the deployed `.env` holds, before anything renders; to rotate such a secret, set it on the hub. A failed read of the remote `.env` aborts the deploy when anything was minted. W-023bdd59, D-619; review receipt `docs/development/reviews/2026-10-06-mint-once-secrets-review.md`.
