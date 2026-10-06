@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure: run kaizen_coroner.py --sweep against a copy of the live sources and find why it reconstructs nothing (the daily stamp is 2026-10-06, imports load, --selftest passes)",
+  "next": "measured 2026-10-06: the daily job runs (~/.claude/kaizen-coroner.log, 12:53 each day) and finds 10-20 candidates a day, but every one lands in `inconclusive` (scripts/sysadmin/kaizen_coroner.py _tail_verdict/_walk_rows), so deaths_reconstructed and session_ends stay empty; paths are fine (~/.claude-fleet/active/projects is a symlink to ~/.claude/projects, 855 transcripts in 48h). Next: replay one inconclusive sid's tail through _walk_rows and find which row shape stopped matching around 2026-09-14",
   "note": "",
   "owner": "",
   "priority": 1,
