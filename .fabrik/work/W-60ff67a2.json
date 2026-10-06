@@ -17,10 +17,10 @@
     "87defcdbc5579c6ae4c27d6e2c4c1287f9cdb2204e12a97fb0073ed4c1ab6fec"
   ],
   "next": "",
-  "note": "",
+  "note": "use fable 5.1 and opus 5.5 subagents and consult them, revise if needed then proceed — consult done, D-617",
   "owner": "",
   "priority": 2,
   "question": "Do you approve this converged PostgreSQL 16 → 18 fleet upgrade design so it can go to planning?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Do you approve this converged PostgreSQL 16 → 18 fleet upgrade design so it can go to planning?"
 }
