@@ -3628,11 +3628,12 @@ def _validated_pick(
     retried for 30 minutes (:func:`_probe_account`); ``inconclusive`` picks it as before, and a
     ``refused`` one is auto-parked after a confirming second probe (:func:`_auto_park`) and
     skipped for the rest of this tick either way. The relief advisory and a manual ``--switch``
-    never probe, and neither does any caller while the operator's pause marker is set — nothing
-    is installed then, so a probe would spend a call and could park an account for nothing.
+    never probe, and neither does any caller while :func:`_pause_state` is not None (the marker,
+    or a state dir that cannot be read) — nothing is installed then, so a probe would spend a
+    call and could park an account for nothing.
     None when nobody survives."""
     exclude = set(exclude)
-    probe = probe and not _switch_paused()
+    probe = probe and _pause_state() is None
     while True:
         pick = _validated_pick_reading(accounts, exclude, verbose=verbose)
         if pick is None or not probe:
@@ -6082,8 +6083,9 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     # operator's included — is flipped away from here, with no quota reading needed (the trip
     # path below returns before deciding when the row has none) and is never re-probed.
     # The operator's freeze (the pause marker) holds the whole D6 re-check, not only its flip: no
-    # probe is spent and nothing is parked while they asked for no automated changes.
-    if not _switch_paused() and not _is_parked(row.get("weekly_cap")):
+    # probe is spent and nothing is parked while they asked for no automated changes. An
+    # unreadable pause state holds it too (fail closed, like the install it guards).
+    if _pause_state() is None and not _is_parked(row.get("weekly_cap")):
         verdict = _probe_account(
             row["email"],
             active_slug,
@@ -6200,7 +6202,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         #    account already resets soonest costs no probe and no log line.
         # COBRA (D-253): the cheapest way to look compliant is a sibling whose reset reads sooner only
         # because its cache is stale — a past reset counts as unknown, never as sooner.
-        if not _switch_paused():
+        if _pause_state() is None:
             now = _now()
 
             def _future_reset(r: dict) -> float | None:
@@ -7072,7 +7074,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # dwell while a sibling still has headroom; the reachable state test_fleet_tick_flips_at_
     # threshold's second tick sets up). The operator's PAUSE is the exception: it deliberately
     # froze the safety valve, so a walled active under pause IS a real stall worth the warning.
-    if not _switch_paused() and _validated_pick(accounts, {row["email"]}) is not None:
+    if _pause_state() is None and _validated_pick(accounts, {row["email"]}) is not None:
         if stamp.exists() and _clear_stamp(stamp):
             # transient dwell hold, not exhaustion → re-arm; the hold is gone for the sessions too
             _wake_held_sessions(now, "dwell", reading_ok)

@@ -897,3 +897,20 @@ def test_br9_a_marker_inside_the_skew_tolerance_is_clamped_to_now(tmp_path, monk
     monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
     (locks / "s.errparked").write_text(f"oauth_org_not_allowed {int(FLEET_NOW + 30)}\n")
     assert cr._session_refusal_epoch() == FLEET_NOW
+
+
+def test_br10_an_unreadable_pause_state_holds_the_probe_and_never_raises(tmp_path, monkeypatch):
+    """A state dir that cannot be read fails CLOSED like the install it guards: the pick is
+    returned unprobed, nothing is parked, and nothing escapes into the tick."""
+    _fleet_b(tmp_path, monkeypatch)
+    calls = _probe_by_dir(monkeypatch, refused={"intel"})
+
+    def unreadable():
+        raise PermissionError(13, "state dir unreadable")
+
+    monkeypatch.setattr(cr, "_rotate_state_dir", unreadable)
+    monkeypatch.setattr(
+        cr, "_validated_pick_reading", lambda acc, ex, verbose=False: ("intel", "ob@ocoron.com")
+    )
+    assert cr._validated_pick([], set(), probe=True) == ("intel", "ob@ocoron.com")
+    assert calls == []
