@@ -113,9 +113,11 @@ The traps, all of which produce a plausible-looking empty dossier rather than an
   degrades, and you get an empty dossier with `partial=True`. The pre-flight names the missing key,
   because the engine cannot. `--free-legs-only` requires only `BRAVE_API_KEY`.
 
-One wiring mistake is refused outright instead: running another repo's copy from inside a different
-checkout exits 2 with `WIRING ERROR (nothing was spent)` before any `.env` is read (W-6a157c25) — run
-the repo's OWN synced copy (`docs/reference/rivals-command.md` § The traps).
+The script also refuses a run from a directory outside the repo the copy belongs to when that directory
+sits inside some other checkout: once its arguments parse, it exits with rc 2 and the
+`WIRING ERROR (nothing was spent)` label, before any `.env` is read (W-6a157c25). Run each repo's OWN
+synced copy from inside that repo; the exact rule and its fail-open cases are in
+`docs/reference/rivals-command.md` § The vacuous-loop trap.
 
 ## Phase 2 — converge: dry discovery + the split audit
 
