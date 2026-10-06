@@ -117,7 +117,7 @@ Scope of the count: `src/fabrik` (83 files), `templates/` (335), `.windsurf/rule
 | production image | `infra/vps1/postgres/compose.yaml:3` | `postgres:16-alpine` (bypasses the registry) |
 | real-PG test container | `tests/test_app_role_real_pg.py:30` (also used by `tests/test_payments_ingest_real_pg.py:19`) | `postgres:16` |
 | tests pinning the CI images | `tests/test_ci_scaffold.py:29-30,42` | assert `pg16` / `postgres:16` |
-| live docs stating the major | 27 files (`rg -il` over `agents-fabrik.md`, `README.md`, `docs/` excluding archives and reviews), among them `agents-fabrik.md:170,186,188`, `README.md:859`, `docs/infrastructure/vps-complete-inventory.md:120,168`, `docs/operations/disaster-recovery.md:74`, `docs/reference/technology-stack-decision-guide.md:21,518`, `docs/reference/prebuilt-app-containers.md:87`, `docs/traycer/fabrik-workflow.md:412`, `docs/workstation/session-recall.md:3,15`, `docs/STRATEGIC_BACKLOG.md:131` (this upgrade's backlog row) | "PostgreSQL 16" |
+| live docs stating the major | 29 files (`rg -il` over `agents-fabrik.md`, `README.md`, `docs/` excluding archives and reviews), among them `agents-fabrik.md:170,186,188`, `README.md:859`, `docs/infrastructure/vps-complete-inventory.md:120,168`, `docs/operations/disaster-recovery.md:74`, `docs/reference/technology-stack-decision-guide.md:21,518`, `docs/reference/prebuilt-app-containers.md:87`, `docs/traycer/fabrik-workflow.md:412`, `docs/workstation/session-recall.md:3,15`, `docs/STRATEGIC_BACKLOG.md:131` (this upgrade's backlog row) | "PostgreSQL 16" |
 | scripts | `scripts/generate_vps_inventory.py:72`, `scripts/container_images.py:565` | 16 |
 
 The renderer (`scripts/sysadmin/rules_render_versions.py`, `_SPAN` at `:34`, `--check` at `:86`) rewrites spans
@@ -260,7 +260,7 @@ The window runs clear of 01:30–03:30 (the backup cron and the Backrest snapsho
   test uses `postgres:18.6-alpine`, matching production.
 - `scripts/sysadmin/rules_render_versions.py`: add the `postgres:N(.N)?-alpine` and `pgvector:X.Y.Z-pgN` shapes to
   `_LOOSE` (the `pgvector:pgN` shape already exists).
-- The 27 live docs and the two scripts in the table → 18; `docs/STRATEGIC_BACKLOG.md:131` closes with a pointer to
+- The 29 live docs and the two scripts in the table → 18; `docs/STRATEGIC_BACKLOG.md:131` closes with a pointer to
   this spec. Frozen artifacts stay as written: reviews, research ledgers, DECISIONS rows, LESSONS_LEARNT entries,
   and executed or archived plans.
 
@@ -297,8 +297,8 @@ production fails open.
   after D3 merges (the files are generated), plus `scripts/ci_local.sh:8`.
 - **youtube** — CI service to `postgres:18`; docs' `postgresql-16-pgvector` → 18.
 - **calendar-orchestration-engine** — pin `postgresql-client-18` in `Dockerfile.scheduler:12`: its
-  `node:22-bookworm-slim` base defaults to client 15 and lacks `ca-certificates`/`curl`/`gnupg`, so the request
-  adds those, the PGDG keyring and source, then the package (PGDG offers `18.6-1.pgdg12+2` for bookworm, measured
+  `node:22-bookworm-slim` base defaults to client 15, and that line installs `curl` but not
+  `ca-certificates`/`gnupg`, so the request adds those two, then the PGDG keyring and source, then the package (PGDG offers `18.6-1.pgdg12+2` for bookworm, measured
   in review).
 - **fabrik-lib** — README `postgres:16` and the vendored `schema.sql:3` comment; its copies flow to -account,
   -review and the projects that vendor `fastapi_user_auth`.
@@ -421,7 +421,7 @@ the old one retained until release.
 
 ## Documentation landing sites
 
-The 27 live docs of the hub-pins table (`agents-fabrik.md` § Database and § Infra, `README.md`,
+The 29 live docs of the hub-pins table (`agents-fabrik.md` § Database and § Infra, `README.md`,
 `docs/infrastructure/vps-complete-inventory.md`, `docs/operations/disaster-recovery.md`,
 `docs/operations/hub-restore-inventory.md`, `docs/workstation/session-recall.md`, the technology guide,
 `docs/reference/prebuilt-app-containers.md`, `docs/traycer/fabrik-workflow.md`, `docs/STRATEGIC_BACKLOG.md`, and
