@@ -27,6 +27,7 @@ from fabrik.orchestrator.exceptions import DeployError  # noqa: E402
 
 OLD = "a" * 40
 NEW = "b" * 40
+RETURNS_NONE = object()  # a `rev_parse` answer: the ssh seam returns None instead of a str
 
 
 class _Vps:
@@ -37,7 +38,7 @@ class _Vps:
         env: str | None,
         head: str = OLD,
         pulled: str = NEW,
-        rev_parse: str | Exception | None = None,
+        rev_parse: str | Exception | object | None = None,
         fail_first_up: bool = False,
     ) -> None:
         self.env = env
@@ -68,6 +69,8 @@ class _Vps:
             if self.has_pulled and self.rev_parse is not None:
                 if isinstance(self.rev_parse, Exception):
                     raise self.rev_parse
+                if self.rev_parse is RETURNS_NONE:
+                    return None  # a malformed seam answer, not a string
                 return self.rev_parse + "\n"
             return self.head + "\n"
         if "compose up" in cmd and self.fail_first_up:
@@ -235,8 +238,9 @@ def test_redeploy_and_rollback_persist_their_sha() -> None:
         "B" * 40,
         OLD[:39],
         "",
+        RETURNS_NONE,
     ],
-    ids=["raises", "error-text", "uppercase", "short", "empty"],
+    ids=["raises", "error-text", "uppercase", "short", "empty", "seam-returns-none"],
 )
 def test_unreadable_sha_leaves_env_alone(answer, caplog) -> None:
     # apply: the deploy proceeds, and .env keeps the GIT_SHA it already had.

@@ -58,9 +58,33 @@ def _init_kwargs(module, monkeypatch, env: dict[str, str]) -> dict:
     return seen
 
 
+def _assert_this_tree() -> None:
+    """The CODE comes from sys.path, but the TEMPLATES come from `fabrik.config.FABRIK_ROOT`,
+    resolved once at import from `$FABRIK_ROOT` or the process CWD's worktree — so a run from
+    another checkout grades that checkout's templates against this one's code."""
+    from fabrik import config
+
+    assert Path(scaffold.__file__).resolve().is_relative_to(REPO / "src"), (
+        f"fabrik imported from {scaffold.__file__}, not {REPO / 'src'} — run with PYTHONPATH=src"
+    )
+    for label, path in (
+        ("fabrik.config.FABRIK_ROOT", config.FABRIK_ROOT),
+        ("fabrik.scaffold.TEMPLATE_DIR", scaffold.TEMPLATE_DIR),
+    ):
+        assert Path(path).resolve().is_relative_to(REPO.resolve()), (
+            f"{label} = {path} is outside this repo ({REPO}): the scaffold would read another "
+            f"checkout's templates. Run pytest from {REPO}, or set FABRIK_ROOT={REPO}."
+        )
+
+
+@pytest.fixture(autouse=True)
+def _this_tree() -> None:
+    _assert_this_tree()
+
+
 def test_fabrik_resolves_to_this_tree() -> None:
-    """A green run against the main checkout's package would grade the wrong code."""
-    assert Path(scaffold.__file__).resolve().is_relative_to(REPO / "src"), scaffold.__file__
+    """A green run against the main checkout's package or templates would grade the wrong code."""
+    _assert_this_tree()
 
 
 @pytest.mark.parametrize(

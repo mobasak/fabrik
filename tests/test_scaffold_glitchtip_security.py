@@ -270,9 +270,9 @@ def test_vendored_module_is_deny_by_default_and_registers_both_hooks():
     )
     # The THIRD handler. `_sentry_logs_handler` defaults to INFO and emits `log` envelope
     # items carrying `sentry.message.parameter.0` — the interpolated log parameter — through
-    # `before_send_log`, a hook this module does not register. `_scrub_event` therefore has
-    # ZERO reach into that channel, so it is disabled outright rather than left resting on
-    # the `enable_logs` client default.
+    # `before_send_log`, where `_scrub_event` has ZERO reach. That hook is registered to
+    # `_drop_log`, which drops every item (graded below), and the handler is ALSO disabled
+    # outright rather than left resting on the `enable_logs` client default.
     assert kwargs.get("sentry_logs_level") == "None", (
         "sentry_logs_level must be None — that channel bypasses _scrub_event entirely; "
         f"got {kwargs.get('sentry_logs_level')!r}"
@@ -351,10 +351,42 @@ def test_vendored_module_is_deny_by_default_and_registers_both_hooks():
     assert init_kwargs.get("before_send_metric") == "_drop_metric", (
         f"before_send_metric must be wired to _drop_metric; got {init_kwargs.get('before_send_metric')!r}"
     )
+    # The SEVENTH channel: a direct `sentry_sdk.logger.*` call ships through `before_send_log`
+    # whatever `enable_logs` says, and `_scrub_event` never sees it. Wired AND executed.
+    assert init_kwargs.get("before_send_log") == "_drop_log", (
+        f"before_send_log must be wired to _drop_log; got {init_kwargs.get('before_send_log')!r}"
+    )
+    assert module._drop_log({"body": "token=LEAK", "attributes": {"k": "v"}}, {}) is None, (
+        "_drop_log must return None for every log item — anything else re-opens the channel"
+    )
+    # The server_name adaptation: the CALL, read off the AST (formatting-blind), not a count of
+    # the `{name}` token — a reverted fallback keeps the token count only by luck elsewhere.
+    assert init_kwargs.get("server_name") == "os.environ.get('SERVICE_NAME', '{name}')", (
+        "server_name must fall back to the scaffolded service name ({name}); "
+        f"got {init_kwargs.get('server_name')!r}"
+    )
     assert "enable_metrics" not in init_kwargs, (
         "enable_metrics is a documented no-op (client.py logs 'has no effect' and builds the "
         "MetricsBatcher regardless) — passing it reads as a closed channel to the next reader"
     )
+
+
+def test_server_name_falls_back_to_the_scaffolded_service_name(tmp_path, monkeypatch):
+    """With SERVICE_NAME unset, events name the scaffolded service — never the origin repo."""
+    import sentry_sdk
+
+    monkeypatch.setenv("SENTRY_DSN", "https://publickey@glitchtip.invalid/42")
+    monkeypatch.delenv("SERVICE_NAME", raising=False)
+    module = _load_guard_module(tmp_path)
+    seen: dict = {}
+    monkeypatch.setattr(sentry_sdk, "init", lambda **kw: seen.update(kw))
+    assert module.init_glitchtip() is True
+    assert seen["server_name"] == "guarded-svc"
+
+    monkeypatch.setenv("SERVICE_NAME", "from-env")
+    seen.clear()
+    assert module.init_glitchtip() is True
+    assert seen["server_name"] == "from-env"
 
 
 # ── T02: the emitter COPIES the vendored module instead of carrying an inline literal ──────────

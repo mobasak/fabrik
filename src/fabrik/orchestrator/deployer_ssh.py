@@ -921,10 +921,12 @@ def _read_head_sha(name: str, _ssh: Any) -> str | None:
 
     A failed read or an answer that is not 40 lowercase hex logs a warning and returns None: the
     caller then leaves ``.env``'s ``GIT_SHA`` as it was, because a missing GlitchTip release is not
-    worth a failed deploy.
+    worth a failed deploy. It never raises on a malformed answer (None, a non-str).
     """
     try:
-        out = _ssh(f"sudo git -C /opt/{name} rev-parse HEAD", timeout=30).strip()
+        # str(... or "") — a malformed seam answer (None, a non-str) reads as "not a SHA" below,
+        # so this never raises on it.
+        out = str(_ssh(f"sudo git -C /opt/{name} rev-parse HEAD", timeout=30) or "").strip()
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
         logger.warning("GIT_SHA not updated for %s: rev-parse failed: %s", name, e)
         return None
