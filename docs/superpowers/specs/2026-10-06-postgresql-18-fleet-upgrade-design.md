@@ -167,10 +167,21 @@ current doc states **16**; nothing is on 17 or 18; no `postgres:latest`.
 The window runs clear of 01:30–03:30 (the backup cron and the Backrest snapshots it feeds,
 `docs/operations/disaster-recovery.md:43`), or the cron is commented out for its duration.
 
-1. **Freeze deploys and writes.** Announce a deploy freeze (no `fabrik apply`), stop the WSL MCP tunnel, stop
+**Disk gate, before the window.** The hub (108 GB, `docs/infrastructure/vps-complete-inventory.md:108`) holds
+the old volume, the new one, the `pg_dumpall` file, the per-database dumps and the nightly dumps at once through
+the soak. Measure `sum(pg_database_size(datname))` and `df` on `/var/lib/docker` and `/opt`; the window opens only
+with free space of at least four times the cluster size plus 10 GB. The second copy of every dump (step 3) goes
+OFF the host — into the Backrest B2 repository `b2-vps1` (`docs/operations/disaster-recovery.md:28`), never the same disk.
+
+1. **Freeze deploys and writes.** Announce a deploy freeze (no `fabrik apply`), stop the WSL MCP tunnel,
+   `systemctl disable --now` the `fabrik-compose-boot` unit for the window (it runs `docker compose up -d` for
+   every `/opt/*/compose.yaml` on boot, `scripts/bootstrap/bootstrap-hub.sh:1409-1410`, so a reboot mid-window
+   would restart everything), stop every `*-watchdog` sidecar FIRST (a sidecar restarts its main container when it
+   exits, `docs/infrastructure/vps-complete-inventory.md:742`, and logs in itself as `watchdog`), then stop
    every service container that uses `postgres-main` (the plan derives the list from the spec inventory and the
    hub's `docker ps`, spokes included; glitchtip and the postgres-exporter log in as the superuser, so stopping
-   their containers is the only thing that keeps them out), then enforce the freeze in the database: first
+   their containers is the only thing that keeps them out) and assert with a `docker ps` filter that none came
+   back, then enforce the freeze in the database: first
    record every database's `datname, datconnlimit` (the pre-freeze limits), then `ALTER DATABASE … CONNECTION
    LIMIT 0` for every non-system database, terminate any remaining client backend,
    and assert `SELECT count(*) FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <>
@@ -181,14 +192,20 @@ The window runs clear of 01:30–03:30 (the backup cron and the Backrest snapsho
    `last_value`/`is_called`; `pg_extension` names and versions; `pg_database` encoding, collation, ctype, locale
    provider and owner (PG17 renamed `daticulocale` to `datlocale`, pg-15 — the manifest query names each side's
    column); `pg_roles` attributes and `rolpassword` prefix; `pg_auth_members` rows; `pg_default_acl`;
-   table and schema ACLs.
+   table and schema ACLs; a per-table content hash (`md5(string_agg(t::text, E'\n' ORDER BY <primary key>))`, or
+   every column where there is no key), because D-612's TRIPWIRE is row counts OR checksums; and the server
+   configuration a dump does not carry — `pg_settings` rows whose `source` is not `default`, `override`,
+   `client` or `session`, `pg_hba_file_rules`, and copies of `postgresql.auto.conf` and `pg_hba.conf` (an
+   `ALTER SYSTEM` such as a raised `max_connections` is absent from `pg_dumpall` and silently reverts to the
+   image default, measured in review).
 3. **Dump with the PG18 client** (pg-06), authenticating as the live superuser:
    `docker run --rm --network fabrik -e PGPASSWORD="$PGPW" postgres:18.6-alpine pg_dumpall -h postgres-main -U
    postgres > /opt/backups/pg16-final-<ts>.sql` (the official image trusts only local socket connections, so a
    TCP client without a password fails — measured), plus a per-database `pg_dump -Fc` with the same client for a
    granular restore. `$PGPW` is the superuser's live password; the plan proves it with a test connection before
-   the window. A copy of every dump also goes outside `/opt/backups`, out of reach of any retention in
-   `pre-backup.sh`.
+   the window. A copy of every dump also goes off the host (the disk gate above), out of reach of any retention
+   in `pre-backup.sh`. Stop the 16 container the moment the dump completes: `CONNECTION LIMIT 0` still admits the
+   superuser (`docker exec postgres-main psql`), so no write may land between the dump and the swap.
 4. **Swap the container**: compose image → `postgres:18.6-alpine` (pg-34), volume → a NEW external volume
    `postgres18-data` mounted at `/var/lib/postgresql` (the PG18 image's VOLUME; PGDATA
    `/var/lib/postgresql/18/docker`, pg-35 — confirmed by `docker image inspect` in review). The old
@@ -199,18 +216,21 @@ The window runs clear of 01:30–03:30 (the backup cron and the Backrest snapsho
 5. **Restore** into the empty PG18 cluster (initdb with checksums on, the PG18 default, pg-05):
    `docker exec -i postgres-main psql -U postgres -X -f - < pg16-final-<ts>.sql`, without `ON_ERROR_STOP`,
    stderr captured. Exactly one error is expected and allowed — `role "postgres" already exists`; any other error
-   fails the window. The dump carries step 1's `CONNECTION LIMIT 0`, so reset each database the manifest lists as
-   non-system to its recorded pre-freeze limit (`-1` unless step 1 recorded another value; never `template0`,
-   which keeps `datallowconn = false`), then `ANALYZE`. The superuser keeps its old password (the dump's `ALTER ROLE postgres … PASSWORD`
+   fails the window. The dump carries step 1's `CONNECTION LIMIT 0`, which stays in force on 18 until step 8, so
+   nothing but the superuser can write before the cut-off. Port every non-default server setting and
+   `pg_hba` rule from the manifest (`ALTER SYSTEM` on 18, then a reload), then `ANALYZE`. The superuser keeps its old password (the dump's `ALTER ROLE postgres … PASSWORD`
    overrides the new container's `POSTGRES_PASSWORD`).
 6. **Diff the manifest** on 18 (V1). ACLs are compared after normalising PG17's new `m` (MAINTAIN) privilege,
-   which every owner's ACL gains on restore; `datconnlimit` is compared against step 1's pre-freeze record, not
-   the manifest's frozen 0.
+   which every owner's ACL gains on restore; `datconnlimit` is still the frozen 0 on both sides; server settings
+   and `pg_hba` rules are compared after step 5's port.
 7. **The rollback cut-off.** Until services restart, rollback is one step: revert the compose image and mount to
    `postgres-data`, `up`, and restore step 1's pre-freeze limits on the 16 cluster — nothing was written to 18. Once services restart, rollback means a `pg_dumpall` from
    18 restored into 16, with hand edits where the dump uses 18-only syntax, and the writes since restart are
    carried manually; the plan treats the restart as the point of no return and requires V1 green before it.
-8. **Restart** services, lift the freeze, run the battery (V2–V6).
+8. **Restart.** Reset each database the manifest lists as non-system to its recorded pre-freeze limit (`-1` unless
+   step 1 recorded another value; never `template0`, which keeps `datallowconn = false`), merge the D3 DR-chain
+   hunk (below), start the services, then the watchdog sidecars, re-enable `fabrik-compose-boot`, lift the deploy
+   freeze, and run the battery (V2–V6).
 
 ### D2 — WSL first, as the rehearsal
 
@@ -225,7 +245,9 @@ The window runs clear of 01:30–03:30 (the backup cron and the Backrest snapsho
    0005 seeds `worker_pool_state` id 1 — so a reload never collides with them) to a dated file outside the repo,
    then drop it. It is recreated on 18 in step 4 from its rewritten migrations (D7), and the dump reloads its rows if
    they turn out not to be regenerable.
-3. `pg_upgradecluster 16 main` — its default method is dump/restore. Afterwards 18 owns port 5432 (every
+3. Stop the local writers first — the session-recall service and any local watchdog or cost-ledger writer to
+   `fabrik_analytics` — and assert no client backend is connected, as D1 step 1 does. Then
+   `pg_upgradecluster 16 main` — its default method is dump/restore. Afterwards 18 owns port 5432 (every
    `{project}_dev` DSN keeps working) and 16 moves to 5433 with `start.conf` set to manual, kept until release.
 4. Verify every database, `fabrik_analytics` and session-recall's included, with the D1 manifest method; then run
    every project's suite against 18. This is where driver versions (pg-48), the `search_path` change (pg-07)
@@ -240,7 +262,12 @@ The window runs clear of 01:30–03:30 (the backup cron and the Backrest snapsho
    on 16, so that project's dev DSN is repointed to port 5433 until the hub window. Every other project's DSN
    reaches 16 at 5432; their dev writes made on 18 in the gap are lost (dev data).
 
-### D3 — The hub repo changes (one branch, merged only after the hub window passes)
+### D3 — The hub repo changes (one branch, merged only after the hub window passes — except its DR-chain hunk)
+
+The DR-chain hunk (`scripts/bootstrap/bootstrap-config.sh:201`, the `bootstrap-hub.sh` comments,
+`src/fabrik/orchestrator/vultr_drill.py:310`) merges inside the hub window at D1 step 8, after V1 is green.
+Otherwise Backrest restores the hand-edited `/opt/postgres/compose.yaml` that names `postgres18-data` while the
+repo's DR volume list still restores `postgres-data`, and a DR in that gap cannot boot postgres-main.
 
 - `.windsurf/rules/versions.yaml`: `postgres_major: "18"` and a new `pgvector_version: "0.8.6"` key (pg-37,
   pg-47: a released build, never the floating `pg18`); rewrite the `:17` comment. The renderer re-fills the 4
@@ -439,7 +466,8 @@ the battery, sized by U1); no money.
 
 - **V1 — contents:** on every database the D1 step 2 manifest matches after restore — exact row counts per table,
   sequence values, extensions and versions, database encoding/collation/owner, role attributes and SCRAM prefixes,
-  `pg_auth_members`, `pg_default_acl`, ACLs normalised for `m`. The restore's stderr holds exactly the one allowed
+  `pg_auth_members`, `pg_default_acl`, ACLs normalised for `m`, every table's content hash (D-612's checksum
+  tripwire), and the non-default server settings and `pg_hba` rules. The restore's stderr holds exactly the one allowed
   error. A `pg_dumpall` of the new cluster restores into a scratch PG18 container under the same rule.
 - **V2 — version:** `SELECT version()` reports 18.6 on the hub and 18.x on WSL; `server_version_num >= 180000`.
 - **V3 — services:** every service's `/health` (a real `SELECT 1`) is green; Gatus green for every
@@ -463,7 +491,8 @@ the battery, sized by U1); no money.
 
 ## Open / blocking unknowns
 
-- U1 — the hub cluster's size and exact database list (read live at the window's first step; sizes the window).
+- U1 — the hub cluster's size and exact database list, and the hub's free disk (read live before the window; they
+  size the window and decide the disk gate).
 - U2 — `pre-backup.sh` (not in the repo): it runs `docker exec postgres-main pg_dumpall`, which is
   path-independent, but its retention and per-database loop are read on the hub in the plan.
 
