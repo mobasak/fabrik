@@ -211,7 +211,8 @@ record (`<lockdir>/<sess>.errparked`) is newer than the active account's verdict
 refresh ping (its own `KEEPALIVE_TIMEOUT`, default 150 s). A refusal is confirmed by a second probe (45 s) —
 an unconfirmed one parks nothing — then the account is parked through the same locked writer as `--park`
 (a broken `parked.json` holds the auto-park too: no `parked.json` write, no `auto-park` row and no billing alert —
-the account is still excluded for that one tick, and an ACTIVE one flipped away with its flip alert), one `auto-park` row goes to the ledger, and one alert per account per 30 minutes says
+the account is still excluded for that one tick, and an ACTIVE one flipped away, with its flip alert, when a
+successor has headroom), one `auto-park` row goes to the ledger, and one alert per account per 30 minutes says
 "check this account's billing" and names `--unpark <email>`. A session call through `run_claude` that is
 refused — a JSON result, or a failed text-mode call whose output carries the code (never a 401 or a usage
 limit) — parks the account it was bound to, after the same confirming probe. While `--pause-switch` holds
