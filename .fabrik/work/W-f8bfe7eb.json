@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-05T07:40:11.704010Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "bc3c7895fe89cfb34cad6e906c90a61bcfa86cac",
   "id": "W-f8bfe7eb",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "title": "rotation capability probe: claude_rotate.py's eligibility check (usage reading + refresh ping) passes an account that refuses every inference with 403 oauth_org_not_allowed (a billing lapse — mob, ob 2026-09-29/30); _validated_pick named it successor and no tick flipped away from it. Spec the prevention half: probe-on-flip vs per-tick, claude -p (full CLI, fires hooks) vs a minimal OAuth messages call (undocumented contract — ground it first), the quota cost, and auto-park on the refusal"
 }

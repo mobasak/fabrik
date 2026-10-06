@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T13:47:59.264124Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-197c8b49",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "pick 3 such sids, search the box for <sid>.jsonl (find / -name), and name where those transcripts live or why none was written",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "52 kaizen event streams on 10-05 (50 project sessions; 46 with exactly {session_start, anchor_harvest}) have no transcript under ~/.claude/projects — every fleet account's projects dir symlinks there, so the scan root is not the cause (W-97de2aa3 critique, Opus #4)"
+}

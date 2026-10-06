@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T14:00:35.414689Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e84932e5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M48PEAFP9Y8ZSW6QY23GE1JN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: W-5f272cc3 (Grafana aro-wake dashboard, owner fleet) is offered by the Stop hook as ready work, but its own text gates it: build only after the operator runs the same PromQL recipe 3+ times in a week. That trigger has not fired."
+}
