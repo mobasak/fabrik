@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — 65-rag-search's dated Postgres and Meilisearch probes no longer carry live version spans (2026-10-06)
+- A `<!--v:…-->` span inside a dated observation (`Probed 2026-09-22 … postgres:16-alpine`, `runs v1.13 (probed 2026-09-22)`) would be rewritten by the next version flip into a probe nobody made. Both are frozen as history citing their `CLAIMS.yaml` rows; the request-line span that tells a project which pgvector image to ask for stays live (W-eb595ed4). Review `docs/development/reviews/2026-10-06-rag-search-dated-probe-review.md`.
+
 ### Added — `pgvector_version` in the rules version registry; two dated Postgres probes frozen as history (2026-10-06)
 - `.windsurf/rules/versions.yaml` gains `pgvector_version: "0.8.6"` (fleet's PG18 plan precondition, D-617; mail 01M48YF4ZJHPDTDJQFE1ZPZK4K) so the CI scaffold can derive `pgvector/pgvector:<version>-pg<postgres_major>`; `postgres_major` stays 16.
 - `core/30-ops.md` and `core/25-data-postgres.md` no longer carry a `postgres:16-alpine` tag inside their 2026-09-01 probes — they name the image and cite the `CLAIMS.yaml` rows that hold the live fact, so T01b's new sweep shapes pass and a future major flip cannot rewrite a dated observation. Review `docs/development/reviews/2026-10-06-pgvector-version-key-review.md`.
