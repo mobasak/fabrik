@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T00:49:03.931653Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9385c2b3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M491K2VP8MNEPQCR3W0NS6XK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-review-loop.js seat briefs mandate commands the worktree-isolation guard refuses — seats in a linked worktree burn calls and drop isolation"
+}
