@@ -15,7 +15,7 @@
   "kind": "decision",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-652",
     "plan": "",
     "spec": ""
   },
@@ -24,10 +24,10 @@
     "3308ebc964878d5cbfc17089da34246ce3c2c0a571e4b5351f1be5449eb3116f"
   ],
   "next": "",
-  "note": "",
+  "note": "Approved for planning (D-652 item 4); routed to fleet",
   "owner": "",
   "priority": 2,
   "question": "Do you approve this converged design for the payments fulfilment-worker role (`docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md`)?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Do you approve this converged design for the payments fulfilment-worker role (`docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md`)?"
 }
