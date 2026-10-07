@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:40:00.272745Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-525959fc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49YA501TC3GMWG266DAJZHH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: The AUTO-GENERATED:PROJECTS block in brand-identiy-creator/docs/BUSINESS_MODEL.md was emitted with two false facts:"
+}

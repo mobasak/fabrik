@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:39:58.406742Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bdcff87a",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "status": "open",
+  "title": "final_gate_stop sixth cause (UNREVIEWED SPONTANEOUS WORK) cannot be cleared for an Edit made between runs (mails 01M49X4BZT, 01M4AH24H7): a path is covered only by a review WINDOW containing its edit ts — treat it as covered when a CLOSED review-family run whose window starts after the edit names the path in --surface or its record's file list, or when the path is committed inside a review window"
+}

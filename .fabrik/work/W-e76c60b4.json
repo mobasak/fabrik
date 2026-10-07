@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:39:58.860010Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e76c60b4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49YT4T5026M4DGVFV3FEPE7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "exa and firecrawl MCPs connect but reject their keys; mcp_health reports CONNECTED"
+}

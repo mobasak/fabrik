@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:39:57.239069Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bab3b2a3",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "status": "open",
+  "title": "fabrik-researcher fetch routing omits text/markdown (mail 01M49J7AY5): add `.md` / text/markdown to the 'JSON/XML/PDF -> WebFetch first' line in commands/_agents/fabrik-researcher.md (corpus source: render -> --check -> commit)"
+}

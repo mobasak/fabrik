@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:39:59.494871Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9f0c66c5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4AGEK7YEWT27DT5FM06J1P9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Rule pack request: core/35-security-auth.md:25 should mention fastapi-user-auth's opt-in grace rotation (fabrik-lib D-420)"
+}
