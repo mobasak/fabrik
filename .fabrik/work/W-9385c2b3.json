@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
-  "owner": "infra",
+  "note": "mail ack: done",
+  "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "fabrik-review-loop.js seat briefs mandate commands the worktree-isolation guard refuses — seats in a linked worktree burn calls and drop isolation"
 }
