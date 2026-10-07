@@ -459,7 +459,7 @@ Steps:
   doc converged at pass 4 (confirmed 5 → 1 → 1 → 0, the scope-growth stop at round 3; the withheld-flip wording routed
   to W-61fa6e00): the pause now holds an auto-park from EVERY path, the ping and
   the wrapper included (`_auto_park`, br14, 6437f373d), and § Parking states the ping's 150 s timeout, the
-  unconfirmed refusal, the broken-`parked.json` hold and the ping's dead-chain flip (6437f373d, 4cf06a111).
+  unconfirmed refusal, the broken-`parked.json` hold and the ping's dead-chain flip (6437f373d, 4cf06a111, 8af87fd90).
   U3 is backlog item W-058e5ba2; the broadcast's pause wording W-a0292080.
 
 ## Evidence
@@ -597,7 +597,7 @@ Joint loop over this plan and its `Size: small` spec (md5 pairs: plan · spec).
 | Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (B6's red signal moved to the parked assertion — `is_usage_limit`/`is_auth_401` are both false on the refusal text, executed) · FIXED r2 (B7 and the race case added for the new windows and the snapshot) |
 | Recurrence: denominator on every count — bounded searches state their bound | FIXED r1 (the size estimate re-summed to 253 in both documents) · FIXED r2 (the 92 tick calls counted with `grep -o … | wc -l` over the whole file) |
 | Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | FIXED r1 (the dwell bounds nothing — the four `ignore_dwell=True` flips — so two cache windows bound the probe) · FIXED r2 (the D4 ping counted as today's unchanged call and seeding the shared cache; spec § Cost re-derived: ≤20/day healthy, 48/day/account outage worst case) |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | FIXED r1 (the healthy result shape captured with one real call instead of assumed; the failure shape from an empty config dir) · CLEAN (docs/development/plans/2026-10-06-plan-2-rotation-capability-probe.md every candidate in Passes 1-3 executed by the orchestrator or a seat probe; the flip gates ran on flipped copies in a throwaway worktree) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | FIXED r1 (the healthy result shape captured with one real call instead of assumed; the failure shape from an empty config dir) · CLEAN (docs/development/plans/archived/2026-10-06-plan-2-rotation-capability-probe.md every candidate in Passes 1-3 executed by the orchestrator or a seat probe; the flip gates ran on flipped copies in a throwaway worktree) |
 
 Rubric invocation (verbatim output — the gate reads the generated header):
 
