@@ -404,22 +404,24 @@ def test_pre_window_snapshot_restore_needs_the_old_volume_name(doc):
     assert "--include /var/lib/docker/volumes/postgres-data" in code
 
 
-# --- Review finding B2/R3: snapshot before the DR-chain merge ----------------------------------
+# --- Review finding B2/R3: snapshot before the DR-chain check (D-647) ----------------------------------
 
 
-def test_backrest_snapshot_precedes_the_dr_chain_merge(doc):
+def test_backrest_snapshot_precedes_the_dr_chain_check(doc):
     _, sections = doc
     step8 = _hub_steps(sections)["8"]
     subs = _children(sections, step8, 4)
     snap = [s for s in subs if "backrest" in s.title.lower() and "snapshot" in s.title.lower()]
     merge = [s for s in subs if "fleet-pg18-dr" in s.title]
     assert len(snap) == 1 and len(merge) == 1
-    assert snap[0].start < merge[0].start, "the DR-chain merge comes before the Backrest snapshot"
+    assert snap[0].start < merge[0].start, "the DR-chain check comes before the Backrest snapshot"
     snap_id = snap[0].title.split()[0]
     pre = [ln for ln in merge[0].prose if ln.strip().startswith("**Precondition:**")]
-    assert pre and snap_id in pre[0], f"the merge step's Precondition does not name step {snap_id}"
+    assert pre and snap_id in pre[0], (
+        f"the DR-chain step's Precondition does not name step {snap_id}"
+    )
     assert "PG_VERSION" in " ".join(_code_lines(merge[0].fences)), (
-        "the merge step does not check the snapshot"
+        "the DR-chain step does not check the snapshot"
     )
 
 

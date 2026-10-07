@@ -521,8 +521,9 @@ repo's change, carried by its request).
 
 ## 3. Hub window (D1)
 
-Gate 2 class (production data). Infra, the merge owner, is on call for the window and merges the DR-chain branch at
-step 8.3 (spec § Lifecycle step 4). Paste the § 0 helpers and the window-directory block first.
+Gate 2 class (production data). Nothing merges inside the window: the DR-chain branch reached master before it, and
+step 8.3 only verifies master against the new snapshot (D-647, superseding spec § Lifecycle step 4's in-window merge).
+Paste the § 0 helpers and the window-directory block first.
 
 ### Hub disk gate
 
@@ -984,9 +985,9 @@ volume revert.
 
 ### Hub step 8 — Restart
 
-Spec D1 step 8, with one ordering change from the wave-1 review: the Backrest snapshot that holds `postgres18-data`
-(8.2) is taken BEFORE infra merges the DR-chain branch `fleet-pg18-dr` (8.3). Merged first, the repo's DR chain would
-restore `postgres18-data` while no snapshot yet held it — a disaster recovery in that gap would find nothing.
+Spec D1 step 8. The Backrest snapshot that holds `postgres18-data` (8.2) is taken BEFORE 8.3 checks master's DR chain.
+That chain reached master before the window (D-647) and restores BOTH Postgres volumes until release, so a disaster
+recovery at any point of the window finds the volume the hub is running on.
 
 #### 8.1 Reset the connection limits
 
@@ -1302,7 +1303,7 @@ sudo du -sh /var/lib/docker/volumes/postgres-data
 sudo docker volume rm postgres-data
 ```
 
-Then the DR chain stops restoring it (D-647) — one line on master, infra's merge:
+Then the DR chain stops restoring it (D-647) — one line on master, infra's commit. Send the request:
 
 ```bash
 # on: wsl — after the volume is gone
@@ -1315,6 +1316,12 @@ WHY: D-647 kept the PG16 volume in the restore list only while it existed; a reb
 HOW: one commit; reply with its SHA.
 SYSTEMIC: a transitional DR entry carries its own removal step, so it never outlives the volume.
 EOF
+```
+
+Wait for infra's reply naming the commit, then check master:
+
+```bash
+# on: wsl — after infra's reply
 git -C /opt/fabrik fetch -q origin
 git -C /opt/fabrik show origin/master:scripts/bootstrap/bootstrap-config.sh | grep -cE '^\s+postgres-data\b'
 ```

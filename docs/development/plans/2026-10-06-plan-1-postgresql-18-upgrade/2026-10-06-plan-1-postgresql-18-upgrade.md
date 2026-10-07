@@ -69,7 +69,9 @@ restates nothing that section settles.
 T01a, T01b, T02, T03, T04a and T04b are independent (disjoint Touches). T05 waits for T02 and T03 because the runbook cites their final lines. T06 is last.
 T03 is committed on its own branch `fleet-pg18-dr`, cut from master, which infra merges ALONE inside the hub window
 (runbook step 8); the fleet branch also merges `fleet-pg18-dr` so T05 reads T03's lines, and everything on the fleet branch
-merges after the window (T03's commits are then already on master).
+merges after the window (T03's commits are then already on master). **Superseded by D-647:** the fleet branch,
+carrying T02-T05, reached master before the window (2026-10-06, 89320a5de), so there is no separate `fleet-pg18-dr`
+merge; runbook step 8.3 verifies master instead, and the DR list restores both Postgres volumes until release step R3.
 No two Depends-unconnected tickets share a path.
 
 Breadth advisory (`check_ticket_breadth.py`): T01 was split on it (the CI derivation and the `_LOOSE` sweep are two risk
@@ -159,7 +161,7 @@ shared cluster through it; T02 changes no port.
 - Never-Route: agents-fabrik.md
 - No ticket touches a live host, a live database, the hub's `/opt/postgres/compose.yaml`, or a docker volume.
 - Shared tree: sibling WIP is never staged, reverted or stashed; ledger rows go through the private-index recipe in ONE shell.
-- Infra merges two branches (`scripts/merge_request.py request` for each): `fleet-pg18-dr` (T03 alone) inside the hub window, the fleet branch after it.
+- Infra merges two branches (`scripts/merge_request.py request` for each): `fleet-pg18-dr` (T03 alone) inside the hub window, the fleet branch after it. *Superseded by D-647: T03 reached master early with the fleet branch; one merge request (the fleet branch) remains, sent by T06.*
 
 ## Context Ledger
 
