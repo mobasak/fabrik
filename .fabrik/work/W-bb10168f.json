@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-07T18:44:23.789407Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "c99a1b0abac6d6c2472b6af68f8650c8a7a700d7",
   "id": "W-bb10168f",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "tags": [
     "mcp-post-resume"
   ],
