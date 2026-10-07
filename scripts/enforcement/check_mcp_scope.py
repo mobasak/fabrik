@@ -112,7 +112,22 @@ def main(argv: list[str] | None = None) -> int:
     if not root.is_dir():
         print(f"check_mcp_scope: SKIP — {root} is not a directory")
         return 0
-    rep = audit(root, hub)
+    try:
+        rep = audit(root, hub)
+    except SystemExit as exc:  # the emitter aborts on an unresolved credential (D-641)
+        msg = str(exc)
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "checked": 0,
+                        "failures": [{"repo": "-", "extra": [], "reason": msg}],
+                        "warnings": [],
+                    }
+                )
+            )
+        print(f"check_mcp_scope: FAIL — the emitter's credential chain aborted: {msg}")
+        return 1
     if args.json:
         print(json.dumps(rep, indent=1))
     for w in rep["warnings"]:

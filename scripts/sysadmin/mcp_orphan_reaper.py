@@ -35,6 +35,13 @@ Usage:
     python3 scripts/sysadmin/mcp_orphan_reaper.py              # dry run (table)
     python3 scripts/sysadmin/mcp_orphan_reaper.py --apply      # reap
     python3 scripts/sysadmin/mcp_orphan_reaper.py --hook       # SessionEnd: --apply, quiet, exit 0
+    python3 scripts/sysadmin/mcp_orphan_reaper.py --hook --report  # WSL start: + ONE resume line
+
+The RESUME REPORT (`--report`, the WSL startup hook; operator follow-up 2026-10-07, D-642): one
+line per boot in the same log — `<ts> resume before=<orphans found> after=<orphans left>
+wsl_exe=<host-side wsl.exe processes | n/a> reaped=<pids>` — so D-634 7-day kill criterion
+(W-e541b048) is read from a measurement, never assumed. The host count comes from
+`tasklist.exe` on the Windows side and reads `n/a` when the mount is absent or the call fails.
 """
 
 from __future__ import annotations
@@ -44,6 +51,7 @@ import json
 import os
 import re
 import signal
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -55,6 +63,7 @@ SUBREAPER_RE = re.compile(
     r"\.vscode-server/.*server-main\.js|(^|/)systemd --user( |$)|(^|/)tmux(: server)?( |$)"
 )  # the subreapers an orphan can land on: the vscode-server root, user systemd, a tmux server
 EXTRA_SIGNATURES = ("maestro.cli.AppKt",)  # the wrapper execs the JVM; the class name survives
+TASKLIST = Path(os.environ.get("MCP_REAPER_TASKLIST") or "/mnt/c/Windows/System32/tasklist.exe")
 
 
 @dataclass(frozen=True)
@@ -207,6 +216,42 @@ def _log(rows: list[tuple[Proc, str]], source: str) -> None:
         pass  # fail open — a hook never blocks a session over its own log
 
 
+def _host_wsl_count() -> int | None:
+    """Host-side `wsl.exe` processes via tasklist.exe; None when the Windows side is unreachable."""
+    if not TASKLIST.is_file():
+        return None
+    try:
+        r = subprocess.run(
+            [str(TASKLIST), "/FI", "IMAGENAME eq wsl.exe", "/NH"],
+            capture_output=True,
+            text=True,
+            errors="replace",  # tasklist.exe may emit the OEM code page; never a decode crash
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    return sum(1 for line in r.stdout.splitlines() if line.strip().lower().startswith("wsl.exe"))
+
+
+def _report(before: int, after: int, reaped: list[tuple[Proc, str]]) -> str:
+    """The ONE resume line (D-642): appended to the reaper log and returned for stdout."""
+    host = _host_wsl_count()
+    line = (
+        f"{time.strftime('%Y-%m-%dT%H:%M:%S')} resume before={before} after={after} "
+        f"wsl_exe={'n/a' if host is None else host} "
+        f"reaped={','.join(str(p.pid) for p, _ in reaped) or '-'}"
+    )
+    try:
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        with LOG.open("a") as fh:
+            fh.write(line + "\n")
+    except OSError:
+        pass
+    return line
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--apply", action="store_true", help="kill the orphans (default: dry run)")
@@ -216,16 +261,33 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--min-age", type=float, default=120.0, help="seconds a process must have lived"
     )
+    ap.add_argument(
+        "--report",
+        action="store_true",
+        help="with --apply/--hook: append ONE resume line (before/after/host wsl.exe) to the log — the WSL startup hook; a dry run writes nothing",
+    )
     ap.add_argument("--grace", type=float, default=5.0, help="seconds between SIGTERM and SIGKILL")
     args = ap.parse_args(argv)
     apply = args.apply or args.hook
     sigs = signatures()
     orphans = select_orphans(_read_procs(), sigs, args.min_age)
     if not orphans:
-        if not args.hook:
+        if args.report and apply:
+            print(_report(0, 0, []))
+        elif args.report:
+            print(
+                "mcp_orphan_reaper: --report writes nothing on a dry run (it needs --apply or --hook)",
+                file=sys.stderr,
+            )
+        elif not args.hook:
             print(f"mcp_orphan_reaper: 0 orphaned MCP servers ({len(sigs)} signatures)")
         return 0
     if not apply:
+        if args.report:
+            print(
+                "mcp_orphan_reaper: --report writes nothing on a dry run (it needs --apply or --hook)",
+                file=sys.stderr,
+            )
         print(
             f"mcp_orphan_reaper: DRY RUN — {len(orphans)} orphaned MCP server(s) (--apply to reap):"
         )
@@ -234,6 +296,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     rows = _kill(orphans, args.grace)
     _log(rows, "hook" if args.hook else "apply")
+    if args.report:
+        after = len(select_orphans(_read_procs(), sigs, args.min_age))
+        print(_report(len(orphans), after, rows))
     print(
         f"mcp_orphan_reaper: reaped {len(rows)} orphaned MCP server(s) — "
         + ", ".join(f"{p.pid}:{how}" for p, how in rows)

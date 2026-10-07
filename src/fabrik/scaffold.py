@@ -7013,13 +7013,22 @@ def _emit_mcp_config(project_dir: Path) -> None:
     call must come AFTER the type patch."""
     emitter = FABRIK_ROOT / "scripts/sysadmin/emit_mcp_project_config.py"
     try:
-        subprocess.run(
+        r = subprocess.run(
             [sys.executable, str(emitter), "--repo", str(project_dir)],
             capture_output=True,
+            text=True,
             timeout=30,
         )
     except (OSError, subprocess.SubprocessError):
-        pass  # next fleet emission run covers it
+        return  # next fleet emission run covers it
+    if r.returncode != 0:
+        # D-641: the emitter now ABORTS on an unresolved credential — say so (stderr tail), the
+        # scaffold still completes and the next fleet-wide emission run covers the file
+        tail = (r.stderr or r.stdout or "").strip().splitlines()[-1:] or ["(no output)"]
+        print(
+            f"scaffold: .mcp.json not emitted for {project_dir.name} — {tail[0][:200]}",
+            file=sys.stderr,
+        )
 
 
 # The root scripts/sync_projects.py scans: its scan_projects default, which main() uses. Kept equal
