@@ -17,7 +17,8 @@
   "priority": 1,
   "status": "open",
   "tags": [
-    "mail-01m48qzdfm"
+    "mail-01m48qzdfm",
+    "waits-2026-10-13"
   ],
   "title": "command_run.py phase-review gate cannot see a receipt committed on a worktree branch (mail 01M48QZDFM) — resolve the phase artifact against the worktree whose branch carries the run's commits, or accept `step --review <path>`"
 }
