@@ -118,7 +118,7 @@ def test_liveness_registry_watches_no_retired_job() -> None:
     import json
 
     reg = json.loads((_ROOT / ".fabrik" / "liveness-registry.json").read_text(encoding="utf-8"))
-    archived = {p.name for p in (_ROOT / "scripts" / "archived").iterdir()}
+    archived = {p.name for p in (_ROOT / "scripts" / "archived").iterdir() if p.is_file()}
     watched = [
         s.get("id")
         for s in reg["surfaces"]

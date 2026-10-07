@@ -178,7 +178,7 @@ The model-catalog steps this file used to run (`kilo_agents_db.py`, `update_kilo
 
 | Cron | Script | State |
 |------|--------|-------|
-| `59 11 * * *` | `scripts/kilo_model_sync.py --sync` (→ `.droid/kilo_model_sync.log`) | RETIRED (D-415): its only output, `kilo_all_models.json`, is read by nothing but the script itself, and the Kilo CLI it drives was retired 2026-07-19. The crontab line was removed and both scripts were moved to `scripts/archived/` on 2026-10-07 (mail 01M4AR32), so the `-f`-guarded `~/.bashrc` hook now runs nothing |
+| `59 11 * * *` | `scripts/kilo_model_sync.py --sync` (→ `.droid/kilo_model_sync.log`) | RETIRED (D-415): its only output, `kilo_all_models.json`, is read by nothing but the script itself, and the Kilo CLI it drives was retired 2026-07-19. The crontab line was removed and both scripts were moved to `scripts/archived/` on 2026-10-07 (mail 01M4AR32), so the `-f`-guarded `~/.bashrc` hook now runs nothing; the path in this row is the one since removed |
 | `30 3 * * *`, `@reboot`, `0 4 * * 0` | `dr_env_backup.sh`, `dr_env_recovery_test.sh` | § 1.2 |
 | `0 5 * * *` | `/opt/ai-model-catalog/engine/daily_refresh.sh` | § 3.4 |
 

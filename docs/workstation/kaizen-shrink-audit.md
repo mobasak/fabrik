@@ -93,7 +93,7 @@ Generated 2026-08-19 by `scripts/sysadmin/kaizen_shrink_audit.py --report` over 
 | `/opt/fabrik/scripts/wip_backup.sh` | — | — | — | LIVE | ledgers:1 run_records:0 | yes | **keep** | keep — immune: the wip-net — the only protection for uncommitted work |
 | `scripts/enforcement/check_mutation.py` | — | — | — | UNKNOWN | ledgers:1 run_records:0 | yes | **keep** | keep — immune: under never-route prefix scripts/enforcement/ (check_plan_tickets.py::NEVER_ROUTE_PREFIXES) — gate machinery; usage-evidence cannot prove a guard useless |
 | `scripts/fleet_doc_audit.py` | — | — | — | UNKNOWN | ledgers:0 run_records:0 | no | **candidate** | — |
-| `scripts/kilo_model_sync.py` | — | — | — | LIVE | ledgers:0 run_records:0 | no | **keep** | — |
+| `scripts/kilo_model_sync.py` | — | — | — | LIVE | ledgers:0 run_records:0 | no | **keep** | — (since removed to `scripts/archived/`, 2026-10-07) |
 | `scripts/sysadmin/archived/kaizen_metrics.py` (at census time: `sysadmin/`; archived at the M1 T09 cutover) | — | — | — | DEAD | ledgers:0 run_records:0 | no | **candidate** | — |
 | `scripts/sysadmin/liveness_audit.py` | — | — | — | — | ledgers:1 run_records:0 | yes | **keep** | keep — immune: the guard's guard — proves the scheduled surfaces themselves are alive |
 
