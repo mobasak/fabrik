@@ -56,7 +56,7 @@ implements and restates nothing that section settles.
 | T04b | Every repo consumer names Alloy's container, port and metrics | — | ⚡ | ⬜ | |
 | T05a | The audit prompts and the setup docs name Alloy | T02, T03, T04a, T04b | ⚡ | ⬜ | |
 | T05b | The VPS inventory and the sysadmin doc name Alloy | T02, T03, T04a, T04b | ⚡ | ⬜ | |
-| T05c | The VPS status and the deployment architecture name Alloy | T02, T03, T04a, T04b, T05a | ⚡ | ⬜ | |
+| T05c | The VPS status and the deployment architecture name Alloy | T02, T03, T04a, T04b | ⚡ | ⬜ | |
 | T05d | The operations docs and the scaffold resilience template name Alloy | T02, T03, T04a, T04b | ⚡ | ⬜ | |
 | T05e | The rebuild guides and the reference docs name Alloy | T02, T03, T04a, T04b | ⚡ | ⬜ | |
 | T06 | The operator's window runbook: switch, battery, rollback, Gate S, the infra mail | T02, T03, T04a, T04b | ⚡ | ⬜ | |
@@ -91,9 +91,6 @@ T07 (5 — the Integration ticket).
 - **T01 → T02, T03:** `configs/alloy/config.alloy` and `scripts/bootstrap/templates/alloy.alloy.template` are the files
   the compose services mount and step 11 renders. Seam tests: `tests/test_vps_apply_limits.py` (T02) and
   `tests/test_monitoring_agent_template.py` (T03) each assert the mount path names T01's file.
-- **T05a → T05c:** T05a renames `docs/infrastructure/promtail-noise-filter-setup.md` to `alloy-noise-filter-setup.md`;
-  T05c retargets the inbound link at `docs/DEPLOYMENT_ARCHITECTURE.md:855`. Seam check: T05c's `check_doc_links.py` Gate
-  runs after T05a merged, so the new target exists.
 - **T02, T03, T04a → T06:** the runbook quotes the service name `alloy`, port 12345, the volume names and the watcher
   job and endpoint names. Seam test: `tests/test_alloy_runbook.py` (T06) asserts each name the runbook uses exists
   in the compose files and configs.
@@ -132,7 +129,7 @@ MATCHED eight packs and injects four FLOOR rows, each named here with the line t
   on `worktree-fleet` (D8 holds the merge until after the window).
 - **Operator gate** — no ticket runs the window; T07 boards it. The branch goes to `scripts/merge_request.py request`
   only after the window's battery is green.
-- **Parallelism + merge** — T01, T04a and T04b fan out first and concurrently (disjoint Touches); T02 and T03 follow T01 and run concurrently; T05a, T05b, T05d, T05e and T06 run concurrently once T02, T03, T04a and T04b are merged, and T05c follows T05a;
+- **Parallelism + merge** — T01, T04a and T04b fan out first and concurrently (disjoint Touches); T02 and T03 follow T01 and run concurrently; T05a–T05e and T06 run concurrently once T02, T03, T04a and T04b are merged;
   every merge happens on the `fleet-alloy` branch in § Merge Order, and the results merge/dedupe at T07, which re-runs every ticket's gate on the merged branch.
 - **Ids** — every D-row this plan mints uses `python3 scripts/decisions.py --reserve-id .`.
 
@@ -163,7 +160,7 @@ MATCHED eight packs and injects four FLOOR rows, each named here with the line t
 - **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; docs/infrastructure/vps-complete-inventory.md:27)
 - **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, docs/infrastructure/vps-complete-inventory.md included (.windsurf/rules/core/40-documentation.md)
 - **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; docs/infrastructure/vps-status.md:46)
-- **Given** the noise-filter row of `docs/DEPLOYMENT_ARCHITECTURE.md`, **When** it is read after T05a's rename merged, **Then** it links `infrastructure/alloy-noise-filter-setup.md` and describes Alloy's drop stage (docs/DEPLOYMENT_ARCHITECTURE.md:855)
+- **Given** the renamed noise-filter doc, **When** the tree is searched for `promtail-noise-filter-setup.md` outside history, **Then** nothing links it: `docs/DEPLOYMENT_ARCHITECTURE.md:855` and the glitchtip setup doc link `alloy-noise-filter-setup.md`, which describes Alloy's `stage.drop` (docs/DEPLOYMENT_ARCHITECTURE.md:855)
 - **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, docs/infrastructure/vps-status.md included (.windsurf/rules/core/40-documentation.md)
 - **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; templates/scaffold/docs/RESILIENCE_TEMPLATE.md:568; docs/operations/hub-restore-inventory.md:104)
 - **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, templates/scaffold/docs/RESILIENCE_TEMPLATE.md included (.windsurf/rules/core/40-documentation.md)
@@ -307,7 +304,7 @@ governance-synced doc to infra; and 2 others. Those two are `src/fabrik/drivers/
 a test docstring that cites the spec. Doc-ticket READ sizes:
 
 ```text
-T05a 157,014 B · T05b 192,877 B · T05c 168,221 B · T05d 168,137 B · T05e 165,213 B  (+ 54,758 B context each, budget 262,144 B)
+T05a 131,195 B · T05b 192,877 B · T05c 194,040 B · T05d 168,137 B · T05e 165,213 B  (+ 54,758 B context each, budget 262,144 B)
 docs/reference/apis/EXTERNAL_SYSTEMS.md 537,674 B → T07 (Integration, budget-exempt)
 ```
 

@@ -11,7 +11,8 @@ Docs: the rows above (current-state docs touched by the shipper change)
 Implements spec § Documentation landing sites for the docs below: every current-state claim that Promtail is the
 running shipper (its name, port 9080, config path, metric names, container) is rewritten for Alloy (name `alloy`,
 port 12345, `configs/alloy/config.alloy`, the `loki_write_*` metrics), and a sentence that is history (a dated
-incident, a past migration) stays as written. `docs/infrastructure/promtail-noise-filter-setup.md` is renamed `docs/infrastructure/alloy-noise-filter-setup.md` (a `git mv`, both paths in Touches) and rewritten for Alloy's `stage.drop`; its INDEX.md row moves with it (orchestrator-applied). Each doc keeps saying that Promtail stays defined under the
+incident, a past migration) stays as written. The noise-filter doc's rename and its two inbound referrers are T05c's (one ticket owns a rename and every file that
+links to it, so each ticket's whole-tree `check_doc_links.py` Gate stays green). Each doc keeps saying that Promtail stays defined under the
 `rollback` profile until Gate S where it already describes the stack's services (spec § The delta › D6). DO-NOT: edit
 any code or config, any governance file, `agents-fabrik.md`, `docs/reference/prebuilt-app-containers.md` or
 `.windsurf/rules/` (infra's, mailed per T06).
@@ -28,10 +29,7 @@ any code or config, any governance file, `agents-fabrik.md`, `docs/reference/pre
 - docs/infrastructure/audit-prompts/README.md
 - docs/infrastructure/grafana-provisioning-setup.md
 - docs/infrastructure/grafana-dashboards-setup.md
-- docs/infrastructure/glitchtip-sdk-integration-setup.md
 - docs/infrastructure/prometheus-app-metrics-setup.md
-- docs/infrastructure/promtail-noise-filter-setup.md
-- docs/infrastructure/alloy-noise-filter-setup.md
 - infra/README.md
 - scripts/bootstrap/README.md
 
@@ -53,8 +51,6 @@ any code or config, any governance file, `agents-fabrik.md`, `docs/reference/pre
 - docs/infrastructure/audit-prompts/README.md
 - docs/infrastructure/grafana-provisioning-setup.md
 - docs/infrastructure/grafana-dashboards-setup.md
-- docs/infrastructure/glitchtip-sdk-integration-setup.md
 - docs/infrastructure/prometheus-app-metrics-setup.md
-- docs/infrastructure/promtail-noise-filter-setup.md
 - infra/README.md
 - scripts/bootstrap/README.md
