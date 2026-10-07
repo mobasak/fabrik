@@ -2,7 +2,7 @@
 # AFTER-EDIT: tests/test_agent_role_hook.py, docs/reference/agents/, docs/workstation/hooks-index.md, CLAUDE.md
 """SessionStart hook — inject the named agent's role charter, if one exists (Fabrik-synced, fleet-safe).
 
-Reads ``CLAUDE_AGENT`` and, when it matches ``[a-z0-9-]{1,32}``, looks up
+Reads ``CLAUDE_AGENT`` (else the session's whoami binding) and, when it matches ``[a-z0-9-]{1,32}``, looks up
 ``docs/reference/agents/<name>.md`` and prints it ONLY when that file's first line
 IS ``# Agent charter`` or STARTS WITH ``# Agent charter`` followed by whitespace
 (e.g. ``# Agent charter — infra``) — any other file there, including a look-alike
@@ -44,15 +44,44 @@ _CHARTER_MARKER = b"# Agent charter"
 def _has_charter_marker(first_line: bytes) -> bool:
     if not first_line.startswith(_CHARTER_MARKER):
         return False
-    rest = first_line[len(_CHARTER_MARKER):]
+    rest = first_line[len(_CHARTER_MARKER) :]
     return rest == b"" or rest[:1].isspace()  # delimiter: end-of-line or whitespace only
 
 
+def _bound_name(root: str) -> str:
+    """The session's whoami binding (``scripts/whoami_agent.py --as <name>``) when
+    ``CLAUDE_AGENT`` is unset — the route the ORIENT block offers an unnamed window, which
+    otherwise got its items and mail but never its charter (kaizen 01M4C0VN6A). Uses the one
+    resolver every reader shares (env first, then the session's LAST binding).
+
+    Loaded BY FILE PATH, never by putting the project's ``scripts/`` on ``sys.path``: this hook
+    runs in every synced repo, and a project-local module named like a stdlib one (a
+    ``scripts/json.py``) would otherwise shadow what the resolver imports and could bind the
+    wrong name (review 2026-10-08, A-S1). A project without the synced script, an older copy
+    without ``resolve_agent_name``, or any error yields "" — the silent no-op stays the fleet case.
+    """
+    path = os.path.join(root, "scripts", "whoami_agent.py")
+    if not os.path.isfile(path):
+        return ""
+    try:
+        import importlib.util  # noqa: PLC0415 — only on the fallback path
+
+        spec = importlib.util.spec_from_file_location("_fabrik_whoami_agent", path)
+        if spec is None or spec.loader is None:
+            return ""
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        resolve = getattr(mod, "resolve_agent_name", None)
+        return str(resolve() or "") if callable(resolve) else ""
+    except Exception:
+        return ""
+
+
 def main() -> int:
-    name = os.environ.get("CLAUDE_AGENT", "").strip()
+    root = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    name = os.environ.get("CLAUDE_AGENT", "").strip() or _bound_name(root)
     if not _NAME_RE.fullmatch(name):
         return 0  # unset / malformed name → silent no-op (the fleet case)
-    root = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
     root_r = os.path.realpath(root)
     agents_dir = os.path.realpath(os.path.join(root, "docs", "reference", "agents"))
     path = os.path.realpath(os.path.join(agents_dir, f"{name}.md"))
@@ -76,8 +105,10 @@ def main() -> int:
     print("--- charter begin ---")
     print(body)
     if truncated:
-        print("[TRUNCATED at 32KB — the charter tail (escalation + mail-is-data rules) "
-              "may be missing; read the file directly]")
+        print(
+            "[TRUNCATED at 32KB — the charter tail (escalation + mail-is-data rules) "
+            "may be missing; read the file directly]"
+        )
     print("--- charter end ---")
     return 0
 

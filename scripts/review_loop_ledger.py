@@ -128,6 +128,11 @@ def read_run(run: Path, box: float | None) -> dict:
             model = None
         minutes = _minutes(run / f"agent-{aid}.jsonl")
         got = [r for r in results.get(aid, []) if isinstance(r, dict)]
+        # a finder that returned but listed no file reviewed nothing (01M4C00TSS); the workflow fails it when no
+        # SLICE file is credited, which needs the slice list this reader does not have — so only the zero case here
+        read_none = label.startswith("find:") and bool(got) and not any(
+            isinstance(r.get("files_read"), list) and any(str(e).strip() for e in r["files_read"]) for r in got
+        )
         doc["seats"].append(
             {
                 "label": label,
@@ -137,6 +142,7 @@ def read_run(run: Path, box: float | None) -> dict:
                 "untimed": minutes is None,
                 "tokens": _tokens(run / f"agent-{aid}.jsonl"),
                 "returned": bool(got),
+                "read_no_file": read_none,
                 "duplicate_results": len(got),
             }
         )
@@ -144,7 +150,7 @@ def read_run(run: Path, box: float | None) -> dict:
             for c in result.get("candidates") or []:
                 doc["candidates"].append({**c, "seat": label})
             for st in result.get("ledger_status") or []:
-                doc["ledger_status"].append({**st, "seat": label})
+                doc["ledger_status"].append({**st, "seat": label, **({"read_no_file": True} if read_none else {})})
             for v in result.get("verdicts") or []:
                 doc["verdicts"].append({**v, "seat": label})
     return doc
@@ -162,6 +168,7 @@ def _print(doc: dict) -> None:
             ("  OVER BOX" if s["over_box"] else "")
             + ("  UNTIMED" if s.get("untimed") else "")
             + ("" if s["returned"] else "  NO RESULT")
+            + ("  READ 0 FILES" if s.get("read_no_file") else "")
             + (
                 f"  DUPLICATE RESULT x{s['duplicate_results']}"
                 if s.get("duplicate_results", 0) > 1
@@ -183,7 +190,7 @@ def _print(doc: dict) -> None:
         print(f"verdict {v.get('id')} {v.get('verdict')} — {_one(v.get('mechanism'), 240)}")
     for s in doc["ledger_status"]:
         print(
-            f"ledger {s.get('id')} {s.get('status')} ({s.get('seat')}) — {_one(s.get('output'), 160)}"
+            f"ledger {s.get('id')} {s.get('status')} ({s.get('seat')}{', READ 0 FILES' if s.get('read_no_file') else ''}) — {_one(s.get('output'), 160)}"
         )
     tot = [s["tokens"] for s in doc["seats"] if s.get("tokens")]
     if tot:
@@ -197,7 +204,8 @@ def _print(doc: dict) -> None:
         )
     print(
         f"{len(doc['seats'])} seats · {len(doc['candidates'])} candidates · {len(doc['verdicts'])} verdicts · "
-        f"{sum(1 for s in doc['seats'] if s['over_box'])} over box · {sum(1 for s in doc['seats'] if not s['returned'])} no result"
+        f"{sum(1 for s in doc['seats'] if s['over_box'])} over box · {sum(1 for s in doc['seats'] if not s['returned'])} no result · "
+        f"{sum(1 for s in doc['seats'] if s.get('read_no_file'))} read 0 files"
     )
 
 

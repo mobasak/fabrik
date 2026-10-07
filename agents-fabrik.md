@@ -399,7 +399,7 @@ Canonical entry point: `fabrik scaffold <name> --type <type>`. Creates the proje
 
 **Post-deploy lifecycle commands (T2-01 + T2-02 + T2-03 + T2-04):**
 
-- Every successful `fabrik apply` / `fabrik redeploy --refresh-infra` writes `.fabrik/state/<spec.id>.json` (8-field G-F3 manifest) — the source of truth for what got registered.
+- Every successful `fabrik apply` / `fabrik redeploy --refresh-infra` writes `.fabrik/state/<spec.id>.json` (the G-F3 manifest — schema in `src/fabrik/state.py`'s docstring, incl. `registrar_failures`, the sanitised failures of the last completed apply; a dry run writes nothing) — the source of truth for what got registered.
 - `fabrik audit-registrars [--spec <path>] [--json]` — verify each spec's shape-resolved registrars vs live VPS state. Statuses: `present / missing / drift / n/a / override / unknown`. Exit 2 if any missing.
 - `fabrik reconcile-all [--filter <substr>] [--yes]` — fleet-wide re-run of `refresh_infrastructure` per spec under per-spec file lock. **Currently broken:** `reconcile_all()` still imports `CoolifyClient` and queries Coolify (decommissioned), so it fails at startup — pending Phase 11-2 migration to the SSH path. Do not plan around it until fixed.
 - `fabrik verify <domain> --spec registrars` — postcondition gate; fails on any `missing` registrar.

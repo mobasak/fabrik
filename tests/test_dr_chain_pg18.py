@@ -96,8 +96,7 @@ def _sourced_restore_volumes() -> list[str]:
     """Source bootstrap-config.sh in bash and return FABRIK_HUB_VOLUMES_TO_RESTORE."""
     assert BOOTSTRAP_CONFIG.is_file(), f"missing {BOOTSTRAP_CONFIG}"
     script = (
-        f'source "{BOOTSTRAP_CONFIG}" && '
-        'printf "%s\\n" "${FABRIK_HUB_VOLUMES_TO_RESTORE[@]}"'
+        f'source "{BOOTSTRAP_CONFIG}" && printf "%s\\n" "${{FABRIK_HUB_VOLUMES_TO_RESTORE[@]}}"'
     )
     result = subprocess.run(
         ["bash", "-c", script],
@@ -113,27 +112,44 @@ def _sourced_restore_volumes() -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
-def test_bootstrap_config_restores_postgres18_data_not_postgres_data() -> None:
-    """Sourcing bootstrap-config.sh must populate FABRIK_HUB_VOLUMES_TO_RESTORE with
-    `postgres18-data`, and must NOT still carry the retired `postgres-data` name."""
+def test_bootstrap_config_restores_both_postgres_volumes_until_release() -> None:
+    """D-647: the DR chain reached master before the hub window, so FABRIK_HUB_VOLUMES_TO_RESTORE
+    carries `postgres18-data` AND `postgres-data` until PG18 release step R3 — a rebuild in the gap
+    must restore the PG16 volume the live compose still mounts (without it step 13's compose-up
+    fails and step 14's pg_dump fallback never runs), and a rebuild after the window the PG18 one.
+    Step 12 skips the volume a snapshot does not hold, so carrying both is safe on either side."""
     volumes = _sourced_restore_volumes()
-    assert "postgres18-data" in volumes, (
-        f"FABRIK_HUB_VOLUMES_TO_RESTORE is missing postgres18-data: {volumes}"
-    )
-    assert "postgres-data" not in volumes, (
-        f"FABRIK_HUB_VOLUMES_TO_RESTORE still carries the retired postgres-data: {volumes}"
+    pg = [v for v in volumes if v.startswith("postgres")]
+    assert pg == ["postgres18-data", "postgres-data"], (
+        f"FABRIK_HUB_VOLUMES_TO_RESTORE must restore both Postgres volumes until R3: {pg}"
     )
 
 
 def test_no_owned_file_names_the_retired_postgres_data_volume() -> None:
     """Whole-word scan (so `postgres18-data` never false-matches) over every file T03 owns —
     comments, log strings, and docs included. A surviving `postgres-data` mention means a DR run
-    in the gap between the compose cutover and this merge would restore the wrong volume."""
+    in the gap between the compose cutover and this merge would restore the wrong volume. The one
+    sanctioned exception is a line citing D-647 (the PG16 volume kept until release step R3)."""
     offenders: list[str] = []
     for path in OWNED_FILES:
         assert path.is_file(), f"missing owned file: {path}"
-        for lineno, line in enumerate(path.read_text().splitlines(), start=1):
-            if _POSTGRES_DATA_WHOLE_WORD.search(line):
+        text = path.read_text()
+        # the DR doc's restore loop is pinned to the config list (D-647 line included) by
+        # test_disaster_recovery_restore_loop_matches_bootstrap_config_volumes — defer to it
+        loop = (
+            re.search(r"for vol in .*?; do", text, re.DOTALL)
+            if path == DISASTER_RECOVERY_MD
+            else None
+        )
+        loop_lines = (
+            set(range(text.count("\n", 0, loop.start()) + 1, text.count("\n", 0, loop.end()) + 2))
+            if loop
+            else set()
+        )
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if lineno in loop_lines:
+                continue
+            if _POSTGRES_DATA_WHOLE_WORD.search(line) and "D-647" not in line:
                 offenders.append(f"{path.relative_to(REPO_ROOT)}:{lineno}: {line.strip()}")
     assert not offenders, "retired `postgres-data` mention(s) survive:\n" + "\n".join(offenders)
 

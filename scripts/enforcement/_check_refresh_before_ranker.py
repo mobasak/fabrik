@@ -5,7 +5,7 @@
 `rank_task_subagents.py` renders the amortized rate from `claude_p_cost.json` into
 `TASK_SUBAGENT_SELECTION.md`, the doc `pick_models` reads fleet-wide. A rebuild wired AFTER it
 publishes the previous day's figure for a full cycle. Phase C of
-`docs/development/plans/2026-09-05-plan-1-windowed-cost-sidecar.md`.
+`docs/development/plans/archived/2026-09-05-plan-1-windowed-cost-sidecar.md`.
 
 ⚠️ TWO ENTRY POINTS, NOT ONE — and wiring only one is a documented repeat offence here.
 `daily_refresh.sh` (cron, 06:00) and `wsl_startup_hook.sh` (boot) BOTH run the ranker, so a step

@@ -1,6 +1,6 @@
 # Plan — PostgreSQL 16 → 18 across the fleet: hub branch, runbook and hand-offs ready for the operator's windows
 
-Status: IN-PROGRESS
+Status: EXECUTED (2026-10-07 — all 8 tickets merged on converged reviews; the plan ends at window readiness: the WSL window and the hub window (Gate 2) are boarded operator gates run from docs/operations/postgres-major-upgrade-runbook.md; the hub changes reached master before the window and the DR list keeps both Postgres volumes until release (D-647); receipt docs/development/reviews/2026-10-06-plan-1-postgresql-18-upgrade-review.md; was IN-PROGRESS from 2026-10-06)
 **Owner:** fleet
 Spec: docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md
 Date: 2026-10-06
@@ -46,14 +46,14 @@ restates nothing that section settles.
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01a | The CI scaffold derives its Postgres images from the version registry | — | ⚡ | ⬜ | |
-| T01b | The loose-literal sweep sees the PG18 image shapes | — | ⚡ | ⬜ | |
+| T01a | The CI scaffold derives its Postgres images from the version registry | — | ⚡ | ✅ | 0c6e35537 |
+| T01b | The loose-literal sweep sees the PG18 image shapes | — | ⚡ | ✅ | 44f04a0a2 |
 | T02 | The repo's hub compose files describe the PG18 cluster and exporter | — | ⚡ | ✅ | a93a62b97 |
 | T03 | The disaster-recovery chain restores postgres18-data | — | ⚡ | ✅ | ee57ee3dc |
 | T04a | The hub's live pins and smaller current-state docs say 18 | — | ⚡ | ✅ | cb46e993c |
 | T04b | The two large current-state docs say 18 | — | ⚡ | ✅ | 6ed038389 |
 | T05 | The operator runbook for the WSL and hub windows | T02, T03 | ⛓️ | ✅ | 02d5c593f |
-| T06 | Integration: rehearsal, hand-offs, gates and the receipt | T01a, T01b, T04a, T04b, T05 | ⛓️ | ⬜ | |
+| T06 | Integration: rehearsal, hand-offs, gates and the receipt | T01a, T01b, T04a, T04b, T05 | ⛓️ | ✅ | 1aa51cad3 |
 
 ## Merge Order
 
@@ -69,7 +69,9 @@ restates nothing that section settles.
 T01a, T01b, T02, T03, T04a and T04b are independent (disjoint Touches). T05 waits for T02 and T03 because the runbook cites their final lines. T06 is last.
 T03 is committed on its own branch `fleet-pg18-dr`, cut from master, which infra merges ALONE inside the hub window
 (runbook step 8); the fleet branch also merges `fleet-pg18-dr` so T05 reads T03's lines, and everything on the fleet branch
-merges after the window (T03's commits are then already on master).
+merges after the window (T03's commits are then already on master). **Superseded by D-647:** the fleet branch,
+carrying T02-T05, reached master before the window (2026-10-06, 89320a5de), so there is no separate `fleet-pg18-dr`
+merge; runbook step 8.3 verifies master instead, and the DR list restores both Postgres volumes until release step R3.
 No two Depends-unconnected tickets share a path.
 
 Breadth advisory (`check_ticket_breadth.py`): T01 was split on it (the CI derivation and the `_LOOSE` sweep are two risk
@@ -159,7 +161,7 @@ shared cluster through it; T02 changes no port.
 - Never-Route: agents-fabrik.md
 - No ticket touches a live host, a live database, the hub's `/opt/postgres/compose.yaml`, or a docker volume.
 - Shared tree: sibling WIP is never staged, reverted or stashed; ledger rows go through the private-index recipe in ONE shell.
-- Infra merges two branches (`scripts/merge_request.py request` for each): `fleet-pg18-dr` (T03 alone) inside the hub window, the fleet branch after it.
+- Infra merges two branches (`scripts/merge_request.py request` for each): `fleet-pg18-dr` (T03 alone) inside the hub window, the fleet branch after it. *Superseded by D-647: T03 reached master early with the fleet branch; one merge request (the fleet branch) remains, sent by T06.*
 
 ## Context Ledger
 

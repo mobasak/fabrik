@@ -422,6 +422,7 @@ def _fact(sid: str, **over: object) -> dict:
         "events_unattributed": {},
         "runs": {},
         "stop_causes": {},
+        "stop_stood_down": {},  # facts v4 (01M4BYXKWR): an absent map is never a 0
     }
     row.update(over)
     return row
@@ -446,6 +447,86 @@ def test_premature_stop_reads_stop_block_events_per_session(tmp_path: Path) -> N
     assert prem.numerator == 1 and prem.denominator == 2  # sessions, not events
     assert "(1/2" in prem.cell
     assert causes.value == {"run-record": 1}
+
+
+def test_premature_stop_ignores_stood_down_only_sessions(tmp_path: Path) -> None:
+    """01M4BYXKWR: a session whose only run-record stop_block was the hook's stand-down (its seats
+    were in flight, so the stop was ALLOWED and recorded as a stop_pass beside it) made no
+    premature stop; a session with a real run-record block beside a stand-down still did."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "only-stood",
+                events={"stop_pass": 1, "stop_block": 1},
+                stop_causes={"run-record": 1},
+                stop_stood_down={"run-record": 1},
+            ),
+            _fact(
+                "stood-and-blocked",
+                events={"stop_pass": 1, "stop_block": 2},
+                stop_causes={"run-record": 2},
+                stop_stood_down={"run-record": 1},
+            ),
+        ],
+    )
+    prem, _causes = ko.premature_stop()
+    assert prem.measurable
+    assert (prem.numerator, prem.denominator) == (1, 2)
+
+
+def test_stop_block_causes_buckets_stood_down(tmp_path: Path) -> None:
+    """01M4BYXKWR: the cause histogram moves the stand-down mass out of its cause into its own
+    bucket, so the hook's stand-down volume stays visible and never reads as a premature cause."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "s1",
+                events={"stop_pass": 2, "stop_block": 3},
+                stop_causes={"run-record": 2, "unpushed": 1},
+                stop_stood_down={"run-record": 2},
+            )
+        ],
+    )
+    _prem, causes = ko.premature_stop()
+    assert causes.value == {"unpushed": 1, ko.STOOD_DOWN_BUCKET: 2}
+    # review A-S1/B-S1: the stand-downs are not verdicts — 2 passes + 1 real block = 3, and the
+    # bucket is visible in the value but outside the counted numerator
+    assert (causes.numerator, causes.denominator) == (1, 3)
+
+
+def test_an_all_stand_down_window_has_no_stop_verdicts(tmp_path: Path) -> None:
+    """review B-S1-new: a window whose only stop_block is a stand-down holds no stop verdict —
+    both halves of the pair go unavailable together, never a 0-denominator histogram or a
+    0/1 session rate (premature_stop_rate dashes the same row the same way)."""
+    _seed_facts(
+        tmp_path,
+        [
+            _fact(
+                "only-stood",
+                events={"stop_pass": 0, "stop_block": 1},
+                stop_causes={"run-record": 1},
+                stop_stood_down={"run-record": 1},
+            )
+        ],
+    )
+    prem, causes = ko.premature_stop()
+    assert not prem.measurable and not causes.measurable
+    assert "no stop verdicts" in causes.detail
+
+
+def test_formulas_render_the_non_verdict_outcomes() -> None:
+    """01M4BYXKWR cobra counter: every stop-family formula RENDERS the non-verdict outcome set,
+    so adding an outcome to it changes each formula and therefore each def_hash."""
+    kc = ko.kc  # the collector module the outcomes module imports
+    rendered = kc._NON_VERDICT_OUTCOMES_TEXT
+    reg = ko.registry()
+    for mid in ("premature_stop", "stop_block_causes"):
+        assert rendered in reg[mid]["formula"], mid
+    assert rendered in kc.registry()["premature_stop_rate"]["formula"]
+    for cause in kc.PREMATURE_CAUSES:
+        assert cause in reg["premature_stop"]["formula"], cause
 
 
 def test_gate_red_stop_block_is_not_premature(tmp_path: Path) -> None:
@@ -644,7 +725,8 @@ def test_windowed_formulas_are_version_bumped() -> None:
     # The stops pair took S3 at v3, W4-1 at v4, W5-1 at v5, W6 at v6, W7 at v7.
     # W8-1/W8-2 (fix-wave 8): review_rounds v9 (weekly-cell carve-out + the
     # skipped-day smear rule), the stops pair v8 (skipped-day smear rule).
-    for mid, ver in (("premature_stop", 9), ("stop_block_causes", 9), ("review_rounds", 10)):
+    # 01M4BYXKWR (2026-10-07): the stops pair v10 — non-verdict stop_block outcomes excluded.
+    for mid, ver in (("premature_stop", 10), ("stop_block_causes", 10), ("review_rounds", 10)):
         assert reg[mid]["version"] == ver, mid
         assert "KAIZEN_OUTCOMES_WINDOW_DAYS" in reg[mid]["formula"], mid
         assert "LOCAL calendar days" in reg[mid]["formula"], mid
@@ -839,8 +921,8 @@ def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
         "rules_compliance": (4, "be837b4449c15df7ff7916588350ac20856e9b1af75f2f9ea80e3c16bcd94135"),
         "terminator_spam": (3, "0838226b9136f445aeccb48455a970554f82b3ad6d5a7970e6e8cf65e31a1b59"),
         "premature_stop_rate": (
-            4,
-            "e22b518520e3649027ace3ffcbdd14ec0d4687bc0a6c64da3aec7fc6507561cb",
+            5,
+            "34a0a4cd5c867886033505f7cf681dc3ae8f6dc5104c1b11d9a4ab05b388ae2b",
         ),
         "first_attempt_gate_pass": (
             3,
@@ -855,20 +937,20 @@ def test_registry_pin_no_formula_change_ships_without_a_version_bump() -> None:
             3,
             "fdb59d0957a0ee826018bb69ef4faffda3f213f1324f05d645eec396f468d2c4",
         ),
-        "hole_count": (3, "3e8a9a9f518e04e865431476fcebad9d4e104fa5b3d8f59fbb9e411d08d41439"),
+        "hole_count": (4, "50f1eef734f45fe2c91f238bd09844a801a66b8c4cee5882ecf58e3ec0c073e6"),
         "death_occurrences": (
-            1,
-            "b728c7b15f7caeb5ae55bbdc5e2207ae3000b2290ecb37c3a46dcd72228c048b",
+            2,
+            "17d1924237b04ddce4e1b8ee486478d8c986ea37ade74dde42501e37ba0ef385",
         ),
-        "death_classes": (1, "4344dc33b44011e212fdac04c9e3d75572acfdb6f3e5c9766ad1d774117541c3"),
+        "death_classes": (2, "9108eb8ffab6a12bb0f203db4a7e610d3137a65a9025468cec76d91550fe2880"),
         "rework_rate": (1, "3fd774a5a3e73e32f0fb7ecec4c1419721f5c5f2148fda9b78a65ca89f8767f5"),
         "review_rounds": (10, "e3db81a789d9893f444da6f275ea8e4f01c092bfc960099e2f98a8970cd5bcbb"),
         "fleet_health": (1, "f6c8ff227fe9be5504d83287da354cd991b3ca5ed447a3c50ef3f8c35095951a"),
         "sweep_coverage": (1, "624645a089b459e6e6955fdd7773472eff3377e5038d0c15eb3d53dd6329e7d0"),
-        "premature_stop": (9, "042405cff9b57699f9066d0c0836257a1b605c270f2776bab3e747e81e2c1b2d"),
+        "premature_stop": (10, "f9e8772a1f5e77b8e0ae5da4732380853e9e1d9080f1fd927b33e811006da2be"),
         "stop_block_causes": (
-            9,
-            "9304b6415bf729dc34869323d09ad05e45f8e468eca618958e0acc014723f005",
+            10,
+            "ab22b4e540ed3ea39cd9a3499cfdb22c0867043e26d2d59aade7de4755cd11c3",
         ),
     }
     live = {mid: (d["version"], d["hash"]) for mid, d in ko.registry().items()}

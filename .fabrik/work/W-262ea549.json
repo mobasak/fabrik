@@ -1,0 +1,26 @@
+{
+  "block_digest": "eef92a053f332bd47638541c8f1dd3415ecf4cc2cd314f00313e3f1cf020fd5d",
+  "blocked_by": [],
+  "created": "2026-10-07T20:30:18.600660Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-262ea549",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "eef92a053f332bd47638541c8f1dd3415ecf4cc2cd314f00313e3f1cf020fd5d"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May the operator run the PostgreSQL 18 hub window on vps1 (dump postgres-main 16, restore into 18 on a new volume, keep the old volume), following docs/operations/postgres-major-upgrade-runbook.md § 3, after the WSL window is green?",
+  "status": "awaiting-operator",
+  "title": "May the operator run the PostgreSQL 18 hub window on vps1 (dump postgres-main 16, restore into 18 on a new volume, keep the old volume), following docs/operations/postgres-major-upgrade-runbook.md § 3, after the WSL window is green?"
+}

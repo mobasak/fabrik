@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T21:22:58.848354Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-13dbeba9",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide: prune templates/saas-skeleton/AGENTS.md in the fleet sync (scripts/sync_enforcement_to_projects.py) or leave the stale copies; for the VPS file, a read-only ls on the next fleet deploy pass, then rm in a maintenance step",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Retired AGENTS.md copies outlive D-652's template deletion: 17 projects hold templates/saas-skeleton/AGENTS.md (scaffold.py:1455-1465 copies the skeleton into every project; copytree never prunes), and a template-sourced app deployed before the deletion (e.g. specs/services/my-docs-site.yaml) keeps /opt/<name>/AGENTS.md on its VPS (deployer_ssh.py:527-530 writes, never deletes)"
+}

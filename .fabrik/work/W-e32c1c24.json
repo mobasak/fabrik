@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T20:59:53.975364Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e32c1c24",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "**[fleet]** A local source living off /opt/<name> is half-supported: deploy reads its .env (W-7ec31807), but refresh_infrastructure (orchestrator/__init__.py:491-497) cannot find it and inject_env/read_env/restart/_compose_up (deployer_ssh.py:308-375) all target /opt/{ctx.app_name} — measured 2026-10-08: 1 of 69 specs (7 local sources) is affected, fabrik-file-worker (source.path /opt/file-worker), whose registrar injections go to /opt/fabrik-file-worker\n\nA design choice before any build (lane row 4, trade-off): (A) one app-dir resolver (source.path for local sources, /opt/<name> otherwise) threaded through every /opt/{name} site in deployer_ssh.py and refresh_infrastructure; or (B) refuse off-/opt local sources in the validator and move fabrik-file-worker to /opt/fabrik-file-worker (a VPS step, operator window). Route: /fabrik-spec (or the Opus+Fable panel for the A/B call), then the build with a full /fabrik-review. Before choosing, confirm on the live hub (read-only) which .env the fabrik-file-worker containers actually read.",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "**[fleet]** A local source living off /opt/<name> is half-supported: deploy reads its .env (W-7ec31807), but refresh_infrastructure (orchestrator/__init__.py:491-497) cannot find it and inject_env/read_env/restart/_compose_up (deployer_ssh.py:308-375) all target /opt/{ctx.app_name} — measured 2026-10-08: 1 of 69 specs (7 local sources) is affected, fabrik-file-worker (source.path /opt/file-worker), whose registrar injections go to /opt/fabrik-file-worker"
+}

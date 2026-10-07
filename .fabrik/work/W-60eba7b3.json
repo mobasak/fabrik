@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T19:37:30.524552Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-60eba7b3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4BWTCFANXJAV6WG4WBY517A",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "One-line text request — agents-fabrik.md:402 still says the state file is an \"8-field G-F3 manifest\""
+}

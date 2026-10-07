@@ -8,7 +8,7 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-10-02-plan-2-postgres-allocation-reconcile.md",
+    "plan": "docs/development/plans/archived/2026-10-02-plan-2-postgres-allocation-reconcile.md",
     "spec": ""
   },
   "next": "cache only a positive container name in src/fabrik/audit.py::_resolve_container (do not store '' on a failed probe), with a test that a failed first probe is retried",

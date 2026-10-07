@@ -327,7 +327,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-17T14:21 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-07T22:42 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -360,68 +360,22 @@ docs/
 │   │   ├── 2026-06-30-plan-fabrik-deploy-readiness-gaps.md
 │   │   ├── 2026-07-06-plan-1-universal-watchdog.md
 │   │   ├── 2026-07-12-plan-1-wavespeed-integration.md
-│   │   ├── 2026-08-10-plan-1-quota-health.md
 │   │   ├── 2026-08-11-plan-1-knowledge-ratchet.md
-│   │   ├── 2026-08-11-plan-2-stalled-midstream-resume.md
 │   │   ├── 2026-08-11-plan-deploy-tryton-crm.md
-│   │   ├── 2026-08-14-plan-1-doc-sprawl-non-vacuous.md
-│   │   ├── 2026-08-15-plan-1-login-once-credentials
-│   │   │   ├── 2026-08-15-plan-1-login-once-credentials.md
-│   │   │   ├── T01-disarm-old-world.md
-│   │   │   ├── T02a-fleet-dir-scaffolder.md
-│   │   │   ├── T02b-fleet-gitignore.md
-│   │   │   ├── T03-fleet-status-keepalive.md
-│   │   │   ├── T04-rotation-runbook-docs.md
-│   │   │   └── T05-integration-receipt.md
 │   │   ├── 2026-08-25-plan-2-payments-ingest-role.md
-│   │   ├── 2026-08-27-plan-1-certification-denominator.md
-│   │   ├── 2026-08-31-plan-deploy-tryton-crm.md
-│   │   ├── 2026-09-03-plan-1-multi-agent-per-repo
-│   │   │   ├── 2026-09-03-plan-1-multi-agent-per-repo.md
-│   │   │   ├── T01a-the-manifest-declares-the-worktree-artif.md
-│   │   │   ├── T01b-the-sync-emits-them-into-every-project.md
-│   │   │   ├── T02a-agent-role-accepts-any-project-local-na.md
-│   │   │   ├── T02b-the-agent-name-enum-in-both-governance.md
-│   │   │   ├── T03a-epic-assignment-owner-field-and-the-che.md
-│   │   │   ├── T03b-the-disjointness-check-becomes-a-real-o.md
-│   │   │   ├── T04a-epic-file-intake-for-fabrik-spec.md
-│   │   │   ├── T04b-owned-paths-into-the-plan-s-locks.md
-│   │   │   ├── T05a-epic-containment-in-check-plan-tickets.md
-│   │   │   ├── T05b-epic-order-check-as-an-optional-tier-2.md
-│   │   │   ├── T06a-fabrik-vision-mega-00-moved-into-a-corpu.md
-│   │   │   ├── T06b-fabrik-epics-mega-02-03-moved-into-one-c.md
-│   │   │   ├── T06c-fabrik-epics-review-mega-04-moved-into-a.md
-│   │   │   ├── T07a-assembler-render-the-three-sources-delet.md
-│   │   │   ├── T07b-router-three-new-stems-for-the-assemble.md
-│   │   │   ├── T08a-check-command-corpus-drop-the-orchestra.md
-│   │   │   ├── T08b-the-corpus-check-s-tests-lose-the-wrappe.md
-│   │   │   ├── T09-retire-the-traycer-layer-wrapper-tree-tr.md
-│   │   │   ├── T10-retire-ettw-00-05-retired-the-first-half.md
-│   │   │   ├── T11-retire-ettw-06-11-its-checklist-retired.md
-│   │   │   ├── T12a-retire-mega-00-02-retired-their-text-now.md
-│   │   │   ├── T12b-retire-mega-03-04-retired-and-relocate-t.md
-│   │   │   ├── T13-the-wip-net-snapshots-linked-worktrees-s.md
-│   │   │   ├── T14a-governance-texts-the-template-s-line-d-t.md
-│   │   │   ├── T14b-references-agents-fabrik-md-the-north-st.md
-│   │   │   ├── T14c-the-fabrik-cli-s-orchestrator-hint-names.md
-│   │   │   ├── T14d-review-rubric-s-dead-checklist-path-and.md
-│   │   │   ├── T14e-check-review-coverage-stops-keying-on-a.md
-│   │   │   ├── T14f-command-run-stops-owing-a-report-to-a-d.md
-│   │   │   ├── T14g-the-command-corpus-stops-routing-to-del.md
-│   │   │   ├── T14h-the-cert-coverage-anchors-a-non-relocat.md
-│   │   │   ├── T15-plans-md-regeneration-with-an-owner-colu.md
-│   │   │   └── T16-integration-whole-plan-gate-doc-receipt.md
-│   │   ├── 2026-09-05-plan-1-windowed-cost-sidecar.md
 │   │   ├── 2026-09-06-plan-1-session-history-retention.md
-│   │   ├── 2026-09-06-plan-2-multi-agent-adoption
-│   │   │   ├── 2026-09-06-plan-2-multi-agent-adoption.md
-│   │   │   ├── T01-merge-owner-read.md
-│   │   │   ├── T02a-adopt-core.md
-│   │   │   ├── T02b-adopt-backlog-tags.md
-│   │   │   ├── T03-check-advisory.md
-│   │   │   ├── T04-session-advisory.md
-│   │   │   ├── T05-vision-and-epics-review-text.md
+│   │   ├── 2026-10-02-plan-3-coordinator-assignment.md
+│   │   ├── 2026-10-06-plan-1-postgresql-18-upgrade
+│   │   │   ├── 2026-10-06-plan-1-postgresql-18-upgrade.md
+│   │   │   ├── T01a-ci-images-from-registry.md
+│   │   │   ├── T01b-loose-version-shapes.md
+│   │   │   ├── T02-hub-compose-pg18.md
+│   │   │   ├── T03-dr-chain-pg18.md
+│   │   │   ├── T04a-live-pins-and-docs.md
+│   │   │   ├── T04b-large-docs-pg18.md
+│   │   │   ├── T05-upgrade-runbook.md
 │   │   │   └── T06-integration.md
+│   │   ├── 2026-10-06-plan-1-worktree-venv-isolation.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -733,6 +687,292 @@ docs/
 │       ├── 2026-09-16-plan-1-quota-posture-review.md
 │       ├── 2026-09-16-quota-bands-behaviour-contract-review.md
 │       ├── 2026-09-16-self-naming-identity-review.md
+│       ├── 2026-09-17-review-scoped-pick-flip-target-resume.md
+│       ├── 2026-09-17-review-scoped-pick-flip-target-review.md
+│       ├── 2026-09-17-scope-growth-exit-build-review.md
+│       ├── 2026-09-18-fable-band-clamp-review.md
+│       ├── 2026-09-18-plan-1-fabrik-task-lane-T01a-review.md
+│       ├── 2026-09-18-plan-1-fabrik-task-lane-T01b-review.md
+│       ├── 2026-09-18-plan-1-fabrik-task-lane-T02-review.md
+│       ├── 2026-09-18-plan-1-fabrik-task-lane-T03-review.md
+│       ├── 2026-09-18-plan-1-fabrik-task-lane-T04a-review.md
+│       ├── 2026-09-18-plan-1-fabrik-task-lane-review.md
+│       ├── 2026-09-19-quota-stamp-tier-review.md
+│       ├── 2026-09-19-secrets-binary-decode-review.md
+│       ├── 2026-09-19-serena-gitignore-fleet-review.md
+│       ├── 2026-09-20-workstation-ram-policy-review.md
+│       ├── 2026-09-22-chunk5-review-loop-review.md
+│       ├── 2026-09-22-d335-chunk1-review.md
+│       ├── 2026-09-22-d335-chunk2-review.md
+│       ├── 2026-09-22-d335-chunk3-review.md
+│       ├── 2026-09-22-d344-seats-review.md
+│       ├── 2026-09-23-chunk6-review-loop-review.md
+│       ├── 2026-09-23-chunk6b-units-family-review.md
+│       ├── 2026-09-23-chunk7-producing-commands-review.md
+│       ├── 2026-09-23-chunk7-rollout-review.md
+│       ├── 2026-09-23-d369-postcommit-hook-review.md
+│       ├── 2026-09-23-fleet-mail-small-fixes-review.md
+│       ├── 2026-09-23-loop-run2-review.md
+│       ├── 2026-09-23-mail-batch-arm-sweep-links-review.md
+│       ├── 2026-09-23-plan-1-stop-and-compaction-T01a-review.md
+│       ├── 2026-09-23-plan-1-stop-and-compaction-T01b-review.md
+│       ├── 2026-09-23-plan-1-stop-and-compaction-T02a-review.md
+│       ├── 2026-09-23-plan-1-stop-and-compaction-T02b-review.md
+│       ├── 2026-09-23-plan-1-stop-and-compaction-T03-review.md
+│       ├── 2026-09-23-plan-1-stop-and-compaction-T04-review.md
+│       ├── 2026-09-23-plan-1-stop-and-compaction-T05-review.md
+│       ├── 2026-09-23-plan-1-stop-and-compaction-review.md
+│       ├── 2026-09-23-research-ledger-review.md
+│       ├── 2026-09-23-row5b-chunk1-review.md
+│       ├── 2026-09-23-row5b-chunk2-review.md
+│       ├── 2026-09-23-row5b-chunk3-review.md
+│       ├── 2026-09-23-selfwatch-arm-review.md
+│       ├── 2026-09-23-stop-decider-selfwatch-review.md
+│       ├── 2026-09-23-watchdog-window-300-review.md
+│       ├── 2026-09-23-wsl-mirrored-networking-review.md
+│       ├── 2026-09-24-blocked-format-exemption-review.md
+│       ├── 2026-09-24-dead-trigger-row-and-rag-pack-review.md
+│       ├── 2026-09-24-gate-timeout-is-not-a-contract-review.md
+│       ├── 2026-09-24-handoff-resume-is-checked-review.md
+│       ├── 2026-09-24-plan-1-audit-log-everywhere-T01-review.md
+│       ├── 2026-09-24-plan-1-audit-log-everywhere-T02-review.md
+│       ├── 2026-09-24-plan-1-audit-log-everywhere-T03-review.md
+│       ├── 2026-09-24-plan-1-audit-log-everywhere-T04-review.md
+│       ├── 2026-09-24-plan-1-audit-log-everywhere-T05-review.md
+│       ├── 2026-09-24-plan-1-audit-log-everywhere-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T01a-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T01b-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T02-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T03-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T04-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T05-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T06-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T07-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T08-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T09-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T10-drift-archived-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T10-migrate-once-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-T10-review.md
+│       ├── 2026-09-24-plan-2-work-tracking-review.md
+│       ├── 2026-09-24-postgres-compose-and-ports-ruling-review.md
+│       ├── 2026-09-24-thread-anchor-next-footer-review.md
+│       ├── 2026-09-25-intel-mail-batch-d415-review.md
+│       ├── 2026-09-25-plan-1-work-store-single-tracker-T01-review.md
+│       ├── 2026-09-25-plan-1-work-store-single-tracker-T02a-review.md
+│       ├── 2026-09-25-plan-1-work-store-single-tracker-T02b-review.md
+│       ├── 2026-09-25-plan-1-work-store-single-tracker-T03-review.md
+│       ├── 2026-09-25-plan-1-work-store-single-tracker-T04-review.md
+│       ├── 2026-09-25-plan-1-work-store-single-tracker-T05a-review.md
+│       ├── 2026-09-25-plan-1-work-store-single-tracker-T05b-review.md
+│       ├── 2026-09-25-plan-1-work-store-single-tracker-T06-review.md
+│       ├── 2026-09-25-plan-1-work-store-single-tracker-T07a-review.md
+│       ├── 2026-09-25-plan-1-work-store-single-tracker-T07b-review.md
+│       ├── 2026-09-25-plan-1-work-store-single-tracker-review.md
+│       ├── 2026-09-26-fix-project-declared-type-review.md
+│       ├── 2026-09-26-next-names-what-the-item-is-review.md
+│       ├── 2026-09-26-rivals-foreign-checkout-refusal-review.md
+│       ├── 2026-09-26-rule-two-claim-only-review.md
+│       ├── 2026-09-27-gpu-handler-docs-review.md
+│       ├── 2026-09-27-gpu-rent-ten-defects-review.md
+│       ├── 2026-09-27-identifier-validators-fullmatch-review.md
+│       ├── 2026-09-27-quota-bullet-lean-adoption-review.md
+│       ├── 2026-09-27-research-ledger-fleet-wide-review.md
+│       ├── 2026-09-27-rule-pack-currency-from-mail-review.md
+│       ├── 2026-09-27-sync-lane-worktrees-orphan-blocks-rag-outcome-review.md
+│       ├── 2026-09-27-template-final-output-dedup-review.md
+│       ├── 2026-09-27-three-mail-fixes-sync-lane-headless-import-review.md
+│       ├── 2026-09-27-w70653005-archive-dead-kilo-scripts-review.md
+│       ├── 2026-09-28-app-role-check-docstrings-review.md
+│       ├── 2026-09-28-ports-md-hub-registry-review.md
+│       ├── 2026-09-28-saas-web-wiring-review.md
+│       ├── 2026-09-28-sync-verdict-three-way-review.md
+│       ├── 2026-09-29-account-park-review.md
+│       ├── 2026-09-29-hub-request-authority-d441-review.md
+│       ├── 2026-09-29-multi-agent-runtime-tags-diff-base-review.md
+│       ├── 2026-09-29-plan-1-hub-worktree-cutover-T01-review.md
+│       ├── 2026-09-29-plan-1-hub-worktree-cutover-T03a-review.md
+│       ├── 2026-09-29-plan-1-hub-worktree-cutover-T04a-review.md
+│       ├── 2026-09-29-plan-1-hub-worktree-cutover-T06a-review.md
+│       ├── 2026-09-29-plan-1-hub-worktree-cutover-T06c-review.md
+│       ├── 2026-09-29-plan-1-hub-worktree-cutover-review.md
+│       ├── 2026-09-29-template-absolute-hub-doc-cites-review.md
+│       ├── 2026-09-30-mobile00-domain-currency-review.md
+│       ├── 2026-09-30-mobile80-currency-review.md
+│       ├── 2026-09-30-payments-grant-ingest-delegation-review.md
+│       ├── 2026-09-30-plan-1-merge-request-loop-T01a-review.md
+│       ├── 2026-09-30-plan-1-merge-request-loop-T01b-review.md
+│       ├── 2026-09-30-plan-1-merge-request-loop-T02-review.md
+│       ├── 2026-09-30-plan-1-merge-request-loop-T03-review.md
+│       ├── 2026-09-30-plan-1-merge-request-loop-T05b-review.md
+│       ├── 2026-09-30-plan-1-merge-request-loop-review.md
+│       ├── 2026-09-30-saas00-domain-currency-review.md
+│       ├── 2026-09-30-saas87-abuse-currency-review.md
+│       ├── 2026-09-30-synced-gitignore-venv-review.md
+│       ├── 2026-10-01-adopt-backlog-stamping-review.md
+│       ├── 2026-10-01-chrome41-domain-currency-review.md
+│       ├── 2026-10-01-coordinator-template-review.md
+│       ├── 2026-10-01-core40-tojlo-brand-currency-review.md
+│       ├── 2026-10-01-link-hook-registration-review.md
+│       ├── 2026-10-01-mobile38-components-currency-review.md
+│       ├── 2026-10-01-mobile39-tojlo-currency-review.md
+│       ├── 2026-10-01-mobile81-billing-currency-review.md
+│       ├── 2026-10-01-mobile89-launch-currency-review.md
+│       ├── 2026-10-01-plan-1-docusaurus-static-runtime-review.md
+│       ├── 2026-10-01-scratch-sweep-include-unmerged-review.md
+│       ├── 2026-10-01-stop-hook-wip-snapshot-exclusion-review.md
+│       ├── 2026-10-01-stop-hook-withdrawn-edits-review.md
+│       ├── 2026-10-01-worktree-transcript-link-review.md
+│       ├── 2026-10-02-ai10-speech-currency-review.md
+│       ├── 2026-10-02-ai20-vision-currency-review.md
+│       ├── 2026-10-02-ai25-3d-currency-review.md
+│       ├── 2026-10-02-ai30-language-currency-review.md
+│       ├── 2026-10-02-ai40-multimodal-currency-review.md
+│       ├── 2026-10-02-ai50-agentic-currency-review.md
+│       ├── 2026-10-02-ai60-code-currency-review.md
+│       ├── 2026-10-02-chrome42-ext-currency-review.md
+│       ├── 2026-10-02-chrome43-launch-currency-review.md
+│       ├── 2026-10-02-lane-v2-fleet-review.md
+│       ├── 2026-10-02-plan-1-fabrik-task-feature-lane-T01-review.md
+│       ├── 2026-10-02-plan-1-fabrik-task-feature-lane-T02-review.md
+│       ├── 2026-10-02-plan-1-fabrik-task-feature-lane-T03a-review.md
+│       ├── 2026-10-02-plan-1-fabrik-task-feature-lane-T03b-review.md
+│       ├── 2026-10-02-plan-1-fabrik-task-feature-lane-T04-review.md
+│       ├── 2026-10-02-plan-1-fabrik-task-feature-lane-T05c-review.md
+│       ├── 2026-10-02-plan-1-fabrik-task-feature-lane-review.md
+│       ├── 2026-10-02-plan-2-postgres-allocation-reconcile-review.md
+│       ├── 2026-10-02-plan-3-backrest-coverage-review.md
+│       ├── 2026-10-02-seat-budget-cpu-review.md
+│       ├── 2026-10-03-ai70-data-predictive-currency-review.md
+│       ├── 2026-10-03-ai80-specialized-domains-currency-review.md
+│       ├── 2026-10-03-ai90-long-context-currency-review.md
+│       ├── 2026-10-03-catchup-wave1-review.md
+│       ├── 2026-10-03-coordinator-assignment-review.md
+│       ├── 2026-10-03-decision-model-lane-rules-review.md
+│       ├── 2026-10-03-design-critique-review.md
+│       ├── 2026-10-03-desktop-app-currency-review.md
+│       ├── 2026-10-03-merge-never-next-review.md
+│       ├── 2026-10-03-mobile-revenuecat-per-platform-keys-review.md
+│       ├── 2026-10-03-ops-backrest-checklist-review.md
+│       ├── 2026-10-03-plan-1-scaffold-retired-agent-surface-review.md
+│       ├── 2026-10-03-readme-retired-stack-review.md
+│       ├── 2026-10-03-w-83a9508f-retired-bootstraps-archive-review.md
+│       ├── 2026-10-03-w-b13ce655-retired-agent-surface-review.md
+│       ├── 2026-10-03-w-b5ba0c37-ledger-flock-review.md
+│       ├── 2026-10-03-work-triage-wave1.md
+│       ├── 2026-10-04-apply-reminder-and-modal-test-fixes-review.md
+│       ├── 2026-10-04-autonomy-ladder-review.md
+│       ├── 2026-10-04-bootstrap-scripts-currency-review.md
+│       ├── 2026-10-04-bootstrap-sshd-hardening-review.md
+│       ├── 2026-10-04-decision-shape-bare-pipes-review.md
+│       ├── 2026-10-04-desktop-app-template-preload-feed-review.md
+│       ├── 2026-10-04-feedback-report-row-counts-review.md
+│       ├── 2026-10-04-fleet-caught-up-pack-rewords-review.md
+│       ├── 2026-10-04-gate-canary-coverage-review.md
+│       ├── 2026-10-04-gpu-lifetime-numeric-validation-review.md
+│       ├── 2026-10-04-gpu-orphan-race-review.md
+│       ├── 2026-10-04-gpu-pack-d437-review.md
+│       ├── 2026-10-04-gpu-pack-relax-review.md
+│       ├── 2026-10-04-gpu-watchdog-nan-guard-review.md
+│       ├── 2026-10-04-i18n-kit-stale-clause-review.md
+│       ├── 2026-10-04-identifier-fullmatch-review.md
+│       ├── 2026-10-04-intel-charter-prompt-audit.md
+│       ├── 2026-10-04-ladder-parking-review.md
+│       ├── 2026-10-04-mail-separate-git-dir-review.md
+│       ├── 2026-10-04-mail-triage-infra.md
+│       ├── 2026-10-04-mobile-revenuecat-eas-env-note-review.md
+│       ├── 2026-10-04-ports-warning-d380-review.md
+│       ├── 2026-10-04-quota-board-stale-banner-review.md
+│       ├── 2026-10-04-quota-hook-command-name-parity-review.md
+│       ├── 2026-10-04-rotate-stamp-symlinks-review.md
+│       ├── 2026-10-04-rotation-credential-writer-deletion-review.md
+│       ├── 2026-10-04-w-5937c2cd-drift-batch-review.md
+│       ├── 2026-10-04-w-5d4ed90f-w-7e75d679-review.md
+│       ├── 2026-10-04-w-9443574e-decision-gate-vendoring-review.md
+│       ├── 2026-10-04-w-99525a15-hook-command-case-review.md
+│       ├── 2026-10-04-w-b2d7ffb4-eas-sentry-token-review.md
+│       ├── 2026-10-04-w-bb20735b-saas88-pointers-review.md
+│       ├── 2026-10-04-w-e80af564-orchestrator-by-role-review.md
+│       ├── 2026-10-04-w58-ungraded-checks-review.md
+│       ├── 2026-10-04-w8a-reply-addressee-review.md
+│       ├── 2026-10-04-wea-review-every-file-review.md
+│       ├── 2026-10-04-work-class6-answered-review.md
+│       ├── 2026-10-04-work-worktrees-single-def-review.md
+│       ├── 2026-10-05-audit-job-requeued-review.md
+│       ├── 2026-10-05-backlog-table-title-column-review.md
+│       ├── 2026-10-05-check-convergence-non-git-review.md
+│       ├── 2026-10-05-check-doc-sync-significant-code-review.md
+│       ├── 2026-10-05-d1-boarded-gate-pointer-review.md
+│       ├── 2026-10-05-d585-subscription-lane-review.md
+│       ├── 2026-10-05-docs-updater-structure-rows-review.md
+│       ├── 2026-10-05-final-gate-test-database-url-review.md
+│       ├── 2026-10-05-frozen-chain-plain-pin-review.md
+│       ├── 2026-10-05-golden-known-collapses-review.md
+│       ├── 2026-10-05-health-probe-wording-review.md
+│       ├── 2026-10-05-iie-plan-review-friction-review.md
+│       ├── 2026-10-05-letter-phase-receipt-review.md
+│       ├── 2026-10-05-merge-request-fallback-shim-review.md
+│       ├── 2026-10-05-migrate-backlog-structural-rows-review.md
+│       ├── 2026-10-05-monolith-closing-row-review.md
+│       ├── 2026-10-05-pack60-tier-d-prereqs-review.md
+│       ├── 2026-10-05-pack85-payments-service-roles-review.md
+│       ├── 2026-10-05-plan-1-session-history-retention-phase-A-review.md
+│       ├── 2026-10-05-prompt-audit-section-a-review.md
+│       ├── 2026-10-05-prompt-block-claim-cap-review.md
+│       ├── 2026-10-05-push-attribution-trailer-veto-review.md
+│       ├── 2026-10-05-retire-monitoring-compose-copies-review.md
+│       ├── 2026-10-05-review-loop-composite-ledger-id-review.md
+│       ├── 2026-10-05-review-loop-workflow-sync-review.md
+│       ├── 2026-10-05-review-reach-back-earliest-window-review.md
+│       ├── 2026-10-05-stop-hook-seats-in-flight-review.md
+│       ├── 2026-10-05-vanished-slices-union-review.md
+│       ├── 2026-10-05-work-commit-items-review.md
+│       ├── 2026-10-05-work-done-resolved-by-review.md
+│       ├── 2026-10-06-capability-catalog-probe-review.md
+│       ├── 2026-10-06-compose-wait-healthcheck-review.md
+│       ├── 2026-10-06-d613-panel-design-gates-review.md
+│       ├── 2026-10-06-fabrik-mail-loop-safety-closing-review.md
+│       ├── 2026-10-06-gate-test-db-family-review.md
+│       ├── 2026-10-06-kaizen-fourth-hub-agent-review.md
+│       ├── 2026-10-06-mail-merge-sha-typing-review.md
+│       ├── 2026-10-06-merge-owner-tests-env-review.md
+│       ├── 2026-10-06-mint-once-secrets-review.md
+│       ├── 2026-10-06-observability-matrix-node-drain-review.md
+│       ├── 2026-10-06-pgvector-version-key-review.md
+│       ├── 2026-10-06-plan-1-postgresql-18-upgrade-T02-review.md
+│       ├── 2026-10-06-plan-1-postgresql-18-upgrade-T04b-review.md
+│       ├── 2026-10-06-plan-2-rotation-capability-probe-review.md
+│       ├── 2026-10-06-plan-tickets-gate-cd-review.md
+│       ├── 2026-10-06-python-pack-mypy-target-review.md
+│       ├── 2026-10-06-rag-search-dated-probe-review.md
+│       ├── 2026-10-06-review-loop-files-read-shapes-review.md
+│       ├── 2026-10-06-rotation-capability-probe-design-approval.md
+│       ├── 2026-10-06-rotation-perishable-first-review.md
+│       ├── 2026-10-06-scaffold-glitchtip-release-review.md
+│       ├── 2026-10-06-server-lint-config-review.md
+│       ├── 2026-10-06-synced-enforcement-format-review.md
+│       ├── 2026-10-06-terminal-banner-review.md
+│       ├── 2026-10-06-triage-plan-sets-review.md
+│       ├── 2026-10-06-w-07b8f192-pytest-against-pins-review.md
+│       ├── 2026-10-06-w-2005a1a5-worktreeinclude-fallback-review.md
+│       ├── 2026-10-06-w-42bde5ae-gate-cites-review.md
+│       ├── 2026-10-06-w-97de2aa3-coroner-sweep-log-review.md
+│       ├── 2026-10-06-w-9c2f371a-merge-never-rebase-review.md
+│       ├── 2026-10-06-w-ab678eb9-worktree-structure-carry-review.md
+│       ├── 2026-10-06-w-ad6bd74a-digest-columns-review.md
+│       ├── 2026-10-06-watchdog-tier-d-action-name-review.md
+│       ├── 2026-10-07-doc-links-worktree-lock-review.md
+│       ├── 2026-10-07-glitchtip-env-rows-review.md
+│       ├── 2026-10-07-heredoc-guard-docs-review.md
+│       ├── 2026-10-07-kilo-model-sync-archive-review.md
+│       ├── 2026-10-07-mcp-resume-report-and-credential-chain-review.md
+│       ├── 2026-10-07-mcp-scope-and-orphan-reaper-review.md
+│       ├── 2026-10-07-mcp-scope-fabrik-lib-correction-review.md
+│       ├── 2026-10-07-phantom-relief-wakes-pytest-guard-review.md
+│       ├── 2026-10-07-review-loop-worktree-seat-recipe-review.md
+│       ├── 2026-10-07-stale-pack-sentences-grace-and-pollpath-review.md
+│       ├── 2026-10-07-state-registrar-failures-review.md
+│       ├── 2026-10-07-urgent-relief-promise-review.md
+│       ├── 2026-10-07-watchdog-llm-actions-packs-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -763,6 +1003,9 @@ docs/
 │   │   ├── fleet-doc-audit-2026-09-02.md
 │   │   ├── fleet-doc-audit-2026-09-09.md
 │   │   ├── fleet-doc-audit-2026-09-16.md
+│   │   ├── fleet-doc-audit-2026-09-23.md
+│   │   ├── fleet-doc-audit-2026-09-30.md
+│   │   ├── fleet-doc-audit-2026-10-07.md
 │   │   ├── fleet-doc-audit-latest.md
 │   │   ├── infra-probe-2026-05-31T15-49Z.yaml
 │   │   ├── infra-probe-2026-05-31T22-36Z.yaml
@@ -845,7 +1088,8 @@ docs/
 │   │   ├── infra.md
 │   │   ├── intel.md
 │   │   ├── kaizen-log-fleet.md
-│   │   └── kaizen-log-infra.md
+│   │   ├── kaizen-log-infra.md
+│   │   └── kaizen.md
 │   ├── ai-media-generation-provider-map.md
 │   ├── apis
 │   │   ├── EXTERNAL_SYSTEMS.md     # External service dependencies
@@ -876,6 +1120,7 @@ docs/
 │   │   └── glitchtip-webhook.json
 │   ├── gui-toolchain.md
 │   ├── health-monitoring.md        # Health monitoring patterns
+│   ├── jev-decision-model-map.md
 │   ├── kilo
 │   │   ├── AGGREGATOR_ROADMAP.md
 │   │   ├── AI_VENDOR_ACCESS.md
@@ -884,7 +1129,7 @@ docs/
 │   │   ├── CODING_SUBAGENT_SELECTION.md
 │   │   ├── IMAGE_GEN_SELECTION.md
 │   │   ├── KILO_AGENT_SELECTION_GUIDE.md
-│   │   ├── KILO_MODEL_CAPABILITIES.md # Kilo model capabilities
+│   │   ├── KILO_MODEL_CAPABILITIES.md # Kilo model capabilities (Kilo CLI retired)
 │   │   ├── STT_SELECTION.md
 │   │   ├── TASK_SUBAGENT_SELECTION.md
 │   │   ├── TRANSLATION_SELECTION.md
@@ -902,11 +1147,67 @@ docs/
 │   ├── plan-lock-lifecycle.md
 │   ├── prebuilt-app-containers.md  # Prebuilt container catalog
 │   ├── product-adoption-forces.md
+│   ├── prompt-audit-2026-10-05.md
 │   ├── receipts-2026-08-07-autotrigger.md
 │   ├── research
 │   │   ├── 2026-07-20-claude-max-20x-effective-cost-per-token.md
 │   │   ├── 2026-07-22-claude-code-gui-lightweight-editor-research.md
 │   │   ├── 2026-07-22-claude-code-wsl-gui-boundary-research.md
+│   │   ├── 2026-09-23-ai-model-selection-currency-ledger.md
+│   │   ├── 2026-09-23-app-audit-log-currency-ledger.md
+│   │   ├── 2026-09-23-email-templates-currency-ledger.md
+│   │   ├── 2026-09-23-loop-program-research-ledger.md
+│   │   ├── 2026-09-23-saas-ui-currency-ledger.md
+│   │   ├── 2026-09-23-self-healing-currency-ledger.md
+│   │   ├── 2026-09-23-stop-and-compaction-ledger.md
+│   │   ├── 2026-09-23-stop-compaction
+│   │   │   ├── d4_probe.py
+│   │   │   ├── derive.py
+│   │   │   ├── draw.py
+│   │   │   ├── mine.py
+│   │   │   ├── samples.sha256
+│   │   │   ├── stop-events-2026-09-23.json
+│   │   │   ├── verdict-compact.json
+│   │   │   ├── verdict-context.json
+│   │   │   └── verdict-opdec.json
+│   │   ├── 2026-09-24-audit-log-everywhere-ledger.md
+│   │   ├── 2026-09-24-cost-budget-currency-ledger.md
+│   │   ├── 2026-09-24-design-system-split-currency-ledger.md
+│   │   ├── 2026-09-24-multi-tenant-saas-currency-ledger.md
+│   │   ├── 2026-09-24-saas-launch-checklist-currency-ledger.md
+│   │   ├── 2026-09-29-saas-skeleton-legal-pages-ledger.md
+│   │   ├── 2026-09-30-abuse-detection-currency-ledger.md
+│   │   ├── 2026-09-30-domain-saas-currency-ledger.md
+│   │   ├── 2026-09-30-mobile-billing-currency-ledger.md
+│   │   ├── 2026-09-30-mobile-currency-ledger.md
+│   │   ├── 2026-09-30-mobile-domain-currency-ledger.md
+│   │   ├── 2026-09-30-payments-fulfilment-role-ledger.md
+│   │   ├── 2026-10-01-chrome-domain-currency-ledger.md
+│   │   ├── 2026-10-01-docusaurus-static-runtime-ledger.md
+│   │   ├── 2026-10-01-mobile-components-currency-ledger.md
+│   │   ├── 2026-10-01-mobile-launch-currency-ledger.md
+│   │   ├── 2026-10-01-tojlo-brand-currency-ledger.md
+│   │   ├── 2026-10-01-tojlo-mobile-currency-ledger.md
+│   │   ├── 2026-10-02-3d-generation-currency-ledger.md
+│   │   ├── 2026-10-02-agentic-currency-ledger.md
+│   │   ├── 2026-10-02-backrest-paper-backups-ledger.md
+│   │   ├── 2026-10-02-chrome-ext-currency-ledger.md
+│   │   ├── 2026-10-02-chrome-launch-currency-ledger.md
+│   │   ├── 2026-10-02-code-currency-ledger.md
+│   │   ├── 2026-10-02-coordinator-assignment-ledger.md
+│   │   ├── 2026-10-02-language-currency-ledger.md
+│   │   ├── 2026-10-02-multimodal-currency-ledger.md
+│   │   ├── 2026-10-02-postgres-allocation-reconcile-ledger.md
+│   │   ├── 2026-10-02-speech-audio-currency-ledger.md
+│   │   ├── 2026-10-02-vision-currency-ledger.md
+│   │   ├── 2026-10-03-data-predictive-currency-ledger.md
+│   │   ├── 2026-10-03-desktop-app-currency-ledger.md
+│   │   ├── 2026-10-03-jev-use-cases-ledger.md
+│   │   ├── 2026-10-03-long-context-currency-ledger.md
+│   │   ├── 2026-10-03-specialized-domains-currency-ledger.md
+│   │   ├── 2026-10-04-bootstrap-scripts-currency-ledger.md
+│   │   ├── 2026-10-05-promtail-to-alloy-ledger.md
+│   │   ├── 2026-10-06-postgresql-18-upgrade-ledger.md
 │   │   ├── AI for Autonomous System Administration.md
 │   │   ├── Document Text Replacement Libraries.md
 │   │   ├── Electron Desktop App Best Practices.md
@@ -925,13 +1226,13 @@ docs/
 │   │   ├── mobile-gui-research.md
 │   │   ├── research-prompt-preamble-for-agent-rules.md
 │   │   └── saas-alternative-gui.md
-│   ├── review-loop-workflow.md # the D-335 review loop as a Claude Code workflow script, one run per pass (D-347, D-348)
+│   ├── review-loop-workflow.md     # the D-335 review loop as a Claude Code workflow script, one run per pass (D-347, D-348)
 │   ├── rivals-command.md
 │   ├── rule-pack-reachability.md
 │   ├── rules-currency-pass.md
 │   ├── service-contracts
 │   │   └── site-provisioner.md
-│   ├── subagent-pool-contract.md # FROZEN pool/ai-consult/flywheel contract (paused D-181/D-182; moved out of core/62 2026-09-22)
+│   ├── subagent-pool-contract.md   # FROZEN pool/ai-consult/flywheel contract (paused D-181/D-182; moved out of core/62 2026-09-22)
 │   ├── sync-excluded-repo-audit.md
 │   ├── technology-stack-decision-guide.md # Tech decision flowchart
 │   ├── terminal-bench-runner.md
@@ -941,11 +1242,12 @@ docs/
 │   ├── vps-all-container-envs.txt
 │   ├── vps-env-exited-apps.txt
 │   ├── vps-env-site-provisioner.txt
-│   ├── windsurf                    # Windsurf IDE optimization
+│   ├── windsurf                    # Windsurf IDE reference (retired 2026-07-19)
 │   │   ├── actively-used-windsurf-extensions.md
 │   │   ├── overview.md
 │   │   ├── recommended-extensions.md
 │   │   └── windsurf_features.md
+│   ├── work-tracking.md
 │   └── zitadel.md
 ├── superpowers
 │   ├── plans                       # Plan documents (YYYY-MM-DD-plan-*.md)
@@ -987,14 +1289,33 @@ docs/
 │       ├── 2026-09-11-review-family-pass3-design.md
 │       ├── 2026-09-16-ledger-write-integrity-design.md
 │       ├── 2026-09-16-multi-agent-self-naming-identity-design.md
-│       ├── 2026-09-17-review-scoped-scope-growth-exit-design.md
 │       ├── 2026-09-17-fabrik-task-lane-design.md
+│       ├── 2026-09-17-review-scoped-scope-growth-exit-design.md
+│       ├── 2026-09-19-enforcement-git-decoder-design.md
+│       ├── 2026-09-23-stop-and-compaction-enforcement-design.md
+│       ├── 2026-09-24-audit-log-everywhere-design.md
+│       ├── 2026-09-24-work-tracking-design.md
+│       ├── 2026-09-25-work-store-single-tracker-design.md
+│       ├── 2026-09-29-hub-worktree-cutover-design.md
+│       ├── 2026-09-29-saas-skeleton-legal-pages-design.md
+│       ├── 2026-09-30-merge-request-loop-design.md
+│       ├── 2026-09-30-payments-fulfilment-role-design.md
+│       ├── 2026-10-01-docusaurus-static-runtime-design.md
+│       ├── 2026-10-02-backrest-paper-backups-design.md
+│       ├── 2026-10-02-coordinator-assignment-design.md
+│       ├── 2026-10-02-fabrik-task-feature-lane-design.md
+│       ├── 2026-10-02-postgres-allocation-reconcile-design.md
+│       ├── 2026-10-03-scaffold-retired-agent-surface-design.md
+│       ├── 2026-10-05-promtail-to-alloy-design.md
+│       ├── 2026-10-06-postgresql-18-fleet-upgrade-design.md
+│       ├── 2026-10-06-rotation-capability-probe-design.md
+│       ├── 2026-10-06-worktree-venv-isolation-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
 │   ├── README.md                   # Folder index / charter
 │   ├── fabrik-workflow.md
-│   └── kilo_selected_agents.md     # Kilo selected agents
+│   └── kilo_selected_agents.md     # Kilo selected agents (retired)
 ├── workflows                       # Workflow documentation
 │   ├── DATA_SYNC_WORKFLOW.md
 │   ├── FABRIK_SCAFFOLD_WORKFLOW.md # Fabrik scaffold workflow

@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-09-03-plan-1-multi-agent-per-repo",
+  "plan": "docs/development/plans/archived/2026-09-03-plan-1-multi-agent-per-repo",
   "owned_paths": [
     "**Given** `/fabrik-execute-plan` acquires a lock, **When** the lock file is written, **Then** its path is unchanged at `.fabrik/plan-locks/<plan-id>.json` \u2014 r11 withdrew the relocation, so this ticket must NOT move it (commands/_sources/fabrik-execute-plan.md:83)",
     "**Given** a spine carrying `Epic:` and a ticket whose Touches escape the epic's `owned_paths`, **When** dispatch is attempted, **Then** the dispatcher refuses and names the offending path (commands/_sources/fabrik-execute-plan.md:374)",

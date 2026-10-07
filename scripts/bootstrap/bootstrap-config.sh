@@ -198,7 +198,8 @@ FABRIK_HOST_STATE_EXCLUDES=(
 # Docker named volumes to RESTORE (the rest regenerate from compose).
 # Order matches dep order: data-stores first, then config-volumes.
 FABRIK_HUB_VOLUMES_TO_RESTORE=(
-    postgres18-data                     # CRITICAL — Postgres master data
+    postgres18-data                     # CRITICAL — Postgres master data (PG18, from the hub window on)
+    postgres-data                       # PG16 master data — kept until PG18 release step R3 drops it (D-647)
     redis_redis-data                    # CRITICAL — Redis main
     monitoring_grafana-data             # user dashboards
     monitoring_alertmanager-data        # silence state (small, OK)

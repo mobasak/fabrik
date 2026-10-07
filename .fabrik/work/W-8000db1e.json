@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T19:37:29.927455Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8000db1e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4BVYZMD8HTNT3D5Q2H23NWR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "final_gate red box-wide — \"Hooks Index Fresh\": SessionEnd / mcp_orphan_reaper.py registered but not in hooks-index.md"
+}

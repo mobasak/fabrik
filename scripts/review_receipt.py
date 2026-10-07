@@ -207,7 +207,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 Row shapes (quoted here, so the gate does not read them as passes):
 
 ```text
-| Pass 1 | native opus×1 + sonnet×2 | found: N, new: N, confirmed: C, fixed: X, unexecuted: U | citation |
+| Pass 1 | native opus×1 + sonnet×2 | found: N, new: N, confirmed: C, fixed: X, unexecuted: U | method: citation |
 | Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |
 ```
 

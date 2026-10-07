@@ -1156,8 +1156,9 @@ _MAIL_TRIAGE_PHASE_A = {
         # was the original fix and was itself wrong — a NAME-component match, so it can never
         # match `.claude/worktrees` while it DOES drop the seven fleet-synced hooks (CLAUDE.md
         # § denominator, seventh shape). Corrected at its origin by 7b5bdb86; this guard went
-        # stale in the same change and only reddened when the whole suite was next run.
-        "`command grep -rn --exclude-dir=worktrees",
+        # stale in the same change and only reddened when the whole suite was next run. The same happened
+        # again with D-643: `command grep` became `/usr/bin/grep` (timeout cannot exec a builtin).
+        "`/usr/bin/grep -rn --exclude-dir=worktrees",
     ),
     "fabrik-plan-review.md": (
         "positive control recorded beside it",  # T2.17 (01M1VDFYH)

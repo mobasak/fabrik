@@ -116,7 +116,7 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 | `run_close` | `verdict` (`done`\|`blocked`\|`handoff`), `resume` (handoff only — the artifact carrying the open rows), `evidence_hash`, `closed_by`, `rounds`, `resumed`, `resumed_phase`, `resumed_rounds`, **`feedback`** (`filed`\|`none`\|`unstated`), **`feedback_to`** (subset of `infra`/`fleet`/`intel`), **`feedback_hash`** | `scripts/command_run.py done`/`blocked` |
 | `gate_run` | `tier`, `mode`, `status`, `checks: [{name, outcome}]` (every EXECUTED check, advisory rows labelled) | `scripts/final_gate.py` |
 | `rule_activation` | `kind` (`select_rules`\|`rubric_injection`), `label` (*invocation-time*), `packs` — `[{pack, globs_fired}]` from `select_rules.py`, `[{pack}]` plus `packs_missing` from `review_rubric.py` | `scripts/select_rules.py`, `scripts/review_rubric.py` (`rubric_injection`) |
-| `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`deferral`\|`run-record`\|`unreviewed-spontaneous`), `outcome` (`blocked`\|`warned_through`); `deferral` additionally carries `shape` (`D1`-`D4`, or `block` for a DECISION block that failed its own checks) | `.claude/hooks/final_gate_stop.py` |
+| `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`deferral`\|`run-record`\|`unreviewed-spontaneous`), `outcome` (`blocked`\|`warned_through`\|`stood_down`); `deferral` additionally carries `shape` (`D1`-`D4`, or `block` for a DECISION block that failed its own checks) | `.claude/hooks/final_gate_stop.py` |
 | `decision_block` | `ground` (`gate`\|`underivable`\|`owned`) | `.claude/hooks/final_gate_stop.py` — the turn ended on a well-formed `DECISION NEEDED (ground: …)` block (spec 2026-09-23-stop-and-compaction-enforcement-design § C2); emitted from the same non-blocking exit as `final_block_emitted`, for the same retry reason |
 | `anchor_harvest` | `tp` (bool — a transcript path arrived), `chars` (length of the harvested turn text), `lam` (bool — the payload carried `last_assistant_message`) | `.claude/hooks/final_gate_stop.py` — every Stop that reaches the thread-anchor harvest (`scripts/thread_anchor.py harvest`, plain — never `--decision-ok`, which runs only at an allowed exit); the trace that says whether WHERE YOU ARE had text to rebuild from |
 | `stop_allowed_quota_hold` | — | `.claude/hooks/final_gate_stop.py` — the fleet quota hold (`fleet-exhausted` stamp in force, fresh tick) let the turn end before any cause was read; the DECISION block, if any, is stored on this exit too |
@@ -144,6 +144,14 @@ consecutive blocked stops each cause warns through and lets the turn end; that g
 indistinguishable from a clean pass, so a cause the agent simply outlasted counted as enforcement
 working. A warned-through turn emits `stop_block` with `outcome: warned_through` **and** carries the
 cause in its `stop_pass.warned`.
+
+**`outcome: stood_down` is not a verdict at all.** When a running record's own seats are in flight,
+the run-record cause stands down (W-4c7edc74) and the hook emits `stop_block` cause `run-record`
+outcome `stood_down` BESIDE the turn's real verdict (`stop_pass`, or another cause's block). The
+collector counts it in the derived `stop_stood_down` map (facts v4) and every premature-stop reader
+subtracts it — from the numerator, and from premature_stop_rate's verdict denominator; the cause
+histogram `stop_block_causes` shows its volume as its own `stood_down` bucket (01M4BYXKWR). The set of
+such outcomes is `NON_VERDICT_OUTCOMES` in `kaizen_collect_v2.py`, rendered into each formula.
 
 **`operator_override` requires a cause that was actually WAIVED**, not merely a message containing
 the marker vocabulary. The promise-guard records `(kind, marker)` whenever a stall MATCHES and is
