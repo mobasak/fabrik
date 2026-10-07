@@ -17,7 +17,8 @@
   "priority": 1,
   "status": "open",
   "tags": [
-    "mail-01m48mq2hs"
+    "mail-01m48mq2hs",
+    "waits-2026-10-13"
   ],
   "title": "fabrik-review-loop.js: Haiku finder seats invert the pass-2+ ledger_status label (mail 01M48MQ2HS) — name it by what it asserts about the DEFECT (DEFECT_PRESENT / DEFECT_GONE) in brief and schema"
 }
