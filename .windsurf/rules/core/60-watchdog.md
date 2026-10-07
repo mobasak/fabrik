@@ -25,20 +25,20 @@ currency_pass: 2026-09-02
 | Shape | Default | Override |
 |---|---|---|
 | any `kind` — `service`, `worker`, `wordpress`, `static` | **on** | tune the caps (`daily_budget_usd`, `daily_invocations_cap`), never the switch |
-| any | — | `watchdog: { daily_budget_usd: 5.0, auto_tier_b: true }` for a fuller posture |
+| any | — | `watchdog: { daily_budget_usd: 5.0, auto_tier_b: true, llm_actions: [reset_db_pool] }` for a fuller posture (`auto_tier_b` alone adds nothing to the model's menu) |
 
 ⚠️ **This table previously claimed a shape-driven default** (`python-api`/`node-api` conditional on
 `is_admin_dashboard` OR `has_persistent_data`; `static-site`/`docusaurus` off). That was **never what the
 resolver did** — `resolve_applicability` is a one-line unconditional `watchdog_cfg.get("enabled", True)`
-with **no `kind` test at all** (`orchestrator/infrastructure.py`:337-345, whose own comment says the matrix here "is
-operator discipline … not encoded here"). So the table described a discipline, not a behavior, and the
+with **no `kind` test at all** (`orchestrator/infrastructure.py`:359-373, whose own comment says the matrix here "stays
+operator discipline, not encoded behaviour"). So the table described a discipline, not a behavior, and the
 discipline is now superseded. Anything relying on the old rows — including a spec comment justifying an
 opt-out — is stale.
 
 **Disabling is a RULING, not a default.** `infra: { watchdog: false }` and `enabled: false` both still
 work mechanically; using either without a `docs/DECISIONS.md` row is the drift D-052 exists to end. A
 third-party or upstream image is NOT a reason on its own: the sidecar builds from
-`/opt/fabrik-lib/watchdog/watchdog_sidecar` (`drivers/watchdog.py`:125) and needs the project's SOURCE only
+`/opt/fabrik-lib/watchdog/watchdog_sidecar` (`drivers/watchdog.py`:127) and needs the project's SOURCE only
 for the code-fix tiers (`propose_fix_prs` / `auto_code_fix`, both default `false`) — ops-only monitoring
 watches the CONTAINER, so it works fine against an image you did not build.
 
@@ -71,13 +71,13 @@ Existing specs without a `watchdog:` block inherit the default and don't break.
 
 ## Action allow-list (Tier A / B / C / D)
 
-**Tier A** — automatic, no opt-in needed. Bounded by the daily caps (`daily_budget_usd`, `daily_invocations_cap`) on the ops-only path; `per_incident_budget_usd` is accepted and ignored (§ Cost behavior).
+**Tier A** — no `auto_tier_b` needed. `restart_container` is always offered; `clear_file_cache` and `pause_worker` only once listed in `watchdog.llm_actions`; `scale_concurrency` is never offered (fabrik-lib SB-103). Bounded by the daily caps (`daily_budget_usd`, `daily_invocations_cap`) on the ops-only path; `per_incident_budget_usd` is accepted and ignored (§ Cost behavior).
 
 | Action | What | Guards |
 |---|---|---|
 | `restart_container` | `docker restart <main>` | Refuses 14-entry shared-infra list (postgres-main, redis-main, traefik, authelia, …) |
 | `clear_file_cache` | `rm -rf /project/<subpath>/*` | Path-escape rejected; scoped under `/project/` |
-| `scale_concurrency` | env edit + `compose up -d <main>` | CONST_CASE env-key validation |
+| `scale_concurrency` | env edit + `compose up -d <main>` | Never offered to the model (fabrik-lib SB-103) — not an `llm_actions` entry; CONST_CASE env-key validation |
 | `pause_worker` | Redis SETEX `<project_prefix>:pause:<resource>` | Matches `pause-state` vendor read contract; TTL ∈ [5, 3600]s |
 
 ⚠️ **`drop_queue_items` and `rotate_locks` are NO LONGER Tier A** — the module moved them to the
@@ -85,20 +85,20 @@ Tier-C **approved-write lane** (`actions.py::TIER_C_WRITE_HANDLERS`), fail-close
 `WATCHDOG_ALLOW_DB_WRITES` (default OFF) and a provisioned `WATCHDOG_DB_URL_RW`. Absent either, the
 handler returns `skipped`, not a mutation. § Architecture already said this ("Consumed only by the
 Tier-C approved-write lane"); this table had not caught up, so the pack promised two automatic
-DB-mutating actions that are impossible by default.
+DB-mutating actions that are impossible by default. Both are also never offered to the model (fabrik-lib SB-103, `actions.py::NEVER_OFFERED`), so today neither runs even with both gates open.
 
 | Approved-write (Tier C lane) | What | Guards |
 |---|---|---|
 | `drop_queue_items` | `DELETE … ORDER BY <age_col> LIMIT N` | Both gates above; identifier validation; row cap 1..10000 |
 | `rotate_locks` | `UPDATE … SET locked_at = NULL WHERE locked_at < now() − interval` | Both gates above; identifier validation; age ∈ [30, 86400]s |
 
-**Tier B** — opt-in per spec via `watchdog.auto_tier_b: true`. Without opt-in, Tier B diagnosis escalates as Tier C.
+**Tier B** — opt-in per spec: list the action in `watchdog.llm_actions` (e.g. `llm_actions: [reset_db_pool]`) AND set `watchdog.auto_tier_b: true` — the sidecar offers the model only `restart_container` + `escalate_apprise` (plus `create_fix_pr` on the code-fix lane) until an action is listed — or, with the field unset or empty, a `WATCHDOG_LLM_ACTIONS` line in the project `.env` (fabrik-lib D-412; the allowed names are `src/fabrik/spec_loader.py::WATCHDOG_LLM_OPT_INS`). `auto_tier_b: false` stays the one revert switch: a listed Tier-B action is then held and not offered. Without opt-in, Tier B diagnosis escalates as Tier C.
 
 | Action | What | Guards |
 |---|---|---|
 | `wipe_redis_cache` | `SCAN` + `DEL` pattern | Project-prefixed forcibly; 100k key safety cap |
 | `reset_db_pool` | POST `/admin/reset-db-pool` with `X-Internal-Token` | Requires `SERVICE_INTERNAL_SECRET_KEY` env |
-| `install_log_drop_rule` | Add regex drop to promtail via hub update service | Refuses too-broad patterns (`.*`, `.+`, `^.*$`) |
+| `install_log_drop_rule` | Add regex drop to promtail via hub update service | Never offered to the model (being retired, fabrik-lib SB-095) — not an `llm_actions` entry; refuses too-broad patterns (`.*`, `.+`, `^.*$`) |
 
 **Tier C** — escalate-only by default. With `propose_fix_prs: true`, also pushes branch `watchdog/<incident_id>`.
 
@@ -119,10 +119,10 @@ DB-mutating actions that are impossible by default.
 
 ## Owner approval flow for Tier B opt-in
 
-1. Spec author edits `specs/services/<id>.yaml`: `watchdog: { auto_tier_b: true }`.
-2. `fabrik apply` registrar picks up the change, renders compose with `WATCHDOG_AUTO_TIER_B=true`.
-3. On first Tier B execution, the sidecar fires an Apprise message: `[Watchdog Tier B activated for <project_id>] action=<name>, reasoning=<…>`.
-4. The operator can revert by setting `auto_tier_b: false` and re-applying — the next sidecar boot reads the new env and Tier B falls back to `skipped` (escalate-only).
+1. Spec author edits `specs/services/<id>.yaml`: `watchdog: { auto_tier_b: true, llm_actions: [<the Tier-B action>] }`.
+2. `fabrik apply` registrar picks up the change, renders compose with `WATCHDOG_AUTO_TIER_B=true` and `WATCHDOG_LLM_ACTIONS=<the action>`.
+3. Each Tier-B action is recorded in the sidecar's `state.db`; a skip, refusal or failure is escalated via Apprise (there is no separate "Tier B activated" notice).
+4. The operator can revert by setting `auto_tier_b: false` and re-applying — the next sidecar boot reads the new env, the listed Tier-B action leaves the menu, and a reply naming it is refused and escalated (Tier C).
 
 Same flow for `propose_fix_prs: true` — first PR fires `[Watchdog proposed PR] watchdog/<incident_id> at <repo>`.
 
@@ -161,7 +161,7 @@ Every apply/rollback is written to the `deploys` table (and the approval to `app
 
 - **`pause-state`** — worker code reads pause flags via the vendored `pause-state` module. Watchdog writes flags directly via `redis.setex(<project_prefix>:pause:<resource>, ttl, "watchdog")` matching the read contract. Workers see the pause without code change.
 - **`async-http-client`** — sidecar's OpenRouter fallback uses `httpx` directly (not async); circuit-breaker for OpenRouter is implicit in `llm_client.diagnose`'s primary→fallback→rule-only chain rather than a per-call breaker.
-- **`abuse-prevention`** — host-app side only. Sidecar does not call it. If the host app fires `abuse_event` → emitter → sidecar reads → LLM proposes Tier A `pause_worker` for the offending resource.
+- **`abuse-prevention`** — host-app side only. Sidecar does not call it. If the host app fires `abuse_event` → emitter → sidecar reads → LLM proposes Tier A `pause_worker` for the offending resource — offered only once `pause_worker` is listed in `watchdog.llm_actions`.
 - **`cost-budget`** — vendored into the sidecar tree (`/opt/fabrik-lib/watchdog/watchdog_sidecar/cost_budget.py`); writes go through `record_cost`/`replay_wal` so the shared `cost_ledger` table on postgres-main carries every project's burn. Daily caps via `check_caps` + `drop_to_rule_only_mode`.
 
 ---
@@ -217,7 +217,7 @@ a hypothetical.
 
 **When `watchdog.enabled` is true, the same change updates:**
 - `docs/DEPLOYMENT.md` — that a sidecar is deployed, its image, and which tiers are enabled
-  (`auto_tier_b` / `propose_fix_prs` / `auto_code_fix` are the operator-visible switches).
+  (`llm_actions` / `auto_tier_b` / `propose_fix_prs` / `auto_code_fix` are the operator-visible switches).
 - `docs/OPERATIONS.md` — how to read its state (`state.db`, the `deploys` audit table), where
   escalations land (Apprise → Telegram), and the STOP kill-switch.
 - `docs/RESILIENCE.md` — the sidecar's own tick cadence belongs in the jobs/intervals inventory.
