@@ -31,12 +31,12 @@ Each row is a driver under `src/fabrik/drivers/` that the orchestrator or CLI im
 
 | Dependency | Driver | Env keys read | Used for | Failure |
 |---|---|---|---|---|
-| **SSH to the VPS fleet** | `ssh.py` | `FABRIK_VPS_SSH_HOST` (default alias `vps`, `ssh.py:31`) | every deploy, registrar and probe | fatal — nothing deploys |
+| **SSH to the VPS fleet** | `ssh.py` | `FABRIK_VPS_SSH_HOST` (default alias `vps`, `src/fabrik/drivers/ssh.py:31`) | every deploy, registrar and probe | fatal — nothing deploys |
 | **GitHub** | (git over SSH on the VPS) | — | the VPS `git pull`s the app; commit → push → redeploy | redeploy ships the old commit |
 | **PostgreSQL** `postgres-main` | `postgres.py` | — (runs over SSH) | per-service database + role | registrar failure, recorded in `.fabrik/state/<id>.json` |
 | **Redis** `redis-main` | `redis.py` | — (over SSH) | per-service logical DB index | registrar failure |
 | **Cloudflare** | `cloudflare.py` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `VPS_IP` | DNS records | DNS step fails; `--keep-on-failure` keeps the app |
-| **site-provisioner** | `dns.py` | `SITE_PROVISIONER_URL` (fallback `DNS_MANAGER_URL`, `config.py:113-114`), `SITE_PROVISIONER_API_KEY`, `SITE_PROVISIONER_INTERNAL_URL`, `SITE_PROVISIONER_CONTAINER*` | the DNS provider behind `DNS_PROVIDER=site-provisioner` (`config.py:112`) | DNS step fails |
+| **site-provisioner** | `dns.py` | `SITE_PROVISIONER_URL` (fallback `DNS_MANAGER_URL`, `src/fabrik/config.py:113-114`), `SITE_PROVISIONER_API_KEY`, `SITE_PROVISIONER_INTERNAL_URL`, `SITE_PROVISIONER_CONTAINER*` | the DNS provider behind `DNS_PROVIDER=site-provisioner` (`src/fabrik/config.py:112`) | DNS step fails |
 | **Backrest** (restic → Backblaze B2) | `backrest.py` | `FABRIK_VPS_SSH_HOST` | backup-coverage check for `has_persistent_data` (warns, never writes a plan) | warning only |
 | **Gatus** | `gatus.py` | — (SSH + scp) | health-monitor endpoints | registrar failure |
 | **Prometheus** | `prometheus.py` | — (over SSH) | scrape targets for `exposes_metrics` | registrar failure |
@@ -44,7 +44,7 @@ Each row is a driver under `src/fabrik/drivers/` that the orchestrator or CLI im
 | **Grafana** | `grafana.py` | `GRAFANA_SERVICE_ACCOUNT_TOKEN` | deploy annotations | non-fatal, decorative |
 | **Authelia** | `authelia.py` | — (over SSH) | access rules for `is_admin_dashboard` | registrar failure |
 | **Meilisearch** | `meilisearch.py` | — (over SSH) | indexes for `has_search_feature` | registrar failure |
-| **Watchdog sidecar** | `watchdog.py` | `WATCHDOG_TARGET_VPS`, `WATCHDOG_DEPLOY_BRANCH`, `WATCHDOG_CRITICAL_PATHS`, `WATCHDOG_APPROVAL_WINDOW_SEC`, `FABRIK_VPS_CLAUDE_HOME` | per-project image build + compose overlay | registrar failure |
+| **Watchdog sidecar** | `watchdog.py` | `FABRIK_VPS_CLAUDE_HOME` (`watchdog.py:146`); the `WATCHDOG_*` keys are read by the sidecar's own bootstrap, which the driver writes and configures | per-project image build + compose overlay | registrar failure |
 
 Registrar failures are non-fatal: the CLI exits 2, prints them, and records them in the state file (D-644).
 
@@ -61,9 +61,10 @@ The OpenRouter subagent pool is OFF by ruling (D-181/D-182); nothing calls it.
 
 ### Service Status Summary (2026-10-07)
 
-Not wired: `r2.py`, `tco.py`, `supabase.py` and `image_broker.py` are imported only by `src/fabrik/drivers/__init__.py`;
-no command calls them. The Coolify driver and deployer are still imported (`coolify.py`, `orchestrator/deployer_coolify.py`)
-although Coolify was retired on 2026-05-31; their retirement is backlog item W-00485146.
+Not wired: `r2.py`, `tco.py`, `supabase.py` and `image_broker.py` are imported only by `src/fabrik/drivers/__init__.py`,
+and `compose_updater.py`, `preflight.py` and `uptime_kuma.py` by nothing at all; no command calls any of the seven.
+The Coolify driver and deployer are still imported (`coolify.py`, `orchestrator/deployer_coolify.py`) although Coolify
+was decommissioned on 2026-05-30 (`coolify.py:4`); their retirement is backlog item W-00485146.
 
 ## VPS services (managed by `fabrik apply`, SSH + Docker Compose)
 
@@ -99,7 +100,7 @@ Every service sits on the external `fabrik` network behind Traefik and declares 
 
 | Service | Retired | Replaced by |
 |---|---|---|
-| Coolify | 2026-05-31 | standalone compose stacks deployed by `fabrik apply`; the `coolify` network renamed `fabrik` (D-122) |
+| Coolify | 2026-05-30 | standalone compose stacks deployed by `fabrik apply`; the `coolify` Docker network was renamed `fabrik` on 2026-05-31 |
 | Netdata | 2026-05-30 | node-exporter + cAdvisor → Prometheus → Grafana |
 | Image Broker | 2026-06-02 | — (spec retired) |
 | DNS Manager | not deployed | the Cloudflare and site-provisioner DNS drivers |
