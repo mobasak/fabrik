@@ -1,7 +1,7 @@
 # Review — urgent-relief-promise
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = 34771d97adea5de5a9d1181fd3017b2b494e48eb; `git diff HEAD -- scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py tests/test_claude_rotate_v2.py tests/test_claude_fleet.py docs/workstation/claude-account-rotation.md docs/workstation/hooks-index.md` md5 e215a7f3d0a79897fde870545852ef5a (18503 bytes)
+**Surface:** `git rev-parse HEAD` = 141a3aa746df6ef4e703f81c615dc5669122b116; range tip 141a3aa746df6ef4e703f81c615dc5669122b116; `git diff 34771d97a..141a3aa74 -- scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py tests/test_claude_rotate_v2.py tests/test_claude_fleet.py docs/workstation/claude-account-rotation.md docs/workstation/hooks-index.md` md5 e215a7f3d0a79897fde870545852ef5a (18503 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/sysadmin/claude_rotate.py`, `scripts/aro-wake/claude_rotate.py`, `tests/test_claude_rotate_v2.py`, `tests/test_claude_fleet.py`, `docs/workstation/claude-account-rotation.md`, `docs/workstation/hooks-index.md`
 **Lane:** fabrik-task
 
