@@ -1,513 +1,140 @@
-# Required Services
+# Fabrik (hub) — Services
 
-**Last Updated:** 2026-06-02 (Coolify rows removed; all services now run as standalone Compose stacks under `/opt/<svc>/` with stable `container_name:` and are deployed via `fabrik apply` SSH+Compose). Backrest replaces Duplicati [migrated 2026-04-17]; Authelia, Gotenberg, MeiliSearch present; monitoring stack [Prometheus/Grafana/Loki/Promtail/Alertmanager/cAdvisor/node-exporter] runs as `/opt/monitoring/`.
+**Last Updated:** 2026-10-07 (converged against the code: the live drivers and their env keys, the repo-of-record composes under `infra/`, the box-local machinery; retired services collapsed into one table)
 
-Services Fabrik needs to function.
-
-## About Fabrik
-
-**Fabrik is a CLI tool, not a deployed service.** It runs from WSL and orchestrates deployments to VPS via `fabrik apply` (SSH + Docker Compose). There are no daemons, watchdogs, or health endpoints for Fabrik itself.
-
-```bash
-# Fabrik runs as a command, not a service
-fabrik apply my-site    # Execute and exit
-fabrik plan my-api      # Execute and exit
-```
+What the hub runs, what it depends on, and where each piece is documented in depth.
 
 ## Services This Project Runs
 
-| Service | Port | Health Endpoint | Watchdog | Purpose |
-|---------|------|-----------------|----------|---------|
-| Fabrik CLI | - | - | - | Command-line tool (not a daemon) |
+**The hub ships no deployed service of its own.** `fabrik` is a CLI (`src/fabrik/cli.py`) run from WSL: each command
+executes and exits, and deploys reach the VPS fleet through `fabrik apply specs/services/<id>.yaml` (SSH + Docker
+Compose). The hub does, however, run **box-local machinery on the WSL workstation** — systemd units, cron jobs and
+Claude Code hooks. Each has its own document; this file links them rather than restating them.
+
+| What | Where it runs | Documented in |
+|------|---------------|---------------|
+| `fabrik` CLI | WSL, on demand | `docs/QUICKSTART.md` · `docs/reference/fabrik-cli-reference.md` |
+| systemd units (Postgres, Redis, Docker, the Fabrik MCP and citation services, the DR and env watchers) | WSL, at boot | `docs/workstation/wsl-startup-inventory.md` § A |
+| Cron jobs and timers (account rotation tick, WIP backup, DR env backup and recovery test, CI-fix dispatcher, weekly catch-up audits, registry reconcile) | WSL crontab | `docs/workstation/wsl-startup-inventory.md` § C |
+| Claude account rotation and the `QUOTA:` posture | WSL cron, every 5 min | `docs/workstation/claude-account-rotation.md` · `docs/workstation/quota-dashboard.md` |
+| fabrik-mail (repo-to-repo mail, the dispatcher and watchers) | WSL, `/opt/fabrik-mail/` | `docs/reference/fabrik-mail.md` |
+| Claude Code hooks, the self-watch and the death/revival mesh | WSL, per session | `docs/workstation/hooks-index.md` |
+| Liveness audit (proves the cron and systemd machinery actually runs) | WSL, on demand | `docs/workstation/liveness.md` |
+
+None of these exposes a health endpoint; `scripts/sysadmin/liveness_audit.py` is the check that they run.
 
 ## External Dependencies
 
-| Service | Required | Purpose | Fallback |
-|---------|----------|---------|----------|
-| **SSH access to VPS** | Yes | Container deployment via `fabrik apply` (SSH + Docker Compose) | None |
-| **PostgreSQL** (`postgres-main`) | Yes | Shared database | None |
-| **DNS Manager** (site-provisioner / Cloudflare) | Yes | DNS management | — |
-| **Backblaze B2** | Yes | Backup storage (via Backrest + restic) | None |
-| **Redis** (`redis-main`) | Optional | Caching | Works without |
+### Core infrastructure — what `fabrik apply` and the registrars call
 
+Each row is a driver under `src/fabrik/drivers/` that the orchestrator or CLI imports today.
 
-## VPS Services (managed by fabrik via SSH + Docker Compose)
+| Dependency | Driver | Env keys read | Used for | Failure |
+|---|---|---|---|---|
+| **SSH to the VPS fleet** | `ssh.py` | `FABRIK_VPS_SSH_HOST` (default alias `vps`, `ssh.py:31`) | every deploy, registrar and probe | fatal — nothing deploys |
+| **GitHub** | (git over SSH on the VPS) | — | the VPS `git pull`s the app; commit → push → redeploy | redeploy ships the old commit |
+| **PostgreSQL** `postgres-main` | `postgres.py` | — (runs over SSH) | per-service database + role | registrar failure, recorded in `.fabrik/state/<id>.json` |
+| **Redis** `redis-main` | `redis.py` | — (over SSH) | per-service logical DB index | registrar failure |
+| **Cloudflare** | `cloudflare.py` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `VPS_IP` | DNS records | DNS step fails; `--keep-on-failure` keeps the app |
+| **site-provisioner** | `dns.py` | `SITE_PROVISIONER_URL` (fallback `DNS_MANAGER_URL`, `config.py:113-114`), `SITE_PROVISIONER_API_KEY`, `SITE_PROVISIONER_INTERNAL_URL`, `SITE_PROVISIONER_CONTAINER*` | the DNS provider behind `DNS_PROVIDER=site-provisioner` (`config.py:112`) | DNS step fails |
+| **Backrest** (restic → Backblaze B2) | `backrest.py` | `FABRIK_VPS_SSH_HOST` | backup-coverage check for `has_persistent_data` (warns, never writes a plan) | warning only |
+| **Gatus** | `gatus.py` | — (SSH + scp) | health-monitor endpoints | registrar failure |
+| **Prometheus** | `prometheus.py` | — (over SSH) | scrape targets for `exposes_metrics` | registrar failure |
+| **GlitchTip** | `glitchtip.py` | `GLITCHTIP_URL`, `GLITCHTIP_AUTH_TOKEN`, `GLITCHTIP_ORG_SLUG`, `GLITCHTIP_TEAM_SLUG` | per-project error tracking | registrar failure |
+| **Grafana** | `grafana.py` | `GRAFANA_SERVICE_ACCOUNT_TOKEN` | deploy annotations | non-fatal, decorative |
+| **Authelia** | `authelia.py` | — (over SSH) | access rules for `is_admin_dashboard` | registrar failure |
+| **Meilisearch** | `meilisearch.py` | — (over SSH) | indexes for `has_search_feature` | registrar failure |
+| **Watchdog sidecar** | `watchdog.py` | `WATCHDOG_TARGET_VPS`, `WATCHDOG_DEPLOY_BRANCH`, `WATCHDOG_CRITICAL_PATHS`, `WATCHDOG_APPROVAL_WINDOW_SEC`, `FABRIK_VPS_CLAUDE_HOME` | per-project image build + compose overlay | registrar failure |
 
-> **⚠️ Service-status drift warning (2026-06-02):** the table below lists services that were planned/deployed under the Coolify era. **Many are not currently live**. Authoritative inventory: [`docs/infrastructure/vps-complete-inventory.md`](infrastructure/vps-complete-inventory.md) (live state) and [`docs/infrastructure/vps-urls.md`](infrastructure/vps-urls.md) (URL reality vs. claims). Specifically: `image-broker` was retired 2026-06-02 (row kept here only for historical reference); `dns-manager`, `translator`, `captcha`, `file-api`, `netdata` have no live Traefik router or backing container today either. The infra rows (`postgres-main`, `redis-main`, `backrest`, `gatus`, `gotenberg`, `browserless`, `meilisearch`, `n8n`, `apprise`, `traefik`, `authelia`, `prometheus`, `grafana`, `loki`, `glitchtip-*`) ARE live.
+Registrar failures are non-fatal: the CLI exits 2, prints them, and records them in the state file (D-644).
 
-| Service | Container | Port | URL | Protection | Purpose |
-|---------|-----------|------|-----|------------|---------|
-| PostgreSQL | postgres-main | 5432 | - (mesh-only via 10.99.0.1) | 🔐 Password | Shared database |
-| Redis | redis-main | 6379 | - (internal) | 🔒 Internal | Caching (optional) |
-| ~~Netdata~~ | ~~netdata~~ | ~~19999~~ | ~~`netdata.vps1.ocoron.com`~~ | — | **REMOVED 2026-05-30** — metrics now via node-exporter + cAdvisor → Prometheus → Grafana |
-| Gatus | gatus | 3001 | `https://status.vps1.ocoron.com` | 🔐 Password | Service monitoring |
-| Backrest | backrest | 9898 | `https://backup.vps1.ocoron.com` | 🔐 Authelia 2FA | Backup management (restic + Backblaze B2; replaced Duplicati 2026-04-17) |
-| ~~Image Broker~~ | ~~image-broker~~ | ~~8010~~ | ~~`https://images.vps1.ocoron.com`~~ | — | **REMOVED 2026-06-02** — spec retired; row kept for history |
-| ~~DNS Manager~~ | ~~dns-manager~~ | ~~8001~~ | ~~`dns.vps1.ocoron.com`~~ | — | **RETIRED** — not deployed (DNS handled directly via Cloudflare driver) |
-| ~~Translator~~ | ~~translator~~ | ~~8000~~ | ~~`translator.vps1.ocoron.com`~~ | — | **RETIRED** — not deployed |
-| ~~Captcha~~ | ~~captcha~~ | ~~8000~~ | ~~`captcha.vps1.ocoron.com`~~ | — | **RETIRED** — not deployed |
-| ~~File API~~ | ~~file-api~~ | ~~8004~~ | ~~`files-api.vps1.ocoron.com`~~ | — | **RETIRED** — not deployed |
-| Browserless | browserless | 3000 | `https://browser.vps1.ocoron.com` | 🔑 API Key | Headless Chrome for scraping/extensions |
-| Gotenberg | gotenberg | 3003 | `https://pdf.vps1.ocoron.com` | ⚠️ Open | PDF generation |
-| ~~MinIO~~ | ~~minio~~ | ~~9000/9001~~ | ~~`s3.vps1.ocoron.com`~~ | — | **RETIRED** — not deployed (object storage via Backblaze B2 / Cloudflare R2 directly) |
-| Apprise | apprise | — (Traefik) | `https://notify.vps1.ocoron.com` | ⚠️ Open | Unified notifications (internal 8000; no host port) |
-| Meilisearch | meilisearch | 7700 | `https://search.vps1.ocoron.com` | 🔑 API Key | Fast full-text search |
-| Loki | loki | 3100 | internal only | 🔒 Internal | Log aggregation |
-| Promtail | promtail | — | internal only | 🔒 Internal | Log shipper (Docker → Loki) |
-| Prometheus | prometheus | 9090 | internal only | 🔒 Internal | Metrics collection (15d retention) |
-| Node Exporter | node-exporter | 9100 | internal only | 🔒 Internal | Host system metrics |
-| cAdvisor | cadvisor | 8080 | internal only | 🔒 Internal | Container metrics |
-| Grafana | grafana | 3002 | `https://monitor.vps1.ocoron.com` | 🔐 Password | Dashboards & alerting |
-| n8n | n8n | 5678 | `https://auto.vps1.ocoron.com` | 🔐 Password | Business automation & webhook pipelines |
+### On-demand services — called only by the command that needs them
 
-All services use Traefik reverse proxy on ports 80/443. Mesh-only services (postgres-main, redis-main, loki, etc.) bind only to `10.99.0.1` (Wireguard hub interface).
+| Dependency | Driver / caller | Env keys read | Used for |
+|---|---|---|---|
+| **Vultr** | `vultr.py` · `orchestrator/vultr_drill.py` | `VULTR_API_KEY` | the manual DR drill (`fabrik vultr drill`) — `docs/operations/disaster-recovery.md` |
+| **RunPod** · **Modal** · **Vast.ai** | `runpod.py` · `modal_provider.py` · `vast_provider.py` | `RUNPOD_API_KEY` · `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET` · `VAST_API_KEY` | `fabrik gpu rent` — `docs/operations/gpu-rent.md` |
+| **SEO service** | `seo.py` (via `cli.py`) | `SEO_API_URL`, `SEO_API_KEY` | `fabrik seo site-register` |
+| **Claude Code, headless** (`claude -p`) | `scripts/ci_fix_dispatcher.py`, `scripts/sysadmin/claude_broker.py`, `scripts/rivals_run.py` and others | the active account (rotation) | the CI-fix dispatcher, the VPS broker, research runs |
 
-**Protection Legend:**
-- 🔐 **Password** — Requires login (basicauth or app login)
-- 🔑 **API Key** — Requires API key header
-- 🔒 **Internal** — No external access, Docker network only
-- ⚠️ **Open** — Publicly accessible (needs auth added)
+The OpenRouter subagent pool is OFF by ruling (D-181/D-182); nothing calls it.
 
-See [vps-urls.md](infrastructure/vps-urls.md) for complete URL reference.
+### Service Status Summary (2026-10-07)
 
-## Startup Order
+Not wired: `r2.py`, `tco.py`, `supabase.py` and `image_broker.py` are imported only by `src/fabrik/drivers/__init__.py`;
+no command calls them. The Coolify driver and deployer are still imported (`coolify.py`, `orchestrator/deployer_coolify.py`)
+although Coolify was retired on 2026-05-31; their retirement is backlog item W-00485146.
 
-For VPS setup (one-time): run `./scripts/bootstrap/bootstrap-vps.sh root@<new-ip> vpsN` — see [`docs/infrastructure/vps-bootstrap-plan.md`](infrastructure/vps-bootstrap-plan.md). Order (per the script's 17 steps, 00-16): system → Docker + fabrik network → Wireguard mesh → DOCKER-USER chain → monitoring agents → Traefik → DNS records → AI sysadmin pack (step 14) → aro-wake (step 15) → compose-boot reboot-race safety net (step 16).
+## VPS services (managed by `fabrik apply`, SSH + Docker Compose)
 
-For Fabrik usage (each run):
+The repo of record for each shared service is its compose file under `infra/`; the live state (ports, URLs,
+versions, what is actually running) is `docs/infrastructure/vps-complete-inventory.md`, and every URL is in
+`docs/infrastructure/vps-urls.md`. Shared infrastructure runs on the hub (vps1) only; the spokes reach it over
+WireGuard at `10.99.0.1:<port>`.
 
-1. Ensure VPS is accessible via SSH (`ssh vps1`)
-2. Run `fabrik apply specs/services/<id>.yaml` (auto-routes to the right host via `target_vps`)
+| Host | Compose (repo of record) | Services |
+|---|---|---|
+| vps1 | `infra/vps1/postgres/` | `postgres-main` — still PostgreSQL 16 on `postgres-data` until the PG18 hub window; the repo compose pins 18.6 on `postgres18-data` (D-647) |
+| vps1 | `infra/vps1/redis/` | `redis-main` |
+| vps1 | `infra/vps1/traefik/` | `traefik` |
+| vps1 | `infra/vps1/authelia/` | `authelia` |
+| vps1 | `infra/vps1/backrest/` | `backrest` |
+| vps1 | `infra/vps1/gatus/` | `gatus` |
+| vps1 | `infra/vps1/glitchtip/` | `glitchtip-web`, `glitchtip-worker` |
+| vps1 | `infra/vps1/monitoring/` | `prometheus`, `alertmanager`, `grafana`, `loki`, `promtail`, `node-exporter`, `cadvisor`, `postgres-exporter`, `redis-exporter`, `pushgateway` |
+| vps1 | `infra/vps1/meilisearch/` | `meilisearch` |
+| vps1 | `infra/vps1/gotenberg/` | `gotenberg` |
+| vps1 | `infra/vps1/browserless/` | `browserless` |
+| vps1 | `infra/vps1/apprise/` | `apprise` |
+| vps1 | `infra/vps1/n8n/` | `n8n` |
+| vps1 | `infra/vps1/site-provisioner/` | `site-provisioner` |
+| vps1 | `infra/vps1/ocoron-com/` | `wordpress`, `nginx`, `db`, `redis`, `backup` (the ocoron.com tenant stack) |
+| vps1 | `infra/vps1/watchdog-test/` | `watchdog-test` |
+| vps2, vps3 | `infra/vps{2,3}/traefik/`, `backrest/`, `monitoring-agent/` | `traefik`, `backrest`, `node-exporter`, `cadvisor`, `promtail` |
 
-## Health Checks
+Every service sits on the external `fabrik` network behind Traefik and declares a memory limit
+(`deployer_ssh._validate_compose()`); mesh-only services bind to `10.99.0.1`.
 
-### PostgreSQL
+### Retired services
 
-```bash
-ssh deploy@vps "docker exec postgres-main pg_isready"
-```
+| Service | Retired | Replaced by |
+|---|---|---|
+| Coolify | 2026-05-31 | standalone compose stacks deployed by `fabrik apply`; the `coolify` network renamed `fabrik` (D-122) |
+| Netdata | 2026-05-30 | node-exporter + cAdvisor → Prometheus → Grafana |
+| Image Broker | 2026-06-02 | — (spec retired) |
+| DNS Manager | not deployed | the Cloudflare and site-provisioner DNS drivers |
+| Translator · Captcha · File API · MinIO | not deployed | — (object storage goes to Backblaze B2 / Cloudflare R2 directly) |
+| Duplicati | 2026-04-17 | Backrest |
 
-### Gatus
+Their `*.vps1.ocoron.com` names no longer resolve.
 
-```bash
-curl -s https://status.vps1.ocoron.com
-```
-
-### ~~Image Broker~~ (REMOVED 2026-06-02)
-
-Historical — the spec was retired. The example below will fail (NXDOMAIN); kept for reference.
-
-```bash
-curl -s https://images.vps1.ocoron.com/api/v1/health
-```
-
-### Retired services (no health endpoint)
-
-`netdata`, `dns-manager`, `captcha`, `translator`, `file-api`, `minio` are no
-longer deployed — their `*.vps1.ocoron.com` subdomains return NXDOMAIN. See the
-service table above for retirement notes.
-
-## Service Integration
-
-### Standard URL Pattern
-
-All services follow this pattern:
-
-| Environment | URL Format | Example |
-|-------------|------------|---------|
-| **WSL (local)** | `http://localhost:<port>` | `http://localhost:8001` |
-| **VPS (Docker)** | `http://<container>:<port>` | `http://site-provisioner:8001` |
-| **External** | `https://<subdomain>.vps1.ocoron.com` | `https://provision.vps1.ocoron.com` |
-
-### Code Pattern
-
-```python
-import os
-import httpx
-
-# Defaults to localhost for local dev, override in compose.yaml for VPS
-SERVICE_URL = os.getenv("SERVICE_URL", "http://localhost:<port>")
-response = httpx.get(f"{SERVICE_URL}/endpoint")
-```
-
-### Environment Setup
-
-> **⚠️ RETIRED — not deployed.** `captcha`, `dns-manager`, and `translator` were all retired; their `*.vps1.ocoron.com` subdomains return NXDOMAIN. DNS is now handled directly via the Cloudflare driver (`src/fabrik/drivers/cloudflare.py`). The env blocks below are kept for historical reference only.
-
-```yaml
-# compose.yaml (VPS deployment)
-environment:
-  - CAPTCHA_URL=http://captcha:8000
-  - DNS_MANAGER_URL=http://dns-manager:8001
-  - TRANSLATOR_URL=http://translator:8000
-```
+## Service Management (Docker)
 
 ```bash
-# .env (WSL local dev) - optional, localhost is default
-CAPTCHA_URL=http://localhost:8000
-DNS_MANAGER_URL=http://localhost:8001
-```
-
-### Service Reference
-
-| Service | Container | Port | Env Var | Auth |
-|---------|-----------|------|---------|------|
-| Captcha | `captcha` | 8000 | `CAPTCHA_URL` | None |
-| DNS Manager | `dns-manager` | 8001 | `DNS_MANAGER_URL` | None |
-| Translator | `translator` | 8000 | `TRANSLATOR_URL` | `X-API-Key` header |
-| File API | `file-api` | 8004 | `FILE_API_URL` | None |
-| ~~Image Broker~~ | ~~`image-broker`~~ | ~~8010~~ | ~~`IMAGE_BROKER_URL`~~ | **REMOVED 2026-06-02** |
-| PostgreSQL | `postgres-main` | 5432 | `DATABASE_URL` | Password |
-
----
-
-## ~~Translator Service Integration~~ (RETIRED — not deployed)
-
-> **⚠️ RETIRED — not deployed.** The translator microservice was retired; `translator.vps1.ocoron.com` returns NXDOMAIN. Section kept for historical reference.
-
-**Purpose:** Multi-provider translation (DeepL primary, Azure fallback)
-
-### Usage
-
-```python
-import os
-import httpx
-
-TRANSLATOR_URL = os.getenv("TRANSLATOR_URL", "http://localhost:8000")
-TRANSLATOR_API_KEY = os.getenv("TRANSLATOR_API_KEY")
-
-# Single text translation
-response = httpx.post(
-    f"{TRANSLATOR_URL}/translate",
-    headers={"X-API-Key": TRANSLATOR_API_KEY},
-    json={"text": "Hello world", "target_language": "DE"},
-    timeout=30
-)
-result = response.json()
-# {"success": true, "result": {"translated_text": "Hallo Welt", ...}}
-
-# Batch translation
-response = httpx.post(
-    f"{TRANSLATOR_URL}/translate/batch",
-    headers={"X-API-Key": TRANSLATOR_API_KEY},
-    json={"texts": ["Hello", "Goodbye"], "target_language": "FR"},
-    timeout=60
-)
-```
-
-### Environment Setup
-
-```yaml
-# compose.yaml (VPS)
-environment:
-  - TRANSLATOR_URL=http://translator:8000
-  - TRANSLATOR_API_KEY=${TRANSLATOR_API_KEY}
-```
-
-```bash
-# .env (WSL)
-TRANSLATOR_URL=http://localhost:8000
-TRANSLATOR_API_KEY=your-api-key
-```
-
-### Health Check
-
-```bash
-curl https://translator.vps1.ocoron.com/health
-```
-
-See `/opt/translator/README.md` for full API documentation.
-
----
-
-## ~~Captcha Service Integration~~ (RETIRED — not deployed)
-
-> **⚠️ RETIRED — not deployed.** The captcha microservice was retired; `captcha.vps1.ocoron.com` returns NXDOMAIN. Section kept for historical reference.
-
-**Purpose:** Solve reCAPTCHA, hCaptcha, Turnstile via Anti-Captcha API
-
-**Database:** None (stateless)
-**Auth:** ⚠️ None (TODO: add API key)
-
-### Usage
-
-```python
-import os
-import httpx
-
-CAPTCHA_URL = os.getenv("CAPTCHA_URL", "http://localhost:8000")
-
-# Solve reCAPTCHA v2
-response = httpx.post(
-    f"{CAPTCHA_URL}/api/v1/solve-sync",
-    json={
-        "type": "recaptcha_v2",
-        "website_url": "https://target-site.com",
-        "website_key": "6LcXXXXX..."
-    },
-    timeout=200  # Can take up to 180s
-)
-token = response.json()["solution"]
-
-# Check balance
-balance = httpx.get(f"{CAPTCHA_URL}/api/v1/balance").json()["balance"]
-```
-
-### Supported Types
-
-| Type | Field |
-|------|-------|
-| `recaptcha_v2` | `website_url`, `website_key` |
-| `recaptcha_v3` | `website_url`, `website_key`, `page_action`, `min_score` |
-| `hcaptcha` | `website_url`, `website_key` |
-| `turnstile` | `website_url`, `website_key` |
-| `image` | `body` (base64 image) |
-
-### Environment Setup
-
-```yaml
-# compose.yaml (VPS)
-environment:
-  - CAPTCHA_URL=http://captcha:8000
-```
-
-```bash
-# .env (WSL)
-CAPTCHA_URL=http://localhost:8000
-```
-
-### Health Check
-
-```bash
-curl https://captcha.vps1.ocoron.com/healthz
-curl https://captcha.vps1.ocoron.com/api/v1/balance
-```
-
-See `/opt/captcha/README.md` for full API documentation.
-
----
-
-## ~~DNS Manager Service Integration~~ (RETIRED — not deployed)
-
-> **⚠️ RETIRED — not deployed.** The dns-manager microservice was retired; `dns.vps1.ocoron.com` returns NXDOMAIN. DNS is now handled directly via the Cloudflare driver (`src/fabrik/drivers/cloudflare.py`). Section kept for historical reference.
-
-**Purpose:** Manage Namecheap/Cloudflare DNS records programmatically
-
-**Database:** None (stateless)
-**Auth:** ⚠️ None (TODO: add API key)
-
-### Usage
-
-```python
-import os
-import httpx
-
-DNS_MANAGER_URL = os.getenv("DNS_MANAGER_URL", "http://localhost:8001")
-
-# List domains
-response = httpx.get(f"{DNS_MANAGER_URL}/api/dns/domains")
-domains = response.json()
-
-# Add subdomain (A record)
-response = httpx.post(
-    f"{DNS_MANAGER_URL}/api/dns/ocoron.com/subdomain",
-    json={"subdomain": "myapp", "ip": "172.93.160.197"}
-)
-
-# Get all DNS records for a domain
-response = httpx.get(f"{DNS_MANAGER_URL}/api/dns/ocoron.com")
-records = response.json()
-```
-
-### Common Operations
-
-| Operation | Method | Endpoint |
-|-----------|--------|----------|
-| List domains | GET | `/api/dns/domains` |
-| Get DNS records | GET | `/api/dns/{domain}` |
-| Add subdomain | POST | `/api/dns/{domain}/subdomain` |
-| Add record | POST | `/api/dns/{domain}/records` |
-
-### Environment Setup
-
-```yaml
-# compose.yaml (VPS)
-environment:
-  - DNS_MANAGER_URL=http://dns-manager:8001
-```
-
-```bash
-# .env (WSL)
-DNS_MANAGER_URL=http://localhost:8001
-```
-
-### Health Check
-
-```bash
-curl https://dns.vps1.ocoron.com/health
-# {"status":"healthy","version":"0.1.0","sandbox":false}
-```
-
-See `/opt/dns-manager/README.md` for full API documentation.
-
----
-
-## ~~Image Broker Service Integration~~ (REMOVED 2026-06-02)
-
-> Historical section. The image-broker spec was retired and removed; the integration commands below will not work. Section retained for reference until a clean rewrite of SERVICES.md happens.
-
-**Purpose:** Unified stock image API (Pexels, Pixabay) with smart routing and caching
-
-**Database:** None (stateless, file cache only)
-**Auth:** ⚠️ None (TODO: add API key)
-
-### Usage
-
-```python
-import os
-import httpx
-
-IMAGE_BROKER_URL = os.getenv("IMAGE_BROKER_URL", "http://localhost:8010")
-
-# Search images
-response = httpx.get(
-    f"{IMAGE_BROKER_URL}/api/v1/search",
-    params={"query": "sunset beach", "per_page": 5}
-)
-images = response.json()["images"]
-
-# Auto-download (search + score + download in one call)
-response = httpx.post(
-    f"{IMAGE_BROKER_URL}/api/v1/auto-download",
-    json={
-        "query": "team meeting office",
-        "intent": "hero",  # hero, thumbnail, background
-        "topic": "people",  # people, nature, technology, etc.
-        "count": 2
-    },
-    timeout=60
-)
-result = response.json()
-# {"success": true, "selected": [{"local_url": "...", "score": 0.75}]}
-```
-
-### Key Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/search` | GET | Search images across providers |
-| `/api/v1/auto-download` | POST | Search + score + download |
-| `/api/v1/download` | POST | Download specific image by ID |
-| `/api/v1/health` | GET | Health + provider status |
-
-### Environment Setup
-
-```yaml
-# compose.yaml (VPS)
-environment:
-  - IMAGE_BROKER_URL=http://image-broker:8000
-```
-
-```bash
-# .env (WSL)
-IMAGE_BROKER_URL=http://localhost:8010
-```
-
-### Health Check
-
-```bash
-curl https://images.vps1.ocoron.com/api/v1/health
-```
-
-See `/opt/image-broker/README.md` for full API documentation.
-
----
-
-## ~~File API Service Integration~~ (RETIRED — not deployed)
-
-> **⚠️ RETIRED — not deployed.** The file-api microservice was retired; `files-api.vps1.ocoron.com` returns NXDOMAIN. Section kept for historical reference.
-
-**Purpose:** Presigned URL service for Cloudflare R2 file uploads/downloads
-
-**Database:** Supabase (external PostgreSQL, not local postgres-main)
-**Auth:** Supabase JWT required
-
-### Usage
-
-```python
-import os
-import httpx
-
-FILE_API_URL = os.getenv("FILE_API_URL", "http://localhost:8004")
-SUPABASE_TOKEN = "user-jwt-token"  # From Supabase auth
-
-# Get presigned upload URL
-response = httpx.post(
-    f"{FILE_API_URL}/api/files/upload-url",
-    headers={"Authorization": f"Bearer {SUPABASE_TOKEN}"},
-    json={"filename": "doc.pdf", "content_type": "application/pdf", "size": 1024000}
-)
-upload_url = response.json()["upload_url"]
-
-# Upload file directly to R2
-httpx.put(upload_url, content=file_bytes, headers={"Content-Type": "application/pdf"})
-```
-
-### Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/files/upload-url` | POST | Get presigned upload URL |
-| `/api/files/download-url` | POST | Get presigned download URL |
-| `/api/files` | GET | List files for user |
-| `/api/files/:id` | DELETE | Delete file |
-| `/health` | GET | Health check |
-
-### Environment Setup
-
-```yaml
-# compose.yaml (VPS)
-environment:
-  - FILE_API_URL=http://file-api:3000
-```
-
-```bash
-# .env (WSL)
-FILE_API_URL=http://localhost:8004
-```
-
-### Health Check
-
-```bash
-curl https://files-api.vps1.ocoron.com/health
-```
-
-See `/opt/file-api/README.md` for full API documentation.
-
-## Quick Status Check
-
-```bash
-# From WSL
+# Container status on a host (every docker command on the VPS needs sudo)
 ssh vps "sudo docker ps --format 'table {{.Names}}\t{{.Status}}'"
+# Restart one service
+ssh vps "sudo docker restart <container>"
+# Tail logs
+ssh vps "sudo docker logs --tail 100 -f <container>"
 ```
 
-Expected output (representative — vps1 runs ~31 containers):
+## Quick Verification
 
-```text
-NAMES               STATUS
-postgres-main       Up 2 days (healthy)
-redis-main          Up 2 days
-traefik             Up 2 days
-authelia            Up 2 days
-gatus               Up 2 days
-backrest            Up 2 days
-prometheus          Up 2 days
-grafana             Up 2 days
-loki                Up 2 days
-meilisearch         Up 2 days
-apprise             Up 2 days
-n8n                 Up 2 days
-browserless         Up 2 days
-gotenberg           Up 2 days
-site-provisioner    Up 2 days (healthy)
+```bash
+# The shared database answers
+ssh vps "sudo docker exec postgres-main pg_isready -U postgres"
+# Every Gatus monitor, fleet-wide
+curl -s https://status.vps1.ocoron.com
+# What a spec would provision, before applying it (hub-side, read-only)
+fabrik plan specs/services/<id>.yaml
+# Registrars a deployed service is missing, and failures the last apply recorded
+fabrik audit-registrars
 ```
+
+## Troubleshooting
+
+- **A deploy exits 2:** a registrar failed (non-fatal). The CLI printed it, `fabrik audit-registrars` lists it,
+  and `.fabrik/state/<id>.json` records it; fix the cause and re-run `fabrik apply`.
+- **SSH fails:** check the `vps` alias in `~/.ssh/config` and the WireGuard mesh; every deploy goes through it.
+- **A redeploy ships old code:** the VPS pulls from GitHub — commit and push before `fabrik redeploy`.
