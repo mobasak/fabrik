@@ -1154,11 +1154,11 @@ def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
     )
     assert pin_clause in pin, "W-27fc7fa9: the SHA-pin redirect clause, subject through reason, as one span"
     core_text = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
+    assert re.findall(r"`git show [^`]*`", brief), "the agent brief shows the redirected git show form"
     for name, text in (("agent brief", brief), ("subagents-core", core_text)):
-        shows = re.findall(r"`git show [^`]*`", text)
-        assert shows, name
-        bare = [s for s in shows if " > " not in s]
-        assert not bare, (f"W-27fc7fa9: every git show example in the {name} carries its redirect", bare)
+        # a redirect counts only into the seat's scratch: `> <path>` or `> ~/x` lands in the live tree or $HOME
+        bare = [s for s in re.findall(r"`git show [^`]*`", text) if " > <scratch>/" not in s]
+        assert not bare, (f"W-27fc7fa9: every git show example in the {name} redirects into scratch", bare)
     for needed in (
         "If given a git range/path, `git diff <range> > <scratch>/<file>` it; otherwise `git diff HEAD > <scratch>/<file>`.",
         "read that SHA with `git show <sha>:<path> > <scratch>/<file>` from your own worktree",
