@@ -95,6 +95,7 @@ Verified live: 12 named volumes (the important ones). 4 UUID-anonymous volumes (
 | Volume | Bytes (approx) | Source | Restore-critical? |
 |---|---|---|---|
 | `postgres18-data` | TBD | postgres-main container | **YES** — primary DB; alternative is `psql < pg_dump_latest.sql` from `/opt/backups/` |
+| `postgres-data` | TBD | postgres-main container until the PG18 hub window | **YES, until PG18 release step R3** (D-647) — the PG16 data a rebuild before the window needs; afterwards unused |
 | `redis_redis-data` | TBD | redis-main container | **YES** — sessions, auth state |
 | `monitoring_prometheus-data` | LARGE | prometheus | NO (15d retention, regeneratable on restart) — EXCLUDE from backup |
 | `monitoring_loki-data` | LARGE | loki | NO (regenerates from logs) — EXCLUDE |

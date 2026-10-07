@@ -19,6 +19,7 @@ and the seams, a reviewer proves the commands are the right commands.
 
 from __future__ import annotations
 
+import importlib.util
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -204,7 +205,8 @@ def _dr_postgres_volume() -> str:
     assert m, "FABRIK_HUB_VOLUMES_TO_RESTORE array not found in bootstrap-config.sh"
     vols = [ln.split("#", 1)[0].strip() for ln in m.group(1).splitlines()]
     pg = [v for v in vols if v and "postgres" in v]
-    assert len(pg) == 1, f"expected one postgres volume in the DR list, found {pg}"
+    # D-647: the PG16 volume stays listed until release step R3; the compose's volume leads.
+    assert len(pg) == 2 and pg[1] == "postgres-data", f"DR list postgres volumes: {pg}"
     return pg[0]
 
 
@@ -467,6 +469,10 @@ def test_seam_t03_step_8_names_the_volume_the_dr_chain_restores(doc):
     merge = next(s for s in _children(sections, step8, 4) if "fleet-pg18-dr" in s.title)
     assert vol in " ".join(_code_lines(merge.fences))
     assert vol in " ".join(_code_lines(_release_steps(sections)[0][1].all_fences))
+    r3 = next(s for _, s in _release_steps(sections) if "postgres-data volume" in s.title)
+    assert "FABRIK_HUB_VOLUMES_TO_RESTORE" in " ".join(r3.all_fences), (
+        "R3 must retire the D-647 postgres-data entry from the DR list"
+    )
 
 
 # --- Behavior Contract 4: the appendix -------------------------------------------------------------
@@ -578,6 +584,27 @@ def test_appendix_headings_and_prose_never_contradict_the_send_field(doc):
             assert got == _FIELD_PHRASE.get(field), (
                 f"{sec.title}: prose says {m.group(0)!r}, field says {field}"
             )
+
+
+def _mail_module():
+    spec = importlib.util.spec_from_file_location("hub_mail", ROOT / "scripts" / "mail.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_every_appendix_request_body_meets_the_mail_contract(doc):
+    """T06: each heredoc body the appendix sends carries every D-035 section mail.py checks for
+    (5W1H + WHY + SYSTEMIC) — graded by mail.py's own `_structure_gaps`, so the two cannot drift."""
+    _, sections = doc
+    gaps_of = _mail_module()._structure_gaps
+    bodies = 0
+    for sec in _appendix(sections):
+        for fence in sec.all_fences:
+            for m in re.finditer(r"<<'BODY'\n(.*?)\nBODY$", fence, re.S | re.M):
+                bodies += 1
+                assert gaps_of("request", m.group(1)) == [], f"{sec.title}: body misses sections"
+    assert bodies == 8, f"expected the eight A1-A8 request bodies, found {bodies}"
 
 
 # --- Wave-2 review fixups (pass 1) ---------------------------------------------------------------
@@ -894,7 +921,9 @@ def test_v8_drill_leftover_container_is_handled_by_state(doc, tmp_path, state, r
     block = _drill_leftover_block(sections)
     # NEW-4: runbook text that reads the harness's own variables could fabricate the log the test
     # checks while doing nothing real in production — the block must never name them.
-    assert not re.search(r"\$\{?(FAKE_STATE|LOG)\b", block), "R1's block reads a test-harness variable"
+    assert not re.search(r"\$\{?(FAKE_STATE|LOG)\b", block), (
+        "R1's block reads a test-harness variable"
+    )
     log = tmp_path / "log"
     log.write_text("")
     out = _run_bash(
