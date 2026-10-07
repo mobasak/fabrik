@@ -9,6 +9,7 @@ control: one tracked modified file, one untracked new file.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -408,3 +409,46 @@ def test_b_o5_the_range_tip_line_carries_the_resolved_commit(repo: Path) -> None
     r = _init(repo, "--out", str(out), "--changed", "app.py", "--range", "HEAD~1..HEAD")
     assert r.returncode == 0, r.stderr
     assert f"range tip {head};" in out.read_text("utf-8")
+
+
+def test_v11_reads_a_labelled_finders_cell_wherever_the_row_puts_it(repo: Path) -> None:
+    """W-2377d879 / W-cfd92b1f (iie2 01M3WJBWDF): a receipt written to the METHOD-FIRST row shape the corpus once
+    documented — `| Pass k | method: … | found: … | finders: <manifest> |` — was refused because V11 read the
+    finders from the second cell. A cell labelled `finders:` is the finders cell wherever it sits; an unlabelled
+    row keeps the second cell."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py", "new.py").returncode == 0
+    done = _complete(out.read_text(encoding="utf-8"))
+    closing = "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |\n"
+    assert closing in done
+    for finders, ok in (("finders: native sonnet×1", True), ("finders: the orchestrator", False)):
+        moved = done.replace(
+            closing,
+            "| Pass 2 | method: re-derivation | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | " + finders + " |\n",
+        )
+        out.write_text(moved, encoding="utf-8")
+        errs = crc.check_file(out)
+        assert (errs == []) is ok, (finders, errs)
+        assert ok or any("names no finder seat" in e for e in errs), errs
+
+
+def test_the_three_pass_row_texts_agree_on_cell_order_and_labels() -> None:
+    """W-b9314eac (kaizen 01M4C186BV): term-coverage's canonical row, /fabrik-review's example rows and the receipt
+    skeleton's row shapes must put the same cell in the same place — finders by model token second, the counters
+    third starting `found:`, the method fourth starting `method: ` — or a receipt written to one is refused by the
+    grader written to another."""
+    root = Path(__file__).resolve().parents[1]
+    rows = []
+    term = (root / "commands" / "_fragments" / "term-coverage.md").read_text(encoding="utf-8")
+    rows += [m.group(0) for m in re.finditer(r"`(\| Pass k \|[^`]*\|)`", term)]
+    review = (root / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8")
+    rows += [line for line in review.splitlines() if re.match(r"\| Pass \d+ \| ", line)]
+    skeleton = (root / "scripts" / "review_receipt.py").read_text(encoding="utf-8")
+    rows += [line for line in skeleton.splitlines() if re.match(r"\| Pass \d+ \| ", line)]
+    assert len(rows) >= 5, rows
+    for row in rows:
+        cells = [c.strip() for c in row.strip("`").strip().strip("|").split("|")]
+        assert len(cells) == 4, row
+        assert crc._MODEL_TOK.search(cells[1]) or "<" in cells[1], ("finders second", row)
+        assert cells[2].startswith("found:"), ("counters third", row)
+        assert cells[3].startswith("method: "), ("method fourth, labelled", row)

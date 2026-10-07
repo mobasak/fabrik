@@ -812,11 +812,16 @@ def check_file(p: Path) -> list[str]:
         cells = _row_cells(last[4])
         run = _counter_run(last[4])
         if cells:
-            finders = cells[1] if len(cells) > 1 else ""
+            # a cell LABELLED `finders:` is the finders cell wherever the row puts it — the corpus
+            # once documented a method-first row with the finders last, and receipts written to it
+            # are committed (W-2377d879, W-cfd92b1f, W-c8069437); an unlabelled row keeps the
+            # second cell, the shape the skeleton and every command now write (W-b9314eac)
+            labelled = [c for c in cells if c.strip().lower().startswith("finders:")]
+            finders = labelled[0] if labelled else (cells[1] if len(cells) > 1 else "")
             shape = (
-                "in its finders cell (the second cell) — a round the orchestrator alone read "
-                "cannot close the loop; name the seats by model token (`opus×1`, `sonnet×2`, "
-                "`native opus×1 + sonnet×3`)"
+                "in its finders cell (the second cell, or the one labelled `finders:`) — a round "
+                "the orchestrator alone read cannot close the loop; name the seats by model token "
+                "(`opus×1`, `sonnet×2`, `native opus×1 + sonnet×3`)"
             )
         else:
             finders = last[4][: run[0]] if run is not None else last[4]
