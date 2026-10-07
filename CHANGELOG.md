@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review states the receipt close order: gate while IN-PROGRESS, embed, then flip (2026-10-07)
+- `check_convergence.py` skips an in-flight receipt and refuses a CONVERGED one with no fenced green gate, so a session that flipped first was refused by the very gate run meant to produce the evidence. Executed on a staged copy of a committed receipt: CONVERGED with its gate rc 0, CONVERGED with the gate removed rc 1, IN-PROGRESS without a gate rc 0. Answers 5 /fabrik-review feedback verdicts (kaizen).
+
 ### Fixed — the hub contract and the mail doc name kaizen wherever they list the hub agents (2026-10-07)
 - `CLAUDE.md` still said the hub mailbox was shared by "three sessions", listed only the fleet and intel worktrees, and offered `mail.py route … --to-agent infra|fleet|intel`; the kaizen beat now cites D-627 and the `feedback_owner` key that makes the queues its. `docs/reference/fabrik-mail.md` (the `agent:` field, the refusal's four-beat guide) and the `filed:` examples in `/fabrik-review` and `/fabrik-review-scoped` now include kaizen.
 
