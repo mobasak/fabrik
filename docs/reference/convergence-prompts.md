@@ -117,8 +117,9 @@ not inside one cell, and not as placeholder cells beside digit cells — because
 a count trailed by a word as ambiguous and refuses the row.
 Seat briefs state: pin dirs are created ONCE before the first dispatch and never touched
 while seats run; `git init` inside a `git archive` pin; every `command_run.py` probe sets
-COMMAND_RUN_DIR, COMMAND_RUN_TRANSCRIPT and KAIZEN_EVENTS_DIR; every mutation is applied,
-tested and restored inside ONE Bash call with an asserted restore; never bare-grep a
+COMMAND_RUN_DIR, COMMAND_RUN_TRANSCRIPT and KAIZEN_EVENTS_DIR; every mutation runs on a
+copy under the seat's scratch dir by absolute path (the shell returns to the live checkout before
+every call); never pkill, killall or kill by pattern; a git write only via git -C <absolute scratch repo>; never bare-grep a
 tracked path (`git show <sha>:<path>`); HARD TIME BOX 15 minutes; report `MACHINERY:` last.
 Only THEN mark it converged. Obey .windsurf/rules.
 ```
