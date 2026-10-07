@@ -6727,7 +6727,10 @@ def test_a_slice_omitted_for_several_rounds_stays_vanished_until_restated(run_di
     _cr(run_dir, "round", *quiet, "--slices", "A:2/2")
     out = _cr(run_dir, "round", *quiet, "--slices", "A:2/2").stdout
     assert "NOT TERMINAL" in out and "(B, C)" in out and "TERMINAL VERDICT" not in out, out
+    # W-c8069437: the banner tells the lead HOW — an idle slice is re-stated at its last count in this round
+    assert "needs no seat and no extra round: re-state it at its last" in out, out
     refused = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
+    assert "no extra round" in refused.stderr, refused.stderr
     assert refused.returncode == 1 and "missing from the last round's ledger" in refused.stderr, (
         refused.returncode,
         refused.stderr,
