@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped pins a pass by an `md5sum` manifest of the surface, not by `git diff HEAD` (2026-10-07)
+- Step 5's PIN was the md5 of `git diff HEAD -- <surface>`, re-diffed by each finder: the first checkpoint commit of the surface empties that diff, so every commit the § EXIT law demands read as drift, and an untracked file never registered at all. Each pass now pins from the repo root: first an `md5sum` manifest of the surface files (its md5 is the workflow `digest`), then a NEW `pins_dir` of copies whose hashes must match it, and `base_sha` = HEAD at that moment; before adjudicating, `md5sum -c --quiet` from the repo root names any surface file that moved, and every candidate is then re-verified against the current tree. `docs/reference/review-loop-workflow.md`'s `digest` row now describes both review commands. Answers 15 feedback verdicts (kaizen, `/fabrik-command-improve`); reviewed by `/fabrik-review-scoped` to confirmed 0 over four rounds.
+
 ### Changed — the MCP emitter reads credentials from the roster and the hub `.env` or fails loudly; the WSL startup hook reports each resume (2026-10-07)
 - Operator follow-ups on 1c22b3de1. (b) `emit_mcp_project_config.py` no longer fills `${VAR}` placeholders from its own prior `/opt/fabrik/.mcp.json` output: the active fleet roster, then the hub `.env`, else the run aborts naming the key (D-641); the Grafana URL sits literally in `mcp_defs.json`. (a) `mcp_orphan_reaper.py --report`, passed by `wsl_startup_hook.sh` step 0, appends one `resume before=<n> after=<n> wsl_exe=<n|n/a> reaped=<pids>` line per boot to `~/.claude/state/mcp-reaper.log`, so D-634's 7-day kill criterion is measured (D-642). Graders in both test files.
 
