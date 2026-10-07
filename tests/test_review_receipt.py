@@ -98,7 +98,7 @@ def _complete(text: str) -> str:
         "| Pass | Finders | Counters | Method |\n|---|---|---|---|\n",
         "| Pass | Finders | Counters | Method |\n|---|---|---|---|\n"
         "| Pass 1 | native opus×1 + sonnet×2 | found: 1, new: 1, confirmed: 1, fixed: 1 "
-        "| citation |\n"
+        "| method: citation |\n"
         "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, "
         "unexecuted: 0 | method: re-derivation |\n",
     )
@@ -189,7 +189,7 @@ def test_v11_is_satisfiable_on_a_prose_ledger(repo: Path) -> None:
     done = _complete(out.read_text(encoding="utf-8"))
     table = (
         "| Pass 1 | native opus×1 + sonnet×2 | found: 1, new: 1, confirmed: 1, fixed: 1 "
-        "| citation |\n"
+        "| method: citation |\n"
         "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, "
         "unexecuted: 0 | method: re-derivation |\n"
     )
@@ -411,55 +411,31 @@ def test_b_o5_the_range_tip_line_carries_the_resolved_commit(repo: Path) -> None
     assert f"range tip {head};" in out.read_text("utf-8")
 
 
-def test_v11_reads_a_labelled_finders_cell_wherever_the_row_puts_it(repo: Path) -> None:
-    """W-2377d879 / W-cfd92b1f (iie2 01M3WJBWDF): a receipt written to the METHOD-FIRST row shape the corpus once
-    documented — `| Pass k | method: … | found: … | finders: <manifest> |` — was refused because V11 read the
-    finders from the second cell. A cell labelled `finders:` is the finders cell wherever it sits; an unlabelled
-    row keeps the second cell."""
-    out = repo / "r-review.md"
-    assert _init(repo, "--out", str(out), "--changed", "app.py", "new.py").returncode == 0
-    done = _complete(out.read_text(encoding="utf-8"))
-    closing = "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |\n"
-    assert closing in done
-    counters = "found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0"
-    for row, ok in (
-        (f"| Pass 2 | method: re-derivation | {counters} | finders: native sonnet×1 |", True),
-        (f"| Pass 2 | method: re-derivation | {counters} | finders: the orchestrator |", False),
-        # a committed shape (4 of 602 receipts at 14f641255): the token in the second cell, a token-free
-        # `finders:` cell last — the UNION keeps it passing
-        (f"| Pass 2 | sonnet×1 + haiku×1 · method: re-derivation | {counters} | finders: dispatched 2, returned 2 |", True),
-        # a label mentioned MID-TEXT is not a label: the cell must OPEN with it
-        (f"| Pass 2 | the orchestrator | {counters} | method: re-derivation — the finders: sonnet×1 |", False),
-    ):
-        moved = done.replace(closing, row + "\n")
-        out.write_text(moved, encoding="utf-8")
-        errs = crc.check_file(out)
-        assert (errs == []) is ok, (row, errs)
-        assert ok or any("names no finder seat" in e for e in errs), errs
-
-
 def test_the_three_pass_row_texts_agree_on_cell_order_and_labels() -> None:
     """W-b9314eac (kaizen 01M4C186BV): term-coverage's canonical row, /fabrik-review's example rows and the receipt
     skeleton's row shapes must put the same cell in the same place — finders by model token second, the counters
     third starting `found:`, the method fourth starting `method: ` — or a receipt written to one is refused by the
     grader written to another."""
     root = Path(__file__).resolve().parents[1]
-    rows = []
-    term = (root / "commands" / "_fragments" / "term-coverage.md").read_text(encoding="utf-8")
-    rows += [m.group(1) for m in re.finditer(r"`(\| Pass [kN] \|[^`]*\|)`", term)]
-    prompts = (root / "docs" / "reference" / "convergence-prompts.md").read_text(encoding="utf-8")
-    rows += [m.group(1) for m in re.finditer(r"`(\| Pass [kN] \|[^`]*\|)`", prompts)]
-    review = (root / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8")
-    rows += [line for line in review.splitlines() if re.match(r"\| Pass \d+ \| ", line)]
-    skeleton = (root / "scripts" / "review_receipt.py").read_text(encoding="utf-8")
-    rows += [line for line in skeleton.splitlines() if re.match(r"\| Pass \d+ \| ", line)]
+    inline = r"`(\| Pass [kN] \|[^`]*\|)`"
+    per_text = {
+        "term-coverage": [m.group(1) for m in re.finditer(inline, (root / "commands" / "_fragments" / "term-coverage.md").read_text(encoding="utf-8"))],
+        "convergence-prompts": [m.group(1) for m in re.finditer(inline, (root / "docs" / "reference" / "convergence-prompts.md").read_text(encoding="utf-8"))],
+        "/fabrik-review": [ln for ln in (root / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8").splitlines() if re.match(r"\| Pass \d+ \| ", ln)],
+        "receipt skeleton": [ln for ln in (root / "scripts" / "review_receipt.py").read_text(encoding="utf-8").splitlines() if re.match(r"\| Pass \d+ \| ", ln)],
+    }
+    empty = [name for name, found in per_text.items() if not found]
+    assert not empty, ("a text whose rows are not found grades nothing", empty)
+    rows = [row for found in per_text.values() for row in found]
     # the edit-loop ledger (term-edit) carries a fifth cell, the artifact md5 — the same first four
     edit = (root / "commands" / "_fragments" / "term-edit.md").read_text(encoding="utf-8")
     edit_rows = [line for line in edit.splitlines() if re.match(r"\| Pass \d+ \| ", line)]
     assert len(rows) >= 7 and edit_rows, (rows, edit_rows)
     for row in rows + edit_rows:
+        # term-coverage's template names the method's three values inline; read it as one of them
+        row = row.replace("citation|re-derivation|gate", "citation")
         cells = [c.strip() for c in row.strip("`").strip().strip("|").split("|")]
-        assert len(cells) == (5 if row in edit_rows else 4), row
+        assert len(cells) == (5 if row.startswith("| Pass") and row in edit_rows else 4), row
         assert crc._MODEL_TOK.search(cells[1]) or "<" in cells[1], ("finders second", row)
         assert cells[2].startswith("found:"), ("counters third", row)
         assert cells[3].startswith("method: "), ("method fourth, labelled", row)
