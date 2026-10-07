@@ -1079,7 +1079,7 @@ def test_no_seat_prompt_mandates_a_shape_the_worktree_guard_refuses() -> None:
     """W-9385c2b3, site-provisioner 01M491K2: in a linked worktree the isolation guard refuses an env-prefix
     `HOME=…`, a compound or piped git line, and `timeout … command grep` (`command` is a builtin, exit 127) — so
     a brief that mandates any of them makes every seat burn calls or drop the isolation it asked for."""
-    for prompt in _shell_seat_prompts():
+    for prompt in (*_shell_seat_prompts(), BRIEF.read_text(encoding="utf-8")):
         for refused in ("`HOME=", "| tar", "&& git", "command grep"):
             assert refused not in prompt, (
                 refused,
@@ -1124,8 +1124,14 @@ def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
     only the workflow's pin recipe, so lead-dispatched and units-sized seats rediscovered it by refusal. The
     seat has no Write tool, so the house rule must name a write form the guard accepts."""
     brief = BRIEF.read_text(encoding="utf-8")
-    for needed in ("one plain command per Bash call", "no Write tool", "split it"):
-        assert needed in brief, needed
+    rules = next(line for line in brief.splitlines() if line.startswith("**House rules"))
+    for needed in ("one plain command per Bash call", "no Write tool", "splitting the command", "heredoc", "literal absolute paths"):
+        assert needed in rules, needed
+    assert "restored in ONE Bash call" not in brief, "the old compound probe rule contradicts one plain command per call"
+    tools = next(line for line in brief.splitlines() if line.startswith("tools:"))
+    assert "Write" not in tools, "the house rule's printf write form assumes the seat has no Write tool"
+    core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
+    assert "runs one plain command per Bash call" in core, "general-purpose seats read the brief fragment, not the agent"
 
 
 def test_no_seat_instruction_source_wraps_a_shell_builtin_in_timeout() -> None:
