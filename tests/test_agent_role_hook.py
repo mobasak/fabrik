@@ -389,3 +389,75 @@ def test_bare_marker_with_no_suffix_still_injects(tmp_path: Path) -> None:
     assert r.returncode == 0
     assert "AGENT ROLE: alpha" in r.stdout
     assert "Mandate" in r.stdout
+
+
+def test_a_whoami_bound_window_gets_its_charter_without_the_env_var(tmp_path: Path) -> None:
+    """kaizen 01M4C0VN6A: a window named by `whoami_agent.py --as <name>` (the route the ORIENT
+    block offers an unnamed window) must get its charter on its next SessionStart (resume,
+    compact) even with CLAUDE_AGENT unset — the hook falls back to the binding."""
+    store = tmp_path / "agent-identity.jsonl"
+    store.write_text('{"session_id": "sid-bound", "name": "infra", "at": 1}\n', encoding="utf-8")
+    env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_AGENT", "CLAUDE_SESSION_ID")}
+    env.update(
+        CLAUDE_PROJECT_DIR=str(REPO),
+        AGENT_IDENTITY_FILE=str(store),
+        CLAUDE_CODE_SESSION_ID="sid-bound",
+    )
+    out = subprocess.run(
+        [sys.executable, str(HOOK)], capture_output=True, text=True, timeout=30, env=env
+    ).stdout
+    assert "## AGENT ROLE: infra" in out
+    env["CLAUDE_CODE_SESSION_ID"] = "sid-unbound"
+    out = subprocess.run(
+        [sys.executable, str(HOOK)], capture_output=True, text=True, timeout=30, env=env
+    ).stdout
+    assert out == "", "an unbound session still injects nothing"
+
+
+def _hook_in(repo: Path, env_extra: dict) -> str:
+    env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_AGENT", "CLAUDE_SESSION_ID")}
+    env.update(CLAUDE_PROJECT_DIR=str(repo), **env_extra)
+    return subprocess.run(
+        [sys.executable, str(HOOK)], capture_output=True, text=True, timeout=30, env=env
+    ).stdout
+
+
+def _project(tmp_path: Path, with_resolver: str | None) -> Path:
+    repo = tmp_path / "proj"
+    (repo / "docs" / "reference" / "agents").mkdir(parents=True)
+    (repo / "docs" / "reference" / "agents" / "alpha.md").write_text(
+        "# Agent charter — alpha\nA.\n"
+    )
+    (repo / "docs" / "reference" / "agents" / "evil.md").write_text("# Agent charter — evil\nE.\n")
+    (repo / "scripts").mkdir()
+    if with_resolver is not None:
+        (repo / "scripts" / "whoami_agent.py").write_text(with_resolver)
+    return repo
+
+
+def test_a_project_module_cannot_shadow_what_the_resolver_imports(tmp_path: Path) -> None:
+    """review A-S1: the fallback runs in every synced repo; a project-local scripts/json.py must
+    not replace the stdlib json the real resolver parses the store with."""
+    repo = _project(tmp_path, (REPO / "scripts" / "whoami_agent.py").read_text())
+    (repo / "scripts" / "json.py").write_text(
+        "def loads(s):\n    return {'session_id': 'sid-x', 'name': 'evil'}\n"
+    )
+    store = tmp_path / "ids.jsonl"
+    store.write_text('{"session_id": "sid-x", "name": "alpha", "at": 1}\n', encoding="utf-8")
+    out = _hook_in(repo, {"AGENT_IDENTITY_FILE": str(store), "CLAUDE_CODE_SESSION_ID": "sid-x"})
+    assert "## AGENT ROLE: alpha" in out and "evil" not in out
+
+
+def test_a_missing_or_old_resolver_is_a_silent_no_op(tmp_path: Path) -> None:
+    """review A-S2: no scripts/whoami_agent.py, or an old one without resolve_agent_name, or one
+    that raises at import — the hook prints nothing and exits 0 (the fleet case)."""
+    for body in (None, "X = 1\n", "raise RuntimeError('boom')\n"):
+        repo = _project(tmp_path / str(abs(hash(body))), body)
+        env = {
+            k: v for k, v in os.environ.items() if k not in ("CLAUDE_AGENT", "CLAUDE_SESSION_ID")
+        }
+        env.update(CLAUDE_PROJECT_DIR=str(repo), CLAUDE_CODE_SESSION_ID="sid-x")
+        r = subprocess.run(
+            [sys.executable, str(HOOK)], capture_output=True, text=True, timeout=30, env=env
+        )
+        assert r.returncode == 0 and r.stdout == "", (body, r.stdout, r.stderr)
