@@ -10,7 +10,8 @@ couples them).
 
 Derivation per repo: universal 6 + per-type set (live `project.yaml::type`
 read at run time) + per-repo overlay row. The hub gets the full defs set minus
-HUB_EXCLUDE (the per-session heavy servers — operator ruling 2026-10-07).
+HUB_EXCLUDE (the per-session heavy servers — operator ruling 2026-10-07); fabrik-lib keeps
+the full roster, maestro included (the same ruling).
 Server DEFINITIONS are read from --defs, else /opt/fabrik/.mcp.json, else
 the active fleet roster (~/.claude-fleet/active/.claude.json) — the fallback
 chain survives the user-level trim (B4).
@@ -88,8 +89,12 @@ HUB_REPOS = {"fabrik"}  # hub-class (D-015); fabrik-lib is hub-class too but lan
 # browser servers; the JVMs outlived their sessions (48 orphans, ~11 GB swap after a hibernate
 # resume). The hub keeps every light server (research, grafana, media-engine, shadcn/magicui,
 # pubchem, the citation verifier) — a mobile or browser task runs in the owning repo.
-HUB_EXCLUDE = {"maestro", "mobile-mcp", "playwright", "chrome-devtools"}
+HUB_EXCLUDE = {"maestro", "mobile-mcp", "playwright", "chrome-devtools"}  # the HUB only
 HUB_CLASS = HUB_REPOS | {"fabrik-lib"}  # derivation only — never in the default sweep
+# fabrik-lib KEEPS the full roster, maestro included (operator ruling 2026-10-07: "only mobile
+# projects and fabrik-lib" need maestro — it vendors and tests the mobile modules); HUB_EXCLUDE
+# applies to HUB_REPOS alone.
+HUB_FULL_ROSTER = HUB_CLASS - HUB_REPOS
 CONDEMNED = {"image-generation"}  # D-023 ARCHIVE pending with fleet — excluded BY NAME
 NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint exists yet
 
@@ -206,7 +211,8 @@ def ruled_server_names(repo: Path, defs: dict[str, dict]) -> list[str] | None:
     postgres-pro without a connecting URL, is a legal omission; an extra server is not)."""
     name = repo.name
     if name in HUB_CLASS:
-        wanted = [s for s in defs if s not in NEVER_EMIT and s not in HUB_EXCLUDE]
+        drop = set() if name in HUB_FULL_ROSTER else HUB_EXCLUDE
+        wanted = [s for s in defs if s not in NEVER_EMIT and s not in drop]
     else:
         rtype = _repo_type(repo)
         if rtype is None or rtype not in TYPE_SETS:

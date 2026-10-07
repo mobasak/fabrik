@@ -309,11 +309,14 @@ def test_an_own_agent_hub_class_repo_is_never_swept_by_default_but_derives_hub_c
     tmp_path, defs_file
 ):
     """fabrik-lib is hub-class for derivation (`--repo /opt/fabrik-lib`, run by ITS agent) and must
-    stay out of the default sweep even if it ever gains a project.yaml (review 2026-10-07, A-S2)."""
+    stay out of the default sweep even if it ever gains a project.yaml (review 2026-10-07, A-S2);
+    it keeps the FULL roster, maestro included (operator ruling 2026-10-07)."""
     lib = make_repo(tmp_path, "fabrik-lib", "python-api")
     run(tmp_path, defs_file)
     assert not (lib / ".mcp.json").exists(), "the default sweep must not land fabrik-lib's file"
     emitter.main(["--root", str(tmp_path), "--defs", str(defs_file), "--repo", str(lib)])
-    heavy = {"maestro", "mobile-mcp", "playwright", "chrome-devtools"}
     got = servers_of(lib)
-    assert "grafana" in got and not (got & heavy), got
+    # operator ruling 2026-10-07: maestro is for mobile projects AND fabrik-lib — it keeps the full
+    # roster; HUB_EXCLUDE trims the hub alone
+    assert {"grafana", "maestro", "mobile-mcp"} <= got, got
+    assert got == set(ALL_SERVERS) - {"postgres-pro"}

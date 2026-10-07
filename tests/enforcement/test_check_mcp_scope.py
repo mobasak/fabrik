@@ -77,10 +77,25 @@ def test_a_headless_repo_carrying_a_browser_server_fails(check, tmp_path):
 
 def test_an_unruled_repo_and_the_own_agent_hub_class_repo_only_warn(check, tmp_path):
     repo(tmp_path, "mystery", None, ["session-recall", "maestro"])  # no project.yaml
-    repo(tmp_path, "fabrik-lib", None, ["session-recall", "maestro"])  # hub-class, own agent
+    # fabrik-lib keeps the FULL roster, maestro included (operator ruling 2026-10-07) — no warning
+    lib = repo(tmp_path, "fabrik-lib", None, ["session-recall", "maestro", "playwright"])
     rep = check.audit(tmp_path, HUB, DEFS)
     assert rep["failures"] == []
-    assert sorted(w["repo"] for w in rep["warnings"]) == ["fabrik-lib", "mystery"]
+    assert sorted(w["repo"] for w in rep["warnings"]) == ["mystery"]
+    # a server outside the roster in an own-agent repo warns (its agent writes the file), never fails
+    (lib / ".mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "session-recall": DEFS["session-recall"],
+                    "github": {"command": "/usr/bin/github"},
+                }
+            }
+        )
+    )
+    rep = check.audit(tmp_path, HUB, DEFS)
+    assert rep["failures"] == []
+    assert [w["repo"] for w in rep["warnings"] if w["repo"] == "fabrik-lib"] == ["fabrik-lib"]
 
 
 def test_cli_exit_codes(tmp_path):
