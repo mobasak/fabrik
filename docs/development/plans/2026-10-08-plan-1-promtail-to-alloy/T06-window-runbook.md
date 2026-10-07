@@ -1,6 +1,6 @@
 # T06 — The operator's window runbook: switch, battery, rollback, Gate S, the infra mail
 
-Depends: T02, T03, T04
+Depends: T02, T03, T04a, T04b
 Parallel: ⚡
 Complexity: native
 Appetite: 120

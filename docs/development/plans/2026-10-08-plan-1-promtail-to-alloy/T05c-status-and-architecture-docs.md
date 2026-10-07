@@ -1,6 +1,6 @@
 # T05c — The VPS status and the deployment architecture name Alloy
 
-Depends: T02, T03, T04
+Depends: T02, T03, T04a, T04b
 Parallel: ⚡
 Complexity: simple
 Appetite: 45

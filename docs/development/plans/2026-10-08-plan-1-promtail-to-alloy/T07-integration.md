@@ -1,6 +1,6 @@
 # T07 — Integration: rehearsals, the last doc, gates and the receipt
 
-Depends: T01, T02, T03, T04, T05a, T05b, T05c, T05d, T05e, T06
+Depends: T01, T02, T03, T04a, T04b, T05a, T05b, T05c, T05d, T05e, T06
 Parallel: ⛓️
 Complexity: native
 Integration: true

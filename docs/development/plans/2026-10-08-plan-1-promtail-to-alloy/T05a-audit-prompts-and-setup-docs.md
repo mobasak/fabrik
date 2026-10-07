@@ -1,6 +1,6 @@
 # T05a — The audit prompts and the setup docs name Alloy
 
-Depends: T02, T03, T04
+Depends: T02, T03, T04a, T04b
 Parallel: ⚡
 Complexity: simple
 Appetite: 45
