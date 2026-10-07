@@ -1126,7 +1126,20 @@ def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
     seat has no Write tool, so the house rule must name a write form the guard accepts."""
     brief = BRIEF.read_text(encoding="utf-8")
     rules = next(line for line in brief.splitlines() if line.startswith("**House rules"))
-    bans = ("one plain command per Bash call", "`&&`", "`$( )`", "`$VAR`", "heredoc", "literal paths", "`git -C`")
+    bans = (
+        "one plain command per Bash call",
+        "`&&`",
+        "a `;` between commands",
+        "pipe",
+        "loop",
+        "`$( )`",
+        "`$VAR`",
+        "heredoc",
+        "HOME assignment in front of a command",
+        "literal paths",
+        "inside a `-c` program or a heredoc body",
+        "`git -C`",
+    )
     for needed in (*bans, "no Write tool", "splitting the command", ".venv/bin/python"):
         assert needed in rules, needed
     assert "never a bare `python3`" in rules, "a probe on the system interpreter lacks the project's packages"
