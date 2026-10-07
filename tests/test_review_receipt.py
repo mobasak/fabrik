@@ -431,11 +431,11 @@ def test_the_three_pass_row_texts_agree_on_cell_order_and_labels() -> None:
     edit = (root / "commands" / "_fragments" / "term-edit.md").read_text(encoding="utf-8")
     edit_rows = [line for line in edit.splitlines() if re.match(r"\| Pass \d+ \| ", line)]
     assert len(rows) >= 7 and edit_rows, (rows, edit_rows)
-    for row in rows + edit_rows:
+    for source, expected in [(r, 4) for r in rows] + [(r, 5) for r in edit_rows]:
         # term-coverage's template names the method's three values inline; read it as one of them
-        row = row.replace("citation|re-derivation|gate", "citation")
+        row = source.replace("citation|re-derivation|gate", "citation")
         cells = [c.strip() for c in row.strip("`").strip().strip("|").split("|")]
-        assert len(cells) == (5 if row.startswith("| Pass") and row in edit_rows else 4), row
+        assert len(cells) == expected, row
         assert crc._MODEL_TOK.search(cells[1]) or "<" in cells[1], ("finders second", row)
         assert cells[2].startswith("found:"), ("counters third", row)
         assert cells[3].startswith("method: "), ("method fourth, labelled", row)
