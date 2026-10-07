@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the rule-pack version sweep sees the PG18 image shapes (2026-10-07)
+
+- `_LOOSE` (`scripts/sysadmin/rules_render_versions.py`) also catches unmarked `postgres:N(.N)-alpine` and `pgvector:X.Y.Z-pgN` literals in a rule pack; the existing `PostgreSQL 16` and `pgvector:pg16` shapes still match and a port such as 5432 never fires. PG18 plan T01b.
+
 ### Changed — the CI scaffold derives its Postgres images from the version registry (2026-10-07)
 
 - `CiConfig.pg_image()` (`src/fabrik/ci_scaffold.py`) no longer returns hard-coded image literals: it reads `postgres_major` and `pgvector_version` from `.windsurf/rules/versions.yaml` at call time and returns `postgres:<major>` or `pgvector/pgvector:<version>-pg<major>`, so the scaffolded CI follows the fleet's Postgres major when infra flips it. Neither key joins `REQUIRED_KEYS`, so the module still imports with a broken registry; a missing or blank key raises `VersionRegistryError` naming it. PG18 plan T01a.

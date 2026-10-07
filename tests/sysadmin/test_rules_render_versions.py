@@ -76,6 +76,21 @@ def test_loose_sweep_catches_name_version_prose_not_status_codes():
     assert not _LOOSE.search("see page 16 of the doc")
 
 
+def test_loose_sweep_catches_pg18_image_shapes():
+    # T01b (spec D3): the postgres:N(.N)?-alpine and pgvector:X.Y.Z-pgN image
+    # tags must be caught by the loose sweep same as any other unmarked
+    # version literal — a later major bump (postgres:18) must not sail
+    # through unflagged the way postgres:16-alpine did before this shape
+    # existed. The existing PostgreSQL-prose and pgvector:pgN shapes must
+    # keep matching, and a bare port number must never fire.
+    assert _LOOSE.search("postgres:18-alpine")
+    assert _LOOSE.search("postgres:18.6-alpine")
+    assert _LOOSE.search("pgvector/pgvector:0.8.6-pg18")
+    assert _LOOSE.search("PostgreSQL 16 lacks native uuidv7()")
+    assert _LOOSE.search("pgvector/pgvector:pg16")
+    assert not _LOOSE.search("connects on port 5432")
+
+
 def test_no_pack_carries_truncation_markers():
     # A session once read a pack through a truncating tool and wrote the output
     # BACK, amputating 35-security-auth's Done When tail + its security-critical
