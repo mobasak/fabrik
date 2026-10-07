@@ -137,10 +137,11 @@ def test_a_report_written_to_the_fragments_own_spec_passes_check_file(tmp_path):
         "| 3 | boundary/sentinel/prefix | CLEAN | hunted a.py parsers |\n"
         "| 4 | behavior-without-a-test | CLEAN | hunted tests/test_a.py + a.py handlers |\n\n"
         "## Pass Ledger\n\n"
-        # the CANONICAL row shape term-coverage.md pins verbatim: method FIRST, counters adjacent,
-        # finders after — D-053: the graders bind same-line only; no char windows remain
-        "| Pass 1 | method: citation | found: 3 | new: 3 | fixed: 3 | finders: pool-a, native-opus |\n"
-        "| Pass 2 | method: re-derivation | found: 0 | new: 0 | fixed: 0 | finders: native-opus (non-author) |\n"
+        # the CANONICAL row shape term-coverage.md pins: FINDERS in the second cell (V11 reads them
+        # there), counters adjacent, method last — and `confirmed:` on the row, so the D-206
+        # closing-row rules (V11 among them) actually grade this fixture
+        "| Pass 1 | native opus×1 + sonnet×2 | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0 | method: citation |\n"
+        "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |\n"
     )
     d = tmp_path / "docs" / "development" / "reviews"
     d.mkdir(parents=True)
@@ -149,10 +150,20 @@ def test_a_report_written_to_the_fragments_own_spec_passes_check_file(tmp_path):
     errs = crc.check_file(p)
     assert errs == [], errs
     # red direction: strip the method cells — the re-derivation gate must refuse the same report
-    stripped = report.replace("| method: citation ", "").replace("| method: re-derivation ", "")
+    stripped = report.replace("method: citation", "").replace("method: re-derivation", "")
     p.write_text(stripped, encoding="utf-8")
     errs2 = crc.check_file(p)
     assert any("re-derivation" in e for e in errs2), errs2
+    # red direction: the fragment's former METHOD-FIRST shape (finders in the fourth cell) is
+    # refused once the row carries `confirmed:` — V11 finds no seat in the second cell
+    method_first = report.replace(
+        "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |",
+        "| Pass 2 | method: re-derivation | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | finders: native opus×1 + sonnet×2 |",
+    )
+    assert method_first != report
+    p.write_text(method_first, encoding="utf-8")
+    errs3 = crc.check_file(p)
+    assert any("second cell" in e for e in errs3), errs3
 
 
 def test_d053_window_caps_removed_ordering_no_longer_load_bearing(tmp_path):
