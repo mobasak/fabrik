@@ -144,6 +144,17 @@ def test_registrar_failures_are_sanitised(raw, secret):
     assert len(error) <= 500
 
 
+def test_registrar_failures_sanitiser_is_bounded_in_time():
+    """A long unbroken word run made the quoted-assignment mask backtrack O(n^2) (16k chars ~6 s)."""
+    import time
+
+    state = _import()
+    start = time.monotonic()
+    state._sanitize_failure('{"password": "' + "a" * 100_000)
+    state._sanitize_failure("plain trace " + "b" * 100_000)
+    assert time.monotonic() - start < 2.0
+
+
 def test_registrar_failures_sanitiser_never_raises():
     """A raise inside _persist_state's except would drop the whole state file."""
     state = _import()

@@ -90,6 +90,9 @@ _QUOTED_ASSIGN = re.compile(rf"({_SECRET_WORDS}\s*=\s*)({_QUOTED})", re.I)
 # a JSON / dict field: "password": "..."
 _JSON_SECRET = re.compile(rf"([\"']{_SECRET_WORDS}[\"']\s*:\s*)({_QUOTED})", re.I)
 _FAILURE_MAX_CHARS = 500
+# the masks scan only this much: _QUOTED_ASSIGN backtracks O(n^2) on a long word run, and it runs on
+# the deploy's success path with no timeout. 4x the cap keeps mask-before-cap for anything kept.
+_FAILURE_SCAN_CHARS = 2000
 
 STATE_DIR = FABRIK_ROOT / ".fabrik" / "state"
 
@@ -129,7 +132,7 @@ def _sanitize_failure(text: object) -> str:
     """
     from fabrik.drivers.ssh import _redact
 
-    out = "" if text is None else str(text)
+    out = ("" if text is None else str(text))[:_FAILURE_SCAN_CHARS]
     out = _QUOTED_ASSIGN.sub(r"\1<redacted>", out)
     out = _JSON_SECRET.sub(lambda m: f"{m[1]}{m[2][0]}<redacted>{m[2][0]}", out)
     out = _AUTH_HEADER.sub(r"\1<redacted>", out)
