@@ -1682,8 +1682,9 @@ def _change_axis_verdict(value: str) -> str | None:
 # uses in its own sentence, and this loop's verdicts are exactly about that grammar. A paste
 # reproduces a whole clause; a verdict borrows three words and then says something.
 # the `filed:` template in every spelling it has had or will have — a beat LIST (`a|b|c`), bracketed or not, or the
-# contract's `a beat` — ending at the template's own ` | `, `>` or the value's end (D-627 regression)
-_FILED_TEMPLATE = re.compile(r"mail id\(s\) to <?(?:a beat|[a-z]+(?:\|[a-z]+)+)>?\s*(?:\||>|$)")
+# contract's `a beat` — ending at the template's own ` | none`, `>` or the value's end, so a FILLED value written in the
+# template's form (`mail id(s) to infra|fleet | 01M4…`) is a verdict, not a paste (D-627 regression; review A-H1)
+_FILED_TEMPLATE = re.compile(r"mail id\(s\) to <?(?:a beat|[a-z]+(?:\|[a-z]+)+)>?\s*(?:\|\s*none\b|>|$)")
 _GRAMMAR_PHRASES = (
     "the one concrete edit to this command or a rule",
     "what in the command text was ambiguous or misleading",

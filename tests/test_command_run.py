@@ -6120,6 +6120,15 @@ def test_the_paste_guard_covers_every_field_not_just_change() -> None:
         "change: lean: mail id(s) to infra should name the hub beat first · filed: none — surfaces exercised: x"
     )
     assert missing == [], missing
+    # a FILLED value written in the template's form is a verdict, not a paste (review A-H1/A-H2)
+    _, missing = cr._parse_usage_feedback(
+        "confusion: none · waste: none · change: none · filed: mail id(s) to infra|fleet | 01M4C5VRQE, 01M4C64EDN"
+    )
+    assert missing == [], missing
+    # BEHAVIOUR, not only text: the report buckets the same way (review A-S2)
+    report = _load("cfr_axis", _SCRIPT.parent / "command_feedback_report.py")
+    assert report._axis_of("mail id(s) to infra|fleet|intel | none") == "placeholder"
+    assert report._axis_of("lean: mail id(s) to infra should name the hub beat first") == "lean"
     assert cr._FILED_TEMPLATE.pattern == _load("cfr_tmpl", _SCRIPT.parent / "command_feedback_report.py")._FILED_TEMPLATE.pattern
 
 
