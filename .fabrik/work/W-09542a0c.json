@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T21:12:35.887309Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-09542a0c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4BZRJRNE3JZERDC9RACRYWH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "waits-pg18-windows"
+  ],
+  "title": "PG18 plan T06 — the D4 hand-off: rule packs, CLAIMS.yaml, the synced docs and the postgres_major flip, to apply AFTER the hub window"
+}

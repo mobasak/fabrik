@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a window named by `whoami_agent.py --as` gets its role charter (2026-10-08)
+- kaizen 01M4C0VN6A: the SessionStart charter hook `.claude/hooks/agent_role.py` read only `CLAUDE_AGENT`, so a window bound with `whoami_agent.py --as <name>` (the route the ORIENT block offers) got its items and mail but never its charter. It now falls back to `whoami_agent.resolve_agent_name()`, loaded by file path so a project-local module cannot shadow what the resolver imports; a project without the script, or an older copy, stays a silent no-op. Helps resumed and compacted sessions; a brand-new session still binds after SessionStart. `scripts/mail.py`'s `--to-agent` and `route` help strings now name kaizen.
+
 ### Fixed — the review receipt's Pass rows agree on one shape (2026-10-08)
 - The receipt skeleton's Pass-1 example labels its method (`method: citation`), and one grader holds term-coverage's template, convergence-prompts, /fabrik-review's examples, the skeleton and term-edit to finders second, counters third and `method:` last (kaizen 01M4C186BV; iie2 01M3WJBWDF, wef3 01M3YDPRKJ). V11 stays the second-cell reader (D-655).
 
@@ -15,6 +18,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — twelve EXECUTED plans archived with every referrer and lock repointed; the kaizen daily digest reaches kaizen; agents-fabrik names the manifest's schema (2026-10-07)
 - kaizen finding 01M4BVMGQG: 12 plans carrying `Status: EXECUTED` sat outside `docs/development/plans/archived/` (the `/fabrik-execute-plan` finish step 6 was never run for them) and 10 terminal locks named a pre-archive or bare-stem `plan` path that resolved nowhere. All twelve moved (`git mv`, sets as whole directories), 243 pre-archive cites across 114 tracked files rewritten to the archived path (ledgers, work items, review receipts, three docstrings, one test's `PLAN` constant), 19 locks repointed, `docs/development/PLANS.md` + `INDEX.md` regenerated. `kaizen_collect_v2.send_mail` now addresses kaizen beside infra and fleet (`MAIL_BEATS`; grader drives the real argv). `agents-fabrik.md` cites `src/fabrik/state.py`'s docstring for the state manifest's schema instead of a field count (fleet request 01M4BWTCFA). D-646 records the operator's `.wslconfig` swap ruling (16 GB, superseding D-636's 8 GB).
+
+### Changed — /fabrik-review states the receipt close order: gate while IN-PROGRESS, embed, then flip (2026-10-07)
+- `check_convergence.py` skips an in-flight receipt and refuses a CONVERGED one with no fenced green gate, so a session that flipped first was refused by the very gate run meant to produce the evidence. Executed on a staged copy of a committed receipt: CONVERGED with its gate rc 0, CONVERGED with the gate removed rc 1, IN-PROGRESS without a gate rc 0. Answers 5 /fabrik-review feedback verdicts (kaizen).
 
 ### Fixed — the hub contract and the mail doc name kaizen wherever they list the hub agents (2026-10-07)
 - `CLAUDE.md` still said the hub mailbox was shared by "three sessions", listed only the fleet and intel worktrees, and offered `mail.py route … --to-agent infra|fleet|intel`; the kaizen beat now cites D-627 and the `feedback_owner` key that makes the queues its. `docs/reference/fabrik-mail.md` (the `agent:` field, the refusal's four-beat guide) and the `filed:` examples in `/fabrik-review` and `/fabrik-review-scoped` now include kaizen.

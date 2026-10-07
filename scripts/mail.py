@@ -2404,7 +2404,7 @@ def main(argv: list[str] | None = None) -> int:
     p_send.add_argument(
         "--to-agent",
         dest="to_agent",
-        help="intra-mailbox addressee ROLE (infra/fleet/intel) — a filter, never a lock",
+        help="intra-mailbox addressee ROLE (infra/fleet/intel/kaizen) — a filter, never a lock",
     )
     p_send.add_argument(
         "--broadcast",
@@ -2462,7 +2462,7 @@ def main(argv: list[str] | None = None) -> int:
         "--to-agent",
         dest="to_agent",
         default="",
-        help="role (infra/fleet/intel); omit or pass '' to CLEAR the addressee",
+        help="role (infra/fleet/intel/kaizen); omit or pass '' to CLEAR the addressee",
     )
     p_route.add_argument("--repo")
 

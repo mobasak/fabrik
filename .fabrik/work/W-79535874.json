@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T21:12:38.251908Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-79535874",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4C2Q4PXXG9W4DDK43DMT7FS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "lussobotanica.com geo-redirect + edge language cookie are LIVE — rule ids and probes (relay to wef3, re 01M4C0F4V93CYMKFWF7AQCQSXN / W-f8a106b3)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T21:12:37.324899Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b9314eac",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4C186BVEPQB45AS4H69E110",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "review_receipt.py --init skeleton: the Pass-1 example row's method cell is a bare `citation`, unlike the canonical `method: citation`"
+}
