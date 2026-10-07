@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T18:58:56.169103Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-6390bfcb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49WQW2BYJ79V194RJSXC0H3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Redeploy site-provisioner at 64287a5 — the geo-redirect route with the edge language cookie (W-9770bf1d, W-f8a106b3)"
+}
