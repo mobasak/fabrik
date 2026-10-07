@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: docs/workstation/mcp-roster.md (per-type sets + per-repo overlays are CANONICAL there) · tests/test_emit_mcp_project_config.py | none
+# AFTER-EDIT: docs/workstation/mcp-roster.md (per-type sets + per-repo overlays are CANONICAL there) · tests/test_emit_mcp_project_config.py · scripts/enforcement/check_mcp_scope.py | none
 """Emit each /opt repo's project-scope `.mcp.json` from the MCP split rulings.
 
 Plan: docs/development/plans/2026-08-30-plan-3-mcp-split.md.
@@ -9,7 +9,8 @@ edit the roster first, then this table, same change; the AFTER-EDIT header
 couples them).
 
 Derivation per repo: universal 6 + per-type set (live `project.yaml::type`
-read at run time) + per-repo overlay row. The hub gets the full defs set.
+read at run time) + per-repo overlay row. The hub gets the full defs set minus
+HUB_EXCLUDE (the per-session heavy servers — operator ruling 2026-10-07).
 Server DEFINITIONS are read from --defs, else /opt/fabrik/.mcp.json, else
 the active fleet roster (~/.claude-fleet/active/.claude.json) — the fallback
 chain survives the user-level trim (B4).
@@ -81,7 +82,14 @@ OVERLAYS: dict[str, list[str]] = {
     "supplement-tracker-advisor": ["fabrik-citation-verifier", "pubchem"],  # D-025
 }
 
-HUB_REPOS = {"fabrik"}  # full defs set (D-015 hub-class; fabrik-lib lands via its own agent)
+HUB_REPOS = {"fabrik"}  # hub-class (D-015); fabrik-lib is hub-class too but lands via its own agent
+# The hub-class set is the full defs set MINUS the per-session heavy servers no hub task needs
+# (operator ruling 2026-10-07, mail 01M4AR32MY): every hub window spawned a Maestro JVM and two
+# browser servers; the JVMs outlived their sessions (48 orphans, ~11 GB swap after a hibernate
+# resume). The hub keeps every light server (research, grafana, media-engine, shadcn/magicui,
+# pubchem, the citation verifier) — a mobile or browser task runs in the owning repo.
+HUB_EXCLUDE = {"maestro", "mobile-mcp", "playwright", "chrome-devtools"}
+HUB_CLASS = HUB_REPOS | {"fabrik-lib"}  # derivation only — never in the default sweep
 CONDEMNED = {"image-generation"}  # D-023 ARCHIVE pending with fleet — excluded BY NAME
 NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint exists yet
 
@@ -190,16 +198,28 @@ def _uri_connects(uri: str) -> bool | None:
     return None
 
 
-def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
-    """The repo's ruled server map, or None to skip (with reason printed by caller)."""
+def ruled_server_names(repo: Path, defs: dict[str, dict]) -> list[str] | None:
+    """The NAMES a repo's ruling allows, in emission order, or None for a repo the ruling does
+    not know (no `project.yaml::type`, or a type outside TYPE_SETS). No probe runs here — this is
+    the roster side of the contract, shared with `scripts/enforcement/check_mcp_scope.py`, which
+    grades every emitted `.mcp.json` as a SUBSET of it (an entry absent-until-configured, such as
+    postgres-pro without a connecting URL, is a legal omission; an extra server is not)."""
     name = repo.name
-    if name in HUB_REPOS:
-        wanted = [s for s in defs if s not in NEVER_EMIT]
+    if name in HUB_CLASS:
+        wanted = [s for s in defs if s not in NEVER_EMIT and s not in HUB_EXCLUDE]
     else:
         rtype = _repo_type(repo)
         if rtype is None or rtype not in TYPE_SETS:
             return None
         wanted = list(UNIVERSAL6) + TYPE_SETS[rtype] + OVERLAYS.get(name, [])
+    return [s for s in dict.fromkeys(wanted) if s not in NEVER_EMIT and s in defs]
+
+
+def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
+    """The repo's ruled server map, or None to skip (with reason printed by caller)."""
+    wanted = ruled_server_names(repo, defs)
+    if wanted is None:
+        return None
     out: dict[str, dict] = {}
     for s in dict.fromkeys(wanted):  # ordered de-dup
         if s in NEVER_EMIT or s not in defs:
@@ -236,8 +256,8 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
 def _candidate_repos(root: Path) -> list[Path]:
     out = []
     for d in sorted(root.iterdir()):
-        if not d.is_dir() or d.name in CONDEMNED:
-            continue
+        if not d.is_dir() or d.name in CONDEMNED or d.name in (HUB_CLASS - HUB_REPOS):
+            continue  # fabrik-lib is hub-class for derivation (--repo) but its own agent lands the file
         if not (d / ".git").exists():
             continue
         if d.name in HUB_REPOS or (d / "project.yaml").is_file():

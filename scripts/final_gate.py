@@ -2229,6 +2229,14 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/enforcement/check_hooks_index.py", "Hooks Index Fresh")
         )
+        # MCP scope (hub-only; projects self-skip inside the check): every emitted `.mcp.json`
+        # under /opt is a SUBSET of its repo's ruling — a hand-added heavy server (maestro in the
+        # hub, 2026-10-07, 48 orphaned JVMs) fails here, named with the emitter command.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_mcp_scope.py", "MCP Scope (.mcp.json ⊆ ruling)"
+            )
+        )
         # User-level hook registrations (hub-only; the script is not synced, so projects skip):
         # `check_hooks_index.py` derives its requirement FROM ~/.claude/settings.json and cannot
         # see a MISSING or stale entry — this row asserts the canonical three from a fixed list
