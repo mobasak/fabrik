@@ -30,7 +30,7 @@ Say `MACHINERY: none` when you have nothing. **Silence is not the same answer** 
 cannot tell "nothing to report" from "never looked", and only one of those is information.
 
 **Why it matters that YOU do this:** you are the one who hit the defect. The orchestrator adjudicating
-your output owns the `FEEDBACK:` verdict and the mail routing (infra · fleet · intel), but it can only
+your output owns the `FEEDBACK:` verdict and the mail routing (infra · fleet · intel · kaizen), but it can only
 file what you hand up. A machinery defect you absorb silently dies with you — and it is the cheapest
 finding the fleet will ever get, because the work of hitting it is already done.
 
