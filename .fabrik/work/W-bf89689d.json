@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:05:31.017768Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bf89689d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49V4V3E82JVJFZY2G3EZ7P9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "CORRECTION to 01M49MH9HM — the resume wake DID fire at relief (03:07); narrower defects remain"
+}

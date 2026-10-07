@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:21:53.512499Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-117b1916",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "quota-relief-wake"
+  ],
+  "title": "A window that paused at the urgent-90 (WARNING) tier or at AMBER with its one-shot watch already consumed gets no relief wake: the arm dies on its wake and only the next prompt re-arms it (mails 01M49MFHDQ 01M49MG85R 01M49MH9HM 01M49MHPZG 01M49V4V3E; acceptance = woken within one tick of the reset that clears its band; the phantom-wake half is fixed by the pytest guard, the promise half by D-630)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:05:31.560486Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-722e3e8e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49VWQDENYSH5PGPX9HYC43Z",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Self-watch relief wake fires repeatedly with a future \"LIFTED at\" time (brand-identiy-creator, session a79679a4, 2026-10-07)."
+}
