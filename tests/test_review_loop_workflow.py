@@ -1112,8 +1112,10 @@ def test_the_finder_and_refuter_share_one_import_recipe() -> None:
     finder, refuter = _shell_seat_prompts()
     marker = "To IMPORT a pinned module"
     assert marker in finder and marker in refuter
-    tail = lambda p: p[p.find(marker) : p.find(marker) + 600]  # noqa: E731
-    assert tail(finder) == tail(refuter)
+    end = "does not cover a child process the test starts."
+    span = lambda p: p[p.find(marker) : p.find(end) + len(end)]  # noqa: E731
+    assert end in finder and end in refuter, "the shared span must run through the end of PYTEST_PINS"
+    assert span(finder) == span(refuter)
 
 
 def test_no_seat_instruction_source_wraps_a_shell_builtin_in_timeout() -> None:

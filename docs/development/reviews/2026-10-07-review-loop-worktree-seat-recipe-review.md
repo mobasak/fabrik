@@ -263,6 +263,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
 | Pass 1 | native sonnet×3 (slices code · tests · corpus) + sonnet refuters | found: 5, new: 5, confirmed: 5, fixed: 5, unexecuted: 0 | execution: each seat ran the recipe under the armed worktree guard (wf_12a08a38-665); code-S1/S2 the runpy form refused on a `$SCRATCH` path · corpus-S1 `command grep` at fabrik-review.md:130,444 · corpus-S2 the timeout grader never read fabrik-review.md · corpus-S3 the hub-absolute cite unexplained beside the worktree-aware `<repo root>`; three graders extended and watched red before the fix |
+| Pass 2 | native sonnet×3 (the round-1 seats over their own slice ledgers) + sonnet refuters | found: 2, new: 2, confirmed: 1, fixed: 1, unexecuted: 0 | re-execution (wf_26802fea-312): code-S1/S2 and corpus-S1/S2 NOW_FALSE, re-run under the armed guard; tests-S1 confirmed (the shared-recipe grader compared 600 characters and never reached PYTEST_PINS, so it now compares the span through the end of PYTEST_PINS); corpus-S3's follow-up refuted |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
