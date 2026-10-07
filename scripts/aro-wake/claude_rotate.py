@@ -6561,7 +6561,9 @@ def _next_session_relief(
     stamp as the latch re-arm (:4301), so the follow-up notice the message promises as "the
     mechanism that wakes you" was suppressed until the wrong time as well. No special case is
     needed for the wall: `weekly_blocked` already routes a weekly-walled account to its WEEKLY
-    reset, never to a session reset it would not survive.
+    reset, never to a session reset it would not survive. And it is a candidate from the URGENT
+    line (90), not only past the picker's bar (98): at 90-97 it was in no bucket and the promise fell
+    to a cap-walled sibling's weekly return (2026-10-07: "resume Wed 15:02" against its own 03:10).
     """
     session_wait: list[tuple[float, str]] = []
     weekly_wait: list[tuple[float, str]] = []
@@ -6594,8 +6596,16 @@ def _next_session_relief(
         # STRICT, like the picker (`utils["five_hour"] > session_max`): at exactly the bar the
         # picker takes the account now, so it is not waiting on anything (R5)
         session_spent = su is not None and su > session_bar
+        # The ACTIVE account waits on its session from the URGENT line, not the picker's bar: the
+        # advisory that asks this question fires at `>= _urgent_drain_pct()` (W-5624d692, measured
+        # 2026-10-07 — active at 93 with every sibling cap-walled was neither spent nor weekly-blocked,
+        # fell into no bucket, and the fleet was told to resume at a sibling's WEEKLY return 12 h past
+        # its own 5h reset). Siblings keep the picker's bar (P3-2): a sibling at 93 is a target now.
+        # This predicate feeds the SESSION arm only — folding it into `session_spent` moved a
+        # weekly-walled active to the later of its two resets (critique C2).
+        active_urgent = email == active_email and su is not None and su >= _urgent_drain_pct()
         # `>=`: a reset AT now is "now" — the board's `_returns_at` mirror (P3-7).
-        if not weekly_blocked and session_spent and fr is not None and fr >= now:
+        if not weekly_blocked and (session_spent or active_urgent) and fr is not None and fr >= now:
             # blocked ONLY by its session — the docstring's contract. An account under both bars
             # is not waiting for any window; naming its 5h reset promised the whole fleet a wait
             # nothing required (P3-1: a full-window sibling behind an untrusted cache).

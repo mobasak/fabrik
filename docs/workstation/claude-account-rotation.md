@@ -91,10 +91,13 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   when the ACTIVE account's session is at/over **90** and `_validated_pick` finds no eligible sibling (every
   one session-exhausted, weekly-walled or cap-walled), the wall advisory fires EIGHT POINTS EARLY — the runway a graceful stop needs; the ordering (90 < the flip line) is the design, graded by
   `test_the_no_successor_mail_always_precedes_the_flip_line` — as one Telegram + one broadcast fabrik-mail to every mailbox repo, in the operator's
-  words: **STOP YOUR WORK ASAP, GRACEFULLY, and HOOK YOURSELF TO RESUME 1 MINUTE AFTER the next account's
-  session resets** — with that instant as local time, UTC and epoch, plus a copy-paste `sleep` line
-  (`_next_session_relief`: the soonest 5h reset among siblings blocked only by their session; falls back to the
-  soonest weekly reset when every sibling is weekly-blocked; skips stale past resets). Same latch and re-arm as
+  words: **STOP YOUR WORK ASAP, GRACEFULLY, and HOOK YOURSELF TO RESUME 2 MINUTES AFTER the next session
+  reset** (`_drain_resume_lead_s`, 120 s) — with that instant as local time, UTC and epoch, plus a copy-paste
+  `sleep` line (`_next_session_relief`: the soonest 5h reset among accounts blocked only by their session —
+  the ACTIVE account counts from the urgent line (90), siblings past the picker's bar — falls back to the
+  soonest weekly reset when every candidate is weekly-blocked; skips stale past resets; W-5624d692: at 90-97
+  the active was in no bucket and the fleet was told to resume at a sibling's weekly return 12 h past its own
+  5h reset). Same latch and re-arm as
   the wall tier (one message per episode; re-armed the instant relief arrives). The quota board invokes the
   tick on this tier within one 20 s probe, on a cooldown of its own so it can never delay the flip tier.
 - **Target — PERISHABLE-FIRST:** among accounts that are alive, not

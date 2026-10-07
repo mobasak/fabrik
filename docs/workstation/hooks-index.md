@@ -140,7 +140,7 @@ account per 24h + drain fabrik-mail to that account's mapped repos; the FLIP LEG
 leg at its `caps.json` cap — on the PROJECTED reading (reading + the burn since the previous tick, remembered in `state/tick-last-reading.json` — a line checked every 5 minutes must be crossed BEFORE the wall, D-103), to the perishable-first sibling with proven headroom (walled / cap-walled / ≥threshold /
 no-5h-budget siblings excluded), DWELL-EXEMPT — a trip is a wall, never churn (D-104); and at session ≥ 90 with NO
 eligible successor the wall advisory fires early as the operator's URGENT mail — stop gracefully, hook
-to 1 min after the next account's session reset, with the instant stated (`_next_session_relief`). Legacy mode (until the fleet root is
+to 2 min after the next session reset — the active account's own when it is the soonest, else the next account's — with the instant stated (`_next_session_relief`). Legacy mode (until the fleet root is
 populated): polls the LIVE account's `oauth/usage` both windows; at `ROTATE_THRESHOLD`
 switches to the PERISHABLE-FIRST successor (soonest weekly reset; picked under the shared
 switch flock — TOCTOU-free vs manual `--switch`), Telegrams one line; with no eligible sibling
