@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T05:24:52.952804Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-566ca26a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49K0NW7Z7BBHDXX7KVJ7SWW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Rule-pack text request — 60-watchdog.md and self-healing.md go stale with watchdog.llm_actions (fabrik-lib D-412, hub D-628)"
+}

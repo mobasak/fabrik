@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:17.352390Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d3480415",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M48P82R7BCZ6WKMF9N8VHFMY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: merge_request.py has no way to re-run a request the merge owner refused for a BASE-side fault."
+}

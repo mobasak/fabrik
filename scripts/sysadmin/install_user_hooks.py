@@ -51,6 +51,12 @@ ENTRIES = {
     "Stop": [
         f"python3 {HUB}/scripts/sysadmin/worktree_transcript_link.py",
     ],
+    # Operator mail 01M4AR32MY (2026-10-07): a session's stdio MCP servers outlive it (48 Maestro
+    # JVMs, ~11 GB swap after a hibernate resume). SessionEnd reaps the ones already REPARENTED
+    # (pid 1 / the vscode-server root) and older than two minutes — never a live session's child.
+    "SessionEnd": [
+        f"python3 {HUB}/scripts/sysadmin/mcp_orphan_reaper.py --hook",
+    ],
 }
 TIMEOUT_S = 10
 

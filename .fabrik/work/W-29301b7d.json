@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T01:22:28.384074Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-29301b7d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M476PJXYWS9ECNQP98S8HRGR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: plans EXECUTED on a closing Pass row reading confirmed: 2 (01M45C2HNE): both plans are cleared with your second option, a note. No round was added after the fact."
+}

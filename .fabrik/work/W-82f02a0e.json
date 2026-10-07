@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:05:31.759977Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-82f02a0e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49W0TQC10X3VQM3H7DZADBE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Follow-up to 01M49MFHDQ: the self-watch replays a STALE quota-RESUME on every arm"
+}

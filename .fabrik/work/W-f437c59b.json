@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:15.962430Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f437c59b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M47T06VVNV3M09VWFDE5AE86",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: check_rule_grounding.py's advisory budget hid a real finding until the CONVERGED flip."
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:39:57.844937Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7903c5ef",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "waits-2026-10-13"
+  ],
+  "title": "Linked worktrees go stale after a hub resync (mail 01M49VV5TA, second instance after 01M48ZKPZ1): check_synced_unmodified must resolve synced.lock AND the synced files from the MAIN checkout when cwd is a linked worktree (or the resync must reach every registered worktree) — today every worktree agent's gate reds on files it may not edit after every resync"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:05:31.201752Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ebbbc4e5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49VV6FK4B04ZAJ7XZMMPDKQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "selfwatch_arm.sh replays a stale \"hold LIFTED\" wake on every arm — the watch can never stay armed"
+}

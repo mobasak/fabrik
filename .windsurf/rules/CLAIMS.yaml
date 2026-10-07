@@ -197,11 +197,11 @@ claims:
 
   - id: docker-stop-grace-default
     pack: core/12-node.md
-    claim: "Docker's default stop grace period is 10s; the 20s drain backstop works only under a compose stop_grace_period above 20s — the scaffolded app compose sets none today (only the worker compose, scaffold.py, sets 45s)"
+    claim: "Docker's default stop grace period is 10s; the 20s drain backstop works only under a compose stop_grace_period above 20s — the scaffold sets 30s on every routed app service (fleet 132c4613f: _write_canonical_compose, the python-api compose template, _write_saas_compose; the saas worker keeps 45s)"
     kind: rationale
     verify: "https://docs.docker.com/reference/cli/docker/container/stop/"
     window_days: 365
-    last_verified: 2026-09-01
+    last_verified: 2026-10-07
 
   - id: idempotency-key-header-standard
     pack: core/15-api-contracts.md

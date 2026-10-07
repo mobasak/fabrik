@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:05:30.524526Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fdc35cb1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49MG85RZQBE9S2Z63SHDJMM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "quota-relief wake — operator says paused windows do not resume at relief; evidence from fabrik-lib-sentinel"
+}

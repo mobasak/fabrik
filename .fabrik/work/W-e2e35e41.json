@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T05:46:40.621239Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e2e35e41",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4827R5HPABHZ3YAFQNEGA2T",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "re 01M470F5YW — scaffold now sets stop_grace_period: 30s, and SIGTERM actually reaches the app"
+}

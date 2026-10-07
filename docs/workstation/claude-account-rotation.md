@@ -150,7 +150,7 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   session whose self-watch is ARMED (`_wake_held_sessions`: a held `selfwatch.lock`, the one decider
   `selfwatch_check.py` uses, vendored lockstep) and appends a `hold-lifted` ledger row with
   `reason` (`relief`/`dwell`; the helper's `no-reading` value is defensive only since D-180 — the tick keeps the stamp instead), `site` (which unlink fired) and `armed/dead/woken/pending/errors`; `pending` = an ARMED watch that never consumed the previous lift (an old script in memory), healed only by ENDING that watch's Monitor (`TaskStop`, allowed under the hold — a plain re-arm exits at once as a duplicate while the old watch still holds the lock) and arming again. The Stop decider's lock-dir prune skips flock-held files and the watch exits when its lock file vanishes (harness W11); the self-watch consumes the file and prints the RESUME line naming
-  the run record and thread anchors. A probe blackout (every window `None`) is NOT relief:
+  the run record and thread anchors. That enumeration reaches the LIVE dir only outside pytest: `_box_state_dir` hands any test (`PYTEST_CURRENT_TEST` set, no `CLAUDE_SOUND_LOCKDIR`/`ROTATE_STATE_DIR` override) a scratch dir keyed by process and test, because a fleet suite run from a scratch copy without `tests/conftest.py` woke every armed session on the box with the tests' fixed clock on 2026-10-07 (W-7aab61a6). A probe blackout (every window `None`) is NOT relief:
   since D-180 the tick KEEPS the stamp and logs `stamp KEPT — no reading`; the
   hold stands until a reading says otherwise, so the one present→absent transition the wake fires on is never
   consumed blind. A stamp the

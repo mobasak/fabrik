@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:40:01.540846Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-cdd31d42",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49DR40S4NCNVZXCFAZMHGNQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: CORRECTION (hub D-624) — fabrik-lib CLAUDE.md is now its own library contract: 6d585e43"
+}

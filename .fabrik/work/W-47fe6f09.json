@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:19.321089Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-47fe6f09",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M48SBA1YX7ZGAAKH68Z5JDT4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the fabrik-review-loop seats' scratch-copy recipe fails in a Claude Code worktree session: it omits a directory the tests import, and its HOME= prefix and variable-path shell forms are refused by the worktree-isolation guard."
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:18.732806Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-401bf682",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M48S5GP19VZXKMBZ00V1HH9D",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": ".worktreeinclude omits web/.env.local — worktree web apps start without their env"
+}

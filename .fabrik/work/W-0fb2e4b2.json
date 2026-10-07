@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:05:31.380226Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0fb2e4b2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49VW8YK98Q22HV9TGAHQT2P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Follow-up: after the real lift, repeated .holdlifted markers with future times consume every re-arm within seconds"
+}

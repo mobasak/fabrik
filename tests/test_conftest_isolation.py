@@ -412,3 +412,34 @@ def test_a_live_fleet_test_is_skipped_unless_a_person_opts_in(monkeypatch):
     monkeypatch.setenv("FABRIK_TEST_ALLOW_FLEET", "1")
     conftest.pytest_collection_modifyitems(None, [opted])
     assert opted.added == []
+
+
+def test_the_resolvers_refuse_the_live_dirs_under_pytest_without_the_pin(tmp_path):
+    """The class fix behind the 2026-10-07 phantom wakes (W-7aab61a6, ten fleet reports): the
+    conftest pin above protects only a run rooted at this repo. Review seats ran the fleet suite
+    from a scratch COPY without `tests/conftest.py`, `_wake_held_sessions` enumerated the LIVE
+    lock dir and every armed session on the box woke with `LIFTED at 11:00` — epoch 1800000000,
+    the suite's fixed clock. So the module itself refuses the live dirs whenever pytest is running
+    (`PYTEST_CURRENT_TEST`, set by pytest for every test, conftest or none) and the env override is
+    unset. Driven in a subprocess with the pins REMOVED, so this test proves the module's own
+    guard, not the fixture's; the live dirs are never touched either way."""
+    src = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "claude_rotate.py"
+    probe = (
+        "import importlib.util, sys\n"
+        f"spec = importlib.util.spec_from_file_location('cr', {str(src)!r})\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "print(m._selfwatch_lock_dir()); print(m._rotate_state_dir())\n"
+    )
+    env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_SOUND_LOCKDIR", "ROTATE_STATE_DIR")}
+    env["PYTEST_CURRENT_TEST"] = "tests/some_copy.py::t (call)"
+    env["TMPDIR"] = str(tmp_path)
+    out = subprocess.run(["python3", "-c", probe], env=env, capture_output=True, text=True, check=True)
+    lock, state = out.stdout.splitlines()
+    assert Path(lock).resolve() != _REAL_LOCK_DIR.resolve(), lock
+    assert Path(state).resolve() != (Path.home() / ".claude" / "state").resolve(), state
+    assert Path(lock).parent == tmp_path and Path(state).parent == tmp_path, (lock, state)
+    # outside pytest the live defaults are untouched — the tick's own resolution
+    env.pop("PYTEST_CURRENT_TEST")
+    out = subprocess.run(["python3", "-c", probe], env=env, capture_output=True, text=True, check=True)
+    lock, state = out.stdout.splitlines()
+    assert Path(lock) == _REAL_LOCK_DIR and Path(state) == Path.home() / ".claude" / "state", (lock, state)

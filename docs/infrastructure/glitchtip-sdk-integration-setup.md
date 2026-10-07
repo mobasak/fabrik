@@ -200,8 +200,8 @@ When `SENTRY_DSN` is set, errors auto-report. Treat redundant logging as noise:
 | :--- | :--- | :--- |
 | `SENTRY_DSN` | (unset → no-op) | Primary — injected by the glitchtip registrar |
 | `GLITCHTIP_DSN` | (unset → no-op) | Fallback alias; SDK prefers `SENTRY_DSN` if both present |
-| `ENVIRONMENT` | `production` | Tags events; filter prod vs staging in UI |
-| `GIT_SHA` | (unset) | Release tag — set this in CI from `git rev-parse HEAD` |
+| `APP_ENV` / `ENVIRONMENT` | `production` | Tags events; `APP_ENV` wins when set, then `ENVIRONMENT`, then `production` |
+| `APP_GIT_SHA` / `GIT_SHA` | (unset → no release) | Release tag; the git deploy (`fabrik apply`/`redeploy`) writes `GIT_SHA` into `.env` and the python-api / node-api compose passes `APP_GIT_SHA`; blank or `unknown` = no release |
 | `GLITCHTIP_TRACES_SAMPLE_RATE` | `0.05` | Performance tracing sample rate (0.0–1.0). Keep low. |
 | `GLITCHTIP_PROFILES_SAMPLE_RATE` | `0` | Profiling off by default (would require native deps) |
 

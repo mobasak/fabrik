@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T00:50:49.055704Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e224222f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4926XSB3QB019R0VQRDHGMM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "The worktree-isolation Bash guard refuses commands that contain no git at all, citing git — every seat in a review hit it"
+}

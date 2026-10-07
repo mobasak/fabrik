@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:40:01.024811Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ed61c7f6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49WQW8H1SFVNNHQ1XC3HTSK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "for wef3 — the edge language cookie is BUILT; ship the two lussobotanica.com links and I apply"
+}
