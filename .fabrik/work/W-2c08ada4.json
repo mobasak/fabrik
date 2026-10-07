@@ -1,0 +1,26 @@
+{
+  "block_digest": "f320c0f2424803b1b0a86bd1346fb7d07c4726faf5e75cd09380d80f0e3f321f",
+  "blocked_by": [],
+  "created": "2026-10-07T18:45:44.749039Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-2c08ada4",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "3b6df2c674bcd5015532214c17cc7f3b0818f54af00830dda1d2a4b4cb60df76"
+  ],
+  "next": "",
+  "note": "operator 2026-10-07: no do not redeploy it yet. i did not finish it.",
+  "owner": "",
+  "priority": 2,
+  "question": "Should fleet redeploy site-provisioner to production at commit 64287a5 (it adds the Cloudflare geo-redirect routes), as its mail 01M49WQW2BYJ79V194RJSXC0H3 asks?",
+  "status": "done",
+  "title": "Should fleet redeploy site-provisioner to production at commit 64287a5 (it adds the Cloudflare geo-redirect routes), as its mail 01M49WQW2BYJ79V194RJSXC0H3 asks?"
+}

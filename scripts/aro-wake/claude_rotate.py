@@ -732,6 +732,62 @@ def _notify_telegram(text: str) -> bool:
         return False
 
 
+def _bound_fleet_slug(env: dict[str, str]) -> str | None:
+    """The fleet dir a ``claude`` call with *env* answers as — ``CLAUDE_CONFIG_DIR`` resolved, so a
+    session bound to ``<root>/active`` names the pointer's target AT THIS MOMENT — or None when the
+    call is bound to no fleet dir (unset, the shared ``~/.claude``, a VPS host with no fleet)."""
+    cfg = env.get("CLAUDE_CONFIG_DIR")
+    if not cfg:
+        return None
+    try:
+        dest = Path(cfg).resolve()
+        root = _fleet_root().resolve()
+    except (OSError, RuntimeError):
+        return None
+    return dest.name if dest.parent == root and dest.is_dir() else None
+
+
+def _call_refused(result: subprocess.CompletedProcess) -> bool:
+    """Did a wrapped ``claude`` call meet the organisation refusal? A JSON caller's result is
+    classified exactly (:func:`_capability_verdict`); a text-mode caller (no ``--output-format
+    json``, most headless jobs) prints the refusal as text, so a FAILED call (rc not 0) whose
+    output carries a refusal marker counts too. A successful call that merely quotes the code never
+    does, and a false positive costs one probe, never a park: :func:`_auto_park` parks only on a
+    confirming JSON probe of its own (Finish review, rest-S1)."""
+    if _capability_verdict(result.returncode, result.stdout or "") == "refused":
+        return True
+    if result.returncode in (0, None):
+        return False
+    blob = (result.stdout or "") + "\n" + (result.stderr or "")
+    if is_auth_401(blob) or is_usage_limit(blob):
+        return (
+            False  # a rotation signal wins: the text fallback must never swallow a 401 or a limit
+        )
+    return any(marker in blob.lower() for marker in _REFUSAL_MARKERS)
+
+
+def _wrapper_park(slug: str | None) -> None:
+    """Park the account behind *slug* after a refused ``run_claude`` call (spec D4b) — confirmed
+    by :func:`_auto_park`'s second probe of that same dir, 45 s bounded. Stderr only: the CLI
+    passthrough mirrors stdout to its callers."""
+    if slug is None:
+        sys.stderr.write("claude_rotate: capability refused outside the fleet — nothing parked\n")
+        return
+    arow = _load_assignments(strict=False).get(slug)
+    arow = arow if isinstance(arow, dict) else {}
+    # the pinned identity, else the dir's account — the two fields _known_account_emails accepts
+    email = next(
+        (v for v in (arow.get("identity"), arow.get("account")) if isinstance(v, str) and "@" in v),
+        "",
+    )
+    _auto_park(
+        email,
+        source="wrapper",
+        cfg_dir=_fleet_root() / slug,
+        timeout=_ACTIVE_PROBE_TIMEOUT_S,
+    )
+
+
 def run_claude(
     argv: list[str], timeout: int, cwd: str, env: dict[str, str], buffer_stdin: bool = False
 ) -> subprocess.CompletedProcess:
@@ -757,6 +813,7 @@ def run_claude(
     behavior change).
     """
     stdin_data = _read_piped_stdin() if buffer_stdin else None
+    bound = _bound_fleet_slug(env)  # the account this call answers as — snapshot BEFORE the call
     # Pin subprocess I/O to UTF-8 with errors="replace" (NOT text=True, which re-encodes stdin with
     # the LOCALE's encoding + STRICT errors): _read_piped_stdin decoded leniently, so under a
     # non-UTF-8 locale (LANG=C) a strict re-encode of any non-ASCII byte would raise UnicodeEncodeError
@@ -789,6 +846,13 @@ def run_claude(
     # (max_rotations == 0 — a 1-snapshot host) correctly stays "exhausted".
     withheld_reason: str | None = None
     while True:
+        if _call_refused(result):
+            # The organisation refuses Claude Code on this account (spec D4b): park the account the
+            # call was BOUND to (snapshotted before it ran — the pointer may have moved since) and
+            # stop — every retry would meet the same refusal. On a fleet host the rotate below is
+            # withheld anyway; the next tick flips away from a parked active account.
+            _wrapper_park(bound)
+            break
         combined = (result.stdout or "") + "\n" + (result.stderr or "")
         # Rotate on the usage-limit signal OR a 401, REGARDLESS of exit code / output format.
         # Never missing a real limit/401 is this feature's core guarantee, and Claude's exit code
@@ -823,6 +887,7 @@ def run_claude(
         last_target = new_account
         tried.add(new_account)
         rotations += 1
+        bound = _bound_fleet_slug(env)
         result = subprocess.run(
             argv,
             capture_output=True,
@@ -840,7 +905,13 @@ def run_claude(
     if died_account is not None:
         final = (result.stdout or "") + "\n" + (result.stderr or "")
         host = _hostname()
-        recovered = last_target is not None and not is_auth_401(final) and not is_usage_limit(final)
+        refused = _call_refused(result)
+        recovered = (
+            last_target is not None
+            and not is_auth_401(final)
+            and not is_usage_limit(final)
+            and not refused
+        )  # a standby that answers with the org refusal has not recovered the call
         # RULE: while the operator's MARKER is set, the all-dead alert is theirs to own — they are
         # actively working the credential pool and asked for no swaps, so this call is not allowed
         # to declare the fleet dead on their behalf. (That holds even when real standbys were tried
@@ -854,6 +925,16 @@ def run_claude(
                 _notify_telegram(
                     f"⚠️ Claude 401 on {host}: account '{died_account}' credentials were dead — "
                     f"auto-rotated to '{last_target}' and recovered. (alerts quiet ~12h)"
+                )
+        elif refused and last_target is not None:
+            # the standby's credentials WORK — its organisation refuses Claude Code, a billing
+            # matter, so the all-dead "re-capture a fresh account" advice would send the operator
+            # to the wrong fix
+            if _should_alert_401():
+                _notify_telegram(
+                    f"⚠️ Claude 401 on {host}: account '{died_account}' credentials were dead — "
+                    f"auto-rotated to '{last_target}', whose organisation refuses Claude Code "
+                    f"(oauth_org_not_allowed — check that account's billing). (alerts quiet ~12h)"
                 )
         elif withheld_reason != _PAUSE_MARKER and _should_alert_401():
             if withheld_reason == _PAUSE_ERROR:
@@ -2227,9 +2308,37 @@ def _rotate_state_dir() -> Path:
     parents at the umask); an EXISTING dir keeps the mode it has — `mkdir`'s mode applies only
     to a dir it creates, `--status` reaches this accessor and is a read every agent runs, and a
     dir the operator made wider is the operator's. Never chmods."""
-    d = Path(os.environ.get("ROTATE_STATE_DIR") or Path.home() / ".claude" / "state")
+    d = _box_state_dir("ROTATE_STATE_DIR", Path.home() / ".claude" / "state", "state")
     d.mkdir(mode=0o700, parents=True, exist_ok=True)
     return d
+
+
+def _box_state_dir(env_key: str, live: Path, kind: str) -> Path:
+    """Resolve a BOX-STATE dir (the tick's state dir, the resume mesh's lock dir): the env
+    override when set, else the live dir — EXCEPT under pytest. `PYTEST_CURRENT_TEST` is set by
+    pytest itself for every running test, conftest or no conftest, so a test that reaches
+    `_wake_held_sessions` or the fleet-exhausted stamp without the repo's autouse pin
+    (`tests/conftest.py`: a suite run from a scratch COPY without its conftest, `--noconftest`,
+    another rootdir) gets a per-process scratch dir and never the live one. Measured 2026-10-07:
+    review seats ran the fleet suite from pinned copies and every armed session on the box woke
+    with `LIFTED at 11:00` — the tests' fixed clock (epoch 1800000000) written into live
+    `.holdlifted` files; 10 fleet reports, W-7aab61a6. The state dir carries the stamp that HOLDS
+    every session's tools, so it gets the same guard. Cobra: the cheapest way past this guard is a
+    test that unsets `PYTEST_CURRENT_TEST` or sets the env key to the live path — both are the
+    test's own deliberate act, which no scanner here catches (`tests/test_conftest_isolation.py`
+    grades the guard itself, in a subprocess with the pins removed, not every test's conduct)."""
+    override = os.environ.get(env_key)
+    if override:
+        return Path(override)
+    current = os.environ.get("PYTEST_CURRENT_TEST")
+    if current:
+        # keyed by the test's NODEID (the value minus its " (setup|call|teardown)" phase suffix),
+        # not the pid alone: two tests in one process must not read each other's stamp
+        nodeid = hashlib.sha1(
+            current.rsplit(" (", 1)[0].encode(), usedforsecurity=False
+        ).hexdigest()[:12]
+        return Path(tempfile.gettempdir()) / f"claude-rotate-test-{kind}-{os.getpid()}-{nodeid}"
+    return live
 
 
 def _switch_paused() -> bool:
@@ -3509,7 +3618,7 @@ def _flip_candidate_verdict(
         wu = utils.get("seven_day")
         cap = row.get("weekly_cap")
         if _is_parked(cap):
-            return slug, utils, "parked by the operator (`--unpark` restores it)"
+            return slug, utils, "parked (`--unpark` restores it)"
         if cap is not None and wu is not None and wu >= cap:
             return slug, utils, f"weekly {wu:.0f}% ≥ cap {cap}"
         return slug, utils, f"a window ≥ {threshold:.0f}% (flip-away next tick)"
@@ -3557,6 +3666,38 @@ def _freshest_credentialed_slug(dirs: list[Path]) -> str | None:
 
 
 def _validated_pick(
+    accounts: list[dict], exclude: set[str], *, verbose: bool = False, probe: bool = False
+) -> tuple[str, str] | None:
+    """F-P2 plus the capability probe: :func:`_validated_pick_reading`'s quota-validated pick,
+    and — with *probe*, which only the flip leg passes — one real Claude Code call proving the
+    candidate can serve before it becomes the fleet's pointer (spec D2). A candidate's ``ok``
+    verdict is trusted for ``ROTATE_PROBE_TRUST_S`` (6 h) and an ``inconclusive`` one is not
+    retried for 30 minutes (:func:`_probe_account`); ``inconclusive`` picks it as before, and a
+    ``refused`` one is auto-parked after a confirming second probe (:func:`_auto_park`) and
+    skipped for the rest of this tick either way. The relief advisory and a manual ``--switch``
+    never probe, and neither does any caller while :func:`_pause_state` is not None (the marker,
+    or a state dir that cannot be read) — nothing is installed then, so a probe would spend a
+    call and could park an account for nothing.
+    None when nobody survives."""
+    exclude = set(exclude)
+    probe = probe and _pause_state() is None
+    while True:
+        pick = _validated_pick_reading(accounts, exclude, verbose=verbose)
+        if pick is None or not probe:
+            return pick
+        slug, email = pick
+        verdict = _probe_account(email, slug, timeout=_ACTIVE_PROBE_TIMEOUT_S)
+        if verdict == "ok":
+            return pick
+        if verdict == "inconclusive":
+            print(f"tick: {email} capability probe inconclusive — picked anyway")
+            return pick
+        row = next((r for r in accounts if r.get("email") == email), None)
+        _auto_park(email, source="promote", cfg_dir=_fleet_root() / slug, row=row)
+        exclude.add(email)
+
+
+def _validated_pick_reading(
     accounts: list[dict], exclude: set[str], *, verbose: bool = False
 ) -> tuple[str, str] | None:
     """F-P2: :func:`_pick_flip_target`, with cached candidates LIVE-verified before they can
@@ -3870,6 +4011,266 @@ def _known_account_emails() -> set[str]:
     return known
 
 
+def _parked_lock_fd() -> int:
+    """The lock serialising every read-modify-write of ``parked.json`` (spec D5): the operator's
+    ``--park`` and the tick's auto-park could otherwise each read the list, add their email, and
+    the slower write drop the faster one's. A dedicated lock file, the ``assignments.lock`` shape —
+    but it never creates the fleet root (``--new-dir`` is its only creator): a missing root raises
+    here, and :func:`_parked_update` writes nothing."""
+    root = _fleet_root()
+    return os.open(str(root / "parked.lock"), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+
+
+def _parked_update(email: str, park: bool, *, repair: bool) -> bool | None:
+    """Add (``park``) or remove *email* from ``parked.json`` under :func:`_parked_lock_fd`.
+
+    True = changed, False = already so, None = nothing written (lock or write failed, or a broken
+    file an automated caller must not overwrite). The re-read under the lock is STRICT: missing →
+    empty; unreadable or not a JSON list → with ``repair`` False (the tick's auto-park) refuse —
+    a cron tick never replaces the operator's list on its own, the D-443 "broken parked.json
+    parks NOTHING" stance — and with ``repair`` True (the operator's ``--park``/``--unpark``)
+    proceed from empty, as ``_cmd_park`` always has. A lock that cannot be taken writes nothing,
+    the assignments site's rule ("cannot lock → never risk clobbering the table")."""
+    path = _fleet_root() / "parked.json"
+    try:
+        lock_fd = _parked_lock_fd()
+    except _STATE_DIR_ERRORS as e:
+        sys.stderr.write(f"claude_rotate: cannot lock {path} ({e}) — nothing changed\n")
+        return None
+    try:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        except OSError as e:  # a filesystem that cannot lock: never risk the unlocked write
+            sys.stderr.write(f"claude_rotate: cannot lock {path} ({e}) — nothing changed\n")
+            return None
+        try:
+            data = json.loads(path.read_text())
+        except FileNotFoundError:
+            data = []
+        except (OSError, ValueError):
+            data = None
+        if not isinstance(data, list):
+            if not repair:
+                sys.stderr.write(
+                    f"claude_rotate: {path} unreadable — the auto-park wrote nothing\n"
+                )
+                return None
+            data = []
+        parked = {e.lower() for e in data if isinstance(e, str) and "@" in e}
+        if park == (email in parked):
+            return False
+        parked = parked | {email} if park else parked - {email}
+        try:
+            _write_json_atomic(path, sorted(parked), mode=0o644)
+        except OSError as e:
+            sys.stderr.write(f"claude_rotate: cannot write {path} ({e}) — nothing changed\n")
+            return None
+        return True
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        try:
+            os.close(lock_fd)
+        except OSError:
+            pass
+
+
+_PROBE_RETRY_S = 1800.0
+_ACTIVE_PROBE_TIMEOUT_S = 45
+
+
+def _probe_trust_s() -> float:
+    """How long a STANDBY's ``ok`` capability verdict is trusted (spec D2): ``ROTATE_PROBE_TRUST_S``,
+    default 21600 (6 h). Non-finite or not positive → the default."""
+    val = _env_float("ROTATE_PROBE_TRUST_S", 21600.0)
+    return val if val > 0 else 21600.0
+
+
+def _active_probe_s() -> float:
+    """How long the ACTIVE account's ``ok`` verdict is trusted (spec D6): ``ROTATE_ACTIVE_PROBE_S``,
+    default 1800. Separate from the standby window because a refusal on the active account stops
+    every session on the box at once. Non-finite or not positive → the default."""
+    val = _env_float("ROTATE_ACTIVE_PROBE_S", 1800.0)
+    return val if val > 0 else 1800.0
+
+
+def _probe_cache_path() -> Path:
+    return _rotate_state_dir() / "capability-probe.json"
+
+
+def _read_probe_cache() -> dict:
+    """``{email: {"verdict": "ok"|"inconclusive", "ts": epoch}}``; anything unreadable reads as empty
+    (the next probe runs — fail toward probing, bounded by the windows)."""
+    try:
+        data = json.loads(_probe_cache_path().read_text())
+    except (FileNotFoundError, *_STATE_DIR_ERRORS):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _record_probe(email: str, verdict: str) -> None:
+    """Cache an ``ok`` or ``inconclusive`` verdict (a ``refused`` is never cached — the account is
+    parked instead). Never raises: a lost write costs one extra probe later, never the tick (the
+    row pass's own cache-write rule)."""
+    if verdict not in ("ok", "inconclusive"):
+        return
+    try:
+        cache = _read_probe_cache()
+        cache[email] = {"verdict": verdict, "ts": _now()}
+        _write_json_atomic(_probe_cache_path(), cache)
+    except _STATE_DIR_ERRORS as e:
+        sys.stderr.write(f"claude_rotate: capability cache not written ({e})\n")
+
+
+def _probe_account(
+    email: str,
+    slug: str,
+    *,
+    window: float | None = None,
+    timeout: int | None = None,
+    expired_after: float | None = None,
+) -> str:
+    """The capability verdict for *email*, probing ``<fleet_root>/<slug>`` only when the cached one
+    has expired: an ``ok`` lives *window* (default :func:`_probe_trust_s`), an ``inconclusive``
+    :data:`_PROBE_RETRY_S`; a session refusal newer than the verdict (*expired_after*, spec D7)
+    expires it at once. Every fresh verdict is recorded with :func:`_record_probe`."""
+    hit = _read_probe_cache().get(email)
+    ts = hit.get("ts") if isinstance(hit, dict) else None
+    # A bool is an int to isinstance, and a ts in the future (a backward clock step, or Infinity
+    # in the JSON) would read fresh until the clock caught up — or forever: both re-probe.
+    usable = (
+        isinstance(ts, (int, float))
+        and not isinstance(ts, bool)
+        and math.isfinite(ts)
+        and ts <= _now() + _CLOCK_SKEW_TOLERANCE_S
+    )
+    if usable and isinstance(hit, dict):
+        life = (window or _probe_trust_s()) if hit.get("verdict") == "ok" else _PROBE_RETRY_S
+        fresh = _now() - hit["ts"] < life
+        stale_by_session = expired_after is not None and expired_after > hit["ts"]
+        if hit.get("verdict") in ("ok", "inconclusive") and fresh and not stale_by_session:
+            return hit["verdict"]
+    verdict = _capability_probe(_fleet_root() / slug, timeout)
+    _record_probe(email, verdict)
+    return verdict
+
+
+def _session_refusal_epoch() -> float | None:
+    """The newest epoch of a session's own ``oauth_org_not_allowed`` death record (spec D7): the
+    StopFailure hook writes ``<lockdir>/<safe-sess>.errparked`` = ``<class> <epoch>`` on every
+    failed interactive session (the read-only parser is ``kaizen_coroner._errparked_markers``).
+    A marker names a SESSION, not an account, so it only expires the active account's cached
+    verdict — the probe it triggers is the definitive act. A marker more than
+    ``_CLOCK_SKEW_TOLERANCE_S`` in the future is skipped (a cap recomputed each tick would stay
+    newer than every verdict and force a probe every tick); one inside it counts as now.
+    Malformed records are skipped; an unreadable dir is None; never raises."""
+    now = _now()
+    newest: float | None = None
+    try:
+        entries = list(_selfwatch_lock_dir().iterdir())
+    except OSError:
+        return None
+    for path in entries:
+        if not path.name.endswith(".errparked"):
+            continue
+        # A regular file only, its first 256 bytes only: a FIFO, a device or a huge file named
+        # *.errparked can neither block the tick nor fill its memory (O_NONBLOCK, no symlinks).
+        try:
+            fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+        except OSError:
+            continue
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                continue
+            parts = os.read(fd, 256).decode("utf-8", "replace").split()
+        except OSError:
+            continue
+        finally:
+            os.close(fd)
+        if len(parts) < 2 or parts[0] != "oauth_org_not_allowed":
+            continue
+        if not (parts[1].isascii() and parts[1].isdigit()):  # `isdigit` alone admits "²"
+            continue
+        epoch = float(parts[1])
+        if epoch > now + _CLOCK_SKEW_TOLERANCE_S:
+            continue
+        epoch = min(epoch, now)
+        newest = epoch if newest is None else max(newest, epoch)
+    return newest
+
+
+def _auto_park(
+    email: str,
+    *,
+    source: str,
+    cfg_dir: Path,
+    timeout: int | None = None,
+    status: object = None,
+    row: dict | None = None,
+) -> bool:
+    """Park an account that refused Claude Code (spec D3) — CONFIRMED first: one immediate second
+    probe of *cfg_dir* must refuse too (a refused call spends no quota; one bad answer never takes
+    an account out of service). Any other confirmation verdict is cached and nothing is parked,
+    walled, logged or alerted. Then: ``parked.json`` through the locked writer, one ``auto-park``
+    ledger row, one alert per account per 30 minutes that leads with the billing check, and — when
+    *row* is given — the in-tick row walled as cap 0 so every later reader of this tick excludes it
+    even if the write was refused. Writes NOTHING to stdout: the CLI passthrough mirrors stdout to
+    its callers. Returns True when the account is parked after the call. The operator un-parks
+    (D-443); nothing here ever removes an email."""
+    email = (email or "").strip().lower()
+    if email not in _known_account_emails():
+        sys.stderr.write(
+            f"claude_rotate: capability refused for {email!r}, not a known account — nothing parked\n"
+        )
+        return False
+    # The operator's freeze holds EVERY automated park, whichever path refused — the ping and the
+    # wrapper as well as the promote and active re-checks, which never get here under a pause; an
+    # unreadable pause state holds it too (fail closed, docs review pass 1, parking-O2).
+    if _pause_state() is not None:
+        sys.stderr.write(
+            f"claude_rotate: {email} refused — auto-park HELD by the pause, nothing parked\n"
+        )
+        return False
+    # The confirmation follows a refusal that came back fast, so it is always bounded at the active
+    # probe's 45 s: on the ping path (up to ROTATE_REFRESH_MAX_PER_RUN accounts a tick) an unbounded
+    # 150 s confirmation could stretch the tick past its */5 cron slot.
+    confirm = _capability_probe(cfg_dir, timeout or _ACTIVE_PROBE_TIMEOUT_S)
+    if confirm != "refused":
+        _record_probe(email, confirm)
+        sys.stderr.write(
+            f"claude_rotate: {email} refused once, confirmation {confirm} — nothing parked\n"
+        )
+        return False
+    if row is not None:
+        row["weekly_cap"] = 0
+        row["capability_refused"] = True
+    changed = _parked_update(email, True, repair=False)
+    if changed is None:
+        return False
+    if row is not None and "parked" in row:
+        row["parked"] = True  # the board's flag — only once parked.json really holds the email
+    if changed:
+        _ledger_append(
+            {
+                "event": "auto-park",
+                "email": email,
+                "cause": "oauth_org_not_allowed",
+                "source": source,
+                "api_error_status": status,
+                "ts": _now(),
+            }
+        )
+        _tick_telegram(
+            f"check this account's billing: {email} is refused by Claude Code (oauth_org_not_allowed)"
+            f" and was parked automatically ({source}). Once billing is fixed: claude_rotate.py"
+            f" --unpark {email}",
+            key=f"capability-{email}",
+        )
+    return True
+
+
 def _cmd_park(email: str, park: bool) -> int:
     """``--park <email>`` / ``--unpark <email>``: take an account out of service, or put it back.
     It stays listed; parked, it is never picked, counted as capacity or named as relief, and an
@@ -3881,17 +4282,12 @@ def _cmd_park(email: str, park: bool) -> int:
             f"claude_rotate: {email!r} is not a known account — known: {', '.join(sorted(known))}\n"
         )
         return 1
-    path = _fleet_root() / "parked.json"
-    parked = _parked_accounts()
-    if park == (email in parked):
+    changed = _parked_update(email, park, repair=True)
+    if changed is None:
+        return 1  # _parked_update already said why, on one stderr line
+    if not changed:
         print(f"{email} is already {'parked' if park else 'in service'} — nothing changed")
         return 0
-    parked = parked | {email} if park else parked - {email}
-    try:
-        _write_json_atomic(path, sorted(parked), mode=0o644)
-    except OSError as e:
-        sys.stderr.write(f"claude_rotate: cannot write {path} ({e}) — nothing changed\n")
-        return 1
     print(
         f"{email} PARKED — listed, never picked, no capacity counted; `--unpark {email}` restores it"
         if park
@@ -4052,11 +4448,18 @@ def _fleet_account_rows(
             if email in ping_slots:
                 ping_slots.discard(email)
                 _touch_refresh_stamp(email)
-                if _keepalive_ping(with_creds[0]["dir"]):
+                verdict = _capability_probe(with_creds[0]["dir"])
+                if verdict == "ok":
+                    _record_probe(email, verdict)
                     tok = _read_access_token(with_creds[0]["dir"] / ".credentials.json")
                     if tok is not None:
                         windows = _usage_windows(_oauth_get("usage", tok))
+                elif verdict == "refused":
+                    # The chain is ALIVE — only the capability is gone (spec D4): park, never a
+                    # dead-chain flip trigger. `_auto_park` confirms with a second probe first.
+                    _auto_park(email, source="ping", cfg_dir=with_creds[0]["dir"], row=row)
                 else:
+                    _record_probe(email, verdict)
                     row["ping_failed"] = True
         if windows is not None:
             row.update(windows)
@@ -5714,7 +6117,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     *threshold* on either window AND a credentialed, un-walled sibling has headroom."""
     active_slug = _resolve_active()
     if active_slug is None:
-        pick = _validated_pick(accounts, set())
+        pick = _validated_pick(accounts, set(), probe=True)
         slug = pick[0] if pick else _freshest_credentialed_slug(dirs)
         if slug is None:
             print("tick: active pointer missing and NO credentialed dir exists — cannot repair")
@@ -5728,13 +6131,63 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     if row is None:
         print(f"tick: active {active_slug} — identity pending, no flip decision possible")
         return
+    # THE ACTIVE ACCOUNT'S CAPABILITY (spec D6, D7 — the 2026-09-29/30 incident: ob refused every
+    # session while its readings stayed healthy, and no tick left it). Re-checked on its own
+    # 30-minute window with a 45 s probe, at once when a session's own refusal marker is newer
+    # than the verdict; a parked active account — this refusal or any earlier park, the
+    # operator's included — is flipped away from here, with no quota reading needed (the trip
+    # path below returns before deciding when the row has none) and is never re-probed.
+    # The operator's freeze (the pause marker) holds the whole D6 re-check, not only its flip: no
+    # probe is spent and nothing is parked while they asked for no automated changes. An
+    # unreadable pause state holds it too (fail closed, like the install it guards) — and says so,
+    # because nobody asked for that silence.
+    pause = _pause_state()
+    if pause == _PAUSE_ERROR:
+        print("tick: capability re-check HELD — pause state unreadable (fail closed)")
+    if pause is None and not _is_parked(row.get("weekly_cap")):
+        verdict = _probe_account(
+            row["email"],
+            active_slug,
+            window=_active_probe_s(),
+            timeout=_ACTIVE_PROBE_TIMEOUT_S,
+            expired_after=_session_refusal_epoch(),
+        )
+        if verdict == "refused":
+            _auto_park(
+                row["email"],
+                source="active",
+                cfg_dir=_fleet_root() / active_slug,
+                timeout=_ACTIVE_PROBE_TIMEOUT_S,
+                row=row,
+            )
+    if _is_parked(row.get("weekly_cap")):
+        kind = "refused" if row.get("capability_refused") else "parked"
+        pick = _validated_pick(accounts, {row["email"]}, probe=True)
+        if pick is None:
+            print(
+                f"tick: active {row['email']} is parked and NO successor has headroom — "
+                + "; ".join(_flip_exclusion_reasons(accounts, {row["email"]}, threshold))
+            )
+            return
+        slug, email = pick
+        if _flip_active(slug, ignore_dwell=True, kind=kind):
+            print(f"tick: active {row['email']} parked ({kind}) — flipped -> {email} ({slug})")
+            _tick_telegram(
+                f"active account {row['email']} is parked ({kind}) — auto-flipped to {email}.",
+                key=f"capability-flip-{row['email']}",
+            )
+        else:
+            print(
+                f"tick: active {row['email']} parked ({kind}) — flip to {slug} withheld (see stderr)"
+            )
+        return
     # DEAD-ACTIVE CHAIN IS A FLIP TRIGGER (root cause of the 2026-08-17 21:00 incident: the
     # active chain died at 93% quota and the tick said "no flip" from cache for 9 hours while
     # every screen begged for login). `ping_failed` = the stale-reading refresh ping could not
     # roll this chain. Gate on a PROVEN-UP network — at least one OTHER account probed live
     # this run — so a box-wide outage never triggers a pointless flip storm.
     if row.get("ping_failed") and any(r.get("source") == "live" for r in accounts if r is not row):
-        pick = _validated_pick(accounts, {row["email"]})
+        pick = _validated_pick(accounts, {row["email"]}, probe=True)
         if pick is not None:
             slug, email = pick
             if _flip_active(slug, ignore_dwell=True, kind="dead-chain"):
@@ -5808,7 +6261,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         #    account already resets soonest costs no probe and no log line.
         # COBRA (D-253): the cheapest way to look compliant is a sibling whose reset reads sooner only
         # because its cache is stale — a past reset counts as unknown, never as sooner.
-        if not _switch_paused():
+        if _pause_state() is None:
             now = _now()
 
             def _future_reset(r: dict) -> float | None:
@@ -5829,7 +6282,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
                 # a stale cache flipped to a later-resetting account and the next tick flipped back).
                 pick, p_reset = None, None
                 while len(excluded) < len(accounts):
-                    cand = _validated_pick(accounts, excluded, verbose=True)
+                    cand = _validated_pick(accounts, excluded, verbose=True, probe=True)
                     if cand is None:
                         break
                     prow = next((r for r in accounts if r.get("email") == cand[1]), None) or {}
@@ -5875,7 +6328,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         if cap_only
         else f"at {hot:.0f}%{projected}"
     )
-    pick = _validated_pick(accounts, {row["email"]}, verbose=True)
+    pick = _validated_pick(accounts, {row["email"]}, verbose=True, probe=True)
     if pick is None:
         # Every sibling is walled/cap-walled/unreadable/credential-less: nothing to flip to. The
         # ≥85% advisory loop below is the recourse (Telegram + drain mail), exactly as before.
@@ -5950,7 +6403,9 @@ def _clear_stamp(stamp: Path) -> bool:
 def _selfwatch_lock_dir() -> Path:
     """The resume mesh's lock dir — the same default every pane's self-watch uses
     (`claude-selfwatch.sh:18`, `selfwatch_check.py:42-43`); cron runs the tick as the same user."""
-    return Path(os.environ.get("CLAUDE_SOUND_LOCKDIR") or f"/tmp/claude-sound-locks-{os.getuid()}")
+    return _box_state_dir(
+        "CLAUDE_SOUND_LOCKDIR", Path(f"/tmp/claude-sound-locks-{os.getuid()}"), "locks"
+    )
 
 
 def _selfwatch_safe(sid: str) -> str:
@@ -6136,7 +6591,9 @@ def _next_session_relief(
     stamp as the latch re-arm (:4301), so the follow-up notice the message promises as "the
     mechanism that wakes you" was suppressed until the wrong time as well. No special case is
     needed for the wall: `weekly_blocked` already routes a weekly-walled account to its WEEKLY
-    reset, never to a session reset it would not survive.
+    reset, never to a session reset it would not survive. And it is a candidate from the URGENT
+    line (90), not only past the picker's bar (98): at 90-97 it was in no bucket and the promise fell
+    to a cap-walled sibling's weekly return (2026-10-07: "resume Wed 15:02" against its own 03:10).
     """
     session_wait: list[tuple[float, str]] = []
     weekly_wait: list[tuple[float, str]] = []
@@ -6169,8 +6626,16 @@ def _next_session_relief(
         # STRICT, like the picker (`utils["five_hour"] > session_max`): at exactly the bar the
         # picker takes the account now, so it is not waiting on anything (R5)
         session_spent = su is not None and su > session_bar
+        # The ACTIVE account waits on its session from the URGENT line, not the picker's bar: the
+        # advisory that asks this question fires at `>= _urgent_drain_pct()` (W-5624d692, measured
+        # 2026-10-07 — active at 93 with every sibling cap-walled was neither spent nor weekly-blocked,
+        # fell into no bucket, and the fleet was told to resume at a sibling's WEEKLY return 12 h past
+        # its own 5h reset). Siblings keep the picker's bar (P3-2): a sibling at 93 is a target now.
+        # This predicate feeds the SESSION arm only — folding it into `session_spent` moved a
+        # weekly-walled active to the later of its two resets (critique C2).
+        active_urgent = email == active_email and su is not None and su >= _urgent_drain_pct()
         # `>=`: a reset AT now is "now" — the board's `_returns_at` mirror (P3-7).
-        if not weekly_blocked and session_spent and fr is not None and fr >= now:
+        if not weekly_blocked and (session_spent or active_urgent) and fr is not None and fr >= now:
             # blocked ONLY by its session — the docstring's contract. An account under both bars
             # is not waiting for any window; naming its 5h reset promised the whole fleet a wait
             # nothing required (P3-1: a full-window sibling behind an untrusted cache).
@@ -6680,7 +7145,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # dwell while a sibling still has headroom; the reachable state test_fleet_tick_flips_at_
     # threshold's second tick sets up). The operator's PAUSE is the exception: it deliberately
     # froze the safety valve, so a walled active under pause IS a real stall worth the warning.
-    if not _switch_paused() and _validated_pick(accounts, {row["email"]}) is not None:
+    if _pause_state() is None and _validated_pick(accounts, {row["email"]}) is not None:
         if stamp.exists() and _clear_stamp(stamp):
             # transient dwell hold, not exhaustion → re-arm; the hold is gone for the sessions too
             _wake_held_sessions(now, "dwell", reading_ok)
@@ -7126,11 +7591,57 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
     return sent
 
 
-def _keepalive_ping(cfg_dir: Path) -> bool:
-    """One ``claude -p ping`` bound to *cfg_dir* — the in-place SOLE-OWNER refresh (the
-    youtube-proven path): CLAUDE_CONFIG_DIR + CLAUDE_QUOTA_HOME both point at the dir itself,
-    so the CLI rolls THIS dir's own chain. NOT the retired --touch temp-dir copy pattern —
-    no credential byte is read, copied, or written by this script."""
+_REFUSAL_MARKERS = ("oauth_org_not_allowed", "disabled claude subscription access")
+
+
+def _capability_verdict(rc: int | None, stdout: str) -> str:
+    """Classify one ``claude -p --output-format json`` run: ``refused`` · ``ok`` · ``inconclusive``.
+
+    ``refused`` ONLY when the result object has ``is_error`` true AND its serialisation names the
+    organisation refusal (``oauth_org_not_allowed``, or the incident's "disabled Claude
+    subscription access" text) — so a conversation that merely QUOTES the code can never park an
+    account (the class ``run_claude`` admits at its classifier). ``api_error_status`` is not
+    required (spec U2) and ``subtype`` is never read: a failed call reports ``"subtype":
+    "success"`` (measured 2026-10-06). ``ok`` is exit 0 with no ``is_error`` result — a non-JSON
+    stdout at exit 0 included, the old ping's exit-0-is-success. Everything else, a timeout
+    (``rc is None``) and a refusal printed only on stderr included, is ``inconclusive``: it
+    changes nothing, so a probe outage can never take an account out of service. The result
+    TEXT is never logged — a healthy result echoes the account's private session context."""
+    if rc is None:
+        return "inconclusive"  # a timeout or a spawn failure decides nothing, whatever was printed
+    obj: dict | None = None
+    text = stdout or ""
+    # `--output-format json` prints ONE result object on one line. Read the whole stdout first (that
+    # line alone, or a purely pretty-printed result), else the LAST line that itself begins with `{`
+    # (a warning printed before it). Linear in the output; a nested dict is never read on its own;
+    # any other shape — a pretty-printed result followed by a trailer included — finds no result and
+    # fails open. Deep nesting raises RecursionError, not ValueError.
+    lines = [ln for ln in reversed(text.splitlines()) if ln.lstrip().startswith("{")]
+    for span in (text, *lines):
+        try:
+            cand = json.loads(span)
+        except (ValueError, RecursionError):
+            continue
+        if isinstance(cand, dict) and cand.get("type") == "result":
+            obj = cand
+            break
+    is_error = isinstance(obj, dict) and obj.get("is_error") is True
+    if is_error:
+        blob = json.dumps(obj).lower()
+        if any(marker in blob for marker in _REFUSAL_MARKERS):
+            return "refused"
+    if rc == 0 and not is_error:
+        return "ok"
+    return "inconclusive"
+
+
+def _capability_probe(cfg_dir: Path, timeout: int | None = None) -> str:
+    """One ``claude -p ok`` bound to *cfg_dir*, classified by :func:`_capability_verdict` — the
+    in-place SOLE-OWNER call (the youtube-proven path): CLAUDE_CONFIG_DIR + CLAUDE_QUOTA_HOME both
+    point at the dir itself, so the CLI rolls THIS dir's own chain and exercises the capability a
+    session actually uses. NOT the retired --touch temp-dir copy pattern — no credential byte is
+    read, copied, or written by this script. Replaces the bool ``_keepalive_ping`` (spec D1, D4):
+    the stale-reading refresh ping now tells a refused account from a dead chain."""
     env = os.environ.copy()
     env["CLAUDE_CONFIG_DIR"] = str(cfg_dir)
     env["CLAUDE_QUOTA_HOME"] = str(cfg_dir)
@@ -7138,23 +7649,24 @@ def _keepalive_ping(cfg_dir: Path) -> bool:
     env["CLAUDE_SOUND_NO_REVIVE"] = "1"
     env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
     _with_claude_on_path(env)  # cron PATH lacks ~/.local/bin → bare spawn would FileNotFoundError
-    try:
-        timeout = int(os.environ.get("KEEPALIVE_TIMEOUT", "150"))
-    except ValueError:
-        timeout = 150
+    if timeout is None:
+        try:
+            timeout = int(os.environ.get("KEEPALIVE_TIMEOUT", "150"))
+        except ValueError:
+            timeout = 150
     try:
         p = subprocess.run(
-            ["claude", "-p", "ping"],
+            ["claude", "-p", "ok", "--output-format", "json", "--max-turns", "1", "--tools", ""],
             env=env,
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
-            errors="replace",  # the ping's text is never read; invalid UTF-8 out must not raise
+            errors="replace",  # invalid UTF-8 out must not raise mid-pass; the classifier copes
             timeout=timeout,
         )
-        return p.returncode == 0
     except (OSError, subprocess.SubprocessError):
-        return False
+        return "inconclusive"
+    return _capability_verdict(p.returncode, p.stdout or "")
 
 
 _KEEPALIVE_RETIRED_LINE = (

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T00:10:54.064796Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-51e7208a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M495GKDJKAH9DHV9Y0GFXQ94",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "infra -> intel, FYI (no action): your D-610 _copy_worktree_include in scripts/merge_request.py was silently copying nothing in every synced project (the synced .gitignore ignores .worktreeinclude, so git show <base>:.worktreeinclude failed). Fixed in 1797845a7 (D-621): an ignored main-checkout list"
+}

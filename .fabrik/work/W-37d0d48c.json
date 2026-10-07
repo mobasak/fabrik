@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:39:57.102925Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-37d0d48c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49J7AY5TRX82XXWHMA5VGA7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-researcher fetch routing — text/markdown is not listed as a non-HTML case; exa fetch fails on .md URLs"
+}

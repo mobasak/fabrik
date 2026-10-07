@@ -154,7 +154,7 @@ The engine's `/opt/ai-model-catalog/engine/daily_refresh.sh` rebuilds the catalo
 (D-181/D-182), and it never runs on a day the boot hook takes the daily lockfile first. So engine changes reach this
 guide and the hub's `kilo_agents.db` only on a day the hub cron runs with the pool unpaused
 (`docs/workflows/KILO_BENCHMARK_WORKFLOW.md`).
-`scripts/kilo_model_sync.py` still runs from the operator's crontab but is retired: nothing reads its output (D-415).
+`kilo_model_sync.py` is retired (D-415) and was archived 2026-10-07 to `scripts/archived/` with its 11:59 crontab line removed (mail 01M4AR32).
 
 ### Manual full refresh
 ```bash

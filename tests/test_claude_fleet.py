@@ -45,6 +45,15 @@ OVER_LINE = cr._rotate_threshold() + 1.0
 SENTINEL = "SENTINEL-ACCESS-TOKEN"
 
 
+@pytest.fixture(autouse=True)
+def _no_real_capability_probe(monkeypatch):
+    """The flip leg probes the active account and every promotion candidate (plan 2026-10-06-plan-2,
+    D2/D6). This file's tick tests never meant to launch the real `claude` for that, so the D2/D6
+    entry point answers `ok`. It stubs `_probe_account`, NOT `_capability_probe`, so the tests of
+    the probe itself still run it against their own stubbed `subprocess.run`."""
+    monkeypatch.setattr(cr, "_probe_account", lambda *a, **k: "ok")
+
+
 def _canonical(tmp_path, monkeypatch):
     """A fake ~/.claude + ~/.claude.json + an empty fleet root. Returns (fleet, cdir, home)."""
     home = tmp_path / "home"
@@ -1400,7 +1409,7 @@ def test_empty_fleet_root_keeps_the_legacy_view_and_one_dir_flips_it(tmp_path, m
 def test_keepalive_ping_runs_claude_in_place_and_never_reads_credential_bytes(
     tmp_path, monkeypatch
 ):
-    """`_keepalive_ping` is KEPT for the tick's stale-reading refresh and it is the in-place
+    """`_capability_probe` (the old `_keepalive_ping`) is KEPT for the tick's stale-reading refresh and it is the in-place
     SOLE-OWNER shape: `claude -p ping` with CLAUDE_CONFIG_DIR == CLAUDE_QUOTA_HOME == the dir
     itself, no temp-dir copy (a copy's refresh consumes the single-use refresh token — mob@
     2026-09-12), and not one credential byte read by this script."""
@@ -1432,8 +1441,18 @@ def test_keepalive_ping_runs_claude_in_place_and_never_reads_credential_bytes(
     monkeypatch.setattr(Path, "read_bytes", guarded_bytes)
     monkeypatch.setattr(Path, "read_text", guarded_text)
 
-    assert cr._keepalive_ping(fleet / "old") is True
-    assert seen["argv"] == ["claude", "-p", "ping"]
+    assert cr._capability_probe(fleet / "old") == "ok"
+    assert seen["argv"] == [
+        "claude",
+        "-p",
+        "ok",
+        "--output-format",
+        "json",
+        "--max-turns",
+        "1",
+        "--tools",
+        "",
+    ]
     env = seen["env"]
     assert env["CLAUDE_CONFIG_DIR"] == env["CLAUDE_QUOTA_HOME"] == str(fleet / "old")
     assert env["CLAUDE_MESH_HEADLESS"] == "1" and env["CLAUDE_SOUND_NO_REVIVE"] == "1"
@@ -1765,7 +1784,7 @@ def test_drain_mail_never_raises_on_an_unencodable_message(monkeypatch):
 
 
 def test_keepalive_ping_survives_undecodable_output(tmp_path, monkeypatch):
-    """`_keepalive_ping` captures the ping's text; a single invalid UTF-8 byte from `claude` raised
+    """`_capability_probe` (the old `_keepalive_ping`) captures the ping's text; a single invalid UTF-8 byte from `claude` raised
     `UnicodeDecodeError` past `(OSError, SubprocessError)` mid-liveness-pass (round 16, executed).
     The text is never read — only the status — so it is decoded with `errors="replace"`."""
     fake_bin = tmp_path / "bin"
@@ -1776,7 +1795,7 @@ def test_keepalive_ping_survives_undecodable_output(tmp_path, monkeypatch):
         cr, "_with_claude_on_path", lambda env: env.__setitem__("PATH", str(fake_bin))
     )
     monkeypatch.setenv("KEEPALIVE_TIMEOUT", "20")
-    assert cr._keepalive_ping(tmp_path) is True
+    assert cr._capability_probe(tmp_path) == "ok"
 
 
 def test_argv_safe_spells_out_what_argv_refuses():
@@ -4747,7 +4766,9 @@ def test_next_session_relief_prefers_the_soonest_session_reset_of_a_weekly_ok_si
         "ROTATE_TARGET_SESSION_MAX_PCT", "85"
     )  # this test uses an 85 target bar as its mechanism; the default is the 98 trip line since 2026-10-06
     rows = [
-        _row("act@x", 91.0, 40.0, cap=99, s_reset=now + 4000),  # the active — never its own relief
+        _row(
+            "act@x", 91.0, 40.0, cap=99, s_reset=now + 4000
+        ),  # the active: a candidate too, soon@ is sooner
         _row("late@x", 97.0, 30.0, cap=90, s_reset=now + 9000, w_reset=now + 86400),
         _row("soon@x", 98.0, 27.0, cap=90, s_reset=now + 3000, w_reset=now + 90000),
         # weekly-walled, resetting LATER than soon@x — D1 (2026-09-06): the soonest epoch across
@@ -5416,6 +5437,49 @@ def test_relief_wakes_the_armed_watch_once_and_only_on_the_transition(tmp_path, 
         assert cr._cmd_tick() == 0  # still relieved, no stamp → nothing to lift
         assert not (locks / "pane1.holdlifted").exists()
         assert len(_lifted_rows()) == 1
+    finally:
+        os.close(fd)
+
+
+def test_an_urgent_stamp_clears_and_wakes_on_the_active_accounts_own_reset(tmp_path, monkeypatch):
+    """W-5624d692 (2026-10-07): the active at 93 with its only sibling cap-walled opens an `urgent-90`
+    episode whose PROMISE is the active account's OWN 5h reset + the lead (HEAD promised the sibling's
+    weekly return), and the tick after the active's own session drop — no sibling change — clears the
+    stamp and wakes the ONE armed pane with `reason="relief"`. The wake half held on HEAD; the promise
+    half is the fix. Mutation: `_urgent_drain_pct` pinned to 0 keeps the stamp (urgent never clears)."""
+    import os
+
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    locks, fd = _armed_watch(tmp_path, monkeypatch)
+    try:
+        _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+        _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+        _caps(fleet, {"ob@ocoron.com": 50})  # the only sibling is cap-walled: weekly 60 >= cap 50
+        usages = {"tok-seo": _usage_blob(93.0, 40.0), "tok-intel": _usage_blob(10.0, 60.0)}
+        _fake_oauth(monkeypatch, usages=usages)
+        actions = _fleet_tick_spies(monkeypatch)
+        monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+        monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+        _point(fleet, "seo")
+        assert cr._cmd_tick() == 0
+        stamp = cr._fleet_exhaustion_stamp()
+        assert stamp.exists() and cr._stamp_tier(stamp) == cr._STAMP_TIER_URGENT
+        own_reset = cr._iso_to_epoch("2027-01-20T00:00:00+00:00")  # _usage_blob's default 5h reset
+        assert cr._promised_resume(stamp) == int(own_reset) + cr._drain_resume_lead_s()
+        assert any("THE SAME ACCOUNT RECOVERS FIRST" in m for m in actions["telegrams"]), actions
+        assert not (locks / "pane1.holdlifted").exists()
+        usages["tok-seo"] = _usage_blob(
+            10.0, 40.0
+        )  # the active's OWN window reset; the sibling unchanged
+        _fake_oauth(monkeypatch, usages=usages)
+        assert cr._cmd_tick() == 0
+        assert not stamp.exists(), (
+            "the urgent-90 stamp is cleared by the active account's own reset"
+        )
+        assert (locks / "pane1.holdlifted").read_text() == f"{int(FLEET_NOW)}\n"
+        rows = _lifted_rows()
+        assert len(rows) == 1 and rows[0]["reason"] == "relief" and rows[0]["site"] == "relief"
+        assert rows[0]["woken"] == 1 and rows[0]["armed"] == 1 and actions["switched"] == []
     finally:
         os.close(fd)
 
@@ -7875,7 +7939,7 @@ def test_the_tier_reader_does_not_hang_or_shift_on_a_hostile_stamp(tmp_path):
     _cr_path = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "claude_rotate.py"
 
     s = tmp_path / "fleet-exhausted"
-    for sep in ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " "):
+    for sep in ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "", ""):
         s.write_text(f"0{sep}urgent-90\nwalled\n")
         assert cr._stamp_tier(s) == "walled", f"{sep!r} in line 1 must not shift the tier read"
     import subprocess as _sp

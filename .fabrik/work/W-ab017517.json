@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:05:31.969571Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ab017517",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49W6DMS6BZFGNB1N6YEFE8R",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "selfwatch_arm.sh wakes immediately on a STALE event and never stays armed (brand-identiy-creator, session 202d14e1-aed3-4d0f-a694-30b57fc1ac6d, 2026-10-07)."
+}

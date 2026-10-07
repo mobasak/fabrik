@@ -378,13 +378,13 @@ The script is idempotent (re-runs return the same DSN). The DSN host is rewritte
 to `glitchtip-web:8000` (stable Docker DNS alias on the `fabrik` network) so events
 flow through the internal network without Authelia or TLS overhead.
 
-Environment variables consumed by the init modules (injected into the service `.env` by `fabrik apply`, not in `.env.example`):
+Environment variables consumed by the init modules (`SENTRY_DSN`/`GLITCHTIP_DSN` and `GIT_SHA` are written to the service `.env` by `fabrik apply`; `ENVIRONMENT` ships in `.env.example`; `APP_GIT_SHA` is set by compose):
 
 | Variable | Default | Notes |
 |---|---|---|
 | `SENTRY_DSN` / `GLITCHTIP_DSN` | (unset → no-op) | The DSN returned by the provisioner (Fabrik injects `SENTRY_DSN`; `GLITCHTIP_DSN` kept as fallback alias) |
-| `ENVIRONMENT` | `production` | Tags events; useful for prod vs staging filtering |
-| `GIT_SHA` | (unset) | Release tag — falls back to legacy `COOLIFY_DEPLOYMENT_UUID` if present |
+| `APP_ENV` / `ENVIRONMENT` | `production` | Tags events (prod vs staging); `APP_ENV` wins when set, then `ENVIRONMENT`, then `production` |
+| `APP_GIT_SHA` / `GIT_SHA` | (unset → no release) | Release tag = the deployed git SHA; `fabrik apply`/`redeploy` of a git-sourced app persist `GIT_SHA` in the app's `.env`, and the python-api / node-api compose passes `APP_GIT_SHA=${GIT_SHA:-unknown}` (saas reads `GIT_SHA` straight from `env_file: .env`); blank or `unknown` means no release. The retired `COOLIFY_DEPLOYMENT_UUID` fallback is gone. |
 | `GLITCHTIP_TRACES_SAMPLE_RATE` | `0.05` | Keep low; perf events flood the shared GlitchTip |
 | `GLITCHTIP_PROFILES_SAMPLE_RATE` | `0` | Profiling off by default — adds native deps |
 

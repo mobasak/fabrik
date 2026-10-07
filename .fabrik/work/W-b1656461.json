@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:39:57.716939Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b1656461",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49VV5TAW5G5ZQP48GP8NWVD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "ADDENDUM — after a hub resync, a worktree's synced copies go stale and the gate reds on files nobody edited"
+}

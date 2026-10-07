@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T21:21:48.354212Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d9e7b9cd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M48ZKPZ1FHMMYVYKHPPP7MY4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "A fresh linked worktree reds the completion gate: check_doc_links exempts synced docs via .fabrik/synced.lock, which .worktreeinclude never carries"
+}

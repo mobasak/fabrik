@@ -1,0 +1,22 @@
+{
+  "plan": "docs/development/plans/archived/2026-10-06-plan-2-rotation-capability-probe.md",
+  "owned_paths": [
+    "scripts/sysadmin/claude_rotate.py",
+    "scripts/aro-wake/claude_rotate.py",
+    "tests/test_claude_rotate_capability_probe.py",
+    "tests/test_claude_fleet.py",
+    "docs/workstation/claude-account-rotation.md",
+    "docs/development/reviews/2026-10-06-plan-2-rotation-capability-probe-review.md",
+    "tests/test_claude_rotate_v2.py"
+  ],
+  "branch": "worktree-intel",
+  "started_at": "2026-10-06T13:55:00+00:00",
+  "status": "released",
+  "baseline_commit": "bc3c7895f",
+  "baseline_gate": {
+    "lean": "success",
+    "red_checks": []
+  },
+  "completed_at": "2026-10-07",
+  "final_commit": "8af87fd90"
+}

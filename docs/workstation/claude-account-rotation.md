@@ -91,10 +91,13 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   when the ACTIVE account's session is at/over **90** and `_validated_pick` finds no eligible sibling (every
   one session-exhausted, weekly-walled or cap-walled), the wall advisory fires EIGHT POINTS EARLY — the runway a graceful stop needs; the ordering (90 < the flip line) is the design, graded by
   `test_the_no_successor_mail_always_precedes_the_flip_line` — as one Telegram + one broadcast fabrik-mail to every mailbox repo, in the operator's
-  words: **STOP YOUR WORK ASAP, GRACEFULLY, and HOOK YOURSELF TO RESUME 1 MINUTE AFTER the next account's
-  session resets** — with that instant as local time, UTC and epoch, plus a copy-paste `sleep` line
-  (`_next_session_relief`: the soonest 5h reset among siblings blocked only by their session; falls back to the
-  soonest weekly reset when every sibling is weekly-blocked; skips stale past resets). Same latch and re-arm as
+  words: **STOP YOUR WORK ASAP, GRACEFULLY, and HOOK YOURSELF TO RESUME 2 MINUTES AFTER the next session
+  reset** (`_drain_resume_lead_s`, 120 s) — with that instant as local time, UTC and epoch, plus a copy-paste
+  `sleep` line (`_next_session_relief`: the soonest 5h reset among accounts blocked only by their session —
+  the ACTIVE account counts from the urgent line (90), siblings past the picker's bar — falls back to the
+  soonest weekly reset when every candidate is weekly-blocked; skips stale past resets; W-5624d692: at 90-97
+  the active was in no bucket and the fleet was told to resume at a sibling's weekly return 12 h past its own
+  5h reset). Same latch and re-arm as
   the wall tier (one message per episode; re-armed the instant relief arrives). The quota board invokes the
   tick on this tier within one 20 s probe, on a cooldown of its own so it can never delay the flip tier.
 - **Target — PERISHABLE-FIRST:** among accounts that are alive, not
@@ -147,7 +150,7 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   session whose self-watch is ARMED (`_wake_held_sessions`: a held `selfwatch.lock`, the one decider
   `selfwatch_check.py` uses, vendored lockstep) and appends a `hold-lifted` ledger row with
   `reason` (`relief`/`dwell`; the helper's `no-reading` value is defensive only since D-180 — the tick keeps the stamp instead), `site` (which unlink fired) and `armed/dead/woken/pending/errors`; `pending` = an ARMED watch that never consumed the previous lift (an old script in memory), healed only by ENDING that watch's Monitor (`TaskStop`, allowed under the hold — a plain re-arm exits at once as a duplicate while the old watch still holds the lock) and arming again. The Stop decider's lock-dir prune skips flock-held files and the watch exits when its lock file vanishes (harness W11); the self-watch consumes the file and prints the RESUME line naming
-  the run record and thread anchors. A probe blackout (every window `None`) is NOT relief:
+  the run record and thread anchors. That enumeration reaches the LIVE dir only outside pytest: `_box_state_dir` hands any test (`PYTEST_CURRENT_TEST` set, no `CLAUDE_SOUND_LOCKDIR`/`ROTATE_STATE_DIR` override) a scratch dir keyed by process and test, because a fleet suite run from a scratch copy without `tests/conftest.py` woke every armed session on the box with the tests' fixed clock on 2026-10-07 (W-7aab61a6). A probe blackout (every window `None`) is NOT relief:
   since D-180 the tick KEEPS the stamp and logs `stamp KEPT — no reading`; the
   hold stands until a reading says otherwise, so the one present→absent transition the wake fires on is never
   consumed blind. A stamp the
@@ -201,6 +204,28 @@ naming the `--unpark` command; the board shows **PARKED — out of service**. On
 `parked.json` warns loudly and parks nothing. `--switch` may still target a parked account
 deliberately, like any cap-walled one.
 
+**Auto-park on a refused account** (D-614/D-629). An account whose organisation refuses Claude Code
+(`oauth_org_not_allowed` — on 2026-09-30 a payment problem, `docs/TROUBLESHOOTING.md`) still passes a usage
+reading and a refresh-chain check, so the tick now tries one real call — `claude -p ok --output-format json
+--max-turns 1 --tools ""` bound to the account's own dir — at four moments: before promoting a candidate (its
+`ok` trusted for `ROTATE_PROBE_TRUST_S`, default 6 h; 45 s timeout); on the ACTIVE account every
+`ROTATE_ACTIVE_PROBE_S` (default 30 min, 45 s timeout); at once when an interactive session's own `oauth_org_not_allowed` death
+record (`<lockdir>/<sess>.errparked`) is newer than the active account's verdict; and in the stale-reading
+refresh ping (its own `KEEPALIVE_TIMEOUT`, default 150 s). A refusal is confirmed by a second probe (45 s) —
+an unconfirmed one parks nothing — then the account is parked through the same locked writer as `--park`
+(a broken `parked.json` holds the auto-park too: no `parked.json` write, no `auto-park` row and no billing alert —
+the account is still excluded for that one tick, and an ACTIVE one flipped away, with its flip alert, when a
+successor has headroom), one `auto-park` row goes to the ledger, and one alert per account per 30 minutes says
+"check this account's billing" and names `--unpark <email>`. A session call through `run_claude` that is
+refused — a JSON result, or a failed text-mode call whose output carries the code (never a 401 or a usage
+limit) — parks the account it was bound to, after the same confirming probe. While `--pause-switch` holds
+nothing is auto-parked from any of these paths, and neither the promote probe nor the active re-check runs
+(§ Pause semantics). An `inconclusive` probe (timeout, network, any other error) at promotion or on the active
+re-check changes nothing and is retried after 30 minutes; in the stale-reading ping it counts as a failed ping,
+as before: on the ACTIVE account that marks its chain dead — a flip of `kind: dead-chain` when another account
+read live. A parked ACTIVE account — auto-parked or yours — is flipped away
+from on the same tick even when it has no quota reading. Only `--unpark` brings an account back.
+
 ## `--status` — the board
 
 **The picture:**
@@ -210,7 +235,7 @@ since when and the resume it promised; `picture.hold.tier` says whether it is th
 the picker's own perishable-first order, then everyone else by when they RETURN — a cap-walled or weekly-exhausted
 account at its weekly reset, a session-exhausted one at its 5h reset, the later of the two when both are spent),
 `next relief:` (the account and instant the tick's own relief rule would name), `last flip:` (when, from → to, and
-its `kind`: trip / perishable / repair / dead-chain / switch — `relief` on rows before 2026-10-06). `--status --json` carries the same under `picture`
+its `kind`: trip / perishable / repair / dead-chain / refused / parked / switch — `relief` on rows before 2026-10-06; `refused` is a flip away from an active account that refused Claude Code, `parked` one away from an active account already parked). `--status --json` carries the same under `picture`
 (`accounts[].state` ∈ active · eligible · session-exhausted · weekly-exhausted · cap-walled · over-threshold (under its cap but a window ≥ the picker's target line — kept active, refused as a target until that window resets) · unavailable (its `why` names the picker's reason: no credentialed dir, no reading, …), with
 `why`, both percentages, both resets, `returns_at`, `in_drain_band`, `source`, `age_s`; plus `queue`, `next_relief`, `hold`,
 `last_flip`, `thresholds`). It is a READ — the same verdict the picker applies, no probe, no side effect — so
@@ -378,6 +403,9 @@ The `switch-paused` marker (`~/.claude/state/switch-paused`) gates automated ins
 
 - The tick prints the withheld successor instead of flipping; telemetry, keep-warm and drain
   warnings stay armed.
+- Nothing is auto-parked while the marker is set, from any path (§ Parking, auto-park), and neither the active
+  account's capability re-check nor a candidate's probe before promotion runs; an unreadable pause state holds
+  them the same way, and the tick prints `capability re-check HELD — pause state unreadable (fail closed)`.
 - `--switch <name>` does NOT route through the gate — the deliberate manual escape hatch.
 - Tri-state: absent (running) · `marker` (operator pause) · `error` (state dir unreadable →
   **fail closed**, nothing installs, but an all-credentials-dead 401 alert still fires).

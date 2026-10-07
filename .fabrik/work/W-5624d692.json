@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T22:19:03.814564Z",
+  "creator": "infra",
+  "evidence": "141a3aa746df6ef4e703f81c615dc5669122b116",
+  "id": "W-5624d692",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "done",
+  "tags": [
+    "quota"
+  ],
+  "title": "Relief wake fires only on a WALL-tier hold lift: a window that pauses at urgent-90 never gets .holdlifted, and the stamp's promised resume is the cap-walled queue's return (15:02) not the active account's own 5h reset (03:10). Fix in claude_rotate.py: at urgent-90 the promise = the active account's earliest window reset; the tick writes the lift marker for every armed self-watch when that instant passes (or the session % drops below the urgent line), not only on a stamp clear; plus a timed-wake fallback in selfwatch_arm.sh from --status so a window needs no tick to wake. Measured 2026-10-07 01:12: hold WARNING since 01:06, wall never armed, watcher waiting on .errparked/.holdlifted only (claude-selfwatch.sh:43-62, claude_rotate.py:6027-6066, :6714-6800)."
+}

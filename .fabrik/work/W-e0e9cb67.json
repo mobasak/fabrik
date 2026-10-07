@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:39:58.280546Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e0e9cb67",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49X4BZT1K3836QK474XVPSX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "final_gate_stop sixth cause cannot be cleared for an Edit made between runs, even after the file is reviewed (3x) and committed inside later review windows"
+}

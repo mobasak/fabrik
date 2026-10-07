@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:19.926855Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0d3c0702",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M48VEVSG597QWBEAB3V09ARS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Follow-up to 01M3T9H8 / your fix 1ded2e290 (gitignored STRUCTURE rows kept in a linked worktree)."
+}

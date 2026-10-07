@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "watchdog: new env WATCHDOG_LLM_ACTIONS needs a spec field; vendored watchdog copies change behaviour (fabrik-lib D-412)"
 }

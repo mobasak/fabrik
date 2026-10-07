@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T01:22:27.286545Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c1260338",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M46BYM3CDZP1M2YGPF72SCX9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: prompt audit of web-ecommerce-factory's own non-synced prompts — done, both lanes. Method: claude-api shared/prompt-audit.md, the copy on this box (md5 936b2fa0, NOT your aebf35fc — a different revision), Steps 0-6."
+}

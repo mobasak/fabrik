@@ -436,6 +436,87 @@ class TestWatchdogConfig:
         with pytest.raises(ValidationError, match="unknown trigger_sources"):
             WatchdogConfig(trigger_sources=["error_webhook", "bogus"])
 
+    def test_llm_actions_accepts_and_normalises_the_opt_ins(self) -> None:
+        """The four sidecar opt-ins pass; case, whitespace and repeats normalise as the sidecar's parser does."""
+        from fabrik.spec_loader import WatchdogConfig
+
+        assert WatchdogConfig().llm_actions == []
+        w = WatchdogConfig(
+            auto_tier_b=True,
+            llm_actions=[
+                " Pause_Worker",
+                "CLEAR_FILE_CACHE",
+                "pause_worker",
+                "wipe_redis_cache",
+                "reset_db_pool",
+            ],
+        )
+        assert w.llm_actions == [
+            "pause_worker",
+            "clear_file_cache",
+            "wipe_redis_cache",
+            "reset_db_pool",
+        ]
+        # Tier B without auto_tier_b is held, not refused: auto_tier_b stays the one revert switch.
+        assert WatchdogConfig(llm_actions=["reset_db_pool"]).llm_actions == ["reset_db_pool"]
+
+    @pytest.mark.parametrize(
+        ("value", "match"),
+        [
+            (["bogus"], "unknown"),
+            (["scale_concurrency"], "never offered"),
+            (["create_fix_pr"], "propose_fix_prs"),
+            (["escalate_apprise"], "default menu"),
+            (["restart_container"], "default menu"),
+            (["pause_worker,wipe_redis_cache"], "unknown"),
+            ("pause_worker", "must be a list"),
+            ([3], "must be a list of strings"),
+        ],
+    )
+    def test_llm_actions_refuses_each_class(self, value, match) -> None:
+        from pydantic import ValidationError
+
+        from fabrik.spec_loader import WatchdogConfig
+
+        with pytest.raises(ValidationError, match=match):
+            WatchdogConfig(llm_actions=value)
+
+    def test_llm_opt_ins_match_the_sidecar(self) -> None:
+        """The hub's table equals fabrik-lib's opt-in set, tiers included (read by AST: the module imports redis/psycopg)."""
+        import ast
+        import os
+        from pathlib import Path
+
+        from fabrik.spec_loader import WATCHDOG_LLM_OPT_INS
+
+        src = (
+            Path(os.environ.get("FABRIK_LIB_DIR", "/opt/fabrik-lib"))
+            / "watchdog/watchdog_sidecar/actions.py"
+        )
+        if not src.is_file():
+            pytest.skip(f"{src} absent")
+        tables = {}
+        for node in ast.parse(src.read_text()).body:
+            target = (
+                node.target
+                if isinstance(node, ast.AnnAssign)
+                else (node.targets[0] if isinstance(node, ast.Assign) else None)
+            )
+            if isinstance(target, ast.Name) and target.id in {
+                "ACTION_SPECS",
+                "DEFAULT_MENU",
+                "NEVER_OFFERED",
+            }:
+                tables[target.id] = node.value
+        tiers = {
+            ast.literal_eval(k): ast.literal_eval(v.args[1])
+            for k, v in zip(tables["ACTION_SPECS"].keys, tables["ACTION_SPECS"].values, strict=True)
+        }
+        default = set(ast.literal_eval(tables["DEFAULT_MENU"]))
+        never = set(ast.literal_eval(tables["NEVER_OFFERED"].args[0]))
+        expected = {n: t for n, t in tiers.items() if t in ("A", "B") and n not in never | default}
+        assert expected == WATCHDOG_LLM_OPT_INS
+
     def test_negative_budget_rejected(self) -> None:
         """``ge=0.0`` on USD fields — negative budgets are nonsense."""
         from pydantic import ValidationError

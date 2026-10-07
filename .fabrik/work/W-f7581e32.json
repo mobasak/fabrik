@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:40:02.790123Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f7581e32",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4AH24H7991FR02KNK0TM8Q0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "recurrence of 01M49X4BZT1K3836QK474XVPSX — the UNREVIEWED SPONTANEOUS WORK block fired 3/3 again"
+}

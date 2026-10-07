@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: docs/workstation/mcp-roster.md (per-type sets + per-repo overlays are CANONICAL there) · tests/test_emit_mcp_project_config.py | none
+# AFTER-EDIT: docs/workstation/mcp-roster.md (per-type sets + per-repo overlays are CANONICAL there) · tests/test_emit_mcp_project_config.py · scripts/enforcement/check_mcp_scope.py | none
 """Emit each /opt repo's project-scope `.mcp.json` from the MCP split rulings.
 
 Plan: docs/development/plans/2026-08-30-plan-3-mcp-split.md.
@@ -9,10 +9,13 @@ edit the roster first, then this table, same change; the AFTER-EDIT header
 couples them).
 
 Derivation per repo: universal 6 + per-type set (live `project.yaml::type`
-read at run time) + per-repo overlay row. The hub gets the full defs set.
-Server DEFINITIONS are read from --defs, else /opt/fabrik/.mcp.json, else
-the active fleet roster (~/.claude-fleet/active/.claude.json) — the fallback
-chain survives the user-level trim (B4).
+read at run time) + per-repo overlay row. The hub gets the full defs set minus
+HUB_EXCLUDE (the per-session heavy servers — operator ruling 2026-10-07); fabrik-lib keeps
+the full roster, maestro included (the same ruling).
+Server DEFINITIONS are read from --defs, else scripts/sysadmin/mcp_defs.json; their
+`${VAR}` credentials are filled from the active fleet roster, then the hub .env, and an
+unresolved one aborts the run naming the key (D-641) — the emitter's own prior output is
+never a donor.
 
 The emitted file is GITIGNORED fleet-wide (manifest gitignore group "MCP
 config") because postgres-pro's env carries the repo's resolved DATABASE_URL
@@ -81,7 +84,18 @@ OVERLAYS: dict[str, list[str]] = {
     "supplement-tracker-advisor": ["fabrik-citation-verifier", "pubchem"],  # D-025
 }
 
-HUB_REPOS = {"fabrik"}  # full defs set (D-015 hub-class; fabrik-lib lands via its own agent)
+HUB_REPOS = {"fabrik"}  # hub-class (D-015); fabrik-lib is hub-class too but lands via its own agent
+# The hub-class set is the full defs set MINUS the per-session heavy servers no hub task needs
+# (operator ruling 2026-10-07, mail 01M4AR32MY): every hub window spawned a Maestro JVM and two
+# browser servers; the JVMs outlived their sessions (48 orphans, ~11 GB swap after a hibernate
+# resume). The hub keeps every light server (research, grafana, media-engine, shadcn/magicui,
+# pubchem, the citation verifier) — a mobile or browser task runs in the owning repo.
+HUB_EXCLUDE = {"maestro", "mobile-mcp", "playwright", "chrome-devtools"}  # the HUB only
+HUB_CLASS = HUB_REPOS | {"fabrik-lib"}  # derivation only — never in the default sweep
+# fabrik-lib KEEPS the full roster, maestro included (operator ruling 2026-10-07: "only mobile
+# projects and fabrik-lib" need maestro — it vendors and tests the mobile modules); HUB_EXCLUDE
+# applies to HUB_REPOS alone.
+HUB_FULL_ROSTER = HUB_CLASS - HUB_REPOS
 CONDEMNED = {"image-generation"}  # D-023 ARCHIVE pending with fleet — excluded BY NAME
 NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint exists yet
 
@@ -89,17 +103,87 @@ _TYPE_RE = re.compile(r"^type:\s*(\S+)\s*$", re.M)
 _DBURL_RE = re.compile(r"^DATABASE_URL=(.+)$", re.M)
 
 
+ROSTER_PATH = Path.home() / ".claude-fleet/active/.claude.json"  # the active account's roster
+HUB_ENV_PATH = Path("/opt/fabrik/.env")  # the hub's own secret file (gitignored)
+_PLACEHOLDER_RE = re.compile(r"^\$\{([A-Z0-9_]+)\}$")
+
+
+def _env_file_values(path: Path) -> dict[str, str]:
+    """`KEY=value` lines of a dotenv file (quotes stripped, comments and blanks ignored)."""
+    out: dict[str, str] = {}
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return out
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        k = k.strip()
+        if k.startswith("export "):
+            k = k[len("export ") :].strip()
+        v = v.strip()
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+            v = v[1:-1]
+        if k and v:
+            out[k] = v
+    return out
+
+
+def _fill_credentials(loaded: dict[str, dict]) -> list[str]:
+    """Resolve every `${VAR}` placeholder in the catalog from the CANONICAL secret sources, in
+    order: the active fleet roster (`ROSTER_PATH`, per-server env), then the hub `.env`
+    (`HUB_ENV_PATH`, by variable name). Returns the placeholders still unresolved as
+    `server.env.VAR` strings. The emitter's own prior output (`/opt/fabrik/.mcp.json`) is NEVER a
+    donor (operator ruling 2026-10-07, D-641): filling from it re-wrote a revoked Grafana token
+    twice while printing OK (01M1A3A698), and a rotated key can never be re-emitted stale when the
+    only sources are the places a rotation is written to."""
+    roster: dict[str, dict] = {}
+    try:
+        data = json.loads(ROSTER_PATH.read_text())
+        roster = data.get("mcpServers") or {}
+    except (OSError, ValueError):
+        roster = {}
+    dotenv = _env_file_values(HUB_ENV_PATH)
+    unresolved: list[str] = []
+    for name, entry in loaded.items():
+        env = entry.get("env") or {}
+        donor = (roster.get(name) or {}).get("env") or {}
+        for k, v in env.items():
+            if not (isinstance(v, str) and _PLACEHOLDER_RE.match(v)):
+                continue
+            var = _PLACEHOLDER_RE.match(v).group(1)
+            candidates = (donor.get(k), dotenv.get(var))
+            value = next((c for c in candidates if _is_credential(c)), None)
+            if value is None:
+                unresolved.append(f"{name}.env.{k}")
+            else:
+                env[k] = value
+    # a PARTIAL placeholder (`prefix-${VAR}`) is neither a credential nor a template the chain can
+    # fill: it is reported unresolved too, never emitted verbatim (review 2026-10-07, A-S5)
+    for name, entry in loaded.items():
+        for k, v in (entry.get("env") or {}).items():
+            if isinstance(v, str) and "${" in v and f"{name}.env.{k}" not in unresolved:
+                unresolved.append(f"{name}.env.{k}")
+    return unresolved
+
+
+def _is_credential(value: object) -> bool:
+    """A donor value counts only when it is a non-empty string carrying no `${` — an unexpanded
+    placeholder left in the roster or the hub .env is NOT a credential (review 2026-10-07, A-S1)."""
+    return isinstance(value, str) and bool(value.strip()) and "${" not in value
+
+
 def _load_defs(defs_arg: str | None) -> dict[str, dict]:
+    """The server DEFINITIONS: `--defs`, else the hand-curated `mcp_defs.json` beside this script
+    (the STATIC catalog heads the chain — BLOCKER regression, author-blind review 2026-08-30: the
+    hub's own emitted .mcp.json is DERIVED/conditional and using it as the defs source stripped
+    postgres-pro from every repo). Credentials are then filled by `_fill_credentials`; an
+    unresolved one FAILS the run naming the key — never a silent placeholder, never the prior
+    output."""
     candidates = ([Path(defs_arg)] if defs_arg else []) + [
-        # the STATIC hand-curated catalog heads the chain (BLOCKER regression,
-        # author-blind review 2026-08-30): the hub's own emitted .mcp.json is
-        # DERIVED/conditional (it legitimately lacks postgres-pro per D-031), so
-        # using it as the defs source made a default re-emission strip the server
-        # from every qualifying repo. Templates live in mcp_defs.json; derived
-        # files are fallbacks only.
         Path(__file__).resolve().parent / "mcp_defs.json",
-        Path("/opt/fabrik/.mcp.json"),
-        Path.home() / ".claude-fleet/active/.claude.json",
     ]
     loaded: dict[str, dict] | None = None
     for p in candidates:
@@ -107,36 +191,20 @@ def _load_defs(defs_arg: str | None) -> dict[str, dict]:
             continue
         data = json.loads(p.read_text())
         servers = data.get("mcpServers")
-        if not (isinstance(servers, dict) and servers):
-            continue
-        if loaded is None:
+        if isinstance(servers, dict) and servers:
             loaded = json.loads(json.dumps(servers))  # deep copy
-        else:
-            # SECRET OVERLAY: the committed catalog carries ${VAR} placeholders, never
-            # real tokens (a live Grafana token in the catalog was caught by GitHub
-            # push protection, 2026-08-30) — real values ride the LATER, gitignored
-            # sources in this same chain (hub .mcp.json / fleet roster).
-            for name, entry in loaded.items():
-                env = entry.get("env") or {}
-                donor = (servers.get(name) or {}).get("env") or {}
-                for k, v in env.items():
-                    if isinstance(v, str) and v.startswith("${") and k in donor:
-                        env[k] = donor[k]
-                        if p == Path("/opt/fabrik/.mcp.json"):
-                            # 01M1A3A698: donor #2 is this emitter's OWN prior output —
-                            # filling from it re-wrote a REVOKED Grafana token twice while
-                            # printing "OK". A rotation must edit the donor FIRST; this
-                            # warning is the tell.
-                            print(
-                                f"emit_mcp: WARNING — {name}.env.{k} filled from the "
-                                "emitter's own prior output (/opt/fabrik/.mcp.json); if "
-                                "this credential was rotated, update the donor first or "
-                                "this re-writes the stale value",
-                                file=__import__("sys").stderr,
-                            )
-    if loaded is not None:
-        return loaded
-    raise SystemExit("emit_mcp: no server definitions source found (pass --defs)")
+            break
+    if loaded is None:
+        raise SystemExit("emit_mcp: no server definitions source found (pass --defs)")
+    unresolved = _fill_credentials(loaded)
+    if unresolved:
+        raise SystemExit(
+            "emit_mcp: credential(s) unresolved — "
+            + ", ".join(unresolved)
+            + f" — set them in the fleet roster ({ROSTER_PATH}) or {HUB_ENV_PATH}; the emitter never "
+            "fills a credential from its own prior output (D-641), so nothing was written"
+        )
+    return loaded
 
 
 def _repo_type(repo: Path) -> str | None:
@@ -190,16 +258,29 @@ def _uri_connects(uri: str) -> bool | None:
     return None
 
 
-def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
-    """The repo's ruled server map, or None to skip (with reason printed by caller)."""
+def ruled_server_names(repo: Path, defs: dict[str, dict]) -> list[str] | None:
+    """The NAMES a repo's ruling allows, in emission order, or None for a repo the ruling does
+    not know (no `project.yaml::type`, or a type outside TYPE_SETS). No probe runs here — this is
+    the roster side of the contract, shared with `scripts/enforcement/check_mcp_scope.py`, which
+    grades every emitted `.mcp.json` as a SUBSET of it (an entry absent-until-configured, such as
+    postgres-pro without a connecting URL, is a legal omission; an extra server is not)."""
     name = repo.name
-    if name in HUB_REPOS:
-        wanted = [s for s in defs if s not in NEVER_EMIT]
+    if name in HUB_CLASS:
+        drop = set() if name in HUB_FULL_ROSTER else HUB_EXCLUDE
+        wanted = [s for s in defs if s not in NEVER_EMIT and s not in drop]
     else:
         rtype = _repo_type(repo)
         if rtype is None or rtype not in TYPE_SETS:
             return None
         wanted = list(UNIVERSAL6) + TYPE_SETS[rtype] + OVERLAYS.get(name, [])
+    return [s for s in dict.fromkeys(wanted) if s not in NEVER_EMIT and s in defs]
+
+
+def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
+    """The repo's ruled server map, or None to skip (with reason printed by caller)."""
+    wanted = ruled_server_names(repo, defs)
+    if wanted is None:
+        return None
     out: dict[str, dict] = {}
     for s in dict.fromkeys(wanted):  # ordered de-dup
         if s in NEVER_EMIT or s not in defs:
@@ -236,8 +317,8 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
 def _candidate_repos(root: Path) -> list[Path]:
     out = []
     for d in sorted(root.iterdir()):
-        if not d.is_dir() or d.name in CONDEMNED:
-            continue
+        if not d.is_dir() or d.name in CONDEMNED or d.name in (HUB_CLASS - HUB_REPOS):
+            continue  # fabrik-lib is hub-class for derivation (--repo) but its own agent lands the file
         if not (d / ".git").exists():
             continue
         if d.name in HUB_REPOS or (d / "project.yaml").is_file():

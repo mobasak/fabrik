@@ -762,7 +762,12 @@ def test_every_seat_is_told_how_to_import_a_pinned_module_and_to_prove_it() -> N
         p = prompts[label]
         assert "IMPORT" in p and "__file__" in p and "overlay" in p, label
         # the recipe must be runnable and write only inside the seat's scratch (review W-S1/S2)
-        assert "git archive" in p and "tar -x -C SCRATCH" in p and "sys.path" in p, label
+        # one git command per call (W-9385c2b3): an -o archive, then tar -xf, never a pipe
+        assert (
+            "git archive -o SCRATCH/arch.tar" in p
+            and "tar -xf SCRATCH/arch.tar -C SCRATCH/arch" in p
+        ), label
+        assert "sys.path" in p, label
         assert "<repo>" not in p, label
         # 01M43RDPFF: at index 0 a src/copy/ package shadows the stdlib; 01M43S5AV2: a probe
         # outside pytest resolved FABRIK_ROOT from the live cwd and wrote that checkout's data/
@@ -772,17 +777,22 @@ def test_every_seat_is_told_how_to_import_a_pinned_module_and_to_prove_it() -> N
             "end when there is none — never at index 0" in p
         ), label
         assert "first on sys.path" not in p, label
-        assert "run every probe as `python -P`" in p, label  # the live cwd entry would win (C1)
+        assert "run every probe as `python -P -B`" in p, (
+            label
+        )  # the live cwd entry would win (C1); -B, no bytecode
         # web-ecommerce-factory imports src.copy, so src/ is the package (C3)
         assert "SCRATCH/arch when src/ is itself a package" in p, label
-        assert "`HOME=SCRATCH/home` (mkdir it)" in p and "`PYTHONDONTWRITEBYTECODE=1`" in p, label
-        # a system python3 under a scratch HOME loses its --user packages (closing pass NEW-1)
+        # HOME is set INSIDE the program (the worktree guard refuses it in front of a command), the user base
+        # first so a child process keeps its --user packages (closing pass NEW-1; W-9385c2b3 critique)
         assert (
-            "unless you first export `PYTHONUSERBASE=$(python3 -m site --user-base)` — with "
-            "`PYTHONDONTWRITEBYTECODE=1`" in p
+            'os.environ["PYTHONUSERBASE"]=site.getuserbase(); os.environ["HOME"]="SCRATCH/home"'
+            in p
         ), label
+        assert "never write a .gitconfig into SCRATCH/home" in p and "runpy.run_path" in p, label
         assert "(SCRATCH/arch/src for `import fabrik`;" in p, label  # the hub's own case (NEW-2)
-        assert "plus `FABRIK_ROOT=SCRATCH/arch` when PKG is src/fabrik" in p, label  # hub only (C4)
+        assert "with `FABRIK_ROOT=SCRATCH/arch` in front of it when PKG is src/fabrik" in p, (
+            label
+        )  # hub only (C4)
         assert "check each overlaid file with `cmp` against its pin" in p, label
 
 
@@ -964,7 +974,7 @@ def test_finder_and_refuter_share_one_pytest_clause() -> None:
     """Both briefs append the one PYTEST_PINS constant, so the two copies cannot drift."""
     src = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text(encoding="utf-8")
     assert src.count("const PYTEST_PINS = ") == 1
-    assert src.count("not the pin.${PYTEST_PINS}") == 2
+    assert src.count("${PIN_IMPORT}${PYTEST_PINS}") == 2
 
 
 def test_a_shell_less_researcher_finder_gets_no_shell_recipe() -> None:
@@ -982,3 +992,187 @@ def test_a_shell_less_researcher_finder_gets_no_shell_recipe() -> None:
     assert "PYTEST" not in p and "git archive" not in p and "python -P" not in p
     # nor the SCRATCH shell rules (closing pass A2-S1, the same class as the refuter's A-S4)
     assert "timeout 120" not in p and "mkdir" not in p and "you have no shell" in p
+    # nor the worktree-safe recipe's shell text (W-9385c2b3 critique: the synced-scripts clause stays gated)
+    assert "/usr/bin/grep" not in p and "gitignored" not in p and "os.environ" not in p
+
+
+_PIN_ARGS = {
+    **_ARGS,
+    "pins_dir": "/s/pins",
+    "scratch_dir": "/s/scratch",
+    "slices": [{"name": "S", "files": ["src/a.py", "tests/b.py", "c.md"], "priority": "p"}],
+}
+
+
+def _gaps(files_read: list, pins_dir: str | None = "/s/pins") -> list[str]:
+    seat = {"files_read": files_read, "notes": "", "candidates": []}
+    args = {**_PIN_ARGS, "pins_dir": pins_dir}
+    ledger, _ = _run_ledger(args, {"find:S:sonnet": seat, "find:S:haiku": seat})
+    return ledger["slices"][0]["gaps"]
+
+
+def test_every_files_read_shape_a_seat_really_returns_counts_as_read() -> None:
+    """W-b491da86/W-cd7979d3, web-ecommerce-factory 01M46BNT62: seats list an ABSOLUTE path inside the pin
+    or a scratch archive of it, cite `path:line`, or annotate the entry ("tests/x.py (pinned copy at …)");
+    compared verbatim, every one read as UNREAD and the slice went not-closable."""
+    assert (
+        _gaps(
+            [
+                "/s/pins/src/a.py",  # absolute, inside the pin
+                "tests/b.py (pinned copy at /s/pins/tests/b.py (base 1d0a7b8))",  # nested annotation
+                "/s/scratch/S-opus/arch/c.md",  # the seat's SCRATCH/arch copy of the pin
+            ]
+        )
+        == []
+    )
+    assert _gaps(["./src/a.py:120", "  `tests/b.py` — pinned  ", "file:///s/pins/c.md"]) == []
+    assert _gaps(["pins/src/a.py", "tests/b.py, read whole", "c.md [pin]"], pins_dir="pins") == []
+    assert _gaps([None, 7, "", "src/a.py"]) == ["tests/b.py", "c.md"], (
+        "a non-string entry never crashes"
+    )
+    # a trailing-slash pins_dir is the same root, and a `#L` anchor is a cite (pass 1, code-S1 · tests-S2)
+    assert _gaps(["/s/pins/src/a.py", "tests/b.py#L120", "c.md"], pins_dir="/s/pins/") == []
+
+
+def test_an_unset_empty_or_regex_special_root_never_credits_a_file() -> None:
+    """Pass 1, code-S2/S3: an unset pins_dir must not become the root `undefined/`, an empty one must not strip
+    every absolute path, and a pins_dir holding a regex metacharacter matches only itself (escRe)."""
+    assert _gaps(["undefined/src/a.py", "tests/b.py", "c.md"], pins_dir=None) == ["src/a.py"]
+    assert _gaps(["/src/a.py", "tests/b.py", "c.md"], pins_dir="") == ["src/a.py"]
+    assert _gaps(["/s/pXins/src/a.py", "/s/p.ins/tests/b.py", "c.md"], pins_dir="/s/p.ins") == [
+        "src/a.py"
+    ]
+
+
+def test_a_different_file_with_the_same_name_is_still_unread() -> None:
+    """The mirror (design critique, Opus + Fable): normalising must never credit a DIFFERENT file — a sibling
+    pin of the same name, a relative basename, a longer name, or the live tree the brief forbids."""
+    assert _gaps(
+        [
+            "/s/pins/other/c.md",  # another pinned file with the same name
+            "/s/pins/vendor/src/a.py",  # a nested path sharing the tail
+            "b.py",  # a relative basename
+            "src/a.py.bak",
+            "tests/b.py-old",
+            "/opt/fabrik/c.md",  # the live checkout — not the pin
+            "/s/scratch/S-opus/other/arch/c.md",  # not SCRATCH/arch
+        ]
+    ) == ["src/a.py", "tests/b.py", "c.md"]
+
+
+def _shell_seat_prompts() -> tuple[str, str]:
+    """The rendered finder and refuter prompts of one shell slice (a candidate makes the refuter run)."""
+    results = {
+        "find:S:sonnet": {
+            "files_read": ["a.py", "b.py"],
+            "notes": "",
+            "candidates": [_cand("S-S1", 3)],
+        },
+        "find:S:haiku": {"files_read": ["a.py", "b.py"], "notes": "", "candidates": []},
+        "refute:S": {"verdicts": []},
+    }
+    _, _, prompts = _harness(_ARGS, results)
+    return prompts["find:S:sonnet"], prompts["refute:S"]
+
+
+def test_no_seat_prompt_mandates_a_shape_the_worktree_guard_refuses() -> None:
+    """W-9385c2b3, site-provisioner 01M491K2: in a linked worktree the isolation guard refuses an env-prefix
+    `HOME=…`, a compound or piped git line, and `timeout … command grep` (`command` is a builtin, exit 127) — so
+    a brief that mandates any of them makes every seat burn calls or drop the isolation it asked for."""
+    core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
+    for prompt in (*_shell_seat_prompts(), BRIEF.read_text(encoding="utf-8"), core):
+        for refused in ("`HOME=", "| tar", "&& git", "command grep"):
+            assert refused not in prompt, (
+                refused,
+                prompt[prompt.find(refused) - 80 : prompt.find(refused) + 80],
+            )
+
+
+def test_every_shell_seat_prompt_carries_the_worktree_safe_recipe() -> None:
+    """The working forms: one git command per call, HOME set inside the python launcher, the seat creating its
+    own SCRATCH, `/usr/bin/grep` under timeout, and the synced scripts a project gitignores named as such."""
+    for prompt in _shell_seat_prompts():
+        for needed in (
+            "git archive -o",
+            "tar -xf",
+            "os.environ",
+            "mkdir -p SCRATCH",
+            "literal paths in every command",
+            "/usr/bin/grep",
+            "gitignored",
+        ):
+            assert needed in prompt, needed
+
+
+def test_the_finder_and_refuter_share_one_import_recipe() -> None:
+    """The recipe was one 1729-character string written out twice; a fix to one copy left the other mandating
+    the refused shapes. One constant now feeds both prompts."""
+    src = _script()
+    assert src.count("const PIN_IMPORT = ") == 1
+    assert src.count("${PIN_IMPORT}") == 2
+    finder, refuter = _shell_seat_prompts()
+    marker = "To IMPORT a pinned module"
+    assert marker in finder and marker in refuter
+    end = "does not cover a child process the test starts."
+    span = lambda p: p[p.find(marker) : p.find(end) + len(end)]  # noqa: E731
+    assert end in finder and end in refuter, "the shared span must run through the end of PYTEST_PINS"
+    assert span(finder) == span(refuter)
+
+
+def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
+    """W-165e533c: every review seat runs under the fabrik-reviewer definition, and in a linked worktree the
+    isolation guard refuses a compound, piped, looped or heredoc Bash call that names git. The rule reached
+    only the workflow's pin recipe, so lead-dispatched and units-sized seats rediscovered it by refusal. The
+    seat has no Write tool, so the house rule must name a write form the guard accepts."""
+    brief = BRIEF.read_text(encoding="utf-8")
+    rules = next(line for line in brief.splitlines() if line.startswith("**House rules"))
+    bans = (
+        "one plain command per Bash call",
+        "`&&`",
+        "a `;` between commands",
+        "pipe",
+        "loop",
+        "`$( )`",
+        "`$VAR`",
+        "heredoc",
+        "HOME assignment in front of a command",
+        "literal paths",
+        "inside a `-c` program or a heredoc body",
+        "`git -C`",
+    )
+    for needed in (*bans, "no Write tool", "splitting the command", ".venv/bin/python"):
+        assert needed in rules, needed
+    assert "never a bare `python3`" in rules, "a probe on the system interpreter lacks the project's packages"
+    assert "restored in ONE Bash call" not in brief, "the old compound probe rule contradicts one plain command per call"
+    tools = next(line for line in brief.splitlines() if line.startswith("tools:"))
+    assert "Write" not in tools, "the house rule's printf write form assumes the seat has no Write tool"
+    core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
+    d8 = next(line for line in core.splitlines() if line.startswith("**Every seat's brief carries the git-verb prohibition"))
+    for needed in (*bans[1:], "runs one plain command per Bash call"):
+        assert needed in d8, ("general-purpose seats read the brief fragment, not the agent", needed)
+    assert d8.index("never a pop)") < d8.index("runs one plain command"), "the stash incident evidences the stash ban, not this rule"
+
+
+def test_no_seat_instruction_source_wraps_a_shell_builtin_in_timeout() -> None:
+    """W-9385c2b3: every seat runs under the fabrik-reviewer definition, whose house rules said `command grep`
+    while the brief says to wrap a blocking command in `timeout` — `timeout` cannot run the builtin `command`
+    (exit 127). The seat definition and the lead's pin recipe name forms that run in a linked worktree."""
+    brief = BRIEF.read_text(encoding="utf-8")
+    assert "command grep" not in brief and "`/usr/bin/grep`, never bare `grep`" in brief
+    review = (ROOT / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8")
+    assert "git archive <sha> | tar" not in review
+    assert "command grep" not in review, "a lead or seat wraps its greps in timeout; name /usr/bin/grep"
+    assert "$ git archive -o <scratchpad>/review-<sha>.tar <sha>" in review
+
+
+def test_the_review_loop_doc_is_cited_hub_absolute() -> None:
+    """sp1 01M493NNJ3: docs/reference/review-loop-workflow.md lives only in the hub, so a repo-relative cite in a
+    command every project runs is a dead link there; every cite is hub-absolute."""
+    import re
+
+    rel = re.compile(r"(?<!/opt/fabrik/)docs/reference/review-loop-workflow\.md")
+    sites = [SCRIPT, *SOURCES, ROOT / "commands" / "_sources" / "fabrik-repo-review.md"]
+    bad = [str(f.relative_to(ROOT)) for f in sites if rel.search(f.read_text(encoding="utf-8"))]
+    assert bad == [], bad
+    core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
+    assert "own checkout's copy" in core, "in a hub worktree the hub-absolute path is master's, not the branch's"

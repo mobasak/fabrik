@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T01:28:02.781169Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6a17e13b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49B2E9149T9GBK8YP2R6VJW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_run.py cannot resume a run record closed `blocked` at the fleet quota wall — the resumed run misnumbers rounds and refuses its own earlier commits"
+}

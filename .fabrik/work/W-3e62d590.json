@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T01:24:52.823384Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3e62d590",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M494TQ3E9M2Q37R2ENT4JR0P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "check_plan_tickets NEVER_ROUTE_PREFIXES names the hub gate only; a repo whose gate has another name gets no never-route cover"
+}

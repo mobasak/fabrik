@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T09:30:31.592684Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e541b048",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "mcp-kill-criterion"
+  ],
+  "title": "Kill criterion for D-634 (operator mail 01M4AR32MY): on 2026-10-14 run `ps -eo args | grep -c '[m]aestro.cli.AppKt'` in the hub — it must read 0 after 7 days of normal work (entry reading 5 on 2026-10-07, the pre-emission windows), else check_mcp_scope.py's ruling is wrong; also read ~/.claude/state/mcp-reaper.log for what the reaper took"
+}

@@ -248,8 +248,11 @@ def _load_deploy_state(project_name: str) -> dict:
     except Exception:
         return {"last_apply_status": "unknown", "error": "state file unreadable"}
 
+    # The failures the last completed apply recorded (W-2013a22d); a pre-field file has none.
+    failures = payload.get("registrar_failures") or []
     return {
-        "last_apply_status": "applied",
+        "last_apply_status": "applied_with_failures" if failures else "applied",
+        "registrar_failures": failures,
         "last_apply_at": payload.get("applied_at", ""),
         "last_apply_sha": payload.get("git_sha", ""),
         "coolify_uuid": payload.get("coolify_uuid"),

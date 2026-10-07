@@ -628,7 +628,8 @@ services:  # Generates pages automatically
 > **Mostly history:** the Kilo CLI and Traycer writers this section names are retired (Kilo CLI 2026-07-19;
 > `kilo_code_review.py` was archived in 7a8dc2810 and `generate_kilo_agents.py` by D-432; `kilo_dispatch.py` and
 > `kilo_consult.py` were deleted in 73bde59a5). Read the Kilo/Traycer rows as how `.droid/` was filled, not as live
-> writers — except the hub's own `/opt/fabrik/.droid/kilo_model_sync.log`, which the operator's cron still writes.
+> writers — the last, the hub's own `/opt/fabrik/.droid/kilo_model_sync.log`, stopped when `kilo_model_sync.py` was
+> archived 2026-10-07 to `scripts/archived/` with its 11:59 crontab line removed (mail 01M4AR32).
 
 Every project scaffolded by `fabrik scaffold` gets a `.droid/` directory — it's part of `SHARED_DIRS` in `scaffold.py`, meaning all 11 scaffold types (python-api, saas-skeleton, node-api, wordpress, etc.) receive it. `fabrik fix` also creates/updates it on existing projects. The directory was the runtime workspace for the retired Kilo and Traycer tools and still holds the development tracker. Only `review-context/` and `traycer-reports/` are git-tracked; everything else is gitignored runtime state.
 
@@ -643,7 +644,7 @@ The retired Kilo/Traycer flow generated artifacts at each stage, and `.droid/` i
 - **Traycer dispatch:** `kilo_dispatch.py` writes analysis reports to `traycer-reports/latest.md` after dispatched review sessions
 - **Multi-model consultations:** `kilo_consult.py` writes architecture/plan consultation results (querying multiple LLMs in parallel) to `consultations/`
 - **Docs enforcement:** `docs_updater.py` tracks which documentation was auto-generated in `docs_log/` and queues pending generation jobs in `docs_queue/`
-- **Model sync (retired, still on the operator's crontab):** `kilo_model_sync.py --sync` logs to `kilo_model_sync.log`, but nothing reads its output any more (D-415) — the Kilo agent scripts it kept current are retired
+- **Model sync (retired, archived 2026-10-07 to `scripts/archived/` with its 11:59 crontab line removed (mail 01M4AR32)):** `kilo_model_sync.py --sync` logged to `kilo_model_sync.log`, but nothing reads its output any more (D-415) — the Kilo agent scripts it kept current are retired
 
 | Path | Written by | What it stores |
 |------|-----------|---------------|
@@ -656,7 +657,7 @@ The retired Kilo/Traycer flow generated artifacts at each stage, and `.droid/` i
 | `docs_queue/` | `docs_updater.py` | Pending doc generation jobs |
 | `dev_tracker.db` | `dev_tracker.py` | SQLite — gate results, review costs, issues, workflow step events |
 | `kilo_usage.jsonl` | Kilo agent `.sh` scripts | Append-only JSONL — token counts + cost per review invocation |
-| `kilo_model_sync.log` | the operator's cron (`kilo_model_sync.py … >> .droid/kilo_model_sync.log`) and the `~/.bashrc` hook (`kilo_model_sync_startup.sh`) | Model sync log — still written by the operator's cron, read by nothing (retired, D-415) |
+| `kilo_model_sync.log` | nothing since 2026-10-07 — written by the retired `kilo_model_sync.py` and its `~/.bashrc` hook until both scripts were archived | Model sync log — frozen, read by nothing (retired, D-415) |
 | `kilo_metrics.jsonl` | `kilo_code_review.py` | Reserved metrics file (schema exists, not yet actively written) |
 
 **Querying the tracker:**
@@ -672,7 +673,7 @@ python scripts/dev_tracker.py query "SELECT * FROM ai_usage ORDER BY timestamp D
 
 ### 9. Deploy State Store (`.fabrik/`)
 
-Every project that goes through `fabrik apply` gets a `.fabrik/state/<id>.json` file — the 8-field manifest recording exactly what was deployed and which registrars fired. This is the backbone of the deploy/destroy/audit pipeline.
+Every project that goes through `fabrik apply` gets a `.fabrik/state/<id>.json` file — the 10-field manifest recording exactly what was deployed, which registrars fired, and which failed (`registrar_failures`). This is the backbone of the deploy/destroy/audit pipeline.
 
 **State file schema (written by `state.py` after each `fabrik apply`):**
 

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T19:15:35.198196Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e0de85e5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add a non-registrar key (e.g. _last_apply) or a --failures flag to the --json output of audit-registrars in src/fabrik/cli.py, with a test; check jq consumers first",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "audit-registrars --json omits recorded registrar_failures (table mode reports them, W-2013a22d)"
+}

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T21:26:53.914459Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c77f91c6",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Found while handling mail 01M48ZKPZ1 (2026-10-07): the check prints '(no .fabrik/synced.lock — project not yet re-synced; synced-files check skipped)' and returns 0 in every worktree created between two syncs, so a stale synced copy in a worktree is never flagged there. Decide whether to resolve the lock from the main checkout (as check_doc_links now does and command_run.py:2993 always did) — which would red a worktree that lags a sync, the true state W-62fed2af/W-fe305b41 describe — or keep the skip and say so in the gate row. Measure first: how many live worktrees lack a lock at any instant.",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "enforcement",
+    "worktree"
+  ],
+  "title": "check_synced_unmodified.py skips silently in a fresh linked worktree (no .fabrik/synced.lock until the next hub sync) — the same class as sp2's check_doc_links finding, opposite symptom"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T08:45:30.401487Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2ac98005",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4AR32MYJTPJE03FYE334TVR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: Hub `.mcp.json` carries all 15 MCP servers (incl. `maestro`, `mobile-mcp`, `playwright`, `chrome-devtools`) although the per-type scoping already exists in `scripts/sysadmin/emit_mcp_project_config.py:56` (D-014: maestro/mobile-mcp only for `mobile-app`). Every Claude Code session in /opt/fabr"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:16.656832Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-64a43719",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M48MQ2HSEPR1YJCZYC8MJ1FN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: in the fabrik-review-loop workflow, Haiku finder seats invert the pass-2+ ledger_status label."
+}

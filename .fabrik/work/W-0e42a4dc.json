@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T01:12:04.417474Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0e42a4dc",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "corpus"
+  ],
+  "title": "commands/_sources/fabrik-execute-plan.md prescribes the worktree subagent commit as `git commit -m \"$(cat <<'EOF'` (lines ~326-328, 342, 357, 370, 849, 1044 — 6 hits) — exactly the compound shape the isolation check refuses and that § Orient (d) now tells agents to avoid; change to Write tool → <scratch>/msg + `git commit -F <scratch>/msg` (same form as multi-agent-operating-model.md:72); render → --check → commit (Opus delta seat N1, review 2026-10-07-heredoc-guard-docs)."
+}

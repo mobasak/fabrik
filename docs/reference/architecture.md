@@ -192,7 +192,7 @@ src/fabrik/
 ├── compose_linter.py          # Coolify-compat: no public ports, amd64, fabrik network
 ├── config.py                  # FABRIK_ROOT, ensure_directories
 ├── registry.py                # ProjectRegistry → data/projects.yaml
-├── state.py                   # .fabrik/state/<id>.json — 8-field deploy manifest
+├── state.py                   # .fabrik/state/<id>.json — 10-field deploy manifest
 ├── locks_local.py             # File-based lock preventing concurrent applies
 ├── verify.py                  # PostconditionChecker framework
 ├── audit.py                   # Registrar drift detection (one auditor per registrar)
@@ -250,7 +250,7 @@ src/fabrik/
 
 | Directory | Purpose | Persistent? | Git-tracked? |
 |-----------|---------|-------------|-------------|
-| `.fabrik/state/` | Deploy state store — 8-field JSON manifest per `fabrik apply`. Feeds destroy, audit, export, verify. `_destroyed/` subdir archives teardown state. | Yes | No (gitignored) |
+| `.fabrik/state/` | Deploy state store — 10-field JSON manifest per completed `fabrik apply` (incl. `registrar_failures`). Feeds destroy, audit, export, verify. `_destroyed/` subdir archives teardown state. | Yes | No (gitignored) |
 | `.fabrik/review/` | Review bundles from `fabrik review` — diff + spec + registrars | No (ephemeral) | No |
 | `.droid/review-context/` | Task/plan `.md` files passed to Kilo `--plan` flag | Yes | **Yes** (git-tracked) |
 | `.droid/traycer-reports/` | Traycer analysis reports after dispatched sessions | Yes | **Yes** (git-tracked) |
@@ -260,7 +260,7 @@ src/fabrik/
 | `.droid/docs_log/` + `docs_queue/` | Docs enforcer state (generated/pending) | Yes | No |
 | `.droid/dev_tracker.db` | SQLite — gate results, review costs, workflow events | Yes | No |
 | `.droid/kilo_usage.jsonl` | Token counts + cost per Kilo review invocation | Yes | No |
-| `.droid/kilo_model_sync.log` | Cron log of the retired `kilo_model_sync.py` (D-415) — its output is read by nothing | Yes | No |
+| `.droid/kilo_model_sync.log` | Frozen log of the retired `kilo_model_sync.py` (D-415; archived 2026-10-07, nothing writes it) | Yes | No |
 | `.kilo/` | Legacy Kilo Code extension runtime (Kilo CLI retired; LLM access = Claude Code OAuth + OpenRouter) | Yes | No (gitignored) |
 | `.vscode/` | VS Code settings — disables `.env` loading in Python terminal (2 settings) | Yes | Yes |
 | `.windsurf/rules/` | 55 AI behavior rule packs (ai/, chrome-ext/, core/, desktop-app/, mobile-app/, saas/) — the convention enforcement rules referenced in CLAUDE.md; glob-activated for any agent | Yes | Yes |

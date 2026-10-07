@@ -1,5 +1,5 @@
-Last refresh: 2026-10-01
-Evidence age: newest ranked run 2026-09-29 (2d old) · 16,867 runs in the 90-day window
+Last refresh: 2026-10-07
+Evidence age: newest ranked run 2026-10-05 (2d old) · 16,777 runs in the 90-day window
 Formula: shrunk_q = (n·avg_q + 10·tier_baseline) / (n+10); quality-gate at shrunk_q ≥ 2.5; then cost-asc among survivors; top-2 slots require n ≥ 10; grounding: canary avg ≥ 2.5 → ✓, below → ✗(score), no/thin/stale data → — | tier_baseline T1=1.0, T2=2.5, T3=4.0 | Window: 90 days | Min runs: 3
 
 
@@ -37,38 +37,38 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 | `openai/gpt-5.6-luna` | A+ | 0.980 | $2.620 | $0.1310 | 3.8 |
 | `writer/palmyra-x5` | A+ | 0.940 | $3.300 | $0.1650 | 7.6 |
 
-### code (n_total=130)
+### code (n_total=129)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v3.2-exp` | 2.61 | 0.00 | $0.0962 | 0.62 | 3 | ✓ | 10 |
+| 1 | `deepseek/deepseek-v3.2-exp` | 2.61 | 0.00 | $0.0962 | 0.62 | 3 | — | 10 |
 | 2 | `nvidia/nemotron-3-super-120b-a12b:free` | [allowlist] | — | — | — | 2 | — | 0 |
 | 3 | `nvidia/nemotron-3-ultra-550b-a55b:free` | [allowlist] | — | — | — | 2 | — | 0 |
 | 4 | `minimax/minimax-m3:free` | [allowlist] | — | — | — |  | — | 0 |
-| 5 | `deepseek/deepseek-v4-flash` | [allowlist] | — | — | — | 2 | ✓ | 0 |
+| 5 | `deepseek/deepseek-v4-flash` | [allowlist] | — | — | — | 2 | — | 0 |
 
-### docs (n_total=404)
+### docs (n_total=401)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-flash` | 2.83 | 0.83 | $0.0078 | 2.89 | 2 | ✓ | 63 |
+| 1 | `deepseek/deepseek-v4-flash` | 2.83 | 0.83 | $0.0078 | 2.89 | 2 | — | 63 |
 | 2 | `nvidia/nemotron-3-super-120b-a12b:free` | [allowlist] | — | — | — | 2 | — | 0 |
 | 3 | `nvidia/nemotron-3-ultra-550b-a55b:free` | [allowlist] | — | — | — | 2 | — | 0 |
 | 4 | `minimax/minimax-m3:free` | [allowlist] | — | — | — |  | — | 0 |
-| 5 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
+| 5 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | — | 0 |
 
 ### research (n_total=545)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-flash` | 3.11 | 0.69 | $0.0049 | 3.58 | 2 | ✓ | 13 |
+| 1 | `deepseek/deepseek-v4-flash` | 3.11 | 0.69 | $0.0049 | 3.58 | 2 | — | 13 |
 | 2 | `nvidia/nemotron-3-super-120b-a12b:free` | [allowlist] | — | — | — | 2 | — | 0 |
 | 3 | `nvidia/nemotron-3-ultra-550b-a55b:free` | [allowlist] | — | — | — | 2 | — | 0 |
 | 4 | `minimax/minimax-m3:free` | [allowlist] | — | — | — |  | — | 0 |
-| 5 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
+| 5 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | — | 0 |
 
-### review (n_total=11108)
+### review (n_total=11015)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-flash` | 2.74 | 0.89 | $0.0041 | 2.73 | 2 | ✓ | 1521 |
-| 2 | `deepseek/deepseek-v3.2-exp` | 2.82 | 0.89 | $0.0046 | 2.81 | 3 | ✓ | 1567 |
+| 1 | `deepseek/deepseek-v4-flash` | 2.74 | 0.89 | $0.0041 | 2.73 | 2 | — | 1519 |
+| 2 | `deepseek/deepseek-v3.2-exp` | 2.82 | 0.89 | $0.0046 | 2.81 | 3 | — | 1567 |
 | 3 | `nvidia/nemotron-3-super-120b-a12b:free` | [allowlist] | — | — | — | 2 | — | 0 |
 | 4 | `nvidia/nemotron-3-ultra-550b-a55b:free` | [allowlist] | — | — | — | 2 | — | 0 |
 | 5 | `minimax/minimax-m3:free` | [allowlist] | — | — | — |  | — | 0 |
@@ -80,8 +80,8 @@ _allowlist rows: this task_type has no gate-surviving fleet data, and the sectio
 | 1 | `nvidia/nemotron-3-super-120b-a12b:free` | [allowlist] | — | — | — | 2 | — | 0 |
 | 2 | `nvidia/nemotron-3-ultra-550b-a55b:free` | [allowlist] | — | — | — | 2 | — | 0 |
 | 3 | `minimax/minimax-m3:free` | [allowlist] | — | — | — |  | — | 0 |
-| 4 | `deepseek/deepseek-v4-flash` | [allowlist] | — | — | — | 2 | ✓ | 0 |
-| 5 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
+| 4 | `deepseek/deepseek-v4-flash` | [allowlist] | — | — | — | 2 | — | 0 |
+| 5 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | — | 0 |
 
 ### spec (n_total=0, operator allowlist — no measured rows survived the gates)
 _allowlist rows: this task_type has no gate-surviving fleet data, and the section exists so routing cannot fall through to the unrestricted vendored `_TABLE` (D-159)._
@@ -90,8 +90,8 @@ _allowlist rows: this task_type has no gate-surviving fleet data, and the sectio
 | 1 | `nvidia/nemotron-3-super-120b-a12b:free` | [allowlist] | — | — | — | 2 | — | 0 |
 | 2 | `nvidia/nemotron-3-ultra-550b-a55b:free` | [allowlist] | — | — | — | 2 | — | 0 |
 | 3 | `minimax/minimax-m3:free` | [allowlist] | — | — | — |  | — | 0 |
-| 4 | `deepseek/deepseek-v4-flash` | [allowlist] | — | — | — | 2 | ✓ | 0 |
-| 5 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
+| 4 | `deepseek/deepseek-v4-flash` | [allowlist] | — | — | — | 2 | — | 0 |
+| 5 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | — | 0 |
 
 
 ## Full review benchmark results — all measured columns (display only; not parsed for routing)
@@ -103,18 +103,18 @@ _**Re-test status** — ✅ `haiku` (2026-07-22): 4.054→**4.21**, recall 68%�
 _Why one-at-a-time: a single 22-item pass carries enough sampling variance to shift a tier by ~5pp of recall (haiku moved 5pp on an identical corpus; repeated-trial probing showed the same item flipping correct/incorrect across calls on identical input), so a batched run is not a sound basis for ranking. The corpus itself is UNCHANGED and remains byte-identical to the one all 57 OpenRouter models were measured against — those rows are unaffected and stay valid._
 
 _**Resolution caveat (per-item probing, 2026-07-23):** of this corpus's 22 mutants, 15 are caught by every strong model and 6 by none — exactly 1 item discriminates at the frontier, so near-identical scores among top models here reflect the INSTRUMENT's ceiling, not equal capability. For separating frontier models use the HARD corpus (`microbench_review.py --hard` → its own table below): 10 hand-planted subtle logic bugs, kill-proven by differential tests, persisted separately and never touching this baseline or routing._
-_`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's tokens, comparable to the pool — a RATE). `②total$` is a different unit: the REAL subscription-derived lump SUM for that row's whole measured run (expect it many orders of magnitude below `$/1k`, NOT a per-1k/per-run rate). Context — ② amortized ≈$0.044/M (over 2026-09-02→2026-10-01, 18.1B tokens over 4 accounts) · ③ last run's weekly-quota draw ≈0.0% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never returns them._
+_`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's tokens, comparable to the pool — a RATE). `②total$` is a different unit: the REAL subscription-derived lump SUM for that row's whole measured run (expect it many orders of magnitude below `$/1k`, NOT a per-1k/per-run rate). Context — ② amortized ≈$0.687/M (over 2026-09-04→2026-10-03, 1.2B tokens over 4 accounts ⚠️ **STALE — built 4.2 days ago**, the 24h rebuild has not run) · ③ last run's weekly-quota draw ≈0.0% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never returns them._
 | model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | ②total$ | p50 s | tok/s | n_mut | n_ctrl | eligible |
 |---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:-:|
 | `openai/o3-mini` | A | 4.36 | 0.77 | 1.00 | $3.814 | $4.40 | $0.1144 | — | 3.4 | 204 | 22 | 8 | — |
 | `anthropic/claude-haiku-4.5` | A | 4.21 | 0.73 | 1.00 | $1.867 | $5.00 | $0.0560 | — | 3.5 | 83 | 22 | 8 | — |
-| `claude-code/haiku` | A | 4.21 | 0.73 | 1.00 | $35.549 | $5.00 | $1.0665 | $0.056802 | 16.5 | 60 | 22 | 8 | ✅ |
+| `claude-code/haiku` | A | 4.21 | 0.73 | 1.00 | $35.549 | $5.00 | $1.0665 | $0.119638 | 16.5 | 60 | 22 | 8 | ✅ |
 | `qwen/qwen3-max` | A | 4.07 | 0.69 | 1.00 | $0.165 | $3.90 | $0.0033 | — | 1.9 | 8 | 16 | 4 | ✅ |
 | `bytedance-seed/seed-1.6` | A | 4.05 | 0.68 | 1.00 | $1.041 | $2.00 | $0.0312 | — | 6.5 | 48 | 22 | 8 | — |
 | `bytedance-seed/seed-2.0-lite` | A | 4.05 | 0.68 | 1.00 | $1.335 | $2.00 | $0.0400 | — | 7.5 | 73 | 22 | 8 | — |
-| `claude-code/fable` | A | 4.05 | 0.68 | 1.00 | $448.486 | $50.00 | $13.4546 | $0.069829 | 10.3 | 16 | 22 | 8 | ✅ |
-| `claude-code/opus` | A | 4.05 | 0.68 | 1.00 | $215.978 | $25.00 | $6.4794 | $0.067901 | 8.0 | 17 | 22 | 8 | ✅ |
-| `claude-code/sonnet` | A | 4.05 | 0.68 | 1.00 | $106.899 | $10.00 | $3.2070 | $0.107552 | 12.4 | 35 | 22 | 8 | ✅ |
+| `claude-code/fable` | A | 4.05 | 0.68 | 1.00 | $448.486 | $50.00 | $13.4546 | $0.147078 | 10.3 | 16 | 22 | 8 | ✅ |
+| `claude-code/opus` | A | 4.05 | 0.68 | 1.00 | $215.978 | $25.00 | $6.4794 | $0.143016 | 8.0 | 17 | 22 | 8 | ✅ |
+| `claude-code/sonnet` | A | 4.05 | 0.68 | 1.00 | $106.899 | $10.00 | $3.2070 | $0.226530 | 12.4 | 35 | 22 | 8 | ✅ |
 | `google/gemini-3-flash-preview` | A | 4.05 | 0.68 | 1.00 | $0.226 | $3.00 | $0.0068 | — | 1.3 | 10 | 22 | 8 | ✅ |
 | `moonshotai/kimi-k2.7-code` | A | 4.05 | 0.68 | 1.00 | $2.674 | $4.40 | $0.0802 | — | 5.0 | 87 | 22 | 8 | — |
 | `openai/o4-mini-high` | A | 4.05 | 0.68 | 1.00 | $2.278 | $4.40 | $0.0683 | — | 5.1 | 78 | 22 | 8 | — |
@@ -170,17 +170,17 @@ _`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of th
 
 ## HARD review benchmark — hand-planted subtle logic bugs (diagnostic only; NOT comparable with the table above, never parsed for routing)
 _source: `microbench_review.py --hard` → `model_review_hard_metrics`. 10 hand-planted single-line logic bugs in realistic functions (stateful traces, stdlib semantics, contract-vs-code, placement bugs — every bug kill-proven by differential execution, every ground truth derived from a docstring contract) + 10 clean controls. Built to separate frontier models the operator-flip corpus ties. No eligibility gate — this table ranks, it does not route._
-_`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's tokens, comparable to the pool — a RATE). `②total$` is a different unit: the REAL subscription-derived lump SUM for that row's whole measured run (expect it many orders of magnitude below `$/1k`, NOT a per-1k/per-run rate). Context — ② amortized ≈$0.044/M (over 2026-09-02→2026-10-01, 18.1B tokens over 4 accounts) · ③ last run's weekly-quota draw ≈0.0% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never returns them._
+_`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's tokens, comparable to the pool — a RATE). `②total$` is a different unit: the REAL subscription-derived lump SUM for that row's whole measured run (expect it many orders of magnitude below `$/1k`, NOT a per-1k/per-run rate). Context — ② amortized ≈$0.687/M (over 2026-09-04→2026-10-03, 1.2B tokens over 4 accounts ⚠️ **STALE — built 4.2 days ago**, the 24h rebuild has not run) · ③ last run's weekly-quota draw ≈0.0% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never returns them._
 | model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | ②total$ | p50 s | tok/s | n_mut | n_ctrl |
 |---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| `claude-code/haiku` | A+ | 5.00 | 1.00 | 1.00 | $41.500 | $5.00 | $0.8300 | $0.042691 | 25.2 | 60 | 10 | 10 |
-| `claude-code/sonnet` | A+ | 5.00 | 1.00 | 1.00 | $110.976 | $10.00 | $2.2195 | $0.062959 | 16.3 | 28 | 10 | 10 |
-| `claude-code/fable` | A+ | 4.74 | 0.90 | 1.00 | $494.925 | $50.00 | $9.8985 | $0.049955 | 12.1 | 15 | 10 | 10 |
-| `claude-code/opus` | A | 4.44 | 0.80 | 1.00 | $237.073 | $25.00 | $4.7415 | $0.048604 | 13.8 | 10 | 10 | 10 |
+| `claude-code/haiku` | A+ | 5.00 | 1.00 | 1.00 | $41.500 | $5.00 | $0.8300 | $0.089917 | 25.2 | 60 | 10 | 10 |
+| `claude-code/sonnet` | A+ | 5.00 | 1.00 | 1.00 | $110.976 | $10.00 | $2.2195 | $0.132606 | 16.3 | 28 | 10 | 10 |
+| `claude-code/fable` | A+ | 4.74 | 0.90 | 1.00 | $494.925 | $50.00 | $9.8985 | $0.105217 | 12.1 | 15 | 10 | 10 |
+| `claude-code/opus` | A | 4.44 | 0.80 | 1.00 | $237.073 | $25.00 | $4.7415 | $0.102371 | 13.8 | 10 | 10 | 10 |
 
 ## Full coding benchmark results — LiveCodeBench pass@1 (display only; not parsed for routing)
 _source: `microbench_coding_direct.py` → `model_coding_metrics` (contamination-free LiveCodeBench). `pass@1` = fraction solved · `score5` = pass@1×5 · `value` = score5÷$/1k · `eligible` = clears the code gate (n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s) · `tier` = curated use-case._
-_`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's tokens, comparable to the pool — a RATE). (no per-row ② column here — this harness doesn't persist raw tokens per run.) Context — ② amortized ≈$0.044/M (over 2026-09-02→2026-10-01, 18.1B tokens over 4 accounts) · ③ last run's weekly-quota draw ≈0.0% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never returns them._
+_`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of the subscription run's tokens, comparable to the pool — a RATE). (no per-row ② column here — this harness doesn't persist raw tokens per run.) Context — ② amortized ≈$0.687/M (over 2026-09-04→2026-10-03, 1.2B tokens over 4 accounts ⚠️ **STALE — built 4.2 days ago**, the 24h rebuild has not run) · ③ last run's weekly-quota draw ≈0.0% (from `claude_p_cost.json`; ③ is a capacity estimate, not a precise meter). A `claude-code/*` `✅` reflects the QUALITY floors only — the carve-out bypasses the printed cost/latency gate, and these tiers are **spawn-native (display-only, NOT pool-dispatched)**, so `pick_models` never returns them._
 | model | grade | pass@1 | score5 | $/1k | $/run | p50 s | tok/s | value | family | n_graded | n_err | eligible | tier |
 |---|:-:|--:|--:|--:|--:|--:|--:|--:|:-:|--:|--:|:-:|:-:|
 | `google/gemini-3-flash-preview` | A+ | 1.000 | 5.00 | $1.180 | $0.0590 | 3.0 | 102 | 4.2 | google | 50 | 0 | ✅ | daily-driver |

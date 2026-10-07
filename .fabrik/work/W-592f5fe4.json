@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:16.117836Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-592f5fe4",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "mail-01m47t06vv"
+  ],
+  "title": "check_rule_grounding.py's advisory budget hides findings between pass 1 and the CONVERGED flip (mail 01M47T06VV): add --all for /fabrik-plan-review's pass-1 run, or mandate the re-run at every pin"
+}

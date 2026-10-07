@@ -86,6 +86,7 @@ from typing import Any
 import yaml
 
 from fabrik.drivers.ssh import scp_to_vps, ssh
+from fabrik.spec_loader import WATCHDOG_LLM_OPT_INS, normalize_llm_actions
 
 # Deterministic per-host sysadmin prompt substitutions. Replaces a hardcoded
 # vps1/2/3 dict so a NEWLY PROVISIONED spoke (vpsN) renders real peers + its
@@ -383,6 +384,9 @@ class _RenderContext:
     # Opt-in event-driven bus sources (emitter|health|error_webhook). Empty →
     # WATCHDOG_TRIGGER_SOURCES left unset → library legacy poll path (no bus).
     trigger_sources: list[str]
+    # Opt-in model actions (WATCHDOG_LLM_ACTIONS, fabrik-lib D-412). Empty → unset → the sidecar's
+    # default menu, or whatever the project .env says.
+    llm_actions: list[str]
     external_docs_enabled: bool
     llm_provider_primary: str
     llm_provider_fallback: str
@@ -586,6 +590,8 @@ class WatchdogDriver:
             code_fix_window_sec=int(wcfg.get("code_fix_window_sec", 300)),
             critical_paths=list(wcfg.get("critical_paths", []) or []),
             trigger_sources=list(wcfg.get("trigger_sources", []) or []),
+            # The raw-dict apply path never builds WatchdogConfig, so run its check here too.
+            llm_actions=normalize_llm_actions(wcfg.get("llm_actions")),
             external_docs_enabled=bool(wcfg.get("external_docs_enabled", True)),
             llm_provider_primary=wcfg.get("llm_provider_primary", "claude-code"),
             llm_provider_fallback=wcfg.get("llm_provider_fallback", "openrouter"),
@@ -1003,8 +1009,37 @@ class WatchdogDriver:
         finally:
             os.unlink(local_tmp)
 
+    @staticmethod
+    def _warn_llm_actions(rctx: _RenderContext) -> None:
+        """Say when a listed action will not reach the model; the deploy goes on either way."""
+        held = [n for n in rctx.llm_actions if WATCHDOG_LLM_OPT_INS[n] == "B"]
+        if held and not rctx.auto_tier_b:
+            logger.warning(
+                "watchdog: %s lists Tier-B llm_actions %s but auto_tier_b is off — the sidecar "
+                "holds them and offers them only once auto_tier_b is true.",
+                rctx.project_id,
+                ",".join(held),
+            )
+        source = SIDECAR_SOURCE
+        try:
+            reads = any(
+                "WATCHDOG_LLM_ACTIONS" in f.read_text(errors="replace")
+                for f in source.rglob("*.py")
+            )
+        except OSError:
+            reads = (
+                True  # an unreadable source is the build's problem to report, not this warning's
+            )
+        if not reads:
+            logger.warning(
+                "watchdog: %s sets llm_actions but the sidecar source at %s does not read "
+                "WATCHDOG_LLM_ACTIONS — pull /opt/fabrik-lib to main, or the opt-in is dropped.",
+                rctx.project_id,
+                source,
+            )
+
     def _render_env(self, rctx: _RenderContext) -> dict[str, str]:
-        """The 18 WATCHDOG_* env vars that agent.WatchdogContext.from_env reads."""
+        """The WATCHDOG_* env vars the sidecar reads (agent.WatchdogContext.from_env and friends)."""
         env = {
             "WATCHDOG_PROJECT_ID": rctx.project_id,
             "WATCHDOG_MAIN_CONTAINER": rctx.main_container,
@@ -1056,6 +1091,9 @@ class WatchdogDriver:
                 "'/checkout') to page.",
                 rctx.project_id,
             )
+        if rctx.llm_actions:
+            env["WATCHDOG_LLM_ACTIONS"] = ",".join(rctx.llm_actions)
+            self._warn_llm_actions(rctx)
         # Tier-D: only emit the autonomous-code-fix env when opted in. The
         # bootstrap (rendered into the image in the same opt-in path) reads
         # these; Telegram tokens + WATCHDOG_TEST_CMD are operator secrets that
