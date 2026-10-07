@@ -1,6 +1,6 @@
 # Plan — PostgreSQL 16 → 18 across the fleet: hub branch, runbook and hand-offs ready for the operator's windows
 
-Status: IN-PROGRESS
+Status: EXECUTED (2026-10-07 — all 8 tickets merged on converged reviews; the plan ends at window readiness: the WSL window and the hub window (Gate 2) are boarded operator gates run from docs/operations/postgres-major-upgrade-runbook.md; the hub changes reached master before the window and the DR list keeps both Postgres volumes until release (D-647); receipt docs/development/reviews/2026-10-06-plan-1-postgresql-18-upgrade-review.md; was IN-PROGRESS from 2026-10-06)
 **Owner:** fleet
 Spec: docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md
 Date: 2026-10-06
@@ -53,7 +53,7 @@ restates nothing that section settles.
 | T04a | The hub's live pins and smaller current-state docs say 18 | — | ⚡ | ✅ | cb46e993c |
 | T04b | The two large current-state docs say 18 | — | ⚡ | ✅ | 6ed038389 |
 | T05 | The operator runbook for the WSL and hub windows | T02, T03 | ⛓️ | ✅ | 02d5c593f |
-| T06 | Integration: rehearsal, hand-offs, gates and the receipt | T01a, T01b, T04a, T04b, T05 | ⛓️ | ⬜ | |
+| T06 | Integration: rehearsal, hand-offs, gates and the receipt | T01a, T01b, T04a, T04b, T05 | ⛓️ | ✅ | 1aa51cad3 |
 
 ## Merge Order
 
