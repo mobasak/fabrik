@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T01:12:04.666691Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-165e533c",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "review-machinery"
+  ],
+  "title": "The worktree-session Bash rule (one plain command per call; Write tool for files; git stays on the command line) reaches no review seat: commands/_agents/fabrik-reviewer.md's inline house rules and the loop's seat briefs carry none of it, and the seats are the population every source mail names (01M3Z1CN asks for 'one line to the review-seat brief template', 01M3W95RYB 1(c) 'in every seat brief'). Add one bullet to the reviewer agent's house rules / the seat brief fragment. Owner intel (D-622: review machinery). Closes W-355c0970's HOW with it."
+}
