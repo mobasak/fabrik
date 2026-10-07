@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T19:37:30.225416Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fbb43775",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4BXGH4TKP165ZY77TEVBKEP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "relay to website-ecommerce-factory (wef3): lussobotanica.com ?lang= links still not live — the edge language cookie is ready and waiting on them"
+}

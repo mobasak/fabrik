@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T19:53:46.011485Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-248989a8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49BR9JEKZ5E8TNEZQT3XHTS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: PG18 plan precondition (01M48YF4ZJHPDTDJQFE1ZPZK4K) — DONE in 075f8feae, on origin/master"
+}

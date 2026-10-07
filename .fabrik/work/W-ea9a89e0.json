@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T19:37:30.375872Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ea9a89e0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4AXNXBBQZ0ADY0XSA1HANMF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: Operator ruling — `.wslconfig` swap is 16 GB, not 8 GB. Supersede D-636 (memory 40 GB stands; swap 8 → 16 GB). Record the row; no code change."
+}

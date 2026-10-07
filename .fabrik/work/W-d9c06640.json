@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T19:53:15.256861Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d9c06640",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: run the probe from kaizen's mail over HEAD; expect 0 of 26 live plans / 85 locks; then add the WARN rows to scripts/enforcement/check_plans.py with a red-first grader; also exclude docs/development/reviews/ receipts from the referrer-repoint sentence at commands/_sources/fabrik-execute-plan.md:1237-1240 (frozen artifacts that predate the grammar)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "enforcement",
+    "infra"
+  ],
+  "title": "check_plans.py WARN: an EXECUTED plan outside docs/development/plans/archived/ or a terminal plan-lock whose plan path does not resolve (kaizen 01M4BVMGQG found 11+9 in one probe; fire rate after the 2026-10-07 cleanup should be 0 — measure before shipping, D-253)"
+}
