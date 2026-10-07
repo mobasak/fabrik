@@ -85,9 +85,10 @@ _SQL_PASSWORD = re.compile(r"PASSWORD\s+'[^']*'", re.I)
 _AUTH_HEADER = re.compile(r"(Authorization[\"']?\s*[:=]\s*[\"']?\w+\s+)[^\s\"',}]+", re.I)
 _SECRET_WORDS = r"\w*(?:TOKEN|SECRET|KEY|PASSWORD|PASSWD|CREDENTIAL)S?\w*"
 # a quoted value (spaces inside) — ssh._redact's `\S+` stops at the first space
-_QUOTED_ASSIGN = re.compile(rf"({_SECRET_WORDS}\s*=\s*)('[^']*'|\"[^\"]*\")", re.I)
+_QUOTED = r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\""
+_QUOTED_ASSIGN = re.compile(rf"({_SECRET_WORDS}\s*=\s*)({_QUOTED})", re.I)
 # a JSON / dict field: "password": "..."
-_JSON_SECRET = re.compile(rf"([\"']{_SECRET_WORDS}[\"']\s*:\s*)([\"'])[^\"']*\2", re.I)
+_JSON_SECRET = re.compile(rf"([\"']{_SECRET_WORDS}[\"']\s*:\s*)({_QUOTED})", re.I)
 _FAILURE_MAX_CHARS = 500
 
 STATE_DIR = FABRIK_ROOT / ".fabrik" / "state"
@@ -130,7 +131,7 @@ def _sanitize_failure(text: object) -> str:
 
     out = "" if text is None else str(text)
     out = _QUOTED_ASSIGN.sub(r"\1<redacted>", out)
-    out = _JSON_SECRET.sub(r"\1\2<redacted>\2", out)
+    out = _JSON_SECRET.sub(lambda m: f"{m[1]}{m[2][0]}<redacted>{m[2][0]}", out)
     out = _AUTH_HEADER.sub(r"\1<redacted>", out)
     out = _redact(out)
     out = _URL_CREDENTIALS.sub("://[redacted]@", out)

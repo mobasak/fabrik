@@ -131,6 +131,8 @@ def test_registrar_failures_round_trip():
             "SuperSecret123",
         ),
         ("docker run -e PGPASSWORD='my secret pass' postgres", "secret pass"),
+        ('upstream said {"token": "pass\\"word123xyzLEAK", "other": "field"}', "word123xyzLEAK"),
+        ('TOKEN="pass\\"word123xyzLEAK" trailing', "word123xyzLEAK"),
     ],
 )
 def test_registrar_failures_are_sanitised(raw, secret):
