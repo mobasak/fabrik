@@ -973,6 +973,7 @@ class TestDeployLocal:
         ):
             mock_ssh.side_effect = [
                 "exists",  # test -f compose.yaml
+                "absent",  # .env probe — a first deploy has none
                 "",  # docker compose up -d
             ]
             deployer = SSHDeployer()
@@ -980,6 +981,42 @@ class TestDeployLocal:
 
         mock_write.assert_called_once()
         assert mock_write.call_args[0][0] == "/opt/my-app"
+
+    def test_local_source_off_opt_keeps_registrar_injected_keys(self):
+        """W-7ec31807: ``find_existing`` probes ``/opt/<name>`` only, so a local source living
+        elsewhere arrives with ``existing=None``. The compose at ``source.path`` proves the app
+        exists there, so its ``.env`` must be read and merged — rebuilding from spec env +
+        secrets alone dropped every registrar-injected key, ``DATABASE_URL_OWNER`` included."""
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "local", "path": "/srv/my-app"},
+                "env": {"PORT": "8000"},
+            }
+        )
+        ctx.secrets = {}
+        existing_env = (
+            "DATABASE_URL=postgresql://shop_app:apppw@postgres-main:5432/shop\n"
+            "DATABASE_URL_OWNER=postgresql://shop:ownerpw@postgres-main:5432/shop\n"
+        )
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+        ):
+            mock_ssh.side_effect = [
+                "exists",  # test -f /srv/my-app/compose.yaml
+                "present",  # .env probe
+                existing_env,  # sudo cat /srv/my-app/.env
+                "",  # docker compose up -d --wait
+            ]
+            SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+
+        path, filename, content = mock_write.call_args[0]
+        assert (path, filename) == ("/srv/my-app", ".env")
+        parsed = _parse_env(content)
+        assert parsed["DATABASE_URL_OWNER"] == "postgresql://shop:ownerpw@postgres-main:5432/shop"
+        assert parsed["DATABASE_URL"] == "postgresql://shop_app:apppw@postgres-main:5432/shop"
+        assert parsed["PORT"] == "8000"
 
     def test_missing_compose_raises(self):
         ctx = _ctx(
@@ -1024,7 +1061,7 @@ class TestDeployLocal:
             patch("fabrik.drivers.ssh.ssh") as mock_ssh,
             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path"),
         ):
-            mock_ssh.side_effect = ["exists", ""]
+            mock_ssh.side_effect = ["exists", "absent", ""]  # compose, .env probe, up
             deployer = SSHDeployer()
             deployer._deploy_local(ctx, "my-app", ctx.spec["source"], None)
 

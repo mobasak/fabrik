@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a local-source deploy outside /opt keeps its registrar-injected .env keys (2026-10-07)
+
+- `SSHDeployer._deploy_local` (`src/fabrik/orchestrator/deployer_ssh.py`) now always reads the `.env` at `source.path` before merging. `find_existing` probes `/opt/<name>` only, so a local source living elsewhere arrived with `existing=None` and its `.env` was rebuilt from spec env and secrets alone, dropping every registrar-injected key — `DATABASE_URL_OWNER`, the only owner-password copy after an app-role cutover, included. The compose the deploy already verified at that path proves the app exists there; an absent `.env` still reads as empty. Every local deploy now makes one extra SSH probe. W-7ec31807.
+
 ### Fixed — a hub rebuild before the PG18 window restores the PG16 volume again (2026-10-07)
 
 - The PG18 DR chain reached master before the hub window (D-647), so `FABRIK_HUB_VOLUMES_TO_RESTORE` (`scripts/bootstrap/bootstrap-config.sh`) named only `postgres18-data`, a volume no snapshot holds yet: a rebuild would never restore `postgres-data`, and the live PG16 compose's compose-up would abort `bootstrap-hub.sh` before its pg_dump fallback. The list now restores both Postgres volumes until PG18 release step R3; the DR doc's manual restore loop, the restore inventory and the rebuild table follow. Runbook step 8.3 is verify-only (nothing left to merge), and R3 asks infra to drop the PG16 entry.
