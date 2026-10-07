@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — every review seat carries the worktree-session Bash rule (2026-10-07)
+- A linked worktree's isolation guard refuses compound, piped, looped and heredoc Bash calls, `$VAR` operands, and any argument naming git. Seats lost a third of their time box rediscovering it (W-165e533c). The rule — one plain command per Bash call, literal absolute paths, `printf` or `python3 -c` writes, split a refused command — is now in `commands/_agents/fabrik-reviewer.md`'s house rules and the seat-brief fragment `commands/_fragments/subagents-core.md` (D-645). The old one-call copy-test-restore rule is rewritten to match.
+- Grader in `tests/test_review_loop_workflow.py`, red on 93065d106.
+
 ### Fixed — the review-loop seat brief obeys a linked worktree's isolation guard (2026-10-07)
 - Seats in a linked worktree were told to run shapes the guard refuses: a `HOME=` prefix, piped or `&&` git, `timeout … command grep` (exit 127), and a SCRATCH dir nothing created (W-9385c2b3, site-provisioner 01M491K2). One `PIN_IMPORT` constant now feeds both prompts. It runs one git command per call with literal paths, sets HOME inside the python launcher and runs searches as `/usr/bin/grep` (D-643).
 - The hub-only `review-loop-workflow.md` is cited hub-absolute in 7 command sources (sp1 01M493NNJ3).
