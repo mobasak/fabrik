@@ -1,6 +1,6 @@
 # Plan — Promtail → Grafana Alloy across the fleet: branch, rehearsals and runbook ready for the operator's window
 
-Status: DRAFT
+Status: CONVERGED
 **Owner:** fleet
 Spec: docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md
 Date: 2026-10-08
@@ -603,22 +603,33 @@ $ python scripts/review_rubric.py --changed configs/alloy/config.alloy configs/g
 
 | Class | Status |
 |---|---|
-| FLOOR core/35-security-auth.md | UNCHECKED |
-| FLOOR core/25-data-postgres.md | UNCHECKED |
-| FLOOR core/30-ops.md | UNCHECKED |
-| FLOOR 12-FACTOR | UNCHECKED |
-| MATCHED core/10-python.md | UNCHECKED |
-| MATCHED core/40-documentation.md | UNCHECKED |
-| MATCHED core/45-testing-strategy.md | UNCHECKED |
-| MATCHED core/55-observability.md | UNCHECKED |
-| MATCHED core/57-external-data-sourcing.md | UNCHECKED |
-| MATCHED core/58-resilience.md | UNCHECKED |
-| MATCHED core/90-bootstrap-scripts.md | UNCHECKED |
-| MATCHED core/self-healing.md | UNCHECKED |
-| Recurrence: fail-open vs fail-closed on every gate/guard | UNCHECKED |
-| Recurrence: cost/quota/limit accounting edges (unknown≠0, per-call vs batch) | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix collisions | UNCHECKED |
-| Recurrence: behavior-without-a-test | UNCHECKED |
+| FLOOR core/35-security-auth.md | CLEAN — no auth, secret or credential surface in any Touches path (digest row; pass 1 slice A) |
+| FLOOR core/25-data-postgres.md | CLEAN — no database, schema or migration path in any Touches list (digest row; pass 1 slice A) |
+| FLOOR core/30-ops.md | FIXED — every alloy service carries a memory limit (T02, T03 V10 rows); pass 1 added the V10 cite to T02 (C12) |
+| FLOOR 12-FACTOR | FIXED — the digest lacked the row; pass 1 added it (C7): no app config or backing-service binding changes |
+| MATCHED core/10-python.md | CLEAN — T04b's Python edits are set members and strings; no logging path changes (digest row) |
+| MATCHED core/40-documentation.md | FIXED — pass 2 N1: a rename and every inbound link now share one ticket (T05c), so each whole-tree `check_doc_links.py` Gate is satisfiable; pass 1 C-1/C-2 added the missing link and EXTERNAL_SYSTEMS rows |
+| MATCHED core/45-testing-strategy.md | FIXED — pass 1 C-3 graded V6 and the Gate S list in T06; B5 added the image-absent skip in T01 |
+| MATCHED core/55-observability.md | FIXED — pass 1 B1: `loki_write_*` exists only after a push, so T04b's probe pushes to a throwaway Loki (reproduced live by slice B, pass 2) |
+| MATCHED core/57-external-data-sourcing.md | CLEAN — T07 edits the existing EXTERNAL_SYSTEMS.md rows; no new vendor profile |
+| MATCHED core/58-resilience.md | CLEAN — matched by a doc name only; no resilience mechanism changes |
+| MATCHED core/90-bootstrap-scripts.md | FIXED — pass 1 C5: `bash -n` on every edited script in the T02, T03 and T04b Gates (each parses clean at the pin, slice B pass 2) |
+| MATCHED core/self-healing.md | CLEAN — matched by a doc name only; no ladder step changes |
+| Recurrence: fail-open vs fail-closed on every gate/guard | FIXED — pass 2 N1 (a Gate that could never go green); T01's docker/image skip states its reason instead of passing silently (B5) |
+| Recurrence: cost/quota/limit accounting edges (unknown≠0, per-call vs batch) | CLEAN — READ budgets re-measured per doc ticket (spine § Evidence); `check_plan_tickets` 0 findings; slice A's T04b size estimate REFUTED by the canonical budget model |
+| Recurrence: boundary/sentinel/prefix collisions | FIXED — pass 1 C9 carved the throwaway rehearsal projects out of the no-host constraint; port 12345 checked with `ss -ltn` in T06 preflight |
+| Recurrence: behavior-without-a-test | FIXED — pass 1 C-2/C-3 added rows for EXTERNAL_SYSTEMS, V6 and Gate S; BC roll-up 44 = 44, verbatim |
+
+## Pass Ledger
+
+Combined hash = `find <plan-dir> -name '*.md' -print0 | sort -z | xargs -0 md5sum | md5sum` (first 12), taken before
+each row is written.
+
+| Pass | Seats | Counters | Method | md5(start) → md5(end) |
+|---|---|---|---|---|
+| Pass 1 | opus×1 (A spine) + sonnet×1 (B T01–T04b) + sonnet×1 (C T05a–T07) · full partitioned pass | found: 22, new: 22, confirmed: 20, fixed: 20, unexecuted: 0, edits: 20 | method: re-derivation — every path:line re-read at 0a3f55377, the Promtail sweep re-run, B1 measured on a cold `alloy run`; C-4 REFUTED (the row already says "each" doc), C-5 RECORDED — by design (I14: the infra mail is a superset of § Lifecycle) | 3414167114de → 341073a2a915 |
+| Pass 2 | opus×1 + sonnet×2 (the round-1 owners) · delta over 0a3f55377..50f16b917 + one hop | found: 4, new: 4, confirmed: 2, fixed: 2, unexecuted: 0, edits: 2 | method: re-derivation — all 20 claims re-verified; N1 executed in a scratch copy (`git mv` then `check_doc_links.py` names DEPLOYMENT_ARCHITECTURE.md); persona mismatch read against spec § Personas :18-21; slice A's T04b budget REFUTED by `check_plan_tickets` (0 findings); slice C's "tell" channel RECORDED — measured (wording; changes no behaviour) · own-fix: 2 (round 1) | 341073a2a915 → 165a86fc2d8c |
+| Pass 3 | opus×1 + sonnet×1 (round-1 owners of A and C; B verified clean in pass 2) · closing round over 50f16b917..ad76234bd | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the persona fix and N1 re-verified against the pin; no new defect | 165a86fc2d8c → 165a86fc2d8c |
 
 ## Residual unknowns
 
