@@ -1147,7 +1147,10 @@ def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
         assert needed in rules, needed
     assert "/reset/worktree there" not in rules, "git worktree list is a legal read; only add/remove write"
     pin = next(line for line in brief.splitlines() if line.startswith("⚠️ **A brief that names a COMMIT"))
-    assert "always redirected, one file per call" in pin, "W-27fc7fa9: an unredirected git show is persisted under $HOME"
+    for needed in ("`git show <sha>:<path> > <scratch>/<file>`", "always redirected, one file per call", "`git diff`", "saved by the harness under `$HOME`"):
+        assert needed in pin, ("W-27fc7fa9: an unredirected large stdout is persisted under $HOME", needed)
+    assert "`git show <sha>:<path>`" not in brief, "every git show example in the brief carries its redirect"
+    assert "`git diff <range> > <scratch>/<file>`" in brief, "method step 1's scope diff carries its redirect"
     assert "restored in ONE Bash call" not in brief, "the old compound probe rule contradicts one plain command per call"
     tools = next(line for line in brief.splitlines() if line.startswith("tools:"))
     assert "Write" not in tools, "the house rule's printf write form assumes the seat has no Write tool"
@@ -1160,6 +1163,7 @@ def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
         "absolute paths for anything written or run",
         "never `pkill`, `killall` or kill by pattern",
         "and any other query that does not write",
+        "redirects into a file under its scratch dir",
     ):
         assert needed in d8, needed
 
@@ -1186,7 +1190,8 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
     assert "archive -o into SCRATCH, ls-tree, show" in iso, "the pin recipe's read-only git must stay legal"
     assert "Popen" in iso and "\\`timeout\\`" in iso, "the kill ban must name a form a one-command seat can obey"
     assert "backgrounds on its own is not yours" in iso, "the harness's auto-background is not the banned act"
-    assert "always redirects into a file under SCRATCH" in iso, "W-27fc7fa9: a large git show stdout lands under $HOME"
+    for needed in ("always redirects into a file under SCRATCH", "\\`git show\\`", "\\`git diff\\`", "saved by the harness under $HOME"):
+        assert needed in iso, ("W-27fc7fa9: a large stdout lands under $HOME", needed)
 
 
 def test_fabrik_review_lessons_carry_the_leak_check() -> None:
