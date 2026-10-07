@@ -816,8 +816,11 @@ def check_file(p: Path) -> list[str]:
             # once documented a method-first row with the finders last, and receipts written to it
             # are committed (W-2377d879, W-cfd92b1f, W-c8069437); an unlabelled row keeps the
             # second cell, the shape the skeleton and every command now write (W-b9314eac)
-            labelled = [c for c in cells if c.strip().lower().startswith("finders:")]
-            finders = labelled[0] if labelled else (cells[1] if len(cells) > 1 else "")
+            # the UNION: the second cell OR any cell that OPENS with the label — a label mentioned
+            # mid-text never counts, and a committed row with its token in the second cell and a
+            # token-free `finders:` cell last still grades (4 of 602 receipts at 14f641255 do)
+            labelled = [c for c in cells if _FINDERS_LABEL.match(c)]
+            finders = " ".join(([cells[1]] if len(cells) > 1 else []) + labelled)
             shape = (
                 "in its finders cell (the second cell, or the one labelled `finders:`) — a round "
                 "the orchestrator alone read cannot close the loop; name the seats by model token "
@@ -2126,6 +2129,8 @@ _CLOSING_PASS = re.compile(r"^\s*" + _LIST_MARK + r"\s*\|?\s*\**Pass\s*(\d+)", r
 # orchestrator's duty (DD10); this gate has no run-record reader and adding one would be a new
 # mechanism.
 _MODEL_TOK = re.compile(r"(?<![\w-])(?:opus|sonnet|haiku)\s*[×x]\s*\d+", re.I)
+# a cell LABELLED as the finders cell: the label OPENS it (markdown emphasis or a backtick allowed)
+_FINDERS_LABEL = re.compile(r"\s*[*_`]*finders\s*:", re.I)
 
 
 def _closing_pass_row(ordered: list[_Row]) -> tuple[int, str] | None:

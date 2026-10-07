@@ -421,14 +421,20 @@ def test_v11_reads_a_labelled_finders_cell_wherever_the_row_puts_it(repo: Path) 
     done = _complete(out.read_text(encoding="utf-8"))
     closing = "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |\n"
     assert closing in done
-    for finders, ok in (("finders: native sonnet×1", True), ("finders: the orchestrator", False)):
-        moved = done.replace(
-            closing,
-            "| Pass 2 | method: re-derivation | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | " + finders + " |\n",
-        )
+    counters = "found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0"
+    for row, ok in (
+        (f"| Pass 2 | method: re-derivation | {counters} | finders: native sonnet×1 |", True),
+        (f"| Pass 2 | method: re-derivation | {counters} | finders: the orchestrator |", False),
+        # a committed shape (4 of 602 receipts at 14f641255): the token in the second cell, a token-free
+        # `finders:` cell last — the UNION keeps it passing
+        (f"| Pass 2 | sonnet×1 + haiku×1 · method: re-derivation | {counters} | finders: dispatched 2, returned 2 |", True),
+        # a label mentioned MID-TEXT is not a label: the cell must OPEN with it
+        (f"| Pass 2 | the orchestrator | {counters} | method: re-derivation — the finders: sonnet×1 |", False),
+    ):
+        moved = done.replace(closing, row + "\n")
         out.write_text(moved, encoding="utf-8")
         errs = crc.check_file(out)
-        assert (errs == []) is ok, (finders, errs)
+        assert (errs == []) is ok, (row, errs)
         assert ok or any("names no finder seat" in e for e in errs), errs
 
 
@@ -440,15 +446,20 @@ def test_the_three_pass_row_texts_agree_on_cell_order_and_labels() -> None:
     root = Path(__file__).resolve().parents[1]
     rows = []
     term = (root / "commands" / "_fragments" / "term-coverage.md").read_text(encoding="utf-8")
-    rows += [m.group(0) for m in re.finditer(r"`(\| Pass k \|[^`]*\|)`", term)]
+    rows += [m.group(1) for m in re.finditer(r"`(\| Pass [kN] \|[^`]*\|)`", term)]
+    prompts = (root / "docs" / "reference" / "convergence-prompts.md").read_text(encoding="utf-8")
+    rows += [m.group(1) for m in re.finditer(r"`(\| Pass [kN] \|[^`]*\|)`", prompts)]
     review = (root / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8")
     rows += [line for line in review.splitlines() if re.match(r"\| Pass \d+ \| ", line)]
     skeleton = (root / "scripts" / "review_receipt.py").read_text(encoding="utf-8")
     rows += [line for line in skeleton.splitlines() if re.match(r"\| Pass \d+ \| ", line)]
-    assert len(rows) >= 5, rows
-    for row in rows:
+    # the edit-loop ledger (term-edit) carries a fifth cell, the artifact md5 — the same first four
+    edit = (root / "commands" / "_fragments" / "term-edit.md").read_text(encoding="utf-8")
+    edit_rows = [line for line in edit.splitlines() if re.match(r"\| Pass \d+ \| ", line)]
+    assert len(rows) >= 7 and edit_rows, (rows, edit_rows)
+    for row in rows + edit_rows:
         cells = [c.strip() for c in row.strip("`").strip().strip("|").split("|")]
-        assert len(cells) == 4, row
+        assert len(cells) == (5 if row in edit_rows else 4), row
         assert crc._MODEL_TOK.search(cells[1]) or "<" in cells[1], ("finders second", row)
         assert cells[2].startswith("found:"), ("counters third", row)
         assert cells[3].startswith("method: "), ("method fourth, labelled", row)
