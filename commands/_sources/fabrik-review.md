@@ -522,14 +522,14 @@ as the `measured by:` rule above, where a block fence on the following lines is 
 value.) Write the rows bare, under the `## Pass Ledger` heading.
 
 ```text
-| Pass 1 | opus×1 + sonnet×3 | found: 5, new: 5, confirmed: 3, fixed: 3, unexecuted: 0 | full partitioned pass; hygiene run at start and close |
-| Pass 2 | sonnet×1 | found: 2, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | delta over pass 1's fix diff + one hop |
-| Pass 3 | sonnet×1 | found: 1, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | closing pass, the round-1 seats over their own slices; classes not touched standing-clean from pass 1 → EXIT |
+| Pass 1 | opus×1 + sonnet×3 | found: 5, new: 5, confirmed: 3, fixed: 3, unexecuted: 0 | method: citation — full partitioned pass; hygiene run at start and close |
+| Pass 2 | sonnet×1 | found: 2, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: citation — delta over pass 1's fix diff + one hop |
+| Pass 3 | sonnet×1 | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — closing pass, the round-1 seats over their own slices; classes not touched standing-clean from pass 1 → EXIT |
 ```
 
-Note pass 3: the finder DID re-raise the standing DESIGN-GAP row (an unbuilt endpoint, a missing
-feature the run may not decide) — that re-raise is cited in its disposition ledger row, and it is a raw
-candidate, so it shows in `found:`. It closes the loop anyway, because **`found:` is RAW RECALL — the
+Note pass 3: the finder raised one FRESH candidate, which you executed and refuted — a raw candidate,
+so it shows in `found:` (a re-raise of an already-adjudicated standing row would instead be CITED and
+not counted, per the term-coverage contract above). It closes the loop anyway, because **`found:` is RAW RECALL — the
 seats' reach — and `confirmed:` is the EXIT COUNTER: the candidates you EXECUTED and reproduced**
 (D-206, superseding D-048's "a fresh candidate counts even when refuted"). This is what reconciles the
 loop with its graders: `check_convergence.py`'s QUIET_PASS and `check_review_coverage.py` both read

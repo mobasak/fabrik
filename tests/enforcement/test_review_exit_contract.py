@@ -317,6 +317,9 @@ def test_both_fragments_carry_the_bounded_hop_the_owning_seat_rule_and_the_round
     ccv2 = importlib.util.module_from_spec(_cc)
     _cc.loader.exec_module(ccv2)
     assert ccv2.QUIET_PASS.search(row), row
+    # and its FINDERS sit in the cell V11 reads (the second), in the `<model>×<N>` form V11 accepts —
+    # the template once put `method:` there, and every receipt copied from it was refused at close
+    assert crc._MODEL_TOK.search(crc._row_cells(row)[1]), crc._row_cells(row)
     displaced = row.replace("confirmed: 0, fixed: 0", "fixed: 0, confirmed: 0")
     assert isinstance(crc._pass_counters_ext(displaced), str)  # refused by name, as the text says
 
