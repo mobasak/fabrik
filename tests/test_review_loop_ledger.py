@@ -71,6 +71,18 @@ def _run_dir(tmp: Path) -> Path:
             62,
         ),
         "a4": ("find:B:sonnet", "sonnet", None, 0, 1),
+        "a5": (
+            "find:B:haiku",
+            "haiku",
+            {
+                "files_read": [],
+                "candidates": [],
+                "notes": "No, I have not stopped.",
+                "ledger_status": [{"id": "B-H0", "status": "NOW_FALSE", "command": "c", "output": "o"}],
+            },
+            0,
+            1,
+        ),
     }
     rows = [{"type": "launched"}]
     for aid, (label, model, result, start, end) in seats.items():
@@ -111,6 +123,12 @@ def test_read_writes_the_pass_ledger_to_a_file_with_every_seat_timed(tmp_path: P
     assert doc["verdicts"][0]["verdict"] == "confirmed"
     assert doc["ledger_status"][0]["id"] == "A-S0"
     assert "OVER BOX" in r.stdout and "refute:A" in r.stdout and "NO RESULT" in r.stdout, r.stdout
+    # 01M4C00TSS: a finder that returned but listed no file reviewed nothing — flagged, and its ledger rows tagged
+    assert seats["find:B:haiku"]["returned"] is True and seats["find:B:haiku"]["read_no_file"] is True
+    assert seats["find:A:haiku"]["read_no_file"] is False and seats["refute:A"]["read_no_file"] is False
+    assert [x.get("read_no_file", False) for x in doc["ledger_status"]] == [False, True]
+    assert "find:B:haiku" in r.stdout and "READ 0 FILES" in r.stdout and "(find:B:haiku, READ 0 FILES)" in r.stdout
+    assert "1 read 0 files" in r.stdout, r.stdout
 
 
 def test_next_builds_the_following_pass_ledger_as_objects_grouped_by_slice(tmp_path: Path) -> None:
