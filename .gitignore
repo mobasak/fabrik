@@ -185,7 +185,7 @@ scripts/kilo-benchmarks/.lcb-src/
 # ride wip_backup.sh's `add -A` off-box — tests/test_no_orphan_lcb_cache.py is what makes it visible.
 scripts/kilo-benchmarks/.lcb-hf-cache/
 # Derived kilo selection/route dumps — regenerated every daily_refresh / kilo-review run
-# (pre_filter.py, embedding_*.py, category_*.py, kilo_model_sync.py write these from agents.db),
+# (pre_filter.py, embedding_*.py, category_*.py, the archived kilo_model_sync.py wrote these from agents.db),
 # read from disk not git; tracking them churned the tree with daily +50/-50 reorderings and the
 # chore(pipeline) bot re-committed them every day. Untracked 2026-07-26 (same rationale as
 # models_browser.html / translation_bench above). Rebuilt on every run — never source.

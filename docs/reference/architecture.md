@@ -260,7 +260,7 @@ src/fabrik/
 | `.droid/docs_log/` + `docs_queue/` | Docs enforcer state (generated/pending) | Yes | No |
 | `.droid/dev_tracker.db` | SQLite — gate results, review costs, workflow events | Yes | No |
 | `.droid/kilo_usage.jsonl` | Token counts + cost per Kilo review invocation | Yes | No |
-| `.droid/kilo_model_sync.log` | Cron log of the retired `kilo_model_sync.py` (D-415) — its output is read by nothing | Yes | No |
+| `.droid/kilo_model_sync.log` | Frozen log of the retired `kilo_model_sync.py` (D-415; archived 2026-10-07, nothing writes it) | Yes | No |
 | `.kilo/` | Legacy Kilo Code extension runtime (Kilo CLI retired; LLM access = Claude Code OAuth + OpenRouter) | Yes | No (gitignored) |
 | `.vscode/` | VS Code settings — disables `.env` loading in Python terminal (2 settings) | Yes | Yes |
 | `.windsurf/rules/` | 55 AI behavior rule packs (ai/, chrome-ext/, core/, desktop-app/, mobile-app/, saas/) — the convention enforcement rules referenced in CLAUDE.md; glob-activated for any agent | Yes | Yes |
