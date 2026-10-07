@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-06T13:46:37.928640Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "737fd80a29e91c64bf613968160651cd09429a52",
   "id": "W-7d2d4c98",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "build the approved rotation capability probe (plan-2, D-614/D-616): probe on promote, active re-check + D7 session-marker expiry, confirmed auto-park, wrapper park"
 }

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T00:23:11.204923Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7aab61a6",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "quota"
+  ],
+  "title": "Second relief wake at 03:40 said 'the fleet-quota hold LIFTED at 11:00' — the lift epoch written to .holdlifted (or the hold-lifted ledger row) is not the tick's clock, or a dwell/relief oscillation re-armed and re-cleared the stamp after the 03:07 lift; read rotate-ledger.jsonl rows 03:00-03:45 and _wake_held_sessions' epoch source (claude_rotate.py:6452-6494)."
+}

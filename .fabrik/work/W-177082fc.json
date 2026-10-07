@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-06T19:40:25.927936Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-177082fc",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "normalise c.file through the same root strip as readsFile when unionSlice takes a candidate in; one harness test with two seats citing one defect in two shapes",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "intel"
+  ],
+  "title": "fabrik-review-loop.js sameDefect compares the candidate file field verbatim, so a pin-path cite and a repo-path cite of one defect never merge (overlap undercounted, Chapman estimate inflated, refuter runs it twice) — readsFile's normalisation applied to c.file"
+}

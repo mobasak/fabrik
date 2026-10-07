@@ -31,6 +31,14 @@ NOW = 1_800_000_000.0
 DAY = 86400
 
 
+@pytest.fixture(autouse=True)
+def _no_real_capability_probe(monkeypatch):
+    """The flip leg probes the active account and every promotion candidate (plan 2026-10-06-plan-2,
+    D2/D6); these tick tests never meant to launch the real `claude` for that, so the D2/D6 entry
+    point answers `ok`."""
+    monkeypatch.setattr(cr, "_probe_account", lambda *a, **k: "ok")
+
+
 def _acct(
     name,
     weekly_pct=10.0,
@@ -993,7 +1001,9 @@ def test_stale_reading_triggers_refresh_ping_and_reprobe(tmp_path, monkeypatch):
     monkeypatch.setattr(cr, "_now", lambda: now)
     monkeypatch.setattr(cr, "_load_usage_cache", lambda: {"alpha@test": {"ts": now - 90_000}})
     pinged = []
-    monkeypatch.setattr(cr, "_keepalive_ping", lambda d: pinged.append(d.name) or True)
+    monkeypatch.setattr(
+        cr, "_capability_probe", lambda d, timeout=None: pinged.append(d.name) or "ok"
+    )
     monkeypatch.setattr(cr, "_read_access_token", lambda p: "tok")
     monkeypatch.setattr(cr, "_oauth_get", lambda kind, tok: {"usage": True})
     monkeypatch.setattr(
@@ -1025,10 +1035,10 @@ def test_status_path_never_pings_even_when_stale(tmp_path, monkeypatch):
         lambda: {"alpha@test": {"ts": now - 90_000, "seven_day": {"utilization": 93.0}}},
     )
 
-    def _boom(d):
-        raise AssertionError("--status must never invoke _keepalive_ping")
+    def _boom(d, timeout=None):
+        raise AssertionError("--status must never invoke _capability_probe")
 
-    monkeypatch.setattr(cr, "_keepalive_ping", _boom)
+    monkeypatch.setattr(cr, "_capability_probe", _boom)
     monkeypatch.setattr(cr, "_identity_probe_due", lambda slugs, now: False)
     accounts, _ = cr._fleet_account_rows(cr._fleet_dirs())
     assert accounts[0]["source"] == "cache", "status serves the honest cached row instead"
@@ -1050,7 +1060,7 @@ def test_failed_refresh_ping_marks_chain_dead_not_zero(tmp_path, monkeypatch):
         "_load_usage_cache",
         lambda: {"alpha@test": {"ts": now - 90_000, "seven_day": {"utilization": 93.0}}},
     )
-    monkeypatch.setattr(cr, "_keepalive_ping", lambda d: False)
+    monkeypatch.setattr(cr, "_capability_probe", lambda d, timeout=None: "inconclusive")
     monkeypatch.setattr(cr, "_identity_probe_due", lambda slugs, now: False)
     accounts, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=True)
     assert accounts[0]["ping_failed"] is True
@@ -1082,7 +1092,7 @@ def test_dead_active_chain_flips_when_network_proven_up(monkeypatch, capsys):
     monkeypatch.setattr(cr, "_resolve_active", lambda: "dead")
     flips = []
     monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
-    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl: ("alive", "alive@test"))
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("alive", "alive@test"))
     alerts = []
     monkeypatch.setattr(cr, "_tick_telegram", lambda msg: alerts.append(msg))
     cr._fleet_flip_leg([], accounts, threshold=95.0)
@@ -1132,7 +1142,9 @@ def test_keepalive_sweep_is_retired_and_pings_nothing(tmp_path, monkeypatch, cap
     now = 2_000_000.0
     _os.utime(root / "stale" / ".credentials.json", (now - 40 * 86400,) * 2)
     pinged = []
-    monkeypatch.setattr(cr, "_keepalive_ping", lambda d: pinged.append(d.name) or True)
+    monkeypatch.setattr(
+        cr, "_capability_probe", lambda d, timeout=None: pinged.append(d.name) or "ok"
+    )
     capsys.readouterr()
     assert cr._keepalive_sweep([root / "stale", root / "fresh"], now, quiet=True) == (0, 0)
     assert pinged == [] and capsys.readouterr().out == ""
@@ -2120,15 +2132,117 @@ def test_a_past_weekly_reset_never_sorts_ahead_of_a_live_accounts_future_one(mon
 
 
 def test_exactly_at_the_pickers_bar_an_account_is_not_a_relief_candidate(monkeypatch):
-    """R5: the picker takes an account AT the bar now; relief must not promise its reset."""
+    """R5: the picker takes an account AT the bar now; relief must not promise its reset. The bar is
+    read from the module, never a literal (a literal 85 passed trivially once the default moved to 98)."""
     monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
     monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    bar = cr._rotate_threshold()
     accounts = [
         _relief_row(
-            "bar", weekly=10.0, cap=99, session=85.0, fh_reset=NOW + 9000, wk_reset=NOW + 86400
+            "bar", weekly=10.0, cap=99, session=bar, fh_reset=NOW + 9000, wk_reset=NOW + 86400
         )
     ]
     assert cr._next_session_relief(accounts, "active@test", NOW) is None
+    accounts[0]["five_hour"]["utilization"] = bar + 0.01
+    assert cr._next_session_relief(accounts, "active@test", NOW) == (
+        NOW + 9000,
+        "bar@test",
+        "session",
+    )
+
+
+# ── W-5624d692: at the URGENT line the active account's own 5h reset is the relief ─────────────────
+# Measured 2026-10-07 01:12: `--status` promised "resume Wed 15:02" (ob@'s weekly cap return) while the
+# active account's own window reset at 03:10. At 90-97 the active row was neither `session_spent`
+# (the picker's 98 bar) nor weekly-blocked, so it fell into no bucket and the cap-walled siblings' weekly
+# bucket won. The picker's bar stays the SIBLINGS' rule (P3-2): the active account is not a flip target,
+# it is the account that continues, and the advisory that asks this question fires at `>= 90` (:7082).
+
+
+def test_at_the_urgent_line_the_active_accounts_own_session_reset_is_the_relief(monkeypatch):
+    monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
+    monkeypatch.delenv("ROTATE_URGENT_DRAIN_PCT", raising=False)
+    accounts = [
+        _relief_row(
+            "active", weekly=51.0, cap=99, session=93.0, fh_reset=NOW + 7200, wk_reset=NOW + 5 * DAY
+        ),
+        _relief_row(
+            "ob", weekly=98.0, cap=95, session=7.0, fh_reset=NOW + 3000, wk_reset=NOW + 50000
+        ),
+        _relief_row(
+            "sarp", weekly=95.0, cap=95, session=0.0, fh_reset=NOW + 600, wk_reset=NOW + 120000
+        ),
+    ]
+    assert cr._next_session_relief(accounts, "active@test", NOW) == (
+        NOW + 7200,
+        "active@test",
+        "session",
+    )
+
+
+def test_the_urgent_line_is_inclusive_for_the_active_account_and_nothing_below_it_counts(
+    monkeypatch,
+):
+    """`>=` 90.0, as the advisory's own trigger (:7082): a strict `>` would broadcast at 90.0 while
+    promising the old weekly instant. 89.99 is not a candidate — the advisory does not fire there."""
+    monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
+    monkeypatch.delenv("ROTATE_URGENT_DRAIN_PCT", raising=False)
+    ob = _relief_row(
+        "ob", weekly=98.0, cap=95, session=7.0, fh_reset=NOW + 3000, wk_reset=NOW + 50000
+    )
+    at = _relief_row(
+        "active", weekly=10.0, cap=99, session=90.0, fh_reset=NOW + 7200, wk_reset=NOW + 5 * DAY
+    )
+    assert cr._next_session_relief([at, ob], "active@test", NOW) == (
+        NOW + 7200,
+        "active@test",
+        "session",
+    )
+    under = _relief_row(
+        "active", weekly=10.0, cap=99, session=89.99, fh_reset=NOW + 7200, wk_reset=NOW + 5 * DAY
+    )
+    assert cr._next_session_relief([under, ob], "active@test", NOW) == (
+        NOW + 50000,
+        "ob@test",
+        "weekly",
+    )
+
+
+def test_a_sibling_at_the_urgent_line_is_still_a_target_not_a_waiter(monkeypatch):
+    """The mirror: the urgent clause is the ACTIVE account's alone — a sibling at 93 is pickable now
+    (under the picker's bar), so it waits on nothing and names no reset."""
+    monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
+    accounts = [
+        _relief_row(
+            "active", weekly=51.0, cap=99, session=99.0, fh_reset=NOW + 7200, wk_reset=NOW + 5 * DAY
+        ),
+        _relief_row(
+            "sib", weekly=10.0, cap=99, session=93.0, fh_reset=NOW + 100, wk_reset=NOW + 50000
+        ),
+    ]
+    assert cr._next_session_relief(accounts, "active@test", NOW) == (
+        NOW + 7200,
+        "active@test",
+        "session",
+    )
+
+
+def test_a_weekly_walled_active_account_at_the_urgent_line_keeps_its_weekly_answer(monkeypatch):
+    """The clause lives in the session arm only: folding it into `session_spent` lifted a weekly-walled
+    active at 93 from its weekly reset (+3600) to its later session reset (+10800) and made `--status`
+    promise two resume times for one account (critique C2, executed)."""
+    monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
+    accounts = [
+        _relief_row(
+            "active", weekly=100.0, cap=99, session=93.0, fh_reset=NOW + 10800, wk_reset=NOW + 3600
+        ),
+    ]
+    assert cr._next_session_relief(accounts, "active@test", NOW) == (
+        NOW + 3600,
+        "active@test",
+        "weekly",
+    )
 
 
 def test_the_no_relief_message_does_not_claim_no_sibling_reports_a_reset():
