@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:22.189450Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-39d8d1fd",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "mail-01m493w8g3",
+    "waits-2026-10-13"
+  ],
+  "title": "check_convergence.py grades a /fabrik-spec-review or /fabrik-plan-review receipt under docs/development/reviews/ as a code review and demands an embedded final_gate block (mail 01M493W8G3) — skip receipts whose header names those commands (check_review_coverage already grades their Pass Ledgers)"
+}

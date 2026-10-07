@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-07T00:23:11.204923Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "ba6eb6513e3f073600c3b8f4187932f57c122e7c",
   "id": "W-7aab61a6",
   "kind": "task",
   "legacy": false,
@@ -14,8 +14,8 @@
   "next": "",
   "note": "",
   "owner": "",
-  "priority": 2,
-  "status": "open",
+  "priority": 1,
+  "status": "done",
   "tags": [
     "quota"
   ],

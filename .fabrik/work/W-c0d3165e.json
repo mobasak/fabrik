@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T05:46:41.349139Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c0d3165e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49CM36XAAZRQBA1H4G3Y351",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: re-run refresh-governance.sh — gitignored copies refreshed; the script itself is NOT safe to run unattended yet"
+}

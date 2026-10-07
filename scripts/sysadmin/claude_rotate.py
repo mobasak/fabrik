@@ -2308,9 +2308,37 @@ def _rotate_state_dir() -> Path:
     parents at the umask); an EXISTING dir keeps the mode it has — `mkdir`'s mode applies only
     to a dir it creates, `--status` reaches this accessor and is a read every agent runs, and a
     dir the operator made wider is the operator's. Never chmods."""
-    d = Path(os.environ.get("ROTATE_STATE_DIR") or Path.home() / ".claude" / "state")
+    d = _box_state_dir("ROTATE_STATE_DIR", Path.home() / ".claude" / "state", "state")
     d.mkdir(mode=0o700, parents=True, exist_ok=True)
     return d
+
+
+def _box_state_dir(env_key: str, live: Path, kind: str) -> Path:
+    """Resolve a BOX-STATE dir (the tick's state dir, the resume mesh's lock dir): the env
+    override when set, else the live dir — EXCEPT under pytest. `PYTEST_CURRENT_TEST` is set by
+    pytest itself for every running test, conftest or no conftest, so a test that reaches
+    `_wake_held_sessions` or the fleet-exhausted stamp without the repo's autouse pin
+    (`tests/conftest.py`: a suite run from a scratch COPY without its conftest, `--noconftest`,
+    another rootdir) gets a per-process scratch dir and never the live one. Measured 2026-10-07:
+    review seats ran the fleet suite from pinned copies and every armed session on the box woke
+    with `LIFTED at 11:00` — the tests' fixed clock (epoch 1800000000) written into live
+    `.holdlifted` files; 10 fleet reports, W-7aab61a6. The state dir carries the stamp that HOLDS
+    every session's tools, so it gets the same guard. Cobra: the cheapest way past this guard is a
+    test that unsets `PYTEST_CURRENT_TEST` or sets the env key to the live path — both are the
+    test's own deliberate act, which no scanner here catches (`tests/test_conftest_isolation.py`
+    grades the guard itself, in a subprocess with the pins removed, not every test's conduct)."""
+    override = os.environ.get(env_key)
+    if override:
+        return Path(override)
+    current = os.environ.get("PYTEST_CURRENT_TEST")
+    if current:
+        # keyed by the test's NODEID (the value minus its " (setup|call|teardown)" phase suffix),
+        # not the pid alone: two tests in one process must not read each other's stamp
+        nodeid = hashlib.sha1(
+            current.rsplit(" (", 1)[0].encode(), usedforsecurity=False
+        ).hexdigest()[:12]
+        return Path(tempfile.gettempdir()) / f"claude-rotate-test-{kind}-{os.getpid()}-{nodeid}"
+    return live
 
 
 def _switch_paused() -> bool:
@@ -6375,7 +6403,9 @@ def _clear_stamp(stamp: Path) -> bool:
 def _selfwatch_lock_dir() -> Path:
     """The resume mesh's lock dir — the same default every pane's self-watch uses
     (`claude-selfwatch.sh:18`, `selfwatch_check.py:42-43`); cron runs the tick as the same user."""
-    return Path(os.environ.get("CLAUDE_SOUND_LOCKDIR") or f"/tmp/claude-sound-locks-{os.getuid()}")
+    return _box_state_dir(
+        "CLAUDE_SOUND_LOCKDIR", Path(f"/tmp/claude-sound-locks-{os.getuid()}"), "locks"
+    )
 
 
 def _selfwatch_safe(sid: str) -> str:

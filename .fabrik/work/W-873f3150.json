@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:05:30.846733Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-873f3150",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49MHPZGABEY0KAGT4EC8JV8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Quota-pause relief wake is unreliable for windows that paused at AMBER/RED — operator report, with measured state and two concrete gaps"
+}

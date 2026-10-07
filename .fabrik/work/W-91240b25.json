@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:05:30.682286Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-91240b25",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49MH9HMFFSNCRNNTXMTTAWT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Quota-relief resume is not waking paused windows; the promised resume also names the wrong time"
+}

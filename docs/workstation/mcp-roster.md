@@ -72,7 +72,13 @@ Weight = measured RSS across live processes (per-window cost scales with window 
 
 **Net effect of the split as RULED:** a typical headless API repo drops 16 → **6** servers (the
 universal set: session-recall + exa + brave-search + firecrawl + postgres-pro + serena); the full
-roster survives only hub-class (hub + fabrik-lib, D-015).
+roster survives only hub-class (hub + fabrik-lib, D-015) — the HUB minus the four per-session heavy
+servers (`maestro`, `mobile-mcp`, `playwright`, `chrome-devtools`; `HUB_EXCLUDE` in the emitter,
+operator ruling 2026-10-07 after 48 orphaned Maestro JVMs held ~11 GB of swap), fabrik-lib the FULL
+roster, maestro included (the same ruling: maestro is for mobile projects and fabrik-lib, which vendors
+and tests the mobile modules): a mobile or browser task runs in the owning repo's window or fabrik-lib. `scripts/enforcement/check_mcp_scope.py` grades every emitted
+`.mcp.json` as a subset of its ruling, and `scripts/sysadmin/mcp_orphan_reaper.py` (SessionEnd + the
+WSL startup hook) reaps a stdio server whose session is gone.
 
 ---
 
@@ -203,6 +209,7 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/enforcement/check_mcp_scope.py`
 - `scripts/retype_project.py`
 - `scripts/sysadmin/emit_mcp_project_config.py`
 - `scripts/sysadmin/mcp_health.py`

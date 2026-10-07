@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:16.815132Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5e9e2113",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "mail-01m48mq2hs",
+    "waits-2026-10-13"
+  ],
+  "title": "fabrik-review-loop.js: Haiku finder seats invert the pass-2+ ledger_status label (mail 01M48MQ2HS) — name it by what it asserts about the DEFECT (DEFECT_PRESENT / DEFECT_GONE) in brief and schema"
+}

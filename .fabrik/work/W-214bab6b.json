@@ -11,13 +11,14 @@
     "plan": "",
     "spec": ""
   },
-  "next": "## [infra] check_changelog verifies existence, not correspondence (found by /fabrik-review 2026-08-30)\n\n`scripts/enforcement/check_changelog.py` only requires that *some* `###` entry exist under\n`## [Unreleased]` when `CHANGELOG.md` is staged — it never checks the entry's content against the\nstaged file list, so two real code fixes (the Stop-hook regex, the decisions.py duplicate check)\ninitially landed with zero CHANGELOG mention while the gate read green (piggybacking on unrelated\ndoc entries in the same commit; caught by a review finder, fixed by hand). A correspondence check\n(staged code paths ↔ entry text) is buildable but is a new mechanism — per the rollout law, measure\nthe miss rate first: if reviews keep catching this class, promote; if this was a one-off, don't\nbuild wallpaper. Trigger: the next occurrence of a code change landing entry-less.",
+  "next": "## [infra] check_changelog verifies existence, not correspondence (found by /fabrik-review 2026-08-30)\n\n`scripts/enforcement/check_changelog.py` only requires that *some* `###` entry exist under\n`## [Unreleased]` when `CHANGELOG.md` is staged \u2014 it never checks the entry's content against the\nstaged file list, so two real code fixes (the Stop-hook regex, the decisions.py duplicate check)\ninitially landed with zero CHANGELOG mention while the gate read green (piggybacking on unrelated\ndoc entries in the same commit; caught by a review finder, fixed by hand). A correspondence check\n(staged code paths \u2194 entry text) is buildable but is a new mechanism \u2014 per the rollout law, measure\nthe miss rate first: if reviews keep catching this class, promote; if this was a one-off, don't\nbuild wallpaper. Trigger: the next occurrence of a code change landing entry-less.\n\nMEASURED 2026-10-07 (intel, D-631): over the last 400 non-merge commits on master, 83 stage CHANGELOG.md with code; 17 of 83 add CHANGELOG text naming none of their code files, and 5 of 5 sampled are correct prose entries \u2014 a file-name correspondence check would be wallpaper. Not built. Still waiting on the trigger above (a reviewed commit whose code ships with no entry about it).",
   "note": "migrated-digest:79f5355eee89",
   "owner": "intel",
   "priority": 2,
   "status": "open",
   "tags": [
-    "handoff-2026-10-06"
+    "handoff-2026-10-06",
+    "measured-2026-10-07"
   ],
   "title": "check_changelog verifies existence, not correspondence (found by /fabrik-review 2026-08-30)"
 }

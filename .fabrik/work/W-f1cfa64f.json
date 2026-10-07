@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:40:02.128802Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f1cfa64f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49Y06ZV6EYGRV2AMRXVZDYR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: Prompt audit — trade-intelligence audited its own prompts; fixes landed at fe9aa920"
+}

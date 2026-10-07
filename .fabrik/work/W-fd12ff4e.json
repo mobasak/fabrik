@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:21.380116Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fd12ff4e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M492801ED7A66HXYF3J44RQH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the /fabrik-spec-review panel rule (D-613: \"the panel answers the design-approval gate in the operator's place\") cannot be executed as written here — the Claude Code auto-mode classifier DENIED the commit that recorded two subagent verdicts as the design approval (\"Permission … denied … Reason"
+}

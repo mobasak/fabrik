@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:05:30.364447Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-899a135a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49MFHDQ5NZ8Z788ADJFHDZG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Paused agents get no wake at quota relief when they paused on the WARNING tier (operator-reported)"
+}

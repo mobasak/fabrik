@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:21.528959Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6ce7828d",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "mail-01m492801e"
+  ],
+  "title": "D-613 panel-in-place-of-operator cannot be executed under the auto-mode classifier (mail 01M492801E): the commit recording 'APPROVED by the design panel' was denied — command text should say the panel RECOMMENDS and the DECISION block carries its verdicts to the operator"
+}

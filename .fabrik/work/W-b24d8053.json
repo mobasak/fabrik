@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T01:22:27.755494Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b24d8053",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M46DR44VJJZWY75C9YDNDXRX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "tryton-crm (agent-3): nothing owned outside the synced set."
+}

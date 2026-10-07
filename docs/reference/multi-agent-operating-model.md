@@ -11,9 +11,9 @@ decisions D-117, D-123 (the build plan), D-154/D-155 (adoption).
 run in a **linked git worktree** under `.claude/worktrees/<name>`, on branch `worktree-<name>`, and
 commit only to that branch. Conflicts move from the shared index to merge time, serialised by one
 owner — a session cannot stage a file it does not have, and Claude Code's own isolation enforcement
-blocks every route from a worktree into the main checkout (`git -C`, `GIT_DIR`, `cd`, unquoted
-heredocs). Projects adopted first; the hub now runs the model too, with its own merge owner (§ Hub
-vs project, below).
+blocks every route from a worktree into the main checkout (`git -C`, `GIT_DIR`, `cd`, and any
+command shape it cannot trace). Projects adopted first; the hub now runs the model too, with its
+own merge owner (§ Hub vs project, below).
 
 ## Launch recipe — one per window (§ Isolation, § Identity)
 
@@ -69,7 +69,16 @@ layer. The hub's T07 cut-over applies this for `fleet` and `intel`.
 - **`--worktree` is the launch form for a NEW window; a RUNNING window moves with `EnterWorktree`.**
   Either way, check the gitignored set `.worktreeinclude` lists arrived and copy any missing path in
   from the main checkout (residual R1, below); an entry without it has no gate, no packs, no `.env`.
-- Commit heredocs use a **quoted** delimiter (`<<'EOF'`) — the isolation enforcement refuses the unquoted shape.
+- Commit messages go through a file: write the message with the Write tool to the session
+  scratchpad and run `git commit -F <scratch>/msg` — a heredoc, even quoted (`<<'EOF'`; an unquoted
+  one is refused outright), is a compound shape the isolation check may refuse.
+- **Inside a worktree, Bash is one plain command per call.** The isolation check refuses any compound
+  shape it cannot trace — a quoted heredoc, a loop, brace expansion, a runtime `$var` or `$(…)`
+  argument, the word `git` inside data — whatever the verb, usually wording the refusal as a git
+  problem; write multi-line work with the Write tool to the session scratchpad and run it as one
+  plain command, every git
+  call staying on the command line (residual R8). A refusal naming auto mode is the permission
+  classifier, not this check — retry it.
 - Who is agent-1: the merge owner named by the ledger's `MERGE OWNER:` row (`python3
   scripts/decisions.py --merge-owner .`) — written by `/fabrik-epics-review` on the epic path (the
   first name in the epics' `owner:` set) or by `--adopt` on an existing repo (D-154).
@@ -288,6 +297,7 @@ Agent-1 runs the pipeline from `5-certify` once every branch is merged: `/fabrik
 | R3 | fire rate + cost of the mid-epic re-copy loop | **Measured** (T01b): 3 of 45 synced projects carried worktrees (82 in all); zero cost where there are none |
 | R6 | nested subagent worktrees from an isolated session | **Written as a once-per-repo step** in `/fabrik-execute-plan` step 8; default if blocked: subagents on branches inside the agent's worktree |
 | R7 | may worktree A read B's `.fabrik/plan-locks/`? | **Unprobed, unbuilt**; default: per-tree visibility (sufficient — § Locks above) |
+| R8 | does the isolation check refuse git-free compound shapes? | **Measured yes** in 5 repos: site-provisioner 2026-10-06 (01M4926XSB — five quoted, git-free shapes, ~10 retries across 5 agents), tryton-crm 2026-10-03 (01M41SCNE0), fabrik-lib (01M3W95RYB — the word `git` inside a mail body), trade-intelligence (01M3Z1CN), iterative_image_editor (01M3XRJF, 01M3QA5R); the working remedy in those mails was the Write tool for the file and one plain command to run it. Rule: § Launch recipe, "Inside a worktree, Bash is one plain command per call" |
 
 ## Hub vs project (§ Decisions derived (b))
 

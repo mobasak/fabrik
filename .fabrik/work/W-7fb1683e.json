@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T05:55:25.171490Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7fb1683e",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "waits-fabrik-lib-sb110"
+  ],
+  "title": "Wire fabrik-lib refresh-governance.sh --reference-only after each hub sync — HOLD until fabrik-lib SB-110 lands (mail 01M49CM36X: today's script rewrites 14 tracked files incl. an ADAPTED vendored check and drops three .gitignore lines)"
+}

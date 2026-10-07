@@ -369,7 +369,6 @@ ALLOWLIST: dict[str, str] = {
     "scripts/external_services_chain.sh": "main-only: already honours ${FABRIK_ROOT:-/opt/fabrik}; the default path is the external-services cron chain",
     "scripts/kilo-benchmarks/autocommit_pipeline_outputs.sh": "main-only: spec § What exists today — the kilo pipeline commits only in the main checkout",
     "scripts/kilo-benchmarks/daily_refresh.sh": "main-only: kilo-benchmarks daily cron refresh, fixed to /opt/fabrik (no env override)",
-    "scripts/kilo_model_sync_startup.sh": "main-only: WSL-boot-triggered model sync, fixed to the hub checkout",
     "scripts/sysadmin/bot.py": "main-only: the veteran-sysadmin AI dispatcher — production cron pattern, fixed to /opt/fabrik",
     "scripts/sysadmin/canary_grounding.py": "main-only: sysadmin monitoring cron, fixed to /opt/fabrik",
     "scripts/sysadmin/ci_health_probe.py": "main-only: sysadmin monitoring cron; the matched write is a mesh-notify subprocess argument, not a file write",

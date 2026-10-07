@@ -224,7 +224,7 @@ def test_hand_authored_docs_are_excluded():
     frozen = set(cg.SELECTION_DOCS + cg.REGISTRY_JSONS + cg.OTHER_OUTPUTS)
     assert not any("AGGREGATOR_ROADMAP" in f or "BENCHMARK_SOURCES" in f for f in frozen)
     assert not any("kilo_all_models" in f for f in frozen), (
-        "produced by the repo-root kilo_model_sync.py — it never moves with the engine"
+        "produced by the retired, now-archived kilo_model_sync.py — it never moves with the engine"
     )
 
 

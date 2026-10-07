@@ -1,7 +1,7 @@
 # Kilo Agent Management
 
-**Status:** RETIRED SUBJECT (2026-09-26, W-21f99f3a). The hub runs nothing this page used to describe except the retired `kilo_model_sync.py`, which its daily crontab
-line and a `~/.bashrc` startup hook still fire until the operator removes them (row below).
+**Status:** RETIRED SUBJECT (2026-09-26, W-21f99f3a). The hub runs nothing this page used to describe; the last of it, the retired `kilo_model_sync.py`, was
+archived 2026-10-07 to `scripts/archived/` with its 11:59 crontab line removed (mail 01M4AR32) (row below).
 The full 1,016-line version is kept in git history: `git show f5cd99172:docs/workflows/KILO_AGENT_MANAGEMENT.md`.
 
 ## Where each part went
@@ -12,7 +12,7 @@ The full 1,016-line version is kept in git history: `git show f5cd99172:docs/wor
 | What the hub still consumes from the engine (delivered docs, the ranking, the freshness check) | `docs/workflows/KILO_BENCHMARK_WORKFLOW.md` |
 | The boot hook's real steps | `docs/workflows/DATA_SYNC_WORKFLOW.md` |
 | Kilo CLI and Traycer CLI agents, `generate_kilo_agents.py` wrappers | Kilo CLI retired 2026-07-19; the Traycer layer retired by D-102 (2026-09-03); `generate_kilo_agents.py` was taken off the scheduler by D-415 |
-| `kilo_model_sync.py` | Retired (D-415); its daily crontab line (`59 11 * * *`) and `~/.bashrc` hook are the operator's to remove |
+| `kilo_model_sync.py` | Retired (D-415); archived 2026-10-07 to `scripts/archived/` with its 11:59 crontab line removed (mail 01M4AR32) |
 | `kilo_code_review.py` | `scripts/archived/` |
 
 ## Archived dead code, and what stays live
@@ -20,9 +20,8 @@ The full 1,016-line version is kept in git history: `git show f5cd99172:docs/wor
 `agent_selector.py`, `classify_ticket.py`, `db_models.py`, `kilo_telemetry.py`, `coding-auto.sh`,
 `kilo_auto_route.py` and `generate_kilo_agents.py` moved to `scripts/archived/` on 2026-09-27 (W-70653005).
 They were kept at the 2026-08-15 extraction only because `kilo_auto_route.py` and `kilo_docs_enforcer.py`
-imported the four modules, and both of those were already retired. The retired `kilo_model_sync.py` stays in
-`scripts/` because the operator's crontab and `~/.bashrc` still run it; its unscheduled `--apply` path would
-now fail to find `generate_kilo_agents.py`, while the scheduled `--sync` does not touch it.
+imported the four modules, and both of those were already retired. The retired `kilo_model_sync.py` followed them to
+`scripts/archived/` on 2026-10-07, once its crontab line was removed.
 
 `scripts/kilo-benchmarks/kilo_agents.db` stays: it is the engine's delivered snapshot (untracked), and the
 ranker `rank_task_subagents.py` reads it (the 06:00 cron in `daily_refresh.sh` skips the ranker while the
