@@ -692,8 +692,7 @@ _GRAMMAR_PHRASES: tuple[str, ...] = (
     # the fourth hub beat (kaizen, 2026-10-06) replaced the three-beat spellings outright: measured
     # at the change, 0 of 1,956 ledger rows carried either old phrase, so nothing is un-bucketed,
     # and the pin test needs every phrase here to live in the fragment or `_USAGE_GRAMMAR`
-    "mail id(s) to infra|fleet|intel|kaizen | none",
-    "mail id(s) to <infra|fleet|intel|kaizen> | none",
+    "mail id(s) to ",
 )
 
 

@@ -6105,6 +6105,16 @@ def test_the_paste_guard_covers_every_field_not_just_change() -> None:
     )
     for field in ("confusion", "waste", "filed"):
         assert f"{field} (placeholder)" in missing, missing
+    # every spelling the `filed:` clause has had is a placeholder: three beats, four beats, bracketed
+    for spelling in (
+        "mail id(s) to infra|fleet|intel | none",
+        "mail id(s) to infra|fleet|intel|kaizen | none",
+        "mail id(s) to <infra|fleet|intel|kaizen> | none",
+    ):
+        _, missing = cr._parse_usage_feedback(
+            "confusion: none · waste: none · change: none · filed: " + spelling
+        )
+        assert "filed (placeholder)" in missing, (spelling, missing)
 
 
 def test_the_grammar_phrases_cover_both_spellings_the_system_prints() -> None:
@@ -6718,6 +6728,24 @@ def test_a_slice_omitted_for_several_rounds_stays_vanished_until_restated(run_di
     )
     back = _cr(run_dir, "round", *quiet, "--slices", "A:2/2,B:3/3,C:1/1").stdout
     assert "TERMINAL VERDICT" in back and "NOT TERMINAL" not in back, back
+
+
+def test_a_slice_verified_in_full_is_carried_not_owed() -> None:
+    """W-c8069437 (wef3 01M3YDPRKJ): D-335 re-dispatches only a slice with an open claim, so a slice
+    whose most recent statement had every claim verified is CARRIED — a pass that sends only the
+    failing slice must not re-state the idle one. A slice last stated OPEN stays owed (the cobra)."""
+    command_run = _load("cr_carry", _SCRIPT)
+    rounds = [
+        {"slices": [{"name": "A", "claims": 2, "verified": 0}, {"name": "B", "claims": 3, "verified": 0}]},
+        {"slices": [{"name": "A", "claims": 2, "verified": 1}, {"name": "B", "claims": 3, "verified": 3}]},
+        {"slices": [{"name": "A", "claims": 2, "verified": 2}]},
+    ]
+    assert command_run._vanished_slices(rounds) == [], "B was verified 3/3 in round 2: carried"
+    rounds[1]["slices"][1]["verified"] = 2
+    assert command_run._vanished_slices(rounds) == ["B"], "B was last stated open: owed"
+    rounds[1]["slices"][1]["verified"] = 3
+    rounds.insert(2, {"slices": [{"name": "A", "claims": 2, "verified": 2}, {"name": "B", "claims": 1, "verified": 0}]})
+    assert command_run._vanished_slices(rounds) == ["B"], "the MOST RECENT statement rules, not the best one"
 
 
 def test_an_unrestatable_stored_slice_name_is_never_owed() -> None:

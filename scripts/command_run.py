@@ -379,16 +379,23 @@ def _vanished_slices(rounds: list[Any]) -> list[str]:
     slice still open from it, would read as every slice verified. Every earlier round, not only
     the latest one that stated slices: comparing with the latest let a slice dropped two rounds
     running read clean (W-aa53dfc6). A stored name `--slices` would refuse (a hand-edited row's
-    `?`) is skipped, because it could never be restated and would trap `done` forever."""
+    `?`) is skipped, because it could never be restated and would trap `done` forever.
+
+    A slice whose MOST RECENT statement had every claim verified is CARRIED, not owed (W-c8069437):
+    D-335 re-dispatches only a slice with an open claim, so a pass that sends only the slice still
+    failing must not have to re-state the idle verified one with a zero-seat round. The cobra the
+    rule exists for — dropping a slice that was still OPEN — stays refused, because a slice last
+    stated with `verified < claims` (or no claim) is owed exactly as before."""
     if not rounds:
         return []
     last = {s["name"] for s in _slice_rows(rounds[-1])}
-    owed: list[str] = []
+    latest: dict[str, dict[str, Any]] = {}
     for row in rounds[:-1]:
         for s in _slice_rows(row):
-            name = s["name"]
-            if name not in owed and re.fullmatch(_SLICE_NAME, name):
-                owed.append(name)
+            if re.fullmatch(_SLICE_NAME, s["name"]):
+                latest.pop(s["name"], None)
+                latest[s["name"]] = s
+    owed = [n for n, s in latest.items() if s["verified"] < s["claims"] or s["claims"] < 1]
     return [n for n in owed if n not in last]
 
 
@@ -1685,11 +1692,10 @@ _GRAMMAR_PHRASES = (
     "steps, turns or tokens spent without",
     "steps/turns/tokens spent without changing the outcome",
     "surfaces exercised: <what your run touched",
-    # the fourth hub beat (kaizen, 2026-10-06) replaced the three-beat spellings outright: measured
-    # at the change, 0 of 1,956 ledger rows carried either old phrase, so nothing is un-bucketed,
-    # and the pin test needs every phrase here to live in the fragment or `_USAGE_GRAMMAR`
-    "mail id(s) to infra|fleet|intel|kaizen | none",
-    "mail id(s) to <infra|fleet|intel|kaizen> | none",
+    # the SHARED prefix of every spelling the `filed:` clause has had: a whole-beat-list phrase broke
+    # the guard the day the fourth beat (kaizen, D-627) was added — the three-beat paste still printed
+    # by older rendered commands slipped through — and would again on the fifth (W-c8069437 batch)
+    "mail id(s) to ",
 )
 
 
