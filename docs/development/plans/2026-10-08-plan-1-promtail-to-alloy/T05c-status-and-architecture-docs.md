@@ -1,0 +1,41 @@
+# T05c — The VPS status and the deployment architecture name Alloy
+
+Depends: T02, T03, T04a, T04b
+Parallel: ⚡
+Complexity: simple
+Appetite: 45
+Gate: python scripts/enforcement/check_doc_links.py
+Docs: the rows above (current-state docs touched by the shipper change)
+
+## Scope
+Implements spec § Documentation landing sites for the docs below: every current-state claim that Promtail is the
+running shipper (its name, port 9080, config path, metric names, container) is rewritten for Alloy (name `alloy`,
+port 12345, `configs/alloy/config.alloy`, the `loki_write_*` metrics), and a sentence that is history (a dated
+incident, a past migration) stays as written. Each doc keeps saying that Promtail stays defined under the
+`rollback` profile until Gate S where it already describes the stack's services (spec § The delta › D6). `docs/infrastructure/promtail-noise-filter-setup.md` is renamed
+`docs/infrastructure/alloy-noise-filter-setup.md` (a `git mv`, both paths in Touches) and rewritten for Alloy's
+`stage.drop`, and both inbound links are retargeted in the same ticket — `docs/DEPLOYMENT_ARCHITECTURE.md:855` and the
+one in `docs/infrastructure/glitchtip-sdk-integration-setup.md` — so the whole-tree link Gate is green; its INDEX.md
+row moves with it (orchestrator-applied). DO-NOT: edit
+any code or config, any governance file, `agents-fabrik.md`, `docs/reference/prebuilt-app-containers.md` or
+`.windsurf/rules/` (infra's, mailed per T06).
+
+## Touches
+- docs/infrastructure/vps-status.md — PRIMARY PATH
+- docs/DEPLOYMENT_ARCHITECTURE.md
+- docs/infrastructure/glitchtip-sdk-integration-setup.md
+- docs/infrastructure/promtail-noise-filter-setup.md
+- docs/infrastructure/alloy-noise-filter-setup.md
+
+## Behavior Contract
+- **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; docs/infrastructure/vps-status.md:46)
+- **Given** the renamed noise-filter doc, **When** the tree is searched for `promtail-noise-filter-setup.md` outside history, **Then** nothing links it: `docs/DEPLOYMENT_ARCHITECTURE.md:855` and the glitchtip setup doc link `alloy-noise-filter-setup.md`, which describes Alloy's `stage.drop` (docs/DEPLOYMENT_ARCHITECTURE.md:855)
+- **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, docs/infrastructure/vps-status.md included (.windsurf/rules/core/40-documentation.md)
+
+## Context Files
+- docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md
+- .windsurf/rules/core/40-documentation.md
+- docs/infrastructure/vps-status.md
+- docs/DEPLOYMENT_ARCHITECTURE.md
+- docs/infrastructure/glitchtip-sdk-integration-setup.md
+- docs/infrastructure/promtail-noise-filter-setup.md
