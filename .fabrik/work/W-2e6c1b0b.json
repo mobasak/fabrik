@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T01:26:38.645750Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2e6c1b0b",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "enforcement"
+  ],
+  "title": "check_plan_tickets NEVER_ROUTE_PREFIXES names the hub gate file only (scripts/final_gate.py); a repo whose gate is scripts/final_gate_fabrik_lib.py gets no never-route cover — reproduced: _never_route('scripts/final_gate_fabrik_lib.py') is False (fabrik-lib 01M494TQ3E, SB-108). DECISION shaped: a filename-FAMILY rule — any scripts/final_gate* file is never-route (NEVER_ROUTE_FILE_FAMILIES = ('scripts/final_gate',), checked by startswith in _never_route beside the containment prefixes); rejected: a repo-level override file (new mechanism) and a glob in the constant (_covered_by is containment). MIRROR: scripts/final_gate_<anything> becomes never-route (gate machinery by name — intended); the bidirectional dir rule unchanged. Grader: tests/enforcement/test_check_plan_tickets.py beside test_env_example_is_not_never_route. /fabrik-task + full review (sync path); fabrik-lib re-vendors."
+}
