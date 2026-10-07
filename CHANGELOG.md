@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a review seat that read no file is a dropped seat (2026-10-07)
+- A review-loop finder that returned `files_read: []` counted as returned, so a seat that answered a relayed operator question instead of reviewing let its slice close on its partner alone (infra 01M4C00TSS, W-9c0b3a7b). It is now failed on every pass and keeps the slice open, and both seat prompts say the brief is the task (D-653).
+
 ### Fixed — review seats redirect any large output into scratch (2026-10-07)
 - A 197 KB `git show` in a web-ecommerce-factory spec review was saved by the harness under `$HOME`, where seats may not read (01M42WP1S0, W-27fc7fa9). Every seat surface (the review-loop isolation constant, the reviewer agent's SHA-pin line, method step 1 and D8 list, and the subagents-core D8 fragment) now says a command whose output may be large (`git show`, `git diff`, `git log -p`, a broad search) redirects into a file under the seat's scratch dir. The graders pin each clause whole, subject through reason.
 

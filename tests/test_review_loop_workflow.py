@@ -427,6 +427,23 @@ def test_a_seat_that_read_its_slice_is_not_dropped() -> None:
     assert ledger["dropped_seats"] == 0 and ledger["closable"], ledger["slices"][0]["open"]
 
 
+def test_every_seat_facing_git_show_example_redirects_into_scratch() -> None:
+    """W-27fc7fa9: a large stdout is saved under $HOME, where a seat may not read, and a write-back target is the
+    lead's act. Every backticked git show EXAMPLE a seat reads — every agent definition, the seat-brief fragment,
+    /fabrik-review's verbatim lessons and the seat-brief template — redirects into `<scratch>/`. A bare
+    `git show` NAME (no arguments) inside a rule is not an example and is not matched."""
+    surfaces = {p.relative_to(ROOT).as_posix(): p.read_text(encoding="utf-8") for p in (ROOT / "commands" / "_agents").glob("*.md")}
+    surfaces["commands/_fragments/subagents-core.md"] = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
+    review = (ROOT / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8")
+    surfaces["fabrik-review lessons"] = next(line for line in review.splitlines() if "never bare-grep a tracked path" in line)
+    surfaces["convergence-prompts"] = (ROOT / "docs" / "reference" / "convergence-prompts.md").read_text(encoding="utf-8")
+    assert len(surfaces) >= 7, sorted(surfaces)
+    examples = {name: re.findall(r"`git show [^`]*`", text) for name, text in surfaces.items()}
+    assert sum(map(len, examples.values())) >= 4, examples
+    bare = {name: [x for x in found if " > <scratch>/" not in x] for name, found in examples.items()}
+    assert not any(bare.values()), {k: v for k, v in bare.items() if v}
+
+
 def test_both_seat_prompts_open_with_the_brief_is_the_task_line() -> None:
     """01M4C00TSS: a relayed operator turn is the lead's conversation, never the seat's request. The line OPENS
     every seat prompt, where the seat's identity is, not after the recipe wall."""
@@ -444,6 +461,10 @@ def test_both_seat_prompts_open_with_the_brief_is_the_task_line() -> None:
     for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
         assert prompts[label].startswith(line), (label, prompts[label][:200])
     assert "a files_read that names none of your slice files fails your seat" in prompts["find:S:sonnet"]
+    doc = (ROOT / "docs" / "reference" / "review-loop-workflow.md").read_text(encoding="utf-8")
+    assert "the workflow ledger's `seats[].failed` and `open` are the authority" in doc, (
+        "the reader's READ 0 FILES flag is narrower than `failed`, and the doc says which one rules"
+    )
 
 
 def test_a_later_pass_prompt_defines_its_ledger_status_on_the_defect_and_every_seat_must_finish_structured() -> (
