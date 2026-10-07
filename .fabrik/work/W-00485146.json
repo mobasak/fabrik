@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T20:36:18.164471Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-00485146",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure every caller of the Coolify driver/deployer (is any reachable from fabrik apply today?), then /fabrik-decommission the dead path and its .env.example rows",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "**[fleet]** Coolify code path still live after the 2026-05-31 retirement: .env.example:20-23,308-312 carry COOLIFY_* and src/fabrik/drivers/coolify.py, orchestrator/deployer_coolify.py, deploy.py, config.py, portability.py still read them; .env.example:226-227 keeps a value for the RETIRED CAPTCHA_URL (kaizen 01M4BVMK9B)"
+}
