@@ -121,7 +121,7 @@ Classification governs what you may act on autonomously.
    takes the auth gate down for all `*.vps1.ocoron.com` (authelia which
    exits-on-SIGHUP, requires container restart for config reload).
 
-2. MONITORING (prometheus, grafana, loki, promtail, alertmanager,
+2. MONITORING (prometheus, grafana, loki, alloy, alertmanager,
    cadvisor, node-exporter, postgres-exporter, redis-exporter, gatus,
    pushgateway)
    → READ ONLY. Touching these blinds you. If they fail, escalate to

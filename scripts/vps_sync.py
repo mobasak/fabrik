@@ -151,6 +151,7 @@ def categorize_containers(
         "grafana",
         "alertmanager",
         "loki",
+        "alloy",
         "promtail",
         "cadvisor",
         "node-exporter",
@@ -658,6 +659,7 @@ def verify_limits() -> list[str]:
     # Containers that MUST have limits (managed via vps_apply_limits.sh)
     required = {
         "alertmanager",
+        "alloy",
         "apprise",
         "authelia",
         "backrest",

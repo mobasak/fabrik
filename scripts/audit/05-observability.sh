@@ -74,8 +74,14 @@ except: print('FAILED to parse Loki labels')
 "
 
 echo ""
-echo "========== PROMTAIL =========="
-coolify_curl "http://promtail:9080/metrics" | grep -E "promtail_sent_entries_total|promtail_dropped_entries_total|promtail_targets_active_total|promtail_files_active_total"
+echo "========== ALLOY =========="
+# Metric names measured locally (grafana/alloy:v1.20.1 run against a throwaway
+# grafana/loki:3.4.2, see tests/test_alloy_consumers.py docstring for the exact
+# commands): loki.source.file + loki.write expose loki_source_file_* from the
+# first tail and loki_write_* only after the first successful push to Loki —
+# there is no Alloy equivalent of promtail_targets_active_total (the nearest
+# is loki_source_file_files_active_total, the files actively tailed).
+coolify_curl "http://alloy:12345/metrics" | grep -E "loki_write_sent_entries_total|loki_write_dropped_entries_total|loki_source_file_files_active_total"
 
 echo ""
 echo "========== GRAFANA =========="
@@ -143,7 +149,7 @@ coolify_curl "http://pushgateway:9091/metrics" 2>/dev/null | grep "fabrik_audit"
 
 echo ""
 echo "========== STACK CONTAINER HEALTH =========="
-for name in prometheus grafana loki promtail gatus alertmanager glitchtip-web glitchtip-worker netdata cadvisor node-exporter pushgateway redis-exporter postgres-exporter; do
+for name in prometheus grafana loki alloy gatus alertmanager glitchtip-web glitchtip-worker netdata cadvisor node-exporter pushgateway redis-exporter postgres-exporter; do
   match=$(docker ps --format "{{.Names}} {{.Status}}" | grep "$name" | head -1)
   echo "${match:-MISSING: $name}"
 done

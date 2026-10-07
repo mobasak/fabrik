@@ -107,7 +107,7 @@ fi
 if [ "$PROM_REACHABLE" = "true" ]; then
 
 # All queries below cover all hosts in the mesh (vps1 + vps2 + vps3) because
-# Prometheus on vps1 scrapes spoke node-exporter + cadvisor + promtail. When
+# Prometheus on vps1 scrapes spoke node-exporter + cadvisor + alloy. When
 # an anomaly fires, prom_hosts() reports which host(s) it came from so the
 # alert string includes context (e.g. "cpu_high[vps2]" not just "cpu_high").
 
@@ -147,7 +147,7 @@ prom_check "$_q" && ANOMALIES+="disk_prediction_7d[$(prom_hosts "$_q")] "
 _q='max_over_time(up[10m])==0'
 prom_check "$_q" && ANOMALIES+="target_down[$(prom_hosts "$_q")] "
 
-# Log pipeline dead (Loki receiving no lines = Promtail or pipeline broken)
+# Log pipeline dead (Loki receiving no lines = Alloy or pipeline broken)
 prom_check 'rate(loki_distributor_lines_received_total[10m])==0' \
   && ANOMALIES+="log_pipeline_dead "
 
@@ -184,8 +184,9 @@ done
 # timeout. Both are themselves anomalies the bot should know about.
 #
 # Hub-only check here to keep proactive-check.sh fast (15-min cron); spokes'
-# Backrest is monitored indirectly via the spoke-promtail-positions and via
-# Backrest health probes (future W10.b — Gatus). The hub repo failing is the
+# Backrest is monitored indirectly via the spoke `promtail-positions` volume
+# (now written by Alloy) and via Backrest health probes (future W10.b —
+# Gatus). The hub repo failing is the
 # canonical "backups not happening" signal.
 
 if command -v docker >/dev/null 2>&1 && sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^backrest$'; then
@@ -396,7 +397,7 @@ fi
 # Both services are deployed only on the hub (vps1) — spokes have neither
 # Authelia nor GlitchTip in the current fleet shape. We probe via apprise,
 # the only container on the fabrik docker network that ships curl.
-# (sysadmin-bot is a systemd unit, not a container; promtail uses
+# (sysadmin-bot is a systemd unit, not a container; alloy uses
 # network_mode: host and has no curl — both are unsuitable as probes.)
 # Auth-free endpoints:
 #   - Authelia: GET http://authelia:9091/api/health → {"status":"OK"}

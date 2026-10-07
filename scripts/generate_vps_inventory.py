@@ -48,6 +48,7 @@ KNOWN_NAMES = {
 # Purpose descriptions for Coolify-labeled containers
 PURPOSE_MAP = {
     "alertmanager": "Alert routing → Telegram",
+    "alloy": "Log shipper → Loki",
     "apprise": "Notification gateway (multi-channel)",
     "authelia": "2FA forward-auth for admin dashboards",
     "backrest": "Restic backup manager → Backblaze B2",
@@ -64,7 +65,7 @@ PURPOSE_MAP = {
     "glitchtip-worker-v10": "GlitchTip async event processor",
     "gotenberg": "PDF generation API",
     "grafana": "Dashboards → monitor.vps1.ocoron.com",
-    "loki": "Log aggregation (receives from Promtail)",
+    "loki": "Log aggregation (receives from Alloy)",
     "meilisearch": "Full-text search engine",
     "n8n": "Workflow automation",
     "netdata": "Real-time system monitoring",

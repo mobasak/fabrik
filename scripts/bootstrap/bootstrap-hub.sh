@@ -61,7 +61,7 @@
 #   03. Install Claude Code with the native installer (for vps-sysadmin-bot).
 #   04. Pull the W9 DR-store env mirror; place /opt/fabrik/.env + .env.sysadmin.
 #   05. Write /etc/docker/daemon.json BEFORE starting any container (log rotation +
-#       container tag for promtail).
+#       container tag for alloy).
 #   06. restic restore host-level state: /etc/wireguard, /etc/iptables, /etc/ufw,
 #       /etc/logrotate.d/vps-sysadmin-*, /etc/systemd/system/<fabrik-units>,
 #       /etc/cron.d/vps-sysadmin, /root/.ssh/known_hosts, /home/ozgur/.ssh/*.
@@ -667,8 +667,8 @@ step_05_write_docker_daemon_json() {
     # Step 06's restic restore will overwrite it with whatever was backed up —
     # which should be byte-identical. The point of writing here is so the very
     # FIRST docker start (e.g. during step_02's install or step_10's network
-    # create) uses our log rotation + promtail tag config, not Docker's defaults.
-    log "step_05: write /etc/docker/daemon.json (log rotation + promtail tag) ($(elapsed))"
+    # create) uses our log rotation + alloy tag config, not Docker's defaults.
+    log "step_05: write /etc/docker/daemon.json (log rotation + alloy tag) ($(elapsed))"
     remote 'sudo bash -c "
         mkdir -p /etc/docker
         cat > /etc/docker/daemon.json <<EOF
