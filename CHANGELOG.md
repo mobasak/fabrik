@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review seats keep off the live tree, and the lead checks for leaks (2026-10-07)
+- Three seats damaged live trees (a git reset in a main checkout, a relative-path mutant after the cwd reset, a `pkill -f` on live mail watches). Every seat is now told: absolute paths for anything it writes or runs, git writes only via `git -C <absolute scratch repo>`, no pattern kills (D-648). One `SEAT_ISOLATION` constant feeds both workflow seat prompts; the agent house rules, the seat-brief fragment and `convergence-prompts.md` agree.
+- `/fabrik-review` gains a per-dispatch Leak check (HEAD, porcelain with ignored files, stash list, the surface digest) that restores only seat-attributed hunks. The old one-call restore lesson is gone.
+- Fixed the stale `command grep` needle in `tests/test_assemble_dispatch_step.py` that D-643 left red on master.
+
 ### Changed — the MCP emitter reads credentials from the roster and the hub `.env` or fails loudly; the WSL startup hook reports each resume (2026-10-07)
 - Operator follow-ups on 1c22b3de1. (b) `emit_mcp_project_config.py` no longer fills `${VAR}` placeholders from its own prior `/opt/fabrik/.mcp.json` output: the active fleet roster, then the hub `.env`, else the run aborts naming the key (D-641); the Grafana URL sits literally in `mcp_defs.json`. (a) `mcp_orphan_reaper.py --report`, passed by `wsl_startup_hook.sh` step 0, appends one `resume before=<n> after=<n> wsl_exe=<n|n/a> reaped=<pids>` line per boot to `~/.claude/state/mcp-reaper.log`, so D-634's 7-day kill criterion is measured (D-642). Graders in both test files.
 
