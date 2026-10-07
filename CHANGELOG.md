@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the retired `kilo_model_sync.py` pair is archived and its 11:59 cron removed (2026-10-07)
+- `kilo models` under a subprocess timeout orphaned the `.kilo` node grandchild: the timeout kills only the launcher, and 15 orphans had piled up since 10/02 (mail 01M4AR32). The hub's caller, `scripts/kilo_model_sync.py`, and its startup wrapper move to `scripts/archived/`, and the operator's 11:59 crontab line is removed (D-633). The liveness-registry row and the write-root allowlist row go with them, and the live doc references are repointed.
+- New graders in `tests/test_retired_scripts_not_scheduled.py`, each shown red on HEAD and on a mutant: no live script calls `kilo … "models"`, no scheduler runs an archived script, and the liveness registry watches no archived job.
+- The ai-model-catalog engine's three call sites are that repo's: requested by mail.
+
 ### Fixed — the urgent-drain promise names the active account's own 5h reset (2026-10-07)
 - At the `urgent-90` tier with every sibling cap-walled, `_next_session_relief` admitted the active account only past the picker's 98 bar, so at 90-97 it fell into no bucket and the fleet was told to resume at a sibling's WEEKLY return — "resume Wed 15:02" against the account's own 03:10 reset, with the drain message's `sleep` line and the stamp's promise-came-due re-arm pointing 12 h late (W-5624d692). The active account now counts from the urgent line in the session arm only (siblings keep the picker's bar, P3-2; a weekly-walled active keeps its weekly answer); the twin `scripts/aro-wake/claude_rotate.py` carries the same bytes. The wake itself was never the defect — the relief branch clears an `urgent-90` stamp on the tick after the active's own reset — and is now pinned end to end (`test_an_urgent_stamp_clears_and_wakes_on_the_active_accounts_own_reset`). Docs: `claude-account-rotation.md`, `hooks-index.md` ("2 minutes", the real lead).
 
