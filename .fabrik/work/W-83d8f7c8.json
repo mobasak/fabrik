@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T21:12:36.756317Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-83d8f7c8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4C0VN6A26HJQJG2WHK0B6Z8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "kaizen wiring — the charter hook ignores the whoami binding; mail.py help strings still list three roles"
+}
