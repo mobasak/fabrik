@@ -32,7 +32,7 @@ npm run dev
 
 ## Documentation
 
-See `AGENTS.md` for build instructions, local development, and coding conventions.
+See `docs/QUICKSTART.md` for build instructions and local development, and `CLAUDE.md` for coding conventions.
 
 ## Project Structure
 
