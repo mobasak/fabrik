@@ -1018,6 +1018,21 @@ class TestDeployLocal:
         assert parsed["DATABASE_URL"] == "postgresql://shop_app:apppw@postgres-main:5432/shop"
         assert parsed["PORT"] == "8000"
 
+    def test_local_source_off_opt_env_probe_failure_aborts_before_writing(self):
+        """W-7ec31807 mirror: the always-on ``.env`` read is fail-closed like the /opt path's —
+        a probe that fails (e.g. a refused sudo) raises ``DeployError`` and nothing is written,
+        never a silent rebuild from spec env + secrets."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+        ):
+            mock_ssh.side_effect = ["exists", RuntimeError("sudo: a password is required")]
+            with pytest.raises(DeployError, match=r"/srv/my-app/\.env"):
+                SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        mock_write.assert_not_called()
+
     def test_missing_compose_raises(self):
         ctx = _ctx(
             {
