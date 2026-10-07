@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:20.077524Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f2278457",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "mail-01m48vevsg"
+  ],
+  "title": "docs_updater.py --sync in a linked worktree drops INDEX.md STRUCTURE rows for EMPTY untracked directories that exist only in the main checkout (mail 01M48VEVSG, follow-up to 1ded2e290 which covered ignored rows only)"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:18.250875Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9fca9008",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "mail-01m48qzdfm"
+  ],
+  "title": "command_run.py phase-review gate cannot see a receipt committed on a worktree branch (mail 01M48QZDFM) — resolve the phase artifact against the worktree whose branch carries the run's commits, or accept `step --review <path>`"
+}

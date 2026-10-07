@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:22.700845Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f265c6ac",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M491EB8P4EG09Y04APZT201Q",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the self-watch wakes an idle session again and again on repeated \"fleet-quota hold LIFTED\" events, about one wake per re-arm, and each wake costs a full agent turn."
+}

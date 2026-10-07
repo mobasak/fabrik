@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T06:03:20.600778Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-282761d7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M48ZX5027D3ZAGHKY8MV82QB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: two dispatched review subagents (Agent tool, models claude-opus-5-5 and claude-sonnet-5) died at once with HTTP 403 `oauth_org_not_allowed` — \"Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access\" (requ"
+}
