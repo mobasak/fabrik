@@ -1049,13 +1049,13 @@ def test_the_pin_recipe_archives_whole_roots_and_names_what_the_archive_cannot_h
             "a package that imports a sibling package or a root module fails with ModuleNotFoundError in a one-package archive",
             "a file outside your slice is at its",
             "a later fix to it is invisible to you",
-            "the fleet-synced scripts and rule packs (\`scripts/enforcement/\`, \`.windsurf/rules/\`) are gitignored",
+            "the fleet-synced scripts and rule packs (`scripts/enforcement/`, `.windsurf/rules/`) are gitignored",
             "Archive ALSO the WHOLE tests/ directory (never a subset",
             "every root module file they import",
             'os.environ["FABRIK_ROOT"]=os.getcwd()',
             "an archive is not a linked worktree",
         ):
-            assert needed.replace("\\`", "`") in p, (label, needed)
+            assert needed in p, (label, needed)
         assert "PKG" not in p, (label, "the one-package placeholder is gone")
 
 
