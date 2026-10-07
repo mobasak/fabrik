@@ -1147,10 +1147,19 @@ def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
         assert needed in rules, needed
     assert "/reset/worktree there" not in rules, "git worktree list is a legal read; only add/remove write"
     pin = next(line for line in brief.splitlines() if line.startswith("⚠️ **A brief that names a COMMIT"))
-    for needed in ("`git show <sha>:<path> > <scratch>/<file>`", "always redirected, one file per call", "`git diff`", "saved by the harness under `$HOME`"):
-        assert needed in pin, ("W-27fc7fa9: an unredirected large stdout is persisted under $HOME", needed)
+    pin_clause = (
+        "`git show <sha>:<path> > <scratch>/<file>` — always redirected, one file per call, as is any command whose output may be "
+        "large (`git diff`, `git log -p`, a broad search), because a large stdout is saved by the harness under `$HOME`, where you "
+        "may not read —"
+    )
+    assert pin_clause in pin, "W-27fc7fa9: the SHA-pin redirect clause, subject through reason, as one span"
     assert "`git show <sha>:<path>`" not in brief, "every git show example in the brief carries its redirect"
-    assert "`git diff <range> > <scratch>/<file>`" in brief, "method step 1's scope diff carries its redirect"
+    for needed in (
+        "If given a git range/path, `git diff <range> > <scratch>/<file>` it; otherwise `git diff HEAD > <scratch>/<file>`.",
+        "read that SHA with `git show <sha>:<path> > <scratch>/<file>` from your own worktree",
+        "and any other query that does not write — a large output redirected into your scratch dir, per the SHA-pin rule above)",
+    ):
+        assert needed in brief, ("W-27fc7fa9: method step 1 and the D8 list carry the redirect", needed)
     assert "restored in ONE Bash call" not in brief, "the old compound probe rule contradicts one plain command per call"
     tools = next(line for line in brief.splitlines() if line.startswith("tools:"))
     assert "Write" not in tools, "the house rule's printf write form assumes the seat has no Write tool"
@@ -1163,7 +1172,8 @@ def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
         "absolute paths for anything written or run",
         "never `pkill`, `killall` or kill by pattern",
         "and any other query that does not write",
-        "redirects into a file under its scratch dir",
+        "a command whose output may be large (`git show`, `git diff`, `git log -p`, a broad search) redirects into a file under "
+        "its scratch dir, because a large stdout is saved by the harness under `$HOME`, where a seat may not read;",
     ):
         assert needed in d8, needed
 
@@ -1190,8 +1200,11 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
     assert "archive -o into SCRATCH, ls-tree, show" in iso, "the pin recipe's read-only git must stay legal"
     assert "Popen" in iso and "\\`timeout\\`" in iso, "the kill ban must name a form a one-command seat can obey"
     assert "backgrounds on its own is not yours" in iso, "the harness's auto-background is not the banned act"
-    for needed in ("always redirects into a file under SCRATCH", "\\`git show\\`", "\\`git diff\\`", "saved by the harness under $HOME"):
-        assert needed in iso, ("W-27fc7fa9: a large stdout lands under $HOME", needed)
+    clause = (
+        "a command whose output may be large (\\`git show\\`, \\`git diff\\`, \\`git log -p\\`, a broad search) always redirects "
+        "into a file under SCRATCH that you then read, because a large stdout is saved by the harness under $HOME, where you may not read."
+    )
+    assert clause in iso, "W-27fc7fa9: the large-output clause, subject through reason, as one span"
 
 
 def test_fabrik_review_lessons_carry_the_leak_check() -> None:
