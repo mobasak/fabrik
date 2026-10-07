@@ -1460,7 +1460,10 @@ def audit_registrars(spec_path: str | None, as_json: bool):
     failed_specs = 0
     for sid in sorted(all_results):
         state_data = state_module.load(sid) or {}
-        failures = state_data.get("registrar_failures") or []
+        recorded = state_data.get("registrar_failures")
+        failures = (
+            [f for f in recorded if isinstance(f, dict)] if isinstance(recorded, list) else []
+        )
         if failures:
             failed_specs += 1
             labels = ", ".join(f.get("registrar", "?") for f in failures)

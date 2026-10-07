@@ -123,7 +123,14 @@ def test_registrar_failures_round_trip():
             "psql: ERROR: syntax error / LINE 1: ALTER ROLE \"svc\" WITH PASSWORD 'S3cr3t';",
             "S3cr3t",
         ),
-        ("x" * 490 + " redis://:straddle@h", "straddle"),
+        # the 500-char cap cuts this before its "@": capping first would leave "straddle" unmasked
+        ("x" * 482 + " redis://:straddle@h", "straddle"),
+        ("grafana: 401 for Authorization: Bearer sk-live-ABCDEF123456", "sk-live-ABCDEF123456"),
+        (
+            'glitchtip: bad body {"username": "admin", "password": "SuperSecret123"}',
+            "SuperSecret123",
+        ),
+        ("docker run -e PGPASSWORD='my secret pass' postgres", "secret pass"),
     ],
 )
 def test_registrar_failures_are_sanitised(raw, secret):
@@ -138,8 +145,14 @@ def test_registrar_failures_are_sanitised(raw, secret):
 def test_registrar_failures_sanitiser_never_raises():
     """A raise inside _persist_state's except would drop the whole state file."""
     state = _import()
-    _save_with_failures(state, [{"registrar": "x", "error": 123}, {"registrar": None}])
-    assert [f["error"] for f in state.load("svc")["registrar_failures"]] == ["123", ""]
+    _save_with_failures(
+        state, [{"registrar": "x", "error": 123}, {"registrar": None}, "bare string"]
+    )
+    assert [f["error"] for f in state.load("svc")["registrar_failures"]] == [
+        "123",
+        "",
+        "bare string",
+    ]
 
 
 def _orchestrator():
@@ -166,12 +179,16 @@ def test_persist_state_records_failures_and_skips_dry_run(tmp_path):
     orch = _orchestrator()
     spec = {"id": "svc", "name": "svc"}
     ctx = DeploymentContext(spec_path=tmp_path / "svc.yaml")
-    ctx.registrar_failures.extend(["redis: REDIS_URL injection failed: boom", "app-role: no"])
+    ctx.registrar_failures.extend(
+        ["redis: REDIS_URL injection failed: boom", "app-role: no", 42, "label-only"]
+    )
     orch._persist_state(ctx, spec)
     recorded = state.load("svc")["registrar_failures"]
     assert recorded == [
         {"registrar": "redis", "error": "REDIS_URL injection failed: boom"},
         {"registrar": "app-role", "error": "no"},
+        {"registrar": "42", "error": ""},
+        {"registrar": "label-only", "error": ""},
     ]
     # a dry run never touches the file, so the recorded failure survives it
     dry = DeploymentContext(spec_path=tmp_path / "svc.yaml", dry_run=True)
@@ -227,6 +244,13 @@ def test_audit_registrars_reports_recorded_failures(monkeypatch):
     assert result.exit_code == 2, result.output
     assert "svc: last apply" in result.output
     assert "redis" in result.output
+    # a hand-edited file whose entries are not records is skipped, never a crash
+    (state.STATE_DIR / "svc.json").write_text(
+        json.dumps({"applied_at": "x", "registrar_failures": ["oops", 3]})
+    )
+    result = CliRunner().invoke(fabrik.cli.cli, ["audit-registrars", "--spec", __file__])
+    assert result.exception is None or isinstance(result.exception, SystemExit), result.output
+    assert "svc: last apply" not in result.output
 
 
 def test_data_bearing_auto_stamped_for_postgres_redis_meilisearch():

@@ -82,6 +82,12 @@ logger = logging.getLogger(__name__)
 # A registrar failure is raw exception text, and `fabrik export` ships these files.
 _URL_CREDENTIALS = re.compile(r"://[^@/\s]*@")
 _SQL_PASSWORD = re.compile(r"PASSWORD\s+'[^']*'", re.I)
+_AUTH_HEADER = re.compile(r"(Authorization[\"']?\s*[:=]\s*[\"']?\w+\s+)[^\s\"',}]+", re.I)
+_SECRET_WORDS = r"\w*(?:TOKEN|SECRET|KEY|PASSWORD|PASSWD|CREDENTIAL)S?\w*"
+# a quoted value (spaces inside) — ssh._redact's `\S+` stops at the first space
+_QUOTED_ASSIGN = re.compile(rf"({_SECRET_WORDS}\s*=\s*)('[^']*'|\"[^\"]*\")", re.I)
+# a JSON / dict field: "password": "..."
+_JSON_SECRET = re.compile(rf"([\"']{_SECRET_WORDS}[\"']\s*:\s*)([\"'])[^\"']*\2", re.I)
 _FAILURE_MAX_CHARS = 500
 
 STATE_DIR = FABRIK_ROOT / ".fabrik" / "state"
@@ -122,7 +128,11 @@ def _sanitize_failure(text: object) -> str:
     """
     from fabrik.drivers.ssh import _redact
 
-    out = _redact("" if text is None else str(text))
+    out = "" if text is None else str(text)
+    out = _QUOTED_ASSIGN.sub(r"\1<redacted>", out)
+    out = _JSON_SECRET.sub(r"\1\2<redacted>\2", out)
+    out = _AUTH_HEADER.sub(r"\1<redacted>", out)
+    out = _redact(out)
     out = _URL_CREDENTIALS.sub("://[redacted]@", out)
     out = _SQL_PASSWORD.sub("PASSWORD '[redacted]'", out)
     return out[:_FAILURE_MAX_CHARS]
@@ -193,7 +203,7 @@ def save(
         "git_sha": git_sha,
         "registrar_failures": [
             {"registrar": str(f.get("registrar") or ""), "error": _sanitize_failure(f.get("error"))}
-            for f in (registrar_failures or [])
+            for f in (e if isinstance(e, dict) else {"error": e} for e in registrar_failures or [])
         ],
         "registrars_applied": normalized,
         "spec_hash": spec_hash,

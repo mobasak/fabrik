@@ -545,7 +545,7 @@ class DeploymentOrchestrator:
                 # _nonfatal records "<label>: <error>"; keep the label as its own field
                 registrar_failures=[
                     {"registrar": label, "error": error}
-                    for label, _, error in (f.partition(": ") for f in ctx.registrar_failures)
+                    for label, _, error in (str(f).partition(": ") for f in ctx.registrar_failures)
                 ],
             )
         except Exception as e:  # noqa: BLE001
