@@ -8,11 +8,14 @@ the same full-suite test command.
 
 from __future__ import annotations
 
+import importlib
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
+from fabrik import version_registry
 from fabrik.ci_scaffold import (
     TEST_DATABASE_URL,
     CiConfig,
@@ -21,13 +24,21 @@ from fabrik.ci_scaffold import (
     render_ci_workflow,
 )
 
+_REQUIRED_REGISTRY_KEYS = (
+    '  node_lts: "24"\n  debian_codename: "trixie"\n  node_engines_floor: "22"\n'
+)
+
 
 def test_db_image_matches_between_workflow_and_local():
+    # Not monkeypatched — bound to the LIVE registry, but the expected image is derived from
+    # it rather than hardcoded, so infra's later postgres_major flip never reds this test.
+    versions = version_registry.load_versions()
+    expected = f"pgvector/pgvector:{versions['pgvector_version']}-pg{versions['postgres_major']}"
     cfg = CiConfig(needs_database=True, db_extensions=("pgvector",))
     wf = render_ci_workflow(cfg)
     local = render_ci_local(cfg)
-    assert "pgvector/pgvector:pg16" in wf
-    assert "pgvector/pgvector:pg16" in local  # parity: same image both sides
+    assert expected in wf
+    assert expected in local  # parity: same image both sides
 
 
 def test_plain_url_not_asyncpg_both_sides():
@@ -39,7 +50,69 @@ def test_plain_url_not_asyncpg_both_sides():
     # local binds a FREE host port (no clash with a dev Postgres) but the URL stays plain libpq
     assert "postgresql://postgres:postgres@localhost:$PGPORT/ci_test" in local
     assert "+asyncpg" not in wf and "+asyncpg" not in local
-    assert "postgres:16" in wf  # no pgvector requested -> plain image
+    # Not monkeypatched — derive the expected plain image from the live registry (see above).
+    assert f"postgres:{version_registry.load_versions()['postgres_major']}" in wf
+
+
+def _write_registry(tmp_path: Path, *, postgres_major: str, pgvector_version: str | None) -> Path:
+    """A minimal `versions.yaml` carrying every REQUIRED_KEYS entry plus the two pg_image()
+    keys — pgvector_version omitted entirely when None, to probe the missing-key path."""
+    body = "versions:\n" + _REQUIRED_REGISTRY_KEYS + f'  postgres_major: "{postgres_major}"\n'
+    if pgvector_version is not None:
+        body += f'  pgvector_version: "{pgvector_version}"\n'
+    registry = tmp_path / "versions.yaml"
+    registry.write_text(body, encoding="utf-8")
+    return registry
+
+
+def test_pg_image_derives_both_images_from_a_monkeypatched_registry(tmp_path, monkeypatch):
+    registry = _write_registry(tmp_path, postgres_major="16", pgvector_version="0.8.6")
+    monkeypatch.setattr(version_registry, "VERSIONS_FILE", registry)
+
+    plain_cfg = CiConfig(needs_database=True)
+    vector_cfg = CiConfig(needs_database=True, db_extensions=("pgvector",))
+    assert "postgres:16" in render_ci_workflow(plain_cfg)
+    assert "postgres:16" in render_ci_local(plain_cfg)
+    assert "pgvector/pgvector:0.8.6-pg16" in render_ci_workflow(vector_cfg)
+    assert "pgvector/pgvector:0.8.6-pg16" in render_ci_local(vector_cfg)
+
+
+def test_pg_image_follows_a_postgres_major_bump(tmp_path, monkeypatch):
+    # Same registry shape, postgres_major bumped — proves pg_image() reads the registry at
+    # CALL time rather than caching a value from import, matching the planned PG18 flip.
+    registry = _write_registry(tmp_path, postgres_major="18", pgvector_version="0.8.6")
+    monkeypatch.setattr(version_registry, "VERSIONS_FILE", registry)
+
+    plain_cfg = CiConfig(needs_database=True)
+    vector_cfg = CiConfig(needs_database=True, db_extensions=("pgvector",))
+    assert "postgres:18" in render_ci_workflow(plain_cfg)
+    assert "postgres:18" in render_ci_local(plain_cfg)
+    assert "pgvector/pgvector:0.8.6-pg18" in render_ci_workflow(vector_cfg)
+    assert "pgvector/pgvector:0.8.6-pg18" in render_ci_local(vector_cfg)
+
+
+def test_pg_image_raises_naming_the_missing_key_without_failing_import(tmp_path, monkeypatch):
+    # pgvector_version absent entirely (not blank) — and NOT in REQUIRED_KEYS, so importing
+    # (reloading) fabrik.ci_scaffold against this broken registry must still succeed: only the
+    # pgvector call path, not the import, may fail.
+    registry = _write_registry(tmp_path, postgres_major="16", pgvector_version=None)
+    monkeypatch.setattr(version_registry, "VERSIONS_FILE", registry)
+
+    import fabrik.ci_scaffold as ci_scaffold_module
+
+    reloaded = importlib.reload(ci_scaffold_module)  # must not raise
+
+    cfg = reloaded.CiConfig(needs_database=True, db_extensions=("pgvector",))
+    with pytest.raises(version_registry.VersionRegistryError, match="pgvector_version"):
+        cfg.pg_image()
+
+
+def test_live_registry_carries_postgres_major_and_pgvector_version():
+    # The only test bound to the live .windsurf/rules/versions.yaml, so infra's later flip to
+    # postgres_major: "18" never reds the monkeypatched tests above.
+    versions = version_registry.load_versions()
+    assert versions.get("postgres_major"), "postgres_major must be a non-empty string"
+    assert versions.get("pgvector_version"), "pgvector_version must be a non-empty string"
 
 
 def test_local_postgres_uses_a_free_host_port():

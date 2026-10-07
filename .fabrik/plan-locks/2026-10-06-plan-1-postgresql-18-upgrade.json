@@ -29,7 +29,7 @@
   ],
   "branch": "worktree-fleet",
   "started_at": "2026-10-06T15:50:30+00:00",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "b9ffa57fed90028584fdb616b4075b1e0a803952",
   "baseline_gate": {
     "lean": "success",
@@ -89,6 +89,22 @@
         "d2f3fe95b"
       ],
       "acceptance_commit": "6af528803"
+    },
+    "T01a": {
+      "state": "merged",
+      "acceptance_commit": "7aae74f61"
+    },
+    "T01b": {
+      "state": "merged",
+      "acceptance_commit": "ebb3d6df1"
+    },
+    "T06": {
+      "state": "merged",
+      "acceptance_commit": "1aa51cad3",
+      "fixups": [
+        "8634681af"
+      ],
+      "receipt": "docs/development/reviews/2026-10-06-plan-1-postgresql-18-upgrade-review.md"
     }
   },
   "wave2": {
@@ -98,5 +114,6 @@
       "6af528803"
     ]
   },
-  "next": "T01a, T01b \u2014 infra precondition landed on origin/master 075f8feae (pgvector_version 0.8.6; literals frozen); then T06 integration"
+  "next": "T01a, T01b — infra precondition landed on origin/master 075f8feae (pgvector_version 0.8.6; literals frozen); then T06 integration",
+  "released_at": "2026-10-07T20:30:01+00:00"
 }

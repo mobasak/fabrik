@@ -7,14 +7,14 @@
   "kind": "backlog",
   "legacy": false,
   "links": {
-    "decision": "",
-    "plan": "",
-    "spec": ""
+    "decision": "D-617",
+    "plan": "docs/development/plans/2026-10-06-plan-1-postgresql-18-upgrade/2026-10-06-plan-1-postgresql-18-upgrade.md",
+    "spec": "docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md"
   },
-  "next": "**[fleet]** **PostgreSQL 16 → 18 upgrade** (WSL dev + VPS hub): plan at [`archived/2026-05-25-postgresql-18-upgrade.md`](development/plans/archived/2026-05-25-postgresql-18-upgrade.md). Created 2026-05-25, never started. 14 dbs on `postgres-main` would need pg_dumpall → PG18 cluster bootstrap → restore + verify, plus matching upgrade on the WSL dev DB to keep \"same code in 3 envs\" valid. PG16 reaches EOL November 2028 so there's no urgency; the existing setup is healthy. Blocked by: (a) a focus window of 2–3 hours, OR (b) a real PG18-only feature need (none today). When ready, unarchive the plan and run.",
+  "next": "**[fleet]** **PostgreSQL 16 → 18 upgrade** (WSL dev + VPS hub): plan [`2026-10-06-plan-1-postgresql-18-upgrade/`](development/plans/2026-10-06-plan-1-postgresql-18-upgrade/2026-10-06-plan-1-postgresql-18-upgrade.md) (spec D-617) — hub branch and runbook ready; the WSL and hub windows are operator gates; the runbook is docs/operations/postgres-major-upgrade-runbook.md (supersedes archived/2026-05-25-postgresql-18-upgrade.md)",
   "note": "migrated-digest:1f6d760e62b0",
   "owner": "fleet",
   "priority": 2,
   "status": "open",
-  "title": "**PostgreSQL 16 → 18 upgrade** (WSL dev + VPS hub): plan at [`archived/2026-05-25-postgresql-18-upgrade.md`](development/plans/archived/2026-05-25-postgresql-18-upgrade.md). Created 2026-05-25, nev..."
+  "title": "**PostgreSQL 16 → 18 upgrade** (WSL dev + VPS hub): plan [`2026-10-06-plan-1-postgresql-18-upgrade/`](development/plans/2026-10-06-plan-1-postgresql-18-upgrade/2026-10-06-plan-1-postgresql-18-upgrade.md) (spec D-617) — hub branch and runbook ready; the WSL and hub windows are operator gates"
 }

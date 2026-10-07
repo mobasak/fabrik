@@ -71,7 +71,7 @@ Each spoke (vps2/vps3) runs the **`host-state`** + **`opt-configs`** plans only 
 
 ### Layer 2 — Shared infrastructure
 
-- `postgres-main` (`/opt/postgres`) — Postgres 18. Volume: `postgres18-data` (mounted at `/var/lib/postgresql`)
+- `postgres-main` (`/opt/postgres`) — Postgres 18. Volume: `postgres18-data` (mounted at `/var/lib/postgresql`); until the operator's hub window it still runs major 16 on `postgres-data`, which the restore list keeps until release (D-647)
 - `redis-main` (`/opt/redis`) — Redis 7. Volume: `redis_redis-data`
 - `meilisearch` (`/opt/meilisearch`) — search engine. Volume: `meilisearch-data`
 
@@ -261,10 +261,12 @@ SNAPSHOT_ID=$(restic snapshots --tag docker-volumes --json | python3 -c 'import 
 restic restore $SNAPSHOT_ID --target /var/restore
 
 # Recreate volumes + copy data in
-# The docker-volumes plan backs up 11 volumes until release (both Postgres volumes);
-# this loop restores 10 — the retired PG16 volume is not restored, and prometheus/loki/
-# promtail-positions/ocoron-com_redis_data are excluded from backup (they regenerate)
-for vol in postgres18-data redis_redis-data meilisearch-data n8n-data apprise-config \
+# The docker-volumes plan backs up 11 volumes until release (both Postgres volumes), and
+# this loop restores all 11 (D-647): whichever Postgres volume /opt/postgres/compose.yaml
+# mounts comes back; the other is absent from the snapshot or unused. PG18 release step R3
+# drops the PG16 entry. prometheus/loki/promtail-positions/ocoron-com_redis_data are
+# excluded from backup (they regenerate)
+for vol in postgres18-data postgres-data redis_redis-data meilisearch-data n8n-data apprise-config \
            monitoring_grafana-data monitoring_alertmanager-data \
            ocoron-com_wp_html ocoron-com_db_data ocoron-com_backup_data; do
   sudo docker volume create "$vol"

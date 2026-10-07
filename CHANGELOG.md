@@ -27,6 +27,19 @@ All notable changes to this project will be documented in this file.
 - The hub-only `review-loop-workflow.md` is cited hub-absolute in 7 command sources (sp1 01M493NNJ3).
 - Graders in `tests/test_review_loop_workflow.py`, red on 29042f531; review CONVERGED over 3 passes (5, then 1, then 0 confirmed).
 
+### Fixed — a hub rebuild before the PG18 window restores the PG16 volume again (2026-10-07)
+
+- The PG18 DR chain reached master before the hub window (D-647), so `FABRIK_HUB_VOLUMES_TO_RESTORE` (`scripts/bootstrap/bootstrap-config.sh`) named only `postgres18-data`, a volume no snapshot holds yet: a rebuild would never restore `postgres-data`, and the live PG16 compose's compose-up would abort `bootstrap-hub.sh` before its pg_dump fallback. The list now restores both Postgres volumes until PG18 release step R3; the DR doc's manual restore loop, the restore inventory and the rebuild table follow. Runbook step 8.3 is verify-only (nothing left to merge), and R3 asks infra to drop the PG16 entry.
+- The runbook's eight project-request mail bodies (appendix A1-A8) now carry the WHEN, WHO, WHY, HOW and SYSTEMIC sections `mail.py` checks for; a grader runs `mail.py`'s own `_structure_gaps` over each body. PG18 plan T06.
+
+### Changed — the rule-pack version sweep sees the PG18 image shapes (2026-10-07)
+
+- `_LOOSE` (`scripts/sysadmin/rules_render_versions.py`) also catches unmarked `postgres:N(.N)-alpine` and `pgvector:X.Y.Z-pgN` literals in a rule pack; the existing `PostgreSQL 16` and `pgvector:pg16` shapes still match and a port such as 5432 never fires. PG18 plan T01b.
+
+### Changed — the CI scaffold derives its Postgres images from the version registry (2026-10-07)
+
+- `CiConfig.pg_image()` (`src/fabrik/ci_scaffold.py`) no longer returns hard-coded image literals: it reads `postgres_major` and `pgvector_version` from `.windsurf/rules/versions.yaml` at call time and returns `postgres:<major>` or `pgvector/pgvector:<version>-pg<major>`, so the scaffolded CI follows the fleet's Postgres major when infra flips it. Neither key joins `REQUIRED_KEYS`, so the module still imports with a broken registry; a missing or blank key raises `VersionRegistryError` naming it. PG18 plan T01a.
+
 ### Added — the deploy state file records registrar failures (2026-10-07)
 
 - `.fabrik/state/<id>.json` gains `registrar_failures`: the `{registrar, error}` failures the last COMPLETED `fabrik apply` / `redeploy --refresh-infra` hit, `[]` when clean. Each error is sanitised before it is written (URL credentials incl. an empty user, `KEY=value` and quoted secret assignments, JSON secret fields, `Authorization` headers, SQL `PASSWORD '…'`), scanning at most 2,000 characters and masking before a 500-character cap, because `fabrik export` ships these files. A dry run no longer writes the state file (it used to overwrite the last real apply's record). `fabrik audit-registrars` reports recorded failures and counts them toward its exit 2; `sync_projects` marks `projects.yaml` `applied_with_failures`. W-2013a22d, D-644.

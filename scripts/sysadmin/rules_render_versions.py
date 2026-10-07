@@ -47,6 +47,12 @@ _LOOSE = re.compile(
     r"|(?:Node(?:\.js)?|Debian|Postgre(?:s|SQL)|Redis)\s+\d+(?:\.\d+)?\+?(?![\d-])"
     r"|\bPG\d{2}\b(?!\d)"
     r"|pgvector:pg\d+"
+    # PG18 image shapes (T01b, spec D3): the upgrade's own tags —
+    # "postgres:18-alpine" / "postgres:18.6-alpine" and the pgvector build tag
+    # "pgvector:0.8.6-pg18" — so a later major bump cannot sail through
+    # unflagged the way postgres:16-alpine once did.
+    r"|postgres:\d+(?:\.\d+)?-alpine"
+    r"|pgvector:\d+\.\d+\.\d+-pg\d+"
     r")"
 )
 
