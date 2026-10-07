@@ -677,7 +677,11 @@ class SSHDeployer:
         if (ctx.spec.get("shape") or {}).get("uses_claude_cli"):
             _assert_claude_cli_mounts(_ssh(f"sudo cat {path}/compose.yaml", timeout=10), ctx.spec)
 
-        # Write/merge .env
+        # Write/merge .env. ``find_existing`` probes /opt/<name> only, so a source living
+        # elsewhere arrives with existing=None; the compose verified above proves the app is at
+        # ``path``, so its .env is always read (absent → {}) — else the merge dropped every
+        # registrar-injected key, DATABASE_URL_OWNER included (W-7ec31807).
+        existing = existing or {"name": name, "path": path}
         env_content = self._build_env_content(ctx, name, existing, app_path=path)
         _write_file_to_vps_path(path, ".env", env_content)
         _ssh(f"cd {path} && sudo docker compose up -d --wait", timeout=120)

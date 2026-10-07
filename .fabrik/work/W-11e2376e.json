@@ -9,7 +9,7 @@
   "kind": "decision",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-652",
     "plan": "",
     "spec": ""
   },
@@ -17,10 +17,10 @@
     "6066515bd496155587a62b2aada61632867897298b76095d561e7a29d1b5b2f9"
   ],
   "next": "",
-  "note": "",
+  "note": "Adopted as the panel recommended, under the operator's ruling of 2026-10-07 (D-650)",
   "owner": "",
   "priority": 2,
   "question": "Do you confirm the panel's recommendations for the seven open decisions? 1. Approve the git-decoder spec for planning. 2. Keep model-routing delivery paused. 3. Delete the five agent templates. They are rendered into template-sourced deploys with retired tool text, so they aren't unused. 4. Approve the payments fulfilment-role design for planning. 5. Create private GitHub repos for 10 projects and push the 3 named ones. Exclude rnfinal (74,331 tracked `node_modules` files), rn-kit-sandbox (history blobs over GitHub's 100 MB limit) and the two test-saas fixtures. 6. Send no text to TypeSafe for now. 7. Retire the universal-watchdog plan.",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Do you confirm the panel's recommendations for the seven open decisions? 1. Approve the git-decoder spec for planning. 2. Keep model-routing delivery paused. 3. Delete the five agent templates. They are rendered into template-sourced deploys with retired tool text, so they aren't unused. 4. Approve the payments fulfilment-role design for planning. 5. Create private GitHub repos for 10 projects and push the 3 named ones. Exclude rnfinal (74,331 tracked `node_modules` files), rn-kit-sandbox (history blobs over GitHub's 100 MB limit) and the two test-saas fixtures. 6. Send no text to TypeSafe for now. 7. Retire the universal-watchdog plan."
 }

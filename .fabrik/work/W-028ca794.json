@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T19:53:15.437230Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-028ca794",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "wait for intel's mail with the measured shapes (W-3573a86b/W-f0da6d16/W-d34b395f source mails), then size: hook path → /fabrik-task heavy=yes with the full /fabrik-review",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "hooks",
+    "infra"
+  ],
+  "title": "PreToolUse seat guard (intel request, pending mail): refuse pkill -f / killall and mutating git inside a registered main checkout for review seats — .claude/hooks, infra beat"
+}

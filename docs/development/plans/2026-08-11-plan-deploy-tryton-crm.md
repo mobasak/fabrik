@@ -1,7 +1,7 @@
 # Deployment plan — tryton-crm (BHD CRM stack: bridge + trytond + worker + gotenberg)
 
 Status: SUPERSEDED
-Superseded-by: docs/development/plans/2026-08-31-plan-deploy-tryton-crm.md (2026-08-31) — this
+Superseded-by: docs/development/plans/archived/2026-08-31-plan-deploy-tryton-crm.md (2026-08-31) — this
 plan was authored for the v0.1.0 cut; 295 commits landed since and the repo is now at v0.3.0.
 Never converged, never executed. Kept for history: its Phase-2 findings seeded the spec
 annotations the new plan re-verifies.

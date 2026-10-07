@@ -9,7 +9,7 @@
   "kind": "decision",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-652",
     "plan": "",
     "spec": ""
   },
@@ -17,10 +17,10 @@
     "dcb1193b6b9604a744b6c92be832b60300e073a46998e5510b4f3b3a35b548c3"
   ],
   "next": "",
-  "note": "",
+  "note": "Create private repos for the 10 eligible projects and push the 3 named ones (D-652 item 5); infra executes",
   "owner": "",
   "priority": 2,
   "question": "May I create private GitHub repos for the 13 projects that have no remote, push them, and push candle, supplement-tracker-advisor and proposal-creator?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May I create private GitHub repos for the 13 projects that have no remote, push them, and push candle, supplement-tracker-advisor and proposal-creator?"
 }

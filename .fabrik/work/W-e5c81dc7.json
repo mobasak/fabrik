@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T20:41:16.015295Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-e5c81dc7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4BYT60TPXD0S9N2MXTQP44J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "Executed, commit to follow this hour (under /fabrik-review now; the ack carries the sha)."
+}

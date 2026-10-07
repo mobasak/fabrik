@@ -30,8 +30,8 @@ Coverage-Checklist classes this pass swept CLEAN> --classes-new <classes this pa
 The class ledger persists across rounds: **re-sweep it, never re-scope it** — a pass that invents a
 fresh brief is why a review runs 30 rounds instead of 4. A class check must LOAD the artefact it grades — a grep for the wording that describes a defect matches the artifact's own correction and is refuted by any rewording; narrowing such a check is not converging (01M25Q9S0). When a round sweeps every known class and
 confirms zero (`--confirmed 0`), `command_run.py` prints the TERMINAL verdict; **only then**
-`done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the round-1 seats that re-verified it>" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`. A genuinely stuck
-review exits via `blocked --command fabrik-review --reason "…" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"` on one of the three sanctioned cases —
+`done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the round-1 seats that re-verified it>" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"`. A genuinely stuck
+review exits via `blocked --command fabrik-review --reason "…" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"` on one of the three sanctioned cases —
 never by simply stopping. **Always name the run you close**: a bare close would end whatever is live,
 which after this review pops back to its CALLER (`/fabrik-execute-plan`) means silently ending the
 plan. A mismatched name is refused; closing an already-closed run is a warned no-op.
@@ -484,7 +484,7 @@ first pass found" is not an exit — those classes return to UNCHECKED until the
 verdict — every known class clean, `--confirmed 0` — is the machine-readable form of the EXIT above, and
 its NON-CONVERGENCE warning names the failure mode this loop actually has: re-scoping instead of
 re-sweeping. Close the run at that verdict with
-`done --command fabrik-review --evidence "round <n> quiet: confirmed:0 · fixed:0, re-verified by <the round-1 seats>, all adjudicated" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`.
+`done --command fabrik-review --evidence "round <n> quiet: confirmed:0 · fixed:0, re-verified by <the round-1 seats>, all adjudicated" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"`.
 
 ## Behavior Contract test generation — native seats author, you curate (the fix for an untested behavior)
 
@@ -524,13 +524,13 @@ value.) Write the rows bare, under the `## Pass Ledger` heading.
 
 ```text
 | Pass 1 | opus×1 + sonnet×3 | found: 5, new: 5, confirmed: 3, fixed: 3, unexecuted: 0 | method: citation — full partitioned pass; hygiene run at start and close |
-| Pass 2 | sonnet×1 | found: 2, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation — delta over pass 1's fix diff + one hop |
-| Pass 3 | sonnet×1 | found: 1, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — closing pass, the round-1 seats over their own slices; classes not touched standing-clean from pass 1 → EXIT |
+| Pass 2 | sonnet×1 | found: 2, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: citation — delta over pass 1's fix diff + one hop |
+| Pass 3 | sonnet×1 | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — closing pass, the round-1 seats over their own slices; classes not touched standing-clean from pass 1 → EXIT |
 ```
 
-Note pass 3: the finder DID re-raise the standing DESIGN-GAP row (an unbuilt endpoint, a missing
-feature the run may not decide) — that re-raise is cited in its disposition ledger row, and it is a raw
-candidate, so it shows in `found:`. It closes the loop anyway, because **`found:` is RAW RECALL — the
+Note pass 3: the finder raised one FRESH candidate, which you executed and refuted — a raw candidate,
+so it shows in `found:` (a re-raise of an already-adjudicated standing row would instead be CITED and
+not counted, per the term-coverage contract above). It closes the loop anyway, because **`found:` is RAW RECALL — the
 seats' reach — and `confirmed:` is the EXIT COUNTER: the candidates you EXECUTED and reproduced**
 (D-206, superseding D-048's "a fresh candidate counts even when refuted"). This is what reconciles the
 loop with its graders: `check_convergence.py`'s QUIET_PASS and `check_review_coverage.py` both read

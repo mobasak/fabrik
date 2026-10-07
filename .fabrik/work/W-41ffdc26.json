@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T20:41:16.320924Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-41ffdc26",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4C0145KV50P9HVRX1RNZNZN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Landed as a90b35a3b (pushed to master), reviewed to confirmed 0 — receipt docs/development/reviews/2026-10-07-plan-archive-hygiene-review.md."
+}

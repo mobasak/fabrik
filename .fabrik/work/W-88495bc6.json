@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T19:37:30.674053Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-88495bc6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4BVMGQG604NGTTEFQSF750S",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "plan-state hygiene — 11 EXECUTED plans never archived, 9 locks pointing at pre-archive paths"
+}

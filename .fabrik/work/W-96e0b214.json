@@ -8,7 +8,7 @@
   "legacy": false,
   "links": {
     "decision": "",
-    "plan": "docs/development/plans/2026-10-02-plan-2-postgres-allocation-reconcile.md",
+    "plan": "docs/development/plans/archived/2026-10-02-plan-2-postgres-allocation-reconcile.md",
     "spec": ""
   },
   "next": "at or after 20:09 2026-10-02: tail /var/log/fabrik-audit-all.log, ssh vps cat allocations.json, query Prometheus for the drift series and the ALERTS series",

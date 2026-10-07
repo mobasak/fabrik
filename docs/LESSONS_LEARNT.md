@@ -1,6 +1,10 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A merge request ships the whole branch, including work staged to merge later (2026-10-07)
+
+The PostgreSQL 18 plan kept its hub changes on the fleet worktree branch, to merge only after the operator's hub window, and its DR-chain hunk on its own branch to merge inside it. Then an unrelated GlitchTip fix on the same branch went out as a merge request for the whole branch, and the PG18 waves rode along to master a day before any window (D-647). Nothing applied them to a host, but master's DR list now named a volume no snapshot held: a hub rebuild would have stopped at compose-up, before its pg_dump fallback. Two habits follow. A branch that holds work staged for a later merge carries nothing else; an unrelated fix goes on its own branch. And before sending a merge request, read the commits between master and the branch tip for any that are not yours to ship yet. When it happens anyway, measure what the early merge can break and close that mechanically; the fix here was listing both volumes until release, not a revert across shared trees.
+
 ## A heading anchor that also matches prose duplicates a block, and a seat's copy can land in the repo (2026-10-05)
 
 Revising the session-history retention plan for the B2-direct route (D-565).

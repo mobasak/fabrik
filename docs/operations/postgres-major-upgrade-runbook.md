@@ -521,8 +521,9 @@ repo's change, carried by its request).
 
 ## 3. Hub window (D1)
 
-Gate 2 class (production data). Infra, the merge owner, is on call for the window and merges the DR-chain branch at
-step 8.3 (spec § Lifecycle step 4). Paste the § 0 helpers and the window-directory block first.
+Gate 2 class (production data). Nothing merges inside the window: the DR-chain branch reached master before it, and
+step 8.3 only verifies master against the new snapshot (D-647, superseding spec § Lifecycle step 4's in-window merge).
+Paste the § 0 helpers and the window-directory block first.
 
 ### Hub disk gate
 
@@ -984,9 +985,9 @@ volume revert.
 
 ### Hub step 8 — Restart
 
-Spec D1 step 8, with one ordering change from the wave-1 review: the Backrest snapshot that holds `postgres18-data`
-(8.2) is taken BEFORE infra merges the DR-chain branch `fleet-pg18-dr` (8.3). Merged first, the repo's DR chain would
-restore `postgres18-data` while no snapshot yet held it — a disaster recovery in that gap would find nothing.
+Spec D1 step 8. The Backrest snapshot that holds `postgres18-data` (8.2) is taken BEFORE 8.3 checks master's DR chain.
+That chain reached master before the window (D-647) and restores BOTH Postgres volumes until release, so a disaster
+recovery at any point of the window finds the volume the hub is running on.
 
 #### 8.1 Reset the connection limits
 
@@ -1037,34 +1038,32 @@ snapshot (spec D1 step 8, V5).
 **Rollback:** an edited plan goes back with `sudo cp -p "$W/backrest-config.json.orig" /opt/backrest/config/config.json &&
 sudo docker restart backrest`; a snapshot needs no rollback.
 
-#### 8.3 Infra merges fleet-pg18-dr (the DR-chain hunk)
+#### 8.3 Confirm master's DR chain (fleet-pg18-dr landed before the window, D-647)
 
-**Precondition:** step 8.2's `Verify:` is green — the `PG_VERSION` line printed. Infra does not merge on any other
-evidence.
+**Precondition:** step 8.2's `Verify:` is green — the `PG_VERSION` line printed. Read nothing below as proof without it.
 
-T03's DR chain lives on its own branch `fleet-pg18-dr`, cut from master, and merges ALONE inside the window (spine
-§ Merge Order; spec D3): `scripts/bootstrap/bootstrap-config.sh:201` restores `postgres18-data`, the
-`bootstrap-hub.sh` step 12/12c/14 comments and probes follow it, and step 12c's probe reads `SELECT datname FROM
-pg_database` and requires both `glitchtip` and `site_provisioner` (`scripts/bootstrap/bootstrap-hub.sh:1232-1236`).
+T03's DR chain was meant to merge ALONE here; it reached master early, with the rest of the hub branch (D-647). To
+keep a disaster recovery in the gap working, master's restore list carries BOTH volumes until release:
+`scripts/bootstrap/bootstrap-config.sh:201-202` restores `postgres18-data` and `postgres-data`, and step 12 skips a
+volume the snapshot does not hold, so a rebuild restores whichever one the live `/opt/postgres/compose.yaml` mounts.
+The `bootstrap-hub.sh` step 12c/14 probes read `SELECT datname FROM pg_database` on the running `postgres-main` and
+require both `glitchtip` and `site_provisioner` (`scripts/bootstrap/bootstrap-hub.sh:1232-1236`), whichever volume
+it mounts. Nothing merges here; this step only checks that the snapshot and master agree.
 
 ```bash
-# on: hub — the precondition, re-checked at the moment of the request
+# on: hub — the precondition, re-checked
 hub_restic ls latest --tag plan:docker-volumes /var/lib/docker/volumes/postgres18-data/_data/18/docker/PG_VERSION | grep -q PG_VERSION && echo "8.2 PRECONDITION MET"
 ```
 
 ```bash
 # on: wsl — only after "8.2 PRECONDITION MET"
-python3 scripts/mail.py send --to fabrik --to-agent infra --kind request --ack required <<'EOF'
-Hub window step 8.3: merge branch fleet-pg18-dr to master NOW, alone (spine § Merge Order). Precondition met: the docker-volumes snapshot holds postgres18-data/_data/18/docker/PG_VERSION (runbook step 8.2). Reply when pushed.
-EOF
 git -C /opt/fabrik fetch -q origin
-git -C /opt/fabrik show origin/master:scripts/bootstrap/bootstrap-config.sh | grep -n 'postgres18-data'
+git -C /opt/fabrik show origin/master:scripts/bootstrap/bootstrap-config.sh | grep -nE '^\s+postgres(18)?-data\b'
 ```
 
-**Verify:** the last command prints the `FABRIK_HUB_VOLUMES_TO_RESTORE` line naming `postgres18-data` — master's DR chain
-and the hub's volume now agree.
-**Rollback:** only with a full-window rollback: infra reverts the merge (`git revert -m 1 <merge>`), and the chain names
-`postgres-data` again.
+**Verify:** the last command prints the two `FABRIK_HUB_VOLUMES_TO_RESTORE` lines, `postgres18-data` and `postgres-data`:
+master's DR chain covers the volume the hub now runs on, and the PG16 copy until R3 retires it.
+**Rollback:** none — read-only.
 
 #### 8.4 Start the services
 
@@ -1304,8 +1303,32 @@ sudo du -sh /var/lib/docker/volumes/postgres-data
 sudo docker volume rm postgres-data
 ```
 
+Then the DR chain stops restoring it (D-647) — one line on master, infra's commit. Send the request:
+
+```bash
+# on: wsl — after the volume is gone
+python3 scripts/mail.py send --to fabrik --to-agent infra --kind request --ack required <<'EOF'
+WHAT: PG18 release step R3 — delete the postgres-data line from FABRIK_HUB_VOLUMES_TO_RESTORE in scripts/bootstrap/bootstrap-config.sh, and its two test allowances (tests/test_dr_chain_pg18.py, tests/test_pg18_runbook.py).
+WHERE: scripts/bootstrap/bootstrap-config.sh, the line marked D-647.
+WHEN: now — the operator removed the postgres-data volume (runbook R3).
+WHO: fleet asks infra, master's merge owner.
+WHY: D-647 kept the PG16 volume in the restore list only while it existed; a rebuild would now restore a dead cluster.
+HOW: one commit; reply with its SHA.
+SYSTEMIC: a transitional DR entry carries its own removal step, so it never outlives the volume.
+EOF
+```
+
+Wait for infra's reply naming the commit, then check master:
+
+```bash
+# on: wsl — after infra's reply
+git -C /opt/fabrik fetch -q origin
+git -C /opt/fabrik show origin/master:scripts/bootstrap/bootstrap-config.sh | grep -cE '^\s+postgres-data\b'
+```
+
 **Verify:** the dry run lists no container; after the word, `sudo docker volume inspect postgres-data` fails and
-`postgres18-data` still serves (`"${PSQL[@]}" -X -At -c "SELECT version()"` reports 18.6).
+`postgres18-data` still serves (`"${PSQL[@]}" -X -At -c "SELECT version()"` reports 18.6); after infra's reply the
+last count prints `0`.
 **Rollback:** none after removal — the pre-window snapshots (R2's manual restore) are the only copy left, which is why R1
 and the operator's word come first.
 
@@ -1341,6 +1364,9 @@ are requests. Each item's `**Send:**` line says WHEN: `BEFORE-WSL-WINDOW`, `AFTE
 # on: wsl, in /opt/fabrik
 python3 scripts/mail.py send --to brand-identiy-creator --kind request --ack required <<'BODY'
 PostgreSQL 18 fleet upgrade (hub spec docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md, D7).
+WHEN: prepare the branch now, before the operator's WSL window; merge it only after that window.
+WHO: fleet (owner of the hub's PostgreSQL 18 plan) asks this repo; reply to fleet.
+SYSTEMIC: the fleet's Postgres major has one source, postgres_major in the hub's .windsurf/rules/versions.yaml; a pin that derives from it (or names it) makes the next major a one-line change instead of this hunt. Prefer the server's native function over an extension the fleet does not ship.
 WHAT: replace the pg_uuidv7 extension with native uuidv7(), on a branch prepared NOW and merged only after the WSL window.
 WHY: postgres-main does not offer pg_uuidv7, and the WSL dev database is dropped before pg_upgradecluster (it has no 18 build).
 WHERE (re-measure: grep -rl uuid_generate_v7 --include=*.py --include=*.sql --include=*.md — 24 files when measured):
@@ -1360,6 +1386,10 @@ BODY
 # on: wsl, in /opt/fabrik
 cat > /tmp/pg18-a2.txt <<'BODY'
 PostgreSQL 18 fleet upgrade (hub spec docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md, D5). postgres-main now runs 18.6.
+WHEN: now — the hub window has passed; land it before your next deploy.
+WHO: fleet (owner of the hub's PostgreSQL 18 plan) asks this repo; reply to fleet.
+WHY: a project whose CI or dev database stays on 16 while production runs 18 tests against a different server than it ships to (spec D5).
+SYSTEMIC: the fleet's Postgres major has one source, postgres_major in the hub's .windsurf/rules/versions.yaml; a pin that derives from it (or names it) makes the next major a one-line change instead of this hunt.
 WHAT: move your dev Postgres image to postgres:18.6-* (same variant you use today; probe the tag with docker manifest inspect first) AND its data mount to /var/lib/postgresql — an image-only bump fails to start (the 18 image refuses a volume at /var/lib/postgresql/data).
 WHERE:
 - tryton-crm: compose.dev.yaml:71 (postgres:16-bookworm), the mount at compose.dev.yaml:93, .env.example:49, trytond.conf:4
@@ -1377,6 +1407,11 @@ for r in tryton-crm tojlo-mail; do python3 scripts/mail.py send --to "$r" --kind
 # on: wsl, in /opt/fabrik
 python3 scripts/mail.py send --to trade-intelligence --kind request --ack required <<'BODY'
 PostgreSQL 18 fleet upgrade (hub spec docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md, D5/D6). postgres-main and the WSL dev cluster now run 18.
+WHEN: now — the hub window has passed; land it before your next deploy.
+WHO: fleet (owner of the hub's PostgreSQL 18 plan) asks this repo; reply to fleet.
+WHY: a project whose CI or dev database stays on 16 while production runs 18 tests against a different server than it ships to (spec D5).
+HOW: change the lines under WHERE, run your suite against the WSL 18 cluster, commit, and reply to fleet with the SHA.
+SYSTEMIC: the fleet's Postgres major has one source, postgres_major in the hub's .windsurf/rules/versions.yaml; a pin that derives from it (or names it) makes the next major a one-line change instead of this hunt.
 WHAT: trade-intelligence follows the fleet — you left Supabase for postgres-main (README.md:165), so your cutover lands on an 18 cluster and nothing stays on 17.
 WHERE — the six pins to 18:
 - .github/workflows/ci.yml:25
@@ -1397,6 +1432,12 @@ BODY
 # on: wsl, in /opt/fabrik
 cat > /tmp/pg18-a4.txt <<'BODY'
 PostgreSQL 18 fleet upgrade (hub spec docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md, D5). The hub's CI generator now derives its Postgres images from the version registry (18).
+WHERE: .github/workflows/ci.yml:12 (generated — regenerate it, never hand-edit) and scripts/ci_local.sh:8.
+WHEN: now — the hub window has passed; land it before your next deploy.
+WHO: fleet (owner of the hub's PostgreSQL 18 plan) asks this repo; reply to fleet.
+WHY: a project whose CI or dev database stays on 16 while production runs 18 tests against a different server than it ships to (spec D5).
+HOW: change the lines under WHERE, run your suite against the WSL 18 cluster, commit, and reply to fleet with the SHA.
+SYSTEMIC: the fleet's Postgres major has one source, postgres_major in the hub's .windsurf/rules/versions.yaml; a pin that derives from it (or names it) makes the next major a one-line change instead of this hunt.
 WHAT: regenerate your CI — .github/workflows/ci.yml:12 is generated ("fabrik-managed — regenerate via fabrik scaffold", its line 1), so do not hand-edit it: re-run the hub's scripts/backfill_ci.py / the scaffold for your repo — and move scripts/ci_local.sh:8 to the same postgres:18 image.
 Run your suite against the WSL 18 cluster before committing.
 BODY
@@ -1411,6 +1452,12 @@ for r in gmail-account-creator fabrik-claim-validator; do python3 scripts/mail.p
 # on: wsl, in /opt/fabrik
 python3 scripts/mail.py send --to youtube --kind request --ack required <<'BODY'
 PostgreSQL 18 fleet upgrade (hub spec docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md, D5). postgres-main and the WSL dev cluster now run 18.
+WHAT: move your CI service image and your docs' pgvector package name to 18.
+WHEN: now — the hub window has passed; land it before your next deploy.
+WHO: fleet (owner of the hub's PostgreSQL 18 plan) asks this repo; reply to fleet.
+WHY: a project whose CI or dev database stays on 16 while production runs 18 tests against a different server than it ships to (spec D5).
+HOW: change the lines under WHERE, run your suite against the WSL 18 cluster, commit, and reply to fleet with the SHA.
+SYSTEMIC: the fleet's Postgres major has one source, postgres_major in the hub's .windsurf/rules/versions.yaml; a pin that derives from it (or names it) makes the next major a one-line change instead of this hunt.
 WHERE: .github/workflows/test.yml:15 — the CI service image to postgres:18; your docs' "apt install postgresql-16-pgvector" lines to postgresql-18-pgvector (the WSL cluster now has postgresql-18-pgvector from PGDG).
 Run your suite against the WSL 18 cluster before committing.
 BODY
@@ -1424,6 +1471,11 @@ BODY
 # on: wsl, in /opt/fabrik
 python3 scripts/mail.py send --to calendar-orchestration-engine --kind request --ack required <<'BODY'
 PostgreSQL 18 fleet upgrade (hub spec docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md, D5). postgres-main now runs 18.6.
+WHEN: now — the hub window has passed; land it before your next deploy.
+WHO: fleet (owner of the hub's PostgreSQL 18 plan) asks this repo; reply to fleet.
+WHY: a project whose CI or dev database stays on 16 while production runs 18 tests against a different server than it ships to (spec D5).
+HOW: change the lines under WHERE, run your suite against the WSL 18 cluster, commit, and reply to fleet with the SHA.
+SYSTEMIC: the fleet's Postgres major has one source, postgres_major in the hub's .windsurf/rules/versions.yaml; a pin that derives from it (or names it) makes the next major a one-line change instead of this hunt.
 WHERE: Dockerfile.scheduler:12 installs an unpinned postgresql-client; on its node:22-bookworm-slim base that is client 15.
 WHAT: pin postgresql-client-18. That line installs curl but not ca-certificates/gnupg, so add those two, then the PGDG keyring and apt source, then the package (PGDG offers 18.6-1.pgdg12+2 for bookworm, measured in the hub's review).
 Run your suite against the WSL 18 cluster before committing.
@@ -1438,6 +1490,12 @@ BODY
 # on: wsl, in /opt/fabrik
 python3 scripts/mail.py send --to fabrik-lib --kind request --ack required <<'BODY'
 PostgreSQL 18 fleet upgrade (hub spec docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md, D5). postgres-main now runs 18, which ships native uuidv7().
+WHAT: update the two PG16 references below to 18 (native uuidv7() now exists on the fleet server).
+WHEN: now — the hub window has passed; land it before your next deploy.
+WHO: fleet (owner of the hub's PostgreSQL 18 plan) asks this repo; reply to fleet.
+WHY: a project whose CI or dev database stays on 16 while production runs 18 tests against a different server than it ships to (spec D5).
+HOW: change the lines under WHERE, run your suite against the WSL 18 cluster, commit, and reply to fleet with the SHA.
+SYSTEMIC: the fleet's Postgres major has one source, postgres_major in the hub's .windsurf/rules/versions.yaml; a pin that derives from it (or names it) makes the next major a one-line change instead of this hunt.
 WHERE: fastapi-user-auth/README.md:791 (postgres:16) and the vendored fastapi_user_auth/schema.sql:3 comment ("PG16 has no native uuidv7()").
 Your copies flow to fabrik-lib-account, fabrik-lib-review and the projects that vendor fastapi_user_auth — refresh them the usual way.
 BODY
@@ -1466,6 +1524,11 @@ done
 wc -l < /tmp/pg18-a8-lines.txt
 cat > /tmp/pg18-a8.txt <<'BODY'
 PostgreSQL 18 fleet upgrade (hub spec docs/superpowers/specs/2026-10-06-postgresql-18-fleet-upgrade-design.md, D5). postgres-main and the WSL dev cluster now run PostgreSQL 18.6.
+WHEN: now — the hub window has passed; land it before your next deploy.
+WHO: fleet (owner of the hub's PostgreSQL 18 plan) asks this repo; reply to fleet.
+WHY: a project whose CI or dev database stays on 16 while production runs 18 tests against a different server than it ships to (spec D5).
+HOW: edit the doc lines listed for your project below, commit, and reply to fleet with the SHA.
+SYSTEMIC: the fleet's Postgres major has one source, postgres_major in the hub's .windsurf/rules/versions.yaml; a pin that derives from it (or names it) makes the next major a one-line change instead of this hunt.
 WHAT: your docs still say PostgreSQL 16 — update the lines below (current-state docs only; dated plans, specs and logs are history and stay as written). No code change is asked. Your synced baseline (agents-fabrik.md, CLAIMS.yaml, the rule packs) is refreshed by the governance sync, not by you.
 WHERE — every doc-only project in this broadcast, one line each (find yours):
 BODY

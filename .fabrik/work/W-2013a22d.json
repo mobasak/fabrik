@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-01T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "a64f622cf5be774db07dd5fc1eab090115ab86c4",
   "id": "W-2013a22d",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:42a52c0ec2fd",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": ".fabrik/state/<id>.json has no durable record of registrar FAILURES (review finding 2026-09-01)"
 }

@@ -113,6 +113,14 @@ try:
     from kaizen_collect_v2 import PREMATURE_CAUSES  # noqa: E402
 except ImportError:  # pragma: no cover - simulated in tests via monkeypatch
     PREMATURE_CAUSES = None  # type: ignore[assignment]
+try:
+    # facts v4 (01M4BYXKWR): the hook's non-verdict stop_block outcomes, rendered into both
+    # stop-family formulas below so adding one changes their def_hash
+    from kaizen_collect_v2 import _NON_VERDICT_OUTCOMES_TEXT  # noqa: E402
+except ImportError:  # pragma: no cover - an older collector mid-sync
+    _NON_VERDICT_OUTCOMES_TEXT = "{stood_down}"
+#: stop_block_causes' own bucket for the stand-down VOLUME — never a cause, never premature
+STOOD_DOWN_BUCKET = "stood_down"
 
 try:
     import kaizen_events  # T01 emitter — same directory; fleet_health events
@@ -852,7 +860,15 @@ def premature_stop(
     # Root law: a delta row whose events/stop_causes map gapped (measured with no
     # same-field baseline) is unmeasurable for the stops family — out of BOTH
     # guard operand and value population.
-    rows = [r for r in attributed if not _gapped(r, "events", "stop_causes")]
+    # 01M4BYXKWR: `stop_stood_down` (facts v4) separates the hook's non-verdict stand-downs from
+    # real blocks; a row whose schema never measured it (absent — pre-v4) or whose baseline did
+    # not (root-law None) cannot be split, so it leaves both operands like any gapped row.
+    rows = [
+        r
+        for r in attributed
+        if not _gapped(r, "events", "stop_causes", "stop_stood_down")
+        and isinstance(r.get("stop_stood_down"), dict)
+    ]
     # W6-2 + W12-1: attributed-side bootstrap symmetry on the PAIR'S population
     # mass (stop verdicts) — a cause-only row contributes to neither published
     # number (W6-3), so gating on the wider family mass claimed verdict mass
@@ -886,7 +902,13 @@ def premature_stop(
     premature_sids: set[str] = set()
     for r in rows:
         sid = str(r.get("sid"))
-        verdicts = _stop_verdicts(r)
+        stood = r.get("stop_stood_down") or {}
+        # a stand-down rides BESIDE a real verdict, never as one: a session's verdicts are its
+        # envelope count minus its stand-downs, so a stand-down-only row carries no verdict and
+        # an all-stand-down window takes the 'no stop verdicts' branch below (review 2026-10-07,
+        # B-S1-new). The attribution guard and bootstrap keep the ENVELOPE count, symmetric
+        # with the unknown stream's envelope-only mass.
+        verdicts = _stop_verdicts(r) - sum(int(n) for n in stood.values())
         verdicts_by_sid[sid] += verdicts
         if verdicts <= 0:
             # W6-3: causes ride verdict-bearing rows ONLY — a causes-without-
@@ -894,10 +916,17 @@ def premature_stop(
             # denominator structurally, the pre-wave invariant restored).
             continue
         for cause, count in (r.get("stop_causes") or {}).items():
-            n = int(count)
+            n = int(count) - int(stood.get(cause, 0))
+            if n <= 0:
+                continue  # every block of this cause was a stand-down — no cause entry at all
             causes[str(cause)] += n
-            if n > 0 and cause in vocab:
+            if cause in vocab:
                 premature_sids.add(sid)
+        # the stand-down VOLUME stays visible as its own bucket, outside every cause: a
+        # `_seats_in_flight` false positive would otherwise hide real premature stops unseen
+        stood_total = sum(int(n) for n in stood.values())
+        if stood_total:
+            causes[STOOD_DOWN_BUCKET] += stood_total
     sessions = {sid for sid, n in verdicts_by_sid.items() if n > 0}
     if not sessions:
         reason = (
@@ -911,7 +940,12 @@ def premature_stop(
             MetricResult.unavailable("premature_stop", reason + note),
             MetricResult.unavailable("stop_block_causes", reason + note),
         )
-    total_stops = sum(verdicts_by_sid.values())
+    # the hook's stand-down rides BESIDE the stop's real verdict — counting it would count that
+    # stop twice, so it leaves the denominator here exactly as it does in premature_stop_rate
+    # (review 2026-10-07, A-S1/B-S1); its volume stays VISIBLE in the value and the cell as the
+    # `stood_down` bucket, outside the counted numerator (it is not a stop_block CAUSE).
+    stood_total = causes.get(STOOD_DOWN_BUCKET, 0)
+    total_stops = sum(verdicts_by_sid.values())  # real verdicts — stand-downs already out
     # ONE unit throughout — EVENTS: the numerator (caused stop_block events), the
     # denominator (stop-verdict events) and the cell text all count the same thing.
     if causes:
@@ -926,7 +960,7 @@ def premature_stop(
             "causes alike, over the window's delta rows" + note + boot_note
         ),
         value=dict(causes),
-        numerator=sum(causes.values()),
+        numerator=sum(causes.values()) - stood_total,
         denominator=total_stops,
     )
     premature_sessions = len(premature_sids & sessions)
@@ -1210,12 +1244,17 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
         # v7 (fix-wave 7, W7-1 + W7-5): DAY-scoped published day point + the
         # annotated pre-window-baseline smear. v8 (fix-wave 8, W8-2): the smear
         # needs a SKIPPED day — a consecutive-day baseline is normal. v9
-        # (fix-wave 9, W9-1): the smear predicate is PER ROW.
-        "version": 9,
+        # (fix-wave 9, W9-1): the smear predicate is PER ROW. v10 (01M4BYXKWR, 2026-10-07):
+        # the hook's non-verdict stop_block outcomes leave the per-cause count, and the
+        # cause set is RENDERED (the hand-typed pair had missed `deferral` since T01b).
+        "version": 10,
         "counter_metric": "stop_block_causes",
         "formula": (
-            "SESSION-level: sessions with a premature-cause stop_block "
-            "(PREMATURE_CAUSES: run-record / promise-stall) over sessions with any "
+            "SESSION-level: sessions with a premature-cause stop_block (PREMATURE_CAUSES: "
+            + kc._PREMATURE_CAUSES_TEXT
+            + "; a stop_block whose outcome is in "
+            + _NON_VERDICT_OUTCOMES_TEXT
+            + " is not a stop and never counts) over sessions with any "
             "stop verdict, computed over the window's day-scoped delta rows. THE "
             "PUBLISHED DAY POINT IS DAY-scoped (W7-1): the daily publish computes "
             "over days=[the published day] only — that day's verdict-bearing "
@@ -1265,13 +1304,20 @@ OUTCOME_METRIC_DEFS: tuple[dict, ...] = (
         # and the numerator scoped to verdict-bearing rows. v7 (fix-wave 7,
         # W7-1 + W7-5): DAY-scoped published day point + the annotated smear.
         # v8 (fix-wave 8, W8-2): the smear needs a SKIPPED day. v9 (fix-wave 9,
-        # W9-1): the smear predicate is PER ROW.
-        "version": 9,
+        # W9-1): the smear predicate is PER ROW. v10 (01M4BYXKWR, 2026-10-07): stop_block
+        # events whose outcome is non-verdict leave their cause and land in their own bucket.
+        "version": 10,
         "counter_metric": "premature_stop",
         "formula": (
             "the FULL {cause: count} distribution of stop_block events — premature "
             "and legitimate causes alike — the rate's shape, so a falling rate cannot "
-            "hide a cause-mix shift. EVENT units throughout (numerator, denominator "
+            "hide a cause-mix shift; stop_block events whose outcome is in "
+            + _NON_VERDICT_OUTCOMES_TEXT
+            + " are counted in their own '"
+            + STOOD_DOWN_BUCKET
+            + "' bucket, never under their cause and outside both counted operands (they ride "
+            "beside a real verdict, never as one), so the hook's stand-down volume stays "
+            "visible. EVENT units throughout (numerator, denominator "
             "and cell), computed over the SAME day-scoped delta rows and window as "
             "its pair. THE PUBLISHED DAY POINT IS DAY-scoped (W7-1): the daily "
             "publish computes over days=[the published day] only; the trailing "

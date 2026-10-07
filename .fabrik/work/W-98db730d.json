@@ -12,11 +12,11 @@
     "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
     "spec": ""
   },
-  "next": "write `docs/development/plans/2026-10-02-plan-2-postgres-allocation-reconcile.md` from their anchors, then run `/fabrik-plan-review` on it.",
+  "next": "write `docs/development/plans/archived/2026-10-02-plan-2-postgres-allocation-reconcile.md` from their anchors, then run `/fabrik-plan-review` on it.",
   "next_at": "2026-10-02T07:11:11.937173Z",
   "note": "superseded",
   "owner": "fleet",
   "priority": 2,
   "status": "dropped",
-  "title": "write `docs/development/plans/2026-10-02-plan-2-postgres-allocation-reconcile.md` from their anchors, then run `/fabrik-plan-review` on it."
+  "title": "write `docs/development/plans/archived/2026-10-02-plan-2-postgres-allocation-reconcile.md` from their anchors, then run `/fabrik-plan-review` on it."
 }
