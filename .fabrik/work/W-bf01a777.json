@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T01:30:38.525786Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bf01a777",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49GS9ZMDASXB3X7J6HGPN01",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: blocked",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Rule-pack text request — core/55-observability.md:386-387 (GlitchTip release/environment names), after the fleet GlitchTip release fix"
+}
