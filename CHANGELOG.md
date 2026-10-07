@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review seats redirect any large output into scratch (2026-10-07)
+- A 197 KB `git show` in a web-ecommerce-factory spec review was saved by the harness under `$HOME`, where seats may not read (01M42WP1S0, W-27fc7fa9). Every seat surface (the review-loop isolation constant, the reviewer agent's SHA-pin line, method step 1 and D8 list, and the subagents-core D8 fragment) now says a command whose output may be large (`git show`, `git diff`, `git log -p`, a broad search) redirects into a file under the seat's scratch dir. The graders pin each clause whole, subject through reason.
+
 ### Fixed — review seats keep off the live tree, and the lead checks for leaks (2026-10-07)
 - Three seats damaged live trees (a git reset in a main checkout, a relative-path mutant after the cwd reset, a `pkill -f` on live mail watches). Every seat is now told: absolute paths for anything it writes or runs, git writes only via `git -C <absolute scratch repo>`, no pattern kills (D-648). One `SEAT_ISOLATION` constant feeds both workflow seat prompts; the agent house rules, the seat-brief fragment and `convergence-prompts.md` agree.
 - `/fabrik-review` gains a per-dispatch Leak check (HEAD, porcelain with ignored files, stash list, the surface digest) that restores only seat-attributed hunks. The old one-call restore lesson is gone.
