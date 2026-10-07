@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the review receipt's Pass rows agree on one shape (2026-10-08)
+- The receipt skeleton's Pass-1 example labels its method (`method: citation`), and one grader holds term-coverage's template, convergence-prompts, /fabrik-review's examples, the skeleton and term-edit to finders second, counters third and `method:` last (kaizen 01M4C186BV; iie2 01M3WJBWDF, wef3 01M3YDPRKJ). V11 stays the second-cell reader (D-655).
+
 ### Removed — five unused agent templates (2026-10-08)
 - D-652 item 3 (the Opus + Fable panel's recommendation, adopted under the operator's ruling of 2026-10-07): `templates/{docusaurus,file-api,file-worker,node-api}/AGENTS.md.j2` and `templates/saas-skeleton/AGENTS.md` are gone. No scaffold path reads them by name (only mobile-app's `AGENTS.md.j2` is rendered; every project already receives the hub `AGENTS.md`), so they only shipped retired tool text: into template-sourced deploys (the renderer renders every `*.j2`) and, for `saas-skeleton/AGENTS.md`, into every scaffolded project's `templates/saas-skeleton/` reference copy. Existing copies are not pruned: 17 projects still hold the retired `templates/saas-skeleton/AGENTS.md`, and an already-deployed template app keeps its `/opt/<name>/AGENTS.md` until removed by hand (W-13dbeba9). `docs/DEPLOYMENT_ARCHITECTURE.md` no longer lists node-api's; the skeleton README no longer points at the deleted file.
 
