@@ -112,8 +112,8 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   An `ack: required` OBLIGATION is NEVER swept at any age — those close by work, never by a timer. Age
   comes from the message's own `ts` (not mtime, which a restore rewrites); an unparseable `ts` is left
   alone rather than guessed at. Nothing is deleted: `archive/` stays a complete audit trail.
-- **Every hub message carries an ADDRESSEE — ENFORCED at send since 2026-08-26.** The hub runs three
-  agents — `infra` · `fleet` · `intel` — sharing one `fabrik` mailbox, so a message with no `agent:`
+- **Every hub message carries an ADDRESSEE — ENFORCED at send since 2026-08-26.** The hub runs four
+  agents — `infra` · `fleet` · `intel` · `kaizen` — sharing one `fabrik` mailbox, so a message with no `agent:`
   is work nobody owns. A hub-bound `send` now REFUSES (exit 2, with the four-beat guide) unless it
   carries `--to-agent infra|fleet|intel|kaizen`, an explicit `--broadcast` (deliberately all-agents;
   refuses `ack:required` — an obligation nobody owns cannot be acked), or is a `kind=reply` thread
@@ -252,7 +252,7 @@ trigger-don't-execute survives. The hook wraps its whole body in a catch-all tha
 
 ## Concurrency — a repo's agents share ONE inbox
 
-A repo runs several concurrent Claude sessions (up to **3 in the hub `fabrik`**, 1–2 per project), and
+A repo runs several concurrent Claude sessions (up to **4 in the hub `fabrik`**, 1–2 per project), and
 they **all share the one `<repo>/inbox`** — identity is the repo basename, so every fabrik session *is*
 `fabrik`. This is deliberate:
 
