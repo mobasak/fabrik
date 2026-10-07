@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T19:43:20.529666Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-326ab87a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-command-improve fabrik-review-scoped: replace the clause, execute both scenarios (failed copy, ABA) against the new form",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "/fabrik-review-scoped step 5: the pin's copy check ('md5sum <the copies> must print the manifest's hashes') is an eyeball comparison — make it mechanical: md5sum -c --quiet <pins_dir>.md5 run from inside <pins_dir> must print nothing (recorded by the remainder round of the a4dcf8317 review, scope-growth stop; owner: kaizen)"
+}
