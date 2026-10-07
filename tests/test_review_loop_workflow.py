@@ -1118,6 +1118,16 @@ def test_the_finder_and_refuter_share_one_import_recipe() -> None:
     assert span(finder) == span(refuter)
 
 
+def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
+    """W-165e533c: every review seat runs under the fabrik-reviewer definition, and in a linked worktree the
+    isolation guard refuses a compound, piped, looped or heredoc Bash call that names git. The rule reached
+    only the workflow's pin recipe, so lead-dispatched and units-sized seats rediscovered it by refusal. The
+    seat has no Write tool, so the house rule must name a write form the guard accepts."""
+    brief = BRIEF.read_text(encoding="utf-8")
+    for needed in ("one plain command per Bash call", "no Write tool", "split it"):
+        assert needed in brief, needed
+
+
 def test_no_seat_instruction_source_wraps_a_shell_builtin_in_timeout() -> None:
     """W-9385c2b3: every seat runs under the fabrik-reviewer definition, whose house rules said `command grep`
     while the brief says to wrap a blocking command in `timeout` — `timeout` cannot run the builtin `command`
