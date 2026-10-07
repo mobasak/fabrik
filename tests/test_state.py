@@ -133,6 +133,12 @@ def test_registrar_failures_round_trip():
         ("docker run -e PGPASSWORD='my secret pass' postgres", "secret pass"),
         ('upstream said {"token": "pass\\"word123xyzLEAK", "other": "field"}', "word123xyzLEAK"),
         ('TOKEN="pass\\"word123xyzLEAK" trailing', "word123xyzLEAK"),
+        # the closing quote lies past the 2,000-char scan window: the value is still masked
+        ("x" * 400 + '{"password": "' + "LEAKEDSECRETJSON" * 150 + '"}', "LEAKEDSECRETJSON"),
+        (
+            "x" * 400 + 'TOKEN="' + "S" * 200 + " " + "LEAKEDSECRETDATA" * 150 + '"',
+            "LEAKEDSECRETDATA",
+        ),
     ],
 )
 def test_registrar_failures_are_sanitised(raw, secret):
