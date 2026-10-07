@@ -284,7 +284,7 @@ the box, a cap, or your own invocation, and re-run it once that clears), `python
 `Workflow` call — `Workflow({scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js", args: {pass: 1,
 surface, base_sha, digest, pins_dir, scratch_dir, brief, slices}})` (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree), each slice `{name, files: [its ticket files,
 or the monolith], scope: "<the sections it owns>", models: ["opus"] | ["sonnet"], priority}` and a cited-fact
-slice `agent: "fabrik-researcher"` (contract: `docs/reference/review-loop-workflow.md`): one fresh refuter per
+slice `agent: "fabrik-researcher"` (contract: `/opt/fabrik/docs/reference/review-loop-workflow.md`): one fresh refuter per
 slice EXECUTES every candidate and returns the command and output, and ONE ledger comes back. Read it into a file
 with `python3 scripts/review_loop_ledger.py read <the run's transcript dir> --out <scratch>/pass-<n>.json --box
 <box_minutes>`, re-run every `confirmed` candidate's check yourself before acting — CONFIRMED means you ran it —
