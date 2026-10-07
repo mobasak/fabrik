@@ -88,8 +88,10 @@ REPO = Path(__file__).resolve().parents[2]
 #: out (``runs_noncheck`` / ``failed_checks_noncheck``) so the failure taxonomy can
 #: exclude diagnostic --check runs (W2-F1, the L5 rationale). The derived-row shape
 #: changed, so the version bumps and the golden corpus is re-labelled — the
-#: derived-facts law.
-FACTS_VERSION = 3
+#: derived-facts law. v4 (kaizen 01M4BYXKWR, 2026-10-07): a ``stop_stood_down`` {cause: n} map
+#: counts the Stop hook's NON-verdict stop_block outcomes beside ``stop_causes`` (which stays
+#: as derived — subtracting there would shrink a lifetime row and dark its day).
+FACTS_VERSION = 4
 SCHEMA = 1
 DASH = "—"
 UNKNOWN = "unknown"
@@ -119,6 +121,16 @@ RUN_CLOSE_VERDICTS = frozenset({"done", "blocked", "handoff"})
 #: `cause="promise-stall"` to `cause="deferral"`; both land here BEFORE the hook emits
 #: either, and are inert until it does (spec § Contract deltas; A-O19).
 PREMATURE_CAUSES = frozenset({"run-record", "promise-stall", "deferral"})
+#: stop_block OUTCOMES that are not a stop verdict at all: ``stood_down`` is the event the Stop
+#: hook emits BESIDE its real verdict when it lets a stop through because a running record's
+#: own seats are in flight (``.claude/hooks/final_gate_stop.py`` ``_stall_gate``, W-4c7edc74).
+#: Counted apart in ``stop_stood_down`` and subtracted by every premature-stop reader from its
+#: numerator, and from the event-level denominator (kaizen 01M4BYXKWR). ⚠️ COBRA (D-253): the
+#: cheapest way to lower premature_stop_rate without fewer premature stops is to add an outcome
+#: here — so the set is RENDERED into every formula that reads it (the def_hash covers the
+#: formula) and stop_block_causes publishes the stand-down volume as its own bucket.
+NON_VERDICT_OUTCOMES = frozenset({"stood_down"})
+_NON_VERDICT_OUTCOMES_TEXT = "{" + ", ".join(sorted(NON_VERDICT_OUTCOMES)) + "}"
 #: The human-facing rendering of PREMATURE_CAUSES for the premature_stop_rate formula
 #: string and its MetricResult detail — sorted for a deterministic sentence, and
 #: DERIVED (never hand-typed) so a set member can never drift out of the text (and
@@ -287,6 +299,7 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
     reasons: collections.Counter[str] = collections.Counter()
     projects: collections.Counter[str] = collections.Counter()
     stop_causes: collections.Counter[str] = collections.Counter()
+    stop_stood_down: collections.Counter[str] = collections.Counter()
     failed_checks: collections.Counter[str] = collections.Counter()
     failed_checks_noncheck: collections.Counter[str] = collections.Counter()
     gate_runs = 0
@@ -406,6 +419,8 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
             cause = row.get("cause")
             if isinstance(cause, str) and cause:
                 stop_causes[cause] += 1
+                if row.get("outcome") in NON_VERDICT_OUTCOMES:
+                    stop_stood_down[cause] += 1
             else:
                 # M8: cause is a required field of stop_block — missing or
                 # non-string is counted, never a silent drop.
@@ -453,6 +468,7 @@ def derive_session(path: Path, day: str | None = None) -> dict | None:
             "handoff": handoff,
         },
         "stop_causes": dict(stop_causes),
+        "stop_stood_down": dict(stop_stood_down),
         # Every death class, in order of occurrence (M9) — a session can die more
         # than once (death -> revival -> death) and each class is data.
         "death_classes": death_classes,
@@ -735,6 +751,7 @@ _DELTA_MAPS: tuple[tuple[str | None, str], ...] = (
     (None, "events_unattributed"),
     (None, "unclassified_reasons"),
     (None, "stop_causes"),
+    (None, "stop_stood_down"),
     ("gate", "failed_checks"),
     ("gate", "failed_checks_noncheck"),
 )
@@ -1038,11 +1055,18 @@ METRIC_DEFS: tuple[dict, ...] = (
         # v4 (T01b review round 1): `deferral` joined PREMATURE_CAUSES — the formula
         # now RENDERS the set (_PREMATURE_CAUSES_TEXT) instead of naming its two prior
         # members by hand, so the counted population widened and the def_hash bumps.
-        "version": 4,
+        # v5 (kaizen 01M4BYXKWR, 2026-10-07): stop_block events whose outcome is in
+        # NON_VERDICT_OUTCOMES (the hook's `stood_down`, emitted BESIDE the real verdict)
+        # leave the numerator AND the denominator; the set is rendered, so adding an
+        # outcome changes the formula and therefore the def_hash.
+        "version": 5,
         "counter_metric": "first_attempt_gate_pass",
         "formula": (
             "stop_block events with cause in " + _PREMATURE_CAUSES_TEXT + " / all stop "
-            "verdicts (stop_pass + stop_block)." + _BUMP_GAP_SENTENCE
+            "verdicts (stop_pass + stop_block), stop_block events whose outcome is in "
+            + _NON_VERDICT_OUTCOMES_TEXT
+            + " excluded from both — they ride beside a real verdict, never as one."
+            + _BUMP_GAP_SENTENCE
         ),
         # NOT part of the def hash (versioned-definitions law: _def_hash bases on
         # id/version/formula/counter_metric only) — descriptive cross-reference:
@@ -1554,12 +1578,24 @@ def compute_metrics(
     stops = 0
     premature = 0
     for r in rows:
-        if _events_gap(r) or ("stop_causes" in r and r["stop_causes"] is None):
+        # a row whose schema never measured the stand-downs (pre-v4) or whose baseline did not
+        # (root-law None) cannot separate them from real blocks — a gap, never a 0 (01M4BYXKWR)
+        stood = r.get("stop_stood_down")
+        if (
+            _events_gap(r)
+            or ("stop_causes" in r and r["stop_causes"] is None)
+            or not isinstance(stood, dict)
+        ):
             gaps["premature_stop_rate"] += 1
             continue
         events = r.get("events") or {}
-        stops += int(events.get("stop_pass", 0)) + int(events.get("stop_block", 0))
-        premature += sum(int((r.get("stop_causes") or {}).get(c, 0)) for c in PREMATURE_CAUSES)
+        causes = r.get("stop_causes") or {}
+        stops += (
+            int(events.get("stop_pass", 0))
+            + int(events.get("stop_block", 0))
+            - sum(int(n) for n in stood.values())
+        )
+        premature += sum(int(causes.get(c, 0)) - int(stood.get(c, 0)) for c in PREMATURE_CAUSES)
     if stops:
         out["premature_stop_rate"] = MetricResult(
             id="premature_stop_rate",
