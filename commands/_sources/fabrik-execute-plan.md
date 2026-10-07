@@ -1238,7 +1238,10 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    every doc that cites the plan by its pre-archive path, IN THIS SAME COMMIT.** `command grep -rln
    '<plan-stem>' docs/ *.md` names them; the two that exist for any plan worth executing are
    `docs/DECISIONS.md` (rows minted while it was in flight) and `docs/STRATEGIC_BACKLOG.md` (rows
-   routed out of its reviews), plus the review receipts under `docs/development/reviews/`. Doc Link
+   routed out of its reviews). **Never the review receipts under `docs/development/reviews/`, nor any
+   verbatim captured output:** a receipt is a frozen artifact, and rewriting one re-admits it to
+   `check_convergence`/`check_review_coverage` under today's grammar (four 2026-08/09 receipts redded
+   on the first try, `01M4BYT60T`) — its pre-archive cite stays as written. Doc Link
    Integrity DOES catch this — but at the last gate before the commit, after the move, so it costs a
    full gate re-run and lands the repair in a commit whose message was already written
    (`01M2GCTCP5F8`; hit again on the 2026-09-12 mail-triage plan's own Finish, where a `DECISIONS.md`

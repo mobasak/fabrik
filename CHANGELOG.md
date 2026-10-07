@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan's Finish no longer repoints frozen review receipts (2026-10-08)
+- Finish step 6 told the archiving agent to repoint "the review receipts under `docs/development/reviews/`" with the other referrers; a receipt is a frozen artifact, and rewriting one re-admits it to `check_convergence`/`check_review_coverage` under today's grammar (four 2026-08/09 receipts redded on infra's first archive pass, `01M4BYT60T`). Receipts and verbatim captured output keep their pre-archive cite. The hub-agent counts in four more command texts (`agent-feedback.md`, `/fabrik-upstream`, `/fabrik-repo-review`, the `fabrik-reviewer` agent) now read kaizen or "several sessions". Answers 2 /fabrik-execute-plan feedback verdicts (kaizen).
+
 ### Changed — /fabrik-review states the receipt close order: gate while IN-PROGRESS, embed, then flip (2026-10-07)
 - `check_convergence.py` skips an in-flight receipt and refuses a CONVERGED one with no fenced green gate, so a session that flipped first was refused by the very gate run meant to produce the evidence. Executed on a staged copy of a committed receipt: CONVERGED with its gate rc 0, CONVERGED with the gate removed rc 1, IN-PROGRESS without a gate rc 0. Answers 5 /fabrik-review feedback verdicts (kaizen).
 
