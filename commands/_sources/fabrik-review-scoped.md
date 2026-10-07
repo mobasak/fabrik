@@ -149,7 +149,7 @@ proportionate answer.
    RETURNED reader; the width is what makes the one reader worth having.
 -->
 6. **Gate + close:** `python scripts/final_gate.py --check --json` green on your files, then
-   `done --command fabrik-review-scoped --evidence "round <n>: confirmed 0 · fixed 0 · unexecuted 0; <x> fixed / <y> refuted; independent reader <what> returned <n> candidate(s), adjudicated <how>" --feedback "confusion: <what misled you | none> · waste: <steps, turns or tokens that changed nothing | none> · change: <the ONE edit to the command or rule | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`
+   `done --command fabrik-review-scoped --evidence "round <n>: confirmed 0 · fixed 0 · unexecuted 0; <x> fixed / <y> refuted; independent reader <what> returned <n> candidate(s), adjudicated <how>" --feedback "confusion: <what misled you | none> · waste: <steps, turns or tokens that changed nothing | none> · change: <the ONE edit to the command or rule | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"`
    — or, under step 5's path (ii), the CLOSE half of this step is already spent: that `done` ran inside
    the one-liner and names NO reader BY DESIGN (it is not a converging close — the heavy review is),
    the heavy record is live, and a second `done` NAMING THIS COMMAND is refused (the live run is now

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the hub contract and the mail doc name kaizen wherever they list the hub agents (2026-10-07)
+- `CLAUDE.md` still said the hub mailbox was shared by "three sessions", listed only the fleet and intel worktrees, and offered `mail.py route … --to-agent infra|fleet|intel`; the kaizen beat now cites D-627 and the `feedback_owner` key that makes the queues its. `docs/reference/fabrik-mail.md` (the `agent:` field, the refusal's four-beat guide) and the `filed:` examples in `/fabrik-review` and `/fabrik-review-scoped` now include kaizen.
+
 ### Fixed — term-coverage's canonical Pass row puts the finders where the grader reads them (2026-10-07)
 - `commands/_fragments/term-coverage.md` (rendered into /fabrik-review, /fabrik-repo-review, /fabrik-conformance-review, /fabrik-user-test, /fabrik-service-test) told authors to write `| Pass k | method: … | counters | finders: … |`, while `check_review_coverage.py` V11 reads a closing row's seats from its SECOND cell — a receipt written exactly to the fragment was refused at close (executed on a copy of a committed receipt: rc 0 as committed, rc 1 with only its closing row rewritten to the fragment's shape). The canonical row is now `| Pass k | <seats by model token> | counters | method: … |`. `tests/enforcement/test_review_exit_contract.py`'s corpus-vs-grader fixture carries `confirmed:` so V11 grades it, and pins that the old method-first shape is refused. Answers 11 /fabrik-review feedback verdicts (kaizen).
 
