@@ -512,9 +512,13 @@ class DeploymentOrchestrator:
         return ctx
 
     def _persist_state(self, ctx: DeploymentContext, spec: dict[str, Any]) -> None:
-        # Write .fabrik/state/<id>.json with the 8-field G-F3 schema. Failure
+        # Write .fabrik/state/<id>.json (the G-F3 schema, state.py docstring). Failure
         # is logged but never raised — state files are best-effort metadata,
         # not load-bearing for the orchestrator success path.
+        if ctx.dry_run:
+            # A dry run applied nothing: writing would replace the last real apply's record
+            # (its registrars and its registrar_failures) with dry-run entries (W-2013a22d).
+            return
         try:
             spec_id = spec.get("id") or spec.get("name")
             if not spec_id:
@@ -538,6 +542,11 @@ class DeploymentOrchestrator:
                 registrars_applied=registrars_applied,
                 domain=spec.get("domain") or "",
                 target_vps=getattr(ctx, "target_vps", None) or "vps1",
+                # _nonfatal records "<label>: <error>"; keep the label as its own field
+                registrar_failures=[
+                    {"registrar": label, "error": error}
+                    for label, _, error in (str(f).partition(": ") for f in ctx.registrar_failures)
+                ],
             )
         except Exception as e:  # noqa: BLE001
             logger.warning("state.save failed (non-fatal): %s", e)
