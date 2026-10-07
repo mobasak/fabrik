@@ -1,6 +1,6 @@
 # Plan — Promtail → Grafana Alloy across the fleet: branch, rehearsals and runbook ready for the operator's window
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** fleet
 Spec: docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md
 Date: 2026-10-08
