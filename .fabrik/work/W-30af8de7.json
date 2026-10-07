@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T18:58:56.319063Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-30af8de7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4AFC6N3YHRG83JXBQ03QY24",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "site-provisioner: redeploy at d7f81b1 — Cloudflare Registrar purchase routes (plan-2), live purchases OFF"
+}

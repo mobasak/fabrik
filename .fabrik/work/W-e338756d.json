@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T19:15:35.463918Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e338756d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add a last_attempt {at, outcome, registrar_failures} block written on the failure arms of DeploymentOrchestrator.deploy/refresh_infrastructure without touching registrars_applied, with a test",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "a failed or rolled-back fabrik apply writes no state file, so registrar_failures describes only the last COMPLETED apply"
+}

@@ -11,6 +11,10 @@ from pathlib import Path
 
 import pytest
 
+# Imported before the autouse fixture repoints FABRIK_ROOT at a tmp dir: the CLI pulls in
+# fabrik.scaffold, which binds FABRIK_ROOT at import to find scripts/fabrik_synced_manifest.py.
+import fabrik.cli  # noqa: F401
+
 
 @pytest.fixture(autouse=True)
 def _isolate_state_dir(tmp_path, monkeypatch):
@@ -76,6 +80,7 @@ def test_save_writes_every_field():
         "coolify_uuid",
         "domain",
         "git_sha",
+        "registrar_failures",
         "registrars_applied",
         "spec_hash",
         "spec_path",
@@ -84,6 +89,187 @@ def test_save_writes_every_field():
     # audit.py and cli.py read target_vps back from this file to find the box (added 0a5a15f84);
     # a spec that names none lands on the hub
     assert payload["target_vps"] == "vps1"
+    # always written, so its presence means "recorded" and [] means the apply finished clean
+    assert payload["registrar_failures"] == []
+
+
+def _save_with_failures(state, failures):
+    return state.save(
+        "svc",
+        spec_path="/opt/fabrik/specs/services/svc.yaml",
+        spec_hash="h",
+        coolify_uuid=None,
+        coolify_app_name="svc",
+        registrars_applied=[{"type": "redis", "id": "svc", "status": "applied"}],
+        registrar_failures=failures,
+    )
+
+
+def test_registrar_failures_round_trip():
+    state = _import()
+    _save_with_failures(state, [{"registrar": "redis", "error": "REDIS_URL injection failed"}])
+    assert state.load("svc")["registrar_failures"] == [
+        {"registrar": "redis", "error": "REDIS_URL injection failed"}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("raw", "secret"),
+    [
+        ("env write failed: CONSUMER_TOKENS=abc123def", "abc123def"),
+        ("connect redis://:S3cr3t@redis-main:6379/3 refused", "S3cr3t"),
+        ("FATAL for postgresql://svc:p%40ssw0rd@postgres-main:5432/db", "p%40ssw0rd"),
+        (
+            "psql: ERROR: syntax error / LINE 1: ALTER ROLE \"svc\" WITH PASSWORD 'S3cr3t';",
+            "S3cr3t",
+        ),
+        # the 500-char cap cuts this before its "@": capping first would leave "straddle" unmasked
+        ("x" * 482 + " redis://:straddle@h", "straddle"),
+        ("grafana: 401 for Authorization: Bearer sk-live-ABCDEF123456", "sk-live-ABCDEF123456"),
+        (
+            'glitchtip: bad body {"username": "admin", "password": "SuperSecret123"}',
+            "SuperSecret123",
+        ),
+        ("docker run -e PGPASSWORD='my secret pass' postgres", "secret pass"),
+        ('upstream said {"token": "pass\\"word123xyzLEAK", "other": "field"}', "word123xyzLEAK"),
+        ('TOKEN="pass\\"word123xyzLEAK" trailing', "word123xyzLEAK"),
+        # the closing quote lies past the 2,000-char scan window: the value is still masked
+        ("x" * 400 + '{"password": "' + "LEAKEDSECRETJSON" * 150 + '"}', "LEAKEDSECRETJSON"),
+        (
+            "x" * 400 + 'TOKEN="' + "S" * 200 + " " + "LEAKEDSECRETDATA" * 150 + '"',
+            "LEAKEDSECRETDATA",
+        ),
+    ],
+)
+def test_registrar_failures_are_sanitised(raw, secret):
+    """The file is exported by `fabrik export`: secret-shaped text is masked BEFORE the cap."""
+    state = _import()
+    _save_with_failures(state, [{"registrar": "postgres", "error": raw}])
+    error = state.load("svc")["registrar_failures"][0]["error"]
+    assert secret not in error
+    assert len(error) <= 500
+
+
+def test_registrar_failures_sanitiser_is_bounded_in_time():
+    """A long unbroken word run made the quoted-assignment mask backtrack O(n^2) (16k chars ~6 s)."""
+    import time
+
+    state = _import()
+    start = time.monotonic()
+    state._sanitize_failure('{"password": "' + "a" * 100_000)
+    state._sanitize_failure("plain trace " + "b" * 100_000)
+    assert time.monotonic() - start < 2.0
+
+
+def test_registrar_failures_sanitiser_never_raises():
+    """A raise inside _persist_state's except would drop the whole state file."""
+    state = _import()
+    _save_with_failures(
+        state, [{"registrar": "x", "error": 123}, {"registrar": None}, "bare string"]
+    )
+    assert [f["error"] for f in state.load("svc")["registrar_failures"]] == [
+        "123",
+        "",
+        "bare string",
+    ]
+
+
+def _orchestrator():
+    from unittest.mock import MagicMock
+
+    from fabrik.orchestrator import DeploymentOrchestrator
+
+    orch = DeploymentOrchestrator()
+    orch.validator = MagicMock()
+    orch.validator.load_and_validate.return_value = (
+        {"name": "svc", "id": "svc", "domain": "svc.example.com"},
+        "spec-hash",
+        [],
+    )
+    orch.deployer = MagicMock()
+    orch.deployer.find_existing.return_value = {"name": "svc", "status": "", "path": "/opt/svc"}
+    return orch
+
+
+def test_persist_state_records_failures_and_skips_dry_run(tmp_path):
+    from fabrik.orchestrator.context import DeploymentContext
+
+    state = _import()
+    orch = _orchestrator()
+    spec = {"id": "svc", "name": "svc"}
+    ctx = DeploymentContext(spec_path=tmp_path / "svc.yaml")
+    ctx.registrar_failures.extend(
+        ["redis: REDIS_URL injection failed: boom", "app-role: no", 42, "label-only"]
+    )
+    orch._persist_state(ctx, spec)
+    recorded = state.load("svc")["registrar_failures"]
+    assert recorded == [
+        {"registrar": "redis", "error": "REDIS_URL injection failed: boom"},
+        {"registrar": "app-role", "error": "no"},
+        {"registrar": "42", "error": ""},
+        {"registrar": "label-only", "error": ""},
+    ]
+    # a dry run never touches the file, so the recorded failure survives it
+    dry = DeploymentContext(spec_path=tmp_path / "svc.yaml", dry_run=True)
+    orch._persist_state(dry, spec)
+    assert state.load("svc")["registrar_failures"] == recorded
+
+
+def test_refresh_persists_a_nonfatal_failure(tmp_path):
+    from fabrik.orchestrator.infrastructure import InfrastructureProvisioner
+
+    state = _import()
+    orch = _orchestrator()
+
+    class _Provisioner:
+        def provision(self, ctx):
+            InfrastructureProvisioner._nonfatal(
+                ctx, "redis", RuntimeError("REDIS_URL injection failed")
+            )
+
+    orch.infrastructure_provisioner = _Provisioner()
+    spec_path = tmp_path / "svc.yaml"
+    spec_path.write_text("name: svc\n")
+    orch.refresh_infrastructure(spec_path=spec_path)
+    assert state.load("svc")["registrar_failures"] == [
+        {"registrar": "redis", "error": "REDIS_URL injection failed"}
+    ]
+
+
+def test_old_state_file_without_failures_still_loads():
+    state = _import()
+    state.STATE_DIR.mkdir(parents=True, exist_ok=True)
+    (state.STATE_DIR / "old.json").write_text(
+        json.dumps({"applied_at": "2026-05-01T00:00:00+00:00", "registrars_applied": []})
+    )
+    payload = state.load("old")
+    assert payload is not None
+    assert payload.get("registrar_failures") is None
+
+
+def test_audit_registrars_reports_recorded_failures(monkeypatch):
+    from types import SimpleNamespace
+
+    from click.testing import CliRunner
+
+    import fabrik.audit
+    import fabrik.cli
+
+    state = _import()
+    _save_with_failures(state, [{"registrar": "redis", "error": "REDIS_URL injection failed"}])
+    monkeypatch.setattr(fabrik.cli, "load_spec", lambda _p: SimpleNamespace(id="svc"))
+    monkeypatch.setattr(fabrik.audit, "audit_all", lambda _s: {})
+    result = CliRunner().invoke(fabrik.cli.cli, ["audit-registrars", "--spec", __file__])
+    assert result.exit_code == 2, result.output
+    assert "svc: last apply" in result.output
+    assert "redis" in result.output
+    # a hand-edited file whose entries are not records is skipped, never a crash
+    (state.STATE_DIR / "svc.json").write_text(
+        json.dumps({"applied_at": "x", "registrar_failures": ["oops", 3]})
+    )
+    result = CliRunner().invoke(fabrik.cli.cli, ["audit-registrars", "--spec", __file__])
+    assert result.exception is None or isinstance(result.exception, SystemExit), result.output
+    assert "svc: last apply" not in result.output
 
 
 def test_data_bearing_auto_stamped_for_postgres_redis_meilisearch():

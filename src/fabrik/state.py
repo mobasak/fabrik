@@ -4,8 +4,8 @@ Persists a JSON record under ``$FABRIK_ROOT/.fabrik/state/<spec_id>.json``
 after every successful ``deploy()`` or ``refresh_infrastructure()`` run.
 The file is the source of truth for:
 
-* ``fabrik audit-registrars`` (T2-02) — compares actual live state vs.
-  what the state file says was applied;
+* ``fabrik audit-registrars`` (T2-02) — reads ``target_vps`` to find the box,
+  and reports the ``registrar_failures`` the last completed apply recorded;
 * ``fabrik destroy --use-state`` (T4-02 G-F4, shipped 2026-05-16) —
   replays the destroy from the state file's ``registrars_applied`` list
   so the destroy doesn't depend on the current spec (which may have
@@ -18,7 +18,7 @@ Schema
 ------
 
 The ``spec_id`` is the FILENAME (``<spec_id>.json``), NOT a field inside
-the JSON. Each file is a single JSON object with exactly these 8 fields,
+the JSON. Each file is a single JSON object with exactly these 10 fields,
 keys-sorted alphabetically for stable diffs::
 
     {
@@ -27,13 +27,25 @@ keys-sorted alphabetically for stable diffs::
       "coolify_uuid":        "<24-char alphanumeric uuid or null>",
       "domain":              "<FQDN or empty>",
       "git_sha":             "<40-char or empty if not in git>",
+      "registrar_failures":  [
+        {"registrar": "redis", "error": "REDIS_URL injection failed: ..."}
+      ],
       "registrars_applied":  [
         {"type": "postgres",  "id": "translator",  "status": "applied", "data_bearing": true},
         {"type": "gatus",     "id": "translator",  "status": "applied", "data_bearing": false}
       ],
       "spec_hash":           "<16-char prefix of sha256 of yaml.dump(spec, sort_keys=True)>",
-      "spec_path":           "/opt/fabrik/specs/services/<id>.yaml"
+      "spec_path":           "/opt/fabrik/specs/services/<id>.yaml",
+      "target_vps":          "vps1"
     }
+
+``registrar_failures`` holds the failures of the last apply that COMPLETED
+(W-2013a22d): ``[]`` means it finished clean. A rolled-back or failed run
+writes no state file, so the previous file stays — read ``applied_at`` to
+tell runs apart. A ``registrar`` label may be a non-registrar step
+(``app-role``, ``shared-analytics``), and a registrar can appear in both
+``registrars_applied`` and ``registrar_failures`` (added, then a later step
+failed). A file written before the field existed has no key at all.
 
 The caller (``DeploymentOrchestrator._persist_state``) filters
 ``registrars_applied`` to entries whose ``type`` is in
@@ -56,6 +68,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -65,6 +78,21 @@ from fabrik.config import FABRIK_ROOT
 from fabrik.locks_local import file_lock
 
 logger = logging.getLogger(__name__)
+
+# A registrar failure is raw exception text, and `fabrik export` ships these files.
+_URL_CREDENTIALS = re.compile(r"://[^@/\s]*@")
+_SQL_PASSWORD = re.compile(r"PASSWORD\s+'[^']*'", re.I)
+_AUTH_HEADER = re.compile(r"(Authorization[\"']?\s*[:=]\s*[\"']?\w+\s+)[^\s\"',}]+", re.I)
+_SECRET_WORDS = r"\w*(?:TOKEN|SECRET|KEY|PASSWORD|PASSWD|CREDENTIAL)S?\w*"
+# a quoted value (spaces inside) — ssh._redact's `\S+` stops at the first space
+_QUOTED = r"'(?:\\.|[^'\\])*(?:'|$)|\"(?:\\.|[^\"\\])*(?:\"|$)"
+_QUOTED_ASSIGN = re.compile(rf"({_SECRET_WORDS}\s*=\s*)({_QUOTED})", re.I)
+# a JSON / dict field: "password": "..."
+_JSON_SECRET = re.compile(rf"([\"']{_SECRET_WORDS}[\"']\s*:\s*)({_QUOTED})", re.I)
+_FAILURE_MAX_CHARS = 500
+# the masks scan only this much: _QUOTED_ASSIGN backtracks O(n^2) on a long word run, and it runs on
+# the deploy's success path with no timeout. 4x the cap keeps mask-before-cap for anything kept.
+_FAILURE_SCAN_CHARS = 2000
 
 STATE_DIR = FABRIK_ROOT / ".fabrik" / "state"
 
@@ -97,6 +125,23 @@ def _git_sha() -> str:
         return ""
 
 
+def _sanitize_failure(text: object) -> str:
+    """``text`` with secret-shaped parts masked, then capped — never raises.
+
+    Masks before it caps, so a credential straddling the cap is masked whole.
+    """
+    from fabrik.drivers.ssh import _redact
+
+    out = ("" if text is None else str(text))[:_FAILURE_SCAN_CHARS]
+    out = _QUOTED_ASSIGN.sub(r"\1<redacted>", out)
+    out = _JSON_SECRET.sub(lambda m: f"{m[1]}{m[2][0]}<redacted>{m[2][0]}", out)
+    out = _AUTH_HEADER.sub(r"\1<redacted>", out)
+    out = _redact(out)
+    out = _URL_CREDENTIALS.sub("://[redacted]@", out)
+    out = _SQL_PASSWORD.sub("PASSWORD '[redacted]'", out)
+    return out[:_FAILURE_MAX_CHARS]
+
+
 def save(
     spec_id: str,
     *,
@@ -109,6 +154,7 @@ def save(
     applied_at: str | None = None,
     git_sha: str | None = None,
     target_vps: str = "vps1",
+    registrar_failures: list[dict[str, Any]] | None = None,
 ) -> Path:
     """Atomically write ``.fabrik/state/<spec_id>.json``.
 
@@ -131,6 +177,10 @@ def save(
             filtered out by the caller; this function trusts the input.
         domain: Service FQDN, or empty string if no public domain.
         applied_at: ISO-8601 UTC timestamp; generated if ``None``.
+        registrar_failures: ``[{"registrar": <label>, "error": <text>}]`` from
+            the apply; each error is sanitised here. ``None`` writes ``[]`` —
+            which reads "finished clean", so only ``_persist_state`` (the sole
+            writer, after a completed apply) may rely on that default.
         git_sha: 40-char hash; generated via ``git rev-parse`` if ``None``.
 
     Returns:
@@ -155,6 +205,10 @@ def save(
         "coolify_uuid": coolify_uuid,
         "domain": domain,
         "git_sha": git_sha,
+        "registrar_failures": [
+            {"registrar": str(f.get("registrar") or ""), "error": _sanitize_failure(f.get("error"))}
+            for f in (e if isinstance(e, dict) else {"error": e} for e in registrar_failures or [])
+        ],
         "registrars_applied": normalized,
         "spec_hash": spec_hash,
         "spec_path": spec_path,

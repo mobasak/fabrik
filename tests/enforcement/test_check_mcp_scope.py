@@ -129,3 +129,19 @@ def test_a_condemned_repo_is_skipped_by_name_even_with_a_valid_type(check, tmp_p
     repo(tmp_path, "image-generation", "python-api", ["session-recall", "maestro"])
     rep = check.audit(tmp_path, HUB, DEFS)
     assert rep["failures"] == [] and rep["warnings"] == [] and rep["checked"] == 0
+
+
+def test_a_credential_abort_in_the_emitter_is_a_structured_fail(
+    tmp_path, monkeypatch, capsys, check
+):
+    """A-S2 (review 2026-10-07): when the emitter's chain aborts (D-641), the gate prints one
+    `check_mcp_scope: FAIL` line and exits 1 — never a bare traceback."""
+    repo(tmp_path, "some-api", "python-api", ["session-recall"])
+
+    def boom(root, hub, defs=None):
+        raise SystemExit("emit_mcp: credential(s) unresolved — exa.env.EXA_API_KEY")
+
+    monkeypatch.setattr(check, "audit", boom)
+    rc = check.main(["--root", str(tmp_path), "--hub", str(HUB)])
+    out = capsys.readouterr().out
+    assert rc == 1 and "check_mcp_scope: FAIL" in out and "exa.env.EXA_API_KEY" in out

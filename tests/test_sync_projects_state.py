@@ -88,6 +88,27 @@ def test_state_file_returns_applied_fields(_isolate_fabrik_root):
     assert r["coolify_app_name"] == "fabrik-translator"
     assert r["spec_path"] == "/opt/fabrik/specs/services/translator.yaml"
     assert sorted(r["registrars_applied"]) == ["gatus", "postgres"]
+    # a file written before registrar_failures existed records none
+    assert r["registrar_failures"] == []
+
+
+def test_recorded_registrar_failures_mark_the_apply(_isolate_fabrik_root):
+    """projects.yaml must not say "applied" for an apply whose registrars failed (W-2013a22d)."""
+    sync = _import_sync()
+    sync.FABRIK_ROOT = _isolate_fabrik_root  # noqa: SLF001
+    failures = [{"registrar": "redis", "error": "REDIS_URL injection failed"}]
+    (_isolate_fabrik_root / ".fabrik" / "state" / "svc.json").write_text(
+        json.dumps(
+            {
+                "applied_at": "2026-10-07T00:00:00+00:00",
+                "registrars_applied": [],
+                "registrar_failures": failures,
+            }
+        )
+    )
+    r = sync._load_deploy_state("svc")
+    assert r["last_apply_status"] == "applied_with_failures"
+    assert r["registrar_failures"] == failures
 
 
 def test_fabrik_prefix_fallback(_isolate_fabrik_root):

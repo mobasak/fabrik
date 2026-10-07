@@ -1452,7 +1452,27 @@ def audit_registrars(spec_path: str | None, as_json: bool):
 
     click.echo("─" * len(header))
     click.echo("Legend: ✓=present  ✗=missing  ·=n/a  ?=unknown  ⚠=drift")
-    if missing_count or drift_count:
+
+    # Live probes cannot see a registrar step that failed after its resource was recorded
+    # (redis added, then REDIS_URL injection failed) — the last completed apply's own record can.
+    import fabrik.state as state_module
+
+    failed_specs = 0
+    for sid in sorted(all_results):
+        state_data = state_module.load(sid) or {}
+        recorded = state_data.get("registrar_failures")
+        failures = (
+            [f for f in recorded if isinstance(f, dict)] if isinstance(recorded, list) else []
+        )
+        if failures:
+            failed_specs += 1
+            labels = ", ".join(f.get("registrar", "?") for f in failures)
+            applied_at = state_data.get("applied_at", "?")
+            click.echo(
+                f"⚠  {sid}: last apply ({applied_at}) recorded {len(failures)} registrar "
+                f"failure(s): {labels} — see .fabrik/state/{sid}.json"
+            )
+    if missing_count or drift_count or failed_specs:
         if missing_count:
             click.echo(f"⚠  {missing_count} missing entries — consider 'fabrik reconcile-all'")
         if drift_count:

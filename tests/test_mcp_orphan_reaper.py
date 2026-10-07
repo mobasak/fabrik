@@ -166,3 +166,62 @@ def test_an_unreadable_uptime_returns_an_empty_table_and_says_so(reaper, tmp_pat
     (tmp_path / "1" / "cmdline").write_bytes(b"/sbin/init\0")
     assert reaper._read_procs(tmp_path) == []
     assert "uptime" in capsys.readouterr().err
+
+
+def test_report_writes_one_resume_line_with_before_after_and_host_count(
+    reaper, monkeypatch, tmp_path
+):
+    """Operator follow-up (a) / D-642: the WSL startup hook's --report line is the measurement behind
+    D-634's kill criterion — orphans before and after the reap, and the host-side wsl.exe count."""
+    tables = [
+        table(
+            reaper, [(1, 0, 9, "/sbin/init"), (77, 1, 9999, JVM), (78, 1, 9999, BRAVE)]
+        ),  # before
+        table(reaper, [(1, 0, 9, "/sbin/init")]),  # after the reap
+    ]
+    monkeypatch.setattr(reaper, "_read_procs", lambda: tables.pop(0))
+    monkeypatch.setattr(reaper, "_kill", lambda v, g: [(p, "SIGTERM") for p in v])
+    monkeypatch.setattr(reaper, "_host_wsl_count", lambda: 4)
+    monkeypatch.setattr(reaper, "LOG", tmp_path / "reaper.log")
+    assert reaper.main(["--hook", "--report"]) == 0
+    lines = (tmp_path / "reaper.log").read_text().splitlines()
+    resume = [ln for ln in lines if " resume " in ln]
+    assert len(resume) == 1, lines
+    assert "before=2 after=0 wsl_exe=4 reaped=77,78" in resume[0]
+
+
+def test_report_without_the_windows_side_says_na_and_zero_orphans_still_reports(
+    reaper, monkeypatch, tmp_path
+):
+    monkeypatch.setattr(reaper, "_read_procs", lambda: [])
+    monkeypatch.setattr(reaper, "TASKLIST", tmp_path / "missing-tasklist.exe")
+    monkeypatch.setattr(reaper, "LOG", tmp_path / "reaper.log")
+    assert reaper.main(["--hook", "--report"]) == 0
+    text = (tmp_path / "reaper.log").read_text()
+    assert "resume before=0 after=0 wsl_exe=n/a reaped=-" in text
+
+
+def test_host_wsl_count_parses_tasklist_rows(reaper, monkeypatch, tmp_path):
+    fake = tmp_path / "tasklist.exe"
+    fake.write_text(
+        "#!/bin/sh\nprintf '%s\\n' '' 'wsl.exe   1 Console 1 7,664 K' 'wsl.exe   2 Console 1 8 K' 'other.exe 3 Console 1 1 K'\n"
+    )
+    fake.chmod(0o755)
+    monkeypatch.setattr(reaper, "TASKLIST", fake)
+    assert reaper._host_wsl_count() == 2
+
+
+def test_a_dry_run_report_writes_no_resume_line(reaper, monkeypatch, tmp_path, capsys):
+    """B-S1/B-S2 (review 2026-10-07): a resume line comes only from a real reap (--apply/--hook) —
+    a bare --report never writes one, with or without orphans, so the log never mixes dry runs
+    with real resumes."""
+    monkeypatch.setattr(reaper, "LOG", tmp_path / "reaper.log")
+    monkeypatch.setattr(reaper, "_read_procs", lambda: [])
+    assert reaper.main(["--report"]) == 0
+    monkeypatch.setattr(
+        reaper, "_read_procs", lambda: table(reaper, [(1, 0, 9, "/sbin/init"), (77, 1, 9999, JVM)])
+    )
+    assert reaper.main(["--report"]) == 0
+    assert not (tmp_path / "reaper.log").exists()
+    # the note is printed on BOTH dry-run branches — zero orphans and some (pass-2 finding B-NEW1)
+    assert capsys.readouterr().err.count("writes nothing on a dry run") == 2
