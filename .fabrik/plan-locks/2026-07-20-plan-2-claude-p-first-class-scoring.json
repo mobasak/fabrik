@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-07-20-plan-2-claude-p-first-class-scoring.md",
+  "plan": "docs/development/plans/archived/2026-07-20-plan-2-claude-p-first-class-scoring.md",
   "owned_paths": [
     "scripts/kilo-benchmarks/claude_p.py",
     "scripts/kilo-benchmarks/derive_cost.py",

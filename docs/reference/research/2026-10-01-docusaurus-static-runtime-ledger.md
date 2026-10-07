@@ -51,7 +51,7 @@ Spec: `docs/superpowers/specs/2026-10-01-docusaurus-static-runtime-design.md`.
 
 Three seats: `dsb` the Docusaurus SearchBar slot (Opus), `pfc` the Pagefind Component UI (Sonnet), `dsr` the
 Docusaurus root redirect and build output (Sonnet). Plan:
-`docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md`.
+`docs/development/plans/archived/2026-10-01-plan-1-docusaurus-static-runtime.md`.
 
 | id | source | fact (verbatim as returned) | url | disposition |
 |---|---|---|---|---|

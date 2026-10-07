@@ -236,9 +236,10 @@ Unchanged from v1 in shape: after the row is on disk — in that order; a mail f
 cost the measurement — the collector mails the metrics with every `—` reason, and beside each metric up to two prior
 readings of its current series version (`previous: 09-21 3.29 (23/7) · 09-20 2.71 (19/7)`; a ratio cell carries its
 denominator, so a moved metric reads apart from a moved population; a version bump restarts the history), to the shared
-`fabrik` mailbox — ONE ADDRESSED `ack:required` obligation per kaizen beat
-(`scripts/mail.py send --to fabrik --to-agent infra|fleet --kind request`, two sends; the
-addressing guard refuses ownerless obligations, and each beat's mail IS its pass trigger;
+`fabrik` mailbox — ONE ADDRESSED `ack:required` obligation per reader of the numbers
+(`scripts/mail.py send --to fabrik --to-agent infra|fleet|kaizen --kind request`, three sends —
+`MAIL_BEATS` in `kaizen_collect_v2.py`; the addressing guard refuses ownerless obligations;
+infra's and fleet's mail IS their weekly pass trigger, kaizen reads the same numbers daily;
 ack-rename remains the claim lock per mail). The agent's ≤90-min pass opens with its input gathered: analyze (recurrence × blast
 radius, evidence-cited), improve (≤30-min fixes land in-pass; larger become a spec or a mailed
 handoff), control (every fix ships a regression guard) — then fill `Top friction fixed` and

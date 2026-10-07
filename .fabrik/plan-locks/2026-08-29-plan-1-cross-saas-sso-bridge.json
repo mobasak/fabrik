@@ -1,5 +1,5 @@
 {
-  "plan": "2026-08-29-plan-1-cross-saas-sso-bridge",
+  "plan": "docs/development/plans/archived/2026-08-29-plan-1-cross-saas-sso-bridge.md",
   "owned_paths": [
     "libs/product_entitlements_bridge/",
     "tests/test_bridge_grant_source.py",

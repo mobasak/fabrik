@@ -2,7 +2,7 @@
 merge-owner row (D-154, D-155; `docs/superpowers/specs/2026-09-06-multi-agent-adoption-design.md` § D4).
 
 One test per Behavior-Contract row in
-`docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T05-vision-and-epics-review-text.md`:
+`docs/development/plans/archived/2026-09-06-plan-2-multi-agent-adoption/T05-vision-and-epics-review-text.md`:
 (1) the vision source's EXISTING-mode read list gains `docs/development/PLANS.md` +
 `docs/STRATEGIC_BACKLOG.md`, and its epic-seed paragraph names `owner:` inheritance from a `[name]` tag;
 (2) the epics-review source's Step 1.5 names `decisions.py --merge-owner` and the `MERGE OWNER:` row

@@ -2554,16 +2554,20 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
 # ── hand-off mail (fail-soft, inherited pattern) ──────────────────────────────────────
 
 
-def send_mail(repo_root: Path, body: str) -> bool:
-    """One ADDRESSED ack:required obligation per kaizen beat (infra + fleet).
+MAIL_BEATS: tuple[str, ...] = ("infra", "fleet", "kaizen")
 
-    The charters call this mail each agent's pass trigger, and an obligation
-    demoted to broadcast/ack:no would be sweepable by age and invisible to
-    digest() — so under the addressing guard the hand-off became two addressed
-    obligations, not one ownerless broadcast."""
+
+def send_mail(repo_root: Path, body: str) -> bool:
+    """One ADDRESSED ack:required obligation per reader of the numbers.
+
+    The infra and fleet charters call this mail each agent's weekly pass trigger, and
+    kaizen's charter names the daily digests its real-time signal (D-620 lineage,
+    2026-10-06) — so the hand-off is one addressed obligation per reader (``MAIL_BEATS``),
+    never one ownerless broadcast: an obligation demoted to broadcast/ack:no would be
+    sweepable by age and invisible to digest()."""
     mail = repo_root / "scripts" / "mail.py"
     ok = True
-    for beat in ("infra", "fleet"):
+    for beat in MAIL_BEATS:
         try:
             proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
                 [

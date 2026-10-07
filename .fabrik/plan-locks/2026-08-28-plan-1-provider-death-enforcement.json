@@ -1,5 +1,5 @@
 {
-  "plan": "2026-08-28-plan-1-provider-death-enforcement",
+  "plan": "docs/development/plans/archived/2026-08-28-plan-1-provider-death-enforcement.md",
   "owned_paths": [
     ".windsurf/rules/core/76-gpu-workers.md",
     ".windsurf/rules/core/58-resilience.md",

@@ -3831,6 +3831,23 @@ def test_the_daily_pass_mails_the_prior_readings(
     assert f"  - previous: {prior[5:]} 7\n" in sent[0]
 
 
+def test_the_hand_off_mail_reaches_every_reader_including_kaizen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """kaizen's charter names the daily digest its signal (2026-10-06), so the hand-off
+    addresses kaizen beside infra and fleet — driven through the real argv, one send per beat."""
+    calls: list[list[str]] = []
+
+    class _Proc:
+        returncode = 0
+
+    monkeypatch.setattr(kc.subprocess, "run", lambda argv, **kw: calls.append(argv) or _Proc())
+    assert kc.send_mail(tmp_path, "body") is True
+    beats = [argv[argv.index("--to-agent") + 1] for argv in calls]
+    assert beats == ["infra", "fleet", "kaizen"]
+    assert all(argv[argv.index("--kind") + 1] == "request" for argv in calls)
+
+
 # ── W-97de2aa3 part 2: a clean coroner sweep that closed the day is evidence ─────────
 
 
