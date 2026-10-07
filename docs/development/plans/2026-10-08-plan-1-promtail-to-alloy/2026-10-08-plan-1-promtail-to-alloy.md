@@ -56,7 +56,7 @@ implements and restates nothing that section settles.
 | T04b | Every repo consumer names Alloy's container, port and metrics | — | ⚡ | ⬜ | |
 | T05a | The audit prompts and the setup docs name Alloy | T02, T03, T04a, T04b | ⚡ | ⬜ | |
 | T05b | The VPS inventory and the sysadmin doc name Alloy | T02, T03, T04a, T04b | ⚡ | ⬜ | |
-| T05c | The VPS status and the deployment architecture name Alloy | T02, T03, T04a, T04b | ⚡ | ⬜ | |
+| T05c | The VPS status and the deployment architecture name Alloy | T02, T03, T04a, T04b, T05a | ⚡ | ⬜ | |
 | T05d | The operations docs and the scaffold resilience template name Alloy | T02, T03, T04a, T04b | ⚡ | ⬜ | |
 | T05e | The rebuild guides and the reference docs name Alloy | T02, T03, T04a, T04b | ⚡ | ⬜ | |
 | T06 | The operator's window runbook: switch, battery, rollback, Gate S, the infra mail | T02, T03, T04a, T04b | ⚡ | ⬜ | |
@@ -91,6 +91,9 @@ T07 (5 — the Integration ticket).
 - **T01 → T02, T03:** `configs/alloy/config.alloy` and `scripts/bootstrap/templates/alloy.alloy.template` are the files
   the compose services mount and step 11 renders. Seam tests: `tests/test_vps_apply_limits.py` (T02) and
   `tests/test_monitoring_agent_template.py` (T03) each assert the mount path names T01's file.
+- **T05a → T05c:** T05a renames `docs/infrastructure/promtail-noise-filter-setup.md` to `alloy-noise-filter-setup.md`;
+  T05c retargets the inbound link at `docs/DEPLOYMENT_ARCHITECTURE.md:855`. Seam check: T05c's `check_doc_links.py` Gate
+  runs after T05a merged, so the new target exists.
 - **T02, T03, T04a → T06:** the runbook quotes the service name `alloy`, port 12345, the volume names and the watcher
   job and endpoint names. Seam test: `tests/test_alloy_runbook.py` (T06) asserts each name the runbook uses exists
   in the compose files and configs.
@@ -129,7 +132,7 @@ MATCHED eight packs and injects four FLOOR rows, each named here with the line t
   on `worktree-fleet` (D8 holds the merge until after the window).
 - **Operator gate** — no ticket runs the window; T07 boards it. The branch goes to `scripts/merge_request.py request`
   only after the window's battery is green.
-- **Parallelism + merge** — T01, T04a and T04b fan out first and concurrently (disjoint Touches); T02 and T03 follow T01 and run concurrently; T05a–T05e and T06 run concurrently once T02, T03, T04a and T04b are merged;
+- **Parallelism + merge** — T01, T04a and T04b fan out first and concurrently (disjoint Touches); T02 and T03 follow T01 and run concurrently; T05a, T05b, T05d, T05e and T06 run concurrently once T02, T03, T04a and T04b are merged, and T05c follows T05a;
   every merge happens on the `fleet-alloy` branch in § Merge Order, and the results merge/dedupe at T07, which re-runs every ticket's gate on the merged branch.
 - **Ids** — every D-row this plan mints uses `python3 scripts/decisions.py --reserve-id .`.
 
@@ -160,6 +163,7 @@ MATCHED eight packs and injects four FLOOR rows, each named here with the line t
 - **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; docs/infrastructure/vps-complete-inventory.md:27)
 - **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, docs/infrastructure/vps-complete-inventory.md included (.windsurf/rules/core/40-documentation.md)
 - **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; docs/infrastructure/vps-status.md:46)
+- **Given** the noise-filter row of `docs/DEPLOYMENT_ARCHITECTURE.md`, **When** it is read after T05a's rename merged, **Then** it links `infrastructure/alloy-noise-filter-setup.md` and describes Alloy's drop stage (docs/DEPLOYMENT_ARCHITECTURE.md:855)
 - **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, docs/infrastructure/vps-status.md included (.windsurf/rules/core/40-documentation.md)
 - **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; templates/scaffold/docs/RESILIENCE_TEMPLATE.md:568; docs/operations/hub-restore-inventory.md:104)
 - **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, templates/scaffold/docs/RESILIENCE_TEMPLATE.md included (.windsurf/rules/core/40-documentation.md)
@@ -167,14 +171,16 @@ MATCHED eight packs and injects four FLOOR rows, each named here with the line t
 - **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, docs/infrastructure/vps-spoke-rebuild.md included (.windsurf/rules/core/40-documentation.md)
 - **Given** the runbook, **When** its per-host sections are parsed, **Then** they run vps3, vps2, vps1 in that order and each carries steps (a) to (d) with stop before start and no plain `up -d` between them (spec § The delta › D2)
 - **Given** the runbook's hub section, **When** it is parsed, **Then** the two D3 read-only checks precede vps1's step (b), each stated as a pass condition with a STOP action on a stray DRIFT or ORPHAN line, and the two `--push` runs follow step (c) with `FABRIK_ROOT` set to the branch worktree (spec § The delta › D3; W-332b562c)
-- **Given** the battery, **When** V4 and V5 are read, **Then** each 15-minute window is anchored on step (b) by name (spec § Validation V4, V5; W-332b562c)
+- **Given** the battery, **When** V4, V5 and V6 are read, **Then** each 15-minute window is anchored on step (b) by name, and V6 writes numbered pre-markers 5 to 10 minutes before step (b) and one switch marker between (b) and (c) to the canary (no `--rm`), requiring each marker exactly once in Loki for that host within 2 minutes of (c) (spec § Validation V4, V5, V6; W-332b562c)
 - **Given** the rollback section, **When** it is read, **Then** it restores `compose.yaml.pre-alloy` and runs `up -d --remove-orphans`, never a stop-and-start that leaves the new file in place (spec § The delta › D6)
 - **Given** the preflight, **When** it is read, **Then** it opens the Alertmanager silence, starts the canary before step (a) and checks port 12345 with `ss -ltn` on each spoke (spec § The delta › D3; § Open / blocking unknowns U2)
+- **Given** the Gate S section, **When** it is read, **Then** it names V8 and V9 green on all three hosts for 14 days as the trigger and lists the cleanup: the promtail service, the `promtail-positions` volume (classified before any change), the `.pre-alloy` files, the two Promtail configs and the `promtail 256` ceiling retired spec-row first (spec § The delta › D6)
 - **Given** the close, **When** it is read, **Then** it sends `fleet-alloy` for merge with `merge_request.py request` and sends the infra mail only after all three hosts passed their battery (spec § The delta › D8; § Lifecycle)
 - **Given** the appendix, **When** its mail body is checked with `mail.py`'s `_structure_gaps`, **Then** it carries every D-035 section and names every infra-owned file of spec § Lifecycle (spec § Lifecycle; scripts/mail.py)
 - **Given** a Promtail positions file naming a local container log at a known offset, mounted read-only, **When** Alloy starts with the committed hub config, **Then** it ships only the lines after the offset, logs the conversion, and ships nothing again after a restart (spec § Validation V3)
 - **Given** Alloy tailing local containers into a throwaway Loki 3.4.2, **When** the label names are listed, **Then** they are exactly `container_name, filename, host, job, service_name, stream` (spec § Validation V4a)
 - **Given** local copies of the new compose files under a throwaway project, **When** the forward switch, the D6 rollback and a plain `up -d` run in turn, **Then** Promtail runs and no alloy container exists (spec § Validation V5a)
+- **Given** `docs/reference/apis/EXTERNAL_SYSTEMS.md`, **When** it is searched for Promtail, **Then** the shipper section names Alloy as running and every remaining Promtail mention is history or the rollback-profile service (docs/reference/apis/EXTERNAL_SYSTEMS.md:3019)
 - **Given** the plan's branch, **When** T07 closes, **Then** the operator window is an open awaiting-operator gate, the Gate S follow-up is a backlog item, and the branch has not been sent for merge (spec § The delta › D8; § Lifecycle)
 
 ## Global Constraints

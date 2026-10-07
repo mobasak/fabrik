@@ -31,6 +31,7 @@ rehearsal projects, or send the branch for merge.
 - **Given** a Promtail positions file naming a local container log at a known offset, mounted read-only, **When** Alloy starts with the committed hub config, **Then** it ships only the lines after the offset, logs the conversion, and ships nothing again after a restart (spec § Validation V3)
 - **Given** Alloy tailing local containers into a throwaway Loki 3.4.2, **When** the label names are listed, **Then** they are exactly `container_name, filename, host, job, service_name, stream` (spec § Validation V4a)
 - **Given** local copies of the new compose files under a throwaway project, **When** the forward switch, the D6 rollback and a plain `up -d` run in turn, **Then** Promtail runs and no alloy container exists (spec § Validation V5a)
+- **Given** `docs/reference/apis/EXTERNAL_SYSTEMS.md`, **When** it is searched for Promtail, **Then** the shipper section names Alloy as running and every remaining Promtail mention is history or the rollback-profile service (docs/reference/apis/EXTERNAL_SYSTEMS.md:3019)
 - **Given** the plan's branch, **When** T07 closes, **Then** the operator window is an open awaiting-operator gate, the Gate S follow-up is a backlog item, and the branch has not been sent for merge (spec § The delta › D8; § Lifecycle)
 
 ## Context Files
