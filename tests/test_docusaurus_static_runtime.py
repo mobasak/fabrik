@@ -1,6 +1,6 @@
 """The docusaurus static runtime: the version registry loader and the template emitter.
 
-Plan: docs/development/plans/2026-10-01-plan-1-docusaurus-static-runtime.md (D-475, D-476).
+Plan: docs/development/plans/archived/2026-10-01-plan-1-docusaurus-static-runtime.md (D-475, D-476).
 Phase A rows: the registry loader fails by key name, and `TemplateRenderer` renders nested `*.j2`
 files with `versions` and `name` in its context. Phase B rows: both emitters produce the nginx static
 runtime. Phase C: one opt-in real build (`FABRIK_REAL_DOCKER_BUILD=1`).

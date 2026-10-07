@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T18:44:24.047448Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-65969e35",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "mcp-d638-residue"
+  ],
+  "title": "ORDER 3 — D-638 receipt residue (docs/development/reviews/2026-10-07-mcp-scope-fabrik-lib-correction-review.md, IN-PROGRESS, record closed BLOCKED at the wall): mcp-roster.md lines 19, 153 and 199 stale hub-class wording and the new paragraph's self-contradiction, the emitter's hub-class comment, the own-agent test's weak assertion, then the closing pass."
+}

@@ -135,7 +135,7 @@ nobody produced.
 
 ## See also
 
-- `docs/development/plans/2026-08-27-plan-1-certification-denominator.md` — the plan (14 rounds)
+- `docs/development/plans/archived/2026-08-27-plan-1-certification-denominator.md` — the plan (14 rounds)
 - `scripts/enforcement/check_certification_coverage.py` · `tests/enforcement/test_certification_coverage.py`
 - `commands/_sources/fabrik-user-test.md` · `commands/_sources/fabrik-service-test.md`
 

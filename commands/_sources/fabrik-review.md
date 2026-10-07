@@ -30,8 +30,8 @@ Coverage-Checklist classes this pass swept CLEAN> --classes-new <classes this pa
 The class ledger persists across rounds: **re-sweep it, never re-scope it** — a pass that invents a
 fresh brief is why a review runs 30 rounds instead of 4. A class check must LOAD the artefact it grades — a grep for the wording that describes a defect matches the artifact's own correction and is refuted by any rewording; narrowing such a check is not converging (01M25Q9S0). When a round sweeps every known class and
 confirms zero (`--confirmed 0`), `command_run.py` prints the TERMINAL verdict; **only then**
-`done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the round-1 seats that re-verified it>" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`. A genuinely stuck
-review exits via `blocked --command fabrik-review --reason "…" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"` on one of the three sanctioned cases —
+`done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the round-1 seats that re-verified it>" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"`. A genuinely stuck
+review exits via `blocked --command fabrik-review --reason "…" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"` on one of the three sanctioned cases —
 never by simply stopping. **Always name the run you close**: a bare close would end whatever is live,
 which after this review pops back to its CALLER (`/fabrik-execute-plan`) means silently ending the
 plan. A mismatched name is refused; closing an already-closed run is a warned no-op.
@@ -187,12 +187,13 @@ third-party API. Partition, don't skip (moot while every seat is native — D-18
   seats never read one file's logic and no candidate is claimed twice. (The Coverage Checklist is the
   ADJUDICATION ledger — one row per changed FILE plus the standing recurrence rows — and its axes
   overlap by construction: it is never a seat list.)
+- **Leak check — the lead, before EVERY dispatch and after the pass returns:** the Phase-0 digest (HEAD + `git diff HEAD | md5sum`) plus `git rev-parse HEAD`, `git status --porcelain --ignored` and `git stash list`, each one plain command, each output written to a file under your scratchpad so the comparison is a diff of two files, never your memory; re-take the baseline after your own fix edits. A difference you did not make is a seat leak: restore only a hunk a seat's transcript shows it wrote, name the seat in the receipt, and mail an unattributed change to its likely author — never revert a hunk you cannot attribute, it may be a sibling's. A killed process is invisible to this check; when the surface is a daemon or watcher, add `pgrep -af <its script name>` to the baseline, so a live process that vanished shows in the same diff.
 - **Every finder brief carries these lessons VERBATIM (D8 — each one cost a round of the D-191
   review):** pin dirs are created ONCE before the first dispatch and never touched while seats run ·
   `git init` inside a `git archive` pin (a bare pin fails through `_repo_root()`) · every
   `command_run.py` probe sets `COMMAND_RUN_DIR`, `COMMAND_RUN_TRANSCRIPT` and `KAIZEN_EVENTS_DIR` (a
-  test without them writes fabricated rounds under the LIVE sid) · every mutation is applied, tested
-  and restored inside ONE Bash call with an ASSERTED restore (a `trap` across calls is unreliable) · a MUTATION-TESTING seat works on a COPY of the surface made FROM the pin dir (so the pin's stated contents and commit are the copy's provenance), never the tree, and runs its battery under an explicit `timeout` its brief names at or above the battery's measured runtime (01M25Y93M); the orchestrator holds its own edits to those files while that seat is live (01M25RZC3). ⚠️ **What a Bash call over its timeout actually does here: it AUTO-BACKGROUNDS, it is not killed** — the harness prints `moved to the background (ID: …)` and keeps writing to the task's output file, so the process runs on and its restore still happens. Observed repeatedly, this session. That matters because the two recoveries are opposite: a backgrounded mutation finishes and restores, a KILLED one leaves the tree mutated — which is why the COPY rule above is the guard that carries the weight, not the timeout. Do not write a brief that assumes a kill (01M25Y93M, adjudicated against fabrik-lib-dev1's filing) ·
+  test without them writes fabricated rounds under the LIVE sid) · every mutation runs on a COPY
+  under the seat's own scratch dir by ABSOLUTE path — the shell returns to the live checkout before every Bash call, so a relative path or a mutation split across calls lands in the live tree (tryton-crm 01M40KBE) · never `pkill`, `killall` or kill by pattern (fabrik-lib 01M3YFX4) · a git write only as `git -C <absolute scratch repo>`, and code under test that runs git gets that cwd (iterative_image_editor 01M41B1S) · a MUTATION-TESTING seat works on a COPY of the surface made FROM the pin dir (so the pin's stated contents and commit are the copy's provenance), never the tree, and runs its battery under an explicit `timeout` its brief names at or above the battery's measured runtime (01M25Y93M); the orchestrator holds its own edits to those files while that seat is live (01M25RZC3). ⚠️ **What a Bash call over its timeout actually does here: it AUTO-BACKGROUNDS, it is not killed** — the harness prints `moved to the background (ID: …)` and keeps writing to the task's output file, so the process runs on and its restore still happens. Observed repeatedly, this session. That matters because the two recoveries are opposite: a backgrounded mutation finishes and restores, a KILLED one leaves the tree mutated — which is why the COPY rule above is the guard that carries the weight, not the timeout. Do not write a brief that assumes a kill (01M25Y93M, adjudicated against fabrik-lib-dev1's filing) ·
   never bare-grep a tracked path — `git show <sha>:<path>` · a seat that MEASURES by importing code
   imports the PIN (a `git archive <sha>` extract with the pinned files overlaid), never `sys.path.insert` the live tree, and prints the module's `__file__` beside every result (a
   sibling's uncommitted edit in the live tree once fed three measurements) · a later pass's brief
@@ -483,7 +484,7 @@ first pass found" is not an exit — those classes return to UNCHECKED until the
 verdict — every known class clean, `--confirmed 0` — is the machine-readable form of the EXIT above, and
 its NON-CONVERGENCE warning names the failure mode this loop actually has: re-scoping instead of
 re-sweeping. Close the run at that verdict with
-`done --command fabrik-review --evidence "round <n> quiet: confirmed:0 · fixed:0, re-verified by <the round-1 seats>, all adjudicated" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`.
+`done --command fabrik-review --evidence "round <n> quiet: confirmed:0 · fixed:0, re-verified by <the round-1 seats>, all adjudicated" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none — surfaces exercised: …>"`.
 
 ## Behavior Contract test generation — native seats author, you curate (the fix for an untested behavior)
 
@@ -522,14 +523,14 @@ as the `measured by:` rule above, where a block fence on the following lines is 
 value.) Write the rows bare, under the `## Pass Ledger` heading.
 
 ```text
-| Pass 1 | opus×1 + sonnet×3 | found: 5, new: 5, confirmed: 3, fixed: 3, unexecuted: 0 | full partitioned pass; hygiene run at start and close |
-| Pass 2 | sonnet×1 | found: 2, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | delta over pass 1's fix diff + one hop |
-| Pass 3 | sonnet×1 | found: 1, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | closing pass, the round-1 seats over their own slices; classes not touched standing-clean from pass 1 → EXIT |
+| Pass 1 | opus×1 + sonnet×3 | found: 5, new: 5, confirmed: 3, fixed: 3, unexecuted: 0 | method: citation — full partitioned pass; hygiene run at start and close |
+| Pass 2 | sonnet×1 | found: 2, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: citation — delta over pass 1's fix diff + one hop |
+| Pass 3 | sonnet×1 | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — closing pass, the round-1 seats over their own slices; classes not touched standing-clean from pass 1 → EXIT |
 ```
 
-Note pass 3: the finder DID re-raise the standing DESIGN-GAP row (an unbuilt endpoint, a missing
-feature the run may not decide) — that re-raise is cited in its disposition ledger row, and it is a raw
-candidate, so it shows in `found:`. It closes the loop anyway, because **`found:` is RAW RECALL — the
+Note pass 3: the finder raised one FRESH candidate, which you executed and refuted — a raw candidate,
+so it shows in `found:` (a re-raise of an already-adjudicated standing row would instead be CITED and
+not counted, per the term-coverage contract above). It closes the loop anyway, because **`found:` is RAW RECALL — the
 seats' reach — and `confirmed:` is the EXIT COUNTER: the candidates you EXECUTED and reproduced**
 (D-206, superseding D-048's "a fresh candidate counts even when refuted"). This is what reconciles the
 loop with its graders: `check_convergence.py`'s QUIET_PASS and `check_review_coverage.py` both read

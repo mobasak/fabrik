@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T18:44:23.789407Z",
+  "creator": "infra",
+  "evidence": "c99a1b0abac6d6c2472b6af68f8650c8a7a700d7",
+  "id": "W-bb10168f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "status": "done",
+  "tags": [
+    "mcp-post-resume"
+  ],
+  "title": "ORDER 1 — operator follow-up (a) on 1c22b3de1 / D-634: post-resume verification. On the next WSL start after a Windows hibernate, wsl_startup_hook.sh step 0 writes ONE line to ~/.claude/state/mcp-reaper.log with the orphan count BEFORE and AFTER the reap and the host-side wsl.exe process count (tasklist.exe, fail-open when the mount is absent), so the 7-day kill criterion W-e541b048 is measured, not assumed. Grader on a synthetic table plus a fake tasklist."
+}

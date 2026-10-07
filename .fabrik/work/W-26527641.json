@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-30T07:12:51.926740Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "4f08b2f3b418920c689c6b2198d76244979dcd87",
   "id": "W-26527641",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "intel",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "tags": [
     "handoff-2026-10-06",
     "worktree"

@@ -1079,7 +1079,8 @@ def test_no_seat_prompt_mandates_a_shape_the_worktree_guard_refuses() -> None:
     """W-9385c2b3, site-provisioner 01M491K2: in a linked worktree the isolation guard refuses an env-prefix
     `HOME=…`, a compound or piped git line, and `timeout … command grep` (`command` is a builtin, exit 127) — so
     a brief that mandates any of them makes every seat burn calls or drop the isolation it asked for."""
-    for prompt in _shell_seat_prompts():
+    core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
+    for prompt in (*_shell_seat_prompts(), BRIEF.read_text(encoding="utf-8"), core):
         for refused in ("`HOME=", "| tar", "&& git", "command grep"):
             assert refused not in prompt, (
                 refused,
@@ -1116,6 +1117,97 @@ def test_the_finder_and_refuter_share_one_import_recipe() -> None:
     span = lambda p: p[p.find(marker) : p.find(end) + len(end)]  # noqa: E731
     assert end in finder and end in refuter, "the shared span must run through the end of PYTEST_PINS"
     assert span(finder) == span(refuter)
+
+
+def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
+    """W-165e533c: every review seat runs under the fabrik-reviewer definition, and in a linked worktree the
+    isolation guard refuses a compound, piped, looped or heredoc Bash call that names git. The rule reached
+    only the workflow's pin recipe, so lead-dispatched and units-sized seats rediscovered it by refusal. The
+    seat has no Write tool, so the house rule must name a write form the guard accepts."""
+    brief = BRIEF.read_text(encoding="utf-8")
+    rules = next(line for line in brief.splitlines() if line.startswith("**House rules"))
+    bans = (
+        "one plain command per Bash call",
+        "`&&`",
+        "a `;` between commands",
+        "pipe",
+        "loop",
+        "`$( )`",
+        "`$VAR`",
+        "heredoc",
+        "HOME assignment in front of a command",
+        "literal paths",
+        "inside a `-c` program or a heredoc body",
+        "`git -C`",
+    )
+    for needed in (*bans, "no Write tool", "splitting the command", ".venv/bin/python"):
+        assert needed in rules, needed
+    assert "never a bare `python3`" in rules, "a probe on the system interpreter lacks the project's packages"
+    for needed in ("absolute paths for anything you write or run", "never `pkill`, `killall` or kill by pattern", "`worktree add`"):
+        assert needed in rules, needed
+    assert "/reset/worktree there" not in rules, "git worktree list is a legal read; only add/remove write"
+    assert "restored in ONE Bash call" not in brief, "the old compound probe rule contradicts one plain command per call"
+    tools = next(line for line in brief.splitlines() if line.startswith("tools:"))
+    assert "Write" not in tools, "the house rule's printf write form assumes the seat has no Write tool"
+    core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
+    d8 = next(line for line in core.splitlines() if line.startswith("**Every seat's brief carries the git-verb prohibition"))
+    for needed in (*bans[1:], "runs one plain command per Bash call"):
+        assert needed in d8, ("general-purpose seats read the brief fragment, not the agent", needed)
+    assert d8.index("never a pop)") < d8.index("runs one plain command"), "the stash incident evidences the stash ban, not this rule"
+    for needed in (
+        "absolute paths for anything written or run",
+        "never `pkill`, `killall` or kill by pattern",
+        "and any other query that does not write",
+    ):
+        assert needed in d8, needed
+
+
+def test_every_shell_seat_prompt_carries_the_isolation_rule() -> None:
+    """W-3573a86b, W-f0da6d16, W-d34b395f: a seat reset a main checkout (iterative_image_editor), a seat's relative-path
+    mutant landed in a live worktree after the shell's cwd reset (tryton-crm), and a seat's `pkill -f` killed the box's
+    live mail watches (fabrik-lib). Every shell seat is told the three rules, with the reason for the first."""
+    for prompt in _shell_seat_prompts():
+        for needed in (
+            "returns to the LIVE checkout before every Bash call",
+            "ABSOLUTE under SCRATCH",
+            "`git -C <absolute scratch repo>`",
+            "never `pkill`, `killall` or kill by pattern",
+        ):
+            assert needed in prompt, needed
+
+
+def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
+    src = _script()
+    assert src.count("const SEAT_ISOLATION = ") == 1
+    assert src.count("${SEAT_ISOLATION}") == 2
+    iso = src[src.index("const SEAT_ISOLATION = ") : src.index("const PYTEST_PINS = ")]
+    assert "archive -o into SCRATCH, ls-tree, show" in iso, "the pin recipe's read-only git must stay legal"
+    assert "Popen" in iso and "\\`timeout\\`" in iso, "the kill ban must name a form a one-command seat can obey"
+    assert "backgrounds on its own is not yours" in iso, "the harness's auto-background is not the banned act"
+
+
+def test_fabrik_review_lessons_carry_the_leak_check() -> None:
+    """The lead's verbatim lessons said 'restored inside ONE Bash call' and never why; tryton-crm's seat split the calls
+    and leaked. The lead now checks the live surface before and after every pass."""
+    review = (ROOT / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8")
+    assert "restored inside ONE Bash call" not in review
+    leak = next(line for line in review.splitlines() if line.startswith("- **Leak check"))
+    for needed in (
+        "before EVERY dispatch",
+        "`git rev-parse HEAD`",
+        "`git status --porcelain --ignored`",
+        "re-take",
+        "never revert a hunk you cannot attribute",
+        "A killed process is invisible to this check",
+        "written to a file under your scratchpad",
+        "`pgrep -af <its script name>`",
+    ):
+        assert needed in leak, needed
+    for needed in ("the shell returns to the live checkout before every Bash call", "never `pkill`, `killall` or kill by pattern"):
+        assert needed in review, needed
+    prompts = (ROOT / "docs" / "reference" / "convergence-prompts.md").read_text(encoding="utf-8")
+    assert "restored inside ONE Bash call" not in prompts, "the seat-brief template must not teach the old lesson"
+    assert "never pkill, killall or kill by pattern" in prompts
 
 
 def test_no_seat_instruction_source_wraps_a_shell_builtin_in_timeout() -> None:

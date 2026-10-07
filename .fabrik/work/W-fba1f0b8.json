@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T18:58:56.470208Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-fba1f0b8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4AGXVCQ1HTVR9RQ1S63D1RP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "UPDATE to 01M4AFC6N3YHRG83JXBQ03QY24 — deploy main at 0ecebb2 (not d7f81b1), and please run the 4 sandbox probes: this box gets a plain 403 from the edge"
+}

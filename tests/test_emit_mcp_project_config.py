@@ -273,10 +273,12 @@ def test_sqlalchemy_driver_suffix_normalized(tmp_path, defs_file, monkeypatch):
     assert entry["env"]["DATABASE_URI"] == "postgresql://u:p@localhost:5432/adb"
 
 
-def test_catalog_placeholders_overlaid_from_later_sources(tmp_path):
-    """Push-protection regression 2026-08-30: the committed catalog carries ${VAR}
-    placeholders only; _load_defs overlays real values from the LATER chain sources
-    (here: the live gitignored hub .mcp.json, which carries grafana's real env)."""
+def test_catalog_placeholders_are_filled_from_the_roster_never_left_as_placeholders(
+    tmp_path, monkeypatch
+):
+    """Push-protection regression 2026-08-30 + D-641: the committed catalog carries ${VAR}
+    placeholders only; _load_defs fills them from the CANONICAL sources (the fleet roster, then the
+    hub .env) and never leaves one standing — nor reads the emitter's own prior output."""
     cat = tmp_path / "cat.json"
     cat.write_text(
         json.dumps(
@@ -285,15 +287,24 @@ def test_catalog_placeholders_overlaid_from_later_sources(tmp_path):
                     "grafana": {
                         "command": "docker",
                         "args": [],
-                        "env": {"GRAFANA_URL": "${GRAFANA_URL}"},
+                        "env": {
+                            "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}"
+                        },
                     }
                 }
             }
         )
     )
+    roster = tmp_path / "roster.json"
+    roster.write_text(
+        json.dumps(
+            {"mcpServers": {"grafana": {"env": {"GRAFANA_SERVICE_ACCOUNT_TOKEN": "glsa-live"}}}}
+        )
+    )
+    monkeypatch.setattr(emitter, "ROSTER_PATH", roster)
+    monkeypatch.setattr(emitter, "HUB_ENV_PATH", tmp_path / "absent.env")
     defs = emitter._load_defs(str(cat))
-    got = defs["grafana"]["env"]["GRAFANA_URL"]
-    assert not got.startswith("${"), "placeholder must be overlaid from the gitignored chain"
+    assert defs["grafana"]["env"]["GRAFANA_SERVICE_ACCOUNT_TOKEN"] == "glsa-live"
 
 
 def test_committed_catalog_carries_no_token_shapes():
@@ -320,3 +331,97 @@ def test_an_own_agent_hub_class_repo_is_never_swept_by_default_but_derives_hub_c
     # roster; HUB_EXCLUDE trims the hub alone
     assert {"grafana", "maestro", "mobile-mcp"} <= got, got
     assert got == set(ALL_SERVERS) - {"postgres-pro"}
+
+
+def _placeholder_defs(tmp_path: Path) -> Path:
+    p = tmp_path / "defs-ph.json"
+    p.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "exa": {
+                        "type": "stdio",
+                        "command": "/usr/bin/exa-mcp",
+                        "env": {"EXA_API_KEY": "${EXA_API_KEY}"},
+                    },
+                    "grafana": {
+                        "type": "stdio",
+                        "command": "docker",
+                        "args": ["run", "mcp/grafana"],
+                        "env": {
+                            "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}",
+                            "GRAFANA_URL": "https://g",
+                        },
+                    },
+                }
+            }
+        )
+    )
+    return p
+
+
+def test_credentials_come_from_the_roster_then_the_hub_env_never_the_prior_output(
+    tmp_path, monkeypatch
+):
+    """Operator follow-up (b) on 1c22b3de1 / D-641: a rotated key must reach the emitted file and the
+    emitter's own prior .mcp.json is never a donor."""
+    roster = tmp_path / "roster.json"
+    roster.write_text(json.dumps({"mcpServers": {"exa": {"env": {"EXA_API_KEY": "exa-ROTATED"}}}}))
+    dotenv = tmp_path / "hub.env"
+    dotenv.write_text("# hub\nGRAFANA_SERVICE_ACCOUNT_TOKEN='glsa-FRESH'\nUNRELATED=1\n")
+    monkeypatch.setattr(emitter, "ROSTER_PATH", roster)
+    monkeypatch.setattr(emitter, "HUB_ENV_PATH", dotenv)
+    stale = tmp_path / "fabrik" / ".mcp.json"  # the hub's prior output carries STALE values
+    stale.parent.mkdir()
+    stale.write_text(json.dumps({"mcpServers": {"exa": {"env": {"EXA_API_KEY": "exa-STALE"}}}}))
+    defs = emitter._load_defs(str(_placeholder_defs(tmp_path)))
+    assert defs["exa"]["env"]["EXA_API_KEY"] == "exa-ROTATED"
+    assert defs["grafana"]["env"]["GRAFANA_SERVICE_ACCOUNT_TOKEN"] == "glsa-FRESH"
+    assert defs["grafana"]["env"]["GRAFANA_URL"] == "https://g"
+
+
+def test_an_unresolved_credential_aborts_naming_the_key(tmp_path, monkeypatch):
+    monkeypatch.setattr(emitter, "ROSTER_PATH", tmp_path / "no-roster.json")
+    monkeypatch.setattr(emitter, "HUB_ENV_PATH", tmp_path / "no.env")
+    with pytest.raises(SystemExit) as exc:
+        emitter._load_defs(str(_placeholder_defs(tmp_path)))
+    msg = str(exc.value)
+    assert "exa.env.EXA_API_KEY" in msg and "grafana.env.GRAFANA_SERVICE_ACCOUNT_TOKEN" in msg
+    assert "prior output" in msg
+
+
+def test_a_placeholder_left_in_the_hub_env_or_a_partial_placeholder_is_unresolved(
+    tmp_path, monkeypatch
+):
+    """A-S1 / A-S5 (review 2026-10-07): `${VAR}` written into the hub .env is not a credential, and a
+    composite `prefix-${VAR}` in the catalog is never emitted verbatim — both abort naming the key."""
+    monkeypatch.setattr(emitter, "ROSTER_PATH", tmp_path / "no-roster.json")
+    dotenv = tmp_path / "hub.env"
+    dotenv.write_text("EXA_API_KEY=${EXA_API_KEY}\nGRAFANA_SERVICE_ACCOUNT_TOKEN=glsa-ok\n")
+    monkeypatch.setattr(emitter, "HUB_ENV_PATH", dotenv)
+    cat = tmp_path / "cat.json"
+    cat.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "exa": {
+                        "command": "/usr/bin/exa-mcp",
+                        "env": {"EXA_API_KEY": "${EXA_API_KEY}"},
+                    },
+                    "grafana": {
+                        "command": "docker",
+                        "args": ["run", "mcp/grafana"],
+                        "env": {
+                            "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}",
+                            "GRAFANA_URL": "https://${HOST}/g",
+                        },
+                    },
+                }
+            }
+        )
+    )
+    with pytest.raises(SystemExit) as exc:
+        emitter._load_defs(str(cat))
+    msg = str(exc.value)
+    assert "exa.env.EXA_API_KEY" in msg and "grafana.env.GRAFANA_URL" in msg
+    assert "GRAFANA_SERVICE_ACCOUNT_TOKEN" not in msg

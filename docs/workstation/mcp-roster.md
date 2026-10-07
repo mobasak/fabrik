@@ -21,6 +21,12 @@ Since plan-3's emission run, MCP config is **layered** (Claude Code precedence: 
 | POOL (Runtime B) | `/opt/fabrik/mcp.json` | research four (incl. pool-only context7) — untouched by the split |
 | PROFILE | `~/.claude-youtube-headless/.claude.json` | separate CLAUDE_CONFIG_DIR profile; **the universal 6** |
 
+**Credentials (D-641):** the catalog `scripts/sysadmin/mcp_defs.json` carries `${VAR}` placeholders
+only; the emitter fills them from the active fleet roster (`~/.claude-fleet/active/.claude.json`, per
+server), then the hub `.env` (by variable name), and ABORTS naming the key when one stays unresolved —
+its own prior `.mcp.json` output is never a donor, so a rotated key is never re-emitted stale (the
+Grafana URL is a hostname, not a secret, and sits literally in the catalog).
+
 **Never hand-edit an emitted `.mcp.json`** — change the ruling (ledger + this doc), re-run the
 emitter (idempotent; `--check` to preview). `enableAllProjectMcpServers: true` in the synced
 `.claude/settings.json` suppresses the per-repo approval dialog (every `.mcp.json` here is

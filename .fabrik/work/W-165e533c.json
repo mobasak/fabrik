@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-07T01:12:04.666691Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "b57a14204d9ac101e9f10f2a9645774fb90ed96b",
   "id": "W-165e533c",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "review-machinery"
   ],

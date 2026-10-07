@@ -37,7 +37,7 @@ re: <id|empty>      # advisory threading hint — a DANGLING ref is harmless (fa
                     # both are exit-2 refusals
 kind: request|finding|relay|reply|upstream-feedback|merge-request
 ack: required|no
-agent: <role>       # OPTIONAL intra-mailbox addressee (infra|fleet|intel). Emitted only when set,
+agent: <role>       # OPTIONAL intra-mailbox addressee (infra|fleet|intel|kaizen). Emitted only when set,
                     # so a message without it is byte-identical to a legacy one. A FILTER, never a
                     # lock: `list --agent X` shows mail addressed to X PLUS every unaddressed
                     # message, so nothing can be hidden from a role by addressing it elsewhere.
@@ -112,10 +112,10 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   An `ack: required` OBLIGATION is NEVER swept at any age — those close by work, never by a timer. Age
   comes from the message's own `ts` (not mtime, which a restore rewrites); an unparseable `ts` is left
   alone rather than guessed at. Nothing is deleted: `archive/` stays a complete audit trail.
-- **Every hub message carries an ADDRESSEE — ENFORCED at send since 2026-08-26.** The hub runs three
-  agents — `infra` · `fleet` · `intel` — sharing one `fabrik` mailbox, so a message with no `agent:`
-  is work nobody owns. A hub-bound `send` now REFUSES (exit 2, with the three-beat guide) unless it
-  carries `--to-agent infra|fleet|intel`, an explicit `--broadcast` (deliberately all-agents;
+- **Every hub message carries an ADDRESSEE — ENFORCED at send since 2026-08-26.** The hub runs four
+  agents — `infra` · `fleet` · `intel` · `kaizen` — sharing one `fabrik` mailbox, so a message with no `agent:`
+  is work nobody owns. A hub-bound `send` now REFUSES (exit 2, with the four-beat guide) unless it
+  carries `--to-agent infra|fleet|intel|kaizen`, an explicit `--broadcast` (deliberately all-agents;
   refuses `ack:required` — an obligation nobody owns cannot be acked), or is a `kind=reply` thread
   (`--re` given — exempt). A reply with no `--to-agent` and a resolvable parent goes to the agent who ASKED: the parent's `from-agent:` when it names a hub beat other than the replier AND the parent came from this mailbox (its `from:` is the reply's `to:` — a role recorded under another repo or lane name is never trusted as a hub beat); else the parent's `agent:` is INHERITED when that is not the replier; else it goes out UNADDRESSED (visible to every beat), with a stderr hint when the only candidate was the replier itself — never into its own author's queue, where only the replier looks (fleet, 2026-09-29: 8 answers sat unread that way). Replies bound for a project mailbox are not addressed.
   A typo'd beat is refused at send AND at `route` (clearing with `''` stays legal). Set the
@@ -252,7 +252,7 @@ trigger-don't-execute survives. The hook wraps its whole body in a catch-all tha
 
 ## Concurrency — a repo's agents share ONE inbox
 
-A repo runs several concurrent Claude sessions (up to **3 in the hub `fabrik`**, 1–2 per project), and
+A repo runs several concurrent Claude sessions (up to **4 in the hub `fabrik`**, 1–2 per project), and
 they **all share the one `<repo>/inbox`** — identity is the repo basename, so every fabrik session *is*
 `fabrik`. This is deliberate:
 

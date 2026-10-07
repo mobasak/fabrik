@@ -90,6 +90,7 @@ def test_premature_stop_rate_detail_names_every_premature_cause() -> None:
     row = {
         "events": {"stop_pass": 1, "stop_block": 1},
         "stop_causes": {"run-record": 1},
+        "stop_stood_down": {},
     }
     detail = kaizen_collect_v2.compute_metrics([row], holes=0)["premature_stop_rate"].detail
     for cause in kaizen_collect_v2.PREMATURE_CAUSES:
@@ -104,6 +105,7 @@ def test_premature_stop_rate_counts_a_deferral_cause() -> None:
     row = {
         "events": {"stop_pass": 0, "stop_block": 1},
         "stop_causes": {"deferral": 1},
+        "stop_stood_down": {},
     }
     result = kaizen_collect_v2.compute_metrics([row], holes=0)["premature_stop_rate"]
     assert result.numerator == 1

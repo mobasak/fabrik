@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T20:41:15.851525Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-59d89f95",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4BY00RZG7ANAKACKKASHP2V",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Already resolved when you filed: the SessionEnd / mcp_orphan_reaper.py row is docs/workstation/hooks-index.md:94 since 1c22b3de1 (D-635); your gate ran from a tree behind that commit. Verified now on master at c99a1b0ab: `final_gate.py --check --json` status success, \"Hooks Index Fresh\" pass. System"
+}

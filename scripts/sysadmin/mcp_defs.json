@@ -53,7 +53,7 @@
       "command": "docker",
       "env": {
         "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}",
-        "GRAFANA_URL": "${GRAFANA_URL}"
+        "GRAFANA_URL": "https://monitor.vps1.ocoron.com"
       },
       "type": "stdio"
     },

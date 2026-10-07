@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T18:44:23.926520Z",
+  "creator": "infra",
+  "evidence": "c99a1b0abac6d6c2472b6af68f8650c8a7a700d7",
+  "id": "W-62801339",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "status": "done",
+  "tags": [
+    "mcp-credential-source"
+  ],
+  "title": "ORDER 2 — operator follow-up (b): emit_mcp_project_config.py fills exa, firecrawl and grafana credentials from its own prior /opt/fabrik/.mcp.json output (the emitter warns on every run). Read them from the canonical secret source (the active fleet roster ~/.claude-fleet/active/.claude.json, else the hub .env) or FAIL LOUDLY naming the key, so a rotated key is never re-emitted stale; drop the prior-output donor from _load_defs. Grader: a rotated donor value reaches the emitted file, a missing one aborts."
+}

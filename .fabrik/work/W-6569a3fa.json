@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T20:05:20.761175Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6569a3fa",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4BY30ER3WGFB2T0GPW3S72K",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "PreToolUse guard for review seats — refuse pattern kills and git writes inside a registered main checkout (your beat, .claude/hooks)"
+}

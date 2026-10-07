@@ -530,11 +530,12 @@ def test_metric_values_over_the_golden_rows() -> None:
     # H3: every rule_activation occurrence sits in the unknown stream — dash, not 0%.
     assert not metrics["rule_activation"].measurable
     assert "unattributable" in metrics["rule_activation"].detail
-    # H2: 10 unclassified lines over 34 lines — lines over lines, no session terms.
+    # H2: 10 unclassified lines over 35 lines — lines over lines, no session terms
+    # (facts v4: golden-bravo's stood_down line made 34 -> 35, labelled by hand).
     assert (
         metrics["unclassified_rate"].numerator,
         metrics["unclassified_rate"].denominator,
-    ) == (10, 34)
+    ) == (10, 35)
     assert metrics["hole_count"].cell == "3"
 
 
@@ -1315,6 +1316,55 @@ def test_malformed_evidence_hash_and_stop_cause_are_counted(tmp_path: Path) -> N
     assert row["stop_causes"] == {}
 
 
+def test_a_stood_down_stop_is_counted_apart_and_never_shrinks_stop_causes(tmp_path: Path) -> None:
+    """kaizen 01M4BYXKWR: the Stop hook emits `stop_block` cause=run-record outcome=stood_down
+    BESIDE the stop's real verdict when it lets a stop through because the running record's
+    seats are in flight. derive_session counts it in `stop_stood_down` and leaves `stop_causes`
+    exactly as before — subtracting there would shrink a lifetime row (delta_row then publishes
+    nothing for that sid)."""
+    lines = [
+        _line("sd", "stop_block", _TS, cause="run-record", outcome="stood_down"),
+        _line("sd", "stop_pass", _TS, outcome="clean"),
+        _line("sd", "stop_block", _TS, cause="run-record", outcome="blocked"),
+    ]
+    row = kc.derive_session(_session(tmp_path / "ev", "sd", lines))
+    assert row is not None
+    assert row["stop_causes"] == {"run-record": 2}, "stop_causes is the raw envelope, unchanged"
+    assert row["stop_stood_down"] == {"run-record": 1}
+    assert row["events"]["stop_block"] == 2 and row["events"]["stop_pass"] == 1
+
+
+def test_premature_rate_excludes_stood_down_from_both_operands() -> None:
+    """One stop that was let through (stand-down + its real stop_pass) and one real run-record
+    block: one premature verdict out of two verdicts — the stand-down is in neither operand."""
+    row = {
+        "events": {"stop_pass": 1, "stop_block": 2},
+        "stop_causes": {"run-record": 2},
+        "stop_stood_down": {"run-record": 1},
+    }
+    result = kc.compute_metrics([row], holes=0)["premature_stop_rate"]
+    assert (result.numerator, result.denominator) == (1, 2)
+
+
+def test_an_old_baseline_without_stood_down_gaps_not_shrinks() -> None:
+    """A pre-v4 predecessor never measured stand-downs: the delta keeps every other field, the
+    new map is the root-law None (a gap), and premature_stop_rate leaves that row out — never a
+    shrink, never a 0 baseline."""
+    prev = {"sid": "s", "events": {"stop_block": 5}, "stop_causes": {"run-record": 5}}
+    cur = {
+        "sid": "s",
+        "events": {"stop_block": 7},
+        "stop_causes": {"run-record": 7},
+        "stop_stood_down": {"run-record": 6},
+    }
+    out = kc.delta_row(cur, prev)
+    assert out is not None, "a new map is never a shrink"
+    assert out["stop_stood_down"] is None
+    assert out["stop_causes"] == {"run-record": 2}
+    result = kc.compute_metrics([out], holes=0)["premature_stop_rate"]
+    assert result.denominator is None, "the row is a gap, not a 0-stand-down row"
+
+
 def test_all_death_classes_kept_not_just_the_last(tmp_path: Path) -> None:
     """M9: every death class in the session survives — never only the last one."""
     lines = [
@@ -1669,6 +1719,7 @@ def _w2_row(sid: str, day: str, **over: object) -> dict:
         },
         "runs": {"opened": 0, "done": 0, "done_evidenced": 0, "blocked": 0, "rounds_max": 0},
         "stop_causes": {},
+        "stop_stood_down": {},
         "death_classes": [],
         "concurrent": None,
         "concurrent_reason": None,
@@ -3829,6 +3880,23 @@ def test_the_daily_pass_mails_the_prior_readings(
     assert kc.daily(day, **args) == 0
     assert len(sent) == 1
     assert f"  - previous: {prior[5:]} 7\n" in sent[0]
+
+
+def test_the_hand_off_mail_reaches_every_reader_including_kaizen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """kaizen's charter names the daily digest its signal (2026-10-06), so the hand-off
+    addresses kaizen beside infra and fleet — driven through the real argv, one send per beat."""
+    calls: list[list[str]] = []
+
+    class _Proc:
+        returncode = 0
+
+    monkeypatch.setattr(kc.subprocess, "run", lambda argv, **kw: calls.append(argv) or _Proc())
+    assert kc.send_mail(tmp_path, "body") is True
+    beats = [argv[argv.index("--to-agent") + 1] for argv in calls]
+    assert beats == ["infra", "fleet", "kaizen"]
+    assert all(argv[argv.index("--kind") + 1] == "request" for argv in calls)
 
 
 # ── W-97de2aa3 part 2: a clean coroner sweep that closed the day is evidence ─────────

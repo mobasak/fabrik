@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "apply both when executing Phase B of docs/development/plans/2026-10-02-plan-2-postgres-allocation-reconcile.md (step 1 tests, step 2 code), and correct plan:188 + spec D3 wording in that phase's commit",
+  "next": "apply both when executing Phase B of docs/development/plans/archived/2026-10-02-plan-2-postgres-allocation-reconcile.md (step 1 tests, step 2 code), and correct plan:188 + spec D3 wording in that phase's commit",
   "note": "",
   "owner": "",
   "priority": 2,

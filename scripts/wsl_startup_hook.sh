@@ -15,9 +15,11 @@
 # seven was still invoked here. If you edit the block, edit this list in the same change — a
 # comment that describes a pipeline which does not exist sends the next reader somewhere else.
 #
-# 0. mcp_orphan_reaper.py --hook — reaps stdio MCP servers whose Claude Code session died
+# 0. mcp_orphan_reaper.py --hook --report — reaps stdio MCP servers whose Claude Code session died
 #      before the hibernate/reboot (operator mail 01M4AR32MY: 48 Maestro JVMs, ~11 GB swap); bounded,
-#      exit 0, backgrounded, never touches a live session's child
+#      exit 0, backgrounded, never touches a live session's child; --report appends ONE resume line
+#      (orphans before/after, host wsl.exe count) to ~/.claude/state/mcp-reaper.log — the D-634
+#      kill criterion's measurement (D-642)
 # 1. Env watcher: monitors /opt/*/.env changes → runs audit (violations logged, never writes secrets)
 # 2. wait_for_network.sh — WSL brings the network up AFTER the first login shell; bounded
 #      (WAIT_NET_TIMEOUT_S, default 90s) and ALWAYS exit 0, since this file is sourced into every
@@ -96,7 +98,7 @@ done
 # 0. Orphaned stdio MCP servers (reparented to pid 1 / the vscode-server root, older than 2 min):
 #    reap them before anything else allocates memory. Backgrounded and fail-open — a hook that can
 #    hang the login shell is worse than the leak it closes.
-( python3 "$FABRIK_ROOT/scripts/sysadmin/mcp_orphan_reaper.py" --hook >> "${LOG_FILE:-/dev/null}" 2>&1 ) &
+( python3 "$FABRIK_ROOT/scripts/sysadmin/mcp_orphan_reaper.py" --hook --report >> "${LOG_FILE:-/dev/null}" 2>&1 ) &
 
 if ! pgrep -f "watch_env_changes.sh" > /dev/null 2>&1; then
     mkdir -p "$FABRIK_ROOT/.tmp"

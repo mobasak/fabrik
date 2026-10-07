@@ -1,7 +1,7 @@
 """Behaviour tests for `check_certification_coverage.py` — the certification grader.
 
 One test per Behavior Contract row in
-`docs/development/plans/2026-08-27-plan-1-certification-denominator.md`, and the parity between that
+`docs/development/plans/archived/2026-08-27-plan-1-certification-denominator.md`, and the parity between that
 contract and this file is asserted MECHANICALLY at the bottom rather than restated as a number: the
 plan previously read *"the nine Behavior Contract rows"* while the contract had grown to 23, which is
 behavior-without-a-test inside the plan that forbids it. A literal count goes stale the moment the
@@ -28,7 +28,14 @@ assert _spec and _spec.loader
 cc = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(cc)
 
-PLAN = REPO / "docs" / "development" / "plans" / "2026-08-27-plan-1-certification-denominator.md"
+PLAN = (
+    REPO
+    / "docs"
+    / "development"
+    / "plans"
+    / "archived"
+    / "2026-08-27-plan-1-certification-denominator.md"
+)
 
 
 def _board(
@@ -200,7 +207,7 @@ def test_an_implementation_plan_about_certification_is_not_a_cert_lock(tmp_path)
     (d / "p.json").write_text(
         json.dumps(
             {
-                "plan": "docs/development/plans/2026-08-27-plan-1-certification-denominator.md",
+                "plan": "docs/development/plans/archived/2026-08-27-plan-1-certification-denominator.md",
                 "status": "active",
             }
         ),
