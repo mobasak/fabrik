@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the CI scaffold derives its Postgres images from the version registry (2026-10-07)
+
+- `CiConfig.pg_image()` (`src/fabrik/ci_scaffold.py`) no longer returns hard-coded image literals: it reads `postgres_major` and `pgvector_version` from `.windsurf/rules/versions.yaml` at call time and returns `postgres:<major>` or `pgvector/pgvector:<version>-pg<major>`, so the scaffolded CI follows the fleet's Postgres major when infra flips it. Neither key joins `REQUIRED_KEYS`, so the module still imports with a broken registry; a missing or blank key raises `VersionRegistryError` naming it. PG18 plan T01a.
+
 ### Added — the deploy state file records registrar failures (2026-10-07)
 
 - `.fabrik/state/<id>.json` gains `registrar_failures`: the `{registrar, error}` failures the last COMPLETED `fabrik apply` / `redeploy --refresh-infra` hit, `[]` when clean. Each error is sanitised before it is written (URL credentials incl. an empty user, `KEY=value` and quoted secret assignments, JSON secret fields, `Authorization` headers, SQL `PASSWORD '…'`), scanning at most 2,000 characters and masking before a 500-character cap, because `fabrik export` ships these files. A dry run no longer writes the state file (it used to overwrite the last real apply's record). `fabrik audit-registrars` reports recorded failures and counts them toward its exit 2; `sync_projects` marks `projects.yaml` `applied_with_failures`. W-2013a22d, D-644.

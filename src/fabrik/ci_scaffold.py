@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from fabrik import version_registry
+
 # The plain URL CI uses — NOT `postgresql+asyncpg://…`. The driver is chosen by the
 # app at runtime; the test env var must be the bare libpq URL both here and in CI.
 # The database NAME ends `_test` on purpose: destructive tests (DROP SCHEMA …) fail
@@ -30,8 +32,6 @@ TEST_DATABASE_URL = f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAM
 # agree. Bump deliberately + re-seed baselines together. (scripts/backfill_ci.py asserts this matches.)
 RUFF_VERSION = "0.14.10"
 DEFAULT_TEST_CMD = "python -m pytest -q"
-_PG_PLAIN = "postgres:16"
-_PG_PGVECTOR = "pgvector/pgvector:pg16"  # postgres:16 + the vector extension
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,32 @@ class CiConfig:
     extra_test_deps: tuple[str, ...] = field(default_factory=lambda: ("pytest", "pytest-asyncio"))
 
     def pg_image(self) -> str:
-        return _PG_PGVECTOR if "pgvector" in self.db_extensions else _PG_PLAIN
+        """`postgres:<postgres_major>`, or (with `pgvector` in `db_extensions`)
+        `pgvector/pgvector:<pgvector_version>-pg<postgres_major>`.
+
+        Reads `.windsurf/rules/versions.yaml` via `fabrik.version_registry` at CALL time,
+        never at import — `scripts/backfill_ci.py` and `src/fabrik/scaffold.py` import this
+        module and must keep working when the registry is broken. Neither key is added to
+        `version_registry.REQUIRED_KEYS` (that would gate every `load_versions()` caller), so
+        this method validates them itself: a missing or blank key raises VersionRegistryError
+        naming the key — never a silent default.
+        """
+        versions = version_registry.load_versions()
+        postgres_major = versions.get("postgres_major")
+        if not postgres_major:
+            raise version_registry.VersionRegistryError(
+                f"version registry {version_registry.VERSIONS_FILE} lacks a string value "
+                "for `postgres_major`"
+            )
+        if "pgvector" not in self.db_extensions:
+            return f"postgres:{postgres_major}"
+        pgvector_version = versions.get("pgvector_version")
+        if not pgvector_version:
+            raise version_registry.VersionRegistryError(
+                f"version registry {version_registry.VERSIONS_FILE} lacks a string value "
+                "for `pgvector_version`"
+            )
+        return f"pgvector/pgvector:{pgvector_version}-pg{postgres_major}"
 
 
 def render_ci_workflow(cfg: CiConfig) -> str:
