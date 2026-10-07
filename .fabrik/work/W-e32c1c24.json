@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T20:59:53.975364Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e32c1c24",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "pass the spec's source.path into refresh_infrastructure's lookup (as _deploy_local does) and add an off-/opt refresh test",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "**[fleet]** refresh_infrastructure cannot find a local source living off /opt: it probes only /opt/<name> and /opt/fabrik-<name> (orchestrator/__init__.py:491-497), the same root limitation W-7ec31807 fixed for _deploy_local's .env merge (review of ebfd7ba74)"
+}
