@@ -1238,14 +1238,15 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    every doc that cites the plan by its pre-archive path, IN THIS SAME COMMIT.** `command grep -rln
    '<plan-stem>' docs/ *.md` names them; the two that exist for any plan worth executing are
    `docs/DECISIONS.md` (rows minted while it was in flight) and `docs/STRATEGIC_BACKLOG.md` (rows
-   routed out of its reviews). **Never the review receipts under `docs/development/reviews/`, nor any
-   verbatim captured output:** a receipt is a frozen artifact, and rewriting one re-admits it to
-   `check_convergence`/`check_review_coverage` under today's grammar (four 2026-08/09 receipts redded
-   on the first try, `01M4BYT60T`) — its pre-archive cite stays as written. Doc Link
-   Integrity DOES catch this — but at the last gate before the commit, after the move, so it costs a
+   routed out of its reviews). Doc Link
+   Integrity DOES catch a missed one of those — but at the last gate before the commit, after the move, so it costs a
    full gate re-run and lands the repair in a commit whose message was already written
    (`01M2GCTCP5F8`; hit again on the 2026-09-12 mail-triage plan's own Finish, where a `DECISIONS.md`
-   row still pointed at the pre-archive path). ⚠️ **`git mv` moves the INDEXED content, not your working tree — re-stage the plan
+   row still pointed at the pre-archive path). **The grep also lists the review receipts under
+   `docs/development/reviews/` — never repoint those, nor any verbatim captured output:** a receipt is a
+   frozen artifact, rewriting one re-admits it to `check_convergence`/`check_review_coverage` under
+   today's grammar (four 2026-08/09 receipts redded on the first try, `01M4BYT60T`), and the link check
+   never reads `docs/development/`, so its pre-archive cite stays as written. ⚠️ **`git mv` moves the INDEXED content, not your working tree — re-stage the plan
    AFTER the move:** `git add docs/development/plans/archived/<plan>.md`. ⚠️ **And the scoped commit
    must name BOTH paths** — `git commit -m <msg> -- <old-path> <new-path>` — or the deletion half of the
    rename stays staged-uncommitted and the plan lives at TWO paths in HEAD (youtube `01M1584B0`;
