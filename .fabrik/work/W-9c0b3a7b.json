@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T20:19:26.909752Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-9c0b3a7b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4C00TSSGXY26VKEWACJ1425",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "review-loop seats receive the lead's live operator turn as their \"user request\" — one seat answered it and reviewed nothing"
+}
