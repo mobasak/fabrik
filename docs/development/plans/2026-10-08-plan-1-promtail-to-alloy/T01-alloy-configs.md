@@ -25,7 +25,7 @@ touch the Promtail configs (they stay until Gate S), any compose file or bootstr
 - **Given** the hub Promtail config, **When** `alloy convert --source-format=promtail` runs on it, **Then** its output equals `configs/alloy/config.alloy` byte for byte (spec § The delta › D1; configs/promtail/promtail-config.yaml:12)
 - **Given** `promtail.yaml.template` rendered with fixed spoke values, **When** it is converted, **Then** the output equals `alloy.alloy.template` rendered with the same values (spec § Validation V1; scripts/bootstrap/templates/promtail.yaml.template)
 - **Given** each committed config (the spoke one rendered), **When** `alloy run` loads it in a container with no network, **Then** it starts without a config error (spec § Validation V2)
-- **Given** no docker on the machine, **When** the test runs, **Then** it skips with a stated reason instead of passing silently (core/45-testing-strategy.md)
+- **Given** no docker on the machine, or the `grafana/alloy:v1.20.1` image neither cached nor pullable, **When** the test runs, **Then** it skips with the stated reason instead of passing silently (core/45-testing-strategy.md)
 
 ## Context Files
 - docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md

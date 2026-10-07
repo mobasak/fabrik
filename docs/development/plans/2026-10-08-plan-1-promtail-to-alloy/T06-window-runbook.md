@@ -22,8 +22,9 @@ watcher hunks and the README rename and nothing else; each sync script's `--diff
 ORPHAN line on any other file means STOP and reconcile master into the branch before pushing); right after vps1's
 step (c), the two `--push` runs with `FABRIK_ROOT=<branch worktree>`, then the silence expires; (3) every 15-minute
 V4/V5 window is anchored on step (b) explicitly (W-332b562c note 1); (4) rollback per D6 (restore
-`compose.yaml.pre-alloy`, `up -d --remove-orphans`) with its duplicate-span note; (5) V9 daily and Gate S, and the
-follow-up cleanup list of D6; (6) an appendix holding the infra mail — the exact edits for the 4 rule packs,
+`compose.yaml.pre-alloy`, `up -d --remove-orphans`) with its duplicate-span note; (5) the close, once all three hosts pass their battery: send `fleet-alloy` for merge
+(`python3 scripts/merge_request.py request --review <the plan's receipt>` from the branch worktree, then the live
+message it prints) and send the appendix's infra mail; (5b) V9 daily and Gate S, and the follow-up cleanup list of D6; (6) an appendix holding the infra mail — the exact edits for the 4 rule packs,
 `.windsurf/rules/CLAIMS.yaml`, `agents-fabrik.md`, the six `commands/_sources/` files and
 `docs/reference/prebuilt-app-containers.md` — sent once the window passed its battery. A structural grader keeps
 the runbook honest. DO-NOT: execute any step, touch any compose or config file.
@@ -38,6 +39,7 @@ the runbook honest. DO-NOT: execute any step, touch any compose or config file.
 - **Given** the battery, **When** V4 and V5 are read, **Then** each 15-minute window is anchored on step (b) by name (spec § Validation V4, V5; W-332b562c)
 - **Given** the rollback section, **When** it is read, **Then** it restores `compose.yaml.pre-alloy` and runs `up -d --remove-orphans`, never a stop-and-start that leaves the new file in place (spec § The delta › D6)
 - **Given** the preflight, **When** it is read, **Then** it opens the Alertmanager silence, starts the canary before step (a) and checks port 12345 with `ss -ltn` on each spoke (spec § The delta › D3; § Open / blocking unknowns U2)
+- **Given** the close, **When** it is read, **Then** it sends `fleet-alloy` for merge with `merge_request.py request` and sends the infra mail only after all three hosts passed their battery (spec § The delta › D8; § Lifecycle)
 - **Given** the appendix, **When** its mail body is checked with `mail.py`'s `_structure_gaps`, **Then** it carries every D-035 section and names every infra-owned file of spec § Lifecycle (spec § Lifecycle; scripts/mail.py)
 
 ## Context Files

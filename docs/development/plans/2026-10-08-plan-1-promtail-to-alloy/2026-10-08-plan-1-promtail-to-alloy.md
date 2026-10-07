@@ -35,7 +35,7 @@ implements and restates nothing that section settles.
   - **Condition 4.** The spokes have no bootstrap volume list. Their classification lives in
     `docs/operations/spoke-restore-inventory.md` § D (`:68`), which T03 extends with `monitoring-agent_alloy-data`
     beside `monitoring-agent_promtail-positions`.
-  - **The build runs on its own branch, `fleet-alloy`, cut from master** — never on `worktree-fleet`. D8 holds the
+  - **The build runs on its own branch, `fleet-alloy`, cut from master once this plan set is on master** — never on `worktree-fleet`. D8 holds the
     merge until after the window, and an unrelated merge request from a shared branch ships every commit on it
     (the D-647 incident, docs/LESSONS_LEARNT.md 2026-10-07).
   - The plan ends at WINDOW READINESS. The window (D2) is the operator's, behind a boarded gate; no ticket touches a
@@ -98,7 +98,7 @@ T07 (5 — the Integration ticket).
 ## Constraints Digest
 
 The spec's § Constraints digest holds verbatim; the rubric run of plan-review pass 1 (below, § Coverage Checklist)
-MATCHED eight packs and injects three FLOOR packs, each named here with the line that decides its effect.
+MATCHED eight packs and injects four FLOOR rows, each named here with the line that decides its effect.
 
 | Pack | Verbatim | Where | Effect here |
 |---|---|---|---|
@@ -112,6 +112,7 @@ MATCHED eight packs and injects three FLOOR packs, each named here with the line
 | core/58-resilience.md (MATCHED) | "**Activation:** Glob — resilience files (RESILIENCE.md, health endpoints, HTTP clients, pause state, error classifier, dispatchers, beat tasks)." | `.windsurf/rules/core/58-resilience.md:17` | matched by `docs/reference/health-monitoring.md`'s name only; no resilience mechanism changes |
 | core/self-healing.md (MATCHED) | "Self-healing in Fabrik = an autonomous-by-default escalation LADDER, NOT a new primitive." | `.windsurf/rules/core/self-healing.md:16` | matched by the same doc; no ladder step changes |
 | core/35-security-auth.md, core/25-data-postgres.md (FLOOR) | — | — | unconstrained: no auth, secret or database surface changes |
+| 12-FACTOR (FLOOR) | — | — | unconstrained: no application config, process model or backing-service binding changes — the shipper is fleet infrastructure |
 
 ## Execution Discipline (binding on /fabrik-execute-plan)
 
@@ -122,8 +123,10 @@ MATCHED eight packs and injects three FLOOR packs, each named here with the line
   `python3 scripts/command_run.py dispatch --seats N` before each fan-out. Coders: Sonnet for every `simple` ticket; the
   orchestrator writes T06 and T07 (`native`). Haiku never codes. Seats never read `$HOME/.claude*` or any `.env`, never
   ssh, never touch a live host; a scratch docker rehearsal uses named containers removed after.
-- **Branch** — before the first dispatch: `git worktree add <scratch>/fleet-alloy -b fleet-alloy master`; every merge
-  lands on `fleet-alloy`, never on `worktree-fleet` (D8 holds the merge until after the window).
+- **Branch** — this plan set (docs only) reaches master first through the fleet branch's merge request; then, before
+  the first dispatch: `git worktree add /opt/fabrik/.claude/worktrees/fleet-alloy -b fleet-alloy master` (a durable path:
+  the operator runs the window from it). Every ticket merge and every Board update is committed on `fleet-alloy`, never
+  on `worktree-fleet` (D8 holds the merge until after the window).
 - **Operator gate** — no ticket runs the window; T07 boards it. The branch goes to `scripts/merge_request.py request`
   only after the window's battery is green.
 - **Parallelism + merge** — T01, T04a and T04b fan out first and concurrently (disjoint Touches); T02 and T03 follow T01 and run concurrently; T05a–T05e and T06 run concurrently once T02, T03, T04a and T04b are merged;
@@ -135,20 +138,21 @@ MATCHED eight packs and injects three FLOOR packs, each named here with the line
 - **Given** the hub Promtail config, **When** `alloy convert --source-format=promtail` runs on it, **Then** its output equals `configs/alloy/config.alloy` byte for byte (spec § The delta › D1; configs/promtail/promtail-config.yaml:12)
 - **Given** `promtail.yaml.template` rendered with fixed spoke values, **When** it is converted, **Then** the output equals `alloy.alloy.template` rendered with the same values (spec § Validation V1; scripts/bootstrap/templates/promtail.yaml.template)
 - **Given** each committed config (the spoke one rendered), **When** `alloy run` loads it in a container with no network, **Then** it starts without a config error (spec § Validation V2)
-- **Given** no docker on the machine, **When** the test runs, **Then** it skips with a stated reason instead of passing silently (core/45-testing-strategy.md)
+- **Given** no docker on the machine, or the `grafana/alloy:v1.20.1` image neither cached nor pullable, **When** the test runs, **Then** it skips with the stated reason instead of passing silently (core/45-testing-strategy.md)
 - **Given** the hub compose, **When** it is parsed, **Then** the `alloy` service pins `grafana/alloy:v1.20.1`, declares `platform: linux/amd64` and a 256M memory limit, and carries the listen-address and storage-path flags (spec § The delta › D3, D5, D7)
 - **Given** the hub compose, **When** `docker compose config` and `docker compose config --profiles` are read, **Then** `promtail` appears only under the `rollback` profile and both `promtail-positions` and `alloy-data` are declared volumes (spec § The delta › D6)
-- **Given** the memory-limits table, **When** `tests/test_vps_apply_limits.py` reads it, **Then** `alloy 256` sits beside `promtail 256` and the hub compose's alloy limit matches it (scripts/vps_apply_limits.sh:56; spec § The delta › D5)
+- **Given** the memory-limits table, **When** `tests/test_vps_apply_limits.py` reads it, **Then** `alloy 256` sits beside `promtail 256` and the hub compose's alloy limit matches it (scripts/vps_apply_limits.sh:56; spec § The delta › D5; Validation V10)
 - **Given** the bootstrap volume classification, **When** it is read, **Then** `monitoring_alloy-data` is listed as recomputable beside `monitoring_promtail-positions` (scripts/bootstrap/bootstrap-config.sh:218; spec § The delta › D7)
-- **Given** the spoke compose template rendered for vps2, **When** it is parsed, **Then** the `alloy` service carries a 128M memory limit, `cpus: 0.25`, `network_mode: host` and a listen address on the spoke's mesh IP port 12345 (spec § The delta › D3, D5; Validation V10)
+- **Given** the spoke compose template rendered for vps2, **When** it is parsed, **Then** the `alloy` service pins `grafana/alloy:v1.20.1` with `platform: linux/amd64` and `restart: unless-stopped`, and carries a 128M memory limit, `cpus: 0.25`, `network_mode: host` and a listen address on the spoke's mesh IP port 12345 (spec § The delta › D3, D5, D7; Validation V10)
 - **Given** the rendered spoke template, **When** it is parsed, **Then** `promtail` appears only under the `rollback` profile and both positions volumes are declared (spec § The delta › D6)
 - **Given** bootstrap step 11, **When** its script text is read, **Then** it renders and ships `alloy.alloy` beside `compose.yaml` and `promtail.yaml` and its verify filter names `alloy`, not `promtail` (scripts/bootstrap/bootstrap-vps.sh:738; spec § The delta › D8)
-- **Given** the edited bootstrap script, **When** `bash -n` runs on it, **Then** it parses clean (.windsurf/rules/core/90-bootstrap-scripts.md:135)
+- **Given** the two edited bootstrap scripts, **When** `bash -n` runs on each, **Then** both parse clean (.windsurf/rules/core/90-bootstrap-scripts.md:135)
 - **Given** the infra mirrors for vps2 and vps3, **When** each is compared with the template rendered for that host, **Then** they are equal (infra/README.md; spec § The delta › D8)
 - **Given** the spoke restore inventory, **When** § D is read, **Then** it classifies `monitoring-agent_alloy-data` beside `monitoring-agent_promtail-positions` (docs/operations/spoke-restore-inventory.md:68; D-651)
 - **Given** `configs/prometheus/prometheus.yml`, **When** it is parsed, **Then** job `alloy` scrapes exactly `alloy:12345`, `10.99.0.2:12345` and `10.99.0.3:12345` and no job is named `promtail-spokes` (configs/prometheus/prometheus.yml:70; spec § The delta › D3)
 - **Given** the Gatus observability-agents config, **When** it is parsed, **Then** endpoint `alloy` checks `http://alloy:12345/-/ready` with the old interval and failure threshold and no `promtail` endpoint remains (configs/gatus/apps/observability-agents.yaml:5; spec § The delta › D3)
-- **Given** the observability audit, **When** its Alloy block runs against a local `alloy run`, **Then** every metric name it greps for is present in Alloy's `/metrics` (scripts/audit/05-observability.sh:78; spec ledger cv-04)
+- **Given** the observability audit, **When** its Alloy block runs against a local `alloy run`, **Then** every metric name it greps for is present in Alloy's `/metrics` once Alloy has pushed to a throwaway Loki (scripts/audit/05-observability.sh:78; spec ledger cv-04)
+- **Given** the port registry, **When** `PORTS.md` is read, **Then** it lists 12345 for `alloy` and marks 9080 `promtail` as rollback-only (PORTS.md:40; spec § The delta › D3)
 - **Given** `vps_sync.py`'s classification sets, **When** they are read, **Then** both contain `alloy` and still contain `promtail` (scripts/vps_sync.py:154; spec § The delta › D6)
 - **Given** the repo consumers named in spec § What exists today, **When** each is searched, **Then** none presents Promtail as the running shipper outside the rollback-profile references (spec § The delta › D3)
 - **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; docs/infrastructure/audit-prompts/01-full-system-audit.md:18)
@@ -166,6 +170,7 @@ MATCHED eight packs and injects three FLOOR packs, each named here with the line
 - **Given** the battery, **When** V4 and V5 are read, **Then** each 15-minute window is anchored on step (b) by name (spec § Validation V4, V5; W-332b562c)
 - **Given** the rollback section, **When** it is read, **Then** it restores `compose.yaml.pre-alloy` and runs `up -d --remove-orphans`, never a stop-and-start that leaves the new file in place (spec § The delta › D6)
 - **Given** the preflight, **When** it is read, **Then** it opens the Alertmanager silence, starts the canary before step (a) and checks port 12345 with `ss -ltn` on each spoke (spec § The delta › D3; § Open / blocking unknowns U2)
+- **Given** the close, **When** it is read, **Then** it sends `fleet-alloy` for merge with `merge_request.py request` and sends the infra mail only after all three hosts passed their battery (spec § The delta › D8; § Lifecycle)
 - **Given** the appendix, **When** its mail body is checked with `mail.py`'s `_structure_gaps`, **Then** it carries every D-035 section and names every infra-owned file of spec § Lifecycle (spec § Lifecycle; scripts/mail.py)
 - **Given** a Promtail positions file naming a local container log at a known offset, mounted read-only, **When** Alloy starts with the committed hub config, **Then** it ships only the lines after the offset, logs the conversion, and ships nothing again after a restart (spec § Validation V3)
 - **Given** Alloy tailing local containers into a throwaway Loki 3.4.2, **When** the label names are listed, **Then** they are exactly `container_name, filename, host, job, service_name, stream` (spec § Validation V4a)
@@ -175,7 +180,7 @@ MATCHED eight packs and injects three FLOOR packs, each named here with the line
 ## Global Constraints
 
 - No ticket touches vps1, vps2 or vps3, a running container, the live `/opt/monitoring` or `/opt/monitoring-agent`
-  files, or a docker volume. Volumes are data: `promtail-positions` is kept until Gate S's own window.
+  files, or a docker volume — outside the throwaway local rehearsal projects T07 creates and removes. Volumes are data: `promtail-positions` is kept until Gate S's own window.
 - No edit to `.windsurf/rules/`, `CLAIMS.yaml`, `agents-fabrik.md`, `commands/_sources/` or
   `docs/reference/prebuilt-app-containers.md` — infra's, mailed (T06 appendix).
 - The Promtail configs and the `promtail` services stay until Gate S.
@@ -192,6 +197,7 @@ MATCHED eight packs and injects three FLOOR packs, each named here with the line
 
 ## File Scope (owned paths)
 
+- PORTS.md
 - configs/alloy/config.alloy
 - configs/gatus/README.md
 - configs/gatus/apps/observability-agents.yaml
@@ -258,7 +264,6 @@ MATCHED eight packs and injects three FLOOR packs, each named here with the line
 - tests/test_alloy_watchers.py
 - tests/test_monitoring_agent_template.py
 - tests/test_vps_apply_limits.py
-- docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-review.md
 
 ## Intake Inventory
 
@@ -288,8 +293,9 @@ OK  scripts/sync_prometheus_to_vps.sh:31-31 needle='FABRIK_ROOT'
 MISS scripts/bootstrap/bootstrap-vps.sh:404-408 needle='10.99' -> the rule is at :408 with ${FABRIK_WG_SUBNET}; the comment at :404 names promtail:9080
 ```
 
-The Promtail sweep (`command grep -rln -i promtail docs/ scripts/ templates/ configs/ infra/ src/ tests/`, history
-excluded) returned 80 files. Dispositions: 34 current-state docs (T05a–T05e, plus `EXTERNAL_SYSTEMS.md` in T07);
+The Promtail sweep (`command grep -rln -i promtail docs/ scripts/ templates/ configs/ infra/ src/ tests/`, minus the
+`docs/archive`, `plans/archived`, `/reviews/`, `research/` and `superpowers/` paths) returned 80 lines: 3 are `__pycache__`
+binaries, and the 77 files are dispositioned as follows: 34 current-state docs (T05a–T05e, plus `EXTERNAL_SYSTEMS.md` in T07);
 23 owned by the code tickets; 13 history files left as written; 4 governance files applied by the orchestrator; 1
 governance-synced doc to infra; and 2 others. Those two are `src/fabrik/drivers/watchdog.py` (I13, W-1feb4dfa) and
 a test docstring that cites the spec. Doc-ticket READ sizes:
@@ -302,8 +308,8 @@ docs/reference/apis/EXTERNAL_SYSTEMS.md 537,674 B → T07 (Integration, budget-e
 ## Self-audit
 
 - (a) Coverage — D1 → T01; D2 → T06; D3 → T02 (hub), T03 (spokes), T04a (watchers), T04b (consumers), T06 (window half);
-  D4 → T02, T03; D5 → T02, T03; D6 → T02, T03, T06; D7 → T02; D8 → T03 (step 11), Execution Discipline (branch),
-  T07 (no merge before the battery); V1, V2 → T01; V3, V4a, V5a → T07; V10 → T02, T03; V4–V9, V11 → T06; the doc
+  D4 → T02, T03; D5 → T02, T03; D6 → T02, T03, T06; D7 → T02, T03; D8 → T03 (step 11), Execution Discipline (branch),
+  T07 (no merge before the battery); V1, V2 → T01 (configs), T02, T03, T04b (`bash -n` on every edited script); V3, V4a, V5a → T07; V10 → T02, T03; V4–V9, V11 → T06; the doc
   landing sites → T05a–T05e, T07; the four D-651 conditions → I1–I4 above.
 - (b) Cross-ticket names — `alloy`, `alloy-data`, `promtail-positions`, port 12345, job `alloy`, endpoint `alloy`,
   `configs/alloy/config.alloy` and `alloy.alloy.template` are spelled identically in every ticket.

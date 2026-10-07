@@ -4,7 +4,7 @@ Depends: T01
 Parallel: ⚡
 Complexity: simple
 Appetite: 60
-Gate: python -m pytest tests/test_vps_apply_limits.py -q
+Gate: bash -n scripts/bootstrap/bootstrap-config.sh && bash -n scripts/vps_apply_limits.sh && python -m pytest tests/test_vps_apply_limits.py -q
 Docs: none (T05 owns the doc sweep)
 
 ## Scope
@@ -31,7 +31,7 @@ stack comment names alloy. DO-NOT: remove the promtail service or its volume (Ga
 ## Behavior Contract
 - **Given** the hub compose, **When** it is parsed, **Then** the `alloy` service pins `grafana/alloy:v1.20.1`, declares `platform: linux/amd64` and a 256M memory limit, and carries the listen-address and storage-path flags (spec § The delta › D3, D5, D7)
 - **Given** the hub compose, **When** `docker compose config` and `docker compose config --profiles` are read, **Then** `promtail` appears only under the `rollback` profile and both `promtail-positions` and `alloy-data` are declared volumes (spec § The delta › D6)
-- **Given** the memory-limits table, **When** `tests/test_vps_apply_limits.py` reads it, **Then** `alloy 256` sits beside `promtail 256` and the hub compose's alloy limit matches it (scripts/vps_apply_limits.sh:56; spec § The delta › D5)
+- **Given** the memory-limits table, **When** `tests/test_vps_apply_limits.py` reads it, **Then** `alloy 256` sits beside `promtail 256` and the hub compose's alloy limit matches it (scripts/vps_apply_limits.sh:56; spec § The delta › D5; Validation V10)
 - **Given** the bootstrap volume classification, **When** it is read, **Then** `monitoring_alloy-data` is listed as recomputable beside `monitoring_promtail-positions` (scripts/bootstrap/bootstrap-config.sh:218; spec § The delta › D7)
 
 ## Context Files

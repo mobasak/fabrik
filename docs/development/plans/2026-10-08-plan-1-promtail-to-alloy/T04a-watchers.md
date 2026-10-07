@@ -9,8 +9,9 @@ Docs: none (T05 owns the doc sweep)
 
 ## Scope
 Implements spec § The delta › D3 (the watcher change). Prometheus job `promtail-spokes` in
-`configs/prometheus/prometheus.yml:70-80` becomes job `alloy` with targets `alloy:12345`, `10.99.0.2:12345` and
-`10.99.0.3:12345`; Gatus endpoint `promtail` in `configs/gatus/apps/observability-agents.yaml:5-14` becomes `alloy`,
+`configs/prometheus/prometheus.yml:70-82` becomes job `alloy` with targets `alloy:12345`, `10.99.0.2:12345` and
+`10.99.0.3:12345` — each spoke target keeps the `host`/`role` labels its old `static_configs` entry carries, and the
+hub target takes `host: vps1` with the `role` value the hub's other targets in `prometheus.yml` use; Gatus endpoint `promtail` in `configs/gatus/apps/observability-agents.yaml:5-14` becomes `alloy`,
 checking `http://alloy:12345/-/ready` with the same interval and failure threshold; `configs/gatus/README.md:8`
 follows. These files reach vps1 only through the window's two `--push` runs (T06). DO-NOT: push either config, touch
 any script or compose file.

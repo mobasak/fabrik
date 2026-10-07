@@ -18,7 +18,8 @@ the receipt (spec § Validation); (b) rewrites the Promtail claims in `docs/refe
 doc too large for a doc ticket's READ budget); (c) boards the operator window as a gate (one DECISION block, ground
 `gate`, naming the runbook) and the Gate S follow-up as a backlog item for the fleet agent; (d) applies the INDEX.md and
 docs/README.md rows for the runbook, the renamed noise-filter doc and the new tests, and the CHANGELOG entry; (e) runs
-the whole-plan gates and writes the receipt `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-review.md`.
+the whole-plan gates and writes the receipt `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-review.md`,
+which records the D-651 condition-1 correction (the spec's :55-57 copies were retired by D-595).
 The branch is NOT sent for merge here: spec D8 merges it after the window's battery, which the runbook's close names. DO-NOT: run any window step, touch a host or a docker volume outside the throwaway
 rehearsal projects, or send the branch for merge.
 
