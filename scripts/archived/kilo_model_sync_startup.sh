@@ -1,5 +1,5 @@
 #!/bin/bash
-# RETIRED 2026-09-25 (D-415). Still run by the operator's ~/.bashrc hook: do not move it before that hook and the cron line go (D-432).
+# RETIRED 2026-09-25 (D-415). ARCHIVED 2026-10-07: the cron line is gone and the ~/.bashrc hook is -f guarded, so it now runs nothing.
 # The Kilo model sync; the Kilo CLI it fed retired 2026-07-19. Do not use or install it. Find the hook with
 # `grep -n kilo_model_sync_startup ~/.bashrc`; it calls this script on every shell start. The last-run file below is written
 # only after the background sync finishes, so a shell opened while a sync is running starts another one (most days in the

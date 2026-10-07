@@ -249,18 +249,6 @@
    "why": "weekly restore rehearsal \u2014 a backup nobody restores is not a backup"
   },
   {
-   "cron_match": "kilo_model_sync.py",
-   "doc": "docs/workstation/wsl-startup-inventory.md",
-   "evidence": {
-    "path": "/opt/fabrik/.droid/kilo_model_sync.log",
-    "type": "log"
-   },
-   "id": "kilo-model-sync",
-   "kind": "cron",
-   "max_age_hours": 30,
-   "why": "daily model-catalog sync feeding the subagent pool's selection docs"
-  },
-  {
    "cron_match": "kilo-benchmarks/daily_refresh.sh",
    "doc": "docs/workstation/wsl-startup-inventory.md",
    "evidence": {
