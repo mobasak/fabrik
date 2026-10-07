@@ -379,23 +379,16 @@ def _vanished_slices(rounds: list[Any]) -> list[str]:
     slice still open from it, would read as every slice verified. Every earlier round, not only
     the latest one that stated slices: comparing with the latest let a slice dropped two rounds
     running read clean (W-aa53dfc6). A stored name `--slices` would refuse (a hand-edited row's
-    `?`) is skipped, because it could never be restated and would trap `done` forever.
-
-    A slice whose MOST RECENT statement had every claim verified is CARRIED, not owed (W-c8069437):
-    D-335 re-dispatches only a slice with an open claim, so a pass that sends only the slice still
-    failing must not have to re-state the idle verified one with a zero-seat round. The cobra the
-    rule exists for — dropping a slice that was still OPEN — stays refused, because a slice last
-    stated with `verified < claims` (or no claim) is owed exactly as before."""
+    `?`) is skipped, because it could never be restated and would trap `done` forever."""
     if not rounds:
         return []
     last = {s["name"] for s in _slice_rows(rounds[-1])}
-    latest: dict[str, dict[str, Any]] = {}
+    owed: list[str] = []
     for row in rounds[:-1]:
         for s in _slice_rows(row):
-            if re.fullmatch(_SLICE_NAME, s["name"]):
-                latest.pop(s["name"], None)
-                latest[s["name"]] = s
-    owed = [n for n, s in latest.items() if s["verified"] < s["claims"] or s["claims"] < 1]
+            name = s["name"]
+            if name not in owed and re.fullmatch(_SLICE_NAME, name):
+                owed.append(name)
     return [n for n in owed if n not in last]
 
 
@@ -790,7 +783,9 @@ def _round_report(rec: dict[str, Any]) -> str:
             "⛔ NOT TERMINAL — slice ledger missing this round for ("
             + ", ".join(vanished)
             + "), stated by an earlier round; every later pass re-states `--slices` for every "
-            "slice an earlier round stated — an omitted slice is open, never clean (D-335)"
+            "slice an earlier round stated — an omitted slice is open, never clean (D-335). A slice "
+            "with no open claim needs no seat and no extra round: re-state it at its last "
+            "`<verified>/<claims>` in THIS round's `--slices` (W-c8069437)"
         )
     if quiet and len(rounds) >= 2 and failing:
         lines.append(
@@ -1686,16 +1681,20 @@ def _change_axis_verdict(value: str) -> str | None:
 # the short noun phrases below are ordinary English a genuine verdict ABOUT the close-out grammar
 # uses in its own sentence, and this loop's verdicts are exactly about that grammar. A paste
 # reproduces a whole clause; a verdict borrows three words and then says something.
+# the `filed:` template in every spelling it has had or will have — a beat LIST (`a|b|c`), bracketed or not, or the
+# contract's `a beat` — ending at the template's own ` | `, `>` or the value's end (D-627 regression)
+_FILED_TEMPLATE = re.compile(r"mail id\(s\) to <?(?:a beat|[a-z]+(?:\|[a-z]+)+)>?\s*(?:\||>|$)")
 _GRAMMAR_PHRASES = (
     "the one concrete edit to this command or a rule",
     "what in the command text was ambiguous or misleading",
     "steps, turns or tokens spent without",
     "steps/turns/tokens spent without changing the outcome",
     "surfaces exercised: <what your run touched",
-    # the SHARED prefix of every spelling the `filed:` clause has had: a whole-beat-list phrase broke
-    # the guard the day the fourth beat (kaizen, D-627) was added — the three-beat paste still printed
-    # by older rendered commands slipped through — and would again on the fifth (W-c8069437 batch)
-    "mail id(s) to ",
+    # the fourth hub beat (kaizen, 2026-10-06) replaced the three-beat spellings outright: measured
+    # at the change, 0 of 1,956 ledger rows carried either old phrase, so nothing is un-bucketed,
+    # and the pin test needs every phrase here to live in the fragment or `_USAGE_GRAMMAR`
+    "mail id(s) to infra|fleet|intel|kaizen | none",
+    "mail id(s) to <infra|fleet|intel|kaizen> | none",
 )
 
 
@@ -1861,7 +1860,9 @@ def _parse_usage_feedback(
             _cv = _att[1] if _att else " ".join(_raw.strip().lower().split())
         else:
             _cv = " ".join(_raw.strip().lower().split())
-        if any(_cv.lstrip("> -*\"'`(").startswith(_ph) for _ph in _GRAMMAR_PHRASES):
+        if any(_cv.lstrip("> -*\"'`(").startswith(_ph) for _ph in _GRAMMAR_PHRASES) or _FILED_TEMPLATE.match(
+            _cv.lstrip("> -*\"'`(")
+        ):
             placeholders.append(_f)
     missing += [f"{f} (placeholder)" for f in placeholders]
     # THE AXIS GATE — `change:` only, and only on a value that is not already the grammar's own
@@ -5067,7 +5068,8 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                         for s in _fail
                     ]
                     + [
-                        f"slice {n}, stated by an earlier round, is missing from the last round's ledger"
+                        f"slice {n}, stated by an earlier round, is missing from the last round's ledger "
+                        "(re-state it at its last `<verified>/<claims>` in the round's `--slices` — no extra round)"
                         for n in _gone
                     ]
                 )

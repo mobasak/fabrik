@@ -683,6 +683,8 @@ AXES: tuple[str, ...] = ("lean", "fast", "accurate", "waste", "infra", "rules", 
 # ordinary English that a genuine verdict ABOUT the close-out grammar uses in its own sentence —
 # and the close-out grammar is exactly what this loop's verdicts are about. A paste reproduces the
 # template's whole clause; a verdict borrows three words of it and then says something.
+# mirrors `command_run.py::_FILED_TEMPLATE` (pinned equal by a drift grader)
+_FILED_TEMPLATE = re.compile(r"mail id\(s\) to <?(?:a beat|[a-z]+(?:\|[a-z]+)+)>?\s*(?:\||>|$)")
 _GRAMMAR_PHRASES: tuple[str, ...] = (
     "the one concrete edit to this command or a rule",
     "what in the command text was ambiguous or misleading",
@@ -692,7 +694,8 @@ _GRAMMAR_PHRASES: tuple[str, ...] = (
     # the fourth hub beat (kaizen, 2026-10-06) replaced the three-beat spellings outright: measured
     # at the change, 0 of 1,956 ledger rows carried either old phrase, so nothing is un-bucketed,
     # and the pin test needs every phrase here to live in the fragment or `_USAGE_GRAMMAR`
-    "mail id(s) to ",
+    "mail id(s) to infra|fleet|intel|kaizen | none",
+    "mail id(s) to <infra|fleet|intel|kaizen> | none",
 )
 
 
@@ -734,7 +737,7 @@ def _axis_of(value: str) -> str:
     # because the fragment prints the template inside a `> ` blockquote and that marker is the
     # likeliest copy artifact (the close's own `_is_placeholder` strips decoration the same way).
     bare = body.lstrip("> -*\"'`(")
-    if bare.startswith("<") or any(bare.startswith(phrase) for phrase in _GRAMMAR_PHRASES):
+    if bare.startswith("<") or any(bare.startswith(phrase) for phrase in _GRAMMAR_PHRASES) or _FILED_TEMPLATE.match(bare):
         return "placeholder"
     if not attempt:
         return "unkeyed"
