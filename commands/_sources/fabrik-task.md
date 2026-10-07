@@ -81,7 +81,8 @@ design outlives the scratch. A refusal discards the `step`: fix the file and
 re-run, or the record stays at phase 1. It lands ONCE — a second `--design` is ignored with a NOTE
 while everything else reads like success. Add a `## Behaviours` list — each naming its test, at
 most 7 (an 8th is the `behaviours` UPGRADE, *(v2)*) — and name every path the build will touch in
-APPROACH or MIRROR (backticked): *(v2)* a committed path missing from both REFUSES `done` at close
+APPROACH or MIRROR, backticked bare and repo-relative (`a.py::f` matches nothing), the Behaviours'
+tests and any phase-4 receipt included: *(v2)* a committed path missing from both REFUSES `done` at close
 (v1 only RECORDS it, never refusing); the remedy is `step --phase 2 --design-amend <path>` *(v2)*,
 append-only — it never overwrites a recorded field — and counted on the close as `design_amends`.
 MIRROR is mandatory (`CLAUDE.md` § Behavior). The fields
@@ -135,8 +136,7 @@ python3 scripts/command_run.py done --command fabrik-task \
 ```
 
 The close re-measures every commit. At v1 an undeclared path is RECORDED as `oversized_mini`,
-never refused. *(v2)* a committed path missing from APPROACH/MIRROR/an amendment REFUSES `done`
-(phase 2's remedy above); `blocked`/`handoff` record it as `oversized_mini` instead, never refusing
+never refused. *(v2)* an undeclared path REFUSES `done` (phase 2's rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, never refusing
 a sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff`
 too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none.
 

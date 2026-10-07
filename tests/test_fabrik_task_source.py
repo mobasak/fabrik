@@ -57,7 +57,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # keeps today's gate, so the text has to say which) plus the O7 contradiction fix — D-501.
 # D-517 (operator ruling 2026-10-03, two independent design critiques before design approval) added the
 # phase-2 `design-critique` include inside this cap — the cap did not move.
-SIZE_CAP = 11672
+# D-657 (kaizen, 2026-10-08): +60 B for phase 2's path-naming rule (bare, repo-relative, tests and
+# receipt included — ~15 feedback rows), after retiring phase 5's restatement of the same rule.
+SIZE_CAP = 11732
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -438,8 +440,9 @@ def test_design_note_names_behaviours_cap_and_the_design_amend_remedy() -> None:
     cap_refuse = (
         "Add a `## Behaviours` list — each naming its test, at most 7 (an 8th is the "
         "`behaviours` UPGRADE, *(v2)*) — and name every path the build will touch in APPROACH "
-        "or MIRROR (backticked): *(v2)* a committed path missing from both REFUSES `done` at "
-        "close (v1 only RECORDS it, never refusing);"
+        "or MIRROR, backticked bare and repo-relative (`a.py::f` matches nothing), the "
+        "Behaviours' tests and any phase-4 receipt included: *(v2)* a committed path missing "
+        "from both REFUSES `done` at close (v1 only RECORDS it, never refusing);"
     )
     amend = (
         "the remedy is `step --phase 2 --design-amend <path>` *(v2)*, append-only — it never "
@@ -488,8 +491,8 @@ def test_close_section_refuses_undeclared_and_close_time_contract_hits() -> None
     """Behavior Contract row 1 (part): the v2 close REFUSES (v1 still only records)."""
     text = _norm(_source_text())
     undeclared = (
-        "*(v2)* a committed path missing from APPROACH/MIRROR/an amendment REFUSES `done` "
-        "(phase 2's remedy above); `blocked`/`handoff` record it as `oversized_mini` instead, "
+        "*(v2)* an undeclared path REFUSES `done` (phase 2's rule and remedy); "
+        "`blocked`/`handoff` record it as `oversized_mini` instead, "
         "never refusing a sanctioned halt."
     )
     contract = (
