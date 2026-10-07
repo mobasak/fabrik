@@ -672,7 +672,7 @@ python scripts/dev_tracker.py query "SELECT * FROM ai_usage ORDER BY timestamp D
 
 ### 9. Deploy State Store (`.fabrik/`)
 
-Every project that goes through `fabrik apply` gets a `.fabrik/state/<id>.json` file — the 8-field manifest recording exactly what was deployed and which registrars fired. This is the backbone of the deploy/destroy/audit pipeline.
+Every project that goes through `fabrik apply` gets a `.fabrik/state/<id>.json` file — the 10-field manifest recording exactly what was deployed, which registrars fired, and which failed (`registrar_failures`). This is the backbone of the deploy/destroy/audit pipeline.
 
 **State file schema (written by `state.py` after each `fabrik apply`):**
 

@@ -307,7 +307,7 @@ Every `fabrik apply` writes `.fabrik/state/<id>.json` — see [Deploy State Stor
 - **Orchestrator:** `src/fabrik/orchestrator/` — `deployer_ssh.py` (SSH + Docker Compose deploys), `infrastructure.py` (registrar dispatch), `rollback.py` (reverse cleanup), `secrets.py`, `verifier.py`
 - **Drivers:** `src/fabrik/drivers/` — 20+ integrations (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns, ssh, r2, supabase, etc.) plus archived legacy `coolify` driver for `fabrik status`/`logs` against pre-2026-05-30 services
 - **Spec loader:** `src/fabrik/spec_loader.py` — YAML parsing, shape validation, template merging
-- **State:** `src/fabrik/state.py` — 8-field manifest written after each successful apply
+- **State:** `src/fabrik/state.py` — 10-field manifest written after each completed apply (dry runs write nothing), incl. the sanitised `registrar_failures`
 
 ---
 
@@ -616,7 +616,7 @@ and a project's `scripts/kilo_47_agents_final.json`; it leaves an existing `.dro
 
 ### What It Does
 
-Every successful `fabrik apply` writes an 8-field JSON manifest to `.fabrik/state/<id>.json`. This is the backbone of the deploy/destroy/audit pipeline:
+Every completed `fabrik apply` / `redeploy --refresh-infra` writes a 10-field JSON manifest to `.fabrik/state/<id>.json` (a dry run writes nothing). This is the backbone of the deploy/destroy/audit pipeline:
 
 ```json
 {
@@ -625,14 +625,24 @@ Every successful `fabrik apply` writes an 8-field JSON manifest to `.fabrik/stat
   "coolify_uuid": "lgg84cs8gkso0swk8g4cwo80",
   "domain": "my-api.vps1.ocoron.com",
   "git_sha": "ce9d1ed...",
+  "registrar_failures": [
+    {"registrar": "redis", "error": "REDIS_URL injection failed: ..."}
+  ],
   "registrars_applied": [
     {"type": "gatus", "id": "my-api", "status": "created", "data_bearing": false},
     {"type": "prometheus", "id": "my-api", "status": "created", "data_bearing": false}
   ],
   "spec_hash": "72f31d75097f4672",
-  "spec_path": "/opt/fabrik/specs/services/my-api.yaml"
+  "spec_path": "/opt/fabrik/specs/services/my-api.yaml",
+  "target_vps": "vps1"
 }
 ```
+
+`registrar_failures` lists the registrar failures of the last apply that COMPLETED (`[]` when clean;
+a rolled-back or failed run writes no file, so read `applied_at`). Each error is sanitised before it is
+written — URL credentials, `KEY=value` and quoted secret assignments, JSON secret fields, `Authorization`
+headers and SQL `PASSWORD '…'` are masked, then capped at 500 characters — because `fabrik export` ships
+these files.
 
 ### Who Reads It
 
@@ -640,7 +650,7 @@ Every successful `fabrik apply` writes an 8-field JSON manifest to `.fabrik/stat
 |---------|------------------|
 | `fabrik apply` | Writes state after successful deploy |
 | `fabrik destroy --use-state` | Reads state to replay exact teardown (see [State-Driven Destroy](#state-driven-destroy)) |
-| `fabrik audit-registrars` | Reads all state files for fleet-wide drift detection (see [Registrar Audit](#registrar-audit--reconcile)) |
+| `fabrik audit-registrars` | Reads each state file's `target_vps` and reports recorded `registrar_failures` (exit 2) alongside the live drift check (see [Registrar Audit](#registrar-audit--reconcile)) |
 | `fabrik verify --spec registrars` | Reads state for postcondition gate |
 | `fabrik export` | Bundles state files into portability tarball (UUIDs stripped) |
 | `fabrik review` | Writes `.fabrik/review/<ts>.md` — diff + spec + registrars bundled for review |
