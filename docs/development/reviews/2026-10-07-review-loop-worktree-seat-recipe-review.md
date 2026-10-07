@@ -1,7 +1,7 @@
 # Review — review-loop-worktree-seat-recipe
 
-**Status:** IN-PROGRESS
-**Surface:** `git rev-parse HEAD` = 29042f531dcb20c7927094756185269448853f1d; `git diff HEAD -- .claude/workflows/fabrik-review-loop.js tests/test_review_loop_workflow.py commands/_agents/fabrik-reviewer.md commands/_sources/fabrik-review.md commands/_sources/fabrik-review-scoped.md commands/_sources/fabrik-plan-review.md commands/_sources/fabrik-repo-review.md commands/_sources/fabrik-spec-review.md commands/_fragments/subagents-core.md` md5 6965c6b08487f6a220de66ea0e06827b (73044 bytes)
+**Status:** CONVERGED
+**Surface:** `git rev-parse HEAD` = 3dc4f73131054dac797ea91a45ec2b8f527d6000; range tip 3dc4f73131054dac797ea91a45ec2b8f527d6000; `git diff 29042f531..3dc4f7313 -- .claude/workflows/fabrik-review-loop.js tests/test_review_loop_workflow.py commands/_agents/fabrik-reviewer.md commands/_sources/fabrik-review.md commands/_sources/fabrik-review-scoped.md commands/_sources/fabrik-plan-review.md commands/_sources/fabrik-repo-review.md commands/_sources/fabrik-spec-review.md commands/_fragments/subagents-core.md` md5 96eb9564d42b6e2a124688215459c8a9 (76032 bytes)
 **Command:** /fabrik-review · **Changed:** `.claude/workflows/fabrik-review-loop.js`, `tests/test_review_loop_workflow.py`, `commands/_agents/fabrik-reviewer.md`, `commands/_sources/fabrik-review.md`, `commands/_sources/fabrik-review-scoped.md`, `commands/_sources/fabrik-plan-review.md`, `commands/_sources/fabrik-repo-review.md`, `commands/_sources/fabrik-spec-review.md`, `commands/_fragments/subagents-core.md`
 
 ## Coverage Checklist
@@ -224,21 +224,21 @@ $ python scripts/review_rubric.py --changed .claude/workflows/fabrik-review-loop
 
 | Class | Status |
 |---|---|
-| Hunt: `.claude/workflows/fabrik-review-loop.js` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_review_loop_workflow.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_agents/fabrik-reviewer.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-review.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-review-scoped.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-plan-review.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-repo-review.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-spec-review.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_fragments/subagents-core.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `.claude/workflows/fabrik-review-loop.js` — every changed hunk, its enclosing function, its callers | FIXED r1 (PIN_IMPORT now says literal paths in every command — git, tar or python; code-S1/S2, re-executed under the armed guard in pass 2 — a literal-path runpy call runs, a $VAR one is refused) |
+| Hunt: `tests/test_review_loop_workflow.py` — every changed hunk, its enclosing function, its callers | FIXED r2 (test_the_finder_and_refuter_share_one_import_recipe compares through the end of PYTEST_PINS, tests-S1; 49 tests green) |
+| Hunt: `commands/_agents/fabrik-reviewer.md` — every changed hunk, its enclosing function, its callers | CLEAN (commands/_agents/fabrik-reviewer.md:15 — the house rule names /usr/bin/grep under timeout, asserted by test_no_seat_instruction_source_wraps_a_shell_builtin_in_timeout) |
+| Hunt: `commands/_sources/fabrik-review.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (lines 130 and 444 named command grep; both now /usr/bin/grep, and the timeout grader reads this file too — corpus-S1/S2) |
+| Hunt: `commands/_sources/fabrik-review-scoped.md` — every changed hunk, its enclosing function, its callers | CLEAN (commands/_sources/fabrik-review-scoped.md — the review-loop doc cite is hub-absolute, asserted by test_the_review_loop_doc_is_cited_hub_absolute) |
+| Hunt: `commands/_sources/fabrik-plan-review.md` — every changed hunk, its enclosing function, its callers | CLEAN (commands/_sources/fabrik-plan-review.md — the review-loop doc cite is hub-absolute, asserted by test_the_review_loop_doc_is_cited_hub_absolute) |
+| Hunt: `commands/_sources/fabrik-repo-review.md` — every changed hunk, its enclosing function, its callers | CLEAN (commands/_sources/fabrik-repo-review.md — the review-loop doc cite is hub-absolute, asserted by test_the_review_loop_doc_is_cited_hub_absolute) |
+| Hunt: `commands/_sources/fabrik-spec-review.md` — every changed hunk, its enclosing function, its callers | CLEAN (commands/_sources/fabrik-spec-review.md — the review-loop doc cite is hub-absolute, asserted by test_the_review_loop_doc_is_cited_hub_absolute) |
+| Hunt: `commands/_fragments/subagents-core.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (the hub-absolute cite now says a hub branch editing the doc reads its own checkout's copy — corpus-S3) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | CLEAN (tests/test_review_loop_workflow.py — each grader asserts the needed token is PRESENT as well as the refused shape absent, so an empty prompt fails) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (no accounting surface — .claude/workflows/fabrik-review-loop.js changes only prompt text, never seat counts or the box budget) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r2 (tests/test_review_loop_workflow.py — the 600-character comparison window replaced by an end-marker span) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | CLEAN (tests/test_review_loop_workflow.py — seven graders red on HEAD 29042f531, the researcher grader red on the gate mutant, the widened grader red on a mutant in pass 3) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (tests/test_review_loop_workflow.py — counts assert exact occurrences: PIN_IMPORT defined once, used twice) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (.claude/workflows/fabrik-review-loop.js — each recipe step was executed by a seat inside the armed worktree guard in passes 1 and 2) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -264,6 +264,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 |---|---|---|---|
 | Pass 1 | native sonnet×3 (slices code · tests · corpus) + sonnet refuters | found: 5, new: 5, confirmed: 5, fixed: 5, unexecuted: 0 | execution: each seat ran the recipe under the armed worktree guard (wf_12a08a38-665); code-S1/S2 the runpy form refused on a `$SCRATCH` path · corpus-S1 `command grep` at fabrik-review.md:130,444 · corpus-S2 the timeout grader never read fabrik-review.md · corpus-S3 the hub-absolute cite unexplained beside the worktree-aware `<repo root>`; three graders extended and watched red before the fix |
 | Pass 2 | native sonnet×3 (the round-1 seats over their own slice ledgers) + sonnet refuters | found: 2, new: 2, confirmed: 1, fixed: 1, unexecuted: 0 | re-execution (wf_26802fea-312): code-S1/S2 and corpus-S1/S2 NOW_FALSE, re-run under the armed guard; tests-S1 confirmed (the shared-recipe grader compared 600 characters and never reached PYTEST_PINS, so it now compares the span through the end of PYTEST_PINS); corpus-S3's follow-up refuted |
+| Pass 3 | native sonnet×1 (the round-1 tests seat over its own ledger) | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the round-1 tests seat re-executed tests-S1 (wf_394dc6f9-98f): NOW_FALSE; the widened grader proven red on a mutant whose finder prompt drops PYTEST_PINS; pytest 49 of 49; one-hop sweep of the 17-line delta raised nothing |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -294,7 +295,7 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — worktree-safe seat recipe in the review-loop brief and its sources: CLEAN
 
 ## Gate
 
@@ -302,5 +303,11 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 `"status": "success"`):
 
 ```json
-UNCHECKED — paste the gate output here at the CONVERGED flip
+{
+ "status": "success",
+ "tier": 2,
+ "passed": 56,
+ "failed": 0,
+ "failures": []
+}
 ```

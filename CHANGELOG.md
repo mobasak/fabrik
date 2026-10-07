@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the review-loop seat brief obeys a linked worktree's isolation guard (2026-10-07)
+- Seats in a linked worktree were told to run shapes the guard refuses: a `HOME=` prefix, piped or `&&` git, `timeout … command grep` (exit 127), and a SCRATCH dir nothing created (W-9385c2b3, site-provisioner 01M491K2). One `PIN_IMPORT` constant now feeds both prompts. It runs one git command per call with literal paths, sets HOME inside the python launcher and runs searches as `/usr/bin/grep` (D-643).
+- The hub-only `review-loop-workflow.md` is cited hub-absolute in 7 command sources (sp1 01M493NNJ3).
+- Graders in `tests/test_review_loop_workflow.py`, red on 29042f531; review CONVERGED over 3 passes (5, then 1, then 0 confirmed).
+
 ### Fixed — the hub's `.mcp.json` no longer spawns Maestro or browser servers, a gate keeps every `.mcp.json` inside its ruling, and orphaned stdio MCP servers are reaped (2026-10-07)
 - Operator mail 01M4AR32MY: after a hibernate resume 48 `maestro.cli.AppKt` JVMs (46 reparented to the vscode-server root, up to 5 days old) held ~11 GB of swap, because the emitter handed the hub the FULL definition set. `scripts/sysadmin/emit_mcp_project_config.py` now subtracts `HUB_EXCLUDE` (`maestro`, `mobile-mcp`, `playwright`, `chrome-devtools`) for hub-class repos and exposes `ruled_server_names()`; every /opt repo was re-emitted (only the hub changed). `scripts/enforcement/check_mcp_scope.py` (Tier 2, hub-only) fails when any emitted `.mcp.json` carries a server outside its ruling and names the emitter command; unruled and own-agent repos (fabrik-lib) warn. `scripts/sysadmin/mcp_orphan_reaper.py` reaps a stdio MCP server that matches a `mcp_defs.json` command (whole token, `docker` with its image), is reparented to pid 1 or `server-main.js`, and is older than 120 s — a SessionEnd user hook (`install_user_hooks.py`) and step 0 of `scripts/wsl_startup_hook.sh`; dry run by default. Kill criterion: `ps -eo args | grep -c '[m]aestro.cli.AppKt'` stays 0 in the hub after 7 days of normal work, or the gate is wrong. Corrected the same day (D-638): the exclusion trims the hub alone — fabrik-lib keeps the full roster, maestro included, as do the mobile projects.
 
