@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T21:12:22.112778Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-191701d1",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "find the commit that changed the chrome-extension pyproject template (git log -S'extend-exclude' -- templates/ src/fabrik/scaffold.py), repoint the patcher's anchor, run tests/test_scaffold_logging.py green",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "scaffold"
+  ],
+  "title": "tests/test_scaffold_logging.py::TestChromeExtensionLogging is red on master (8 tests): scaffold's server-config patch raises 'pyproject template changed; server config cannot patch extend-exclude = [\"src/test_ext/glitchtip_init.py\", \"libs/*\"]' — the chrome-extension pyproject template moved and the patcher's anchor did not follow"
+}

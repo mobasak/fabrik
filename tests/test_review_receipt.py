@@ -9,6 +9,7 @@ control: one tracked modified file, one untracked new file.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -97,7 +98,7 @@ def _complete(text: str) -> str:
         "| Pass | Finders | Counters | Method |\n|---|---|---|---|\n",
         "| Pass | Finders | Counters | Method |\n|---|---|---|---|\n"
         "| Pass 1 | native opus×1 + sonnet×2 | found: 1, new: 1, confirmed: 1, fixed: 1 "
-        "| citation |\n"
+        "| method: citation |\n"
         "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, "
         "unexecuted: 0 | method: re-derivation |\n",
     )
@@ -188,7 +189,7 @@ def test_v11_is_satisfiable_on_a_prose_ledger(repo: Path) -> None:
     done = _complete(out.read_text(encoding="utf-8"))
     table = (
         "| Pass 1 | native opus×1 + sonnet×2 | found: 1, new: 1, confirmed: 1, fixed: 1 "
-        "| citation |\n"
+        "| method: citation |\n"
         "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, "
         "unexecuted: 0 | method: re-derivation |\n"
     )
@@ -408,3 +409,33 @@ def test_b_o5_the_range_tip_line_carries_the_resolved_commit(repo: Path) -> None
     r = _init(repo, "--out", str(out), "--changed", "app.py", "--range", "HEAD~1..HEAD")
     assert r.returncode == 0, r.stderr
     assert f"range tip {head};" in out.read_text("utf-8")
+
+
+def test_the_three_pass_row_texts_agree_on_cell_order_and_labels() -> None:
+    """W-b9314eac (kaizen 01M4C186BV): term-coverage's canonical row, /fabrik-review's example rows and the receipt
+    skeleton's row shapes must put the same cell in the same place — finders by model token second, the counters
+    third starting `found:`, the method fourth starting `method: ` — or a receipt written to one is refused by the
+    grader written to another."""
+    root = Path(__file__).resolve().parents[1]
+    inline = r"`(\| Pass [kN] \|[^`]*\|)`"
+    per_text = {
+        "term-coverage": [m.group(1) for m in re.finditer(inline, (root / "commands" / "_fragments" / "term-coverage.md").read_text(encoding="utf-8"))],
+        "convergence-prompts": [m.group(1) for m in re.finditer(inline, (root / "docs" / "reference" / "convergence-prompts.md").read_text(encoding="utf-8"))],
+        "/fabrik-review": [ln for ln in (root / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8").splitlines() if re.match(r"\| Pass \d+ \| ", ln)],
+        "receipt skeleton": [ln for ln in (root / "scripts" / "review_receipt.py").read_text(encoding="utf-8").splitlines() if re.match(r"\| Pass \d+ \| ", ln)],
+    }
+    empty = [name for name, found in per_text.items() if not found]
+    assert not empty, ("a text whose rows are not found grades nothing", empty)
+    rows = [row for found in per_text.values() for row in found]
+    # the edit-loop ledger (term-edit) carries a fifth cell, the artifact md5 — the same first four
+    edit = (root / "commands" / "_fragments" / "term-edit.md").read_text(encoding="utf-8")
+    edit_rows = [line for line in edit.splitlines() if re.match(r"\| Pass \d+ \| ", line)]
+    assert len(rows) >= 7 and edit_rows, (rows, edit_rows)
+    for source, expected in [(r, 4) for r in rows] + [(r, 5) for r in edit_rows]:
+        # term-coverage's template names the method's three values inline; read it as one of them
+        row = source.replace("citation|re-derivation|gate", "citation")
+        cells = [c.strip() for c in row.strip("`").strip().strip("|").split("|")]
+        assert len(cells) == expected, row
+        assert crc._MODEL_TOK.search(cells[1]) or "<" in cells[1], ("finders second", row)
+        assert cells[2].startswith("found:"), ("counters third", row)
+        assert cells[3].startswith("method: "), ("method fourth, labelled", row)

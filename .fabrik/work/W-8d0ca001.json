@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-07T20:41:16.015295Z",
+  "created": "2026-10-07T21:32:58.776274Z",
   "creator": "kaizen",
   "evidence": "",
-  "id": "W-e5c81dc7",
+  "id": "W-8d0ca001",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M4BYT60TPXD0S9N2MXTQP44J",
+    "mail": "01M4C22AM2CK601RK2CYTS67VZ",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "kaizen",
   "priority": 2,
   "status": "done",
-  "title": "Executed, commit to follow this hour (under /fabrik-review now; the ack carries the sha)."
+  "title": "Re: hub catchup (01M4BVMK9B) — all three items handled by fleet."
 }

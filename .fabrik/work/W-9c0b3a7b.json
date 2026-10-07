@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "review-loop seats receive the lead's live operator turn as their \"user request\" — one seat answered it and reviewed nothing"
 }

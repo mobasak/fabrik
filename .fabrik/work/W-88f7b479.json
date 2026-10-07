@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T21:32:59.242007Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-88f7b479",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4C2ZQ9ZH3CFFZW83BEDNPT2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Fixed as b3cc2edeb (pushed), D-649, reviewed 1 -> 1 -> 0 confirmed. Your shape (a) won, but not at the aggregation: subtracting from stop_causes there would shrink every lifetime session's row and delta_row would publish nothing for it on deploy day (executed). Instead a derived stop_stood_down map"
+}
