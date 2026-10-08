@@ -4,6 +4,7 @@ each in its own call: the commit message with its Agent Provenance Trailers, eac
 artifact and any code by explicit pathspec FIRST, then the shared-append ledgers (`CHANGELOG.md`,
 `docs/DECISIONS.md`, `INDEX.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/LESSONS_LEARNT.md`) through the
 private-index recipe in ONE shell — the Doc Sync check reads only the STAGED diff, so a ledger committed first
-reads as missing beside the code — then `git push` (never `--force`; a rejected push takes CLAUDE.md § EXIT's ladder); (3) `python scripts/final_gate.py --check --json` (the hub runs it under `.venv/bin/python`); (4) the close this
+reads as missing beside the code; (3) `python scripts/final_gate.py --check --json` (the hub runs it under `.venv/bin/python`), then `git push` (never `--force`; a rejected push takes CLAUDE.md § EXIT's ladder) — the gate runs BEFORE the push, so a check scoped to work not yet integrated still sees it; a red gate leaves the commit unpushed, and its fix is committed as at (2) before (3) re-runs, so the
+push carries it; (4) the close this
 command's own text names for how the run ended — on the contract met, `python3 scripts/command_run.py done --command {{COMMAND}} --evidence "$(cat <evidence file>)" --feedback "$(cat <feedback file>)"` by name. A red call is fixed and THAT call re-run,
-never the chain from the top. A run that wrote nothing tracked commits nothing at (2) and still runs (3) and (4).
+never the chain from the top. A run that wrote nothing tracked commits nothing at (2), runs (3)'s gate but pushes nothing, and runs (4).

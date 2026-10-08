@@ -238,7 +238,7 @@ def test_the_archive_step_never_edits_a_ledger_row_and_leaves_a_ledger_cited_pla
     import importlib.util
 
     text = " ".join(_D7_SOURCE.read_text(encoding="utf-8").split())
-    step6 = text[text.index("6. **Archive the plan") : text.index("7. **Push, then name")]
+    step6 = text[text.index("6. **Archive the plan") : text.index("7. **Gate, push, then name")]
     grep_at = step6.index("BEFORE any move, list the REFERRERS:")
     assert grep_at < step6.index("git mv docs/development/plans/<plan>.md"), "the referrer list precedes the move"
     for phrase in (

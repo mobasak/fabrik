@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the close chain gates before it pushes (2026-10-09)
+- `commands/_fragments/close-chain.md` (rendered into 37 commands): the chain pushed at (2) and gated at (3), so in a main checkout the push integrated the branch before the gate ran and a check scoped to work not yet integrated (intel's check_review_coverage leg, W-f847a317) could never fire (intel 01M4EJTSCY). Now (2) commits, (3) gates and then pushes; a red gate's fix is committed before (3) re-runs, and a run that wrote nothing gates but pushes nothing. `commands/_sources/fabrik-execute-plan.md` step 7 gates its step 5-6 commits before its own push. Grader: `tests/test_producing_command_fragments.py::test_the_close_chain_gates_before_it_pushes`.
+
 ### Fixed — a quote is called NOT FOUND only after a live fetch; a spec states a flow as invariants and touchpoints (2026-10-08)
 - `commands/_sources/fabrik-spec-review.md`: the re-verify ladder sends official-docs reads to `firecrawl_scrape` (`WebFetch` only locates a page); a quote, the reviewer's or a grounder's, is called NOT FOUND only after a live `firecrawl_scrape` with `maxAge: 0` (firecrawl reuses indexed content, exa serves a crawl cache); section D says a code-FLOW section states invariants + touchpoints and the sequence belongs to the plan, and term-edit's TWO CONSECUTIVE RESIDUE PASSES rewrite re-shapes such a section. `commands/_agents/fabrik-researcher.md` and `commands/_sources/fabrik-spec.md` carry the same live re-fetch and the data-flow shape. Answers 8 recurring /fabrik-spec-review verdicts (D-711: a recurrence is edited). Grader: `tests/test_spec_plan_lane_text.py::test_fabrik_spec_review_fetches_live_and_keeps_mechanism_in_the_plan`.
 

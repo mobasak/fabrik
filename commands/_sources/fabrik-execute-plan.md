@@ -1277,7 +1277,8 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    archived-but-not-EXECUTED as the backstop). **Never archive a plan with an open requirement gap, an un-green gate, or an unresolved
    review finding** — archiving IS the "I am 100% sure this is done" act, and a plan in `archived/` is a
    claim that nothing is left. Commit the move with the plan-status commit (explicit paths).
-7. **Push, then name the one decision left.** The commits are on `BASE` — **PUSH them now** (`git push`,
+7. **Gate, push, then name the one decision left.** The commits are on `BASE` — run `python scripts/final_gate.py
+   --check --json` green over them (the step 5-6 commits have not been gated), then **PUSH them now** (`git push`,
    which pushes the current branch; at position (b) that is the branch step 4 merged INTO, pushed from the
    main checkout; a branch with no upstream yet — an agent window's first push — `git push -u origin "$BASE"`;
    the task-end law: rejected → dirty tree: defer + report, wip-net protects · clean tree:
