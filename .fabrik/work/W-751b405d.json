@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T01:05:26.879714Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-751b405d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4CGJZAXE9C1Y0BSNQ3YPFBJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "six /fabrik-review feedback verdicts ask fabrik-review-loop.js to ENFORCE its pins, not describe them"
+}

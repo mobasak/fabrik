@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T00:19:16.386684Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-6485f7c0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4C63S0F985NE9XAY98VZ4CN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: .windsurf/rules/core/40-documentation.md:229 says \"In THIS repo `llms.txt` is GENERATED (`scripts/generate_capability_index.py`)\" — true of the hub only. review_rubric.py injects that line into PROJECT finder prompts, where neither file exists."
+}

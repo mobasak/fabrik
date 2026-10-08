@@ -254,7 +254,7 @@ Name, per claim, exactly one outcome:
   `docs/STRATEGIC_BACKLOG.md` in this run's change** (file absent → seed from
   `/opt/fabrik/templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` first — hub-absolute, the
   template is not synced — then append) (append-only: never rewrite or reflow existing
-  rows — the shared-tree rules govern a file three sessions touch; the Doc Sync Matrix's deferred-work
+  rows — the shared-tree rules govern a file several sessions touch; the Doc Sync Matrix's deferred-work
   row; a deferral named only in a mail reply dies with the thread), unless a live plan/ticket already
   owns it (then cite that).
 - **Refuted** — did not hold on independent re-verification; name the evidence that refuted it (per Phase 0).

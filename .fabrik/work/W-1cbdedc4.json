@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-07T20:05:20.761175Z",
+  "created": "2026-10-08T01:39:39.486794Z",
   "creator": "infra",
   "evidence": "",
-  "id": "W-6569a3fa",
+  "id": "W-1cbdedc4",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M4BY30ER3WGFB2T0GPW3S72K",
+    "mail": "01M4CJFNTWCK9JATR7R9671SSV",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "infra",
   "priority": 2,
   "status": "done",
-  "title": "PreToolUse guard for review seats — refuse pattern kills and git writes inside a registered main checkout (your beat, .claude/hooks)"
+  "title": "branch: worktree-intel"
 }

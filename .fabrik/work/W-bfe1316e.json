@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T02:14:04.709767Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-bfe1316e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-command-improve fabrik-review-scoped: change 'added by' to 'added or modified by' at step 5",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "fabrik-review-scoped step 5's pre-pin ruff set reads 'step 1's file list or added by this review's fixes'; a pre-existing .py outside step 1's list that a fix MODIFIES (a caller) is touched but not added, so a literal reader lints it in neither step 5 nor step 6 (scope-growth stop of the a23bba78c review, 2026-10-08)"
+}

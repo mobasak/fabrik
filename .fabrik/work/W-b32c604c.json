@@ -1,21 +1,21 @@
 {
   "blocked_by": [],
-  "created": "2026-10-07T21:12:37.797941Z",
+  "created": "2026-10-08T01:32:17.278910Z",
   "creator": "infra",
   "evidence": "",
-  "id": "W-714657fb",
+  "id": "W-b32c604c",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M4C2N86SCW7GY09N8GZBNV0J",
+    "mail": "01M4CJ6W8JQ0X14CD80B5BC372",
     "plan": "",
     "spec": ""
   },
   "next": "",
-  "note": "mail ack: done",
+  "note": "mail ack: blocked",
   "owner": "infra",
   "priority": 2,
   "status": "done",
-  "title": "fabrik-mail: 32 of the hub's own obligation(s) aged past the threshold"
+  "title": "branch: worktree-kaizen"
 }
