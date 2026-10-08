@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T18:43:10.647081Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-699a271a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after W-f847a317 lands its integration-base range, reuse the same --base/range helper in check_convergence (Opus critique of W-23b86f9e, concern 7)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "check_convergence.py reads only git status --porcelain, so a plan/review committed before the gate escapes its CONVERGED-claim grading — the same commit-then-gate hole as check_review_coverage"
+}
