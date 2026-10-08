@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `is_admin_dashboard` advice names its own host, never the customer-facing domain (2026-10-08)
+- `.windsurf/rules/core/35-security-auth.md` told authors to set `shape.is_admin_dashboard` on "public services with admin UI"; the flag 2FAs the whole domain, which is how youtube locked out its customers (D-690). It now names a dedicated admin host on its own domain and the standing `/health`/`/metrics` bypasses. The same un-caveated line is fixed in the project contract (`templates/governance/CLAUDE.md`), the hub `CLAUDE.md` and `templates/scaffold/AFCL_TEMPLATE.md` (D-366). fleet 01M4DSTKXX.
+
 ### Fixed — the review loop retries a refuter that left candidates unanswered, and says when one failed (2026-10-08)
 - `.claude/workflows/fabrik-review-loop.js`: a refuter that returned nothing, or no verdict for some candidates, left them silently `unverified` with nothing re-dispatched and no seat marked failed. The unanswered candidates now get ONE retry (`refute:<slice>:retry`, its own scratch dir, a box sized to the subset); whatever the retry still leaves unanswered sets the slice's `refuter.failed`, adds `refuter failed` to `open` and counts in a new `failed_refuters`. A case- or space-slipped id is matched to its one candidate instead of being retried. `dropped_seats` stays the failed-finder count. Doc: `docs/reference/review-loop-workflow.md`; `/fabrik-review-scoped` names `refuter.failed` beside `seats[].failed`. fleet 01M4DP81PE.
 

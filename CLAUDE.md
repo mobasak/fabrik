@@ -615,8 +615,8 @@ Every Fabrik project has `specs/services/<id>.yaml` with a `shape:` block that d
 index / Backrest plan / Gatus endpoint / Prometheus job / GlitchTip project / Authelia rule / Meilisearch index
 get auto-created on `fabrik apply`. The shape contract is canonical: code MUST match it. Adds a database call →
 `shape.needs_database` MUST be `true` · a Redis cache → `shape.needs_cache` · exposes `/metrics` →
-`shape.exposes_metrics` · Meilisearch indexes → `shape.has_search_feature` · an admin UI behind auth →
-`shape.is_admin_dashboard`. If you change code in a way that affects any of these, ALSO update
+`shape.exposes_metrics` · Meilisearch indexes → `shape.has_search_feature` · an admin UI behind auth on its OWN host →
+`shape.is_admin_dashboard` there, never on the customer-facing domain (it 2FAs that whole domain, D-366). If you change code in a way that affects any of these, ALSO update
 `specs/services/<id>.yaml` — otherwise `fabrik apply` skips the registrar and the deploy is silently broken.
 Preview hub-side: `fabrik plan specs/services/<id>.yaml`; from a project, ground it by READING the spec's `shape:`
 block (inspection, not a shell-out).
