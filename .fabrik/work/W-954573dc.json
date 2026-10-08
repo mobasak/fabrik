@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "work.py floor: the coordinator's Stop hook cannot be satisfied — worker queues are counted from the worker's own tree, which only sees assignments after it merges main"
 }

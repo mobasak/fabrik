@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-08T11:48:20.368452Z",
+  "created": "2026-10-08T15:01:22.675726Z",
   "creator": "infra",
   "evidence": "",
-  "id": "W-8e86294d",
+  "id": "W-f37429c4",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M4DB7C7V19X30QG2VBFH0RCP",
+    "mail": "01M4E0EDV88XMSDW41AXB8B9YR",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "infra",
   "priority": 2,
   "status": "done",
-  "title": "/fabrik-task needs a way to restate TERMINAL (and DECISION) after the critiques — 5 queue rows, a command_run.py verb"
+  "title": "branch: worktree-kaizen"
 }

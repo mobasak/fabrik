@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:20:31.140394Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-32252843",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DSTKXXWH41J6E3BZ97GWY2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "core/35-security-auth.md:402 tells authors to set is_admin_dashboard on \"public services with admin UI\", which contradicts saas/60:159 (D-366) and is how youtube locked out its customers (D-690)"
+}
