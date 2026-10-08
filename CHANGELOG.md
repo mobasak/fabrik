@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task phase 2 says how to restate the terminal after the critiques (2026-10-08)
+- `commands/_sources/fabrik-task.md` phase 2 now names `step --terminal-amend "<one line>"` beside `--design`: when MEASURE or the critiques narrowed the work, the run's terminal is restated on any step up to that call, refused once the design is recorded (D-705; infra built the verb, D-702). The source's byte cap moves to 13941. Grader: `tests/test_fabrik_task_source.py::test_phase_two_restates_the_terminal_with_the_design`, which also parses the line through the real argparse.
+
 ### Changed — /fabrik-execute-plan's archive step never edits an existing ledger row (2026-10-08)
 - `commands/_sources/fabrik-execute-plan.md` Finish step 6 told the run to repoint `docs/DECISIONS.md` rows that cite the plan's pre-archive path. The ledger merge (`merge_request.py::_resolve_insertions`) refuses a conflict where either side edits an existing line, so that edit turned every open branch's row insertion beside it into a hand merge (LESSONS 2026-10-01). The step now lists the referrers before any move. A plan cited by a row already on the branch the work merges into stays `Status: EXECUTED`, with the owed archive named in the hand-over for the merge owner, who archives it with every referrer in one commit (D-484; a90b35a3b). Step 4's OWED path and the § Finish summary follow suit. Grader: `tests/test_execute_plan_d7.py::test_the_archive_step_never_edits_a_ledger_row_and_leaves_a_ledger_cited_plan_to_the_merge_owner`, which also drives `check_doc_links`' ref extraction and resolution over a ledger row.
 

@@ -69,7 +69,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # 7 feedback rows).
 # D-679 (kaizen, 2026-10-08): 12439 -> 13610 for phase 1's MEASURE list (tests on HEAD, fetch + diff,
 # the prior record, the measured population, live contract probes — 25 feedback rows).
-SIZE_CAP = 13610
+# D-705 (kaizen, 2026-10-08): 13610 -> 13941 for phase 2's `--terminal-amend` sentence (infra built
+# the verb at 15423ef2f; MEASURE or the critiques can narrow what ends the run — 5 feedback rows).
+SIZE_CAP = 13941
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -790,3 +792,22 @@ def test_the_description_skip_clause_names_both_lane_versions() -> None:
         assert scoped not in shared, f"{scoped!r} is stated before any lane-version scope"
     old = "anything the SIZE gate refuses: more than 3 files"
     assert old not in skip, "the SKIP clause still states the v1 file cap as unconditional"
+
+
+def test_phase_two_restates_the_terminal_with_the_design() -> None:
+    """D-705: MEASURE or the critiques can narrow what ends the run after `start --terminal` fixed it. Phase 2
+    names `step --terminal-amend`, and the real parser accepts it beside `--design`; its runtime refusals
+    are graded in tests/test_command_run_lane_v2.py."""
+    text = " ".join(_source_text().split())
+    for phrase in (
+        "If MEASURE or the critiques changed what ends the run, restate it with "
+        '`--terminal-amend "<one line>"` on any step up to that call — refused once the design is recorded, '
+        "so no run moves its goal to fit the result; `terminal_amends` keeps the old one.",
+        "There is no DECISION amend: the design is recorded after the critiques fold.",
+    ):
+        assert phrase in text, phrase
+    args = _parse(
+        'python3 scripts/command_run.py step --phase 2 --title "design: d" --design d.md '
+        '--terminal-amend "the narrowed terminal"'
+    )
+    assert args is not None and args.terminal_amend == "the narrowed terminal"
