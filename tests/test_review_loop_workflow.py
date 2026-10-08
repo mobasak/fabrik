@@ -237,12 +237,31 @@ def _run_ledger(args: dict, seat_results: dict) -> tuple[dict, str]:
 
 
 def _harness(
-    args: dict, seat_results: dict, *, expect_fail: bool = False, with_opts: bool = False
+    args: dict,
+    seat_results: dict,
+    *,
+    expect_fail: bool = False,
+    with_opts: bool = False,
+    unpinned: bool = False,
 ) -> tuple:
     """Execute the script's own pipeline under node with the Workflow globals stubbed: `agent` records the
     prompt it was sent and returns the canned result keyed by the call's label (`None` → a null seat),
     `parallel`/`pipeline` run the stages, `log` goes to stderr. Returns the ledger, the log text and the
-    prompts by label."""
+    prompts by label. The script refuses a launch without `pin_manifest`, so one covering the CALL's slice
+    files is injected when the key is absent — tolerating the malformed slices the refusal tests send — and
+    `unpinned=True` deletes the key instead."""
+    if unpinned:
+        args = {k: v for k, v in args.items() if k != "pin_manifest"}
+    elif "pin_manifest" not in args:
+        slices = args.get("slices")
+        files = [
+            f
+            for s in (slices if isinstance(slices, list) else [])
+            if isinstance(s, dict)
+            for f in (s.get("files") if isinstance(s.get("files"), list) else [])
+            if isinstance(f, str)
+        ]
+        args = {**args, "pin_manifest": dict.fromkeys(files, "0" * 32)}
     src = _script().replace("export const meta", "const meta", 1)
     harness = f"""
 globalThis.args = {json.dumps(args)};
@@ -1521,14 +1540,33 @@ def test_workflow_refuses_an_unpinned_slice_before_dispatch() -> None:
     assert "AGENT CALLED" not in err, "a seat ran before the refusal"
 
 
-def test_workflow_labels_an_unpinned_launch() -> None:
-    """COBRA (D-253) on an optional manifest: the cheapest launch skips it, so the omission is SAID — in the log
-    and on the ledger (the pass reader says it on the lead's own path too) — and a pinned launch says nothing."""
+def test_workflow_refuses_a_launch_without_a_pin_manifest() -> None:
+    """D-663's switch, made once every launcher passed the manifest (kaizen e29ffb101): a launch with no
+    `pin_manifest` — absent or null — is refused before any seat runs, naming the verb that writes it; it used to
+    log UNPINNED LAUNCH and run. A pinned launch still returns `pinned: true`."""
+    for args, opt_out in ((_ARGS, True), ({**_ARGS, "pin_manifest": None}, False)):
+        _, err, _ = _harness(args, _QUIET, expect_fail=True, unpinned=opt_out)
+        assert "pin_manifest" in err and "review_loop_ledger.py pin" in err, err[-800:]
+        assert "AGENT CALLED" not in err, "a seat ran before the refusal"
     out, log, _ = _harness(_ARGS, _QUIET)
-    assert out["pinned"] is False and "UNPINNED LAUNCH" in log, (out.get("pinned"), log[-600:])
-    pinned = {**_ARGS, "pin_manifest": {"a.py": "0" * 32, "b.py": "1" * 32}}
-    out, log, _ = _harness(pinned, _QUIET)
     assert out["pinned"] is True and "UNPINNED LAUNCH" not in log, (out.get("pinned"), log[-600:])
+
+
+def test_a_slice_without_a_file_list_is_refused_by_index() -> None:
+    """The manifest check reads every slice's `files` on every launch now, so a slice with no list (or a list of
+    non-strings) is refused by its index before anything runs — never a raw TypeError (Opus critique 6)."""
+    for bad in (
+        {"name": "S"},
+        {"name": "S", "files": "a.py"},
+        {"name": "S", "files": []},
+        {"name": "S", "files": [1]},
+    ):
+        _, err, _ = _harness({**_ARGS, "slices": [bad]}, {}, expect_fail=True, unpinned=True)
+        assert "slices[0].files must be a non-empty list" in err and "TypeError" not in err, (
+            bad,
+            err[-400:],
+        )
+        assert "AGENT CALLED" not in err
 
 
 def test_workflow_base_pin_clause_replaces_git_archive() -> None:

@@ -46,8 +46,8 @@
 //   row shape is REFUSED before a seat is dispatched; `models` is one to three distinct of opus|sonnet|haiku,
 //   default ['sonnet', 'haiku'] (a third, Opus, is /fabrik-execute-plan's per-round Opus floor on its riskiest slice); `agent` is fabrik-reviewer (default) or fabrik-researcher, and seats BOTH the
 //   finders and the refuter; `scope` is the sections of `files` the slice owns) · box_minutes (default 15) ·
-//   pin_manifest? ({ path: md5 }, from `review_loop_ledger.py pin`: a slice file it lacks REFUSES the launch;
-//   absent, the launch is logged UNPINNED and the ledger reads pinned: false) · base_pin_dir? (the read-only base
+//   pin_manifest ({ path: md5 }, from `review_loop_ledger.py pin` — REQUIRED: absent, null, or lacking a slice file
+//   REFUSES the launch) · base_pin_dir? (the read-only base
 //   tree `pin --base` wrote; seats copy it instead of running git archive)
 // RETURNS one ledger: { pass, closable, pinned, slices: [{ name, files, seats: [{ model, files_read, raised, failed (null, or no
 //   slice file in files_read) }],
@@ -157,26 +157,29 @@ if (!Array.isArray(args.slices) || args.slices.length === 0) {
 // review A-S1: a null entry crashed below with a raw TypeError, and a number was dropped later as a thrown stage
 args.slices.forEach((s, i) => {
   if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Error(`slices[${i}] must be an object { name, files, … } — got ${JSON.stringify(s)}`)
+  // Opus critique 6: the pin check below reads every slice's files on every launch, so a missing list is refused here
+  if (!Array.isArray(s.files) || s.files.length === 0 || !s.files.every((f) => typeof f === 'string' && f)) {
+    throw new Error(`slices[${i}].files must be a non-empty list of repo-relative paths — got ${JSON.stringify(s.files)}`)
+  }
 })
 for (const s of args.slices) Object.assign(s, { ledger: normalizeLedger(s) }, normalizeSeats(s))
 
 // kaizen 01M4CGJZAX: a workflow script has no filesystem, so the lead's `review_loop_ledger.py pin` writes the
-// pins (read-only) and hands back `pin_manifest`; a slice file it does not hold is refused HERE, before any seat
-// runs, never logged as a coverage gap after the seat ran. Without a manifest the launch runs as before but SAYS
-// so — the cheapest launch skips the pin step, so the omission is logged and carried on the ledger (D-253).
-const pinned = args.pin_manifest !== undefined
-if (pinned) {
-  const m = args.pin_manifest
-  if (!m || typeof m !== 'object' || Array.isArray(m) || !Object.values(m).every((v) => typeof v === 'string' && /^[0-9a-f]{32}$/.test(v))) {
-    throw new Error(`pin_manifest must map each pinned path to its md5 (review_loop_ledger.py pin prints it) — got ${JSON.stringify(m)}`)
-  }
-  const norm = (p) => String(p).replace(/^(\.\/)+/, '')
-  const held = new Set(Object.keys(m).map(norm))
-  const unpinned = args.slices.flatMap((s) => s.files.filter((f) => !held.has(norm(f))).map((f) => `${s.name}:${f}`))
-  if (unpinned.length) throw new Error(`pin_manifest holds no pin for ${unpinned.join(', ')} — re-run review_loop_ledger.py pin naming every slice file`)
-} else {
-  log('UNPINNED LAUNCH — no pin_manifest: the pins were not written by review_loop_ledger.py pin, so nothing checked that every slice file is pinned and read-only')
+// pins (read-only) and hands back `pin_manifest`; a launch without it, or with a slice file it does not hold, is
+// refused HERE, before any seat runs. Optional under D-663 until every launcher passed it (kaizen e29ffb101).
+// COBRA (D-253): a typed map of the right shape passes this check — the script cannot hash — so the pass reader's
+// `read --pins` (UNPINNED / NOT CHECKED) stays the check that catches a fake.
+const PIN_HOW = 'run `python3 scripts/review_loop_ledger.py pin --pins-dir <a new dir> <every slice file>` from the repo root (a project copy without the verb: the hub\'s /opt/fabrik/scripts/review_loop_ledger.py, same arguments) and pass the pin_manifest it prints, naming each slice file exactly as pin printed it; a file pin refuses — deleted, outside the repo, a symlink — is not a slice file: review it through its callers, or run the agent-tool fallback'
+const m = args.pin_manifest
+if (m === undefined || m === null) throw new Error(`pin_manifest is required — ${PIN_HOW}`)
+if (typeof m !== 'object' || Array.isArray(m) || !Object.values(m).every((v) => typeof v === 'string' && /^[0-9a-f]{32}$/.test(v))) {
+  throw new Error(`pin_manifest must map each pinned path to its md5 (review_loop_ledger.py pin prints it) — got ${JSON.stringify(m)}`)
 }
+const norm = (p) => String(p).replace(/^(\.\/)+/, '')
+const held = new Set(Object.keys(m).map(norm))
+const unpinned = args.slices.flatMap((s) => s.files.filter((f) => !held.has(norm(f))).map((f) => `${s.name}:${f}`))
+if (unpinned.length) throw new Error(`pin_manifest holds no pin for ${unpinned.join(', ')} — ${PIN_HOW}`)
+const pinned = true
 
 function ledgerLine(c) {
   return c.file ? `  - ${c.id} · ${c.file}:${c.line} · ${c.claim}` : `  - ${c.id} · ${c.claim}`

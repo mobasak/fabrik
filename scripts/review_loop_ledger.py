@@ -42,9 +42,9 @@ file, not its scrollback. So:
 
 COBRA (D-253): the cheapest way to a clean-looking file is a pass whose seats returned nothing — a seat with
 no result is printed `NO RESULT` and kept in `seats` with `returned: false`, never dropped. For the pins, the
-cheapest launch skips `pin` altogether, and the workflow's own `UNPINNED LAUNCH` / `pinned: false` sit in a
-tool result the lead is told not to read — so the omission is said HERE, on the path the lead does read
-(`pins: NOT CHECKED`, `UNPINNED`). The cheapest way past `read --pins` is to drop the flag: that is the
+workflow refuses a launch without `pin_manifest`, but it cannot hash, so a hand-typed map of the right shape
+gets through — said HERE, on the path the lead does read: `UNPINNED` for a pins dir with no MANIFEST.json,
+`pins: NOT CHECKED` without the flag. The cheapest way past `read --pins` is to drop the flag: that is the
 NOT CHECKED line, which the receipt's Pass row must then carry.
 """
 
