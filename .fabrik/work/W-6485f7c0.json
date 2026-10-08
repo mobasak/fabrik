@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: .windsurf/rules/core/40-documentation.md:229 says \"In THIS repo `llms.txt` is GENERATED (`scripts/generate_capability_index.py`)\" — true of the hub only. review_rubric.py injects that line into PROJECT finder prompts, where neither file exists."
 }
