@@ -1842,3 +1842,32 @@ def test_each_hub_exit_finish_mutant_reds_its_check(old: str, new: str) -> None:
     assert re.sub(r"\s+", " ", _template_exit_item(_hub_text())).count(old) == 1, f"stale: {old!r}"
     with pytest.raises(AssertionError):
         _check_hub_exit_finish_duty(flat.replace(old, new))
+
+
+PROBE_COPY_IN = (
+    "In a project the Fabrik-synced files are gitignored, so a worktree made by `git worktree add` holds none of "
+    "them: copy in from the main checkout every gitignored path `.worktreeinclude` lists, plus "
+    "`.fabrik/synced.lock`, then run the gate from inside the probe — it grades its working directory — as "
+    "`<main>/.venv/bin/python scripts/final_gate.py --json`. A missing checker renders `[PASS]` in the human "
+    "output, so read `warnings`: a `check not present` path the probe names that the same run in your own "
+    "checkout does not name is a void probe, never a green; a missing `.fabrik/synced.lock` is silent (its "
+    "check exits 0 without a warning), so confirm the copy arrived before the run."
+)
+
+
+def test_the_template_tells_a_project_probe_worktree_to_copy_in_the_ignored_checkers() -> None:
+    """intel 01M4DTZYZB (W-c0a68194, iterative_image_editor 01M35NVJ3F): a project's throwaway probe
+    worktree has none of the gitignored Fabrik-synced files, the gate grades its working directory, and a
+    missing checker renders [PASS] — so the probe read green. Template only: the hub tracks its checkers.
+    The T6.5 phrases pinned in this paragraph must still occur exactly once in each contract."""
+    hub = " ".join((FABRIK / "CLAUDE.md").read_text(encoding="utf-8").split())
+    template = " ".join((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8").split())
+    assert template.count(PROBE_COPY_IN) == 1
+    assert "printing a FALSE GREEN. " + PROBE_COPY_IN in template, "the sentences sit right after the copied-FILE rule"
+    assert PROBE_COPY_IN not in hub
+    for phrase in (
+        "never on a single copied FILE",
+        "it can reach committed state",
+        "treat the condition as TRUE by default",
+    ):
+        assert hub.count(phrase) == 1 and template.count(phrase) == 1, phrase

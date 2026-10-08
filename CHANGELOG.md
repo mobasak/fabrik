@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the project contract says how to make a probe worktree gradable (2026-10-08)
+- `templates/governance/CLAUDE.md`'s throwaway-worktree paragraph sent a project to `git worktree add`, which holds none of the gitignored Fabrik-synced files, so the probe's gate ran without its checkers and read green (a missing checker renders `[PASS]`). It now says to copy in what `.worktreeinclude` lists plus `.fabrik/synced.lock`, run the gate from inside the probe with `--json`, treat a `check not present` warning the own-checkout run lacks as a void probe, and confirm the lock arrived (D-701, W-c0a68194). Grader: `tests/test_governance_template_split.py::test_the_template_tells_a_project_probe_worktree_to_copy_in_the_ignored_checkers`.
+
 ### Changed — every seat with a shell gets the one refusal rule; the scope-growth silence hedge is exact (2026-10-08)
 - `commands/_fragments/subagents-core.md` now carries the refusal rule SEAT_ISOLATION and the fabrik-reviewer House rules already state (verbatim from `REFUSAL_SHAPE`/`REFUSAL_CLASSIFIER`), scoped to a seat with a shell, so an Agent-tool seat of another type no longer re-paths after a refusal (intel 01M4DSCHTM, W-68f8f358). `commands/_fragments/scope-growth-exit.md` said nothing prints when the loop is "simply converging"; it now says "MERELY converging with no own-fix residue (a falling count that is mostly own-fix DOES print the stop)", the form `core/50-code-review.md` uses. Grader: `tests/test_review_loop_workflow.py::test_every_seat_facing_text_carries_the_one_refusal_rule_and_the_precise_silence_hedge`.
 
