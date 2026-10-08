@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_rule_grounding reads the digest as a table: an unreadable source column is ungraded once, never a row of missing files (2026-10-08)
+
+- `scripts/enforcement/check_rule_grounding.py`: a digest whose source column holds no file path is UNGRADED with one reason (and a minority of bare rows is skipped and noted) instead of printing "digest cites <word> which does not exist" per row; cells split on unescaped pipes and an escaped pipe compares un-escaped on both sides. The cited `:line` stays ungraded, deferred on measurement (D-703, supersedes D-691; W-31f488d9, fleet 01M4DWQ1DH). Receipt: `docs/development/reviews/2026-10-08-rule-grounding-table-reading-review.md`.
+
 ### Changed — the project contract says how to make a probe worktree gradable (2026-10-08)
 - `templates/governance/CLAUDE.md`'s throwaway-worktree paragraph sent a project to `git worktree add`, which holds none of the gitignored Fabrik-synced files, so the probe's gate ran without its checkers and read green (a missing checker renders `[PASS]`). It now says to copy in what `.worktreeinclude` lists plus `.fabrik/synced.lock`, run the gate from inside the probe with `--json`, treat a `check not present` warning the own-checkout run lacks as a void probe, and confirm the lock arrived (D-701, W-c0a68194). Grader: `tests/test_governance_template_split.py::test_the_template_tells_a_project_probe_worktree_to_copy_in_the_ignored_checkers`.
 
