@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Changed — term-edit's pin-time citation check grades the pin itself with `--doc` (2026-10-08)
 - `commands/_fragments/term-edit.md` said `check_citations_resolve.py` examines nothing for an artifact outside its source globs and called a `--pin` root a backlog item. Intel's `--doc` flag is on master, so the fragment now names `check_citations_resolve.py --doc <pin> --root <repo>`, whose `--doc examined` line is the examined-set proof (intel W-191404c0). Grader: `tests/test_assemble_dispatch_step.py::test_term_edit_grades_a_pin_outside_the_citation_globs_with_doc`.
 
+### Fixed — check_plan_tickets lets a Gate run a file a Depends ancestor creates (2026-10-08)
+- `scripts/enforcement/check_plan_tickets.py`'s Gate-path rule named a path only when it was on disk or in the same ticket's Touches, so a shared guard an earlier ticket builds could never gate its dependants. A Depends ancestor's Touches (direct or transitive) now name it too — the executor dispatches a ticket only once every Depends row is ✅. A descendant's or an unrelated ticket's Touches still do not; the refusal keeps "exists nowhere" and names the Depends remedy. Graders in `tests/enforcement/test_check_plan_tickets.py`. web-ecommerce-factory 01M4DHVXWA.
+
 ### Changed — `/fabrik-docs-review` citations carry a quoted anchor (2026-10-08)
 - Reconciler seats cited doc lines by bare number; after an earlier fix inserted or deleted a line, every later number pointed at the wrong text and each fix was re-anchored by hand (intel W-8efe3357). A seat's return now cites every `path:line` with a short, unique fragment of the line in a code span, and fixes re-anchor by the fragment; Pass Ledger rows, receipts and the docs keep a plain `path:line`, because graders parse the first two. Grader: `tests/test_assemble_dispatch_step.py::test_docs_review_citations_carry_a_quoted_anchor`.
 
@@ -24,6 +27,10 @@ All notable changes to this project will be documented in this file.
 ### Changed — round zero enumerates a fix's input space before the pin (2026-10-08)
 - Eleven `/fabrik-review` queue verdicts reported an input class a later round's seat found instead of the author's own probe — an overlapping replace value, a shell `||` form, a guard's error path, a regex edge, a window at one record's length, a recursive helper's depth. The round-zero probe in `commands/_fragments/term-coverage.md` and its twin in `term-edit.md` now enumerate and run the fix's input space before the pin, and draft a regex fix against every confirmed shape at once. Grader: `tests/test_review_loop_workflow.py::test_round_zero_enumerates_the_fixs_input_space_before_the_pin`.
 
+### Changed — check_doc_index flags a doc indexed only by a shared basename (advisory until the flip) (2026-10-08)
+
+- `scripts/enforcement/check_doc_index.py` no longer lets a basename shared with another Markdown file index a doc silently: the doc gets an advisory line naming the namesakes (27 docs in 19 repos on 2026-10-08), blocking after the fleet indexes (W-84088533, D-686). The hub's 5 such docs are indexed by path. Receipt: `docs/development/reviews/2026-10-08-doc-index-shared-basename-review.md`.
+
 ### Changed — the citations check grades resolvable bare filenames and a named doc (2026-10-08)
 
 - `scripts/enforcement/check_citations_resolve.py` grades a bare `tool.py:43` when it names one tracked file outside the root, templates/ and the command sources; `--doc <path>` grades a pinned or out-of-glob artifact and lists it; a run that graded none never ticks green, quiet or not (W-191404c0, D-682). Receipt: `docs/development/reviews/2026-10-08-citations-bare-basenames-review.md`.
@@ -39,6 +46,26 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — assemble_commands --check names every cause of a corpus difference (2026-10-08)
 - `commands/assemble_commands.py`: the command, skill and agent drift rows said `HAND-EDITED` for any difference between this tree's render and the installed corpus. The cause is usually an unrendered source edit, or a worktree behind the last render (fleet's worktree showed 27 such rows). They now read `DIFFERS from what this tree renders (… an unrendered edit here, this tree behind the last render, or a hand-edit of the installed file: in the main checkout render then re-check; in a worktree merge master first)`. `commands/_fragments/grounding-rules.md` names the new label. Grader in `tests/test_assemble_dispatch_step.py`. Intel mail 01M4D9HNXM.
+
+### Fixed — the scaffolded audit-log fold no longer tells the operator to apply `libs/audit_log/schema.sql` on its own (2026-10-08)
+
+`_audit_log_schema_block` (src/fabrik/scaffold.py) dropped the module's own apply hint by matching its exact
+text, `psql "$DATABASE_URL" -f libs/audit_log/schema.sql`. fabrik-lib reworded that hint (dcf37b7f, mail
+01M476P2), so the replace matched nothing and every folded `db/schema.sql` carried a line telling the operator
+to apply the module file separately. The fold now replaces each comment line ending
+`-f libs/audit_log/schema.sql`, and raises when the module carries no such line (naming `_audit_log_schema_block`). New projects get the fix; a project scaffolded since dcf37b7f keeps the stale line until its owner deletes it. Tests:
+`tests/test_scaffold_audit_log.py::test_folded_block_drops_the_modules_own_apply_hint` and `::test_fold_fails_loud_when_the_module_hint_is_gone` and `::test_fold_keeps_the_lines_around_the_hint`.
+
+### Changed — the watchdog's retired Promtail drop-rule URL (2026-10-08)
+
+`install_log_drop_rule` is retired (fabrik-lib D-398): no spec set `watchdog.promtail_update_url`, the sidecar
+refused the action whenever it was empty, and Alloy replaces Promtail (W-aec7365b). The driver no longer reads
+the field or renders `WATCHDOG_PROMTAIL_UPDATE_URL` (W-1feb4dfa). Test:
+`tests/test_watchdog_driver.py::TestRenderContext::test_the_retired_promtail_drop_url_is_never_rendered`.
+
+### Fixed — the i18n-kit validator no longer passes a run whose critique found issues or failed (2026-10-08)
+
+`templates/i18n-kit/scripts/validate_i18n.py` pulled the critique's JSON out of a noisy reply with a one-brace-level regex. A `fix` holding an ICU placeholder such as `{count}` puts the real reply three braces deep, so the regex returned the inner issue dict and the critique read zero issues. And `main()` never failed the run on a Level-2 drift, a Level-3 issue or a Level-3 error: each printed `ALL CHECKS PASSED` and exited 0. Now `extract_json_from_text` decodes at every `{` (ported from fabrik-lib aff75aeb, its D-401) and takes the one object carrying a caller-named key, in prose or in fences; a quoted fragment of that answer does not compete, and two keyed objects that still differ raise, because no position rule tells an answer from a worked example or an echo beside it. `llm_critique` names `issues`/`errors` and reports a reply with neither as an error; `back_translate` names the keys it asked for and reports a reply carrying none of them as an error; a reply nested past the decoder's recursion limit is unparseable, never an escaping `RecursionError`; and a drift, an issue or an error exits 1 (the skip outcome is one named result compared exactly, so a finding the model typed or worded `SKIP` still fails the run). On fabrik-lib's finding 01M478ZH; tests in `tests/test_i18n_kit_validate_json.py`. New projects get the fix at scaffold time; existing copies are each project's own.
 
 ### Fixed — every scaffold type takes its Debian base-image variant from the version registry (2026-10-08)
 

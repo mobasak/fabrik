@@ -6,8 +6,9 @@ Two directions:
 
 (a) every ``docs/``-prefixed markdown link target named in INDEX.md exists on disk
     (directories allowed);
-(b) every tracked live doc under ``docs/`` appears in INDEX.md by full path or
-    basename — excluding archives, the plan/epic/review/spec pipeline content,
+(b) every tracked live doc under ``docs/`` appears in INDEX.md by full path, or by
+    a basename no other Markdown file in the repo shares (a SHARED basename is an
+    advisory line until the flip, W-c256027a) — excluding archives, the plan/epic/review/spec pipeline content,
     and the daily-regenerated selection set (``docs/reference/kilo/*_SELECTION.md``
     plus KILO_MODEL_CAPABILITIES.md / KILO_AGENT_SELECTION_GUIDE.md and
     ``docs/traycer/kilo_selected_agents.md`` — sourced from daily_refresh.sh's
@@ -342,7 +343,9 @@ def main() -> int:
     # (trade-intelligence upstream, 2026-08-05).
     _ls_failure: list[str] = []
 
-    def _ls(*extra: str) -> list[str] | None:
+    def _ls(
+        *extra: str, patterns: tuple[str, ...] = ("docs/**/*.md", "docs/*.md")
+    ) -> list[str] | None:
         """None when git could not answer — NOT an empty doc list.
 
         `check=False` plus `.stdout` alone silently turned git's exit 128 ("not a git
@@ -367,8 +370,7 @@ def main() -> int:
                     "ls-files",
                     "-z",
                     *extra,
-                    "docs/**/*.md",
-                    "docs/*.md",
+                    *patterns,
                 ],
                 cwd=REPO,
                 capture_output=True,
@@ -409,31 +411,72 @@ def main() -> int:
         )
     untracked = set(untracked_list)
     examined = 0  # the docs the loop actually graded — the lean row's denominator (round 3)
+
+    def _live(p: str) -> bool:
+        """The live-doc predicate the grading loop applies. The shared-name count below does NOT use
+        it on purpose: it reads EVERY tracked + untracked `*.md` (root, archived and excluded files
+        included), because a bare name in INDEX.md is ambiguous whenever any such file shares it
+        (W-c256027a design critiques). It is also built before the `--untracked-only` filter, so the
+        lean row counts the same population as the full gate."""
+        if p.startswith(EXCLUDE_PREFIXES) or p in EXCLUDE_EXACT or _SELECTION_RE.match(p):
+            return False
+        if p in _PRISTINE_SEEDS and _is_pristine_seed(p):
+            return False  # still the hub's own bytes — this repo has written no decision to index
+        # Tracked but deleted from the worktree. Demanding an INDEX row here puts the two
+        # directions in direct contradiction: add the natural `](docs/…)` link and direction
+        # (a) immediately reports the target as missing, so only a link-less bare-basename
+        # mention satisfies both — a nonsense edit to make a gate happy. `unknown` (an
+        # unreadable parent) deliberately falls through: the membership test below reads only
+        # the path STRING, so an unreadable doc still owes its row.
+        return _lstat_state(REPO / p) != "absent"
+
+    # W-c256027a: a BASENAME indexes a doc only when no other Markdown file in the repo shares it.
+    # Measured 2026-10-08 over 41 /opt repos (1,411 examined docs): 27 docs in 19 repos passed only on
+    # a SHARED name — 16 `docs/README.md` riding the ROOT README's row, two `docs/INDEX.md` riding
+    # INDEX.md naming itself, the hub's four nested READMEs riding the one indexed README. Counted over
+    # every tracked + untracked `*.md` (the root files included — counting only examined docs missed
+    # all of the root-row cases), and reported as an ADVISORY line until the fleet has indexed them
+    # (warn before block; the flip is work item W-84088533). COBRA: advisory lines are ignorable — the
+    # dated flip is the counter; at the flip the cheapest pass is a bare path mention, as today.
+    names: dict[str, list[str]] = {}
+    shared_problems: list[str] = []
+    all_md = _ls(patterns=("*.md",))
+    all_untracked_md = _ls("--others", "--exclude-standard", patterns=("*.md",))
+    if all_md is None or all_untracked_md is None:
+        # review A-S1: an empty fallback made the advisory go quiet with nothing to tell it from
+        # "no sharing" — say the sub-check examined nothing (advisory, so the run's verdict stands)
+        shared_problems.append(
+            "shared-name check skipped — git could not list the repo's *.md files, so no doc was "
+            "checked for riding a shared basename this run"
+        )
+    for rel in dict.fromkeys([*(all_md or []), *(all_untracked_md or [])]):
+        if _lstat_state(REPO / rel) != "absent":
+            names.setdefault(Path(rel).name, []).append(rel)
     # sorted(): `untracked` is a set, so the finding ORDER varied between runs on identical input.
     for p in dict.fromkeys([*tracked, *sorted(untracked)]):
         if untracked_only and p not in untracked:
             continue
-        if p.startswith(EXCLUDE_PREFIXES) or p in EXCLUDE_EXACT or _SELECTION_RE.match(p):
-            continue
-        if p in _PRISTINE_SEEDS and _is_pristine_seed(p):
-            continue  # still the hub's own bytes — this repo has written no decision to index
-        if _lstat_state(REPO / p) == "absent":
-            # Tracked but deleted from the worktree. Demanding an INDEX row here puts the two
-            # directions in direct contradiction: add the natural `](docs/…)` link and direction
-            # (a) immediately reports the target as missing, so only a link-less bare-basename
-            # mention satisfies both — a nonsense edit to make a gate happy. `unknown` (an
-            # unreadable parent) deliberately falls through: the membership test below reads only
-            # the path STRING, so an unreadable doc still owes its row.
+        if not _live(p):
             continue
         base = Path(p).name
         examined += 1
-        if p not in index_text and base not in index_text:
-            tag = (
-                " (untracked — the run that creates a doc owes its INDEX row)"
-                if p in untracked
-                else ""
-            )
+        tag = (
+            " (untracked — the run that creates a doc owes its INDEX row)" if p in untracked else ""
+        )
+        if p in index_text:
+            continue
+        if base not in index_text:
             problems.append(f"live doc not in INDEX.md: {p}{tag}")
+            continue
+        others = [o for o in names.get(base, []) if o != p]
+        if others:
+            shown = ", ".join(others[:3]) + (
+                f" (+{len(others) - 3} more)" if len(others) > 3 else ""
+            )
+            shared_problems.append(
+                f'doc indexed only by a shared name: {p} — "{base}" is also {shown}; INDEX.md must '
+                f"carry the path (advisory until the flip, W-84088533){tag}"
+            )
 
     # ---------------------------------------------------------------------------------
     # (c) CODE paths — ADVISORY, staged-scope, added-only (T12.10, 01M1VPEGG).
@@ -471,6 +514,8 @@ def main() -> int:
         payload = {"status": "success" if not problems else "failure", "drift": problems}
         if code_problems:
             payload["code_index_advisory"] = code_problems
+        if shared_problems:
+            payload["shared_name_advisory"] = shared_problems
         if untracked_only:
             payload["mode"] = "untracked-only"
             payload["examined"] = examined
@@ -478,7 +523,7 @@ def main() -> int:
     else:
         for x in problems:
             print(f"ERROR: {_printable(x)}")
-        for x in code_problems:
+        for x in shared_problems + code_problems:
             print(f"⚠ {_printable(x)}")
         if not problems and not quiet:
             print("check_doc_index: OK — INDEX.md and the live docs tree agree")

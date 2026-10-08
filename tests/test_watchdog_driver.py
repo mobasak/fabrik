@@ -154,6 +154,14 @@ class TestRenderContext:
         rctx = WatchdogDriver()._build_render_context(spec, _ctx(spec))
         assert (rctx.daily_budget_usd, rctx.per_incident_budget_usd) == (2.0, 0.5)
 
+    def test_the_retired_promtail_drop_url_is_never_rendered(self):
+        """install_log_drop_rule is retired (fabrik-lib D-398): a spec still naming its Promtail
+        update URL renders no WATCHDOG_PROMTAIL_UPDATE_URL into the sidecar (W-1feb4dfa)."""
+        spec = {"id": "demo", "watchdog": {"enabled": True, "promtail_update_url": "http://p:9080"}}
+        d = WatchdogDriver()
+        env = d._render_env(d._build_render_context(spec, _ctx(spec)))
+        assert not [k for k in env if "PROMTAIL" in k], env
+
 
 def _rctx(driver: WatchdogDriver, *, propose_fix_prs: bool = False):
     spec = {"id": "demo", "watchdog": {"enabled": True, "propose_fix_prs": propose_fix_prs}}

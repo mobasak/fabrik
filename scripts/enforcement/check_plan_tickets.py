@@ -979,6 +979,20 @@ def _parse_ticket(path: Path) -> Ticket:
     )
 
 
+def _ancestors(tid: str, edges: dict[str, list[str]]) -> set[str]:
+    """Every ticket `tid` transitively Depends on (itself excluded). Cycle-safe; `edges` already
+    drops unknown ids, and a cycle is reported by the Depends-graph check, never here."""
+    stack, seen = list(edges.get(tid, [])), set()
+    while stack:
+        cur = stack.pop()
+        if cur in seen:
+            continue
+        seen.add(cur)
+        stack.extend(edges.get(cur, []))
+    seen.discard(tid)
+    return seen
+
+
 def _depends_connected(a: str, b: str, edges: dict[str, list[str]]) -> bool:
     """True when a transitive Depends path connects a↔b (either direction)."""
 
@@ -2435,9 +2449,14 @@ def check_plan_dir(
                 )
             )
         # T4.8 (01M21804, 01M218KM): a Gate: over a file that exists nowhere and sits in no
-        # Touches; and prose inside ## Touches, which the bullet collector never saw
+        # Touches; and prose inside ## Touches, which the bullet collector never saw. A Depends
+        # ancestor's Touches name it too: the executor dispatches a ticket only once every
+        # Depends row is ✅ (fabrik-execute-plan.md:470), so the ancestor's file exists by then
+        # (web-ecommerce-factory 01M4DHVXWA). Membership stays exact: a directory entry names no file.
         _scan_t = _strip_fences(t.text)
         _touch_set = {_norm_path(x) for x in t.touches}
+        for _anc in _ancestors(t.tid, edges):
+            _touch_set |= {_norm_path(x) for x in tickets[_anc].touches}
         for _gm in GATE_CMD_RE.finditer(_scan_t):
             for _spellings in _gate_file_paths(_gm.group("cmd")):
                 _f = _spellings[0]
@@ -2449,7 +2468,9 @@ def check_plan_dir(
                     results.append(
                         _err(
                             f"{t.tid}: Gate: runs `{_f}`, which exists nowhere and is in no "
-                            "Touches — declare it in this ticket's Touches or drop the gate",
+                            "Touches of this ticket or of a ticket it Depends on — declare it in "
+                            "the Touches of the ticket that creates it and Depend on that ticket, "
+                            "or drop the gate",
                             t.path,
                         )
                     )

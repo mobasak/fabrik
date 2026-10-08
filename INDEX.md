@@ -1372,6 +1372,9 @@ docs/
 | Document | Purpose |
 |----------|--------|
 | [QUICKSTART.md](docs/QUICKSTART.md) | Get Fabrik running in 5 minutes |
+| [docs/README.md](docs/README.md) | The docs/ tree's charter and folder map — one role per folder |
+| [preplans/README.md](docs/preplans/README.md) | Preplans folder — stage 1 of the Fabrik lifecycle, captured intent before `fabrik scaffold` |
+| [workstation/kaizen.md](docs/workstation/kaizen.md) | The kaizen continuous-improvement loop on this box — the daily measurement half and the analysis half |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration guide - credentials, architecture, troubleshooting |
 | [DEPLOYMENT_ARCHITECTURE.md](docs/DEPLOYMENT_ARCHITECTURE.md) | Deploy code architecture reference |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
@@ -1434,6 +1437,8 @@ docs/
 |----------|--------|
 | [vps-status.md](docs/infrastructure/vps-status.md) | Current VPS state and configuration |
 | [vps-urls.md](docs/infrastructure/vps-urls.md) | All deployed service URLs |
+| [audit-prompts/README.md](docs/infrastructure/audit-prompts/README.md) | VPS audit prompts, fleet edition |
+| [probe-reports/README.md](docs/infrastructure/probe-reports/README.md) | Infrastructure probe reports — the dated fleet-state baselines |
 | [disaster-recovery.md](docs/operations/disaster-recovery.md) | Backup and recovery procedures |
 | [postgres-major-upgrade-runbook.md](docs/operations/postgres-major-upgrade-runbook.md) | PostgreSQL major upgrade (16→18): WSL rehearsal, hub dump/restore window, release, project requests |
 <!-- duplicati-setup.md archived 2026-04-28; Backrest is the live backup tool — see backup.vps1.ocoron.com and AGENTS.md -->
@@ -1544,6 +1549,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_check_env_vars_shared_default.py](tests/enforcement/test_check_env_vars_shared_default.py) | the localhost ban's shared-DEFAULT-constant exemption: what it allows (getenv default across two lines, JS form) and every shape it must still flag (direct consumer, unread constant, lowercase local, bare URL, @localhost DSN) |
 | [test_check_doc_sync_route_detector.py](tests/enforcement/test_check_doc_sync_route_detector.py) | the doc-sync route detector grades the DIFF, not the file: a file merely containing route templates is not a route change; adding and removing a route both still fire |
 | [test_scaffold_base_image_codename.py](tests/test_scaffold_base_image_codename.py) | every Dockerfile-bearing scaffold type, the reference saas-skeleton copy, the `fabrik fix` repair and the renderer's Jinja Dockerfiles take the Debian variant from the registry's `debian_codename` (sentinel-proven, per type); no token survives in a project; a missing registry fails before any file is written; no template names a codename literally (W-3860ebf6) |
+| [test_i18n_kit_validate_json.py](tests/test_i18n_kit_validate_json.py) | the i18n-kit validator reads the model's JSON out of a noisy reply (a `{count}` placeholder three braces deep, an earlier fragment, an echoed sample), raises on two different answer objects, reports a reply with no `issues` key as an error, and exits 1 on a Level-2 drift or a Level-3 issue or error (fabrik-lib finding 01M478ZH) |
 | [test_scaffold_dockerignore.py](tests/test_scaffold_dockerignore.py) | every Dockerfile-bearing scaffold gets a .dockerignore at the build context root; a bespoke one is never overwritten; a Dockerfile-less type gains nothing; never raises |
 | [test_scaffold_git_config.py](tests/test_scaffold_git_config.py) | a scaffolded repo comes out of `git init` with `push.autoSetupRemote` and `rerere.enabled` seeded LOCAL-only; an operator's existing answer is never overwritten; never raises outside a repo; one test runs the real `_scaffold_shared` so the helper cannot become dead code |
 | [test_scaffold_ignores_tool_caches.py](tests/test_scaffold_ignores_tool_caches.py) | no scaffold copies a source tree's tool caches (`__pycache__`, `.mypy_cache`, `.pytest_cache`, `.ruff_cache`, `*.pyc`): planted-cache tests for docs-site and the saas, i18n and mobile-app copy loops; every scaffold type run while each `copytree` call's real `ignore` is asked about the caches; a structural check that every `shutil.copytree` passes `ignore_patterns(*_TOOL_CACHES, …)`; no bare `copytree` import; the hub's `.claude/settings.local.json` never reaches a project |

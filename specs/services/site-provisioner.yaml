@@ -43,8 +43,15 @@ source:
 # GIT_SHA placeholder satisfies compose interpolation; empty is acceptable
 # (used only as a label/version string).
 #
-# GOOGLE_APPLICATION_CREDENTIALS is an in-container file path (the service
-# account JSON is COPYed into the image during build); not a secret value.
+# GOOGLE_APPLICATION_CREDENTIALS is an in-container file path, not a secret value.
+# Since site-provisioner 85daecb (its D-070, 2026-10-08) the service-account JSON
+# is no longer in git or the image: compose bind-mounts it read-only from
+# ${GOOGLE_SA_KEY_FILE:-./secrets/service-account.json} on the VPS checkout, and
+# since 7964567 a missing file is a startup error (create_host_path: false). A git
+# pull of 85daecb deletes the old tracked dns-manager-gsc-*.json, so the FIRST
+# deploy after it must copy that file to <checkout>/secrets/service-account.json
+# before the pull, readable by uid 1000 (the image's appuser) — the mount keeps
+# host ownership (site-provisioner mail 01M4DKWM; work item W-0f854d39).
 #
 # DATABASE_URL: placeholder satisfies first compose-up; the postgres
 # registrar (shape.needs_database=true) overwrites it post-deploy via

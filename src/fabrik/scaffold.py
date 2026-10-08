@@ -3631,8 +3631,11 @@ def _audit_log_schema_block() -> str:
     state row and the no-window revokes, ready to fold into a backend's schema file.
 
     Read from ``/opt/fabrik-lib`` at scaffold time, so the fold always carries the
-    module version being vendored beside it. Its own apply hint names the pre-D-390
-    ``DATABASE_URL``; the fold points it at this file's header instead.
+    module version being vendored beside it. Its own apply hint tells the host to run
+    ``libs/audit_log/schema.sql`` on its own; folded, that is false, so the fold replaces
+    each comment line ending ``-f libs/audit_log/schema.sql`` with a pointer at this
+    file's header. The match is that line's tail, not its wording (fabrik-lib rewords the
+    hint — 01M476P2), and a module with no such line raises rather than folding silently.
     """
     module_schema = APP_AUDIT_LOG_DIR / "schema.sql"
     if not module_schema.is_file():
@@ -3640,10 +3643,17 @@ def _audit_log_schema_block() -> str:
             f"Cannot fold the audit log: fabrik-lib/app-audit-log was not found at "
             f"{APP_AUDIT_LOG_DIR}. Ensure /opt/fabrik-lib is present next to /opt/fabrik."
         )
-    schema = module_schema.read_text().replace(
-        'psql "$DATABASE_URL" -f libs/audit_log/schema.sql',
-        "folded into db/schema.sql — applied by its header, as the owner",
+    schema, hints = re.subn(
+        r"(?m)^--.*-f libs/audit_log/schema\.sql[ \t]*$",
+        "--   folded into db/schema.sql — applied by its header, as the owner",
+        module_schema.read_text(),
     )
+    if hints == 0:
+        raise ValueError(
+            f"{module_schema}: no apply hint ending '-f libs/audit_log/schema.sql' found; "
+            "the fold cannot drop it — re-read the module header and update the matcher in "
+            "fabrik's src/fabrik/scaffold.py::_audit_log_schema_block"
+        )
     return (
         "\n-- ===========================================================================\n"
         "-- AUDIT LOG — vendored from libs/audit_log/schema.sql (core/app-audit-log.md).\n"
