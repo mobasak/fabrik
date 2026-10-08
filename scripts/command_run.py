@@ -4275,6 +4275,39 @@ def _task_close_v2(
     return 0, fields
 
 
+def _keep_resume_seed(sid: str, data: bytes) -> str:
+    """Write a handoff's `--resume` artifact — the bytes the close validated — to `<state dir>/seeds/`
+    and return the copy's absolute path, or a `REFUSED — …` line (intel 01M4EDB9TC). The successor must outlive
+    what wrote it: a /fabrik-task UPGRADE seed sits in the session's scratch, which dies with the
+    session, and the run record is overwritten by the session's NEXT `start`, which is the
+    /fabrik-spec the UPGRADE opens at once. The name is the record's own `_safe_sid` plus the
+    content hash, so a nested run's seed never overwrites its parent's and a retry of the same seed
+    lands on the same file; the caller read the bytes once, bounded, and refused one over the cap.
+    A copy that cannot be written refuses the close: a lost seed is the defect this exists to prevent, and
+    `blocked` stays the exit. Nothing prunes `seeds/` (one small file per handoff); a process
+    killed between the write and the rename leaves its pid-named `.tmp` there, which no reader globs."""
+    seeds = _state_dir().resolve() / "seeds"
+    tmp: Path | None = None
+    try:
+        copy = seeds / f"{_safe_sid(sid)}-{hashlib.sha256(data).hexdigest()[:16]}.md"
+        seeds.mkdir(parents=True, exist_ok=True)
+        tmp = copy.with_name(f"{copy.name}.{os.getpid()}.tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, copy)
+        return str(copy)
+    except (OSError, ValueError) as exc:
+        if tmp is not None:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return (
+            f"REFUSED — handoff could not keep a copy of the --resume seed under {seeds} "
+            f"({type(exc).__name__}); the seed would die with the session — fix the state dir, "
+            "or close with `blocked`"
+        )
+
+
 def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[int, dict[str, str]]:
     """The lane's TWO row fields for this close: ``(rc, fields)``. rc 1 = refused, already
     printed, and the record must stay `running`.
@@ -5556,17 +5589,23 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # A REGULAR file only, read BOUNDED, and ANY failure is the refusal: a FIFO with no writer
         # blocked the close forever, and `/dev/zero` under a memory cap raised MemoryError, which
         # `main`'s fail-soft catch-all turned into rc 0 — the very defect this check closes.
+        # ONE bounded read, and the copy kept below is these bytes: a second read (or a `stat`)
+        # outside this guard re-opened the window a vanished or growing file slips through.
         resume_path = Path(args.resume)
-        resume_text = ""
+        resume_bytes = b""
         why = ""
         try:
             if not resume_path.is_file():
                 why = "is not a regular file"
             else:
-                with resume_path.open(encoding="utf-8", errors="replace") as fh:
-                    resume_text = fh.read(_RESUME_READ_CAP)
+                with resume_path.open("rb") as fh:
+                    resume_bytes = fh.read(_RESUME_READ_CAP + 1)
         except Exception as exc:  # noqa: BLE001 — every failure refuses; none may reach main's rc 0
             why = f"cannot be read ({type(exc).__name__})"
+        if not why and len(resume_bytes) > _RESUME_READ_CAP:
+            # the copy kept below must be the WHOLE seed, never a silently cut one
+            why = f"exceeds the {_RESUME_READ_CAP:,}-byte handoff cap"
+        resume_text = resume_bytes.decode("utf-8", errors="replace")
         if not why and not re.search(r"(?m)^##\s+RESUME\b", resume_text):
             why = "has no `## RESUME` block naming the open rows and the next act"
         if why:
@@ -5586,6 +5625,14 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     _task_rc, _task_fields = _task_close_fields(rec, args)
     if _task_rc:
         return _task_rc
+    if args.cmd == "handoff":
+        _kept = _keep_resume_seed(sid, resume_bytes)
+        if not _kept.startswith("/"):
+            sys.stderr.write(f"[command_run] {_kept}\n")
+            print(_kept)
+            return 1
+        rec["resume_copy"] = _kept
+        print(f"handoff: the resume artifact is kept at {_kept}")
     _touch(rec)
     _se = _finite_ts(rec.get("started_epoch"))
     if _se is not None and _se > 0:
@@ -5711,6 +5758,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "closed_by": "agent",
             "evidence_hash": _evidence_hash(args.evidence if args.cmd == "done" else args.reason),
             "resume": getattr(args, "resume", "") or "",
+            "resume_copy": rec.get("resume_copy", "") if args.cmd == "handoff" else "",
             # Kaizen's `Filed (spec/mail)` column has read "-" on every row since the 2026-08-12
             # baseline because nothing ever measured it. These three fields make it countable: the
             # verdict, which beats were routed to, and a HASH of the line (never the prose - the

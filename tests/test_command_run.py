@@ -2689,6 +2689,101 @@ def test_handoff_closes_a_not_quiet_run_with_its_resume_artifact(run_dir: Path) 
     assert row["closed_by"] == "agent", row
 
 
+def test_handoff_keeps_a_durable_copy_of_the_resume_seed(run_dir: Path) -> None:
+    """intel 01M4EDB9TC: `handoff --resume` stored only the PATH, and a /fabrik-task UPGRADE seed is
+    written to the session's scratch — which dies with the session — while the next `start` in the
+    same session (the /fabrik-spec the UPGRADE opens) overwrites the record itself. The close keeps
+    the seed's text under the state dir's `seeds/`, names it in the record, the run_close event and
+    its output, and the copy outlives both the original and the record."""
+    _start(run_dir)
+    seed = Path(_resume_artifact(run_dir))
+    text = seed.read_text(encoding="utf-8")
+    out = _cr(
+        run_dir,
+        "handoff",
+        "--command",
+        "fabrik-probe",
+        "--resume",
+        str(seed),
+        "--reason",
+        "UPGRADE: tradeoffs — seed in design.md",
+    )
+    assert out.returncode == 0, out.stderr
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    copy = Path(rec["resume_copy"])
+    assert copy.parent == run_dir.resolve() / "seeds", rec
+    assert copy.read_text(encoding="utf-8") == text, rec
+    assert str(copy) in out.stdout, out.stdout
+    assert _events(run_dir, "s1")[-1]["resume_copy"] == str(copy)
+    seed.unlink()
+    _start(run_dir)  # the UPGRADE's /fabrik-spec opens a new record in the same session
+    assert copy.read_text(encoding="utf-8") == text, "the seed outlives its scratch and its record"
+
+
+def test_handoff_keeps_the_bytes_it_validated_when_the_seed_moves_after(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Review pass 1 (A-S1, A-S2): the close checked the seed's size with an unguarded `stat()`
+    and the copier re-read the file unbounded, so a seed deleted after validation crashed into
+    `main`'s fail-soft rc 0 with the record still `running`, and one grown past the cap was copied
+    whole. The close reads the bytes ONCE, bounded, and keeps exactly those."""
+    cr = _in_process(tmp_path, monkeypatch, "cr_seed_once")
+    seed = tmp_path / "design.md"
+    text = "# x\n\n## RESUME\n- the validated seed\n"
+    seed.write_text(text, encoding="utf-8")
+    real = cr._task_close_fields
+
+    def _moves(rec, args):
+        seed.write_text("x" * (cr._RESUME_READ_CAP + 10), encoding="utf-8")
+        seed.unlink()
+        return real(rec, args)
+
+    monkeypatch.setattr(cr, "_task_close_fields", _moves)
+    assert cr.main(["start", "--command", _PROBE, "--phases", "1"]) == 0
+    fb = "confusion: none · waste: none · change: none · filed: none — harness setup"
+    rc = cr.main(
+        ["handoff", "--command", _PROBE, "--resume", str(seed), "--reason", "r", "--feedback", fb]
+    )
+    assert rc == 0
+    rec = json.loads((tmp_path / "runs" / "s1.json").read_text(encoding="utf-8"))
+    assert rec["state"] != "running", rec
+    assert Path(rec["resume_copy"]).read_text(encoding="utf-8") == text, rec
+
+
+def test_handoff_seed_copies_never_collide_or_escape_and_never_truncate(run_dir: Path) -> None:
+    """The design critiques' executed defects: two seeds from one session in one second (a nested
+    run) overwrote each other; a session id carrying `/` or `..` wrote outside `seeds/` (or could
+    never close); a seed over the 1 MB read cap was copied cut, silently. The copy is keyed by the
+    record's own `_safe_sid` plus the content hash, and an over-cap seed is refused."""
+    sid = "../a/b"
+    seeds = run_dir.resolve() / "seeds"
+    kept = []
+    for body in ("CHILD", "PARENT"):
+        _start(run_dir, sid=sid)
+        art = run_dir.parent / f"{body}.md"
+        art.write_text(f"# x\n\n## RESUME\n- {body}\n", encoding="utf-8")
+        out = _cr(
+            run_dir, "handoff", "--command", _PROBE, "--resume", str(art), "--reason", "r", sid=sid
+        )
+        assert out.returncode == 0, out.stdout + out.stderr
+        kept.append(
+            Path(
+                json.loads(next(run_dir.glob("*.json")).read_text(encoding="utf-8"))["resume_copy"]
+            )
+        )
+    assert len(set(kept)) == 2 and all(k.parent == seeds for k in kept), kept
+    assert [k.read_text(encoding="utf-8").split("- ")[1].strip() for k in kept] == [
+        "CHILD",
+        "PARENT",
+    ]
+    _start(run_dir)
+    big = run_dir.parent / "big.md"
+    big.write_text("## RESUME\n" + "x" * 1_000_100, encoding="utf-8")
+    out = _cr(run_dir, "handoff", "--command", _PROBE, "--resume", str(big), "--reason", "r")
+    assert out.returncode == 1 and "cap" in out.stdout, out.stdout
+    assert json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))["state"] == "running"
+
+
 def test_handoff_refuses_without_the_resume_artifact(run_dir: Path) -> None:
     """The whole point: it must be harder to fake than the BLOCKED cause it replaces. Omitting the
     flag is argparse's refusal (rc 2); NAMING an artifact that is not there must refuse at the close
