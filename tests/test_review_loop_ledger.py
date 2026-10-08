@@ -738,3 +738,75 @@ def test_read_pins_tree_not_checked_never_fails_the_read(tmp_path: Path) -> None
         got.stderr,
     )
     assert json.loads(out.read_text())["pins"]["tree_changes"] is None
+
+
+def test_read_pins_sees_inside_an_untracked_dir_and_names_a_change_again(tmp_path: Path) -> None:
+    """Review pass 1: A-S1 — an untracked dir present at pin time collapsed to one `dir` entry, so a tarball a seat
+    later wrote INTO it was invisible; B-S2 — CHANGED AGAIN had no grader; B-S4 — a staged rename (the porcelain
+    source path rides as the next NUL entry) with a space in the name had none either."""
+    repo = _leaky_repo(tmp_path)
+    (repo / "scratch").mkdir()
+    (repo / "scratch" / "notes.txt").write_text("mine\n")
+    pins = tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
+    (repo / "scratch" / "arch.tar").write_bytes(b"y" * 100)
+    (repo / "old.txt").write_text("already here, then rewritten\n")
+    _vcs(repo, "mv", "sub/b.py", "sub/b c.py")
+    run, out = _run_dir(tmp_path), tmp_path / "pass.json"
+    got = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
+    assert got.returncode == 0, (got.returncode, got.stdout, got.stderr)
+    changes = {c["path"]: c["kind"] for c in json.loads(out.read_text())["pins"]["tree_changes"]}
+    assert changes == {
+        "scratch/arch.tar": "NEW UNTRACKED",
+        "old.txt": "CHANGED AGAIN",
+        "sub/b c.py": "NEW MODIFIED",
+    }, changes
+
+
+def test_fingerprint_falls_back_to_size_and_nanosecond_mtime(tmp_path: Path) -> None:
+    """Review B-S3/A-S2: above the hash cap, or for a non-regular file, the fingerprint is size plus mtime — at
+    NANOSECOND precision, so a same-size rewrite inside one second still reads as changed."""
+    import importlib.util
+    import os
+
+    spec = importlib.util.spec_from_file_location("rll_fp", TOOL)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    fifo = tmp_path / "pipe"
+    os.mkfifo(fifo)
+    assert mod._fingerprint(fifo).startswith("size:"), "a fifo is never opened for hashing"
+    big = tmp_path / "big.bin"
+    big.write_bytes(b"a" * 64)
+    mod._HASH_CAP = 8
+    os.utime(big, ns=(1_000_000_000_000_000_001, 1_000_000_000_000_000_001))
+    first = mod._fingerprint(big)
+    big.write_bytes(b"b" * 64)
+    os.utime(big, ns=(1_000_000_000_000_000_002, 1_000_000_000_000_000_002))
+    assert first.startswith("size:64:") and mod._fingerprint(big) != first, (
+        first,
+        mod._fingerprint(big),
+    )
+
+
+def test_seat_archive_needs_a_full_commit_name(tmp_path: Path) -> None:
+    """Review A-S3: a pax comment that is a SHORT hex abbreviation of a real commit is not a seat's `git archive`
+    signature — only a full 40- (or 64-) character name is."""
+    import tarfile
+
+    repo = _leaky_repo(tmp_path)
+    head = subprocess.run(
+        ["g" + "it", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    pins = tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
+    with tarfile.open(
+        repo / "short.tar", "w", format=tarfile.PAX_FORMAT, pax_headers={"comment": head[:7]}
+    ) as t:
+        t.add(repo / "a.py", arcname="a.py")
+    run, out = _run_dir(tmp_path), tmp_path / "pass.json"
+    got = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
+    assert got.returncode == 0 and "SEAT ARCHIVE" not in got.stdout, (got.returncode, got.stdout)
+    assert any(ln.startswith("NEW UNTRACKED short.tar") for ln in _tree_lines(got.stdout)), (
+        got.stdout
+    )

@@ -345,18 +345,13 @@ def _fresh(top: Path, replace: bool) -> None:
         _unlock_and_remove(top)
 
 
-# the snapshot of the live tree a seat could write into (infra 01M4CV040F): untracked entries and ignored ones
-# COLLAPSED to their directory — listing every ignored file is 4263 entries of __pycache__ churn on this hub, 56
-# collapsed. A new file inside an ALREADY-ignored dir (data/x) therefore stays unseen; that is PIN_IMPORT's
-# FABRIK_ROOT warning, not this check's reach.
-_TREE_STATUS = (
-    "--no-optional-locks",
-    "status",
-    "--porcelain=v1",
-    "-z",
-    "--untracked-files=normal",
-    "--ignored=traditional",
-)
+# the snapshot of the live tree a seat could write into (infra 01M4CV040F), in TWO listings: tracked changes and
+# untracked files ONE BY ONE (a collapsed untracked `dir/` hid every file a seat later wrote into it — review A-S1),
+# and ignored entries COLLAPSED to their directory (listing every ignored file is 4263 entries of __pycache__ churn
+# on this hub, 56 collapsed). A new file inside an ALREADY-ignored dir (data/x) therefore stays unseen; that is
+# PIN_IMPORT's FABRIK_ROOT warning, not this check's reach.
+_TREE_STATUS = ("--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all")
+_TREE_IGNORED = ("ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z")
 _HASH_CAP = 32 * 1024 * 1024
 
 
@@ -368,7 +363,7 @@ def _fingerprint(p: Path) -> str:
     if stat.S_ISDIR(st.st_mode):
         return "dir"
     if st.st_size > _HASH_CAP or not stat.S_ISREG(st.st_mode):
-        return f"size:{st.st_size}:{int(st.st_mtime)}"
+        return f"size:{st.st_size}:{st.st_mtime_ns}"  # full precision: a same-second rewrite still differs (A-S2)
     try:
         return _md5(p)
     except OSError:
@@ -376,10 +371,11 @@ def _fingerprint(p: Path) -> str:
 
 
 def _tree(root: Path) -> dict | None:
-    """`?? untracked` · `!! ignored` (collapsed) · every other code `modified`, each untracked or modified path with
+    """`?? untracked` (one by one) · ignored (collapsed) · every other code `modified`, each untracked or modified path with
     its fingerprint. None when the snapshot cannot run there — a caller records "not checked", never fails."""
     try:
         out = _vcs(root, *_TREE_STATUS)
+        ignored = _vcs(root, *_TREE_IGNORED)
     except (subprocess.CalledProcessError, OSError):
         return None
     snap: dict = {"untracked": {}, "ignored": [], "modified": {}}
@@ -395,10 +391,9 @@ def _tree(root: Path) -> dict | None:
             i += 1  # a rename or copy carries its source path as the next entry
         if code == "??":
             snap["untracked"][path] = _fingerprint(root / path)
-        elif code == "!!":
-            snap["ignored"].append(path)
         else:
             snap["modified"][path] = _fingerprint(root / path)
+    snap["ignored"] = sorted(e.decode("utf-8", errors="replace") for e in ignored.split(b"\0") if e)
     return snap
 
 
@@ -417,7 +412,9 @@ def _seat_archive(root: Path, p: Path) -> bool:
             return False
         with tarfile.open(p) as t:
             sha = (t.pax_headers or {}).get("comment", "")
-        if not sha or not all(c in "0123456789abcdef" for c in sha.lower()):
+        # a FULL object name only (40 hex, or 64 under SHA-256): a short hex string could resolve as an
+        # abbreviation of some commit and misread an unrelated tar as a seat's (review A-S3)
+        if len(sha) not in (40, 64) or not all(c in "0123456789abcdef" for c in sha.lower()):
             return False
         _vcs(root, "cat-file", "-e", f"{sha}^{{commit}}")
         return True
