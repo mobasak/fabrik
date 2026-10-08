@@ -904,7 +904,7 @@ def test_a_review_loop_owner_is_matched_whole_and_prose_is_not_an_owner() -> Non
 
 @pytest.mark.parametrize("row_id", ["A-S1", "F7"])
 def test_a_residual_row_never_licenses_itself(row_id: str) -> None:
-    """Critique of W-528f123e: `_row_ids` read EVERY first cell, the citing Residual row's own included, so
+    """Critique of W-528f123e: the owner lookup read EVERY first cell, the citing Residual row's own included, so
     `| A-S1 | RECORDED — by design (A-S1, round 1) |` with no other A-S1 row licensed itself — the round bound
     then rests on a number the writer typed. The citing line is not its own owner; another row with the id is."""
     errs = _self_cited(row_id, f"by design ({row_id}, round 3)")

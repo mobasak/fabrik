@@ -2153,21 +2153,11 @@ def _closing_pass_row(ordered: list[_Row]) -> tuple[int, str] | None:
     return (int(m.group(1)), ordered[-1][4]) if m is not None else None
 
 
-def _row_ids(text_s: str) -> set[str]:
-    """Every ledger/finding row id in the receipt — the FIRST cell of every `|`-leading,
-    non-separator row ANYWHERE in the fence-stripped text, comma/semicolon split and ranges
-    expanded. Deliberately wider than the LEDGER BLOCKS of the token rule: 514 of the 543 owner
-    rows at 8092e8a8 sit in findings tables, outside any ledger block.
-    """
-    ids: set[str] = set()
-    for line in text_s.splitlines():
-        ids |= _line_ids(line)
-    return ids
-
-
 def _line_ids(line: str) -> set[str]:
     """The row ids ONE line carries — its first cell, comma/semicolon split, ranges expanded; empty for a line
-    that is not a non-separator `|` row."""
+    that is not a non-separator `|` row. Every `|`-leading row ANYWHERE in the fence-stripped text counts, which is
+    deliberately wider than the LEDGER BLOCKS of the token rule: 514 of the 543 owner rows at 8092e8a8 sit in
+    findings tables, outside any ledger block."""
     ids: set[str] = set()
     stripped = line.strip()
     if not stripped.startswith("|") or _SEP_ROW.fullmatch(stripped):
@@ -2212,7 +2202,7 @@ def _residual_errors(text_s: str, ordered: list[_Row]) -> list[str]:
     repair = "cite the owning row's first-cell id verbatim, or `(D-nnn)`"
     out: list[str] = []
     for v in verdicts:
-        # the citing row is never its own owner (W-528f123e critique): `_row_ids` reads every first cell, so
+        # the citing row is never its own owner (W-528f123e critique): every first cell is an id, so
         # `| A-S1 | RECORDED — by design (A-S1, round 1) |` with no other A-S1 row licensed itself
         at = bisect.bisect_right(starts, v.start()) - 1
         for raw in v.group(1).split(";"):
