@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rule (3)'s residue rewrite fires per site, not only per round (2026-10-08)
+- `commands/_fragments/term-coverage.md` and `commands/_fragments/term-edit.md` rule (3) forced the one-batch rewrite only when two consecutive delta rounds confirmed ONLY residue, so one site could yield own-fix defects every round and never trigger it. It now also fires when one site (sentence, bullet item, table row; a function or top-level statement in term-coverage) yields an own-fix defect in two consecutive delta rounds, cited `site:`; the rewrite counts as one more attempt toward the existing per-finding/per-axis BLOCKED escalation; the scope-growth stop takes over from the first round that prints it (D-698, W-cc2b8600). Grader: `tests/enforcement/test_review_exit_contract.py::test_rule_three_fires_per_site_and_stands_down_at_the_stop`.
+
 ### Changed — /fabrik-review shows where a by-design verdict's reason goes (2026-10-08)
 - `commands/_sources/fabrik-review.md`'s `RECORDED — by design` bullet now shows the form the coverage gate accepts, `RECORDED — by design (D-432) — <why>`, and the refused one, `(D-432: <why>)`, which V5 reads as an absent owner; a receipt-row owner keeps its `, round N` inside, and the two generic `RECORDED — <kind> (…)` mentions no longer show a reason inside the parentheses. `commands/_fragments/term-edit.md`'s verdict list says the same in one clause. Three `/fabrik-review` closes asked for it. Grader: `tests/enforcement/test_review_refusals.py::test_the_commands_by_design_example_passes_and_its_counter_example_is_refused` drives both forms from the source through the gate and pins the receipt-row and term-edit wording.
 
