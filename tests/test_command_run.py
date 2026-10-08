@@ -6558,9 +6558,10 @@ def test_a_malformed_stored_slice_row_never_turns_done_into_a_silent_success(run
     rec["rounds"][-1]["slices"] = [{"name": "A"}]
     (run_dir / "s1.json").write_text(json.dumps(rec))
     bare = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
-    assert bare.returncode == 1 and "slice A has no claims in its ledger" in bare.stderr, (
-        bare.stderr
-    )
+    assert (
+        bare.returncode == 1
+        and "slice A has an unreadable claim count in its ledger" in bare.stderr
+    ), bare.stderr
 
 
 def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_ledger_is_refused(
@@ -6568,8 +6569,8 @@ def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_led
 ) -> None:
     """A2 (the cobra of the slice gate): the cheapest way to satisfy "every slice verified" is to
     stop passing `--slices`, or to pass `A:0/0`. A round that omits the ledger after an earlier
-    round stated it is NOT TERMINAL and names the vanished slices; a slice with zero claims is
-    refused."""
+    round stated it is NOT TERMINAL and names the vanished slices; a slice an earlier round stated with claims may never shrink to `0/0`
+    (W-65fb308e)."""
     _start(run_dir)
     _cr(
         run_dir,
@@ -6627,6 +6628,147 @@ def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_led
         "A:1/1,A:0/2",
     )
     assert dup.returncode == 2 and "duplicate" in dup.stderr.lower(), dup.stderr
+
+
+def test_a_slice_with_no_claims_restates_as_zero_of_zero_and_reads_clean(run_dir: Path) -> None:
+    """W-65fb308e (site-provisioner 01M4DR9PAB): the review commands restate EVERY round-1 slice
+    each pass, but a slice whose round-1 candidates were all refuted holds no claim — `B:0/0` was
+    refused, the agent dropped B, and a dropped slice reads VANISHED. A never-claimed slice is a
+    clean `0/0`: the round is recorded, B reads verified, and `done` closes on it."""
+    _start(run_dir)
+    first = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "4",
+        "--confirmed",
+        "2",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:0/2,B:0/0",
+    )
+    assert first.returncode == 0, first.stderr
+    quiet = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:2/2,B:0/0",
+    )
+    assert quiet.returncode == 0, quiet.stderr
+    assert "B 0/0 ✓" in quiet.stdout and "TERMINAL VERDICT" in quiet.stdout, quiet.stdout
+    out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "round 2 confirmed: 0")
+    assert out.returncode == 0, out.stderr
+    assert _rec(run_dir)["state"] != "running"
+
+
+def test_a_slice_that_held_claims_in_any_earlier_round_may_not_return_as_zero(
+    run_dir: Path,
+) -> None:
+    """The `0/0` refusal scans EVERY earlier round, never only the previous one (W-aa53dfc6's
+    lesson): a slice stated with claims in round 1 and omitted in round 2 still cannot come back
+    as `0/0` in round 3."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "5",
+        "--confirmed",
+        "5",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:1/5,B:0/0",
+    )
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "B:0/0",
+    )
+    back = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:0/0,B:0/0",
+    )
+    assert back.returncode == 2 and "--slices" in back.stderr and "A" in back.stderr, back.stderr
+    assert len(_rec(run_dir)["rounds"]) == 2, "the refused round must not be recorded"
+
+
+def test_an_unreadable_earlier_claim_count_never_admits_a_zero_slice(run_dir: Path) -> None:
+    """Review pass 1 (A-S1): a slice whose earlier stored count was hand-edited to null read as
+    never-claimed, so a later `0/0` closed it TERMINAL. An unreadable earlier count is HELD."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "5",
+        "--confirmed",
+        "5",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:1/5",
+    )
+    rec_path = next(p for p in run_dir.glob("*.json") if p.is_file())
+    rec = json.loads(rec_path.read_text(encoding="utf-8"))
+    rec["rounds"][0]["slices"][0]["claims"] = None
+    rec_path.write_text(json.dumps(rec), encoding="utf-8")
+    out = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:0/0",
+    )
+    assert out.returncode == 2 and "--slices" in out.stderr, out.stdout + out.stderr
+    assert "TERMINAL VERDICT" not in out.stdout
+
+
+def test_confirmed_defects_with_an_all_zero_slice_ledger_are_refused(run_dir: Path) -> None:
+    """The cobra `0/0` reopens: a round that CONFIRMS defects yet names every slice `0/0` holds
+    confirmed claims in no ledger — refused, and nothing is recorded."""
+    _start(run_dir)
+    out = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "3",
+        "--confirmed",
+        "2",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:0/0,B:0/0",
+    )
+    assert out.returncode == 2 and "REFUSED" in out.stderr and "0/0" in out.stderr, out.stderr
+    assert not _rec(run_dir).get("rounds"), "the refused round must not be recorded"
 
 
 def test_a_non_positive_budget_is_refused_not_coerced(run_dir: Path) -> None:
@@ -6938,7 +7080,6 @@ def test_a_malformed_counter_on_the_record_never_crashes_a_round(
     r = _cr(run_dir, "round", "--findings", "1", "--classes-new", "a")
     assert r.returncode == 0 and "Traceback" not in r.stderr, r.stderr
     assert "ROUND" in r.stdout, r.stdout
-
 
 
 def test_the_scope_growth_verdicts_close_on_a_confirmed_zero_round():

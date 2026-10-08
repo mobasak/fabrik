@@ -328,10 +328,16 @@ _SLICE_NAME = r"([A-Za-z0-9_.\-]{1,40})"
 def _parse_slices(raw: str) -> list[dict[str, Any]] | None:
     """`A:12/12,B:5/6` → [{"name", "verified", "claims"}] — None when malformed (D-335 § 5 item 4).
 
-    COBRA (D-253): the cheapest way to satisfy "every slice verified" without verifying anything
-    is a ledger with nothing in it — `A:0/0` — or a later round that simply stops passing
-    `--slices`. So a slice carries at least one claim, a name appears once, and `_vanished_slices`
-    treats a slice ANY earlier round stated and the last round omits as OPEN, never as clean.
+    `A:0/0` is a slice whose candidates were all refuted or recorded — no claim to verify — so the
+    review commands' "restate every round-1 slice" can be obeyed (W-65fb308e). COBRA (D-253): the
+    cheapest way to satisfy "every slice verified" without verifying anything is a ledger with
+    nothing in it, or a later round that stops passing `--slices`. So a name appears once, the
+    `round` handler refuses a `0/0` for a slice an earlier round stated WITH claims and a round that
+    confirms defects while every slice it names is `0/0` (`_zero_slice_refusal`), and
+    `_vanished_slices` treats a slice ANY earlier round stated and the last round omits as OPEN.
+    What stays open, by measurement: a ledger that shrinks to a smaller non-zero count, and a first
+    round whose claims undercount `--confirmed` — both occur in real records (2 and 1 of 26 sliced
+    rounds, 2026-10-08), so neither is refused.
     """
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -341,7 +347,7 @@ def _parse_slices(raw: str) -> list[dict[str, Any]] | None:
         if not m:
             return None
         verified, claims = int(m.group(2)), int(m.group(3))
-        if claims < 1 or verified > claims or m.group(1) in seen:
+        if verified > claims or m.group(1) in seen:
             return None
         seen.add(m.group(1))
         out.append({"name": m.group(1), "verified": verified, "claims": claims})
@@ -358,7 +364,11 @@ def _slice_rows(row: Any) -> list[dict[str, Any]]:
         {
             "name": str(s.get("name", "?")),
             "verified": _int0(s.get("verified")),
-            "claims": _int0(s.get("claims")),
+            # a missing, null or non-integer count is -1, never 0: `0/0` is a CLEAN slice, so
+            # a hand-edited row that lost its count must not read as one (it stays OPEN)
+            "claims": c
+            if isinstance(c := s.get("claims"), int) and not isinstance(c, bool)
+            else -1,
         }
         for s in row["slices"]
         if isinstance(s, dict)
@@ -367,9 +377,42 @@ def _slice_rows(row: Any) -> list[dict[str, Any]]:
 
 def _failing_slices(row: Any) -> list[dict[str, Any]]:
     """The slices of a round row whose ledger still holds an open claim (verified < claims)."""
-    # a row with no claims at all (a hand-edited record — the CLI refuses `A:0/0`) is OPEN,
-    # never clean: fail-closed, and escapable by re-stating the ledger
-    return [s for s in _slice_rows(row) if s["verified"] < s["claims"] or s["claims"] < 1]
+    # `0/0` is clean (a slice with no claim to verify); a row whose count is missing or broken
+    # (`_slice_rows` reads it as -1 — a hand-edited record) is OPEN, never clean: fail-closed,
+    # and escapable by re-stating the ledger
+    return [s for s in _slice_rows(row) if s["verified"] < s["claims"] or s["claims"] < 0]
+
+
+def _zero_slice_refusal(
+    slices: list[dict[str, Any]], confirmed: int | None, rounds: list[Any]
+) -> str | None:
+    """Why a `round --slices` holding a `0/0` slice is refused, or None (W-65fb308e).
+
+    A `0/0` is admitted only for a slice that never held a claim: one an earlier round stated with
+    claims ≥ 1 would close its open claims by restating them as nothing. And a round confirming
+    defects while EVERY slice it names is `0/0` holds those defects in no ledger — the all-zero
+    typo guard (omitting `--slices` altogether remains possible and is what `_vanished_slices`
+    and the receipt's coverage gate answer, not this)."""
+    zero = [s["name"] for s in slices if s["claims"] == 0]
+    if not zero:
+        return None
+    # an earlier count that no longer reads (`_slice_rows`' -1 — a hand-edited row) counts as
+    # HELD, fail-closed: an unreadable ledger can never be the reason a 0/0 is admitted
+    earlier = {
+        s["name"] for row in rounds for s in _slice_rows(row) if s["claims"] >= 1 or s["claims"] < 0
+    }
+    held = [n for n in zero if n in earlier]
+    if held:
+        return (
+            f"slice(s) {', '.join(held)} held claims in an earlier round and cannot be restated "
+            "as 0/0 — restate the ledger at its <verified>/<claims>"
+        )
+    if confirmed and len(zero) == len(slices):
+        return (
+            f"--confirmed {confirmed} with every slice 0/0 — assign each confirmed defect to the "
+            "slice whose files hold it: `<name>:0/<n>`"
+        )
+    return None
 
 
 def _vanished_slices(rounds: list[Any]) -> list[str]:
@@ -788,7 +831,7 @@ def _round_report(rec: dict[str, Any]) -> str:
             "  slices: "
             + " · ".join(
                 f"{s['name']} {s['verified']}/{s['claims']} "
-                + ("✓" if s["claims"] >= 1 and s["verified"] >= s["claims"] else "✗")
+                + ("✓" if s["claims"] >= 0 and s["verified"] >= s["claims"] else "✗")
                 for s in slices
             )
         )
@@ -4792,10 +4835,14 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             if slices is None:
                 print(
                     f"[command_run] REFUSED — round --slices {args.slices!r} must be "
-                    "`<name>:<verified>/<claims>[,…]` with 0 <= verified <= claims, claims >= 1 "
+                    "`<name>:<verified>/<claims>[,…]` with 0 <= verified <= claims "
                     "and no duplicate name (D-335)",
                     file=sys.stderr,
                 )
+                return 2
+            why = _zero_slice_refusal(slices, args.confirmed, rec.get("rounds") or [])
+            if why:
+                print(f"[command_run] REFUSED — round --slices: {why}", file=sys.stderr)
                 return 2
         if args.confirmed is None and (rec.get("command") or "") in CONFIRMED_REQUIRED_COMMANDS:
             print(
@@ -5125,9 +5172,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                 + "; ".join(
                     [
                         (
-                            f"slice {s['name']} has no claims in its ledger "
+                            f"slice {s['name']} has an unreadable claim count in its ledger "
                             f"({s['verified']}/{s['claims']}) on the last round"
-                            if s["claims"] < 1
+                            if s["claims"] < 0
                             else f"slice {s['name']} has {s['claims'] - s['verified']} open claim(s) "
                             f"({s['verified']}/{s['claims']} verified) on the last round"
                         )

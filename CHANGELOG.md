@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command_run round --slices accepts a never-claimed slice as 0/0 (2026-10-08)
+- `scripts/command_run.py round --slices` refused any slice with 0 claims, while /fabrik-review and term-coverage tell the agent to restate EVERY round-1 slice — so a slice whose candidates were all refuted could not be stated (site-provisioner 01M4DR9PAB). `<name>:0/0` is now a clean slice, refused only when an earlier round stated that slice WITH claims, or when a round confirms defects while every slice it names is 0/0. A stored row with a missing or broken claim count still reads open. `docs/reference/command-run-protocol.md` says the same. Two Opus/Fable-proposed counters and an advisory were measured on the box's 26 sliced rounds and rejected (each would trap or flag real rounds).
+
 ### Fixed — the subagents pack names the hold tier that zeroes seats (2026-10-08)
 - `.windsurf/rules/core/62-using-subagents.md`: after D-706, `dispatch_headroom.py` caps seats at 0 only when the fleet HOLD stands at its `walled` tier; at `urgent-90` the band decides. Constraint 4 and the five-constraints preamble both still said any HOLD dispatches nothing / drops the floor; both now name the tier. Reported by intel with D-706.
 
