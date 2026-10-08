@@ -383,10 +383,19 @@ _READ_NOTHING = {
     "null": (1, {"files_read": None, "notes": "", "candidates": []}, 0),
     "not a list": (1, {"files_read": "a.py", "notes": "", "candidates": []}, 0),
     "an empty string": (1, {"files_read": [""], "notes": "", "candidates": []}, 1),
-    "an unrelated file": (1, {"files_read": ["CLAUDE.md"], "notes": "I read the contract", "candidates": []}, 1),
+    "an unrelated file": (
+        1,
+        {"files_read": ["CLAUDE.md"], "notes": "I read the contract", "candidates": []},
+        1,
+    ),
     "pass 2 with ledger rows": (
         2,
-        {"files_read": [], "notes": "", "candidates": [], "ledger_status": [{"id": "S-S1", "status": "NOW_FALSE"}]},
+        {
+            "files_read": [],
+            "notes": "",
+            "candidates": [],
+            "ledger_status": [{"id": "S-S1", "status": "NOW_FALSE"}],
+        },
         0,
     ),
 }
@@ -408,7 +417,9 @@ def test_a_seat_that_read_no_slice_file_is_a_dropped_seat_on_every_pass(shape: s
     haiku = next(x for x in s["seats"] if x["model"] == "haiku")
     assert haiku["failed"] and haiku["files_read"] == count, haiku
     assert haiku["notes"].startswith("SEAT FAILED (read no slice file): "), haiku["notes"]
-    assert "undefined" not in haiku["notes"], "a missing notes field renders empty, never as undefined"
+    assert "undefined" not in haiku["notes"], (
+        "a missing notes field renders empty, never as undefined"
+    )
     assert ledger["dropped_seats"] == 1 and not s["closable"] and not ledger["closable"], s["open"]
     assert "seat failed: haiku" in s["open"], s["open"]
     assert s["gaps"] == [], "the partner read every file, so the gap check alone stays silent"
@@ -418,13 +429,22 @@ def test_a_seat_that_read_no_slice_file_is_a_dropped_seat_on_every_pass(shape: s
 def test_a_failed_seats_ledger_rows_re_verify_no_claim() -> None:
     """A dropped seat echoing a ledger id must not count as its re-verification, so `open` names the claim too."""
     args = {**_ARGS, "pass": 2, "slices": [{**_ARGS["slices"][0], "ledger": _LEDGER_ROW}]}
-    echo = {"files_read": [], "notes": "", "candidates": [], "ledger_status": [{"id": "S-S1", "status": "NOW_FALSE"}]}
+    echo = {
+        "files_read": [],
+        "notes": "",
+        "candidates": [],
+        "ledger_status": [{"id": "S-S1", "status": "NOW_FALSE"}],
+    }
     ledger, _ = _run_ledger(args, {"find:S:sonnet": _FULL_READ, "find:S:haiku": echo})
-    assert "ledger claim S-S1 not re-verified by any seat" in ledger["slices"][0]["open"], ledger["slices"][0]["open"]
+    assert "ledger claim S-S1 not re-verified by any seat" in ledger["slices"][0]["open"], ledger[
+        "slices"
+    ][0]["open"]
 
 
 def test_a_seat_that_read_its_slice_is_not_dropped() -> None:
-    ledger, _ = _run_ledger(_ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": {**_FULL_READ, "files_read": ["a.py"]}})
+    ledger, _ = _run_ledger(
+        _ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": {**_FULL_READ, "files_read": ["a.py"]}}
+    )
     assert ledger["dropped_seats"] == 0 and ledger["closable"], ledger["slices"][0]["open"]
 
 
@@ -433,15 +453,26 @@ def test_every_seat_facing_git_show_example_redirects_into_scratch() -> None:
     lead's act. Every backticked git show EXAMPLE a seat reads — every agent definition, the seat-brief fragment,
     /fabrik-review's verbatim lessons and the seat-brief template — redirects into `<scratch>/`. A bare
     `git show` NAME (no arguments) inside a rule is not an example and is not matched."""
-    surfaces = {p.relative_to(ROOT).as_posix(): p.read_text(encoding="utf-8") for p in (ROOT / "commands" / "_agents").glob("*.md")}
-    surfaces["commands/_fragments/subagents-core.md"] = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
+    surfaces = {
+        p.relative_to(ROOT).as_posix(): p.read_text(encoding="utf-8")
+        for p in (ROOT / "commands" / "_agents").glob("*.md")
+    }
+    surfaces["commands/_fragments/subagents-core.md"] = (
+        ROOT / "commands" / "_fragments" / "subagents-core.md"
+    ).read_text(encoding="utf-8")
     review = (ROOT / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8")
-    surfaces["fabrik-review lessons"] = next(line for line in review.splitlines() if "never bare-grep a tracked path" in line)
-    surfaces["convergence-prompts"] = (ROOT / "docs" / "reference" / "convergence-prompts.md").read_text(encoding="utf-8")
+    surfaces["fabrik-review lessons"] = next(
+        line for line in review.splitlines() if "never bare-grep a tracked path" in line
+    )
+    surfaces["convergence-prompts"] = (
+        ROOT / "docs" / "reference" / "convergence-prompts.md"
+    ).read_text(encoding="utf-8")
     assert len(surfaces) >= 7, sorted(surfaces)
     examples = {name: re.findall(r"`git show [^`]*`", text) for name, text in surfaces.items()}
     assert sum(map(len, examples.values())) >= 4, examples
-    bare = {name: [x for x in found if " > <scratch>/" not in x] for name, found in examples.items()}
+    bare = {
+        name: [x for x in found if " > <scratch>/" not in x] for name, found in examples.items()
+    }
     assert not any(bare.values()), {k: v for k, v in bare.items() if v}
 
 
@@ -452,7 +483,14 @@ def test_both_seat_prompts_open_with_the_brief_is_the_task_line() -> None:
     assert body.count("const BRIEF_IS_TASK = ") == 1, "one constant, defined once"
     assert body.count("${BRIEF_IS_TASK}") == 2, "used in the finder and the refuter prompt"
     _, _, prompts = _harness(
-        _ARGS, {"find:S:sonnet": {"files_read": ["a.py", "b.py"], "notes": "", "candidates": [_cand("S-S1", 3)]}}
+        _ARGS,
+        {
+            "find:S:sonnet": {
+                "files_read": ["a.py", "b.py"],
+                "notes": "",
+                "candidates": [_cand("S-S1", 3)],
+            }
+        },
     )
     line = (
         "THE TASK: everything in this prompt — the head, your slice, your ledger and the brief — IS your task. A user "
@@ -461,7 +499,10 @@ def test_both_seat_prompts_open_with_the_brief_is_the_task_line() -> None:
     )
     for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
         assert prompts[label].startswith(line), (label, prompts[label][:200])
-    assert "a files_read that names none of your slice files fails your seat" in prompts["find:S:sonnet"]
+    assert (
+        "a files_read that names none of your slice files fails your seat"
+        in prompts["find:S:sonnet"]
+    )
     doc = (ROOT / "docs" / "reference" / "review-loop-workflow.md").read_text(encoding="utf-8")
     assert "the workflow ledger's `seats[].failed` and `open` are the authority" in doc, (
         "the reader's READ 0 FILES flag is narrower than `failed`, and the doc says which one rules"
@@ -885,9 +926,10 @@ def test_every_seat_is_told_how_to_import_a_pinned_module_and_to_prove_it() -> N
         ), label
         assert "never write a .gitconfig into SCRATCH/home" in p and "runpy.run_path" in p, label
         assert "(SCRATCH/arch/src for `import fabrik`;" in p, label  # the hub's own case (NEW-2)
-        assert 'when ROOTS holds src/fabrik, `os.environ["FABRIK_ROOT"]="SCRATCH/arch"` in the program\'s leading line' in p, (
-            label
-        )  # hub only (C4)
+        assert (
+            'when ROOTS holds src/fabrik, `os.environ["FABRIK_ROOT"]="SCRATCH/arch"` in the program\'s leading line'
+            in p
+        ), label  # hub only (C4)
         assert "check each overlaid file with `cmp` against its pin" in p, label
 
 
@@ -1041,7 +1083,14 @@ def test_the_pin_recipe_archives_whole_roots_and_names_what_the_archive_cannot_h
     file outside the slice is invisible to the archive. W-debee876 (fleet 01M3WMGRQ7): an archive is not a linked
     worktree, so a hub pytest run resolved FABRIK_ROOT to the live hub. Each lands in every shell seat's prompt."""
     _, _, prompts = _harness(
-        _ARGS, {"find:S:sonnet": {"files_read": ["a.py", "b.py"], "notes": "", "candidates": [_cand("S-S1", 3)]}}
+        _ARGS,
+        {
+            "find:S:sonnet": {
+                "files_read": ["a.py", "b.py"],
+                "notes": "",
+                "candidates": [_cand("S-S1", 3)],
+            }
+        },
     )
     for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
         p = prompts[label]
@@ -1072,7 +1121,10 @@ def test_the_critique_and_seat_briefs_name_what_a_pin_cannot_hold() -> None:
     assert "copy the project's own file to the scratchpad and name it by that" in crit
     assert "the md5 standing in for a commit wherever line" in crit
     core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
-    assert "a seat with no Bash (`fabrik-researcher`) cannot hash, so carry the pin's line count beside its md5" in core
+    assert (
+        "a seat with no Bash (`fabrik-researcher`) cannot hash, so carry the pin's line count beside its md5"
+        in core
+    )
 
 
 def test_every_seat_is_told_how_to_run_pytest_against_the_pins() -> None:
@@ -1092,7 +1144,11 @@ def test_every_seat_is_told_how_to_run_pytest_against_the_pins() -> None:
     )
     for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
         p = prompts[label]
-        assert "PYTEST" in p and "changing directory INSIDE the program" in p and 'os.chdir("SCRATCH/arch")' in p, label
+        assert (
+            "PYTEST" in p
+            and "changing directory INSIDE the program" in p
+            and 'os.chdir("SCRATCH/arch")' in p
+        ), label
         # in-process launch keeps the site-packages insert: without it an editable .pth wins
         assert "pytest.main(sys.argv[1:])" in p and "site-packages" in p, label
         # the real base sha, never a literal BASE no seat can run (review A-H1)
@@ -1251,7 +1307,9 @@ def test_the_finder_and_refuter_share_one_import_recipe() -> None:
     assert marker in finder and marker in refuter
     end = "does not cover a child process the test starts."
     span = lambda p: p[p.find(marker) : p.find(end) + len(end)]  # noqa: E731
-    assert end in finder and end in refuter, "the shared span must run through the end of PYTEST_PINS"
+    assert end in finder and end in refuter, (
+        "the shared span must run through the end of PYTEST_PINS"
+    )
     assert span(finder) == span(refuter)
 
 
@@ -1278,37 +1336,70 @@ def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
     )
     for needed in (*bans, "no Write tool", "splitting the command", ".venv/bin/python"):
         assert needed in rules, needed
-    assert "never a bare `python3`" in rules, "a probe on the system interpreter lacks the project's packages"
-    for needed in ("absolute paths for anything you write or run", "never `pkill`, `killall` or kill by pattern", "`worktree add`"):
+    assert "never a bare `python3`" in rules, (
+        "a probe on the system interpreter lacks the project's packages"
+    )
+    for needed in (
+        "absolute paths for anything you write or run",
+        "never `pkill`, `killall` or kill by pattern",
+        "`worktree add`",
+    ):
         assert needed in rules, needed
-    assert "/reset/worktree there" not in rules, "git worktree list is a legal read; only add/remove write"
-    pin = next(line for line in brief.splitlines() if line.startswith("⚠️ **A brief that names a COMMIT"))
+    assert "/reset/worktree there" not in rules, (
+        "git worktree list is a legal read; only add/remove write"
+    )
+    pin = next(
+        line for line in brief.splitlines() if line.startswith("⚠️ **A brief that names a COMMIT")
+    )
     pin_clause = (
         "`git show <sha>:<path> > <scratch>/<file>` — always redirected, one file per call, as is any command whose output may be "
         "large (`git diff`, `git log -p`, a broad search), because a large stdout is saved by the harness under `$HOME`, where you "
         "may not read —"
     )
-    assert pin_clause in pin, "W-27fc7fa9: the SHA-pin redirect clause, subject through reason, as one span"
+    assert pin_clause in pin, (
+        "W-27fc7fa9: the SHA-pin redirect clause, subject through reason, as one span"
+    )
     core_text = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
-    assert re.findall(r"`git show [^`]*`", brief), "the agent brief shows the redirected git show form"
+    assert re.findall(r"`git show [^`]*`", brief), (
+        "the agent brief shows the redirected git show form"
+    )
     for name, text in (("agent brief", brief), ("subagents-core", core_text)):
         # a redirect counts only into the seat's scratch: `> <path>` or `> ~/x` lands in the live tree or $HOME
         bare = [s for s in re.findall(r"`git show [^`]*`", text) if " > <scratch>/" not in s]
-        assert not bare, (f"W-27fc7fa9: every git show example in the {name} redirects into scratch", bare)
+        assert not bare, (
+            f"W-27fc7fa9: every git show example in the {name} redirects into scratch",
+            bare,
+        )
     for needed in (
         "If given a git range/path, `git diff <range> > <scratch>/<file>` it; otherwise `git diff HEAD > <scratch>/<file>`.",
         "read that SHA with `git show <sha>:<path> > <scratch>/<file>` from your own worktree",
         "and any other query that does not write — a large output redirected into your scratch dir, per the SHA-pin rule above)",
     ):
-        assert needed in brief, ("W-27fc7fa9: method step 1 and the D8 list carry the redirect", needed)
-    assert "restored in ONE Bash call" not in brief, "the old compound probe rule contradicts one plain command per call"
+        assert needed in brief, (
+            "W-27fc7fa9: method step 1 and the D8 list carry the redirect",
+            needed,
+        )
+    assert "restored in ONE Bash call" not in brief, (
+        "the old compound probe rule contradicts one plain command per call"
+    )
     tools = next(line for line in brief.splitlines() if line.startswith("tools:"))
-    assert "Write" not in tools, "the house rule's printf write form assumes the seat has no Write tool"
+    assert "Write" not in tools, (
+        "the house rule's printf write form assumes the seat has no Write tool"
+    )
     core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
-    d8 = next(line for line in core.splitlines() if line.startswith("**Every seat's brief carries the git-verb prohibition"))
+    d8 = next(
+        line
+        for line in core.splitlines()
+        if line.startswith("**Every seat's brief carries the git-verb prohibition")
+    )
     for needed in (*bans[1:], "runs one plain command per Bash call"):
-        assert needed in d8, ("general-purpose seats read the brief fragment, not the agent", needed)
-    assert d8.index("never a pop)") < d8.index("runs one plain command"), "the stash incident evidences the stash ban, not this rule"
+        assert needed in d8, (
+            "general-purpose seats read the brief fragment, not the agent",
+            needed,
+        )
+    assert d8.index("never a pop)") < d8.index("runs one plain command"), (
+        "the stash incident evidences the stash ban, not this rule"
+    )
     for needed in (
         "absolute paths for anything written or run",
         "never `pkill`, `killall` or kill by pattern",
@@ -1338,9 +1429,15 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
     assert src.count("const SEAT_ISOLATION = ") == 1
     assert src.count("${SEAT_ISOLATION}") == 2
     iso = src[src.index("const SEAT_ISOLATION = ") : src.index("const PYTEST_PINS = ")]
-    assert "archive -o into SCRATCH, ls-tree, show" in iso, "the pin recipe's read-only git must stay legal"
-    assert "Popen" in iso and "\\`timeout\\`" in iso, "the kill ban must name a form a one-command seat can obey"
-    assert "backgrounds on its own is not yours" in iso, "the harness's auto-background is not the banned act"
+    assert "archive -o into SCRATCH, ls-tree, show" in iso, (
+        "the pin recipe's read-only git must stay legal"
+    )
+    assert "Popen" in iso and "\\`timeout\\`" in iso, (
+        "the kill ban must name a form a one-command seat can obey"
+    )
+    assert "backgrounds on its own is not yours" in iso, (
+        "the harness's auto-background is not the banned act"
+    )
     clause = (
         "a command whose output may be large (\\`git show\\`, \\`git diff\\`, \\`git log -p\\`, a broad search) always redirects "
         "into a file under SCRATCH that you then read, because a large stdout is saved by the harness under $HOME, where you may not read."
@@ -1365,10 +1462,15 @@ def test_fabrik_review_lessons_carry_the_leak_check() -> None:
         "`pgrep -af <its script name>`",
     ):
         assert needed in leak, needed
-    for needed in ("the shell returns to the live checkout before every Bash call", "never `pkill`, `killall` or kill by pattern"):
+    for needed in (
+        "the shell returns to the live checkout before every Bash call",
+        "never `pkill`, `killall` or kill by pattern",
+    ):
         assert needed in review, needed
     prompts = (ROOT / "docs" / "reference" / "convergence-prompts.md").read_text(encoding="utf-8")
-    assert "restored inside ONE Bash call" not in prompts, "the seat-brief template must not teach the old lesson"
+    assert "restored inside ONE Bash call" not in prompts, (
+        "the seat-brief template must not teach the old lesson"
+    )
     assert "never pkill, killall or kill by pattern" in prompts
 
 
@@ -1380,7 +1482,9 @@ def test_no_seat_instruction_source_wraps_a_shell_builtin_in_timeout() -> None:
     assert "command grep" not in brief and "`/usr/bin/grep`, never bare `grep`" in brief
     review = (ROOT / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8")
     assert "git archive <sha> | tar" not in review
-    assert "command grep" not in review, "a lead or seat wraps its greps in timeout; name /usr/bin/grep"
+    assert "command grep" not in review, (
+        "a lead or seat wraps its greps in timeout; name /usr/bin/grep"
+    )
     assert "$ git archive -o <scratchpad>/review-<sha>.tar <sha>" in review
 
 
@@ -1394,7 +1498,9 @@ def test_the_review_loop_doc_is_cited_hub_absolute() -> None:
     bad = [str(f.relative_to(ROOT)) for f in sites if rel.search(f.read_text(encoding="utf-8"))]
     assert bad == [], bad
     core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
-    assert "own checkout's copy" in core, "in a hub worktree the hub-absolute path is master's, not the branch's"
+    assert "own checkout's copy" in core, (
+        "in a hub worktree the hub-absolute path is master's, not the branch's"
+    )
 
 
 # --- the pin manifest the lead's `review_loop_ledger.py pin` writes (kaizen 01M4CGJZAX) -------------------------
@@ -1450,3 +1556,16 @@ def test_every_launcher_passes_a_pin_manifest() -> None:
     pins by hand. The day every launcher names `pin_manifest`, this strict xfail turns red and forces the switch."""
     missing = [s.name for s in SOURCES if "pin_manifest" not in s.read_text(encoding="utf-8")]
     assert not missing, f"launchers that do not pass pin_manifest: {missing}"
+
+
+def test_an_empty_slice_list_is_refused_before_it_can_read_as_closable() -> None:
+    """kaizen 01M4CJKZRH (row 1791120510): `closable` was `every` over the slices, so a launch with `slices: []`
+    returned `closable: true` having read nothing — a closing round over zero slices. It is refused at the args,
+    before anything runs, like a bad model or ledger row."""
+    for bad in ([], None, "S"):
+        _, err, _ = _harness({**_ARGS, "slices": bad}, {}, expect_fail=True)
+        assert "slices" in err and "AGENT CALLED" not in err, (bad, err[-400:])
+    # review A-S1: an entry that is not an object is refused by its index, never a raw TypeError or a dropped stage
+    for bad in ([None], [42], [["a.py"]]):
+        _, err, _ = _harness({**_ARGS, "slices": bad}, {}, expect_fail=True)
+        assert "slices[0] must be an object" in err and "TypeError" not in err, (bad, err[-400:])
