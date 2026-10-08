@@ -2,8 +2,8 @@
    > From the THIRD round on, `command_run.py` computes the scope-growth bar at every `round` and may
    > print one of three verdicts. **`⚠️ SCOPE GROWTH`** — the loop is correcting its own corrections:
    > stop HUNTING, name and fix every confirmed defect still open anywhere in the window, route
-   > genuinely own-fix residue to a backlog row with a named destination, and close on the ORIGINAL
-   > delta's state. **`↗ ESCALATE`** — the ratio was computed, NOT met, and the count is not falling:
+   > genuinely own-fix residue to a backlog row with a named destination, re-verify the fixed set, and
+   > close on a `confirmed: 0 · fixed: 0 · unexecuted: 0` row (D-355). **`↗ ESCALATE`** — the ratio was computed, NOT met, and the count is not falling:
    > these are the artifact's own defects and the surface outgrew this pass, so route up per step 5.
    > **`? SCOPE GROWTH UNCOMPUTABLE`** — a window round never stated a readable
    > `--confirmed`/`--own-fix` pair and it would decide the verdict: state it and re-record before

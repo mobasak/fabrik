@@ -103,8 +103,8 @@ proportionate answer.
    non-qualifying round included — by construction that is the round holding the most
    original-surface defects) and fix them, route work that is genuinely own-fix to a backlog row with
    a named destination, then run remainder rounds that re-verify THAT FIXED SET and nothing else, so
-   they terminate. Close normally per step 6 on the ORIGINAL delta's state; the last round must still
-   reach `confirmed 0`. ⚠️ A further own-fix defect a remainder round raises is RECORDED onto the
+   they terminate. Close normally per step 6; the last round must still reach `confirmed 0`
+   (D-355). ⚠️ A further own-fix defect a remainder round raises is RECORDED onto the
    routed backlog row and never re-arms the stop.
    ⚠️ **The CLOSING pass owes ONE INDEPENDENT reader that actually RETURNED — a self-sweep may not
    close this loop.** Every other exit condition here is satisfiable by the orchestrator's own
@@ -163,8 +163,8 @@ proportionate answer.
    `/fabrik-review`) with a hint that points at the heavy record — an invitation to nothing: never
    close `/fabrik-review` with this command's evidence; the gate and the § EXIT commit below are still
    owed.
-   Under step 5's **`⚠️ SCOPE GROWTH`** the close is the CONVERGING one below, taken on the ORIGINAL
-   delta's state after the window's open defects are fixed — not the route-up close above.
+   Under step 5's **`⚠️ SCOPE GROWTH`** the close is the CONVERGING one below, taken once the window's
+   open defects are fixed and a remainder round confirms zero (D-355) — not the route-up close above.
    The CONVERGING close's evidence NAMES the independent reader and what it returned — "confirmed 0"
    with no reader named is the self-certified close this floor exists to refuse.
    Commit and push per § EXIT as always.
