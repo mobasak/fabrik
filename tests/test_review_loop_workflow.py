@@ -1028,6 +1028,28 @@ def test_a_dead_mutant_is_defined_once_and_the_finder_lessons_point_at_it() -> N
         assert needle in rule4, needle
 
 
+def test_an_agent_tool_seat_brief_carries_the_write_scope() -> None:
+    """01M4DE0R2H: a seat's rmtree under the home directory deleted every session's skills. A
+    Workflow seat gets SEAT_ISOLATION; an Agent-tool seat gets only what the lead copies from
+    subagents-core, so the write scope must be stated there too."""
+    text = " ".join(
+        (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8").split()
+    )
+    for needle in (
+        "Nor does a finder, refuter or other read-only seat write anywhere else",
+        "(a writer seat writes only the paths its brief names)",
+        "it creates, modifies or deletes nothing outside the scratch dir its brief names",
+        "not `$HOME`, not the live checkout (the read-only git above excepted), not `/tmp` outside that dir",
+        "sets those variables INSIDE the program, never in front of the command, before anything calls `tempfile`",
+        '`import os,site; os.environ["PYTHONUSERBASE"]=site.getuserbase()` first, so a child process keeps the `--user`',
+        "then `HOME` and `TMPDIR` to directories under that dir, created first",
+        "(`tempfile` falls back to `/tmp` when `TMPDIR` does not exist), plus the module's path constants",
+        "a `Workflow` seat gets this as `SEAT_ISOLATION` in `.claude/workflows/fabrik-review-loop.js`",
+    ):
+        assert needle in text, needle
+    assert "create, modify or delete NOTHING outside SCRATCH" in SCRIPT.read_text(encoding="utf-8")
+
+
 def test_round_zero_enumerates_the_fixs_input_space_before_the_pin() -> None:
     """/fabrik-review queue verdicts: an overlapping replace value, a shell `||` form, a guard's error
     path and a regex edge were each found by a later round's seat instead of the author's own probe.
