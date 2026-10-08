@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec's close runs the spec check on its own spec (2026-10-08)
+- The /fabrik-spec close chain (`commands/assemble_commands.py` `ARTIFACT_CHECK`) ran `check_spec_convergence.py` repo-wide, whose output truncates (10 of 14 repos hid 93 findings on 2026-10-08), so a closing author could not read their own spec's verdict. With D-708's named-path mode merged, the close now runs it on `<spec path>`: on a CONVERGED spec its census reads `1 CONVERGED spec(s) examined of 1 named`, every finding printed in full below it (intel 01M4EAXVXW). Grader: `tests/test_producing_command_fragments.py::test_the_spec_close_names_its_own_spec_and_the_census_it_prints`, which runs the real check on a CONVERGED spec, a missing path and a spec with findings.
+
 ### Changed — the round-zero probe tests a new guard on five legitimate spellings and a re-cut on its mutant's mirrors (2026-10-08)
 - `commands/_fragments/term-coverage.md` (rendered into /fabrik-review, /fabrik-repo-review, /fabrik-conformance-review, /fabrik-user-test, /fabrik-service-test): the round-zero input space now lists five LEGITIMATE spellings of a guard's subject, pointing at `45-testing-strategy` § Banned Patterns (under 5/5 is a finding), and, for a phrase guard, the re-cut's mutant AND its mirrors (its negation in the same word order and a reordered rewording). Answers 5 /fabrik-review verdicts over five days. D-711 records how one-off verdicts are now disposed of. Grader: `tests/enforcement/test_review_exit_contract.py::test_round_zero_probes_a_guard_on_five_legitimate_spellings_and_its_mutant_mirrors`, which also checks the cited row is still in that section.
 
