@@ -1187,6 +1187,71 @@ def _claims_reviewed(stripped: str) -> bool:
     return False
 
 
+# A review receipt's header Status CLAIMS the review finished unless its first word names an
+# unfinished state (W-41f20130): the claim-word check alone let CLOSED / DONE / CLEAN / APPLIED
+# through with no gate. Fail-closed on purpose — an enumeration of terminal words is bypassed by
+# the next new word, so a value the reader cannot place (a date, an emoji, an unknown word) is a
+# claim too. The label is read in every spelling a writer can choose: any case, behind a list or
+# blockquote marker, bold or not, a colon / dash / table cell after it.
+_REVIEW_STATUS_LINE = re.compile(
+    r"^[ \t]*(?:[-*>][ \t]*)*\|?[ \t]*\**[ \t]*status[ \t]*\**[ \t]*(?:[:|\u2014\u2013]|[ \t]-+[ \t])\**"
+    r"[^\S\n]*(?P<v>[^\n]*)",
+    re.I | re.M,
+)
+# Unfinished states — in flight, abandoned, or negated. BLOCKED is listed separately: it exempts
+# only a receipt that carries an EVIDENCED escalation (check_review_coverage._blocked_ok), so a
+# bare `Status: BLOCKED` is not a way out of the gate.
+_UNFINISHED_STATUS = re.compile(
+    r"(?:IN[- ]?PROGRESS|DRAFT|ACTIVE|OPEN|PLANNING|ABANDONED|SUPERSEDED|WITHDRAWN|FAILED"
+    r"|PAUSED|NOT|UNDER|UNCONVERGED|UNREVIEWED|UNFINISHED|UNRESOLVED|UNVERIFIED)\b",
+    re.I,
+)
+_STATUS_MARKUP = re.compile(r"^[\W_]+")
+
+
+def _header_status_claims(text: str) -> bool:
+    """True when the receipt's header Status names a finished state.
+
+    The header zone is `check_review_coverage`'s — the first 10 lines of the NORMALIZED text,
+    fence- and indent-stripped within the slice — so a U+2028 in the title, a zero-width
+    character in the label, or a quoted Status in a fence reads exactly as `_in_progress` reads
+    it. Cobra (D-253): the cheapest way past this rule is to drop the Status line or to label a
+    finished receipt with an unfinished state; a reader then sees an unfinished review rather
+    than a false claim, and the claim-word check still applies to the body.
+    """
+    try:
+        from .check_review_coverage import (  # noqa: PLC0415 — local: soft dep
+            _blocked_ok,
+            _normalized,
+            _strip_fences,
+        )
+    except ImportError:  # direct-script invocation
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from scripts.enforcement.check_review_coverage import (  # noqa: PLC0415
+            _blocked_ok,
+            _normalized,
+            _strip_fences,
+        )
+    header = _strip_fences("".join(_normalized(text).splitlines(keepends=True)[:10]))
+    # A table row is read even over a `|---|` separator: from the line alone a column header
+    # (`| Status | Notes |`) and a one-row key-value table (`| Status | DONE |`) are the same
+    # shape, and skipping both opens the gate. Measured 2026-10-08: 0 of 614 receipts carry a
+    # table-form Status in the header zone, so failing closed costs nothing real.
+    # The FIRST Status line in the zone is the receipt's own Status; later ones are sub-statuses
+    # (a receipt reading `Status: IN-PROGRESS` above a finished sub-phase's `Status: DONE` is
+    # live in the corpus). Reading every line would turn an honest DRAFT with a finished
+    # sub-phase into a false claim; a finished receipt labelled DRAFT is the Cobra line above.
+    m = _REVIEW_STATUS_LINE.search(header)
+    if not m:
+        return False
+    value = _STATUS_MARKUP.sub("", m.group("v")).strip()
+    if not value:
+        return False  # an empty Status slot claims nothing
+    if re.match(r"BLOCKED\b", value, re.I):
+        return not _blocked_ok(text)
+    return not _UNFINISHED_STATUS.match(value)
+
+
 def _check_review(root: Path, path: Path) -> list[str]:
     if not path.exists():
         return []
@@ -1206,10 +1271,19 @@ def _check_review(root: Path, path: Path) -> list[str]:
         return []
     # Claims are read on fence-STRIPPED text — a fenced claim word is a quotation
     # (grammar template, example), not a claim.
-    if not _claims_reviewed(FENCE_STRIP.sub("", text)):
+    by_header = _header_status_claims(text)
+    if not by_header and not _claims_reviewed(FENCE_STRIP.sub("", text)):
         return []
     rel = path.relative_to(root)
     fails: list[str] = []
+    # A receipt graded only for its header Status has no claim WORD to explain the red, so the
+    # first failure names the trigger and the honest ways out.
+    why = (
+        "its header Status claims a finished review (an unfinished state — IN-PROGRESS, DRAFT, "
+        "NOT …, or BLOCKED with an evidenced ## BLOCKED section — claims nothing), so: "
+        if by_header
+        else ""
+    )
     # The gate embed must sit INSIDE a fenced block (the verbatim-embed
     # convention): a literal "status": "success" in prose satisfied this check
     # live while the surrounding sentence explained why faking it would be wrong.
@@ -1246,7 +1320,7 @@ def _check_review(root: Path, path: Path) -> list[str]:
         )
     if not PHASE.search(text):
         fails.append("no per-phase verdict (no Phase/Step reference)")
-    return [f"{rel}: {x}" for x in fails]
+    return [f"{rel}: {why if i == 0 else ''}{x}" for i, x in enumerate(fails)]
 
 
 def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:

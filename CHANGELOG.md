@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_convergence grades a receipt whose header Status claims a finished review (2026-10-08)
+- A review receipt with `Status: CLOSED`, `DONE`, `CLEAN` or any other finished word, and no claim word in its body, passed with no embedded gate. The header Status is now a claim unless it names an unfinished state or an evidenced BLOCKED escalation; the failure names the header as its trigger (D-662).
+
 ### Added — PreToolUse seat guard for review seats (2026-10-08)
 - `.claude/hooks/seat_guard.py` refuses `pkill`/`killall`/`xargs kill`/non-pid kills and git writes outside the seat's own scratch, only for `fabrik-reviewer` subagent calls; fleet-synced via AGENT_HOOK_FILES, registered existence-guarded in `.claude/settings.json`, 26 graders in `tests/test_seat_guard.py` (D-659).
 
