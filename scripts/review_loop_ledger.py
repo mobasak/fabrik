@@ -32,7 +32,13 @@ file, not its scrollback. So:
         names every seat whose transcript span, widened by two minutes, covers the pin's mtime (attribution
         without an agent step per seat); a working-tree pin whose live file no longer matches is `LIVE MOVED`, informational — the lead's
         own fix or a sibling's commit moves it, so its candidates are re-verified against the current tree. A
-        DIR with no manifest reads `UNPINNED`, and a read without --pins says `pins: NOT CHECKED`.
+        DIR with no manifest reads `UNPINNED`, and a read without --pins says `pins: NOT CHECKED`. It also
+        diffs the live TREE against the snapshot `pin` took at the toplevel before writing (infra 01M4CV040F — a
+        seat's cwd is the live checkout, so a relative `git archive -o arch.tar` lands there): NEW UNTRACKED,
+        NEW IGNORED (collapsed dirs), NEW MODIFIED (a tracked file outside the manifest) and CHANGED AGAIN, each
+        with its size and the seats live then — informational, a sibling's file shows too — and SEAT ARCHIVE, a
+        tar whose pax comment names a commit of this repo, which exits 4 (PIN MOVED's 3 wins). A snapshot that
+        cannot run reads `tree: NOT CHECKED` and never fails the read.
 
 COBRA (D-253): the cheapest way to a clean-looking file is a pass whose seats returned nothing — a seat with
 no result is printed `NO RESULT` and kept in `seats` with `returned: false`, never dropped. For the pins, the
@@ -339,6 +345,116 @@ def _fresh(top: Path, replace: bool) -> None:
         _unlock_and_remove(top)
 
 
+# the snapshot of the live tree a seat could write into (infra 01M4CV040F): untracked entries and ignored ones
+# COLLAPSED to their directory — listing every ignored file is 4263 entries of __pycache__ churn on this hub, 56
+# collapsed. A new file inside an ALREADY-ignored dir (data/x) therefore stays unseen; that is PIN_IMPORT's
+# FABRIK_ROOT warning, not this check's reach.
+_TREE_STATUS = (
+    "--no-optional-locks",
+    "status",
+    "--porcelain=v1",
+    "-z",
+    "--untracked-files=normal",
+    "--ignored=traditional",
+)
+_HASH_CAP = 32 * 1024 * 1024
+
+
+def _fingerprint(p: Path) -> str:
+    try:
+        st = p.lstat()
+    except OSError:
+        return "gone"
+    if stat.S_ISDIR(st.st_mode):
+        return "dir"
+    if st.st_size > _HASH_CAP or not stat.S_ISREG(st.st_mode):
+        return f"size:{st.st_size}:{int(st.st_mtime)}"
+    try:
+        return _md5(p)
+    except OSError:
+        return "gone"
+
+
+def _tree(root: Path) -> dict | None:
+    """`?? untracked` · `!! ignored` (collapsed) · every other code `modified`, each untracked or modified path with
+    its fingerprint. None when the snapshot cannot run there — a caller records "not checked", never fails."""
+    try:
+        out = _vcs(root, *_TREE_STATUS)
+    except (subprocess.CalledProcessError, OSError):
+        return None
+    snap: dict = {"untracked": {}, "ignored": [], "modified": {}}
+    entries = out.split(b"\0")
+    i = 0
+    while i < len(entries):
+        e = entries[i]
+        i += 1
+        if len(e) < 4:
+            continue
+        code, path = e[:2].decode(), e[3:].decode("utf-8", errors="replace")
+        if code[0] in "RC":
+            i += 1  # a rename or copy carries its source path as the next entry
+        if code == "??":
+            snap["untracked"][path] = _fingerprint(root / path)
+        elif code == "!!":
+            snap["ignored"].append(path)
+        else:
+            snap["modified"][path] = _fingerprint(root / path)
+    return snap
+
+
+def _toplevel(root: Path) -> Path | None:
+    try:
+        return Path(_vcs(root, "rev-parse", "--show-toplevel").decode().strip()).resolve()
+    except (subprocess.CalledProcessError, OSError):
+        return None
+
+
+def _seat_archive(root: Path, p: Path) -> bool:
+    """A tar whose pax `comment` names a commit of THIS repo is a seat's `git archive` (git writes the commit sha
+    there); a sibling's legitimate file cannot carry it, so this is the one leak shape precise enough to stop on."""
+    try:
+        if not (p.is_file() and tarfile.is_tarfile(p)):
+            return False
+        with tarfile.open(p) as t:
+            sha = (t.pax_headers or {}).get("comment", "")
+        if not sha or not all(c in "0123456789abcdef" for c in sha.lower()):
+            return False
+        _vcs(root, "cat-file", "-e", f"{sha}^{{commit}}")
+        return True
+    except (OSError, tarfile.TarError, subprocess.CalledProcessError, UnicodeError):
+        return False
+
+
+def _tree_changes(root: Path, before: dict, after: dict, skip) -> list[dict]:
+    changes: list[dict] = []
+    for kind_new, kind_old, b, a in (
+        ("NEW UNTRACKED", "CHANGED AGAIN", before["untracked"], after["untracked"]),
+        ("NEW MODIFIED", "CHANGED AGAIN", before["modified"], after["modified"]),
+    ):
+        for path, fp in a.items():
+            if skip(path):
+                continue
+            if path not in b:
+                changes.append({"path": path, "kind": kind_new})
+            elif fp != b[path] and fp != "dir":
+                changes.append({"path": path, "kind": kind_old})
+    for path in after["ignored"]:
+        if path not in before["ignored"] and not skip(path):
+            changes.append({"path": path, "kind": "NEW IGNORED"})
+    for c in changes:
+        full = root / c["path"].rstrip("/")
+        try:
+            st = full.lstat()
+            c["size"] = None if stat.S_ISDIR(st.st_mode) else st.st_size
+            c["mtime"] = st.st_mtime
+            c["dir"] = stat.S_ISDIR(st.st_mode)
+        except OSError:
+            c.update({"size": None, "mtime": None, "dir": False, "gone": True})
+        if c["kind"] in ("NEW UNTRACKED", "NEW IGNORED") and _seat_archive(root, full):
+            c["kind"] = "SEAT ARCHIVE"
+    return changes
+
+
 def pin(
     files: list[str],
     pins_dir: Path,
@@ -349,6 +465,10 @@ def pin(
 ) -> tuple[dict, list[str]]:
     """Write the pass's pins; return the Workflow args fragment and the DIRTY paths (working-tree mode)."""
     root = root.resolve()
+    top = _toplevel(root)
+    if top is not None and top != root:
+        # from a subdirectory the tree snapshot lists only that subtree and misses a root-level tarball
+        raise PinError(f"run pin from the repo toplevel {top}, not {root}")
     rels: list[str] = []
     # every file is checked before ANYTHING is written, so a refusal leaves no half-built pins dir behind
     for f in files:
@@ -383,6 +503,8 @@ def pin(
             blobs[f] = _vcs(root, "cat-file", "blob", entry[2])
         else:
             blobs[f] = (root / f).read_bytes()
+    # the tree a seat could write into, taken BEFORE any write so the pins dir and its base are never in it
+    tree = _tree(root) if top is not None else None
     _fresh(pins_dir, replace)
     base_dir = Path(f"{pins_dir}.base")
     if base:
@@ -404,7 +526,13 @@ def pin(
         (pins_dir / "MANIFEST.md5").write_text("".join(f"{m}  {f}\n" for f, m in manifest.items()))
         (pins_dir / "MANIFEST.json").write_text(
             json.dumps(
-                {"root": str(root), "source": ref or "working-tree", "files": manifest}, indent=1
+                {
+                    "root": str(root),
+                    "source": ref or "working-tree",
+                    "files": manifest,
+                    "tree": tree,
+                },
+                indent=1,
             )
         )
     except OSError as exc:
@@ -472,6 +600,12 @@ def _span(transcript: Path) -> tuple[float, float] | None:
     return (min(stamps), max(stamps)) if stamps else None
 
 
+def _size(n: int | None) -> str:
+    if n is None:
+        return "(?)"
+    return f"({n} B)" if n < 1024 * 1024 else f"({n / 1048576:.1f} MB)"
+
+
 def check_pins(pins_dir: Path, run: Path) -> dict:
     """Re-hash every manifest entry after the pass (the post-pass half of `pin`). A moved PIN voids the pass for
     the slices that read it and names every seat whose transcript span covers the pin's mtime — attribution
@@ -512,6 +646,38 @@ def check_pins(pins_dir: Path, run: Path) -> dict:
             for s, (a, b) in spans.items()
             if when is not None and a - _SLACK <= when <= b + _SLACK
         )
+    # the live tree outside the manifest (infra 01M4CV040F): a seat's cwd is the live checkout, so a relative
+    # write lands there whatever its brief says
+    tree_changes: list[dict] | None = None
+    tree_reason = ""
+    before = doc.get("tree")
+    if not isinstance(before, dict):
+        tree_reason = (
+            "no snapshot (a pins dir written before the tree check, or pinned outside a repo)"
+        )
+    else:
+        after = _tree(root)
+        if after is None:
+            tree_reason = f"the snapshot could not run in {root}"
+        else:
+            rel_pins = [
+                os.path.relpath(d, root)
+                for d in (pins_dir.resolve(), Path(f"{pins_dir.resolve()}.base"))
+                if d.is_relative_to(root)
+            ]
+
+            def skip(path: str) -> bool:
+                q = path.rstrip("/")
+                return q in files or any(q == r or q.startswith(r + "/") for r in rel_pins)
+
+            tree_changes = _tree_changes(root, before, after, skip)
+            for c in tree_changes:
+                when = c.get("mtime")
+                c["seats"] = sorted(
+                    s
+                    for s, (a, b) in spans.items()
+                    if when is not None and a - _SLACK <= when <= b + _SLACK
+                )
     return {
         "status": "checked",
         "source": doc.get("source"),
@@ -519,6 +685,8 @@ def check_pins(pins_dir: Path, run: Path) -> dict:
         "pin_moved": pin_moved,
         "live_moved": live_moved,
         "live_at_move": at_move,
+        "tree_changes": tree_changes,
+        "tree_reason": tree_reason,
     }
 
 
@@ -599,9 +767,30 @@ def main(argv: list[str] | None = None) -> int:
                     f"pins: {chk['checked']} checked · {len(chk['pin_moved'])} pin moved · "
                     f"{len(chk['live_moved'])} live moved"
                 )
+                if chk["tree_changes"] is None:
+                    print(f"tree: NOT CHECKED — {chk['tree_reason']}")
+                else:
+                    for c in chk["tree_changes"]:
+                        size = (
+                            "(gone)"
+                            if c.get("gone")
+                            else "(dir)"
+                            if c.get("dir")
+                            else _size(c["size"])
+                        )
+                        who = ", ".join(c["seats"]) or "no seat's span covers its mtime"
+                        tail = (
+                            " — delete it before any commit" if c["kind"] == "SEAT ARCHIVE" else ""
+                        )
+                        print(f"{c['kind']} {c['path']} {size} — seats live then: {who}{tail}")
+                    print(
+                        f"tree: {len(chk['tree_changes'])} new or changed path(s) outside the manifest"
+                    )
                 if chk["pin_moved"]:
                     # the pass is void for the slices that read a moved pin: re-pin into a NEW dir and re-launch
                     return 3
+                if any(c["kind"] == "SEAT ARCHIVE" for c in chk["tree_changes"] or []):
+                    return 4  # the pass stands; a seat's archive sits in the live tree, one `git add` from a commit
         else:
             doc = json.loads(a.ledger.read_text())
             print(

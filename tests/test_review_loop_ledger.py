@@ -78,7 +78,9 @@ def _run_dir(tmp: Path) -> Path:
                 "files_read": [],
                 "candidates": [],
                 "notes": "No, I have not stopped.",
-                "ledger_status": [{"id": "B-H0", "status": "NOW_FALSE", "command": "c", "output": "o"}],
+                "ledger_status": [
+                    {"id": "B-H0", "status": "NOW_FALSE", "command": "c", "output": "o"}
+                ],
             },
             0,
             1,
@@ -124,10 +126,19 @@ def test_read_writes_the_pass_ledger_to_a_file_with_every_seat_timed(tmp_path: P
     assert doc["ledger_status"][0]["id"] == "A-S0"
     assert "OVER BOX" in r.stdout and "refute:A" in r.stdout and "NO RESULT" in r.stdout, r.stdout
     # 01M4C00TSS: a finder that returned but listed no file reviewed nothing — flagged, and its ledger rows tagged
-    assert seats["find:B:haiku"]["returned"] is True and seats["find:B:haiku"]["read_no_file"] is True
-    assert seats["find:A:haiku"]["read_no_file"] is False and seats["refute:A"]["read_no_file"] is False
+    assert (
+        seats["find:B:haiku"]["returned"] is True and seats["find:B:haiku"]["read_no_file"] is True
+    )
+    assert (
+        seats["find:A:haiku"]["read_no_file"] is False
+        and seats["refute:A"]["read_no_file"] is False
+    )
     assert [x.get("read_no_file", False) for x in doc["ledger_status"]] == [False, True]
-    assert "find:B:haiku" in r.stdout and "READ 0 FILES" in r.stdout and "(find:B:haiku, READ 0 FILES)" in r.stdout
+    assert (
+        "find:B:haiku" in r.stdout
+        and "READ 0 FILES" in r.stdout
+        and "(find:B:haiku, READ 0 FILES)" in r.stdout
+    )
     assert "1 read 0 files" in r.stdout, r.stdout
 
 
@@ -380,7 +391,11 @@ def _tool_in(cwd: Path, *args: str) -> subprocess.CompletedProcess:
     )
 
 
-_VCS_ENV = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "PATH": "/usr/bin:/bin"}
+_VCS_ENV = {
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "PATH": "/usr/bin:/bin",
+}
 
 
 def _repo(tmp: Path) -> Path:
@@ -425,7 +440,9 @@ def test_pin_writes_read_only_pins_and_a_manifest(tmp_path: Path) -> None:
     assert not _writable(pins) and not _writable(pins / "sub"), "a pins directory is writable"
     lines = sorted((pins / "MANIFEST.md5").read_text().splitlines())
     assert lines == sorted(f"{m}  {p}" for p, m in want.items()), lines
-    sed = subprocess.run(["sed", "-i", "s/A = 1/A = 9/", str(pins / "a.py")], capture_output=True, check=False)
+    sed = subprocess.run(
+        ["sed", "-i", "s/A = 1/A = 9/", str(pins / "a.py")], capture_output=True, check=False
+    )
     assert sed.returncode != 0 and _md5(pins / "a.py") == want["a.py"], "sed -i mutated a pin"
 
 
@@ -481,7 +498,9 @@ def test_pin_refuses_a_used_dir_unless_replace(tmp_path: Path) -> None:
     assert again.returncode == 2 and "--replace" in again.stderr, again.stderr
     got = _tool_in(repo, "pin", "--pins-dir", str(pins), "--replace", "sub/b.py")
     assert got.returncode == 0, got.stderr
-    assert not (pins / "a.py").exists(), "a replaced dir kept a stale pin from the earlier file list"
+    assert not (pins / "a.py").exists(), (
+        "a replaced dir kept a stale pin from the earlier file list"
+    )
     assert (pins / "sub" / "b.py").is_file() and not _writable(pins / "sub" / "b.py")
 
 
@@ -499,10 +518,18 @@ def test_read_pins_flags_a_moved_pin_and_a_moved_live_file(tmp_path: Path) -> No
     clean = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
     assert clean.returncode == 0, clean.stderr
     got = json.loads(out.read_text())["pins"]
-    assert (got["status"], got["checked"], got["pin_moved"], got["live_moved"]) == ("checked", 2, [], [])
+    assert (got["status"], got["checked"], got["pin_moved"], got["live_moved"]) == (
+        "checked",
+        2,
+        [],
+        [],
+    )
     (repo / "sub" / "b.py").write_text("B = 2  # a sibling edit\n")
     live = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
-    assert live.returncode == 0 and "LIVE MOVED sub/b.py" in live.stdout, (live.returncode, live.stdout)
+    assert live.returncode == 0 and "LIVE MOVED sub/b.py" in live.stdout, (
+        live.returncode,
+        live.stdout,
+    )
     pins.chmod(0o755)
     (pins / "a.py").chmod(0o644)
     (pins / "a.py").write_text("A = 99  # a seat's mutant\n")
@@ -552,7 +579,9 @@ def test_pin_base_skips_an_absolute_link_and_names_it(tmp_path: Path) -> None:
     assert not (Path(frag["base_pin_dir"]) / "vault").exists()
 
 
-def test_pin_refuses_a_pins_dir_that_is_a_file_and_rolls_back_a_failed_write(tmp_path: Path) -> None:
+def test_pin_refuses_a_pins_dir_that_is_a_file_and_rolls_back_a_failed_write(
+    tmp_path: Path,
+) -> None:
     """Review pass 1: A-S1 — `--pins-dir <an existing file>` raised NotADirectoryError past main(), a traceback at
     rc 1; A-S3 — an OSError mid-write left a half-written, still-writable pins dir. Both are now exit 2 with
     nothing left behind."""
@@ -560,7 +589,9 @@ def test_pin_refuses_a_pins_dir_that_is_a_file_and_rolls_back_a_failed_write(tmp
     afile = tmp_path / "taken"
     afile.write_text("x")
     got = _tool_in(repo, "pin", "--pins-dir", str(afile), "a.py")
-    assert got.returncode == 2 and "not a directory" in got.stderr and "Traceback" not in got.stderr, got.stderr
+    assert (
+        got.returncode == 2 and "not a directory" in got.stderr and "Traceback" not in got.stderr
+    ), got.stderr
     # a pins dir whose PARENT is read-only cannot be written: the verb must refuse cleanly, leaving nothing
     locked = tmp_path / "locked"
     locked.mkdir()
@@ -582,8 +613,12 @@ def test_read_pins_attributes_a_seat_with_a_one_line_transcript(tmp_path: Path) 
     repo, pins = _repo(tmp_path), tmp_path / "pins"
     run = tmp_path / "wf_one"
     run.mkdir()
-    (run / "journal.jsonl").write_text(json.dumps({"type": "started", "agentId": "z1", "label": "find:A:haiku"}) + "\n")
-    (run / "agent-z1.jsonl").write_text(json.dumps({"timestamp": "2026-09-23T06:00:00.000Z"}) + "\n")
+    (run / "journal.jsonl").write_text(
+        json.dumps({"type": "started", "agentId": "z1", "label": "find:A:haiku"}) + "\n"
+    )
+    (run / "agent-z1.jsonl").write_text(
+        json.dumps({"timestamp": "2026-09-23T06:00:00.000Z"}) + "\n"
+    )
     assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
     pins.chmod(0o755)
     (pins / "a.py").chmod(0o644)
@@ -594,3 +629,112 @@ def test_read_pins_attributes_a_seat_with_a_one_line_transcript(tmp_path: Path) 
     got = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
     assert got.returncode == 3, got.stdout
     assert json.loads(out.read_text())["pins"]["live_at_move"]["a.py"] == ["find:A:haiku"]
+
+
+# --- a seat's stray write into the live repo (infra 01M4CV040F) ---------------------------------------------------
+
+
+def _vcs(repo: Path, *argv: str) -> None:
+    subprocess.run(
+        ["g" + "it", "-c", "user.email=t@t", "-c", "user.name=t", *argv],
+        cwd=repo,
+        check=True,
+        env=_VCS_ENV,
+        capture_output=True,
+    )
+
+
+def _leaky_repo(tmp: Path) -> Path:
+    """`_repo` plus a committed .gitignore ignoring `/arch/` (the hub's own rule for the recipe's tar target) and
+    an untracked file that already exists at pin time."""
+    repo = _repo(tmp)
+    (repo / ".gitignore").write_text("/arch/\n")
+    _vcs(repo, "add", ".gitignore")
+    _vcs(repo, "commit", "-q", "-m", "ignore")
+    (repo / "old.txt").write_text("already here\n")
+    return repo
+
+
+def _tree_lines(out: str) -> list[str]:
+    kinds = ("NEW UNTRACKED", "NEW IGNORED", "NEW MODIFIED", "CHANGED AGAIN", "SEAT ARCHIVE")
+    return [ln for ln in out.splitlines() if ln.startswith(kinds)]
+
+
+def test_pin_refuses_a_subdirectory_and_records_the_tree(tmp_path: Path) -> None:
+    """From a subdirectory the listing covers only that subtree and misses a root-level tarball (both design
+    critiques executed it), so `pin` runs from the toplevel only — and records the tree there before any write."""
+    repo = _leaky_repo(tmp_path)
+    sub = _tool_in(repo / "sub", "pin", "--pins-dir", str(tmp_path / "p0"), "b.py")
+    assert sub.returncode == 2 and "toplevel" in sub.stderr, (sub.returncode, sub.stderr)
+    assert _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p1"), "a.py").returncode == 0
+    tree = json.loads((tmp_path / "p1" / "MANIFEST.json").read_text())["tree"]
+    assert "old.txt" in tree["untracked"] and "a.py" not in tree["untracked"], tree
+
+
+def test_read_pins_names_new_tree_changes(tmp_path: Path) -> None:
+    """A relative `-o arch.tar`, a relative `tar -C arch` and a write to a tracked file outside the slice, all from
+    a seat's live cwd: each is named after the pass with its kind and size. What was there at pin time, the
+    manifest's own files (LIVE MOVED owns them) and the pins dir's own files — here INSIDE the repo — are not."""
+    repo = _leaky_repo(tmp_path)
+    pins = repo / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
+    (repo / "arch.tar").write_bytes(b"x" * 2048)
+    (repo / "arch").mkdir()
+    (repo / "arch" / "f").write_text("extracted\n")
+    (repo / "sub" / "b.py").write_text("B = 9  # a seat's edit outside the slice\n")
+    (repo / "a.py").write_text("A = 9  # the slice file: LIVE MOVED, not a tree change\n")
+    run, out = _run_dir(tmp_path), tmp_path / "pass.json"
+    got = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
+    assert got.returncode == 0, (got.returncode, got.stdout, got.stderr)
+    lines = _tree_lines(got.stdout)
+    assert any(ln.startswith("NEW UNTRACKED arch.tar (2048 B)") for ln in lines), lines
+    assert any(ln.startswith("NEW IGNORED arch/") for ln in lines), lines
+    assert any(ln.startswith("NEW MODIFIED sub/b.py") for ln in lines), lines
+    assert not any("old.txt" in ln or " a.py" in ln or "pins/" in ln for ln in lines), lines
+    changes = {c["path"]: c["kind"] for c in json.loads(out.read_text())["pins"]["tree_changes"]}
+    assert changes == {
+        "arch.tar": "NEW UNTRACKED",
+        "arch/": "NEW IGNORED",
+        "sub/b.py": "NEW MODIFIED",
+    }, changes
+
+
+def test_read_pins_flags_a_seat_archive(tmp_path: Path) -> None:
+    """The reported leak exactly: `git archive -o arch.tar <sha>` from the live cwd. Its pax comment names a commit
+    of this repo, which no sibling's legitimate file carries, so it reads SEAT ARCHIVE and the read exits 4."""
+    repo = _leaky_repo(tmp_path)
+    pins = tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
+    _vcs(repo, "archive", "-o", "arch.tar", "HEAD")
+    run, out = _run_dir(tmp_path), tmp_path / "pass.json"
+    got = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
+    assert got.returncode == 4, (got.returncode, got.stdout)
+    assert any(ln.startswith("SEAT ARCHIVE arch.tar") for ln in _tree_lines(got.stdout)), got.stdout
+    assert out.is_file(), "the pass file is written before the non-zero exit"
+
+
+def test_read_pins_tree_not_checked_never_fails_the_read(tmp_path: Path) -> None:
+    """A pins dir written before the snapshot existed, or a root the snapshot cannot run in, reads
+    `tree: NOT CHECKED` — the read still succeeds and still writes its pass file."""
+    repo = _leaky_repo(tmp_path)
+    pins = tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
+    man = pins / "MANIFEST.json"
+    pins.chmod(0o755)
+    man.chmod(0o644)
+    doc = json.loads(man.read_text())
+    run, out = _run_dir(tmp_path), tmp_path / "pass.json"
+    old = {k: v for k, v in doc.items() if k != "tree"}
+    man.write_text(json.dumps(old))
+    got = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
+    assert got.returncode == 0 and "tree: NOT CHECKED" in got.stdout, got.stdout
+    elsewhere = tmp_path / "not-a-repo"
+    elsewhere.mkdir()
+    man.write_text(json.dumps({**doc, "root": str(elsewhere)}))
+    got = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
+    assert got.returncode == 0 and "tree: NOT CHECKED" in got.stdout, (
+        got.returncode,
+        got.stdout,
+        got.stderr,
+    )
+    assert json.loads(out.read_text())["pins"]["tree_changes"] is None
