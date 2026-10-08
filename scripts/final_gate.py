@@ -552,7 +552,19 @@ _SKIP_MARKERS: tuple[str, ...] = (
     # (executed end-to-end, round 3 of the Phase E review — two real ruff errors, zero rows). A
     # narrowing that empties a leg is a SKIP, not a pass, and this marker is how it says so.
     " (SCOPE-NARROWED",
+    " (NOT PRESENT",  # the checker script itself is absent from the tree (`_not_present_row`)
 )
+
+
+def _not_present_row(check_name: str, script_path: str) -> tuple[str, bool, str]:
+    """A checker absent from the tree: green (an optional check a project lacks must not red its
+    gate), but a SKIP — never `[PASS]` — and ⚠-prefixed so `--json` `warnings` names the path
+    (kaizen 01M4DZCA2B: a gate run in a checker-less probe read `[PASS]`, roster `pass`). The row
+    registers its own name for the rerun hint. COBRA: a check deleted on purpose now sits in
+    `skipped_checks` forever — that count is the honest one; remove the registration instead."""
+    row = f"{check_name} (NOT PRESENT)"
+    _CHECK_SCRIPTS[row] = script_path
+    return (row, True, f"⚠ check not present, skipping: {script_path}")
 
 
 class _Skipped(TypedDict):
@@ -640,7 +652,7 @@ def run_optional_check(
         # green count. It still must not RED a project that legitimately lacks an optional
         # check — so it stays passed=True, but carries the ⚠ prefix the --json layer
         # collects into `warnings`, where an operator (and CI) can actually see it.
-        return (check_name, True, f"⚠ check not present, skipping: {script_path}")
+        return _not_present_row(check_name, script_path)
 
     cmd = [PYTHON, "-m", module, *args] if module else [PYTHON, str(full_path), *args]
     code, out = run_cmd(cmd)
@@ -1677,7 +1689,7 @@ def _work_sync_row() -> tuple[str, bool, str]:
     _CHECK_SCRIPTS[WORK_SYNC_CHECK] = rel
     script = PROJECT_ROOT / rel
     if not script.exists():
-        return (WORK_SYNC_CHECK, True, f"⚠ check not present, skipping: {rel}")
+        return _not_present_row(WORK_SYNC_CHECK, rel)
     code, out = run_cmd([PYTHON, str(script), "sync", "--check"], timeout=TIMEOUTS["work_sync"])
     # work.py labels classes 2-6 `(blocking)` even in the advisory window, so a crash AFTER such
     # a line is a broken run, not the blocking verdict.
@@ -2624,7 +2636,11 @@ def run_consistency_checks(
             )
             results.append(("Fabrik Convention Validator", code == 0, out if code != 0 else ""))
         else:
-            results.append(("Fabrik Convention Validator", True, "(check not present, skipping)"))
+            results.append(
+                _not_present_row(
+                    "Fabrik Convention Validator", "scripts/enforcement/validate_conventions.py"
+                )
+            )
 
     # Kilo CLI Health Check (all tiers that reach here)
     if tier >= 2:
@@ -2633,7 +2649,9 @@ def run_consistency_checks(
             code, out = run_cmd(["./scripts/check_kilo_health.sh"])
             results.append(("Kilo CLI Health Check", code == 0, out if code != 0 else ""))
         else:
-            results.append(("Kilo CLI Health Check", True, "(check not present, skipping)"))
+            results.append(
+                _not_present_row("Kilo CLI Health Check", "scripts/check_kilo_health.sh")
+            )
 
     # transdoc finding 1.4 (2026-08-23): a project CANNOT add a check to its own
     # completion gate. The battery above is a hardcoded list of scripts/enforcement/

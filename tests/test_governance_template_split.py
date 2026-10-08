@@ -142,11 +142,11 @@ T6_CLAIMS = (
     # claimed this grader proved the two copies identical when it asserted nothing about the
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
-    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3192-3198`)",
+    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3210-3216`)",
     "the rows that can never fail — `WARN_ONLY_CHECKS`, `:515-528` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    'a `status: "setup-error"` envelope (`:3173-3190` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
+    'a `status: "setup-error"` envelope (`:3191-3208` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -867,14 +867,14 @@ def test_the_templates_outcome_ii_points_at_the_lane_table_and_keeps_all_three()
 _GATE_CITES = {
     ":71": "PROJECT_ROOT = Path.cwd()",
     ":515-528": "WARN_ONLY_CHECKS: set[str] = {",
-    ":1294": "if tier == 3:",
-    ":1311": "return results",
-    ":1410": "return results",
-    "final_gate.py:1565-1575": "if (",
-    ":1233": "elif code == 5:",
-    ":1276": "if code != 0 and _PYTEST_EARLY_STOP in out:",
-    ":3173-3190": "missing = _toolchain_missing(PYTHON)",
-    ":3192-3198": "# Determine tier",
+    ":1306": "if tier == 3:",
+    ":1323": "return results",
+    ":1422": "return results",
+    "final_gate.py:1577-1587": "if (",
+    ":1245": "elif code == 5:",
+    ":1288": "if code != 0 and _PYTEST_EARLY_STOP in out:",
+    ":3191-3208": "missing = _toolchain_missing(PYTHON)",
+    ":3210-3216": "# Determine tier",
 }
 
 
@@ -1848,8 +1848,8 @@ PROBE_COPY_IN = (
     "In a project the Fabrik-synced files are gitignored, so a worktree made by `git worktree add` holds none of "
     "them: copy in from the main checkout every gitignored path `.worktreeinclude` lists, plus "
     "`.fabrik/synced.lock`, then run the gate from inside the probe — it grades its working directory — as "
-    "`<main>/.venv/bin/python scripts/final_gate.py --json`. A missing checker renders `[PASS]` in the human "
-    "output, so read `warnings`: a `check not present` path the probe names that the same run in your own "
+    "`<main>/.venv/bin/python scripts/final_gate.py --json`. A missing checker is a `(NOT PRESENT)` skip — "
+    "`[SKIP]` in the human output, listed in `skipped_checks` and `warnings`: a `check not present` path the probe names that the same run in your own "
     "checkout does not name is a void probe, never a green; a missing `.fabrik/synced.lock` is silent (its "
     "check exits 0 without a warning), so confirm the copy arrived before the run."
 )
@@ -1858,7 +1858,7 @@ PROBE_COPY_IN = (
 def test_the_template_tells_a_project_probe_worktree_to_copy_in_the_ignored_checkers() -> None:
     """intel 01M4DTZYZB (W-c0a68194, iterative_image_editor 01M35NVJ3F): a project's throwaway probe
     worktree has none of the gitignored Fabrik-synced files, the gate grades its working directory, and a
-    missing checker renders [PASS] — so the probe read green. Template only: the hub tracks its checkers.
+    missing checker rendered [PASS] (kaizen 01M4DZCA2B made it a SKIP) — so the probe read green. Template only: the hub tracks its checkers.
     The T6.5 phrases pinned in this paragraph must still occur exactly once in each contract."""
     hub = " ".join((FABRIK / "CLAUDE.md").read_text(encoding="utf-8").split())
     template = " ".join((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8").split())
