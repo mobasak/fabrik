@@ -151,7 +151,7 @@ else:
 - [ ] **`shape.exposes_metrics: true`** → expect Prometheus scrape job to be added.
 - [ ] **Service emits GlitchTip events** via SDK with `SENTRY_DSN` (registrar injects this; verify post-deploy via `docker inspect <main> | grep SENTRY_DSN` per Lesson 31 — NOT `docker exec printenv` because distroless).
 - [ ] **Service's `/health` returns 200 with real dep checks** — must `await db.execute("SELECT 1")`, not return a static 200.
-- [ ] **Promtail will pick up the container** (docker.sock auto-discovery; nothing to configure).
+- [ ] **Alloy will pick up the container** (glob tailing on `/var/lib/docker/containers/*/*log`; nothing to configure).
 
 ### Backup layer
 

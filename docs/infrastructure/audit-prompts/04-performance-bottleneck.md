@@ -126,7 +126,8 @@ EOF
 
 ### Spoke-only patterns
 
-- Promtail steady ~30-60 MiB. Higher = log volume from sibling containers high.
+- Alloy steady ~80-90 MiB (its fixed overhead runs well above Promtail's old 30-60 MiB — not a regression,
+  spec D5 — comfortably under the 128M ceiling). Higher still = log volume from sibling containers high.
 - Backrest idle 99% of the time; spikes during backup window (typically 02:00-03:00).
 - node-exporter / cadvisor steady < 30 MiB each.
 

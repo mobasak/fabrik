@@ -161,9 +161,9 @@ The 3 community dashboards (grafana.com IDs 1860, 193, 2) are still API-imported
 
 Grafana itself runs only on vps1. Spoke metrics + logs flow back to vps1 via the Wireguard mesh:
 
-- Spoke `node-exporter` / `cadvisor` / `promtail` bind to their mesh IPs (`10.99.0.2:9100`, etc.)
+- Spoke `node-exporter` / `cadvisor` / `alloy` bind to their mesh IPs (`10.99.0.2:9100`, etc.)
 - vps1's Prometheus scrapes them via mesh
-- Spoke `promtail` pushes logs to vps1's Loki at `10.99.0.1:3100`
+- Spoke `alloy` pushes logs to vps1's Loki at `10.99.0.1:3100`
 - Every series carries a `host: vpsN` label set at scrape time
 
 Provisioned datasources don't need any change for multi-host: they still point at `http://prometheus:9090` and `http://loki:3100` on the local `fabrik` Docker network, which holds all the fleet data anyway.

@@ -160,25 +160,29 @@ ssh <target> 'sudo docker restart backrest'
 ssh <target> "sudo sed -i 's|apprise-lcocgs4gs8ksg4g08w40ows8|apprise|g' /opt/backrest/config/config.json && sudo docker restart backrest"
 ```
 
-### E. Promtail noise filter for tenant containers
+### E. Alloy noise filter for tenant containers
 
-If a tenant container floods Loki with noisy logs (e.g. nightly backup container looping), add a `drop` stage to that host's `promtail.yaml`:
+If a tenant container floods Loki with noisy logs (e.g. nightly backup container looping), add a
+`stage.drop` block inside the `loki.process "containers"` component of that host's Alloy config
+(the hub config already carries one for `ocoron-com-backup-1` — add a sibling block, don't replace it):
 
-```yaml
-# /opt/monitoring-agent/promtail.yaml (spoke) or
-# /opt/monitoring/configs/promtail/promtail-config.yaml (hub — note `-config` suffix)
-scrape_configs:
-  - job_name: containers
-    pipeline_stages:
-      - drop:
-          source: container_name
-          expression: "^<noisy-container-name>$"
+```alloy
+# /opt/monitoring/configs/alloy/config.alloy (hub) or
+# /opt/monitoring-agent/alloy.alloy (spoke)
+loki.process "containers" {
+	...
+	stage.drop {
+		source     = "container_name"
+		expression = "^<noisy-container-name>$"
+	}
+	...
+}
 ```
 
 ```bash
-ssh vps  'sudo nano /opt/monitoring/configs/promtail/promtail-config.yaml'   # hub
-ssh vps2 'sudo nano /opt/monitoring-agent/promtail.yaml'                     # spoke
-ssh <target> 'sudo docker restart promtail'
+ssh vps  'sudo nano /opt/monitoring/configs/alloy/config.alloy'   # hub
+ssh vps2 'sudo nano /opt/monitoring-agent/alloy.alloy'            # spoke
+ssh <target> 'sudo docker restart alloy'
 ```
 
 ### F. site-provisioner DNS step (W16-DNS) — verify creates records

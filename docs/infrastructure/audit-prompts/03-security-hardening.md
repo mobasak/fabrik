@@ -119,7 +119,9 @@ EOF
 - Public TCP listeners only on: `22` (SSH), `80` (HTTP redirect), `443` (HTTPS). Hub adds `1194` (OpenVPN); spokes nothing else.
 - Mesh-only services on hub bind `10.99.0.1` (not `0.0.0.0`): `5432`, `6379`, `3100`, `8000`, `9091`. Probe from off-mesh node to confirm filtered/timeout.
 - `wg0` UDP `51820` listening on all 3.
-- No surprise listeners (promtail gRPC `*:<random>` is known but UFW-shielded — Lesson 72).
+- No surprise listeners beyond Alloy's `:12345` HTTP endpoint (`/metrics`, `/-/ready`); `promtail` stays
+  defined under the `rollback` profile and stopped, so its old gRPC-on-random-port quirk doesn't apply
+  until Gate S removes it.
 
 ### 2. SSH posture (each host)
 

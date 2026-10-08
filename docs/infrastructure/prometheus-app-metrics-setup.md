@@ -160,13 +160,13 @@ for t in json.load(sys.stdin)['data']['activeTargets']:
 
 Or via Grafana → Explore → Prometheus datasource → run `up{job=~"authelia|grafana|meilisearch"}` — all should return 1.
 
-For spoke target health, use `up{job=~".*-spokes"}` — expects 6 series UP (3 jobs × 2 spokes).
+For spoke target health, use `up{job=~".*-spokes"}` — expects 4 series UP (2 jobs × 2 spokes) — plus `up{job="alloy", host=~"vps[23]"}` for the two spoke log shippers (the `alloy` job, formerly `promtail-spokes`, also scrapes the hub).
 
 ## Multi-host
 
 ### Adding a new spoke
 
-When provisioning vps4 (or later), `scripts/bootstrap/bootstrap-vps.sh` step 11 deploys node-exporter / cadvisor / promtail on the new spoke, bound to its mesh IP. To make Prometheus on vps1 scrape it, append per-target blocks to the spoke jobs in `prometheus.yml`:
+When provisioning vps4 (or later), `scripts/bootstrap/bootstrap-vps.sh` step 11 deploys node-exporter / cadvisor / alloy on the new spoke, bound to its mesh IP (`promtail` ships too, but stays stopped under the `rollback` profile until Gate S). To make Prometheus on vps1 scrape it, append per-target blocks to the spoke jobs in `prometheus.yml`:
 
 ```yaml
 - job_name: node-spokes
@@ -179,7 +179,9 @@ When provisioning vps4 (or later), `scripts/bootstrap/bootstrap-vps.sh` step 11 
       labels: {host: vps4}          # NEW
 ```
 
-Same for `cadvisor-spokes` and `promtail-spokes`. SIGHUP Prometheus and verify targets.
+Same for `cadvisor-spokes`, and add a matching `targets: [10.99.0.4:12345]` block to the `alloy` job
+(it carries the hub target plus one block per spoke, not a separate `-spokes` job). SIGHUP Prometheus and
+verify targets.
 
 ### Adding host label to a new vps1-local job
 
@@ -216,11 +218,11 @@ When the spec-driven `fabrik apply --target-vps` workflow lands (W-Multi M4/M5),
 
 > **⚠ Truth check 2026-06-07T20:20Z:** the `spoke_health` rule group described below is **NOT in `/opt/monitoring/configs/prometheus/rules/alerts.yml`**. The 5 live rule groups are: `aro_wake` (2 rules), `container_health` (6), `host_health` (3 — fires on `host=vps1|vps2|vps3` labels), `service_health` (1), `fabrik-registrar-drift` (1, lives in separate `rules/fabrik-drift.yml`). Spoke-host alerting is currently covered by `host_health` matching on the `host` label.
 
-~~Live as of 2026-05-31~~ Originally designed (preserved here as a recipe to re-deploy if the spoke scrape jobs are added back; SpokeDown specifically depends on the node-spokes/cadvisor-spokes/promtail-spokes jobs that aren't currently in prometheus.yml):
+~~Live as of 2026-05-31~~ Originally designed (preserved here as a recipe to re-deploy if the spoke scrape jobs are added back; SpokeDown depends on the node-spokes/cadvisor-spokes jobs and the spoke targets of the `alloy` job, which replaced `promtail-spokes`):
 
 | Alert | Expr | for | Severity |
 | :--- | :--- | :--- | :--- |
-| `SpokeDown` | `up{job=~"node-spokes\|cadvisor-spokes\|promtail-spokes"} == 0` | 5 m | critical |
+| `SpokeDown` | `up{job=~"node-spokes\|cadvisor-spokes"} == 0 or up{job="alloy", host=~"vps[23]"} == 0` | 5 m | critical |
 | `SpokeHighCPU` | `(1 - rate(node_cpu_seconds_total{mode="idle", host=~"vps[23]"}[5m])) > 0.85` | 10 m | warning |
 | `SpokeHighRAM` | `(1 - node_memory_MemAvailable_bytes{host=~"vps[23]"}/node_memory_MemTotal_bytes{host=~"vps[23]"}) > 0.85` | 10 m | warning |
 

@@ -55,20 +55,23 @@ Structured prompts for comprehensive infrastructure auditing of the 3-VPS Fabrik
 vps1: 31 containers (29 platform + 2 T-P5 watchdog-dogfood) — site-provisioner +
       authelia + glitchtip-web/worker +
       redis-main + postgres-main + postgres-exporter + redis-exporter +
-      loki + promtail + prometheus + alertmanager + grafana + gatus +
+      loki + alloy + prometheus + alertmanager + grafana + gatus +
       cadvisor + node-exporter + pushgateway + apprise + backrest + n8n +
       gotenberg + browserless + meilisearch + traefik + 5 ocoron-com tenant
       + 2 T-P5 watchdog-dogfood
+      (`promtail` stays defined under the `rollback` profile — stopped — until Gate S)
 vps2 + vps3: 5 containers each — traefik + node-exporter + cadvisor +
-      promtail + backrest (per W11 ship 2026-06-01)
+      alloy + backrest (per W11 ship 2026-06-01; `promtail` → `alloy` per the
+      Promtail-to-Alloy migration, `promtail` kept under the `rollback` profile
+      until Gate S)
 ```
 
 ## Observability (centralized on vps1)
 
 ```text
-Prometheus + Alertmanager + Grafana + Loki + Promtail + Gatus + GlitchTip
-- Loki accepts mesh pushes at 10.99.0.1:3100; spokes' promtail uses it
-- Prometheus: 17 jobs configured / 16 active in `prometheus.yml` (`fabrik-services` null-target; `pushgateway` restored 2026-07-19; prior live probe 2026-07-13: 20/20 targets up). Spoke federation `node-spokes`/`cadvisor-spokes`/`promtail-spokes` is LIVE (re-added 2026-06-17 via `8342ef1`, 2 targets each); netdata scrape removed 2026-06-07. Re-verified live 2026-07-13.
+Prometheus + Alertmanager + Grafana + Loki + Alloy + Gatus + GlitchTip
+- Loki accepts mesh pushes at 10.99.0.1:3100; spokes' alloy uses it
+- Prometheus: 19 jobs configured in `prometheus.yml` (counted 2026-10-08, `grep -c job_name`; `fabrik-services` null-target; `pushgateway` restored 2026-07-19; prior live probe 2026-07-13: 20/20 targets up). Spoke federation `node-spokes`/`cadvisor-spokes` is LIVE (re-added 2026-06-17 via `8342ef1`, 2 targets each); netdata scrape removed 2026-06-07. Re-verified live 2026-07-13. The job that shipped as `promtail-spokes` is now `alloy` (3 targets: hub + both spokes) since the Promtail-to-Alloy migration.
 - Every series has `host` label (vps1/vps2/vps3) for fleet filtering
 - ~~spoke_health rule group~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**; planned but never landed
 - AI sysadmin: `vps-sysadmin-bot.service` on all 3 hosts (vps1 since 2026-05-20; vps2/vps3 since 2026-06-06, `@SysAdminVPS2`/`@SysAdminVPS3`)

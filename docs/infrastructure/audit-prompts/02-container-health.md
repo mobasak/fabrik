@@ -14,12 +14,13 @@
   (no UUID suffix). Network: `fabrik` (renamed from `coolify` 2026-05-31).
 - Hub (vps1): 31 containers (29 platform + 2 T-P5 watchdog dogfood). Mix of shared infra (postgres-main, redis-main,
   authelia, glitchtip-{web,worker}, loki, traefik), monitoring (prometheus,
-  grafana, alertmanager, gatus, cadvisor, node-exporter, promtail, pushgateway,
+  grafana, alertmanager, gatus, cadvisor, node-exporter, alloy, pushgateway,
   postgres-exporter, redis-exporter), utility (n8n, browserless, gotenberg,
   meilisearch, apprise, backrest), tenant (5 ocoron-com-*), provisioner
   (site-provisioner).
 - Spoke (vps2/vps3): 5 containers — traefik, node-exporter, cadvisor,
-  promtail, backrest.
+  alloy, backrest. (`promtail` stays defined under the `rollback` profile —
+  stopped, not counted here — until Gate S.)
 - Memory limits enforced via compose `deploy.resources.limits.memory` on every
   service (Fabrik invariant; validator enforces). Spoke containers use small
   limits (256m typical).
@@ -70,7 +71,7 @@ EOF
 
 ```bash
 ssh vps2 bash <<'EOF'    # repeat for vps3
-echo "=== INVENTORY (expect 5: traefik + node-exporter + cadvisor + promtail + backrest) ==="
+echo "=== INVENTORY (expect 5: traefik + node-exporter + cadvisor + alloy + backrest) ==="
 sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.RunningFor}}"
 echo
 echo "=== HEALTH STATUS ==="
@@ -122,7 +123,7 @@ EOF
 ### 4. Networking
 
 - All **tenant** containers on `fabrik` network (or their own compose-internal network plus `fabrik`).
-- **Monitoring agents typically use `network_mode: host`** (`node-exporter` needs full host visibility for `/proc`+`/sys` metrics; `cadvisor` mounts `/sys`+`/var/lib/docker`; `promtail` does host log tailing). They will be **absent** from `docker network inspect fabrik` output — that's correct, not a defect. Verify with `docker inspect <name> --format '{{.HostConfig.NetworkMode}}'` before flagging.
+- **Monitoring agents typically use `network_mode: host`** (`node-exporter` needs full host visibility for `/proc`+`/sys` metrics; `cadvisor` mounts `/sys`+`/var/lib/docker`; `alloy` does host log tailing via `loki.source.file`). They will be **absent** from `docker network inspect fabrik` output — that's correct, not a defect. Verify with `docker inspect <name> --format '{{.HostConfig.NetworkMode}}'` before flagging.
 - IP addresses unique; no rogue containers on default `bridge`.
 - Mesh-only services on hub bind `10.99.0.1` (not `0.0.0.0`) — `postgres-main`, `redis-main`, `loki`, `glitchtip-web`, `pushgateway`, `authelia`.
 - Spokes' monitoring agents push to hub mesh IP (`10.99.0.1:3100` for Loki, etc.); outbound conns visible in `ss -tn`.
@@ -130,7 +131,7 @@ EOF
 ### 5. Log hygiene
 
 - No single container log > 1 GB (rotate at `max-size: 10m`, `max-file: 3` is the standard).
-- High-volume containers (promtail, prometheus, traefik) within reasonable bounds.
+- High-volume containers (alloy, prometheus, traefik) within reasonable bounds.
 - Empty-log containers = check whether the app is actually running.
 
 ### 6. Image freshness

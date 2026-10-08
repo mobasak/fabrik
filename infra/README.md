@@ -24,8 +24,9 @@ infra/
 ## vps1 (hub) — 16 compose stacks
 
 `apprise`, `authelia`, `backrest`, `browserless`, `gatus`, `glitchtip`, `gotenberg`,
-`meilisearch`, `monitoring` (Prometheus + Grafana + Loki + Promtail + Alertmanager +
-node-exporter + cAdvisor + pushgateway + exporters), `n8n`, `ocoron-com` (the live
+`meilisearch`, `monitoring` (Prometheus + Grafana + Loki + Alloy + Alertmanager +
+node-exporter + cAdvisor + pushgateway + exporters — `promtail` stays defined under
+the `rollback` profile, stopped, until Gate S), `n8n`, `ocoron-com` (the live
 WordPress site — wordpress/db/redis/nginx/backup), `postgres` (shared `postgres-main`),
 `redis` (shared `redis-main`), `site-provisioner` (the one Fabrik-authored microservice),
 `traefik`.
@@ -44,9 +45,10 @@ WordPress site — wordpress/db/redis/nginx/backup), `postgres` (shared `postgre
 
 Symmetric agent set, owned by `bootstrap-vps.sh` (NOT tenants of `fabrik apply`):
 
-- **`monitoring-agent`** — node-exporter + cAdvisor + promtail, `network_mode: host`,
+- **`monitoring-agent`** — node-exporter + cAdvisor + alloy, `network_mode: host`,
   listeners bound to the host's **mesh IP** (`10.99.0.2` / `10.99.0.3`) so vps1's
-  Prometheus scrapes them over WireGuard; promtail pushes logs to Loki at `10.99.0.1`.
+  Prometheus scrapes them over WireGuard; alloy pushes logs to Loki at `10.99.0.1`.
+  (`promtail` stays defined under the `rollback` profile, stopped, until Gate S.)
 - **`backrest`** — per-spoke restic backups to Backblaze B2 (no public UI; managed via
   API from vps1 over the mesh).
 - **`traefik`** — local reverse proxy + the `gzip@docker` middleware definition.

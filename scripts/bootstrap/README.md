@@ -41,7 +41,7 @@ scripts/bootstrap/
 #   5. Pull peer config back, write /etc/wireguard/wg0.conf
 #   6. Bring up wg0, verify mesh connectivity with PMTU probe
 #   7. Install DOCKER-USER iptables rules
-#   8. Drop minimal monitoring agents (promtail, node-exporter, cadvisor)
+#   8. Drop minimal monitoring agents (alloy, node-exporter, cadvisor)
 #   9. Print: "vps2 ready for `fabrik apply --target-vps vps2`"
 ```
 

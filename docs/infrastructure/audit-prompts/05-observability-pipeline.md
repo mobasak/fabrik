@@ -24,12 +24,13 @@
     `continue: true` keeps telegram fallback)
   - Gatus (synthetic uptime probes)
   - GlitchTip (error tracking; UI + worker + clickhouse)
-  - cadvisor, node-exporter, promtail, postgres-exporter, redis-exporter,
-    pushgateway (vps1's own agents)
+  - cadvisor, node-exporter, alloy, postgres-exporter, redis-exporter,
+    pushgateway (vps1's own agents; `promtail` stays defined under the
+    `rollback` profile — stopped — until Gate S)
 - Spokes (vps2/vps3) run agents AND aro-wake:
   - node-exporter (host metrics → Prometheus over mesh)
   - cadvisor (container metrics → Prometheus over mesh)
-  - promtail (container logs → Loki over mesh)
+  - alloy (container logs → Loki over mesh)
   - aro-wake (since 2026-06-06; FastAPI on 0.0.0.0:8201 exposing
     `POST /wake` + `GET /health` + `GET /metrics`)
 - Spoke observability was broken 2026-05-31 evening → 2026-06-01 evening
@@ -101,7 +102,7 @@ echo "=== LOKI INGEST + HOST LABEL VALUES ==="
 # does NOT work: prometheus is on a separate compose network and can't resolve
 # `loki:3100` ("bad address"). The fabrik-network probe is the canonical path.
 sudo docker run --rm --network fabrik alpine sh -c 'wget -qO- http://loki:3100/loki/api/v1/label/host/values' 2>&1 | python3 -m json.tool 2>&1 | head -10
-echo "(expect [\"vps1\",\"vps2\",\"vps3\"] — if vps1 is missing, hub promtail isn't tagging its own stream; fix by adding a static label_config in /opt/monitoring/configs/promtail/promtail-config.yaml)"
+echo "(expect [\"vps1\",\"vps2\",\"vps3\"] — if vps1 is missing, hub alloy isn't tagging its own stream; fix by adding a static label to the \`loki.source.file\` targets block in /opt/monitoring/configs/alloy/config.alloy)"
 echo
 echo "=== GATUS ENDPOINT COUNT ==="
 sudo find /opt/monitoring/configs/gatus -name "*.yaml" | xargs grep -h "^  - name:" 2>/dev/null | wc -l | xargs echo "Gatus endpoint count:"
@@ -126,7 +127,7 @@ print(f'  status: {r.status}  body[:80]: {r.read()[:80]!r}')
 " 2>&1 | head -3
 echo
 echo "=== AGENTS LOCAL ON HUB ==="
-sudo docker ps --filter "name=cadvisor" --filter "name=node-exporter" --filter "name=promtail" --filter "name=postgres-exporter" --filter "name=redis-exporter" --filter "name=pushgateway" --format "{{.Names}} {{.Status}}"
+sudo docker ps --filter "name=cadvisor" --filter "name=node-exporter" --filter "name=alloy" --filter "name=postgres-exporter" --filter "name=redis-exporter" --filter "name=pushgateway" --format "{{.Names}} {{.Status}}"
 EOF
 ```
 
@@ -135,10 +136,10 @@ EOF
 ```bash
 ssh vps2 bash <<'EOF'    # repeat for vps3
 echo "=== AGENT CONTAINERS ==="
-sudo docker ps --filter "name=node-exporter" --filter "name=cadvisor" --filter "name=promtail" --format "table {{.Names}}\t{{.Status}}"
+sudo docker ps --filter "name=node-exporter" --filter "name=cadvisor" --filter "name=alloy" --format "table {{.Names}}\t{{.Status}}"
 echo
 echo "=== AGENT BIND ADDRESSES (mesh-only) ==="
-sudo ss -tlnp | grep -E ':9100|:8080|:9080'
+sudo ss -tlnp | grep -E ':9100|:8080|:12345'
 echo
 echo "=== OUTBOUND PUSH CONNS TO HUB ==="
 sudo ss -tnp 2>&1 | grep -E "10\\.99\\.0\\.1:(3100|9090|9091)" | head -10
@@ -146,13 +147,13 @@ echo
 echo "=== UFW MESH-ALLOW (must exist; W8 fix) ==="
 sudo ufw status verbose | grep -E "10\\.99\\.0\\.0/24"
 echo
-echo "=== PROMTAIL CONFIG (target Loki at 10.99.0.1:3100) ==="
-sudo grep -A2 "url:" /opt/monitoring-agent/promtail.yaml 2>/dev/null | head -10
+echo "=== ALLOY CONFIG (target Loki at 10.99.0.1:3100) ==="
+sudo grep -A1 "url =" /opt/monitoring-agent/alloy.alloy 2>/dev/null | head -10
 echo
 echo "=== AGENT LOGS (last 5 min, any errors?) ==="
 sudo docker logs --since 5m node-exporter 2>&1 | tail -5
 sudo docker logs --since 5m cadvisor 2>&1 | tail -5
-sudo docker logs --since 5m promtail 2>&1 | tail -5
+sudo docker logs --since 5m alloy 2>&1 | tail -5
 EOF
 ```
 
@@ -169,13 +170,13 @@ EOF
 - `$host` template variable on all 5 Fabrik dashboards works (regex `/^vps/`).
 - **aro-wake job (since 2026-06-06)**: 3 targets up (vps1 at `10.0.1.1:8201`, vps2 at `10.99.0.2:8201`, vps3 at `10.99.0.3:8201`); 8 metric families present (`aro_wake_requests_total`, `aro_wake_cost_usd_total`, `aro_wake_dedup_drops_total`, `aro_wake_hop_limit_exceeded_total`, `aro_wake_forward_suppressed_total`, `aro_wake_storm_breaker_trips_total`, `aro_wake_pending_queue_size`, `aro_wake_active_sessions`); cross-mesh scrape latency on spokes ~270ms is normal (vs ~1.4ms hub).
 
-### Log pipeline (Docker → Promtail → Loki)
+### Log pipeline (Docker → Alloy → Loki)
 
-- Hub: `promtail` container running; Loki ingests local + spoke logs.
+- Hub: `alloy` container running; Loki ingests local + spoke logs.
 - Spokes: outbound TCP conns to `10.99.0.1:3100` visible in `ss -tn`.
 - Loki returns `host` label with values `["vps1", "vps2", "vps3"]`.
-- Spoke `promtail.yaml` `clients[].url` points at `http://10.99.0.1:3100/loki/api/v1/push`.
-- **aro-wake logs are host-local** (not shipped via Promtail's docker-socket discovery): operators read `/var/log/aro-wake.log` directly via SSH; not in Loki.
+- Spoke `alloy.alloy`'s `loki.write "default"` endpoint URL points at `http://10.99.0.1:3100/loki/api/v1/push`.
+- **aro-wake logs are host-local** (not shipped via Alloy's container-log glob tailing): operators read `/var/log/aro-wake.log` directly via SSH; not in Loki.
 
 ### Alert pipeline (Prometheus → Alertmanager → Apprise → Telegram)
 
@@ -201,7 +202,7 @@ EOF
 
 ### Spoke observability health
 
-- Each spoke's 3 agents (node-exporter, cadvisor, promtail) running.
+- Each spoke's 3 agents (node-exporter, cadvisor, alloy) running.
 - UFW mesh-allow rule present (W8 fix).
 - No agent log errors in last 5 min.
 - ~~Hub Prometheus shows `node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs each with 2 targets up~~ — **NOT in `prometheus.yml` as of 2026-06-07T20:20Z**. Live spoke-side scrape is the `aro-wake` job (3 targets: vps1, vps2, vps3 over mesh). Spoke node/container exporters are running on each spoke but not currently scraped from vps1 — to restore, add the static_configs blocks back to `prometheus.yml` and SIGHUP. Mesh + UFW are already permissive.
@@ -224,13 +225,13 @@ EOF
 | Pipeline | State | Notes |
 | :--- | :--- | :--- |
 | Metrics (Prometheus → Grafana)        | GREEN/YELLOW/RED | <one-line> |
-| Logs (Promtail → Loki)                | ... | <one-line> |
+| Logs (Alloy → Loki)                   | ... | <one-line> |
 | Alerts (Alertmanager → Apprise)       | ... | <one-line> |
 | Errors (GlitchTip)                    | ... | <one-line> |
 | Uptime (Gatus)                        | ... | <one-line> |
 
 ### Per-host agent status
-| Host | node-exporter | cadvisor | promtail | mesh push |
+| Host | node-exporter | cadvisor | alloy | mesh push |
 | :--- | :--- | :--- | :--- | :--- |
 | vps1 | running | running | running | local |
 | vps2 | ... | ... | ... | ✓/✗ |
