@@ -36,15 +36,16 @@ The tool returns `async_launched`; the ledger arrives as one result — the lead
 ## What comes back
 
 ```text
-{ pass, closable, pinned, dropped_slices, dropped_seats,
+{ pass, closable, pinned, dropped_slices, dropped_seats, failed_refuters,
   slices: [{ name, files, seats: [{ model, files_read, raised, confirmed, failed, ledger_status, notes }],
-             gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..], closable, open: [..] }] }
+             gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..],
+             refuter: { retried, failed, unanswered, reason }, closable, open: [..] }] }
 ```
 
 - `pinned` — always `true`: a launch without `pin_manifest` is refused before it runs; kept so a reader of the field never breaks.
 - `seats[].files_read` — a COUNT here (the number of files the seat listed), not the list it returned; the list is in the seat's own result row (`journal.jsonl`), which `review_loop_ledger.py read` keeps.
 - `candidates` — the two finders' union: two DIFFERENT seats citing the same file and class within five lines are one candidate (`also` carries the twin's id, `also_seat` its seat, and `also_seats` every seat that raised it — the list the per-seat `confirmed` credit is computed from); the same seat's neighbours are never merged. A candidate both raised credits both seats' `confirmed`.
-- `verdicts` — one per candidate from the slice's Sonnet refuter (`effort: high`; the finders run at `medium`): `confirmed | refuted | recorded | unverified`; the script writes `unverified` for a candidate the refuter never answered and for a `refuted` with no command or output (refutation needs counter-evidence); a `refuted` whose command is a placeholder (`n/a`, `none`, `-`) or whose output is empty counts as none, and two rows for one id that disagree are `unverified`; the `id` is always the candidate's — the union suffixes a reused id (`#2`) before the refuter sees it — never the seat's echo; with
+- `verdicts` — one per candidate from the slice's Sonnet refuter (`effort: high`; the finders run at `medium`): `confirmed | refuted | recorded | unverified`; the script writes `unverified` for a candidate the refuter never answered and for a `refuted` with no command or output (refutation needs counter-evidence); a `refuted` whose command is a placeholder (`n/a`, `none`, `-`) or whose output is empty counts as none, and two rows for one id that disagree are `unverified`; the `id` is always the candidate's — the union suffixes a reused id (`#2`) before the refuter sees it — never the seat's echo; a row matches its candidate by exact id, else by a case- or space-folded id that names exactly ONE candidate (the same one-to-one rule `open` applies to ledger ids); with
   the command it ran, the output (≤ 1500 chars), the mechanism, a destination when recorded.
 - `gaps` — slice files no finder listed in `files_read`; logged, and the slice is UNVERIFIED until read. An entry
   counts for a slice file `f` when, after stripping one `<pins_dir>/` or `<scratch_dir>/<seat>/arch/` prefix (and
@@ -53,7 +54,8 @@ The tool returns `async_launched`; the ledger arrives as one result — the lead
   empty dir strips nothing. A path under any other root (the live checkout) or a sibling of the same
   name never does (`readsFile` in the script).
 - `failed` / `dropped_seats` — a finder seat is failed when it returns nothing or its `files_read` names none of the slice's files: it reviewed nothing, and its partner's reads would otherwise hide it from the gap check (01M4C00TSS — a seat answered a relayed operator turn instead). A failed seat's `ledger_status` re-verifies no claim; `dropped_seats` counts them; `review_loop_ledger.py read` flags only the narrower case, a returned finder whose `files_read` names no file at all (`READ 0 FILES`): it has no slice list, so a seat that listed only an off-slice file is failed here and not flagged there — the workflow ledger's `seats[].failed` and `open` are the authority.
-- `closable` / `open` — a slice may close only with no gap, no failed seat, no `confirmed` or `unverified` verdict and, on a later pass, every ledger claim reported by a seat; `open` names each reason. It is a floor for "may close", never a stop signal: ≤ 3 passes is a target, not a cap (D-355).
+- `refuter` / `failed_refuters` — candidates the refuter left unanswered (a null result, a non-array `verdicts`, ids that match none — a deliberate `unverified` row IS an answer) get ONE retry over just those, labelled `refute:<slice>:retry` with its own scratch dir `refute-<slice>-retry/` (a dead seat's leftover `arch/` never poisons it); what the retry still leaves unanswered sets `refuter.failed`, adds `refuter failed` to `open` and counts in `failed_refuters` (fleet 01M4DP81PE). `dropped_seats` stays the failed-FINDER count. The workflow's `verdicts` are the authority: `review_loop_ledger.py read` lists both refuters' raw rows, each tagged with its seat. A retry starts only after its first refuter ends, so it never exceeds the stamp's one refuter per slice; the pass log names each retry and whether it recovered, for `round --seats`. Every slice carries `refuter`, `{ retried: false, failed: false, unanswered: 0, reason: '' }` when nothing was lost.
+- `closable` / `open` — a slice may close only with no gap, no failed seat, no failed refuter, no `confirmed` or `unverified` verdict and, on a later pass, every ledger claim reported by a seat; `open` names each reason. It is a floor for "may close", never a stop signal: ≤ 3 passes is a target, not a cap (D-355).
 - `estimate_unseen` — Chapman's capture-recapture estimate over the two finders' candidate sets (`null` unless the slice has exactly two); advice for the
   re-dispatch brief, never a gate (`command-loop-performance.md` § 4.9 finding 18).
 

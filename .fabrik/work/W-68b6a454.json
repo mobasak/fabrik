@@ -13,7 +13,7 @@
   },
   "next": "extract each Tojlo-specific rule (Ask Tojlo, AI attribution, email templates, WhatsApp channel, export filenames, v1 languages) into a Tojlo section, delete the restated structure with a pointer, loss-check line by line against design-system-template.md (D-480)",
   "note": "",
-  "owner": "intel",
+  "owner": "kaizen",
   "priority": 3,
   "status": "open",
   "tags": [

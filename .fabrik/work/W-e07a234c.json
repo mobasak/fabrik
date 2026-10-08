@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-vps1-live-read"
+  ],
   "title": "23 of 32 vps1 containers have NO CPU limit, and two bounded containers sit near their ceiling (2026-09-04, owner: fleet)"
 }

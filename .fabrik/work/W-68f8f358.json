@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:04:59.050650Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-68f8f358",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DSCHTM863R5WAW168QS8G4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "two wording items for kaizen — the Agent-tool seat refusal rule (subagents-core.md:5) and the scope-growth 'simply converging' hedge (W-ad21a20f item 2)"
+}

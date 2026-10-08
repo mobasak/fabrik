@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-03T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "8b5f9fac2f3385bd5b28d60184df5158b829073d",
   "id": "W-d094ed8f",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:1dec81d8ed5b",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Existing fleet projects have no `.dockerignore` — the scaffold fix only covers NEW ones (2026-09-03, owner: fleet)"
 }
