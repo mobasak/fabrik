@@ -1462,6 +1462,15 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
         "into a file under SCRATCH that you then read, because a large stdout is saved by the harness under $HOME, where you may not read."
     )
     assert clause in iso, "W-27fc7fa9: the large-output clause, subject through reason, as one span"
+    # 01M4DE0R2H + W-5f08698e: a probe rmtree'd Path.home()/.claude/skills box-wide, and a relative
+    # `git archive -o` left 85 MB in a live worktree — the rule is a SCOPE (nothing written outside
+    # SCRATCH), not only a spelling (absolute paths), and it names $HOME and the redirect
+    scope = (
+        "create, modify or delete NOTHING outside SCRATCH — not $HOME (`Path.home()`, `~`, `expanduser`), "
+        "not the live checkout, not /tmp outside SCRATCH"
+    )
+    assert scope.replace("`", "\\`") in iso, "the write-scope rule, as one span"
+    assert "set HOME and the module's path constants to SCRATCH first" in iso
 
 
 def test_fabrik_review_lessons_carry_the_leak_check() -> None:
