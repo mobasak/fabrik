@@ -158,6 +158,7 @@
 - [scripts/enforcement/check_imports_resolvable.py](../INDEX.md) (owner: infra): Every module imported by SHIPPED code must be resolvable FROM A CLEAN CHECKOUT.
 - [scripts/enforcement/check_index_md.py](../INDEX.md) (owner: infra): Enforce INDEX.md existence and updates.
 - [scripts/enforcement/check_lint_ratchet.py](../INDEX.md) (owner: infra): Repo-wide lint RATCHET — the count of ruff errors may only ever go DOWN.
+- [scripts/enforcement/check_mcp_scope.py](../INDEX.md) (owner: infra): Gate (hub-only): every emitted `.mcp.json` under /opt is a SUBSET of its repo's MCP ruling.
 - [scripts/enforcement/check_mutation.py](../INDEX.md) (owner: infra): Advisory diff-scoped mutation-testing runner (mutmut) — the Behavior Contract's substance-mechanical layer.
 - [scripts/enforcement/check_no_host_ports.py](../INDEX.md) (owner: infra): Tier 1 enforcement: ban host-bound ``ports:`` in Traefik-routed compose templates.
 - [scripts/enforcement/check_openapi_sync.py](../INDEX.md) (owner: infra): Enforce OpenAPI/API documentation synchronization.
@@ -274,6 +275,7 @@
 - [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): LIVENESS AUDIT — we verify correctness at write-time and never verify liveness at run-time.
 - [scripts/sysadmin/mail_escalate.py](../INDEX.md) (owner: infra): fabrik-mail escalation digest — the destination-side half of the addressing plan.
 - [scripts/sysadmin/mcp_health.py](../INDEX.md) (owner: infra): Assigned-vs-LIVE MCP diff for the current repo (D-033 forcing pair, advisory).
+- [scripts/sysadmin/mcp_orphan_reaper.py](../INDEX.md) (owner: infra): Reap stdio MCP server processes whose Claude Code session is gone (operator mail 01M4AR32MY).
 - [scripts/sysadmin/next_census.py](../INDEX.md) (owner: infra): next_census — the NEXT: line measurement, as one script (T06, spec
 - [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): The account-quota dashboard: a localhost page showing every Claude account's session +
 - [scripts/sysadmin/quota_governor.py](../INDEX.md) (owner: infra): Quota governor — headroom-aware router for the single-key ob@ VPS Claude.
@@ -449,6 +451,7 @@
 - [mail_notify.py](workstation/hooks-index.md) (owner: infra): SessionStart + UserPromptSubmit hook — surface unread fabrik-mail (Fabrik-synced).
 - [mcp_watch.py](workstation/hooks-index.md) (owner: infra): UserPromptSubmit hook — the PER-MESSAGE MCP forcing layer (D-041; Fabrik-synced).
 - [quota_stop.py](workstation/hooks-index.md) (owner: infra): PreToolUse — the fleet-wide GRACEFUL STOP when the quota is exhausted with nothing to rotate to.
+- [seat_guard.py](workstation/hooks-index.md) (owner: infra): PreToolUse (Bash) seat guard — refuse a review seat's pattern kills and its git writes outside scratch.
 - [session_orient.py](workstation/hooks-index.md) (owner: infra): SessionStart orientation (Fabrik-synced, stdlib-only, fail-open).
 - [skill_router.py](workstation/hooks-index.md) (owner: infra): Claude Code UserPromptSubmit hook — bilingual (EN+TR) skill router.
 
