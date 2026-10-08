@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review seats are told to write nothing outside their scratch, $HOME and TMPDIR included (2026-10-08)
+
+- `.claude/workflows/fabrik-review-loop.js` SEAT_ISOLATION states a write SCOPE, not only absolute paths, after a seat's probe deleted `~/.claude/skills` box-wide (infra 01M4DE0R2H) and another left an 85 MB archive in a live worktree (W-5f08698e); the probe and pytest recipes set HOME and TMPDIR under SCRATCH. Receipt: `docs/development/reviews/2026-10-08-seat-write-scope-review.md`.
+
 ### Fixed — `pin --from` no longer refuses a committed file over an unrelated working-tree symlink (2026-10-08)
 
 - `scripts/review_loop_ledger.py pin --from` judged the path by its WORKING-TREE shape, so a regular file at the ref was refused when the working tree held a symlink there; ref mode now refuses only what the commit makes unpinnable. The workflow's refusal text and the reference doc no longer say a deleted file is always refused (kaizen ba7fc026a). Receipt: `docs/development/reviews/2026-10-08-pin-refusal-wording-review.md`.
