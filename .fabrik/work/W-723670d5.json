@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T00:39:21.463932Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-723670d5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-657",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-command-improve fabrik-task: reword phase 2's field-boundary clause; it is byte-capped at 11974 (D-657)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "fabrik-task phase 2: 'a line opening with a field word' is literal about a bullet or bold label ('- DECISION', '**DECISION**'), which _DESIGN_LABEL also treats as a field boundary; a clearer form is 'a line whose first word, after any -, * or ** prefix, is a field word' (scope-growth stop of the D-657 review, 2026-10-08)"
+}
