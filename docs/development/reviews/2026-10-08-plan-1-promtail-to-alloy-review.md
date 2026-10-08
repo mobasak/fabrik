@@ -1,346 +1,16 @@
-# Plan — Promtail → Grafana Alloy across the fleet: branch, rehearsals and runbook ready for the operator's window
+# D7 whole-plan validation — T01-T07 of the Promtail -> Alloy plan
 
-Status: EXECUTED 2026-10-08
-**Owner:** fleet
-Spec: docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md
-Date: 2026-10-08
-Completed: 2026-10-08 — build final commit 3424eb737 on `fleet-alloy`; gate `final_gate.py --check --json` success.
-Whole-plan review: docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-review.md
-
-Built from the CONVERGED spec, approved for planning by D-651 (the Opus 5.5 + Fable 5.1 panel, unanimous, under the
-operator's D-650 ruling and D-613). Work item W-aec7365b (claimed by fleet). Each ticket cites the spec section it
-implements and restates nothing that section settles.
-
-## What we already agreed
-
-- The goal and personas — spec § Goal; spec § Personas.
-- Approach B, Alloy running the converter's output on file tailing; A, C and D rejected — spec § The delta › D1;
-  spec § Rejected alternatives.
-- The ordered stop → start switch per host, vps3 then vps2 then vps1 — spec § The delta › D2.
-- Port 12345, the watchers renamed to `alloy` after the last host under an Alertmanager silence — spec § The delta › D3.
-- Positions hand over from Promtail's volume to `alloy-data` — spec § The delta › D4.
-- Ceilings: hub 256M, spokes 128M with cpus 0.25 — spec § The delta › D5.
-- Rollback restores the previous compose file; Promtail stays under `profiles: [rollback]` until Gate S — spec § The delta › D6.
-- Image `grafana/alloy:v1.20.1`, `platform: linux/amd64`, the new volume classified recomputable — spec § The delta › D7.
-- The branch merges after the window's battery — spec § The delta › D8; spec § Lifecycle.
-- Decided HERE, under D-651's conditions:
-  - **Condition 1.** The spec's sentence at
-    `docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md:55-57` is stale. It says two more copies of the
-    hub compose (`configs/monitoring-compose.yaml`, `specs/infrastructure/monitoring-stack.yaml`) sit in the repo,
-    but D-595 retired both and neither path exists today. This plan reads that sentence as history: no ticket
-    touches either path, and the receipt records the correction. The approved spec is not edited.
-  - **Condition 2.** The hub volume classification row is `scripts/bootstrap/bootstrap-config.sh:218`
-    (`monitoring_promtail-positions`); the spec's `:217` predates D-647's added line. T02 adds
-    `monitoring_alloy-data` beside it.
-  - **Condition 3.** The two Pass-5 wording notes (W-332b562c) are carried by T06. Every V4/V5 window is anchored on
-    step (b) by name, and each D3 file-set check is a pass condition whose stray DRIFT or ORPHAN line means STOP.
-  - **Condition 4.** The spokes have no bootstrap volume list. Their classification lives in
-    `docs/operations/spoke-restore-inventory.md` § D (`:68`), which T03 extends with `monitoring-agent_alloy-data`
-    beside `monitoring-agent_promtail-positions`.
-  - **The build runs on its own branch, `fleet-alloy`, cut from master once this plan set is on master** — never on `worktree-fleet`. D8 holds the
-    merge until after the window, and an unrelated merge request from a shared branch ships every commit on it
-    (the D-647 incident, docs/LESSONS_LEARNT.md 2026-10-07).
-  - The plan ends at WINDOW READINESS. The window (D2) is the operator's, behind a boarded gate; no ticket touches a
-    host, a live service or a docker volume. Gate S and its cleanup change are a later window, boarded as a
-    follow-up item.
-  - Infra-owned text (4 rule packs, `CLAIMS.yaml`, `agents-fabrik.md`, six `commands/_sources/` files) and the
-    governance-synced `docs/reference/prebuilt-app-containers.md` (measured against the `governance-sync`
-    files-filter) go to infra in one mail, drafted in the runbook's appendix and sent after the battery.
-
-## Ticket Board
-
-| Ticket | Title | Depends | Parallel | State | Commit |
-|---|---|---|---|---|---|
-| T01 | The Alloy configs are the converter's output, committed | — | ⚡ | ✅ | merged (wave 1) |
-| T02 | The hub monitoring compose runs Alloy, Promtail kept under the rollback profile | T01 | ⚡ | ✅ | merged (wave 2) |
-| T03 | The spoke stack and bootstrap step 11 ship Alloy | T01 | ⚡ | ✅ | merged (wave 2) |
-| T04a | The Prometheus job and the Gatus endpoint move to Alloy | — | ⚡ | ✅ | merged (wave 1) |
-| T04b | Every repo consumer names Alloy's container, port and metrics | — | ⚡ | ✅ | merged (wave 1) |
-| T05a | The audit prompts and the setup docs name Alloy | T02, T03, T04a, T04b | ⚡ | ✅ | merged (wave 3) |
-| T05b | The VPS inventory and the sysadmin doc name Alloy | T02, T03, T04a, T04b | ⚡ | ✅ | merged (wave 3) |
-| T05c | The VPS status and the deployment architecture name Alloy | T02, T03, T04a, T04b | ⚡ | ✅ | merged (wave 3) |
-| T05d | The operations docs and the scaffold resilience template name Alloy | T02, T03, T04a, T04b | ⚡ | ✅ | merged (wave 3) |
-| T05e | The rebuild guides and the reference docs name Alloy | T02, T03, T04a, T04b | ⚡ | ✅ | merged (wave 3) |
-| T06 | The operator's window runbook: switch, battery, rollback, Gate S, the infra mail | T02, T03, T04a, T04b | ⚡ | ✅ | merged (wave 3) |
-| T07 | Integration: rehearsals, the last doc, gates and the receipt | T01, T02, T03, T04a, T04b, T05a, T05b, T05c, T05d, T05e, T06 | ⛓️ | ✅ | merged (D7) |
-
-## Merge Order
-
-1. T01
-2. T02
-3. T03
-4. T04a
-5. T04b
-6. T05a
-7. T05b
-8. T05c
-9. T05d
-10. T05e
-11. T06
-12. T07
-
-T01, T04a and T04b are independent. T02 and T03 consume T01's configs. The five doc tickets and the runbook cite the
-code tickets' final lines. T07 is last.
-
-Breadth advisory (`check_ticket_breadth.py`, 6 of 11 flagged at plan-review pass 1): T04 (score 8) was SPLIT into
-T04a (the watcher configs the window pushes) and T04b (the repo consumers) — two risk classes. KEPT, each one coupled
-unit: T03 (8 — the spoke template, the step 11 that renders it and the mirrors it renders are one artifact), T06 (7 —
-one runbook, one ordered sequence), T01 and T02 (6 — a config with its template; a compose with its ceiling row),
-T07 (5 — the Integration ticket).
-
-## Interfaces
-
-- **T01 → T02, T03:** `configs/alloy/config.alloy` and `scripts/bootstrap/templates/alloy.alloy.template` are the files
-  the compose services mount and step 11 renders. Seam tests: `tests/test_vps_apply_limits.py` (T02) and
-  `tests/test_monitoring_agent_template.py` (T03) each assert the mount path names T01's file.
-- **T02, T03, T04a → T06:** the runbook quotes the service name `alloy`, port 12345, the volume names and the watcher
-  job and endpoint names. Seam test: `tests/test_alloy_runbook.py` (T06) asserts each name the runbook uses exists
-  in the compose files and configs.
-
-## Constraints Digest
-
-The spec's § Constraints digest holds verbatim; the rubric run of plan-review pass 1 (below, § Coverage Checklist)
-MATCHED eight packs and injects four FLOOR rows, each named here with the line that decides its effect.
-
-| Pack | Verbatim | Where | Effect here |
-|---|---|---|---|
-| core/55-observability.md (MATCHED) | "Grafana Alloy is the successor (`alloy convert` migrates the config)." | `.windsurf/rules/core/55-observability.md:54` | T01 commits the converter's output |
-| core/30-ops.md (FLOOR) | "`deploy.resources.limits.memory` is mandatory." | `.windsurf/rules/core/30-ops.md:149` | T02, T03: every alloy service carries a limit (V10) |
-| core/90-bootstrap-scripts.md (MATCHED) | "run `bash -n scripts/bootstrap/bootstrap-vps.sh` (catches LOCAL parser" | `.windsurf/rules/core/90-bootstrap-scripts.md:135` | T03's Gate runs `bash -n` |
-| core/45-testing-strategy.md (MATCHED) | "one test per user-observable behavior; regression test for bugfix" | `.windsurf/rules/core/45-testing-strategy.md:10` | every ticket's Behavior Contract row has its test |
-| core/40-documentation.md (MATCHED) | "GOAL: Scaffolded doc templates, Documentation Sync Matrix, changelog, INDEX.md, writing style" | `.windsurf/rules/core/40-documentation.md:8` | T05a–T05e and T07; INDEX/README/CHANGELOG rows are orchestrator-applied |
-| core/10-python.md (MATCHED) | "Logging handled errors (short event + context, not full traceback)" | `.windsurf/rules/core/10-python.md:178` | T04b's Python edits add set members and strings only — no logging path changes |
-| core/57-external-data-sourcing.md (MATCHED) | "**Hub:** `docs/reference/apis/<vendor>.md`, plus its row in that dir's `EXTERNAL_SYSTEMS.md`." | `.windsurf/rules/core/57-external-data-sourcing.md:293` | T07 edits the existing rows of `EXTERNAL_SYSTEMS.md`; no new vendor profile |
-| core/58-resilience.md (MATCHED) | "**Activation:** Glob — resilience files (RESILIENCE.md, health endpoints, HTTP clients, pause state, error classifier, dispatchers, beat tasks)." | `.windsurf/rules/core/58-resilience.md:17` | matched by `docs/reference/health-monitoring.md`'s name only; no resilience mechanism changes |
-| core/self-healing.md (MATCHED) | "Self-healing in Fabrik = an autonomous-by-default escalation LADDER, NOT a new primitive." | `.windsurf/rules/core/self-healing.md:16` | matched by the same doc; no ladder step changes |
-| core/35-security-auth.md, core/25-data-postgres.md (FLOOR) | — | — | unconstrained: no auth, secret or database surface changes |
-| 12-FACTOR (FLOOR) | — | — | unconstrained: no application config, process model or backing-service binding changes — the shipper is fleet infrastructure |
-
-## Execution Discipline (binding on /fabrik-execute-plan)
-
-- **Review floor** — every ticket runs `/fabrik-review` on its changed surface to a coverage-adjudicated exit BEFORE its merge; no ticket merges on a first-pass green.
-  The five doc tickets may take `/fabrik-review-scoped` instead; T01–T03, T04a, T04b and T06 take the full `/fabrik-review` (bootstrap,
-  deploy-adjacent and runbook surfaces).
-- **Dispatch policy** — native Claude seats for every fan-out (the pool is OFF, D-181/D-182): `dispatch_headroom.py` then
-  `python3 scripts/command_run.py dispatch --seats N` before each fan-out. Coders: Sonnet for every `simple` ticket; the
-  orchestrator writes T06 and T07 (`native`). Haiku never codes. Seats never read `$HOME/.claude*` or any `.env`, never
-  ssh, never touch a live host; a scratch docker rehearsal uses named containers removed after.
-- **Branch** — this plan set (docs only) reaches master first through the fleet branch's merge request; then, before
-  the first dispatch: `git worktree add /opt/fabrik/.claude/worktrees/fleet-alloy -b fleet-alloy master` (a durable path:
-  the operator runs the window from it). Every ticket merge and every Board update is committed on `fleet-alloy`, never
-  on `worktree-fleet` (D8 holds the merge until after the window).
-- **Operator gate** — no ticket runs the window; T07 boards it. The branch goes to `scripts/merge_request.py request`
-  only after the window's battery is green.
-- **Parallelism + merge** — T01, T04a and T04b fan out first and concurrently (disjoint Touches); T02 and T03 follow T01 and run concurrently; T05a–T05e and T06 run concurrently once T02, T03, T04a and T04b are merged;
-  every merge happens on the `fleet-alloy` branch in § Merge Order, and the results merge/dedupe at T07, which re-runs every ticket's gate on the merged branch.
-- **Ids** — every D-row this plan mints uses `python3 scripts/decisions.py --reserve-id .`.
-
-## Window handoff
-
-The build is EXECUTED; what is left is the operator's. T01–T07 are merged on `fleet-alloy`. The D7 whole-plan validation
-is converged, and its receipt carries the V3, V4a and V5a rehearsal results and the D-651 condition-1 correction.
-
-- **The window** is boarded as an operator `gate` item in the fleet store. It is run from this branch, per
-  `docs/operations/promtail-to-alloy-runbook.md`.
-- **The merge** — the branch goes to `scripts/merge_request.py request` only after the window's battery is green (spec D8).
-  After a rollback it is held until a later window passes.
-- **Gate S** — backlog W-a7ee59fd, after 14 green days.
-- **Archive** — this plan set moves to `plans/archived/` after the merge. The runbook, the tests and two work items cite this
-  path.
-- **Leftover** — the docker volume `t07r-v5a_alloy-data`, left by the first V5a rehearsal. It is throwaway, but deleting it is
-  the operator's word.
-
-## Behavior Contract
-
-- **Given** the hub Promtail config, **When** `alloy convert --source-format=promtail` runs on it, **Then** its output equals `configs/alloy/config.alloy` byte for byte (spec § The delta › D1; configs/promtail/promtail-config.yaml:12)
-- **Given** `promtail.yaml.template` rendered with fixed spoke values, **When** it is converted, **Then** the output equals `alloy.alloy.template` rendered with the same values (spec § Validation V1; scripts/bootstrap/templates/promtail.yaml.template)
-- **Given** each committed config (the spoke one rendered), **When** `alloy run` loads it in a container with no network, **Then** it starts without a config error (spec § Validation V2)
-- **Given** no docker on the machine, or the `grafana/alloy:v1.20.1` image neither cached nor pullable, **When** the test runs, **Then** it skips with the stated reason instead of passing silently (core/45-testing-strategy.md)
-- **Given** the hub compose, **When** it is parsed, **Then** the `alloy` service pins `grafana/alloy:v1.20.1`, declares `platform: linux/amd64` and a 256M memory limit, and carries the listen-address and storage-path flags (spec § The delta › D3, D5, D7)
-- **Given** the hub compose, **When** `docker compose config` and `docker compose config --profiles` are read, **Then** `promtail` appears only under the `rollback` profile and both `promtail-positions` and `alloy-data` are declared volumes (spec § The delta › D6)
-- **Given** the memory-limits table, **When** `tests/test_vps_apply_limits.py` reads it, **Then** `alloy 256` sits beside `promtail 256` and the hub compose's alloy limit matches it (scripts/vps_apply_limits.sh:56; spec § The delta › D5; Validation V10)
-- **Given** the bootstrap volume classification, **When** it is read, **Then** `monitoring_alloy-data` is listed as recomputable beside `monitoring_promtail-positions` (scripts/bootstrap/bootstrap-config.sh:220, beside :219; spec § The delta › D7)
-- **Given** the spoke compose template rendered for vps2, **When** it is parsed, **Then** the `alloy` service pins `grafana/alloy:v1.20.1` with `platform: linux/amd64` and `restart: unless-stopped`, and carries a 128M memory limit, `cpus: 0.25`, `network_mode: host` and a listen address on the spoke's mesh IP port 12345 (spec § The delta › D3, D5, D7; Validation V10)
-- **Given** the rendered spoke template, **When** it is parsed, **Then** `promtail` appears only under the `rollback` profile and both positions volumes are declared (spec § The delta › D6)
-- **Given** bootstrap step 11, **When** its script text is read, **Then** it renders and ships `alloy.alloy` beside `compose.yaml` and `promtail.yaml` and its verify filter names `alloy`, not `promtail` (scripts/bootstrap/bootstrap-vps.sh:738; spec § The delta › D8)
-- **Given** the two edited bootstrap scripts, **When** `bash -n` runs on each, **Then** both parse clean (.windsurf/rules/core/90-bootstrap-scripts.md:135)
-- **Given** the infra mirrors for vps2 and vps3, **When** each is compared with the template rendered for that host, **Then** they are equal (infra/README.md; spec § The delta › D8)
-- **Given** the spoke restore inventory, **When** § D is read, **Then** it classifies `monitoring-agent_alloy-data` beside `monitoring-agent_promtail-positions` (docs/operations/spoke-restore-inventory.md:68; D-651)
-- **Given** `configs/prometheus/prometheus.yml`, **When** it is parsed, **Then** job `alloy` scrapes exactly `alloy:12345`, `10.99.0.2:12345` and `10.99.0.3:12345` and no job is named `promtail-spokes` (configs/prometheus/prometheus.yml:70; spec § The delta › D3)
-- **Given** the Gatus observability-agents config, **When** it is parsed, **Then** endpoint `alloy` checks `http://alloy:12345/-/ready` with the old interval and failure threshold and no `promtail` endpoint remains (configs/gatus/apps/observability-agents.yaml:5; spec § The delta › D3)
-- **Given** the observability audit, **When** its Alloy block runs against a local `alloy run`, **Then** every metric name it greps for is present in Alloy's `/metrics` once Alloy has pushed to a throwaway Loki (scripts/audit/05-observability.sh:78; spec ledger cv-04)
-- **Given** the port registry, **When** `PORTS.md` is read, **Then** it lists 12345 for `alloy` and marks 9080 `promtail` as rollback-only (PORTS.md:40; spec § The delta › D3)
-- **Given** `vps_sync.py`'s classification sets, **When** they are read, **Then** both contain `alloy` and still contain `promtail` (scripts/vps_sync.py:154; spec § The delta › D6)
-- **Given** the repo consumers named in spec § What exists today, **When** each is searched, **Then** none presents Promtail as the running shipper outside the rollback-profile references (spec § The delta › D3)
-- **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; docs/infrastructure/audit-prompts/01-full-system-audit.md:18)
-- **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, docs/infrastructure/audit-prompts/01-full-system-audit.md included (.windsurf/rules/core/40-documentation.md)
-- **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; docs/infrastructure/vps-complete-inventory.md:27)
-- **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, docs/infrastructure/vps-complete-inventory.md included (.windsurf/rules/core/40-documentation.md)
-- **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; docs/infrastructure/vps-status.md:46)
-- **Given** the renamed noise-filter doc, **When** the tree is searched for `promtail-noise-filter-setup.md` outside history, **Then** nothing links it: `docs/DEPLOYMENT_ARCHITECTURE.md:855` and the glitchtip setup doc link `alloy-noise-filter-setup.md`, which describes Alloy's `stage.drop` (docs/DEPLOYMENT_ARCHITECTURE.md:855)
-- **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, docs/infrastructure/vps-status.md included (.windsurf/rules/core/40-documentation.md)
-- **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; templates/scaffold/docs/RESILIENCE_TEMPLATE.md:568; docs/operations/hub-restore-inventory.md:104)
-- **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, templates/scaffold/docs/RESILIENCE_TEMPLATE.md included (.windsurf/rules/core/40-documentation.md)
-- **Given** the docs this ticket owns, **When** each is searched for Promtail, **Then** every remaining mention is history, the rollback-profile service or the Gate S cleanup — none presents Promtail as the running shipper (spec § Documentation landing sites; docs/reference/health-monitoring.md:19)
-- **Given** the docs this ticket owns, **When** `check_doc_links.py` runs, **Then** no link in them is broken, docs/infrastructure/vps-spoke-rebuild.md included (.windsurf/rules/core/40-documentation.md)
-- **Given** the runbook, **When** its per-host sections are parsed, **Then** they run vps3, vps2, vps1 in that order and each carries steps (a) to (d) with stop before start and no plain `up -d` between them (spec § The delta › D2)
-- **Given** the runbook's hub section, **When** it is parsed, **Then** the two D3 read-only checks precede vps1's step (b), each stated as a pass condition with a STOP action on a stray DRIFT or ORPHAN line, and the two `--push` runs follow step (c) with `FABRIK_ROOT` set to the branch worktree (spec § The delta › D3; W-332b562c)
-- **Given** the battery, **When** V4, V5 and V6 are read, **Then** each 15-minute window is anchored on step (b) by name, and V6 writes numbered pre-markers 5 to 10 minutes before step (b) and one switch marker between (b) and (c) to the canary (no `--rm`), requiring each marker exactly once in Loki for that host within 2 minutes of (c) (spec § Validation V4, V5, V6; W-332b562c)
-- **Given** the rollback section, **When** it is read, **Then** it restores `compose.yaml.pre-alloy` and runs `up -d --remove-orphans`, never a stop-and-start that leaves the new file in place (spec § The delta › D6)
-- **Given** the preflight, **When** it is read, **Then** it opens the Alertmanager silence, starts the canary before step (a) and checks port 12345 with `ss -ltn` on each spoke (spec § The delta › D3; § Open / blocking unknowns U2)
-- **Given** the Gate S section, **When** it is read, **Then** it names V8 and V9 green on all three hosts for 14 days as the trigger and lists the cleanup: the promtail service, the `promtail-positions` volume (classified before any change), the `.pre-alloy` files, the two Promtail configs and the `promtail 256` ceiling retired spec-row first (spec § The delta › D6)
-- **Given** the close, **When** it is read, **Then** the operator signals the fleet agent that all three hosts passed their battery, and only then does the fleet agent send `fleet-alloy` for merge with `merge_request.py request` and send the infra mail (spec § Personas; § The delta › D8; § Lifecycle)
-- **Given** the appendix, **When** its mail body is checked with `mail.py`'s `_structure_gaps`, **Then** it carries every D-035 section and names every infra-owned file of spec § Lifecycle (spec § Lifecycle; scripts/mail.py)
-- **Given** a Promtail positions file naming a local container log at a known offset, mounted read-only, **When** Alloy starts with the committed hub config, **Then** it ships only the lines after the offset, logs the conversion, and ships nothing again after a restart (spec § Validation V3)
-- **Given** Alloy tailing local containers into a throwaway Loki 3.4.2, **When** the label names are listed, **Then** they are exactly `container_name, filename, host, job, service_name, stream` (spec § Validation V4a)
-- **Given** local copies of the new compose files under a throwaway project, **When** the forward switch, the D6 rollback and a plain `up -d` run in turn, **Then** Promtail runs and no alloy container exists (spec § Validation V5a)
-- **Given** `docs/reference/apis/EXTERNAL_SYSTEMS.md`, **When** it is searched for Promtail, **Then** the shipper section names Alloy as running and every remaining Promtail mention is history or the rollback-profile service (docs/reference/apis/EXTERNAL_SYSTEMS.md:3019)
-- **Given** the plan's branch, **When** T07 closes, **Then** the operator window is an open awaiting-operator gate, the Gate S follow-up is a backlog item, and the branch has not been sent for merge (spec § The delta › D8; § Lifecycle)
-
-## Global Constraints
-
-- No ticket touches vps1, vps2 or vps3, a running container, the live `/opt/monitoring` or `/opt/monitoring-agent`
-  files, or a docker volume — outside the throwaway local rehearsal projects T07 creates and removes. Volumes are data: `promtail-positions` is kept until Gate S's own window.
-- No edit to `.windsurf/rules/`, `CLAIMS.yaml`, `agents-fabrik.md`, `commands/_sources/` or
-  `docs/reference/prebuilt-app-containers.md` — infra's, mailed (T06 appendix).
-- The Promtail configs and the `promtail` services stay until Gate S.
-
-## Context Ledger
-
-| File | Why | Cite |
-|---|---|---|
-| `.windsurf/rules/core/55-observability.md` (ACTIVE) | the shipper rules the spec digest quotes | `.windsurf/rules/core/55-observability.md:54` |
-| `.windsurf/rules/core/30-ops.md` (ACTIVE) | memory limit mandatory | `.windsurf/rules/core/30-ops.md:149` |
-| `.windsurf/rules/core/90-bootstrap-scripts.md` (ACTIVE) | `bash -n`, idempotency | `.windsurf/rules/core/90-bootstrap-scripts.md:135` |
-| `.windsurf/rules/core/40-documentation.md` (ACTIVE) | the doc sweep | `.windsurf/rules/core/40-documentation.md` |
-| `.windsurf/rules/core/45-testing-strategy.md` (ACTIVE) | one test per behaviour | `.windsurf/rules/core/45-testing-strategy.md` |
-
-## File Scope (owned paths)
-
-- PORTS.md
-- configs/alloy/config.alloy
-- configs/gatus/README.md
-- configs/gatus/apps/observability-agents.yaml
-- configs/prometheus/prometheus.yml
-- docs/DEPLOYMENT_ARCHITECTURE.md
-- docs/SERVICES.md
-- docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-review.md
-- docs/infrastructure/alloy-noise-filter-setup.md
-- docs/infrastructure/audit-prompts/01-full-system-audit.md
-- docs/infrastructure/audit-prompts/02-container-health.md
-- docs/infrastructure/audit-prompts/03-security-hardening.md
-- docs/infrastructure/audit-prompts/04-performance-bottleneck.md
-- docs/infrastructure/audit-prompts/05-observability-pipeline.md
-- docs/infrastructure/audit-prompts/06-backup-disaster-recovery.md
-- docs/infrastructure/audit-prompts/07-pre-production-checklist.md
-- docs/infrastructure/audit-prompts/08-hardening-remediation.md
-- docs/infrastructure/audit-prompts/README.md
-- docs/infrastructure/glitchtip-sdk-integration-setup.md
-- docs/infrastructure/grafana-dashboards-setup.md
-- docs/infrastructure/grafana-provisioning-setup.md
-- docs/infrastructure/prometheus-app-metrics-setup.md
-- docs/infrastructure/promtail-noise-filter-setup.md
-- docs/infrastructure/vps-ai-sysadmin.md
-- docs/infrastructure/vps-bootstrap-plan.md
-- docs/infrastructure/vps-complete-inventory.md
-- docs/infrastructure/vps-fleet-architecture.md
-- docs/infrastructure/vps-hub-rebuild.md
-- docs/infrastructure/vps-spoke-rebuild.md
-- docs/infrastructure/vps-status.md
-- docs/infrastructure/vps-urls.md
-- docs/operations/deployment.md
-- docs/operations/disaster-recovery.md
-- docs/operations/hub-restore-inventory.md
-- docs/operations/promtail-to-alloy-runbook.md
-- docs/operations/spoke-restore-inventory.md
-- docs/reference/apis/EXTERNAL_SYSTEMS.md
-- docs/reference/architecture.md
-- docs/reference/health-monitoring.md
-- docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md
-- docs/workflows/development-and-deployment-workflow.md
-- infra/README.md
-- infra/vps1/monitoring/compose.yaml
-- infra/vps2/monitoring-agent/compose.yaml
-- infra/vps3/monitoring-agent/compose.yaml
-- scripts/audit/05-observability.sh
-- scripts/audit/06-backup.sh
-- scripts/bootstrap/README.md
-- scripts/bootstrap/bootstrap-config.sh
-- scripts/bootstrap/bootstrap-hub.sh
-- scripts/bootstrap/bootstrap-spoke-restore.sh
-- scripts/bootstrap/bootstrap-vps.sh
-- scripts/bootstrap/templates/alloy.alloy.template
-- scripts/bootstrap/templates/monitoring-agent.compose.yaml.template
-- scripts/generate_vps_inventory.py
-- scripts/sysadmin/proactive-check.sh
-- scripts/sysadmin/system-prompt.txt
-- scripts/vps_apply_limits.sh
-- scripts/vps_sync.py
-- templates/file-worker/compose.yaml.j2
-- templates/scaffold/docs/RESILIENCE_TEMPLATE.md
-- tests/test_alloy_configs.py
-- tests/test_alloy_consumers.py
-- tests/test_alloy_runbook.py
-- tests/test_alloy_watchers.py
-- tests/test_monitoring_agent_template.py
-- tests/test_vps_apply_limits.py
-
-## Intake Inventory
-
-| I# | Item | Disposition | Where |
-|---|---|---|---|
-| I1 | D-651 condition 1 — the spec's stale :55-57 sentence | IN | What we already agreed; receipt |
-| I2 | D-651 condition 2 — cite `bootstrap-config.sh:218` | IN | T02 |
-| I3 | D-651 condition 3 — the two Pass-5 wording notes (W-332b562c) | IN | T06 |
-| I4 | D-651 condition 4 — the spoke positions-volume classification | IN | T03 |
-| I5 | "every VPS write behind an operator gate" | IN | Global Constraints; T07 |
-| I6 | "route infra-beat surfaces to infra by mail" | IN | T06 appendix |
-| I7 | spec Intake I1–I16 | as dispositioned in the spec | spec § Intake Inventory |
-
-## Evidence
-
-Grounding run 2026-10-08 against `worktree-fleet` at 030b9a269. The spec's 21 load-bearing cites were re-derived;
-20 held at their lines, and the UFW mesh rule moved from `:404-408` to `:402-408`:
-
-```text
-OK  infra/vps1/monitoring/compose.yaml:26-45 needle='promtail'
-OK  scripts/bootstrap/bootstrap-vps.sh:704-738 needle='promtail'
-OK  configs/prometheus/prometheus.yml:70-80 needle='promtail'
-OK  configs/gatus/apps/observability-agents.yaml:5-14 needle='promtail'
-OK  scripts/vps_apply_limits.sh:56-56 needle='promtail'
-OK  scripts/vps_sync.py:154-154 needle='promtail'
-OK  scripts/sync_prometheus_to_vps.sh:31-31 needle='FABRIK_ROOT'
-MISS scripts/bootstrap/bootstrap-vps.sh:404-408 needle='10.99' -> the rule is at :408 with ${FABRIK_WG_SUBNET}; the comment at :404 names promtail:9080
-```
-
-The Promtail sweep (`command grep -rln -i promtail docs/ scripts/ templates/ configs/ infra/ src/ tests/`, minus the
-`docs/archive`, `plans/archived`, `/reviews/`, `research/` and `superpowers/` paths) returned 80 lines: 3 are `__pycache__`
-binaries, and the 77 files are dispositioned as follows: 34 current-state docs (T05a–T05e, plus `EXTERNAL_SYSTEMS.md` in T07);
-23 owned by the code tickets; 13 history files left as written; 4 governance files applied by the orchestrator; 1
-governance-synced doc to infra; and 2 others. Those two are `src/fabrik/drivers/watchdog.py` (I13, W-1feb4dfa) and
-a test docstring that cites the spec. Doc-ticket READ sizes:
-
-```text
-T05a 131,195 B · T05b 192,877 B · T05c 194,040 B · T05d 168,137 B · T05e 165,213 B  (+ 54,758 B context each, budget 262,144 B)
-docs/reference/apis/EXTERNAL_SYSTEMS.md 537,674 B → T07 (Integration, budget-exempt)
-```
-
-## Self-audit
-
-- (a) Coverage — D1 → T01; D2 → T06; D3 → T02 (hub), T03 (spokes), T04a (watchers), T04b (consumers), T06 (window half);
-  D4 → T02, T03; D5 → T02, T03; D6 → T02, T03, T06; D7 → T02, T03; D8 → T03 (step 11), Execution Discipline (branch),
-  T07 (no merge before the battery); V1, V2 → T01 (configs), T02, T03, T04b (`bash -n` on every edited script); V3, V4a, V5a → T07; V10 → T02, T03; V4–V9, V11 → T06; the doc
-  landing sites → T05a–T05e, T07; the four D-651 conditions → I1–I4 above.
-- (b) Cross-ticket names — `alloy`, `alloy-data`, `promtail-positions`, port 12345, job `alloy`, endpoint `alloy`,
-  `configs/alloy/config.alloy` and `alloy.alloy.template` are spelled identically in every ticket.
-- Not yet a fixed point: `/fabrik-plan-review` converges it.
+**Status:** CONVERGED (2026-10-08) — five passes, 18 → 4 → 1 → 2 → 0 candidates (12 → 2 → 1 → 2 → 0 confirmed); the scope-growth stop fired at round 3 and its exit routed the slow-loop limit to W-0913992c
+**Surface:** `git rev-parse HEAD` = 3424eb737f2a12bdcc9b77a8feeadbc98944cfd5; range tip 3424eb737f2a12bdcc9b77a8feeadbc98944cfd5; `git diff ad790046b..3424eb737 -- .fabrik/plan-locks/2026-10-08-plan-1-promtail-to-alloy.json .fabrik/work/W-0913992c.json .fabrik/work/W-3860ebf6.json .fabrik/work/W-857fc640.json .fabrik/work/W-a7ee59fd.json CHANGELOG.md INDEX.md PORTS.md configs/alloy/config.alloy configs/gatus/README.md configs/gatus/apps/observability-agents.yaml configs/prometheus/prometheus.yml docs/DEPLOYMENT_ARCHITECTURE.md docs/README.md docs/SERVICES.md docs/development/plans/2026-10-08-plan-1-promtail-to-alloy/2026-10-08-plan-1-promtail-to-alloy.md docs/development/plans/2026-10-08-plan-1-promtail-to-alloy/T02-hub-compose-and-ceilings.md docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T01-review.md docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T02-review.md docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T05a-review.md docs/infrastructure/alloy-noise-filter-setup.md docs/infrastructure/audit-prompts/01-full-system-audit.md docs/infrastructure/audit-prompts/02-container-health.md docs/infrastructure/audit-prompts/03-security-hardening.md docs/infrastructure/audit-prompts/04-performance-bottleneck.md docs/infrastructure/audit-prompts/05-observability-pipeline.md docs/infrastructure/audit-prompts/07-pre-production-checklist.md docs/infrastructure/audit-prompts/08-hardening-remediation.md docs/infrastructure/audit-prompts/README.md docs/infrastructure/glitchtip-sdk-integration-setup.md docs/infrastructure/grafana-dashboards-setup.md docs/infrastructure/grafana-provisioning-setup.md docs/infrastructure/prometheus-app-metrics-setup.md docs/infrastructure/promtail-noise-filter-setup.md docs/infrastructure/vps-ai-sysadmin.md docs/infrastructure/vps-bootstrap-plan.md docs/infrastructure/vps-complete-inventory.md docs/infrastructure/vps-fleet-architecture.md docs/infrastructure/vps-hub-rebuild.md docs/infrastructure/vps-spoke-rebuild.md docs/infrastructure/vps-status.md docs/infrastructure/vps-urls.md docs/operations/disaster-recovery.md docs/operations/hub-restore-inventory.md docs/operations/promtail-to-alloy-runbook.md docs/operations/spoke-restore-inventory.md docs/reference/apis/EXTERNAL_SYSTEMS.md docs/reference/architecture.md docs/reference/health-monitoring.md docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md docs/workflows/development-and-deployment-workflow.md infra/README.md infra/vps1/monitoring/compose.yaml infra/vps2/monitoring-agent/compose.yaml infra/vps3/monitoring-agent/compose.yaml scripts/audit/05-observability.sh scripts/audit/06-backup.sh scripts/bootstrap/README.md scripts/bootstrap/bootstrap-config.sh scripts/bootstrap/bootstrap-hub.sh scripts/bootstrap/bootstrap-spoke-restore.sh scripts/bootstrap/bootstrap-vps.sh scripts/bootstrap/templates/alloy.alloy.template scripts/bootstrap/templates/monitoring-agent.compose.yaml.template scripts/generate_vps_inventory.py scripts/sysadmin/proactive-check.sh scripts/sysadmin/system-prompt.txt scripts/vps_apply_limits.sh scripts/vps_sync.py templates/file-worker/compose.yaml.j2 templates/scaffold/docs/RESILIENCE_TEMPLATE.md tests/test_alloy_configs.py tests/test_alloy_consumers.py tests/test_alloy_runbook.py tests/test_alloy_watchers.py tests/test_monitoring_agent_template.py tests/test_vps_apply_limits.py` md5 913f4408086283fba4f8bdb241496bc3 (509663 bytes)
+**Command:** /fabrik-review · **Changed:** `.fabrik/plan-locks/2026-10-08-plan-1-promtail-to-alloy.json`, `.fabrik/work/W-0913992c.json`, `.fabrik/work/W-3860ebf6.json`, `.fabrik/work/W-857fc640.json`, `.fabrik/work/W-a7ee59fd.json`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `configs/alloy/config.alloy`, `configs/gatus/README.md`, `configs/gatus/apps/observability-agents.yaml`, `configs/prometheus/prometheus.yml`, `docs/DEPLOYMENT_ARCHITECTURE.md`, `docs/README.md`, `docs/SERVICES.md`, `docs/development/plans/2026-10-08-plan-1-promtail-to-alloy/2026-10-08-plan-1-promtail-to-alloy.md`, `docs/development/plans/2026-10-08-plan-1-promtail-to-alloy/T02-hub-compose-and-ceilings.md`, `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T01-review.md`, `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T02-review.md`, `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T05a-review.md`, `docs/infrastructure/alloy-noise-filter-setup.md`, `docs/infrastructure/audit-prompts/01-full-system-audit.md`, `docs/infrastructure/audit-prompts/02-container-health.md`, `docs/infrastructure/audit-prompts/03-security-hardening.md`, `docs/infrastructure/audit-prompts/04-performance-bottleneck.md`, `docs/infrastructure/audit-prompts/05-observability-pipeline.md`, `docs/infrastructure/audit-prompts/07-pre-production-checklist.md`, `docs/infrastructure/audit-prompts/08-hardening-remediation.md`, `docs/infrastructure/audit-prompts/README.md`, `docs/infrastructure/glitchtip-sdk-integration-setup.md`, `docs/infrastructure/grafana-dashboards-setup.md`, `docs/infrastructure/grafana-provisioning-setup.md`, `docs/infrastructure/prometheus-app-metrics-setup.md`, `docs/infrastructure/promtail-noise-filter-setup.md`, `docs/infrastructure/vps-ai-sysadmin.md`, `docs/infrastructure/vps-bootstrap-plan.md`, `docs/infrastructure/vps-complete-inventory.md`, `docs/infrastructure/vps-fleet-architecture.md`, `docs/infrastructure/vps-hub-rebuild.md`, `docs/infrastructure/vps-spoke-rebuild.md`, `docs/infrastructure/vps-status.md`, `docs/infrastructure/vps-urls.md`, `docs/operations/disaster-recovery.md`, `docs/operations/hub-restore-inventory.md`, `docs/operations/promtail-to-alloy-runbook.md`, `docs/operations/spoke-restore-inventory.md`, `docs/reference/apis/EXTERNAL_SYSTEMS.md`, `docs/reference/architecture.md`, `docs/reference/health-monitoring.md`, `docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md`, `docs/workflows/development-and-deployment-workflow.md`, `infra/README.md`, `infra/vps1/monitoring/compose.yaml`, `infra/vps2/monitoring-agent/compose.yaml`, `infra/vps3/monitoring-agent/compose.yaml`, `scripts/audit/05-observability.sh`, `scripts/audit/06-backup.sh`, `scripts/bootstrap/README.md`, `scripts/bootstrap/bootstrap-config.sh`, `scripts/bootstrap/bootstrap-hub.sh`, `scripts/bootstrap/bootstrap-spoke-restore.sh`, `scripts/bootstrap/bootstrap-vps.sh`, `scripts/bootstrap/templates/alloy.alloy.template`, `scripts/bootstrap/templates/monitoring-agent.compose.yaml.template`, `scripts/generate_vps_inventory.py`, `scripts/sysadmin/proactive-check.sh`, `scripts/sysadmin/system-prompt.txt`, `scripts/vps_apply_limits.sh`, `scripts/vps_sync.py`, `templates/file-worker/compose.yaml.j2`, `templates/scaffold/docs/RESILIENCE_TEMPLATE.md`, `tests/test_alloy_configs.py`, `tests/test_alloy_consumers.py`, `tests/test_alloy_runbook.py`, `tests/test_alloy_watchers.py`, `tests/test_monitoring_agent_template.py`, `tests/test_vps_apply_limits.py`
+**Plan:** `docs/development/plans/2026-10-08-plan-1-promtail-to-alloy/2026-10-08-plan-1-promtail-to-alloy.md`
 
 ## Coverage Checklist
 
-Rubric invocation (verbatim; plan-review pass 1):
+Rubric invocation (verbatim output — the gate reads the generated header, never a prose mention):
 
 ```text
-$ python scripts/review_rubric.py --changed configs/alloy/config.alloy configs/gatus/README.md configs/gatus/apps/observability-agents.yaml configs/prometheus/prometheus.yml docs/DEPLOYMENT_ARCHITECTURE.md docs/SERVICES.md docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-review.md docs/infrastructure/alloy-noise-filter-setup.md docs/infrastructure/audit-prompts/01-full-system-audit.md docs/infrastructure/audit-prompts/02-container-health.md docs/infrastructure/audit-prompts/03-security-hardening.md docs/infrastructure/audit-prompts/04-performance-bottleneck.md docs/infrastructure/audit-prompts/05-observability-pipeline.md docs/infrastructure/audit-prompts/06-backup-disaster-recovery.md docs/infrastructure/audit-prompts/07-pre-production-checklist.md docs/infrastructure/audit-prompts/08-hardening-remediation.md docs/infrastructure/audit-prompts/README.md docs/infrastructure/glitchtip-sdk-integration-setup.md docs/infrastructure/grafana-dashboards-setup.md docs/infrastructure/grafana-provisioning-setup.md docs/infrastructure/prometheus-app-metrics-setup.md docs/infrastructure/promtail-noise-filter-setup.md docs/infrastructure/vps-ai-sysadmin.md docs/infrastructure/vps-bootstrap-plan.md docs/infrastructure/vps-complete-inventory.md docs/infrastructure/vps-fleet-architecture.md docs/infrastructure/vps-hub-rebuild.md docs/infrastructure/vps-spoke-rebuild.md docs/infrastructure/vps-status.md docs/infrastructure/vps-urls.md docs/operations/deployment.md docs/operations/disaster-recovery.md docs/operations/hub-restore-inventory.md docs/operations/promtail-to-alloy-runbook.md docs/operations/spoke-restore-inventory.md docs/reference/apis/EXTERNAL_SYSTEMS.md docs/reference/architecture.md docs/reference/health-monitoring.md docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md docs/workflows/development-and-deployment-workflow.md infra/README.md infra/vps1/monitoring/compose.yaml infra/vps2/monitoring-agent/compose.yaml infra/vps3/monitoring-agent/compose.yaml scripts/audit/05-observability.sh scripts/audit/06-backup.sh scripts/bootstrap/README.md scripts/bootstrap/bootstrap-config.sh scripts/bootstrap/bootstrap-hub.sh scripts/bootstrap/bootstrap-spoke-restore.sh scripts/bootstrap/bootstrap-vps.sh scripts/bootstrap/templates/alloy.alloy.template scripts/bootstrap/templates/monitoring-agent.compose.yaml.template scripts/generate_vps_inventory.py scripts/sysadmin/proactive-check.sh scripts/sysadmin/system-prompt.txt scripts/vps_apply_limits.sh scripts/vps_sync.py templates/file-worker/compose.yaml.j2 templates/scaffold/docs/RESILIENCE_TEMPLATE.md tests/test_alloy_configs.py tests/test_alloy_consumers.py tests/test_alloy_runbook.py tests/test_alloy_watchers.py tests/test_monitoring_agent_template.py tests/test_vps_apply_limits.py docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-review.md
+$ python scripts/review_rubric.py --changed .fabrik/plan-locks/2026-10-08-plan-1-promtail-to-alloy.json .fabrik/work/W-0913992c.json .fabrik/work/W-3860ebf6.json .fabrik/work/W-857fc640.json .fabrik/work/W-a7ee59fd.json CHANGELOG.md INDEX.md PORTS.md configs/alloy/config.alloy configs/gatus/README.md configs/gatus/apps/observability-agents.yaml configs/prometheus/prometheus.yml docs/DEPLOYMENT_ARCHITECTURE.md docs/README.md docs/SERVICES.md docs/development/plans/2026-10-08-plan-1-promtail-to-alloy/2026-10-08-plan-1-promtail-to-alloy.md docs/development/plans/2026-10-08-plan-1-promtail-to-alloy/T02-hub-compose-and-ceilings.md docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T01-review.md docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T02-review.md docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T05a-review.md docs/infrastructure/alloy-noise-filter-setup.md docs/infrastructure/audit-prompts/01-full-system-audit.md docs/infrastructure/audit-prompts/02-container-health.md docs/infrastructure/audit-prompts/03-security-hardening.md docs/infrastructure/audit-prompts/04-performance-bottleneck.md docs/infrastructure/audit-prompts/05-observability-pipeline.md docs/infrastructure/audit-prompts/07-pre-production-checklist.md docs/infrastructure/audit-prompts/08-hardening-remediation.md docs/infrastructure/audit-prompts/README.md docs/infrastructure/glitchtip-sdk-integration-setup.md docs/infrastructure/grafana-dashboards-setup.md docs/infrastructure/grafana-provisioning-setup.md docs/infrastructure/prometheus-app-metrics-setup.md docs/infrastructure/promtail-noise-filter-setup.md docs/infrastructure/vps-ai-sysadmin.md docs/infrastructure/vps-bootstrap-plan.md docs/infrastructure/vps-complete-inventory.md docs/infrastructure/vps-fleet-architecture.md docs/infrastructure/vps-hub-rebuild.md docs/infrastructure/vps-spoke-rebuild.md docs/infrastructure/vps-status.md docs/infrastructure/vps-urls.md docs/operations/disaster-recovery.md docs/operations/hub-restore-inventory.md docs/operations/promtail-to-alloy-runbook.md docs/operations/spoke-restore-inventory.md docs/reference/apis/EXTERNAL_SYSTEMS.md docs/reference/architecture.md docs/reference/health-monitoring.md docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md docs/workflows/development-and-deployment-workflow.md infra/README.md infra/vps1/monitoring/compose.yaml infra/vps2/monitoring-agent/compose.yaml infra/vps3/monitoring-agent/compose.yaml scripts/audit/05-observability.sh scripts/audit/06-backup.sh scripts/bootstrap/README.md scripts/bootstrap/bootstrap-config.sh scripts/bootstrap/bootstrap-hub.sh scripts/bootstrap/bootstrap-spoke-restore.sh scripts/bootstrap/bootstrap-vps.sh scripts/bootstrap/templates/alloy.alloy.template scripts/bootstrap/templates/monitoring-agent.compose.yaml.template scripts/generate_vps_inventory.py scripts/sysadmin/proactive-check.sh scripts/sysadmin/system-prompt.txt scripts/vps_apply_limits.sh scripts/vps_sync.py templates/file-worker/compose.yaml.j2 templates/scaffold/docs/RESILIENCE_TEMPLATE.md tests/test_alloy_configs.py tests/test_alloy_consumers.py tests/test_alloy_runbook.py tests/test_alloy_watchers.py tests/test_monitoring_agent_template.py tests/test_vps_apply_limits.py
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
 # Honesty (L1): this arms the review — it raises compliance probability, it does not guarantee it.
 
@@ -450,7 +120,7 @@ $ python scripts/review_rubric.py --changed configs/alloy/config.alloy configs/g
 **Factor XII — Admin processes. NEVER migrate from app startup.**
 **BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (see `30-ops.md` § Release & Admin Processes).
 
-### core/40-documentation.md  (hit: configs/gatus/README.md, docs/DEPLOYMENT_ARCHITECTURE.md, docs/SERVICES.md)
+### core/40-documentation.md  (hit: CHANGELOG.md, INDEX.md, PORTS.md)
 - > **⚠️ `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are FLEET-AI INTERFACES, not just docs (D-065).**
 - **Tier-1 (author → verify → converge; the author leg is NATIVE while the pool is OFF, D-181 — `scripts/doc_reconcile.py`'s pool author cannot dispatch):** for each **mechanically-detectable** doc whose Doc-Sync trigger fired (`docs/QUICKSTART.md` · `docs/CONFIGURATION.md` · `docs/data-contract.md` · `docs/SERVICES.md` · `docs/OPERATIONS.md` — the reliable-signal subset), `scripts/doc_reconcile.py` dispatches a cheap OpenRouter-pool author (`libs.subagents`, `pick_models("docs")`) to emit a **minimal structured patch**, **verifies it before applying** (a symbol cross-check catches invented endpoints; the orchestrator injects a higher-assurance native-Claude verify), and loops to a zero-edit round. Runs per phase in `/fabrik-execute-plan`; never blocks (fail-safe). The other docs (CHANGELOG, INDEX, FEATURES, RESILIENCE, PORTS, the READMEs, `db/schema.sql`, …) have no reliable mechanical content-signal → they rely on the touch-on-change backstop below + your own edit (force-update, not force-correct).
 - The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. `/fabrik-plan-after-chat` (the plan set's spine + tickets — the ticket-format authority) injects these rows per ticket as its `Docs:` line.
@@ -615,43 +285,239 @@ $ python scripts/review_rubric.py --changed configs/alloy/config.alloy configs/g
 - 2. **Fallback — `pause-state` (Redis-backed).** When `signups_per_ip_per_minute` for a specific IP stays high after the first defense's per-IP cap fires, the worker emits an incident; the watchdog sidecar reads the inbox and proposes Tier A `pause_worker` with `resource=signup_<ip_hash>` (the action accepts `^[a-z][a-z0-9_]{0,31}$` and a TTL of 5–3600 s, so truncate the hash to fit — and it is unreachable today, above, so until upstream carries parameters the app sets this pause itself with `pause_state.set_global_pause(...)`). Every signup-handling worker checks `pause_state.is_paused("signup_<ip_hash>")` from the vendored fabrik-lib `pause-state` (the scaffold's own `pause_state.py` has no `is_paused`), with `PAUSE_KEY_PREFIX` equal to `<project_id>:pause:`, and bails without touching the DB. Never gate other workers on `is_globally_paused()` while per-IP keys share the prefix — it reports ANY key under it, so one IP would stop them all.
 - [ ] The per-project ladder does not count on a watchdog step that is never offered (`scale_concurrency`, `drop_queue_items`, `rotate_locks`): each such row's healing step is the app's own first response, and the doc says the watchdog step escalates. If the approved-write lane is wanted once it is reachable, the project `.env` sets `WATCHDOG_ALLOW_DB_WRITES=true` and the RW DSN is provisioned.
 
-# promote-to-check_* tail elided (the full mandates are above)
+# promote-to-check_*: 170 injected mandate(s) look deterministically greppable — their backtick literals, one line each (the full mandates are ABOVE, not repeated: re-emitting ~20 FLOOR lines verbatim doubled the rubric and got it skimmed — web-ecommerce-factory 01M1QEY5, 2026-09-05)
+- `fabrik-lib/fastapi-user-auth` `DELETE … RETURNING` `jti` `agents-fabrik.md § Supabase`
+- `chrome-extension` `chrome.identity.launchWebAuthFlow` `https://<ext-id>.chromiumapp.org/` `chrome.storage.session`
+- `desktop-app` `safeStorage` `desktop-app/72-desktop.md`
+- `fabrik` `X-Internal-Token` `internal_auth.py` `hmac.compare_digest` `APIKeyHeader`
+- `auth.uid()` `current_tenant_id()` `NULL` `EXCEPTION WHEN OTHERS THEN RETURN NULL` `SELECT auth.uid()` `NULL`
+- `openssl rand -hex 32`
+- `algorithms=["HS256"]` `alg` `alg: none`
+- `redis-main`
+- `expo-secure-store` `80-mobile.md`
+- `localStorage` `sessionStorage`
+- `chrome.storage.session` `TRUSTED_CONTEXTS` `chrome.runtime.sendMessage` `chrome.identity.launchWebAuthFlow` `code_verifier` `crypto.subtle` `storage.session`
+- `x-middleware-subrequest` `middleware.ts` `proxy.ts` `middleware.ts`
+- `CORSMiddleware` `allow_origins`
+- `X-Frame-Options: DENY` `frame-ancestors`
+- `APIKeyHeader` `require_api_key` `SERVICE_API_KEY` `PROXY_API_KEY` `python-api` `internal_auth.py` `metrics.py` `/metrics` `SERVICE_INTERNAL_SECRET_KEY`
+- `os.getenv("KEY", "default")` `config/production.yml` `settings.production`
+- `expo-secure-store`
+- `^/api/` `/api/*` `/api/v1` `/api/*` `shape.bearer_bypass_prefix: "^/api/v1"` `fabrik apply` `^/` `orchestrator/verifier.check_api_bypass` `/api/*` `^/api/`
+- `postgres-main` `fabrik-lib/rag` `plpgsql` `CLAIMS.yaml` `fleet-postgres-main-no-pgvector` `postgres-main`
+- `postgres-main` `docs/DECISIONS.md`
 ```
 
 | Class | Status |
 |---|---|
-| FLOOR core/35-security-auth.md | CLEAN — no auth, secret or credential surface in any Touches path (digest row; pass 1 slice A) |
-| FLOOR core/25-data-postgres.md | CLEAN — no database, schema or migration path in any Touches list (digest row; pass 1 slice A) |
-| FLOOR core/30-ops.md | FIXED — every alloy service carries a memory limit (T02, T03 V10 rows); pass 1 added the V10 cite to T02 (C12) |
-| FLOOR 12-FACTOR | FIXED — the digest lacked the row; pass 1 added it (C7): no app config or backing-service binding changes |
-| MATCHED core/10-python.md | CLEAN — T04b's Python edits are set members and strings; no logging path changes (digest row) |
-| MATCHED core/40-documentation.md | FIXED — pass 2 N1: a rename and every inbound link now share one ticket (T05c), so each whole-tree `check_doc_links.py` Gate is satisfiable; pass 1 C-1/C-2 added the missing link and EXTERNAL_SYSTEMS rows |
-| MATCHED core/45-testing-strategy.md | FIXED — pass 1 C-3 graded V6 and the Gate S list in T06; B5 added the image-absent skip in T01 |
-| MATCHED core/55-observability.md | FIXED — pass 1 B1: `loki_write_*` exists only after a push, so T04b's probe pushes to a throwaway Loki (reproduced live by slice B, pass 2) |
-| MATCHED core/57-external-data-sourcing.md | CLEAN — T07 edits the existing EXTERNAL_SYSTEMS.md rows; no new vendor profile |
-| MATCHED core/58-resilience.md | CLEAN — matched by a doc name only; no resilience mechanism changes |
-| MATCHED core/90-bootstrap-scripts.md | FIXED — pass 1 C5: `bash -n` on every edited script in the T02, T03 and T04b Gates (each parses clean at the pin, slice B pass 2) |
-| MATCHED core/self-healing.md | CLEAN — matched by a doc name only; no ladder step changes |
-| Recurrence: fail-open vs fail-closed on every gate/guard | FIXED — pass 2 N1 (a Gate that could never go green); T01's docker/image skip states its reason instead of passing silently (B5) |
-| Recurrence: cost/quota/limit accounting edges (unknown≠0, per-call vs batch) | CLEAN — READ budgets re-measured per doc ticket (spine § Evidence); `check_plan_tickets` 0 findings; slice A's T04b size estimate REFUTED by the canonical budget model |
-| Recurrence: boundary/sentinel/prefix collisions | FIXED — pass 1 C9 carved the throwaway rehearsal projects out of the no-host constraint; port 12345 checked with `ss -ltn` in T06 preflight |
-| Recurrence: behavior-without-a-test | FIXED — pass 1 C-2/C-3 added rows for EXTERNAL_SYSTEMS, V6 and Gate S; BC roll-up 44 = 44, verbatim |
+| Hunt: `.fabrik/plan-locks/2026-10-08-plan-1-promtail-to-alloy.json` — every changed hunk, its enclosing function, its callers | CLEAN (.fabrik/plan-locks/2026-10-08-plan-1-promtail-to-alloy.json — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `.fabrik/work/W-0913992c.json` — every changed hunk, its enclosing function, its callers | CLEAN (.fabrik/work/W-0913992c.json — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `.fabrik/work/W-3860ebf6.json` — every changed hunk, its enclosing function, its callers | CLEAN (.fabrik/work/W-3860ebf6.json — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `.fabrik/work/W-857fc640.json` — every changed hunk, its enclosing function, its callers | CLEAN (.fabrik/work/W-857fc640.json — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `.fabrik/work/W-a7ee59fd.json` — every changed hunk, its enclosing function, its callers | CLEAN (.fabrik/work/W-a7ee59fd.json — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `CHANGELOG.md` — every changed hunk, its enclosing function, its callers | CLEAN (CHANGELOG.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `INDEX.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (DOCS-S3 the top-level tree names configs/alloy/) |
+| Hunt: `PORTS.md` — every changed hunk, its enclosing function, its callers | CLEAN (PORTS.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `configs/alloy/config.alloy` — every changed hunk, its enclosing function, its callers | CLEAN (configs/alloy/config.alloy — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `configs/gatus/README.md` — every changed hunk, its enclosing function, its callers | CLEAN (configs/gatus/README.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `configs/gatus/apps/observability-agents.yaml` — every changed hunk, its enclosing function, its callers | CLEAN (configs/gatus/apps/observability-agents.yaml — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `configs/prometheus/prometheus.yml` — every changed hunk, its enclosing function, its callers | CLEAN (configs/prometheus/prometheus.yml — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/DEPLOYMENT_ARCHITECTURE.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/DEPLOYMENT_ARCHITECTURE.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/README.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/README.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/SERVICES.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/SERVICES.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/development/plans/2026-10-08-plan-1-promtail-to-alloy/2026-10-08-plan-1-promtail-to-alloy.md` — every changed hunk, its enclosing function, its callers | FIXED r1, r2 (INFRA-S1 then INFRA-O6 the Behavior Contract cites bootstrap-config.sh:220 beside :219) |
+| Hunt: `docs/development/plans/2026-10-08-plan-1-promtail-to-alloy/T02-hub-compose-and-ceilings.md` — every changed hunk, its enclosing function, its callers | FIXED r1, r2 (INFRA-S1, INFRA-O6 the same :220 beside :219 cite) |
+| Hunt: `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T01-review.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T01-review.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T02-review.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T02-review.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T05a-review.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T05a-review.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/alloy-noise-filter-setup.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/alloy-noise-filter-setup.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/audit-prompts/01-full-system-audit.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/audit-prompts/01-full-system-audit.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/audit-prompts/02-container-health.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/audit-prompts/02-container-health.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/audit-prompts/03-security-hardening.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/audit-prompts/03-security-hardening.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/audit-prompts/04-performance-bottleneck.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/audit-prompts/04-performance-bottleneck.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/audit-prompts/05-observability-pipeline.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/audit-prompts/05-observability-pipeline.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/audit-prompts/07-pre-production-checklist.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/audit-prompts/07-pre-production-checklist.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/audit-prompts/08-hardening-remediation.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/audit-prompts/08-hardening-remediation.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/audit-prompts/README.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/audit-prompts/README.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/glitchtip-sdk-integration-setup.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/glitchtip-sdk-integration-setup.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/grafana-dashboards-setup.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/grafana-dashboards-setup.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/grafana-provisioning-setup.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/grafana-provisioning-setup.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/prometheus-app-metrics-setup.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/prometheus-app-metrics-setup.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/promtail-noise-filter-setup.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/promtail-noise-filter-setup.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/vps-ai-sysadmin.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/vps-ai-sysadmin.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/vps-bootstrap-plan.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/vps-bootstrap-plan.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/vps-complete-inventory.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (DOCS-S1 the mesh-exposed Loki row names Alloy after the switch window) |
+| Hunt: `docs/infrastructure/vps-fleet-architecture.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (CODE-S1 the DOCKER-USER drop list carries 12345, with how it reaches a running spoke) |
+| Hunt: `docs/infrastructure/vps-hub-rebuild.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/vps-hub-rebuild.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/vps-spoke-rebuild.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/vps-spoke-rebuild.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/infrastructure/vps-status.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (DOCS-S4 the Promtail gRPC finding is marked moot after the switch) |
+| Hunt: `docs/infrastructure/vps-urls.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/infrastructure/vps-urls.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/operations/disaster-recovery.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/operations/disaster-recovery.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/operations/hub-restore-inventory.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/operations/hub-restore-inventory.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/operations/promtail-to-alloy-runbook.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (INFRA-O1 the rollback names the kept alloy-data volumes and the operator's word before a roll-forward; RUNBOOK-S3 the canary start clears a stale canary) |
+| Hunt: `docs/operations/spoke-restore-inventory.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (INFRA-O3 the spoke daemon.json row names the container tag Alloy's label needs) |
+| Hunt: `docs/reference/apis/EXTERNAL_SYSTEMS.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/reference/apis/EXTERNAL_SYSTEMS.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/reference/architecture.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/reference/architecture.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/reference/health-monitoring.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/reference/health-monitoring.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `docs/workflows/development-and-deployment-workflow.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/workflows/development-and-deployment-workflow.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `infra/README.md` — every changed hunk, its enclosing function, its callers | CLEAN (infra/README.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `infra/vps1/monitoring/compose.yaml` — every changed hunk, its enclosing function, its callers | CLEAN (infra/vps1/monitoring/compose.yaml — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `infra/vps2/monitoring-agent/compose.yaml` — every changed hunk, its enclosing function, its callers | CLEAN (infra/vps2/monitoring-agent/compose.yaml — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `infra/vps3/monitoring-agent/compose.yaml` — every changed hunk, its enclosing function, its callers | CLEAN (infra/vps3/monitoring-agent/compose.yaml — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `scripts/audit/05-observability.sh` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/audit/05-observability.sh — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `scripts/audit/06-backup.sh` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/audit/06-backup.sh — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `scripts/bootstrap/README.md` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/bootstrap/README.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `scripts/bootstrap/bootstrap-config.sh` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/bootstrap/bootstrap-config.sh — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `scripts/bootstrap/bootstrap-hub.sh` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/bootstrap/bootstrap-hub.sh — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `scripts/bootstrap/bootstrap-spoke-restore.sh` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/bootstrap/bootstrap-spoke-restore.sh — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `scripts/bootstrap/bootstrap-vps.sh` — every changed hunk, its enclosing function, its callers | FIXED r1, r2, r3, r4 (INFRA-O4 the step-03 comment; INFRA-O2 then O7, O9, O10, O11 the step-11 liveness check reads State.Status twice 15 s apart) |
+| Hunt: `scripts/bootstrap/templates/alloy.alloy.template` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/bootstrap/templates/alloy.alloy.template — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `scripts/bootstrap/templates/monitoring-agent.compose.yaml.template` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/bootstrap/templates/monitoring-agent.compose.yaml.template — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `scripts/generate_vps_inventory.py` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/generate_vps_inventory.py — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `scripts/sysadmin/proactive-check.sh` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/sysadmin/proactive-check.sh — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `scripts/sysadmin/system-prompt.txt` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/sysadmin/system-prompt.txt — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `scripts/vps_apply_limits.sh` — every changed hunk, its enclosing function, its callers | FIXED r1 (INFRA-O5 the ceilings comment counts eleven rows) |
+| Hunt: `scripts/vps_sync.py` — every changed hunk, its enclosing function, its callers | CLEAN (scripts/vps_sync.py — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `templates/file-worker/compose.yaml.j2` — every changed hunk, its enclosing function, its callers | CLEAN (templates/file-worker/compose.yaml.j2 — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `templates/scaffold/docs/RESILIENCE_TEMPLATE.md` — every changed hunk, its enclosing function, its callers | CLEAN (templates/scaffold/docs/RESILIENCE_TEMPLATE.md — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `tests/test_alloy_configs.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_alloy_configs.py — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `tests/test_alloy_consumers.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_alloy_consumers.py — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `tests/test_alloy_runbook.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (RUNBOOK-S5 the hub alloy has no host port; graders for INFRA-O1 and RUNBOOK-S3, red on the pre-fix tree) |
+| Hunt: `tests/test_alloy_watchers.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_alloy_watchers.py — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Hunt: `tests/test_monitoring_agent_template.py` — every changed hunk, its enclosing function, its callers | FIXED r1, r2, r3, r4 (graders for the step-11 crash loop, backoff and 15 s gap; each red on its pre-fix tree or mutant) |
+| Hunt: `tests/test_vps_apply_limits.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_vps_apply_limits.py — every hunk in ad790046b..3424eb737 read by its D7 slice seat against the configs, compose files and spec; earlier rounds adjudicated in the T01, T02 and T05a wave receipts) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1, r2, r3 (INFRA-O2, O7, O9 scripts/bootstrap/bootstrap-vps.sh step 11 passed a crash-looping alloy; each fix reproduced on a throwaway container first) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (scripts/vps_apply_limits.sh ceilings and the spoke template's 128M re-read; seats stamped with command_run.py dispatch every pass) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1, r2 (INFRA-S1, INFRA-O6 off-by-one line cites into scripts/bootstrap/bootstrap-config.sh; INFRA-O10 a grader bound below the promised 15 s) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1, r3, r4 (RUNBOOK-S5 and the step-11 graders in tests/test_monitoring_agent_template.py; mutants sleep 6, sleep 11 and a dropped running-guard each go red) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (docs/reference/apis/EXTERNAL_SYSTEMS.md 149 systems re-counted at T07; 161 then 42 tests collected by pytest's own total) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (scripts/bootstrap/bootstrap-vps.sh verify run under bash with remote stubbed; Docker backoff behaviour run live on throwaway containers; V3/V4a/V5a rehearsed against grafana/loki:3.4.2) |
+
+Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
+must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
+disproving line>)` · `RECORDED — unexecuted (<why>)` · `RECORDED — by design`, parenthesising the
+owning row's first-cell id and the EARLIER round that adjudicated it, or a `D-nnn` with no round
+(the § Residual block below shows the shape) · `RECORDED — measured (<why>)` ·
+`RECORDED — hygiene false positive (<why>)` — every RECORDED reason is PARENTHESISED, never
+colon-delimited (a colon would spell the `unexecuted: N` counter the ledger refuses). `UNCHECKED`
+may survive only under a `## BLOCKED` escalation (a finding + 3 failed attempts).
 
 ## Pass Ledger
 
-Combined hash = `find <plan-dir> -name '*.md' -print0 | sort -z | xargs -0 md5sum | md5sum` (first 12), taken before
-each row is written.
+ONE table, one row per pass, counts punctuated (`found: F, new: N, confirmed: C, fixed: X,
+unexecuted: U`) — the gate reads the LAST row as the exit round and refuses a second ledger group.
+`found:` counts raw candidates, `new:` is prose the graders do not parse, `confirmed:` counts the
+candidates EXECUTED and reproduced (the exit counter — a round is quiet at `confirmed: 0` and
+`fixed: 0` with `unexecuted:` 0 or absent), `unexecuted:` counts code candidates RECORDED
+unexecuted. Minimum two passes; the fixing pass is never the last; the closing pass re-derives
+every count and anchor and says so in its Method cell, and its Finders cell names the seats that
+read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alone read cannot close.
 
-| Pass | Seats | Counters | Method | md5(start) → md5(end) |
-|---|---|---|---|---|
-| Pass 1 | opus×1 (A spine) + sonnet×1 (B T01–T04b) + sonnet×1 (C T05a–T07) · full partitioned pass | found: 22, new: 22, confirmed: 20, fixed: 20, unexecuted: 0, edits: 20 | method: re-derivation — every path:line re-read at 0a3f55377, the Promtail sweep re-run, B1 measured on a cold `alloy run`; C-4 REFUTED (the row already says "each" doc), C-5 RECORDED — by design (I14: the infra mail is a superset of § Lifecycle) | 3414167114de → 341073a2a915 |
-| Pass 2 | opus×1 + sonnet×2 (the round-1 owners) · delta over 0a3f55377..50f16b917 + one hop | found: 4, new: 4, confirmed: 2, fixed: 2, unexecuted: 0, edits: 2 | method: re-derivation — all 20 claims re-verified; N1 executed in a scratch copy (`git mv` then `check_doc_links.py` names DEPLOYMENT_ARCHITECTURE.md); persona mismatch read against spec § Personas :18-21; slice A's T04b budget REFUTED by `check_plan_tickets` (0 findings); slice C's "tell" channel RECORDED — measured (wording; changes no behaviour) · own-fix: 2 (round 1) | 341073a2a915 → 165a86fc2d8c |
-| Pass 3 | opus×1 + sonnet×1 (round-1 owners of A and C; B verified clean in pass 2) · closing round over 50f16b917..ad76234bd | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the persona fix and N1 re-verified against the pin; no new defect | 165a86fc2d8c → 165a86fc2d8c |
+| Pass | Finders | Counters | Method |
+|---|---|---|---|
+| Pass 1 | native opus×1 + sonnet×4 | found: 18, new: 18, confirmed: 12, fixed: 12, unexecuted: 0 | method: re-derivation — four slices over ad790046b..05c76ac32 (CODE, INFRA, RUNBOOK, DOCS), one refuter each executing every candidate, the lead executing the refutations it relied on; seats: CODE-sonnet 1/1 · INFRA-sonnet 1/3 · INFRA-opus 5/5 · RUNBOOK-sonnet 2/5 · DOCS-sonnet 3/4; stop: confirmed 12; fix: +87 -30 lines for 12 confirmed (d8b04de08) |
+| Pass 2 | native opus×1 + sonnet×2 (round-1 owners) | found: 4, new: 4, confirmed: 2, fixed: 2, unexecuted: 0 | method: re-derivation — 18 ledger claims re-executed on pins at d8b04de08 (CODE and DOCS on one Sonnet seat under box_cap 3); stop: confirmed 2; fix: +27 -14 lines for 2 confirmed (cb7f76c2b); own-fix: round 1 |
+| Pass 3 | native opus×1 (INFRA owner) | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation — INFRA ledger re-executed at cb7f76c2b with live throwaway crash loops (0.3 s and 8 s periods) and a healthy container; stop: confirmed 1; fix: +18 -6 lines (bcadf9108); own-fix: round 1 |
+| Pass 4 | native opus×1 (INFRA owner) | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0 | method: re-derivation — INFRA ledger at bcadf9108, restart-manager timeline model and two mutants; stop: scope-growth advisory; fix: +30 -8 lines (3424eb737, with backlog W-0913992c); own-fix: round 3 |
+| Pass 5 | native opus×1 (INFRA owner) | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the scope-growth exit's re-verify of the fixed set at 3424eb737: INFRA-O10 re-run with the gap mutated to 11/14/15/20 s (fails below 15), INFRA-O11 re-read, bash -n clean, 42 of 42 tests on a pinned copy; one observation recorded onto W-0913992c (the comment hard-codes 15 s); stop: closable |
 
-## Residual unknowns
+Row shapes (quoted here, so the gate does not read them as passes):
 
-- Resolved: which file deploys the hub compose (none; spec U1); the spoke volume classification home (condition 4).
-- Open: U2, whether port 12345 is free on each spoke host network. Resolution: the runbook's preflight `ss -ltn`.
-  On a clash, the spoke flag and the Prometheus targets take another free port.
-- Open: Alloy's exact metric names for the observability audit. Resolution: T04b reads them from a local
-  `alloy run`'s `/metrics` (spec ledger cv-04).
+```text
+| Pass 1 | native opus×1 + sonnet×2 | found: N, new: N, confirmed: C, fixed: X, unexecuted: U | method: citation |
+| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |
+```
+
+## Residual
+
+Every candidate that did not enter `confirmed:` is recorded here, one row each, in the verdict
+grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading is an EXAMPLE, never rows).
+
+### Verdict grammar — an EXAMPLE, never rows
+
+(quoted so no reader — human or scan — takes this template's own sample rows for the receipt's residuals):
+
+```text
+| F12 | RECORDED — unexecuted (3 probe attempts timed out) |
+| F19 | RECORDED — by design (F4, round 3; D-203) |
+| F31 | RECORDED — measured (a prevalence figure; makes no code or doc claim) |
+```
+
+`RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that adjudicated
+it (or a `D-nnn` with no round); the gate refuses an absent owner and a round that is not below the
+closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
+`unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
+
+| Candidate | Disposition |
+|---|---|
+| INFRA-S2 | REFUTED (a DR-rebuilt spoke starts with an empty /var/lib/docker/containers, so tailing from the beginning reads only logs written since its containers started — docs/operations/spoke-restore-inventory.md:69) |
+| INFRA-S3 | RECORDED — by design (D-651) |
+| INFRA-O8 | RECORDED — by design (D-651) |
+| RUNBOOK-S1 | REFUTED (T07 V4a rehearsal: configs/alloy/config.alloy into grafana/loki:3.4.2 returned container_name, filename, host, job, service_name, stream) |
+| RUNBOOK-S2 | REFUTED (the refuter's shell simulation of the loki() helper expands to one well-formed curl argument list) |
+| RUNBOOK-S4 | REFUTED (the pause in 05c76ac32 paused the agents' build, not the operator's window; the 3 h silence at docs/operations/promtail-to-alloy-runbook.md:39-42 covers one sitting, spokes through the watcher push in § 3) |
+| RUNBOOK-S6 | REFUTED (a daemon error the silenced rm hides makes the following docker run fail loudly on the same error; only the name-in-use case is meant to be quiet) |
+| DOCS-S2 | REFUTED (docs/reference/apis/EXTERNAL_SYSTEMS.md:3025 cites spec D5, where 96 MiB is the measurement cap behind the 128M limit) |
+
+Extension notes, not counted: docs/infrastructure/vps-complete-inventory.md:899 still says spokes run promtail (a dated history line); plan lines 30 and 298 cite bootstrap-config.sh:218 as D-651 condition 2 recorded it on master. The slow-loop limit of step 11's liveness check is routed to backlog W-0913992c by the scope-growth stop.
+
+## Per-phase verdicts
+
+### Wave 1 — T01, T04a, T04b: CLEAN
+
+The committed Alloy configs are the converter's output, and the Prometheus job, the Gatus endpoint and every repo consumer
+name Alloy's container, port 12345 and metrics. Wave receipt `-T01-review.md` (8 → 2 → 0); D7 pass 1 raised one doc
+defect against this wave's surface (CODE-S1, the DOCKER-USER drop list), fixed in d8b04de08.
+
+### Wave 2 — T02, T03: CLEAN
+
+The hub compose runs Alloy with Promtail under the `rollback` profile; the spoke template, bootstrap step 11, the vps2/vps3
+mirrors and the restore inventory follow. Wave receipt `-T02-review.md` (11 → 2 → 1 → 0). D7 found that step 11's
+liveness check passed a crash-looping alloy: one `docker ps` read (INFRA-O2), then `State.Running` during a restart
+backoff (INFRA-O7), then a loop slower than a 6 s gap (INFRA-O9). Step 11 now reads `State.Status` and `RestartCount`
+twice, 15 s apart, and needs `running` with an unchanged count. Each step was reproduced on throwaway containers before it
+was fixed, and each has a grader that is red on its pre-fix tree or a mutant. A loop that stays up longer than 15 s can
+still pass. The scope-growth stop routed that limit to backlog W-0913992c.
+
+### Wave 3 — T05a–T05e, T06: CLEAN
+
+The doc sweep names Alloy as the running shipper, and the operator runbook covers the window, the battery, the rollback,
+Gate S and the infra mail. Wave receipt `-T05a-review.md` (16 → 2 → 0). D7 added two rollback facts to the runbook: the kept
+`alloy-data` volumes, which the operator removes before a later roll-forward so the legacy positions import runs again
+(INFRA-O1), and a canary start that clears a stale canary first (RUNBOOK-S3). Alloy converts legacy positions only when it
+has no positions file of its own. Source: grafana.com, `loki.source.file` reference, `legacy_positions_file`, fetched with
+WebFetch on 2026-10-08.
+
+### T07 — integration: CLEAN
+
+`docs/reference/apis/EXTERNAL_SYSTEMS.md` names Grafana Alloy (149 distinct systems; 1418e38cb), and Gate S is boarded as
+W-a7ee59fd. All 161 tests in the nine plan test files pass on the merged branch. The three local rehearsals ran on
+throwaway `t07r-` containers and projects; all three PASS:
+
+- **V5a — rollback.** After the forward switch the compose reads `['alloy running', 'promtail exited']`. After the D6 rollback
+  it reads `['promtail running']`, and after a plain `up -d` (the boot reconciler) still `['promtail running']`, with no
+  alloy container.
+- **V4a — labels.** Alloy with the committed hub config, into `grafana/loki:3.4.2`, produced the label names
+  `container_name, filename, host, job, service_name, stream`, plus Loki's own internal `__stream_shard__`.
+- **V3 — positions hand-over.** With a Promtail positions file at offset 1089 (after line 10 of 20), Alloy shipped exactly
+  `t07r-line-11` … `t07r-line-20` (10 lines). It logged `successfully converted legacy positions file to the new format`,
+  and shipped nothing again after a restart.
+
+One leftover from the first V5a run, the docker volume `t07r-v5a_alloy-data`, is reported, not deleted. It is throwaway, but
+deleting a volume is the operator's word.
+
+**D-651 condition 1 — the correction.** The approved spec's sentence at
+`docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md:55-57` says two more copies of the hub monitoring compose
+(`configs/monitoring-compose.yaml`, `specs/infrastructure/monitoring-stack.yaml`) sit in the repo. That sentence is stale.
+D-595 retired both copies, and neither path exists on this branch. No ticket touched either path. The approved spec is not
+edited; this receipt records the correction.
+
+## Gate
+
+`final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
+`"status": "success"`):
+
+```json
+UNCHECKED — paste the gate output here at the CONVERGED flip
+```
