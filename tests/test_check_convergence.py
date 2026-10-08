@@ -2518,7 +2518,14 @@ def test_terminal_status_with_gate_passes(repo: Path) -> None:
 
 
 def test_non_claim_status_is_not_graded(repo: Path) -> None:
-    for status in ("DRAFT", "OPEN", "IN-PROGRESS", "DRAFT - pass 1 pending", "NOT CONVERGED", "ABANDONED"):
+    for status in (
+        "DRAFT",
+        "OPEN",
+        "IN-PROGRESS",
+        "DRAFT - pass 1 pending",
+        "NOT CONVERGED",
+        "ABANDONED",
+    ):
         assert _run(repo, _TERMINAL_REVIEW, _terminal_receipt(status, gate=False)) == 0, status
     no_status = "# Receipt for X\n\nNotes only.\n\n### Phase 1 — wiring\n"
     assert _run(repo, _TERMINAL_REVIEW, no_status) == 0
@@ -2530,7 +2537,9 @@ def test_blocked_exempts_only_an_evidenced_escalation(repo: Path) -> None:
     """A bare `Status: BLOCKED` is not a way out of the gate; an evidenced escalation is."""
     bare = _terminal_receipt("BLOCKED on finding F3", gate=False)
     assert _run(repo, _TERMINAL_REVIEW, bare) == 1
-    evidenced = bare + "\n## BLOCKED: F3\n\nThe fix failed after 3 attempts; the probe output is above.\n"
+    evidenced = (
+        bare + "\n## BLOCKED: F3\n\nThe fix failed after 3 attempts; the probe output is above.\n"
+    )
     assert _run(repo, _TERMINAL_REVIEW, evidenced) == 0
 
 
@@ -2604,3 +2613,67 @@ def test_the_first_status_line_is_the_receipts_own(repo: Path) -> None:
     """A finished sub-phase's `Status: DONE` below the receipt's own `Status: DRAFT` claims nothing."""
     doc = "# Receipt for X\n\n**Status:** DRAFT\n**Status:** DONE — sub-phase A\n\n### Phase 1 — wiring\n"
     assert _run(repo, _TERMINAL_REVIEW, doc) == 0
+
+
+@pytest.mark.parametrize(
+    "status_line",
+    [
+        None,  # the skeleton as born: `**Status:** IN-PROGRESS`
+        "**Status**: IN-PROGRESS",  # a spelling the header-zone reader does not know
+        "**Status:** CONVERGED",  # flipped by hand, nothing filled
+    ],
+)
+def test_executed_plan_citing_an_unfilled_init_skeleton_fails(
+    repo: Path, status_line: str | None
+) -> None:
+    """kaizen 01M4E1MYFJ: `review_receipt.py --init` writes a skeleton whose FENCED "Row shapes"
+    example holds a `found: 0 … confirmed: 0 … fixed: 0` Pass row; scanned raw, that example read
+    as a quiet pass, so a plan could claim EXECUTED citing a review nobody ran. The template's own
+    example block is never a row, whatever the receipt's Status line says."""
+    review = "docs/development/reviews/2026-08-03-plan-x-review.md"
+    (repo / review).parent.mkdir(parents=True, exist_ok=True)
+    (repo / "src").mkdir(exist_ok=True)
+    (repo / "src" / "x.py").write_text("x = 1\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "seed")
+    (repo / "src" / "x.py").write_text(
+        "x = 2\n", encoding="utf-8"
+    )  # the change the skeleton anchors to
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(CHECK.parents[1] / "review_receipt.py"),
+            "--init",
+            "--changed",
+            "src/x.py",
+            "--out",
+            str(repo / review),
+            "--project-root",
+            str(repo),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    skeleton = (repo / review).read_text(encoding="utf-8")
+    assert "**Status:** IN-PROGRESS" in skeleton and "confirmed: 0" in skeleton, (
+        "the skeleton carries the example"
+    )
+    if status_line is not None:
+        (repo / review).write_text(
+            skeleton.replace("**Status:** IN-PROGRESS", status_line, 1), encoding="utf-8"
+        )
+    plan = repo / "docs/development/plans/2026-08-03-plan-x.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(EXECUTED_PLAN_CITES, encoding="utf-8")
+    _git(repo, "add", "-A")
+    gate = subprocess.run(
+        [sys.executable, str(CHECK), "--project-root", str(repo)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    # The CITATION refuses — not some other check that also dislikes an unfilled receipt.
+    assert gate.returncode == 1
+    assert "plan-x.md: claims EXECUTED but its cited whole-plan review" in gate.stdout, gate.stdout

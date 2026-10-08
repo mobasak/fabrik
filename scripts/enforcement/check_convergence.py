@@ -287,7 +287,7 @@ def _cite_matches_plan(cite_name: str, plan_stem: str) -> bool:
     date must not PREDATE the plan's — a review written before the plan
     existed cannot be its validation (01M1DJYH: a 3-week-old readiness review
     was indistinguishable from the plan's verify review by name tokens alone).
-    Unparseable dates fall back to token-match-only.
+    An undated name on either side has no fuzzy path: only the exact-stem rule applies.
     """
     if plan_stem in cite_name:
         return True
@@ -354,6 +354,15 @@ _TICKET_REVIEW_RE = re.compile(r"-T\d{2}[a-z]?-review\.md$")
 # D-053 re-grounding (2026-08-31): the 40-char window made the GAP between the counters
 # load-bearing — a finder manifest between them failed an honest quiet round (13-round review
 # proof). Same-LINE is the constraint (``[^\n]``); the size of the gap is not.
+# `review_receipt.py --init`'s "Row shapes" EXAMPLE block: a fence under the line the template
+# writes to say the gate does not read it — every one of the 456 skeleton-born receipts on the box
+# carries that line (2026-10-08). Its sample `confirmed: 0 … fixed: 0` row is no pass, so the
+# citation scan removes the block first (kaizen 01M4E1MYFJ). COBRA: a real ledger pasted INTO
+# that fence stops counting — the template already tells the author it is never read.
+_ROW_SHAPES_EXAMPLE = re.compile(
+    r"^Row shapes \(quoted here[^\n]*\n(?:[ \t]*\n)*[ \t]*```[^\n]*\n.*?^[ \t]*```[^\n]*$",
+    re.M | re.S,
+)
 QUIET_PASS = re.compile(
     r"found:\s*0\b(?![^\n]*(?<![\w-])(?:confirmed\s*:\s*\d|unexecuted\s*:\s*\d*[1-9]))"
     r"[^\n]*?fixed:\s*0\b"
@@ -992,6 +1001,16 @@ def _converged_targets(root: Path) -> list[Path]:
     return targets
 
 
+def _receipt_in_progress(rtext: str) -> bool:
+    """check_review_coverage's header-zone IN-PROGRESS reader — the ONE definition every grader uses."""
+    try:
+        from .check_review_coverage import _in_progress  # noqa: PLC0415
+    except ImportError:  # direct-script invocation
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from scripts.enforcement.check_review_coverage import _in_progress  # noqa: PLC0415
+    return _in_progress(rtext)
+
+
 def _scope_growth_closed(root: Path, path: Path, rtext: str) -> bool:
     """check_review_coverage's own `_legacy_scope_growth_exit` over the receipt's own ledger rows:
     the D-252 stop closed a review only for a receipt first committed before D-355 (2026-09-23)."""
@@ -1103,6 +1122,12 @@ def _check_executed_plan(
         if not rp.is_file():
             continue
         rtext = rp.read_text(encoding="utf-8", errors="replace")
+        # A receipt whose header still says IN-PROGRESS proves no finished review (kaizen
+        # 01M4E1MYFJ). The skeleton's own example rows are removed below by their template
+        # anchor, so the citation never rests on how a Status line is spelled; stripping EVERY
+        # fence instead would drop the real ledgers older receipts wrote in ```text blocks (49).
+        if _receipt_in_progress(rtext):
+            continue
         # A quiet round (D-206's confirmed: 0 … fixed: 0, or the pre-D-206 found: 0 … fixed: 0)
         # appears somewhere → the cited review ran the loop to (at least one) quiet pass.
         # Zero-false-positive by design (see QUIET_PASS); DEPTH is
@@ -1110,7 +1135,8 @@ def _check_executed_plan(
         # T4.3 (01M1SQZ80): a Pass-Ledger ROW, never prose — the gate's own error message, a
         # negation ("never returned found: 0"), and a description of the requirement all matched
         # the whole-text search; the row grammar is the only witness of a round that ran
-        if any(QUIET_PASS.search(m.group(0)) for m in _LEDGER_LINE.finditer(rtext)):
+        scan = _ROW_SHAPES_EXAMPLE.sub("", rtext)
+        if any(QUIET_PASS.search(m.group(0)) for m in _LEDGER_LINE.finditer(scan)):
             return fails  # citation satisfied; spine-set findings (if any) still surface
         # W-5b541aab: the D-252 scope-growth stop WAS a sanctioned exit at check_review_coverage —
         # a receipt that closed on it carries no quiet row. D-355 retired it on 2026-09-23, so
