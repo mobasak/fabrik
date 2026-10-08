@@ -11,6 +11,9 @@ All notable changes to this project will be documented in this file.
 - `scripts/command_run.py`: both SCOPE GROWTH verdicts now say to close on a confirmed-zero round. `scripts/task_lane.py`'s Status refusal text matches.
 - Graders in `tests/test_check_review_coverage_scope_growth.py`, `tests/test_check_convergence.py`, `tests/test_command_run.py`, `tests/test_task_lane_receipt.py` and `tests/test_task_lane_review_stop.py`. Kaizen mail 01M4CPWDK0; review `docs/development/reviews/2026-10-08-d355-scope-growth-close-review.md`.
 
+### Fixed — the review fragments state the D-355 close for the scope-growth stop (2026-10-08)
+- Six sentences in `commands/_fragments/term-edit.md`, `scope-growth-exit.md`, `term-coverage.md` and `commands/_sources/fabrik-review-scoped.md` still described the scope-growth stop as a non-quiet exit ("converge on the ORIGINAL delta", "close on the ORIGINAL delta's state", counted among "exactly THREE" non-quiet stops). D-355 closes every review only on a confirmed-zero round, so each now says the stop ends the HUNT and the close stays a `confirmed: 0 · fixed: 0 · unexecuted: 0` round; term-edit's stop count is TWO. Reported by infra (01M4CXVZ1F, 01M4CY4B50).
+
 ### Fixed — merge_request.py merges in a repo named fabrik-lib and resolves the caller without whoami_agent (2026-10-08)
 - `_throwaway` no longer links `<tmp>/fabrik-lib` over the worktree that already holds that path (every merge in /opt/fabrik-lib raised FileExistsError). `merge_request.py` and `mail.py` take a valid `CLAUDE_AGENT` as the caller when `whoami_agent.py` is not vendored, as the merge-request contract told repos (D-665).
 
