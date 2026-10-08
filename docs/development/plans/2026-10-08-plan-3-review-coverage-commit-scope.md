@@ -3,25 +3,24 @@
 Status: DRAFT
 Profile: small
 **Owner:** —
-**Surface:** `git rev-parse HEAD` = d897964c0 at authoring; `scripts/enforcement/check_review_coverage.py` 3286 lines, `scripts/final_gate.py` 3504 lines
+**Surface:** `git rev-parse HEAD` = d897964c0 at authoring; `scripts/enforcement/check_review_coverage.py` 3286 lines
 
 Spec: `docs/superpowers/specs/2026-10-08-review-coverage-commit-scope-design.md` (DRAFT at f0e85a0bd, merged to master
 as b8170e73a; `Size: small`, `Profile: delta` — `/fabrik-plan-review` grades its sections together with this plan and
 flips both). Source: tryton-crm mail 01M3YD067C → W-23b86f9e's `/fabrik-task` UPGRADE (`tradeoffs`) → work item
-W-f847a317. Estimated diff: ≈170 code lines in 2 code files, tests excluded — in `check_review_coverage.py`:
-`integration_base` ≈30, `_unintegrated_md` with its attribution and NOTE ≈45, the `-z` rewrite of `_changed_md` ≈20,
-`_grade`'s `live` parameter ≈3, `--base` and the `main()` wiring ≈35, docstring ≈10 (sum 143); in `final_gate.py`:
-`_integration_base` ≈20 and the call site ≈5 (sum 25). Tests ≈260 lines in one new file.
+W-f847a317. Estimated diff: ≈155 code lines in ONE code file, tests excluded — in `check_review_coverage.py`:
+`integration_base` ≈30, `_unintegrated_md` with its shallow guard, attribution and NOTE ≈55, the `-z` byte-safe rewrite
+of `_changed_md` ≈22, `_grade`'s `live` parameter ≈3, `--base` and the `main()` wiring ≈35, docstring ≈10 (sum 155).
+`scripts/final_gate.py` is untouched (I7). Tests ≈280 lines in one new file.
 
 ## What this plan is
 
 Three inline phases the orchestrator codes itself in the worktree; no coder is dispatched:
 
-- **A — the checker**: `--base`, the integration-base resolver, the unintegrated scan with its attribution, `-z`
-  porcelain, mega `live=False`, the joined blocking set and the two-source denominator (spec § The delta 1-6), with
-  their graders.
-- **B — the gate**: `final_gate.py` resolves the same base and passes `--base`; a parity grader pins the two resolvers
-  together; the docs.
+- **A — the checker**: `--base`, the integration-base resolver, the unintegrated scan with its shallow guard and
+  attribution, byte-safe `-z` porcelain, mega `live=False`, the joined blocking set and the two-source denominator
+  (spec § The delta 1-6), with their graders.
+- **B — the docs**: the gate workflow's two Coverage Checklist bullets and the INDEX rows.
 - **C — blast radius and Finish**: the fleet measurement before merge, the whole-plan `/fabrik-review`, the gate.
 
 Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy `/fabrik-review` (the
@@ -33,10 +32,11 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 |---|---|---|---|
 | I1 | spec § Intake Inventory I1–I11 (8 IN, 3 OUT-OF-SCOPE) | IN as dispositioned there | Phases A and B, per the spec rows |
 | I2 | *"Plan it as Profile: small"* (this run's brief) | IN | this header |
-| I3 | *"(1) check_review_coverage.py gains --base … (2) _changed_md via porcelain -z … (3) final_gate.py passes --base"* (the brief's three pieces) | IN | A: (1), (2) · B: (3) |
-| I4 | *"graders per the spec's Validation list"* | IN | A step 1 and 3 (G1–G9), B step 1 (G10) |
-| I5 | *"The plan-review flips spec+plan to CONVERGED and holds the approval gate (answered by the Opus + Fable panel, D-613)"* | IN | `/fabrik-plan-review` at Phase 5 of this command |
-| I6 | Grounding finding (this run, Evidence Phase A): in 5 of the 13 /opt repos that carry a reviews dir — tryton-crm, the reporter, among them — the main checkout's branch is `mobasak/<repo>` with no `origin/master` or `origin/main`, so the spec's base order (linked-worktree base → origin/master → origin/main) resolves NOTHING in their main checkouts and the bypass stays open exactly where it was reported | IN — the base order is amended: a LINKED worktree uses the main checkout's branch, else origin/master, else origin/main, and never its own upstream (the push-first cobra stays closed); the MAIN checkout uses its branch's upstream, else origin/master, else origin/main (pushing the main checkout's branch IS integration, so its upstream is the integration ref) | Phase A `integration_base`; the spec's § The delta 1, § Rejected alternatives (upstream row) and R3 amended in this plan's `/fabrik-plan-review` |
+| I3 | *"(1) check_review_coverage.py gains --base … (2) _changed_md via porcelain -z … (3) final_gate.py passes --base"* (the brief's three pieces) | IN for (1) and (2); (3) REPLACED by I7 | A: (1), (2) |
+| I4 | *"graders per the spec's Validation list"* | IN | Phase A steps 1 and 3 (G1–G9, G11, G12) |
+| I5 | *"The plan-review flips spec+plan to CONVERGED and holds the approval gate (answered by the Opus + Fable panel, D-613)"* | IN | the `/fabrik-plan-review` run that `/fabrik-plan-after-chat` invokes as its final step; its design-gate panel |
+| I6 | Grounding finding (this run, Evidence Phase A): in 5 of the 13 /opt repos that carry a reviews dir — tryton-crm, the reporter, among them — the main checkout's branch is `mobasak/<repo>` with no `origin/master` or `origin/main`, so the spec's first base order (linked-worktree base → origin/master → origin/main) resolves NOTHING in their main checkouts and the bypass stays open exactly where it was reported | IN — a LINKED worktree uses the main checkout's branch, else origin/master, else origin/main, never its own upstream (the push-first cobra stays closed); the MAIN checkout uses its branch's upstream, else origin/master, else origin/main (pushing the main checkout's branch IS integration) | Phase A `integration_base`; spec § The delta 1, § Rejected alternatives, R3 (amended in this review) |
+| I7 | Review finding (pass 1): sync-EXCLUDED repos pull the hub's files rather than receive pushes (`scripts/final_gate.py:1741-1744`), so a `final_gate.py` that passes `--base` can meet a checker that predates the flag and fail the row with `unrecognized arguments`; and a second resolver in `final_gate.py` is a second definition to keep in parity | IN — `final_gate.py` is unchanged; the checker resolves the base itself on every no-path run, `--base` is an explicit override only | Phase A `main()`; spec § The delta 1, § Validation, § Cost (amended in this review) |
 
 ## What we already agreed (citations, not restatement)
 
@@ -44,21 +44,25 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 - Measured behaviour: `spec § What exists today`; external facts G1–G6: `spec § Grounding`.
 - The delta 1-6: `spec § The delta`; cost: `spec § Cost`; validation: `spec § Validation`.
 - Chosen approach (B), integration-base range over non-merge commits (judge panel 3-0): `spec § Decisions taken`;
-  rejected seven: `spec § Rejected alternatives`. The approval row is minted by `/fabrik-plan-review` at its gate (a
-  `Size: small` spec is approved there, not here).
+  rejected alternatives: `spec § Rejected alternatives`. The approval row is minted by `/fabrik-plan-review` at its gate
+  (a `Size: small` spec is approved there, not here).
 - Residual unknowns R1–R3: `spec § Residual unknowns` — R3 is measured by this run (Evidence, Phase A) and changes the
   base order (I6).
 
 ## Global Constraints (every phase inherits these)
 
-- **Fleet-synced surface**: both files are under the governance-sync trigger (`scripts/enforcement/`,
-  `scripts/final_gate.py`); a merge distributes them to every project. They ship together, so a project never runs a
-  `final_gate.py` that passes `--base` against a checker that refuses it.
+- **Fleet-synced surface**: `scripts/enforcement/` is under the governance-sync trigger; a merge distributes the checker
+  to every project. `scripts/final_gate.py` keeps invoking it with no arguments (`:1730-1739`), so a project or a
+  sync-excluded repo running either an old or a new copy of either file never passes an unknown flag (I7).
 - **Stdlib only**, no new import (`subprocess`, `os`, `pathlib` are already imported,
-  `scripts/enforcement/check_review_coverage.py:29-37`); no dependency file is touched (`core/10-python.md:30`).
-- **Never a traceback from git**: every new `git` call is `subprocess.run(..., capture_output=True)` with its rc read;
-  `FileNotFoundError` and a non-zero rc both degrade to today's porcelain-only scope plus one NOTE printed AFTER the ⚠
-  block (`check_review_coverage.py:3247-3251` — the emitter protocol: the ⚠ header must speak first).
+  `scripts/enforcement/check_review_coverage.py:29-38`); no dependency file is touched (`core/10-python.md:30`).
+- **Never a traceback from git**: every new `git` call is `subprocess.run(..., capture_output=True)` reading BYTES,
+  decoded with `os.fsdecode` (a non-UTF-8 name that `-z` now passes through raw must never raise
+  `UnicodeDecodeError`), and every path the checker PRINTS — failure lines, the untracked NOTE, the attribution NOTE,
+  the advisory — is rendered through one helper, `_shown(p) = os.fsencode(str(p)).decode("utf-8", "backslashreplace")`,
+  so a surrogate-escaped name never raises `UnicodeEncodeError` at `print`; `FileNotFoundError`, a non-zero rc and a shallow repository all degrade to today's
+  porcelain-only scope plus one NOTE printed AFTER the ⚠ block (`check_review_coverage.py:3247-3251` — the emitter
+  protocol: the ⚠ header must speak first).
 - **The explicit-path mode is untouched**: `main()`'s `args.paths` branch (`:3201-3222`), which the hub's pre-commit hook
   `review-coverage-staged` uses (`.pre-commit-config.yaml:144`), never reads `--base` and never scans the range.
 - **No double reporting**: a path in the blocking set is in the advisory scan's skip set unless it is
@@ -70,9 +74,10 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
   not engaged.
 - Tests: one per behaviour, watched-fail-first (`core/45-testing-strategy.md:20`, `:22`); every grader builds a real git
   fixture in `tmp_path` (a bare `origin`, a main checkout, and where named a `git worktree add` linked worktree) and runs
-  the checker as a subprocess with `--root`, the pattern of `tests/enforcement/test_review_coverage_catchup.py:47-60`;
-  assertions on exit codes and the named paths in stdout, never on prose beyond the path and the NOTE token. Red-on-
-  revert runs in a throwaway worktree (`git worktree add --detach <scratch>/probe HEAD`), never in the shared checkout.
+  the checker as a subprocess with `--root`, the pattern of `tests/enforcement/test_review_coverage_catchup.py:49-60`;
+  assertions on exit codes and the named paths in stdout, never on prose beyond the path and the NOTE token. Every
+  grader is seen red — against today's code, or by the named mutant in Phase A step 5. Red-on-revert runs in a
+  throwaway worktree (`git worktree add --detach <scratch>/probe HEAD`), never in the shared checkout.
 - Seats never mutate git state (read-only git only); never read `~/.claude*`; never run `uv` or `pip`; a seat runs
   Python as `.venv/bin/python …` with `PYTHONPATH=<worktree>/src`; seat scratch paths are absolute.
 - **Execution discipline (native seats only, D-181):** every phase ends with `/fabrik-review-scoped` on its surface (the
@@ -86,8 +91,8 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 |---|---|---|
 | `.windsurf/rules/core/10-python.md` (FLOOR) | no deps-file edit | `core/10-python.md:30` |
 | `.windsurf/rules/core/45-testing-strategy.md` (MATCHED — the new test file) | one test per behaviour; watched-fail-first | `core/45-testing-strategy.md:20`, `:22` |
-| `.windsurf/rules/core/40-documentation.md` (MATCHED — FINAL_GATE_WORKFLOW.md) | Doc Sync in the same change; no skipped heading levels | `core/40-documentation.md:240` |
-| `docs/DECISIONS.md` D-442 | a linked worktree's base is the main checkout's branch | `scripts/final_gate.py:3409-3431` |
+| `.windsurf/rules/core/40-documentation.md` (MATCHED — FINAL_GATE_WORKFLOW.md) | Doc Sync in the same change; no skipped heading levels | `core/40-documentation.md:242` |
+| `docs/DECISIONS.md` D-442 | a linked worktree's base is the main checkout's branch | `scripts/final_gate.py:3409-3431` (the precedent the resolver mirrors) |
 | `fabrik-lib` | none covers git range scoping — BUILD in place | `spec § Grounding`, the fabrik-lib verdict |
 | `scripts/sysadmin/liveness_audit.py` | asserts the check fires on a bad review in a no-remote fixture repo | `scripts/sysadmin/liveness_audit.py:1436-1442` |
 | `specs/services/*.yaml` `shape:` | not engaged: no service | — |
@@ -99,147 +104,155 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | "Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it." | .windsurf/rules/core/10-python.md:30 | Deps |
 | "every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one**" | .windsurf/rules/core/45-testing-strategy.md:20 | Behaviour Contract |
 | "**Watched-fail-first** (for tests this change adds or modifies" | .windsurf/rules/core/45-testing-strategy.md:22 | Red first |
-| "**No skipped heading levels** — `##` to `###`, never `##` to `####`" | .windsurf/rules/core/40-documentation.md:240 | Docs |
+| "**No skipped heading levels** — `##` to `###`, never `##` to `####`" | .windsurf/rules/core/40-documentation.md:242 | Docs |
 
-## Phase A — the checker: --base, the unintegrated scan, -z porcelain
+## Phase A — the checker: the base, the unintegrated scan, byte-safe -z porcelain
 
-Appetite: 120
+Appetite: 150
 
-**Interfaces — Produces** (all in `scripts/enforcement/check_review_coverage.py`; `spec § The delta` 1-6, amended by I6):
-- `integration_base(root: Path) -> str` — the ref the range excludes, "" when none resolves. Linked worktree (the
-  absolute `git rev-parse --git-dir` differs from `--git-common-dir`): the main checkout's branch
+**Interfaces — Produces** (all in `scripts/enforcement/check_review_coverage.py`; `spec § The delta` 1-6, amended by I6
+and I7):
+- `integration_base(root: Path) -> str` — the REF NAME the range excludes (never a SHA: each candidate is tested with
+  `git rev-parse --verify --quiet <ref>` for its rc only, and the name itself is returned), "" when none resolves.
+  Linked worktree (the absolute `git rev-parse --git-dir` differs from `--git-common-dir`): the main checkout's branch
   (`git --git-dir <common> symbolic-ref --quiet --short HEAD`) when it differs from HEAD's branch, else
   `origin/master`, else `origin/main` — never this branch's own upstream. Main checkout: `@{upstream}`
-  (`git rev-parse --abbrev-ref --symbolic-full-name @{upstream}`), else `origin/master`, else `origin/main`. Each
-  candidate is accepted only when `git rev-parse --verify --quiet <ref>` exits 0. Any git error answers "".
+  (`git rev-parse --abbrev-ref --symbolic-full-name @{upstream}`), else `origin/master`, else `origin/main`. Any git
+  error answers "".
 - `_unintegrated_md(root: Path, prefix: str, base: str) -> tuple[list[Path], dict[Path, str], list[str]]` — returns
-  (paths, attribution, notes). `base == ""` → `([], {}, [])`. Runs `git log -z --no-merges --name-only --format=
-  --diff-filter=d HEAD --not <base> [origin/<base>] -- <prefix>`, the `origin/<base>` term added only when `<base>` has
-  no `/` and `origin/<base>` verifies (it excludes commits a worktree merged from a remote ahead of the local
-  integration branch). Splits on NUL, deduplicates, applies `_changed_md`'s filter (`.md`, not `-archive.md`, not under
-  `archived/`, a file on disk). Attribution per path: `git log -1 --format=%h%x00%(trailers:key=Agent-Name,valueonly)%x00%an
-  HEAD --not <same refs> -- <path>` → `"<sha> (<Agent-Name or author>)"`. rc ≠ 0 or `FileNotFoundError` →
-  `([], {}, ["NOTE: unintegrated review scan skipped — git log rc <n> against <base> (porcelain scope only)"])`.
+  (paths, attribution, notes). `base == ""` → `([], {}, [])`. `git rev-parse --is-shallow-repository` printing `true` →
+  `([], {}, ["NOTE: unintegrated review scan skipped — shallow clone (its grafted root lists already-integrated files); porcelain scope only"])`.
+  Otherwise runs `git log -z --no-merges --name-only --format= --diff-filter=d HEAD --not <base> [origin/<base>] --
+  <prefix>`, the `origin/<base>` term added only when `refs/heads/<base>` verifies (a LOCAL branch, whatever its name —
+  `mobasak/<repo>` included) and `refs/remotes/origin/<base>` verifies; it excludes commits a worktree merged from a
+  remote that is ahead of the local integration branch. Splits the bytes on NUL, `os.fsdecode`s each name,
+  deduplicates, applies `_changed_md`'s filter (`.md`, not `-archive.md`, not under `archived/`, a file on disk).
+  Attribution per path: `git log -1 --format=%h%x00%(trailers:key=Agent-Name,valueonly)%x00%an HEAD --not <same refs> --
+  <path>`, each NUL field stripped of whitespace → `"<sha> (<Agent-Name, else author>)"`. rc ≠ 0 or
+  `FileNotFoundError` → `([], {}, ["NOTE: unintegrated review scan skipped — git log rc <n> against <base> (porcelain scope only)"])`.
 - `_changed_md(root, prefix)` keeps its signature and return; it reads `git status --porcelain -z
-  --untracked-files=all -- <prefix>`, splits on NUL, takes the path from `entry[3:]`, and for an `R` or `C` status in
-  either column consumes the NEXT field as the rename source and discards it (under `-z` the destination comes first —
-  Evidence, Phase A). No quote stripping remains. The docstring's stale "Returns (paths, notes)" becomes the three-tuple.
+  --untracked-files=all -- <prefix>` as bytes, splits on NUL, `os.fsdecode`s each entry, takes the path from
+  `entry[3:]`, and for an `R` or `C` status in either column consumes the NEXT field as the rename source and discards it
+  (under `-z` the destination comes first — Evidence, Phase A). No quote stripping remains. The docstring's stale
+  "Returns (paths, notes)" becomes the three-tuple.
 - `_grade(p, root, live: bool = True)` — passes `live` to `check_mega_validation` (`:3163`); every existing caller is
   unchanged.
-- `main()`: `ap.add_argument("--base", default=None, help=…)`. No-path branch only: `base = args.base if args.base is
-  not None else integration_base(root)`; `unint, who, unint_notes = _unintegrated_md(root, REVIEWS_DIR, base)`. The
-  blocking set is `changed` (plus the running-record receipts, `:3226-3229`) followed by every `unint` path not already
-  in it, compared on `.resolve()`. The advisory skip set becomes `set(changed) | set(untracked) | {p for p in unint if
-  not _in_progress(<its text>)}`. Grading: a path that came ONLY from `unint` is graded `_grade(p, root, live=False)`;
-  on a failure from it, `NOTE: <rel> entered history in <who[p]>` is printed after the failure lines. `unint_notes`
-  print with `skip_notes`, after the ⚠ block. The OK line reads `check_review_coverage: OK — 0 unproven coverage claims
-  across <N> changed + <M> unintegrated review artifact(s)` where M counts the unint-only paths.
-- The module docstring's scope sentence (`:6-7`, "Inspects only changed/untracked files") names both sources and the
-  base order.
+- `main()`: `ap.add_argument("--base", default=None, help=…)` — an explicit override; `final_gate.py` never passes it.
+  No-path branch only: `base = args.base if args.base is not None else integration_base(root)`; `unint, who,
+  unint_notes = _unintegrated_md(root, REVIEWS_DIR, base)`. The blocking set is `changed` (plus the running-record
+  receipts, `:3226-3228`) followed by every `unint` path not already in it, compared on `.resolve()`. The advisory skip
+  set becomes `set(changed) | set(untracked) | {p for p in unint if not _in_progress(<its text>)}`. Grading: a path that
+  came ONLY from `unint` is graded `_grade(p, root, live=False)`; on a failure from it, `NOTE: <rel> entered history in
+  <who[p]>` is printed after the failure lines. `unint_notes` print with `skip_notes`, after the ⚠ block. The OK line
+  reads `check_review_coverage: OK — 0 unproven coverage claims across <N> changed + <M> unintegrated review
+  artifact(s)` where M counts the unint-only paths.
+- The module docstring's scope sentence (`:6-7`, "Inspects only changed/untracked files") names both sources, the base
+  order and the shallow skip.
 
 **Consumes:** nothing from later phases.
 
 Steps:
 1. **Test first (the highest-risk behaviour, G1)**: create `tests/enforcement/test_review_coverage_unintegrated.py`
    with a fixture builder `_repo(tmp_path)` → a bare `origin.git`, a clone `main` on branch `master` pushed with one
-   commit, and `_FAILING_RECEIPT` (`tests/enforcement/test_review_coverage_catchup.py:41-45`, copied). G1: commit the
-   failing receipt in `main` without pushing → the no-arg run exits 1 and names the path; push it → exits 0 and the ⚠
-   advisory still names it (the integrated file is advisory only). Run `.venv/bin/python -m pytest
+   commit, and `_FAILING_RECEIPT` (`tests/enforcement/test_review_coverage_catchup.py:42-46`, copied). G1: commit the
+   failing receipt in `main` without pushing → the no-arg run exits 1 and names the path; push it → exits 0 and no
+   failure line names it (it is integrated). Run `.venv/bin/python -m pytest
    tests/enforcement/test_review_coverage_unintegrated.py -q` → G1 red (exit 0 on the unpushed commit).
-2. Implement `integration_base`, `_unintegrated_md`, `_grade(live=…)` and the `main()` wiring. Re-run → G1 green.
-3. Write G2–G9 (each seen red against the step-2 code or by a named mutant in step 5):
+2. Implement `integration_base`, `_unintegrated_md`, the byte-safe `_changed_md`, `_grade(live=…)` and the `main()`
+   wiring. Re-run → G1 green.
+3. Write G2–G12:
    - G2 (push-first cobra): a linked worktree (`git worktree add -b feat <wt>` from `main`) commits the failing receipt
-     and pushes `feat` to `origin` → its no-arg run still exits 1.
-   - G3 (catch-up merge): `main` gains a commit adding a failing receipt, is pushed; the worktree branch merges
-     `master` → the worktree's run does not name that receipt (non-merge range; it is on `master`).
-   - G4 (sibling isolation): `main` commits a failing receipt WITHOUT pushing; the worktree (branch created before it)
-     runs → exit 0, the path not named (its base is local `master`, which holds the sibling's commit).
+     and pushes with `git push -u origin feat` (so the branch HAS an upstream the mutant could read) → its no-arg run
+     still exits 1.
+   - G3 (catch-up merge, remote ahead): a second clone pushes a commit adding a failing receipt to `origin/master`; the
+     worktree runs `git fetch` and merges `origin/master` while the local `master` stays behind → the worktree's run
+     does not name that receipt (the `origin/<base>` term excludes it).
+   - G4 (sibling isolation): `main` commits a failing receipt WITHOUT pushing; THEN the worktree branch is created from
+     `main`'s HEAD → the worktree's run exits 0 and does not name the path (its base is the local `master`, which holds
+     the sibling's commit).
    - G5 (no base / git failure): a repo with no remote and HEAD on `master` (main checkout, no upstream) → exit 0
      with today's porcelain scope; `--base nosuchref` → exit 0 and the `NOTE: unintegrated review scan skipped` line,
      no `Traceback` in stderr.
    - G6 (IN-PROGRESS once): an unpushed committed receipt with `**Status:** IN-PROGRESS` → exit 0 and its path appears
      exactly once in stdout (the advisory line).
    - G7 (non-ASCII): a failing receipt named `2026-10-08-ü-review.md` reds BOTH as an uncommitted staged file and as an
-     unpushed commit; a staged rename `a.md → b.md` grades `b.md` only.
+     unpushed commit; a staged rename `a.md → b.md` grades `b.md` only; a staged failing receipt whose name holds the
+     byte `\xff` → exit 1, its name printed with `\xff` backslash-escaped, no `Traceback` in stderr.
    - G8 (mega live=False): an unpushed committed mega validation report whose recorded epic-set hash no longer matches
      the epics on disk → exit 0 (the textual contract passes; `live=True` would red it); the same report uncommitted →
      exit 1 (today's live grading, unchanged).
    - G9 (attribution + denominator): G1's failing run prints `NOTE: … entered history in <sha> (intel)` for a commit
-     carrying `Agent-Name: intel`, and the author name for one without the trailer; a passing run with one converged
-     unpushed receipt prints `0 changed + 1 unintegrated`.
+     carrying `Agent-Name: intel`, and the author name for one without the trailer, with no stray newline inside the
+     parentheses; a run whose only unintegrated artifact is an IN-PROGRESS receipt prints `0 changed + 1 unintegrated`.
+   - G11 (I6, a non-master integration branch): a main checkout on branch `mobasak/x` tracking `origin/mobasak/x`, with
+     no `master` or `main` anywhere, commits the failing receipt without pushing → exit 1 naming it; pushed → exit 0.
+   - G12 (shallow clone): a `--depth 1 --no-single-branch` clone on a DETACHED HEAD at a feature commit whose tree
+     carries an already-integrated failing review (detached, so no upstream: the base falls back to `origin/master`,
+     the CI shape) → exit 0 with the shallow NOTE (with the guard removed the grafted root lists the review and reds).
 4. Re-run the file plus the sibling suites: `.venv/bin/python -m pytest tests/enforcement/test_review_coverage_unintegrated.py
    tests/enforcement/test_review_coverage_catchup.py tests/test_check_review_coverage_precommit.py
    tests/test_check_review_coverage_rederivation.py tests/test_check_review_coverage_blocked.py
    tests/test_check_review_coverage_scope_growth.py tests/enforcement/test_mega_validation_reports.py
-   tests/enforcement/test_review_confirmed_grammar.py tests/enforcement/test_review_refusals.py
-   tests/test_task_lane_review_stop.py -q` → all pass (the AFTER-EDIT list, `check_review_coverage.py:2`);
+   tests/enforcement/test_review_exit_contract.py tests/enforcement/test_review_confirmed_grammar.py
+   tests/enforcement/test_review_refusals.py tests/test_task_lane_review_stop.py -q` → all pass (every test the
+   AFTER-EDIT line names, `check_review_coverage.py:2`, plus the four sibling suites);
    `python3 scripts/sysadmin/liveness_audit.py --proof vacuity --json` → the `check_review_coverage` row is ALIVE (it
    still fires on its no-remote fixture, `scripts/sysadmin/liveness_audit.py:1436-1442`).
-5. **Phase gate**: red-on-revert in a throwaway worktree for G1 (`main()` ignores `unint`), G2 (the linked branch reads
-   `@{upstream}` first), G4 (`--not` drops the base), G6 (the skip set takes IN-PROGRESS paths), G7 (`-z` removed) →
-   each named test red, then the worktree removed. `.venv/bin/python -m mypy
-   scripts/enforcement/check_review_coverage.py --ignore-missing-imports` → no new error against the pre-phase count.
+5. **Phase gate**: red-on-revert in a throwaway worktree, one mutant per grader that today's code does not already red —
+   G2 (the linked branch reads `@{upstream}` first), G3 (the `origin/<base>` term dropped), G4 (`--not` drops the
+   base), G6 (the skip set takes IN-PROGRESS paths), G7 (bytes decoded strictly; `_shown` bypassed), G8 (unint-only paths graded
+   `live=True`), G9 (fields not stripped), G11 (the main-checkout `@{upstream}` leg removed), G12 (the shallow guard
+   removed) → each named test red, then the worktree removed. (G1, G5 and G7's non-ASCII rows are red on today's code.)
+   `.venv/bin/python -m mypy scripts/enforcement/check_review_coverage.py --ignore-missing-imports` → no new error
+   against the pre-phase count.
 6. **`/fabrik-review-scoped`** on Phase A's surface — BLOCKING, to its closing pass confirming zero defects.
 7. Commit Phase A (explicit pathspecs; `CHANGELOG.md` via the private-index recipe; trailers `Agent-Role: primary`,
    `Agent-Phase: A`), push.
 
 **Behavior Contract (Phase A):**
-- **Given** a failing review committed but not yet in the integration ref, **When** the gate's no-arg scan runs, **Then** it exits 1 naming the path; once integrated it is advisory only (spec § The delta 2-3)
+- **Given** a failing review committed but not yet in the integration ref, **When** the gate's no-arg scan runs, **Then** it exits 1 naming the path; once integrated it is not a failure (spec § The delta 2-3)
 - **Given** a linked worktree that pushed its branch to its own remote unmerged, **When** the scan runs there, **Then** the failing review still blocks (spec § The delta 1, the push-first cobra)
-- **Given** a catch-up merge of the integration branch, **When** the worktree scans, **Then** none of the merged commits' reviews enter its range (spec § The delta 2)
-- **Given** a sibling's unpushed commit on the main checkout's branch, **When** a linked worktree scans, **Then** that commit's review is not in its range (spec § Validation)
-- **Given** no resolvable base or a failing `git log`, **When** the scan runs, **Then** it exits on today's porcelain scope with one NOTE and no traceback (spec § The delta 2)
+- **Given** a catch-up merge of a remote integration branch that is ahead of the local one, **When** the worktree scans, **Then** none of the merged commits' reviews enter its range (spec § The delta 2)
+- **Given** a sibling's unpushed commit on the main checkout's branch that a linked worktree's branch contains, **When** the worktree scans, **Then** that commit's review is not in its range (spec § Validation)
+- **Given** no resolvable base, a failing `git log` or a shallow clone, **When** the scan runs, **Then** it exits on today's porcelain scope with one NOTE and no traceback (spec § The delta 2)
 - **Given** an unintegrated `Status: IN-PROGRESS` receipt, **When** the scan runs, **Then** it exits 0 and the receipt is reported once (spec § The delta 3)
-- **Given** a review whose name holds a non-ASCII byte, **When** either scan runs, **Then** it is graded (spec § The delta 2, 5)
+- **Given** a review whose name holds a non-ASCII byte, **When** either scan runs, **Then** it is graded, and a non-UTF-8 name never raises (spec § The delta 2, 5)
 - **Given** an unintegrated mega report over epics that moved, **When** the scan runs, **Then** it is graded `live=False` (spec § The delta 4)
 - **Given** a failing unintegrated review, **When** the gate reports it, **Then** a NOTE names the commit and its Agent-Name or author; a passing run's OK line counts both sources (spec § The delta 3, 6)
 - **Given** the main checkout of a repo whose branch is `mobasak/<repo>` tracking `origin/mobasak/<repo>`, **When** the scan runs, **Then** its unpushed failing review blocks (I6)
 
-## Phase B — the gate passes --base; the docs
+## Phase B — the docs
 
-Appetite: 45
+Appetite: 30
 
-**Interfaces — Consumes** (Phase A): `--base <ref>` on the checker; `integration_base(root)`'s order.
-
-**Interfaces — Produces** (`scripts/final_gate.py`):
-- `_integration_base() -> str` — the same order as `integration_base` through `run_cmd`, reusing
-  `_linked_worktree_base()` (`:3409-3431`) for the linked-worktree leg; defined beside it at the file's end so the
-  gate's cited line numbers above do not move (the convention `:3419-3420` states). `_diff_base()` (`:2829-2846`) is
-  untouched — ruff and mypy keep their upstream-first base.
-- The Coverage Checklist row (`:1729-1738`) passes `"--base", _integration_base()` only when it is non-empty; an empty
-  base passes nothing and the checker resolves its own, which answers "" in the same states.
+**Interfaces — Consumes** (Phase A): the scan's scope, the base order, the shallow skip, `--base`.
 
 Steps:
-1. **Test first (G10, parity)**: in the new test file, for three fixtures — a main checkout with an upstream, a linked
-   worktree, a no-remote repo — assert `final_gate._integration_base()` (imported as `import final_gate as fg` after a
-   `sys.path` insert, the pattern of `tests/test_final_gate_uninvoked_dirs.py:11-17`, with `monkeypatch.chdir` to the
-   fixture — `run_cmd` runs in the cwd) equals
-   the checker's `integration_base(root)`, and that the gate's argv for the row carries `--base <that ref>`
-   (monkeypatched `run_optional_check` capturing its args). Run → red (no `_integration_base`).
-2. Implement `_integration_base` and the call-site change. Re-run → green; a mutant swapping the main-checkout order
-   (origin/master before `@{upstream}`) → G10 red.
-3. Docs: `docs/workflows/FINAL_GATE_WORKFLOW.md` — the two Coverage Checklist bullets (`:168`, `:294`) gain "blocking
-   scope: the working tree plus review artifacts in non-merge commits not yet in the integration ref (`--base`)"; the
-   checker's docstring (Phase A) is the `--help`. `INDEX.md`: the new test file's row, and the
+1. `docs/workflows/FINAL_GATE_WORKFLOW.md` — the two Coverage Checklist bullets (`:168`, `:294`) gain "blocking scope:
+   the working tree plus review artifacts in non-merge commits not yet in the integration ref (the checker resolves it;
+   `--base` overrides)"; the row at `:483` keeps "ADVISORY row" for the committed scan and names the new blocking leg.
+   The checker's docstring (Phase A) is the `--help`. `INDEX.md`: the new test file's row, and the
    `check_review_coverage.py` row amended if it states the scope. `python3 scripts/render_doc_script_links.py --check`
    and `python3 scripts/enforcement/check_doc_sync.py` → green.
-4. `/fabrik-review-scoped` on Phase B's surface — BLOCKING, to its closing pass confirming zero defects.
-5. Commit Phase B (explicit pathspecs; `INDEX.md`, `CHANGELOG.md` via the private-index recipe; `Agent-Phase: B`), push.
+2. `/fabrik-review-scoped` on Phase B's surface — BLOCKING, to its closing pass confirming zero defects.
+3. Commit Phase B (explicit pathspecs; `INDEX.md`, `CHANGELOG.md` via the private-index recipe; `Agent-Phase: B`), push.
 
 **Behavior Contract (Phase B):**
-- **Given** any of the three repo shapes, **When** `final_gate.py` runs the coverage row, **Then** it passes the same base the checker would resolve, and nothing when there is none (spec § The delta 1)
+- **Given** an agent reading the gate workflow after a red from the new leg, **When** it looks up the Coverage Checklist row, **Then** the doc names both scopes and how the base is chosen (spec § Documentation landing sites)
 
 ## Phase C — blast radius and Finish
 
-Appetite: 60
+Appetite: 90
 
 Steps:
-1. **Fleet blast radius before merge** (spec § Cost): a scratch script runs the Phase-B checker
-   (`<worktree>/scripts/enforcement/check_review_coverage.py --root <repo>`) in the main checkout of every `/opt` repo
-   carrying `docs/development/reviews/` (13 at authoring) and in every registered linked worktree of those repos,
-   read-only, and tabulates per tree: base resolved, M unintegrated, exit code, and the paths a NEW red names. Any new
-   red is dispositioned before merge: a genuinely unconverged unintegrated review is mailed to that repo's agent (it
-   is the bypass this plan closes, now visible); a false red is a defect fixed here. The table goes into the receipt.
+1. **Fleet blast radius before merge** (spec § Cost), run in the background (`run_in_background`): a scratch script runs
+   the Phase-A checker (`<worktree>/scripts/enforcement/check_review_coverage.py --root <tree>`) read-only over every
+   `/opt` repo carrying `docs/development/reviews/` — its main checkout and every registered linked worktree whose
+   directory exists and that `git worktree list --porcelain` does not mark `prunable` (13 repos, 246 registered trees,
+   21 of them prunable and missing on disk, at authoring) — and tabulates per tree: base resolved, M unintegrated, exit
+   code, and the paths a NEW red names, with the examined and skipped denominators. Any new red is dispositioned before
+   merge: a genuinely unconverged unintegrated review is mailed to that repo's agent (it is the bypass this plan closes,
+   now visible); a false red is a defect fixed here. The table goes into the receipt.
 2. **Finish — the heavy `/fabrik-review`** over the whole-plan diff: the D7 floor — file partition, a Sonnet and a Haiku
    finder per slice (D-344), the orchestrator executing every refutation, stamped with `command_run.py dispatch`
    first — to its closing pass confirming zero defects; receipt
@@ -256,7 +269,6 @@ Steps:
 ## File Scope (owned paths)
 
 - scripts/enforcement/check_review_coverage.py
-- scripts/final_gate.py
 - tests/enforcement/test_review_coverage_unintegrated.py
 - docs/workflows/FINAL_GATE_WORKFLOW.md
 - docs/superpowers/specs/2026-10-08-review-coverage-commit-scope-design.md
@@ -282,9 +294,18 @@ porcelain -z: b'R  docs/development/reviews/2026-10-08-\xc3\xbc-review.md\x00doc
 log -z range: (0, b'docs/development/reviews/2026-10-08-\xc3\xbc-review.md\x00docs/development/reviews/b.md\x00')
 orphan/no-base rc: 128
 ```
-So `-z` returns the raw UTF-8 name, a rename's destination comes FIRST and its source is the next NUL field, the range
-log returns raw names, and a bad base is rc 128 (the NOTE path). R3 measured across `/opt` (45 git repos; 13 with a
-reviews dir):
+So `-z` returns the raw name, a rename's destination comes FIRST and its source is the next NUL field, the range log
+returns raw names, and a bad base is rc 128 (the NOTE path). Pass 1 of this review re-executed three edges in scratch
+fixtures: a `\xff` name under `-z` with `text=True` raises `UnicodeDecodeError` (hence bytes + `os.fsdecode`); a
+`mobasak/x` LOCAL base drops the remote-ahead term under a "no `/`" test and lists another session's merged review
+(hence `refs/heads/<base>`); a shallow clone lists an already-integrated review through its grafted root:
+```text
+range per plan (no origin term, base has /): (0, b'…/2026-10-08-mine-review.md\x00…/2026-10-08-other-review.md\x00')
+range with origin term: (0, b'…/2026-10-08-mine-review.md\x00')
+shallow range feat --not origin/master: (0, b'docs/development/reviews/2026-01-01-old-review.md\x00')
+text=True -z RAISES: UnicodeDecodeError 'utf-8' codec can't decode byte 0xff in position 154: invalid start byte
+```
+R3 measured across `/opt` (45 git repos; 13 with a reviews dir):
 ```text
 repos=45 with origin/master|main=18 without=27: [...]
 with a reviews dir=13; of those without a base: ['seo', 'session-recall', 'trade-intelligence', 'tryton-crm', 'web-ecommerce-factory']
@@ -292,35 +313,32 @@ tryton-crm   remotes='origin'  head=mobasak/tryton-crm  up=origin/mobasak/tryton
 seo          remotes='origin'  head=mobasak/seo         up=origin/mobasak/seo
 ```
 All five have an upstream on their main branch, so the amended order (I6) resolves a base in 13 of 13; the spec's
-order resolves 8 of 13.
+first order resolved 8 of 13.
 
-**Phase B.** The gate's seams:
-```text
-scripts/final_gate.py:1732:            "scripts/enforcement/check_review_coverage.py",
-scripts/final_gate.py:2829:def _diff_base() -> str | None:
-scripts/final_gate.py:3409:def _linked_worktree_base() -> str:
-```
-`_linked_worktree_base` answers "" in the main checkout and on a detached main checkout (`:3419-3423`), which is why the
-new resolver adds its own main-checkout leg rather than reusing `_diff_base`'s upstream-first order for a worktree.
+**Phase B.** The doc rows edited: `docs/workflows/FINAL_GATE_WORKFLOW.md:168`, `:294` (the two Coverage Checklist
+bullets) and `:483` (the enforcement-scripts list row).
 
-**Phase C.** The consumers outside the gate: `.pre-commit-config.yaml:144` (explicit-path mode, untouched) and
+**Phase C.** The consumers outside the gate: `scripts/final_gate.py:1730-1739` (the row, called with no arguments and
+unchanged — I7), `.pre-commit-config.yaml:144` (explicit-path mode, untouched) and
 `scripts/sysadmin/liveness_audit.py:1436-1442` (a no-remote fixture: no base, so today's scope — its expectation holds).
 
 ## Self-audit
 
 - Grounding passes: the spec's 32-row research ledger and three-judge panel; this run's reads of every cited function at
-  d897964c0; two executed probes (the git shapes, the R3 census) whose output is above.
-- Finding that changed the design: I6 — the spec's base order resolves nothing in the main checkout of 5 of the 13
-  repos that carry reviews, the reporter included; the main checkout now reads its upstream, a linked worktree never does.
-- (a) Coverage: the delta 1 → `integration_base` (A) and `_integration_base` (B), G2, G4, G5, G10; delta 2 →
-  `_unintegrated_md`, G1, G3, G5; delta 3 → the `main()` wiring, G1, G6, G9; delta 4 → `_grade(live=…)`, G8; delta 5 →
-  the `-z` `_changed_md`, G7; delta 6 → the OK line, G9; Validation's nine rows → G1–G10 (its last row, the old-checker
-  pairing, is a Global Constraint: the two files sync together); documentation landing sites → Phase A (docstring),
-  Phase B step 3 (FINAL_GATE_WORKFLOW, INDEX), each phase's commit (CHANGELOG), the approval D-row at the plan review;
-  the spec's blast-radius sentence → Phase C step 1. No gap.
-- (b) Signatures: Phase B consumes `--base <ref>` and `integration_base(root: Path) -> str` exactly as Phase A produces
-  them; `_unintegrated_md` returns the three-tuple `main()` unpacks; `_grade`'s new keyword defaults to today's `True`,
-  so the explicit-path caller (`:3207`) and the pre-commit hook keep live grading.
+  d897964c0; two executed probes (the git shapes, the R3 census); pass 1 of this review (two author-blind seats, every
+  confirmed finding re-executed by the orchestrator).
+- Findings that changed the design: I6 — the main checkout reads its upstream, a linked worktree never does; I7 —
+  `final_gate.py` is unchanged and the checker owns the one base definition; pass 1 — bytes + `os.fsdecode`, the
+  `refs/heads/<base>` test, the shallow guard.
+- (a) Coverage: the delta 1 → `integration_base`, G2, G4, G5, G11; delta 2 → `_unintegrated_md`, G1, G3, G5, G12; delta
+  3 → the `main()` wiring, G1, G6, G9; delta 4 → `_grade(live=…)`, G8; delta 5 → the byte-safe `_changed_md`, G7; delta
+  6 → the OK line, G9; every spec Validation row → G1–G9, G11, G12, and its final row (no unknown flag) → I7 and the
+  Global Constraint; documentation landing sites → Phase A (docstring), Phase B (FINAL_GATE_WORKFLOW, INDEX), each
+  phase's commit (CHANGELOG), the approval D-row at the plan review; the spec's blast-radius sentence → Phase C step 1.
+  No gap.
+- (b) Signatures: `integration_base(root: Path) -> str` returns a ref name and is called only by `main()`;
+  `_unintegrated_md` returns the three-tuple `main()` unpacks; `_grade`'s new keyword defaults to today's `True`, so the
+  explicit-path caller (`:3207`) and the pre-commit hook keep live grading.
 - Fixed point: not yet — `/fabrik-plan-review` grades it.
 
 ## Residual unknowns
@@ -334,12 +352,27 @@ new resolver adds its own main-checkout leg rather than reusing `_diff_base`'s u
   porcelain-only there, as today; resolution: the census in Phase C step 1 re-counts, and a reviews dir appearing in a
   remote-less repo is the trigger to revisit.
 
+## Pass Ledger
+
+Joint loop over this plan and its `Size: small` spec (md5 pairs: plan · spec).
+
+| Pass | seats · axes re-checked | counters | method | md5 (start → end) |
+|-----:|---|---|---|---|
+| Pass 1 | opus×1 (plan § Global Constraints, Phase A, Phase B; spec § The delta, § Validation, § Constraints Digest) + sonnet×1 (every other section of both) · all axes | found: 17, new: 17, confirmed: 16, fixed: 16, unexecuted: 0, edits: 31 | method: citation — full pass over pins at 0422ddb26; every confirmed candidate re-executed by the orchestrator (the seat fixtures re-run: G1's integrated receipt is unnamed by the advisory, a `mobasak/x` local base drops the remote-ahead term, a branch made before the sibling commit never reaches it, a shallow clone lists an integrated review, a `\xff` name raises under `-z` `text=True`, trailer values carry a newline; `final_gate.py:71`/`:318` freeze the cwd, `rev-parse --verify` prints a SHA, `:1741-1744` sync-excluded repos pull); confirmed: G1 assertion, the `/` test, G4 unreachable, G10 cwd, shallow/orphan, G2 upstream, G3/G8 never red, `-z` decode, trailer strip, AFTER-EDIT list, four spans, the resolver's return, the G9 fixture, the I5 phase reference, the unbounded worktree census, the spec size; I7 drops the `final_gate.py` change; B-3 refuted | plan 7d7f53e5 · spec 3fcec7f8 → plan 2d219deb · spec a85622f0 |
+| Pass 2 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-1 rewrite + one hop | found: 3, new: 3, confirmed: 2, fixed: 2, unexecuted: 0, edits: 5 | method: re-derivation — A 13/13 findings NOW_FALSE and 22/23 claims re-verified (A-C19 retired with G10), B 4/4 NOW_FALSE and 13/13 claims re-verified (census re-run: 13 repos, same 21 prunable missing; rubric diff 0 bytes; the Pass 1 end hash re-derived by deleting its row); confirmed by orchestrator execution, both inside round-1 hunks (own-fix: round 1): a surrogate-decoded name raises `UnicodeEncodeError` at `print` (A2-1, `_shown`), G12 on a checked-out branch gets an upstream and never reproduces the shallow false red (A2-2, detached HEAD); A2-3 recorded | plan aeb312b4 · spec a85622f0 → plan d42885c6 · spec a85622f0 |
+
+## Residual
+
+| Id | Verdict |
+|---|---|
+| B-3 | REFUTED (a plan's own Status flip is orchestrator bookkeeping outside File Scope — the precedent plan `docs/development/plans/2026-10-08-plan-2-payments-fulfilment-role.md` omits its own path the same way, and `/fabrik-execute-plan` mints its lock from File Scope for the code it guards) |
+| A2-3 | RECORDED — measured (one hop out: `scripts/enforcement/check_review_hygiene.py:947-976` `_changed_receipts` hand-copies the old porcelain selection, so its parity docstring goes stale and it keeps both holes; outside File Scope — backlog W-1a3b3e85, sibling of W-699a271a) |
+
 ## Coverage Checklist
 
 | Class | Status |
 |---|---|
 | Hunt: `scripts/enforcement/check_review_coverage.py` — every changed function, its callers | UNCHECKED |
-| Hunt: `scripts/final_gate.py` — the new resolver and the coverage row | UNCHECKED |
 | Hunt: `tests/enforcement/test_review_coverage_unintegrated.py` — every grader can go red | UNCHECKED |
 | Hunt: `docs/workflows/FINAL_GATE_WORKFLOW.md` — every changed claim against the code | UNCHECKED |
 | Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
@@ -352,7 +385,7 @@ new resolver adds its own main-checkout leg rather than reusing `_diff_base`'s u
 Rubric invocation (verbatim output — the gate reads the generated header):
 
 ```text
-$ python scripts/review_rubric.py --changed scripts/enforcement/check_review_coverage.py scripts/final_gate.py tests/enforcement/test_review_coverage_unintegrated.py docs/workflows/FINAL_GATE_WORKFLOW.md
+$ python scripts/review_rubric.py --changed scripts/enforcement/check_review_coverage.py tests/enforcement/test_review_coverage_unintegrated.py docs/workflows/FINAL_GATE_WORKFLOW.md
 # REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
 # Honesty (L1): this arms the review — it raises compliance probability, it does not guarantee it.
 
