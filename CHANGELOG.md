@@ -15,6 +15,10 @@ All notable changes to this project will be documented in this file.
 ### Changed — round zero enumerates a fix's input space before the pin (2026-10-08)
 - Eleven `/fabrik-review` queue verdicts reported an input class a later round's seat found instead of the author's own probe — an overlapping replace value, a shell `||` form, a guard's error path, a regex edge, a window at one record's length, a recursive helper's depth. The round-zero probe in `commands/_fragments/term-coverage.md` and its twin in `term-edit.md` now enumerate and run the fix's input space before the pin, and draft a regex fix against every confirmed shape at once. Grader: `tests/test_review_loop_workflow.py::test_round_zero_enumerates_the_fixs_input_space_before_the_pin`.
 
+### Changed — the citations check grades resolvable bare filenames and a named doc (2026-10-08)
+
+- `scripts/enforcement/check_citations_resolve.py` grades a bare `tool.py:43` when it names one tracked file outside the root, templates/ and the command sources; `--doc <path>` grades a pinned or out-of-glob artifact and lists it; a run that graded none never ticks green, quiet or not (W-191404c0, D-682). Receipt: `docs/development/reviews/2026-10-08-citations-bare-basenames-review.md`.
+
 ### Changed — `/fabrik-task` phase 1 lists what MEASURE executes before the design (2026-10-08)
 - Twenty-five queue verdicts reported a design drafted before a sibling's landed fix, a pre-existing red, a writer, a host or a vendor list was looked at. Phase 1 now replays a reported command as reported, then writes each command and its output to `measure.md` beside `design.md`: the declared files' own tests, a fetch and diff against the remote branch the work merges into, the prior record, the measured population with its n, and a live probe of each external contract. Size cap 12439 → 13610 B (D-679).
 
