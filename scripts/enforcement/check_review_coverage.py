@@ -3381,7 +3381,11 @@ def _grade(p: Path, root: Path, live: bool = True) -> list[str]:
     # \A-anchored: the H1 must be the FILE'S FIRST LINE. A content-anywhere match let any
     # review file that merely QUOTED the template (even fenced) route here and skip the
     # checklist gate it actually owed — reproduced 2026-08-18.
-    body = p.read_text(encoding="utf-8", errors="replace")
+    # vanished or unreadable after it was listed: a failure line, never a traceback
+    try:
+        body = p.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        return [f"{rel}: unreadable while being graded ({e.strerror or type(e).__name__})"]
     if _is_mega_report(p, body):
         # a mega validation report is exit-proof-gated, not checklist-gated
         # live=False for a committed unintegrated report: epics legitimately move after it
@@ -3495,9 +3499,10 @@ def main() -> int:
         # co-occurred with a committed advisory (round 25, reproduced end-to-end)
         print(_shown(note))
     failed: list[Path] = []
+    # a path gone since it was listed (a sibling's checkout mid-run) is neither graded nor counted
+    changed = [p for p in changed if p.is_file()]
+    unint_only = [p for p in unint_only if p.is_file()]
     for p, live in [(p, True) for p in changed] + [(p, False) for p in unint_only]:
-        if not live and not p.is_file():
-            continue  # removed after the log listed it (a sibling's checkout mid-run): never a traceback
         errs = _grade(p, root, live=live)
         if errs:
             failed.append(p)

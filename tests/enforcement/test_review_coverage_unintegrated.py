@@ -232,14 +232,22 @@ def test_g5_an_unresolvable_base_is_a_note_never_a_traceback(tmp_path: Path) -> 
 def test_g5_a_review_removed_after_the_log_listed_it_never_tracebacks(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
-    """A path the range log listed but that is gone by the time it is read (a sibling checkout mid-run) is
-    skipped — never a traceback from the IN-PROGRESS read or the grader."""
+    """A path listed as changed or unintegrated but gone by the time it is read (a sibling checkout mid-run)
+    is skipped and not counted — never a traceback from the IN-PROGRESS read or the grader."""
     _, main = _origin(tmp_path)
     gone = main / RV / "2026-10-08-gone-review.md"
+    gone2 = main / RV / "2026-10-08-gone2-review.md"
     monkeypatch.setattr(crc, "_unintegrated_md", lambda root, prefix, bases: ([gone], {}, []))
+    monkeypatch.setattr(crc, "_changed_md", lambda root, prefix: ([gone2], [], []))
     monkeypatch.setattr(sys, "argv", ["check_review_coverage.py", "--root", str(main)])
     assert crc.main() == 0
-    assert "0 changed + 1 unintegrated" in capsys.readouterr().out
+    assert "0 changed + 0 unintegrated" in capsys.readouterr().out
+
+
+def test_g5_grading_a_vanished_review_is_a_failure_line_never_a_traceback(tmp_path: Path) -> None:
+    """The race left after the listing filter (gone between the filter and the read) fails closed."""
+    errs = crc._grade(tmp_path / RV / "2026-10-08-gone-review.md", tmp_path)
+    assert len(errs) == 1 and "unreadable while being graded" in errs[0], errs
 
 
 # --- G6: an unintegrated IN-PROGRESS receipt passes and is reported once -------------------------------------
