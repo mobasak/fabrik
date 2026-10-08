@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "command_feedback_report.py --queue hides rejected rows' reasons, so a repeat of a held one-off verdict cannot be seen"
 }
