@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 from pathlib import Path
 
 SPECS_DIR = Path("docs") / "superpowers" / "specs"
@@ -260,6 +261,12 @@ def _audit_named(root: Path, named: list[str]) -> tuple[int, int, list[Finding],
             entries.append((label, path))
 
     for arg in named:
+        if not arg.strip():
+            # an unset `"$SPEC"` arrives as '' — and `root / ''` IS the root, which the directory
+            # branch would expand into README.md & co. (review A-S2)
+            notes.append("NOT-FOUND: '' (a blank argument)")
+            missing += 1
+            continue
         try:
             path = Path(arg)
             path = path if path.is_absolute() else root / path
@@ -329,7 +336,7 @@ def _emit(
     # on the ASCII-escaped line `_say` actually prints, and the FIRST line is cut to the room left
     # instead of printed whole — both overran the budget before W-7cdad5d5.
     marker_cost = len(MARKER.format(n=len(findings))) + 1
-    budget = ADVISORY_BUDGET - (len(_ascii(census)) + 1) - (len(REMEDY) + 6) - marker_cost
+    budget = ADVISORY_BUDGET - (len(_ascii(census)) + 1) - (len(_ascii(REMEDY)) + 6) - marker_cost
     emitted = 0
     for f in findings:
         if emitted >= MAX_LINES - 3:
@@ -342,7 +349,7 @@ def _emit(
             if emitted or room < 8:
                 break
             line = line[: room - 3] + "..."
-        print(line)
+        _say(line)  # already ASCII: `_ascii` is idempotent on it
         budget -= len(line) + 1
         emitted += 1
     if emitted < len(findings):
@@ -367,7 +374,13 @@ def main(argv: list[str] | None = None) -> int:
     # The emit phase sits inside the guard too: `--all | head` closes stdout early, and a
     # BrokenPipeError traceback is a non-zero exit (W-7cdad5d5).
     try:
+        argv = list(sys.argv[1:] if argv is None else argv)
+        literal: list[str] = []
+        if "--" in argv:  # everything after `--` is a path, even `--all` (review A-S1)
+            cut = argv.index("--")
+            argv, literal = argv[:cut], argv[cut + 1 :]
         args, unknown = parser.parse_known_intermixed_args(argv)
+        args.paths = list(args.paths) + literal
         root = Path(args.root)
         if args.paths:
             named, examined, findings, notes = _audit_named(root, args.paths)

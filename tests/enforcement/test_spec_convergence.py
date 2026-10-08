@@ -404,3 +404,24 @@ def test_a_broken_pipe_exits_zero(tmp_path, monkeypatch):
 
     monkeypatch.setattr(chk, "_say", _boom)
     assert chk.main(["--root", str(tmp_path), "--all"]) == 0
+
+
+def test_a_blank_argument_is_not_found_never_the_root(tmp_path, capsys):
+    """Review A-S2: an unset `"$SPEC"` arrives as '' and `root / ''` IS the root — the directory
+    branch graded README.md and friends as the "named" specs while the real spec went unmentioned."""
+    _spec_file(tmp_path, name="2026-10-01-real-design.md", body=CONVERGED)
+    (tmp_path / "README.md").write_text("# readme\n", encoding="utf-8")
+    assert chk.main(["--root", str(tmp_path), ""]) == 0
+    out = capsys.readouterr().out
+    assert "examined of 1 named" in out and "NOT-FOUND: ''" in out, out
+    assert "README" not in out, out
+
+
+def test_a_double_dash_ends_the_options(tmp_path, capsys):
+    """Review A-S1: intermixed parsing swallowed `--`, so `-- --all` ran the repo-wide `--all` dump
+    instead of naming a path. After `--` every token is a path."""
+    _spec_file(tmp_path, name="2026-10-01-other-design.md", body=CONVERGED)
+    assert chk.main(["--root", str(tmp_path), "--", "--all"]) == 0
+    out = capsys.readouterr().out
+    assert "0 CONVERGED spec(s) examined of 1 named" in out and "NOT-FOUND: --all" in out, out
+    assert "other-design" not in out, "the repo-wide audit ran instead of the named path"
