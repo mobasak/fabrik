@@ -1637,3 +1637,21 @@ def test_every_manifest_refusal_names_the_pin_command() -> None:
             bad,
             err[-400:],
         )
+
+
+def test_a_matched_slice_file_is_handed_to_the_seats_as_pin_named_it() -> None:
+    """Review A-S4: a spelling that matches its pin only after normalisation (`//a/b.py`, `/a/b.py`, `x/../a/b.py`)
+    was still handed to the seats raw, so a seat read `<pins_dir>/x/../a/b.py` — a path that needs `x` to exist —
+    instead of the pin. A matched slice file is rewritten to the manifest's form before any prompt is built."""
+    for typed in ("//a/b.py", "/a/b.py", "x/../a/b.py"):
+        args = {
+            **_ARGS,
+            "slices": [{"name": "S", "files": [typed]}],
+            "pin_manifest": {"a/b.py": "0" * 32},
+        }
+        out, _, prompts = _harness(args, {})
+        assert out["slices"][0]["files"] == ["a/b.py"], (typed, out["slices"][0]["files"])
+        assert (
+            "/p/a/b.py" in prompts["find:S:sonnet"]
+            and f"/p/{typed}" not in prompts["find:S:sonnet"]
+        ), typed

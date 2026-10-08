@@ -185,6 +185,9 @@ const norm = (p) => String(p).split('/').reduce((out, seg) => {
 const held = new Set(Object.keys(m).map(norm))
 const unpinned = args.slices.flatMap((s) => s.files.filter((f) => !held.has(norm(f))).map((f) => `${s.name}:${f}`))
 if (unpinned.length) throw new Error(`pin_manifest holds no pin for ${unpinned.join(', ')} — ${PIN_HOW}`)
+// review A-S4: every slice file now matches a pin, so it is handed on in the manifest's form — the path the seat
+// reads is the pin's (`<pins_dir>/x/../a/b.py` would need `x` to exist)
+for (const s of args.slices) s.files = s.files.map(norm)
 const pinned = true
 
 function ledgerLine(c) {
