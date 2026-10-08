@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "**[infra]** **Reconciler seats cite doc lines by bare number and drift 1–2 lines from the working file** (2026-09-09, owner: infra) — every fix of the T10 docs review was re-anchored by content; the `/fabrik-docs-review` brief template should demand a quoted anchor beside every line number.",
-  "note": "migrated-digest:4641f90349b8",
+  "note": "routed to kaizen (command wording, /fabrik-docs-review brief) — mail 01M4DH0RP4; still live at 52d25f555 (0 anchor hits)",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "handoff-2026-10-06"
   ],
