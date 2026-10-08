@@ -82,7 +82,7 @@ WireGuard at `10.99.0.1:<port>`.
 | vps1 | `infra/vps1/backrest/` | `backrest` |
 | vps1 | `infra/vps1/gatus/` | `gatus` |
 | vps1 | `infra/vps1/glitchtip/` | `glitchtip-web`, `glitchtip-worker` |
-| vps1 | `infra/vps1/monitoring/` | `prometheus`, `alertmanager`, `grafana`, `loki`, `promtail`, `node-exporter`, `cadvisor`, `postgres-exporter`, `redis-exporter`, `pushgateway` |
+| vps1 | `infra/vps1/monitoring/` | `prometheus`, `alertmanager`, `grafana`, `loki`, `alloy`, `node-exporter`, `cadvisor`, `postgres-exporter`, `redis-exporter`, `pushgateway` (`promtail` stays defined under the `rollback` profile until Gate S) |
 | vps1 | `infra/vps1/meilisearch/` | `meilisearch` |
 | vps1 | `infra/vps1/gotenberg/` | `gotenberg` |
 | vps1 | `infra/vps1/browserless/` | `browserless` |
@@ -91,7 +91,7 @@ WireGuard at `10.99.0.1:<port>`.
 | vps1 | `infra/vps1/site-provisioner/` | `site-provisioner` |
 | vps1 | `infra/vps1/ocoron-com/` | `wordpress`, `nginx`, `db`, `redis`, `backup` (the ocoron.com tenant stack) |
 | vps1 | `infra/vps1/watchdog-test/` | `watchdog-test` |
-| vps2, vps3 | `infra/vps{2,3}/traefik/`, `backrest/`, `monitoring-agent/` | `traefik`, `backrest`, `node-exporter`, `cadvisor`, `promtail` |
+| vps2, vps3 | `infra/vps{2,3}/traefik/`, `backrest/`, `monitoring-agent/` | `traefik`, `backrest`, `node-exporter`, `cadvisor`, `alloy` (`promtail` stays defined under the `rollback` profile until Gate S) |
 
 Every service sits on the external `fabrik` network behind Traefik and declares a memory limit
 (`deployer_ssh._validate_compose()`); mesh-only services bind to `10.99.0.1`.

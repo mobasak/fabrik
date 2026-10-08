@@ -565,7 +565,7 @@ Auto-provisioned by `fabrik apply` based on the shape flags in §1. **Do not dup
 | `meilisearch`    | Index provisioning + API key                   | `has_search_feature: true`                  |
 | `authelia`       | Auth layer + `^/api/` bypass if bearer-API    | `is_admin_dashboard: true` + `domain` set   |
 | `traefik`        | TLS, routing, HTTP→HTTPS                      | auto-discovered from compose labels         |
-| `promtail/loki`  | Log shipping                                   | auto-discovered                             |
+| `alloy/loki`     | Log shipping                                   | auto-discovered                             |
 | `prometheus`     | Metrics scrape                                 | `exposes_metrics: true` + `domain` set      |
 | `cadvisor`       | Container resource metrics                     | auto-discovered                             |
 

@@ -77,8 +77,8 @@ Each spoke (vps2/vps3) runs the **`host-state`** + **`opt-configs`** plans only 
 
 ### Layer 3 — Observability (full monitoring stack via `/opt/monitoring`)
 
-- `prometheus`, `grafana`, `loki`, `promtail`, `cadvisor`, `node-exporter`, `postgres-exporter`, `redis-exporter`, `alertmanager`, `pushgateway`
-- Volumes: `monitoring_prometheus-data`, `monitoring_grafana-data`, `monitoring_loki-data`, `monitoring_alertmanager-data`, `monitoring_promtail-positions`
+- `prometheus`, `grafana`, `loki`, `alloy`, `cadvisor`, `node-exporter`, `postgres-exporter`, `redis-exporter`, `alertmanager`, `pushgateway` (`promtail` stays defined under the `rollback` profile until Gate S)
+- Volumes: `monitoring_prometheus-data`, `monitoring_grafana-data`, `monitoring_loki-data`, `monitoring_alertmanager-data`, `monitoring_promtail-positions`, `monitoring_alloy-data`
 
 ### Layer 4 — Health + alerting
 
@@ -264,7 +264,7 @@ restic restore $SNAPSHOT_ID --target /var/restore
 # The docker-volumes plan backs up 11 volumes until release (both Postgres volumes), and
 # this loop restores all 11 (D-647): whichever Postgres volume /opt/postgres/compose.yaml
 # mounts comes back; the other is absent from the snapshot or unused. PG18 release step R3
-# drops the PG16 entry. prometheus/loki/promtail-positions/ocoron-com_redis_data are
+# drops the PG16 entry. prometheus/loki/promtail-positions/alloy-data/ocoron-com_redis_data are
 # excluded from backup (they regenerate)
 for vol in postgres18-data postgres-data redis_redis-data meilisearch-data n8n-data apprise-config \
            monitoring_grafana-data monitoring_alertmanager-data \

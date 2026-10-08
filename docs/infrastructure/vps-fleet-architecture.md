@@ -32,7 +32,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 |---|---|
 | Front door + auth | `traefik` (HTTPS, Let's Encrypt, all `*.vps1.ocoron.com`); `authelia` (forward-auth, TOTP, Redis-backed); `ocoron-com` tenant (WordPress) |
 | Shared data plane (mesh-only) | `postgres-main` (`10.99.0.1:5432`), `redis-main` (`:6379`), `meilisearch` (`:7700`), `glitchtip-web` (`:8000` — Sentry DSN), `pushgateway` (`:9091`), `loki` (`:3100`) |
-| Observability | `prometheus`, `grafana`, `loki`, `alertmanager`, `cadvisor`, `node-exporter`, `promtail`, `gatus` |
+| Observability | `prometheus`, `grafana`, `loki`, `alertmanager`, `cadvisor`, `node-exporter`, `alloy`, `gatus` (`promtail` stays defined under the `rollback` profile until Gate S) |
 | Backups | `backrest` — 4 plans → B2 (see § Backups below) |
 | Notification | `apprise` — Telegram routing for **Gatus + the sysadmin scripts + the watchdog** (`POST /notify/alerts`). Alertmanager does **not** use Apprise — it sends to Telegram natively |
 | Workflow / utility | `n8n`, `glitchtip-worker`, `browserless`, `gotenberg` |
@@ -69,7 +69,7 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 | Layer | Service |
 |---|---|
-| Monitoring agents | `node-exporter`, `cadvisor`, `promtail` (compose `/opt/monitoring-agent/`) — ship data to vps1 over mesh |
+| Monitoring agents | `node-exporter`, `cadvisor`, `alloy` (compose `/opt/monitoring-agent/`; `promtail` stays defined under the `rollback` profile until Gate S) — ship data to vps1 over mesh |
 | Spoke ingress | `traefik` (`/opt/traefik/`) — Let's Encrypt-ready, untested in production (W4 will exercise) |
 | Backups | `backrest` (compose `/opt/backrest/`, 256m RAM, no Traefik labels, no public UI exposure) — writes to own restic repo at `vps1-ocoron-backups/spokes/vpsN/` — added by W11 (2026-06-01) |
 
@@ -128,13 +128,13 @@ This doc answers: "we own 3 VPSes — what do we have, what's planned, and how i
 
 ### 2. Observability — single pane on vps1
 
-- `prometheus` on vps1: **17 jobs configured / 16 active** (`fabrik-services` null-target; `pushgateway` scrape restored 2026-07-19; repo-file re-verified 2026-07-20 — prior live probe 2026-07-12: 20/20 targets up). Spoke node/container/log metrics ARE federated: `node-spokes` / `cadvisor-spokes` / `promtail-spokes` (`prometheus.yml:46,58,70`) scrape `10.99.0.{2,3}` over the mesh — 2 targets each, all up. Plus the `aro-wake` job (3 mesh targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) exposing SLI counters.
+- `prometheus` on vps1: **17 jobs configured / 16 active** (`fabrik-services` null-target; `pushgateway` scrape restored 2026-07-19; repo-file re-verified 2026-07-20 — prior live probe 2026-07-12: 20/20 targets up). Spoke node/container metrics ARE federated: `node-spokes` / `cadvisor-spokes` (`prometheus.yml:46,58`) scrape `10.99.0.{2,3}` over the mesh — 2 targets each, all up. Log-shipper metrics move with the shipper: the `alloy` job (`prometheus.yml:70`) scrapes `alloy:12345` (hub) plus `10.99.0.{2,3}:12345` (spokes) — 3 targets, all up; `promtail-spokes` is retired with the switch (spec § The delta D3). Plus the `aro-wake` job (3 mesh targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) exposing SLI counters.
 - vps1-local series carry `host=vps1` label. ~~Spoke alert rules `spoke_health` group~~ — **NOT in alerts.yml**. The 5 live rule groups: `aro_wake` (2), `container_health` (6), `host_health` (3), `service_health` (1), `fabrik-registrar-drift` (1 live; 3 once plan-2 rollout R0 syncs FabrikRegistryHealFailed + FabrikAuditStale, separate file). `host_health` matches on `host` label — for spokes the only series with that label are the `aro-wake` job's, so spoke-side host-level alerting is currently aro-wake-flavored only.
-- `loki` receives logs from promtail on every host (promtail pushes to `10.99.0.1:3100` from spokes).
+- `loki` receives logs from `alloy` on every host (spoke `alloy` instances push to `10.99.0.1:3100`); `promtail` stays defined under the `rollback` profile until Gate S (spec § The delta D6).
 - `grafana` (vps1) shows fleet-wide dashboards. Both Prometheus + Loki as datasources.
 - `alertmanager` sends to Telegram **natively** (`telegram_configs`) and webhooks `aro-wake` — it does **not** route via `apprise` (`configs/alertmanager/alertmanager.yml:58-84`).
 - `gatus` probes 31 endpoints (across 18 config files) via mesh (re-verified live 2026-06-17; was 33 before the `coolify`/`coolify-public` endpoints were removed).
-- Total: **17 jobs configured / 16 active** in `prometheus.yml` (`fabrik-services` null-target; `pushgateway` restored 2026-07-19). Prior live probe 2026-07-12 (`/api/v1/targets`, pre-restore): 20/20 targets up. The 3 spoke jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes` — 2 targets each) are live.
+- Total: **17 jobs configured / 16 active** in `prometheus.yml` (`fabrik-services` null-target; `pushgateway` restored 2026-07-19). Prior live probe 2026-07-12 (`/api/v1/targets`, pre-restore): 20/20 targets up. The 2 spoke-only jobs (`node-spokes`, `cadvisor-spokes` — 2 targets each) plus the fleet-wide `alloy` job (hub + 2 spokes — 3 targets) are live.
 
 ### 3. Backups (as of 2026-06-01, W11 shipped)
 

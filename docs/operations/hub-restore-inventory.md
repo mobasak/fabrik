@@ -40,7 +40,7 @@ Verified live on vps1 (2026-06-01):
 | **Wireguard** | `/etc/wireguard/wg0.conf` | 1100 B | hub mesh config — peers, port |
 | | `/etc/wireguard/hub.privatekey` | 45 B | mesh privkey (referenced inline in wg0.conf) |
 | | `/etc/wireguard/hub.publickey` | 45 B | mesh pubkey |
-| **Docker daemon** | `/etc/docker/daemon.json` | ~250 B | log rotation, container tag for promtail, address pool, DNS |
+| **Docker daemon** | `/etc/docker/daemon.json` | ~250 B | log rotation, container tag for alloy (promtail, rollback profile, reads the same tag), address pool, DNS |
 | **iptables scripts** | `/etc/iptables/add-docker-user-rules.sh` | 1680 B | DOCKER-USER chain rules (drops mesh-only ports from public iface) |
 | | `/etc/iptables/rm-docker-user-rules.sh` | 304 B | reverse |
 | | `/etc/iptables/add-openvpn-rules.sh` | 271 B | OpenVPN forward rules (operator's personal VPN, out-of-platform-scope but actively used) |
@@ -101,7 +101,8 @@ Verified live: 12 named volumes (the important ones). 4 UUID-anonymous volumes (
 | `monitoring_loki-data` | LARGE | loki | NO (regenerates from logs) — EXCLUDE |
 | `monitoring_grafana-data` | small | grafana dashboards + db | **YES** — user dashboards |
 | `monitoring_alertmanager-data` | tiny | alertmanager silences | **YES** — small, low cost; preserving in-flight silences during a DR event is operationally valuable |
-| `monitoring_promtail-positions` | tiny | promtail tail offsets | NO (regenerates) — EXCLUDE |
+| `monitoring_promtail-positions` | tiny | promtail tail offsets (read-only mount for alloy's positions handover, spec D4; promtail itself stays rollback-profile-only until Gate S) | NO (regenerates) — EXCLUDE |
+| `monitoring_alloy-data` | tiny | alloy's own positions store (`--storage.path`, spec D4/D7) | NO (regenerates) — EXCLUDE |
 | `apprise-config` | tiny | apprise notification config | **YES** |
 | `meilisearch-data` | TBD | meilisearch indexes | **YES** if active indexes exist |
 | `n8n-data` | TBD | n8n workflow definitions + creds | **YES** — workflows are non-trivial to re-create |
