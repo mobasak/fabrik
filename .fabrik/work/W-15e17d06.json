@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:07:02.850634Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-15e17d06",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reword check_docker.py:108 and :139 to 'debian_codename from .windsurf/rules/versions.yaml' (synced enforcement; scoped review)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "check_docker.py messages say 'the registry's debian_codename' — ambiguous next to the container registry; name .windsurf/rules/versions.yaml"
+}
