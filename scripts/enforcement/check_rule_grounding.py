@@ -19,10 +19,12 @@ THE COUNTABLE SUBSET this check owns, on CONVERGED plans named >= FLOOR_CUTOFF:
   after whitespace normalisation on BOTH sides (source lines wrap; a bare substring match flags a
   TRUE quote as fabricated — the inverse error, hit live on a martinfowler.com quote 2026-08-30).
   An escaped `\\|` is one cell and compares un-escaped on both sides (a pack's own table carries it).
-- **The digest is read as a TABLE first** (W-31f488d9): if any row's source cell holds no file path
-  (no `/`, no `.ext`, and no file of that name at the root), the columns are in an order this check
-  cannot read — the plan is UNGRADED with one fixed reason, never one "does not exist" per row,
-  whose noise used to fill the only finding line the advisory budget shows.
+- **The digest is read as a TABLE first** (W-31f488d9): a row whose source cell holds no file path
+  (no `/`, no trailing `.ext`, and no file of that name at the root) is bare. When MOST rows are bare
+  the columns are in an order this check cannot read — the plan is UNGRADED with one fixed reason,
+  never one "does not exist" per row, whose noise used to fill the only finding line the advisory
+  budget shows. A minority of bare rows is a sloppy cell: those rows are skipped and noted, and every
+  row that names a file is still graded.
 
 WHAT IT CANNOT GRADE, stated so the blind spot is visible: whether the reading was comprehension or
 transcription, whether the digest's implications are right, whether packs beyond the MATCHED set
@@ -60,11 +62,16 @@ MATCHED_HEADER_RE = re.compile(r"^## MATCHED\b", re.M)
 PATH_TOKEN_RE = re.compile(r"[\w./-]+")
 # a cell boundary is a `|` NOT preceded by a backslash — a quote may carry an escaped one
 _UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
-# a source token is a file path when it carries a directory or an extension
-_PATH_LIKE = re.compile(r"/|\.\w")
+# a source token is a file path when it carries a directory or ENDS in an extension — so `e.g.`, `8.`
+# and `i.e.` are bare words, never a file (review A-S1)
+_PATH_LIKE = re.compile(r"/|\.\w+$")
 UNREAD_REASON = (
     "integrity: the digest's source column holds no file path (head the columns Quote | Source; "
     "an unescaped | in a quote also shifts cells)"
+)
+PARTIAL_REASON = (
+    "integrity: a digest row's source cell holds no file path - that row is not graded "
+    "(a Source is path:line alone in its cell)"
 )
 
 FLOOR_CUTOFF = "2026-08-30"
@@ -264,11 +271,18 @@ def _audit_full(root: Path) -> tuple[int, list[Finding], list[tuple[str, str]]]:
         rows = _digest_rows(digest)
         if not rows:
             ungraded.append((name, "integrity: the digest has no parseable rows"))
-        elif any(not _names_a_file(root, cited) for _quote, cited in rows):
-            # the TABLE, not the row: one bare source means the columns are misread, and grading the
-            # rest would print a quote word as a missing file (W-31f488d9)
-            ungraded.append((name, UNREAD_REASON))
-            rows = []
+        else:
+            # the TABLE decides (W-31f488d9): when MOST rows name no file the columns are misread, and
+            # grading them would print a quote word as a missing file per row; a MINORITY of bare rows
+            # is a sloppy cell in a good table — skip those rows, never the rest (review A-S2: an
+            # all-or-nothing rule hid a fabricated quote in a correctly cited row)
+            bare = [cited for _quote, cited in rows if not _names_a_file(root, cited)]
+            if len(bare) * 2 > len(rows):
+                ungraded.append((name, UNREAD_REASON))
+                rows = []
+            elif bare:
+                ungraded.append((name, PARTIAL_REASON))
+                rows = [(q, c) for q, c in rows if _names_a_file(root, c)]
         for quote, cited in rows:
             if Path(cited).is_absolute() or ".." in Path(cited).parts:
                 findings.append(

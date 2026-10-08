@@ -431,3 +431,39 @@ def test_an_escaped_pipe_is_one_cell_and_matches_on_both_sides(tmp_path):
         f"| process.env.X \\|\\| 'default' for secrets | {PACK_REL}:5 |\n"
     )
     assert chk._digest_rows(section) == [("process.env.X || 'default' for secrets", PACK_REL)]
+
+
+PARTIAL = "integrity: a digest row's source cell holds no file path"
+
+
+def test_one_prose_source_never_hides_a_fabricated_quote_in_another_row(tmp_path):
+    """Review A-S2: the first cut classified the table all-or-nothing, so one sloppy Source cell in a
+    correctly built digest discarded every row — a fabricated quote in another row went unseen. A
+    minority of bare rows is skipped and noted; the rows that name a file are still graded."""
+    root = _root(tmp_path)
+    _write_digest(
+        root,
+        "| Quote | Source |\n|---|---|\n"
+        f'| "{WRAPPED_QUOTE}" | {PACK_REL}:2 |\n'
+        f'| "This sentence appears in no pack." | {PACK_REL}:3 |\n'
+        f"| Another mandate line entirely. | spec § Constraints |\n",
+    )
+    assert "QUOTE-NOT-FOUND" in _labels(root), _labels(root)
+    assert any(why.startswith(PARTIAL) for why in _ungraded(root)), _ungraded(root)
+    assert not any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
+
+
+def test_a_misread_table_stays_ungraded_when_a_few_quotes_open_with_a_dotted_word(tmp_path):
+    """Review A-S1: `.venv`, `e.g.` and `8.` read as path-like, so a misread table leaked a row of
+    'does not exist' noise; `e.g.`/`8.` are bare now, and a minority of dotted leaks no longer
+    decides the table — the majority does."""
+    root = _root(tmp_path)
+    _write_digest(
+        root,
+        "| Pack | Rule (verbatim) | file:line | Binds |\n|---|---|---|---|\n"
+        f"| core/10-python.md | e.g. never a bare star import | {PACK_REL}:2 | T02 |\n"
+        f"| core/10-python.md | i.e. one module per import line | {PACK_REL}:3 | T03 |\n"
+        f"| core/10-python.md | Node.js imports name their extension | {PACK_REL}:4 | T04 |\n",
+    )
+    assert "QUOTE-NOT-FOUND" not in _labels(root), _labels(root)
+    assert any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
