@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:01:16.679531Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2a408e77",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DS0FDNX3AAATWJQYM98EKH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "re-route three command-wording items from intel to kaizen (W-a8361c19, W-ae8fd45b, W-cc2b8600)"
+}

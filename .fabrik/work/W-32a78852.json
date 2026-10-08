@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:08:17.357575Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-32a78852",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DKRCDE988MQPS2BJJ8E03N",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: the \"deleted\" wording follow-up (01M4DGTSBK) — subagents-core did under-state the seat rule; fixed at 721e3d2ba"
+}

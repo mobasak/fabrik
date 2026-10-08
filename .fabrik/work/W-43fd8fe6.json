@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:10:53.684493Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-43fd8fe6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DP81PEK0C4N42YXC2F4AKP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "review-loop workflow: two refute:AUDIT seats ran 3 and 9 min and returned NO RESULT; the pass still reported closable:false with 0 verdicts and nothing re-dispatched them"
+}

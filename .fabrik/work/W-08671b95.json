@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:38:51.064734Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-08671b95",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DQZGPCBJQZVT40EHJ7K1B0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: the worktree-isolation guard refuses then accepts the IDENTICAL command (01M4DNRQ5C) — not a hub guard: it is Claude Code's auto-mode classifier; your seat-side retry rule is the fix"
+}

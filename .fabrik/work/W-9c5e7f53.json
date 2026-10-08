@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:10:26.045221Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9c5e7f53",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DBKECASGE93CY20SQSWQ6N",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "docs_updater.py: parse_plan_status grades a BUILT plan as CONVERGED; the PLANS block cites scripts/epic_order.py, which projects lack"
+}

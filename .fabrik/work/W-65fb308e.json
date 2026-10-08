@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:43:52.709562Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-65fb308e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DR9PABCGZH6823N3QT5N5H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "/fabrik-review says restate EVERY round-1 slice in `round --slices`; command_run.py refuses a slice with 0 claims"
+}

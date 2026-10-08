@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:38:51.285493Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-6a62ccc2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DR6JCWVS01TMV3YVTN3J5Q",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: term-edit should grade an out-of-glob pin with --doc (01M4DJC9T8, W-191404c0) — done at affcb47b9"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:01:16.214102Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3b6d1c5e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DQ9NPXXMYPBMXS60CFPJHB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: test_docusaurus_static_runtime.py no-cache on one 404 shape (01M4DMCRCR) — fixed in fd1e2a00e (worktree-fleet)"
+}
