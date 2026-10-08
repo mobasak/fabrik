@@ -192,12 +192,14 @@ def _closing_row_finding(name: str, text: str) -> Finding | None:
         if not claims(blank(text)):
             return None  # a DRAFT that merely QUOTES the flip mid-review is not a convergence claim
         refusal = fail(text)
+        if not refusal or not isinstance(refusal, str):
+            return None  # an odd return type is the twin's drift, never this check's crash (review A-S1)
+        # the LAST counter in the twin's message, by digits — never its prose layout, which may be reworded;
+        # a message with no counter at all shows `?`, visibly (review A-S3)
+        counters = re.findall(r"confirmed:\s*(\d+)", refusal)
+        counter = counters[-1] if counters else "?"
     except Exception:  # a twin that raises skips this rule, never the census
         return None
-    if not refusal:
-        return None
-    m = re.search(r"confirmed:\s*(\S+?)\)?$", refusal)
-    counter = m.group(1) if m else "?"
     return Finding(
         name,
         "NON-QUIET-LEDGER",

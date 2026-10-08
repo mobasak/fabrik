@@ -588,3 +588,45 @@ def test_a_twin_that_fails_to_import_skips_the_rule(tmp_path):
     assert "spec convergence: 1 CONVERGED" in r.stdout and "NON-QUIET-LEDGER" not in r.stdout, (
         r.stdout
     )
+
+
+class _Truthy:
+    """Truthy, not a str — the shape a drifted twin could return."""
+
+    def __bool__(self):
+        return True
+
+
+def test_a_non_string_refusal_skips_only_this_rule(tmp_path, monkeypatch, capsys):
+    """Review A-S1: a truthy non-str refusal reached the counter regex OUTSIDE the guard, so the TypeError
+    replaced the whole census with main()'s single "could not evaluate" line."""
+    _ledger_spec(tmp_path, "CONVERGED", _NONQUIET, name="2026-08-27-x-design.md")
+    (tmp_path / "docs" / "superpowers" / "specs" / "2026-08-27-y-design.md").write_text(
+        "# D\n\n" + CONVERGED, encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        chk, "_closing_row_rule", lambda: (lambda t: _Truthy(), lambda t: True, lambda t: t)
+    )
+    assert chk.main(["--root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "could not evaluate" not in out and "spec convergence: 2 CONVERGED" in out, out
+    assert "NON-QUIET-LEDGER" not in out, out
+
+
+def test_the_counter_survives_a_reworded_refusal(tmp_path, monkeypatch):
+    """Review A-S3: the counter is the LAST `confirmed: N` digits of the twin's message, whatever its prose;
+    a message carrying no counter shows `?` instead of a wrong number."""
+    _ledger_spec(tmp_path, "CONVERGED", _NONQUIET)
+    for message, want in (
+        ("closing row is not quiet: confirmed: 5", "confirmed: 5 -"),
+        ("refused (confirmed: 0 expected; got confirmed: 7)", "confirmed: 7 -"),
+        ("refused, no counter named", "confirmed: ? -"),
+        ("confirmed: 7 (closing row not quiet)", "confirmed: 7 -"),  # the old end-anchored regex read `?`
+        ("refused (its last counter row reads confirmed: 2))", "confirmed: 2 -"),  # ... and `2)` here
+    ):
+        monkeypatch.setattr(
+            chk, "_closing_row_rule", lambda m=message: (lambda t: m, lambda t: True, lambda t: t)
+        )
+        _examined, findings = chk._audit(tmp_path)
+        assert findings[0].label == "NON-QUIET-LEDGER", [f.label for f in findings]
+        assert want in findings[0].detail, (message, findings[0].detail)
