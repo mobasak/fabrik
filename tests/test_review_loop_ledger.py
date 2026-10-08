@@ -364,3 +364,233 @@ def test_next_keeps_a_hyphenated_slice_name_whole() -> None:
     }
     out = rl.next_ledger(doc, ["rule-grammar-O1", "rest-of-spec-S2"])
     assert sorted(s["name"] for s in out) == ["rest-of-spec", "rule-grammar"], out
+
+
+# --- the pin verb and the post-pass re-check (kaizen 01M4CGJZAX) --------------------------------------------
+
+
+def _tool_in(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(TOOL), *args],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        cwd=str(cwd),
+    )
+
+
+_VCS_ENV = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "PATH": "/usr/bin:/bin"}
+
+
+def _repo(tmp: Path) -> Path:
+    """A throwaway repo holding `a.py` and `sub/b.py`, committed once."""
+    r = tmp / "repo"
+    (r / "sub").mkdir(parents=True)
+    (r / "a.py").write_text("A = 1\n")
+    (r / "sub" / "b.py").write_text("B = 1\n")
+    for argv in (
+        ["init", "-q"],
+        ["add", "a.py", "sub/b.py"],
+        ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "base"],
+    ):
+        subprocess.run(["git", *argv], cwd=r, check=True, env=_VCS_ENV, capture_output=True)
+    return r
+
+
+def _writable(p: Path) -> bool:
+    return bool(p.stat().st_mode & 0o222)
+
+
+def _md5(p: Path) -> str:
+    import hashlib
+
+    return hashlib.md5(p.read_bytes()).hexdigest()
+
+
+def test_pin_writes_read_only_pins_and_a_manifest(tmp_path: Path) -> None:
+    """Rows 1790768995 and 1790353914: the verb, not the lead's hand, writes each slice file's pin with an md5
+    manifest, and makes the pins AND their directories read-only — with the directory writable, `sed -i`
+    (write-new-then-rename) mutated a 0444 pin at rc 0, as both design critiques executed."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    got = _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py", "sub/b.py")
+    assert got.returncode == 0, got.stderr
+    frag = json.loads(got.stdout.splitlines()[-1])
+    want = {p: _md5(repo / p) for p in ("a.py", "sub/b.py")}
+    assert frag["pins_dir"] == str(pins) and frag["pin_manifest"] == want, frag
+    assert frag["digest"] == _md5(pins / "MANIFEST.md5"), frag
+    for p in want:
+        assert (pins / p).read_bytes() == (repo / p).read_bytes()
+        assert not _writable(pins / p), f"{p} pin is writable"
+    assert not _writable(pins) and not _writable(pins / "sub"), "a pins directory is writable"
+    lines = sorted((pins / "MANIFEST.md5").read_text().splitlines())
+    assert lines == sorted(f"{m}  {p}" for p, m in want.items()), lines
+    sed = subprocess.run(["sed", "-i", "s/A = 1/A = 9/", str(pins / "a.py")], capture_output=True, check=False)
+    assert sed.returncode != 0 and _md5(pins / "a.py") == want["a.py"], "sed -i mutated a pin"
+
+
+def test_pin_from_a_ref_and_dirty_marker(tmp_path: Path) -> None:
+    """A committed range is pinned from the commit (`--from`), never from a working tree that may carry WIP;
+    the working-tree default names every file whose bytes are not HEAD's."""
+    repo = _repo(tmp_path)
+    (repo / "a.py").write_text("A = 2  # working-tree edit\n")
+    got = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p1"), "--from", "HEAD", "a.py")
+    assert got.returncode == 0, got.stderr
+    assert (tmp_path / "p1" / "a.py").read_text() == "A = 1\n"
+    assert "DIRTY" not in got.stdout
+    wt = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p2"), "a.py", "sub/b.py")
+    assert wt.returncode == 0, wt.stderr
+    assert "DIRTY a.py" in wt.stdout and "DIRTY sub/b.py" not in wt.stdout, wt.stdout
+    assert json.loads((tmp_path / "p2" / "MANIFEST.json").read_text())["source"] == "working-tree"
+    assert json.loads((tmp_path / "p1" / "MANIFEST.json").read_text())["source"] != "working-tree"
+
+
+def test_pin_base_extracts_the_commit_read_only(tmp_path: Path) -> None:
+    """Row 1791115993: a whole base tree beside the pins, so a seat needs no repository command against the
+    live checkout — the COMMITTED bytes, read-only to the directory level."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    (repo / "a.py").write_text("A = 2  # working-tree edit\n")
+    got = _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py")
+    assert got.returncode == 0, got.stderr
+    base = Path(json.loads(got.stdout.splitlines()[-1])["base_pin_dir"])
+    assert (base / "a.py").read_text() == "A = 1\n" and (base / "sub" / "b.py").is_file()
+    assert not _writable(base / "a.py") and not _writable(base / "sub") and not _writable(base)
+
+
+def test_pin_refuses_a_file_it_cannot_pin(tmp_path: Path) -> None:
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    (tmp_path / "outside.py").write_text("X = 1\n")
+    (repo / "link.py").symlink_to(tmp_path / "outside.py")
+    for bad in ("missing.py", "../outside.py", "sub", "link.py"):
+        got = _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py", bad)
+        assert got.returncode == 2 and bad in got.stderr, (bad, got.returncode, got.stderr)
+    # from a commit too: `show REF:<dir>` prints a tree listing at rc 0, which was pinned as the file (review L-1)
+    for bad in ("sub", "missing.py"):
+        got = _tool_in(repo, "pin", "--pins-dir", str(pins), "--from", "HEAD", "a.py", bad)
+        assert got.returncode == 2 and bad in got.stderr, (bad, got.returncode, got.stderr)
+    assert not pins.exists(), "a refused pin wrote something"
+
+
+def test_pin_refuses_a_used_dir_unless_replace(tmp_path: Path) -> None:
+    """Each pass gets a NEW pins dir (a straggling seat from the last pass may still be reading the old one);
+    re-pinning the same dir is an explicit `--replace`, and it must not die on the read-only bits it set."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
+    (repo / "a.py").write_text("A = 3\n")
+    again = _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py")
+    assert again.returncode == 2 and "--replace" in again.stderr, again.stderr
+    got = _tool_in(repo, "pin", "--pins-dir", str(pins), "--replace", "sub/b.py")
+    assert got.returncode == 0, got.stderr
+    assert not (pins / "a.py").exists(), "a replaced dir kept a stale pin from the earlier file list"
+    assert (pins / "sub" / "b.py").is_file() and not _writable(pins / "sub" / "b.py")
+
+
+def test_read_pins_flags_a_moved_pin_and_a_moved_live_file(tmp_path: Path) -> None:
+    """Rows 1791023175 and 1790942447, at the pass's end: a changed pin is PIN MOVED — the pass is void, exit 3,
+    and the seats live when it changed are named; a changed live file is LIVE MOVED, informational (exit 0): the
+    lead's own fix or a sibling's commit moves it legitimately."""
+    import os
+    from datetime import UTC, datetime
+
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    run = _run_dir(tmp_path)
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py", "sub/b.py").returncode == 0
+    out = tmp_path / "pass.json"
+    clean = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
+    assert clean.returncode == 0, clean.stderr
+    got = json.loads(out.read_text())["pins"]
+    assert (got["status"], got["checked"], got["pin_moved"], got["live_moved"]) == ("checked", 2, [], [])
+    (repo / "sub" / "b.py").write_text("B = 2  # a sibling edit\n")
+    live = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
+    assert live.returncode == 0 and "LIVE MOVED sub/b.py" in live.stdout, (live.returncode, live.stdout)
+    pins.chmod(0o755)
+    (pins / "a.py").chmod(0o644)
+    (pins / "a.py").write_text("A = 99  # a seat's mutant\n")
+    # the mutant lands inside find:A:sonnet's span (06:00–06:03 in _run_dir), outside find:B:haiku's
+    stamp = datetime(2026, 9, 23, 6, 2, tzinfo=UTC).timestamp()
+    os.utime(pins / "a.py", (stamp, stamp))
+    moved = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
+    assert moved.returncode == 3, (moved.returncode, moved.stdout, moved.stderr)
+    assert "PIN MOVED a.py" in moved.stdout and "find:A:sonnet" in moved.stdout, moved.stdout
+    doc = json.loads(out.read_text())["pins"]
+    assert doc["pin_moved"] == ["a.py"] and doc["live_moved"] == ["sub/b.py"], doc
+    assert "find:A:sonnet" in doc["live_at_move"]["a.py"], doc
+
+
+def test_read_says_when_pins_were_not_checked(tmp_path: Path) -> None:
+    """COBRA (D-253) on an optional manifest: the omission shows on the path the lead READS — the pass file and
+    the summary — never only in the workflow's return value, which the lead is told not to read."""
+    run, out = _run_dir(tmp_path), tmp_path / "pass.json"
+    plain = _tool_in(tmp_path, "read", str(run), "--out", str(out))
+    assert plain.returncode == 0 and "pins: NOT CHECKED" in plain.stdout, plain.stdout
+    empty = tmp_path / "hand-pins"
+    empty.mkdir()
+    unp = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(empty))
+    assert unp.returncode == 0 and "UNPINNED" in unp.stdout, unp.stdout
+    assert json.loads(out.read_text())["pins"]["status"] == "unpinned"
+
+
+def test_pin_base_skips_an_absolute_link_and_names_it(tmp_path: Path) -> None:
+    """The hub itself tracks an absolute symlink (`vault`): the safe extract refuses it, and the first dogfood run
+    of `pin --base` on the hub died with a traceback and a half-extracted 94 MB base. Such a member is SKIPPED and
+    named; the rest of the base lands."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    (repo / "vault").symlink_to("/etc/hostname")
+    subprocess.run(["git", "add", "vault"], cwd=repo, check=True, env=_VCS_ENV, capture_output=True)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "link"],
+        cwd=repo,
+        check=True,
+        env=_VCS_ENV,
+        capture_output=True,
+    )
+    got = _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py")
+    assert got.returncode == 0, got.stderr
+    frag = json.loads(got.stdout.splitlines()[-1])
+    assert frag["base_skipped"] == ["vault"] and "SKIPPED vault" in got.stdout, (frag, got.stdout)
+    assert (Path(frag["base_pin_dir"]) / "a.py").is_file()
+    assert not (Path(frag["base_pin_dir"]) / "vault").exists()
+
+
+def test_pin_refuses_a_pins_dir_that_is_a_file_and_rolls_back_a_failed_write(tmp_path: Path) -> None:
+    """Review pass 1: A-S1 — `--pins-dir <an existing file>` raised NotADirectoryError past main(), a traceback at
+    rc 1; A-S3 — an OSError mid-write left a half-written, still-writable pins dir. Both are now exit 2 with
+    nothing left behind."""
+    repo = _repo(tmp_path)
+    afile = tmp_path / "taken"
+    afile.write_text("x")
+    got = _tool_in(repo, "pin", "--pins-dir", str(afile), "a.py")
+    assert got.returncode == 2 and "not a directory" in got.stderr and "Traceback" not in got.stderr, got.stderr
+    # a pins dir whose PARENT is read-only cannot be written: the verb must refuse cleanly, leaving nothing
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    locked.chmod(0o555)
+    try:
+        got = _tool_in(repo, "pin", "--pins-dir", str(locked / "pins"), "a.py")
+        assert got.returncode == 2 and "Traceback" not in got.stderr, (got.returncode, got.stderr)
+        assert not (locked / "pins").exists()
+    finally:
+        locked.chmod(0o755)
+
+
+def test_read_pins_attributes_a_seat_with_a_one_line_transcript(tmp_path: Path) -> None:
+    """Review A-S2: a one-timestamp transcript is a zero-width span, so a seat that logged once and wrote the pin
+    a few seconds later was never named. Spans are widened by `_SLACK` on both sides."""
+    import os
+    from datetime import UTC, datetime
+
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    run = tmp_path / "wf_one"
+    run.mkdir()
+    (run / "journal.jsonl").write_text(json.dumps({"type": "started", "agentId": "z1", "label": "find:A:haiku"}) + "\n")
+    (run / "agent-z1.jsonl").write_text(json.dumps({"timestamp": "2026-09-23T06:00:00.000Z"}) + "\n")
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
+    pins.chmod(0o755)
+    (pins / "a.py").chmod(0o644)
+    (pins / "a.py").write_text("A = 7\n")
+    stamp = datetime(2026, 9, 23, 6, 0, 30, tzinfo=UTC).timestamp()
+    os.utime(pins / "a.py", (stamp, stamp))
+    out = tmp_path / "pass.json"
+    got = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
+    assert got.returncode == 3, got.stdout
+    assert json.loads(out.read_text())["pins"]["live_at_move"]["a.py"] == ["find:A:haiku"]

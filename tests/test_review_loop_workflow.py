@@ -256,6 +256,7 @@ globalThis.pipeline = async (items, ...stages) =>
 const prompts = {{}};
 const optsBy = {{}};
 globalThis.agent = async (prompt, opts) => {{
+  console.error('AGENT CALLED ' + opts.label);
   prompts[opts.label] = prompt;
   optsBy[opts.label] = {{ model: opts.model, agentType: opts.agentType, effort: opts.effort }};
   return Object.hasOwn(results, opts.label) ? results[opts.label] : null;
@@ -1394,3 +1395,58 @@ def test_the_review_loop_doc_is_cited_hub_absolute() -> None:
     assert bad == [], bad
     core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
     assert "own checkout's copy" in core, "in a hub worktree the hub-absolute path is master's, not the branch's"
+
+
+# --- the pin manifest the lead's `review_loop_ledger.py pin` writes (kaizen 01M4CGJZAX) -------------------------
+
+_QUIET = {
+    "find:S:sonnet": {"files_read": ["a.py", "b.py"], "candidates": [], "notes": "n"},
+    "find:S:haiku": {"files_read": ["a.py", "b.py"], "candidates": [], "notes": "n"},
+}
+
+
+def test_workflow_refuses_an_unpinned_slice_before_dispatch() -> None:
+    """Row 1791230083: a slice file the manifest does not hold is refused BEFORE any seat runs — the same
+    refuse-at-the-args shape as a bad model or ledger row — never logged as a coverage gap after the seat ran;
+    a `./`-prefixed key still counts as the pin."""
+    args = {**_ARGS, "pin_manifest": {"./a.py": "0" * 32}}
+    _, err, _ = _harness(args, _QUIET, expect_fail=True)
+    assert "S:b.py" in err and "S:a.py" not in err and "pin_manifest" in err, err[-800:]
+    assert "AGENT CALLED" not in err, "a seat ran before the refusal"
+
+
+def test_workflow_labels_an_unpinned_launch() -> None:
+    """COBRA (D-253) on an optional manifest: the cheapest launch skips it, so the omission is SAID — in the log
+    and on the ledger (the pass reader says it on the lead's own path too) — and a pinned launch says nothing."""
+    out, log, _ = _harness(_ARGS, _QUIET)
+    assert out["pinned"] is False and "UNPINNED LAUNCH" in log, (out.get("pinned"), log[-600:])
+    pinned = {**_ARGS, "pin_manifest": {"a.py": "0" * 32, "b.py": "1" * 32}}
+    out, log, _ = _harness(pinned, _QUIET)
+    assert out["pinned"] is True and "UNPINNED LAUNCH" not in log, (out.get("pinned"), log[-600:])
+
+
+def test_workflow_base_pin_clause_replaces_git_archive() -> None:
+    """Row 1791115993: with `base_pin_dir` the seats copy the lead's read-only base tree instead of archiving
+    the live repository — and make the copy writable as its own command, because `cp -r` keeps the read-only
+    bits and the pin overlay then fails, leaving the seat on the BASE bytes (the Fable design critique ran it)."""
+    _, _, prompts = _harness({**_ARGS, "base_pin_dir": "/bp/base"}, _QUIET)
+    for label in ("find:S:sonnet", "find:S:haiku"):
+        assert "cp -r /bp/base SCRATCH/arch" in prompts[label], prompts[label][:400]
+        assert "chmod -R u+w SCRATCH/arch" in prompts[label]
+        assert "in place of the archive" in prompts[label]
+        # review B-S1: the clause names the recipe steps it replaces, so a seat never runs both
+        assert "skip their mkdir, ls-tree, git archive, tar and ROOTS steps" in prompts[label]
+    _, _, plain = _harness(_ARGS, _QUIET)
+    assert "/bp/base" not in plain["find:S:sonnet"] and "chmod -R u+w" not in plain["find:S:sonnet"]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="kaizen wires `review_loop_ledger.py pin` into the launchers (01M4CGJZAX); when this passes, make "
+    "pin_manifest mandatory in fabrik-review-loop.js and drop this mark",
+)
+def test_every_launcher_passes_a_pin_manifest() -> None:
+    """The counter-measure on an OPTIONAL manifest (D-253): it stays optional only while the launchers build their
+    pins by hand. The day every launcher names `pin_manifest`, this strict xfail turns red and forces the switch."""
+    missing = [s.name for s in SOURCES if "pin_manifest" not in s.read_text(encoding="utf-8")]
+    assert not missing, f"launchers that do not pass pin_manifest: {missing}"
