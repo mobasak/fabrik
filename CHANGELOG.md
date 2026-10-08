@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — work.py sync flags a BLOCKED plan that waits on nothing (2026-10-08)
+- `scripts/work.py` drift class 3 now also covers a plan led with BLOCKED (or `ON-HOLD`, `PAUSED`, `WAITING`, `HOLD`, `STALLED`) that waits on nothing. It clears with a linked item that is `awaiting-operator` (or `blocked` by an open item), with an awaiting item its Status line names by id, or with an awaiting operator question (a DECISION item) naming the plan's dated stem as a whole word. Items closed in another tree never count. The BLOCKED label used to pass every check, so it could hide agent-owned work and a block nobody had asked about. One live plan fleet-wide is BLOCKED today, and it is the reported case. web-ecommerce-factory 01M4EB8AX1.
+
 ### Fixed — /fabrik-plan-review's set hash is path-independent and its spec-gate claim is true (2026-10-08)
 - `commands/_sources/fabrik-plan-review.md`: the combined set hash hashed md5sum's path column as typed, so the same plan set hashed differently in the tree and in a seat's `cp -r` copy; it now runs from inside the set (`cd "<plan-dir>"`, `LC_ALL=C sort`) and names the empty-input hash `d41d8cd9…` as a failed `cd`, never recorded. The dropped-requirement row said `check_stage_artifacts.py` only checks the cited spec HAS a status; it now states the Tier-2 refusal of a new CONVERGED flip on a missing or non-CONVERGED designated spec (archived exempt) and that it compares no requirements. Answers 4 /fabrik-plan-review verdicts confirmed as text defects by the D-711 Opus audit. Grader: `tests/test_plan_review_small_gate.py::test_the_set_hash_recipe_is_path_independent_and_the_spec_gate_is_stated_truly`, which runs the recipe on two copies at different paths and under two locales, and drives `_check_plan_spec_freshness`.
 
