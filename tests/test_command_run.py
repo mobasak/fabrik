@@ -6125,6 +6125,12 @@ def test_the_paste_guard_covers_every_field_not_just_change() -> None:
         "confusion: none · waste: none · change: none · filed: mail id(s) to infra|fleet | 01M4C5VRQE, 01M4C64EDN"
     )
     assert missing == [], missing
+    # ... bracketed too: the brackets PAIR, so the regex cannot back off `>` and stop at the prefix (review A-S3)
+    _, missing = cr._parse_usage_feedback(
+        "confusion: none · waste: none · change: none · filed: mail id(s) to <infra|fleet> | 01M4C5VRQE"
+    )
+    assert missing == [], missing
+    assert not cr._FILED_TEMPLATE.match("mail id(s) to a beat > sent"), "an unpaired `>` is not the template"
     # BEHAVIOUR, not only text: the report buckets the same way (review A-S2)
     report = _load("cfr_axis", _SCRIPT.parent / "command_feedback_report.py")
     assert report._axis_of("mail id(s) to infra|fleet|intel | none") == "placeholder"

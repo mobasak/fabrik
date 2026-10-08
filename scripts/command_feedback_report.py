@@ -684,7 +684,7 @@ AXES: tuple[str, ...] = ("lean", "fast", "accurate", "waste", "infra", "rules", 
 # and the close-out grammar is exactly what this loop's verdicts are about. A paste reproduces the
 # template's whole clause; a verdict borrows three words of it and then says something.
 # mirrors `command_run.py::_FILED_TEMPLATE` (pinned equal by a drift grader)
-_FILED_TEMPLATE = re.compile(r"mail id\(s\) to <?(?:a beat|[a-z]+(?:\|[a-z]+)+)>?\s*(?:\|\s*none\b|>|$)")
+_FILED_TEMPLATE = re.compile(r"mail id\(s\) to (?:<(?:a beat|[a-z]+(?:\|[a-z]+)+)>|(?:a beat|[a-z]+(?:\|[a-z]+)+))\s*(?:\|\s*none\b|$)")
 _GRAMMAR_PHRASES: tuple[str, ...] = (
     "the one concrete edit to this command or a rule",
     "what in the command text was ambiguous or misleading",
