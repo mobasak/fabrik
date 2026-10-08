@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the docusaurus scaffold serves nginx the way the D-664 pack says (2026-10-08)
+
+`templates/docusaurus/nginx.conf.j2` is now the fenced nginx block of `.windsurf/rules/core/42-docusaurus.md`: a page is looked
+up as `$uri`, `$uri.html` or `$uri/index.html` and a missing one answers 404 with the build's `404.html` (it answered 200 with
+the landing page), pages carry `Cache-Control: no-cache`, gzip adds `gzip_vary` and `text/xml`. The test now asserts the
+scaffold ships the pack's block verbatim, and the opt-in real-image test (`test_real_build_serves_the_static_site`) expects
+the build's 404 page and no redirect, and passed against a real build. W-3860ebf6 part 1.
+
 ### Fixed — the /opt project catalog: a null category, a scalar project.yaml, pipes and non-link URLs (2026-10-08)
 
 `scripts/sync_projects.py` now auto-categorizes a project whose `category:` is empty, no longer aborts the whole scan on a
