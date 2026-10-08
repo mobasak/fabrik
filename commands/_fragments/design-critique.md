@@ -8,7 +8,9 @@ go out with `python3 scripts/command_run.py dispatch --seats 2`. Both get the SA
 other's answer. The brief holds:
 - the design artifact pinned by md5 (the spec, plan, flows or UI contract, or the phase-2 `design.md`) and the
   commit it was read at — a cited fleet-synced file (`scripts/enforcement/`, `.windsurf/rules/`) is gitignored in a
-  project, so no commit holds it: name it by its hub path `/opt/fabrik/<path>` and its md5 instead;
+  project, so no commit of the project holds it: copy the project's own file to the scratchpad and name it by that
+  path and its md5 (its origin is the hub's `/opt/fabrik/<path>`), the md5 standing in for a commit wherever line
+  numbers are cited;
 - the operator's ask in their own words;
 - the house rules every seat brief carries: read-only, no `$HOME/.claude*` reads, scratch only under the
   absolute scratchpad, `timeout 120 /usr/bin/grep`.
