@@ -4442,7 +4442,20 @@ QUEUED_TAG = "queued"
 HELD_TAGS = frozenset({"runtime", "hold"})
 HELD_PREFIX = "waits-"
 _HARNESS_RE = re.compile(r"agent-[0-9a-f]{16,}")
-_PLAN_DONE = frozenset({"EXECUTED", "COMPLETE", "SUPERSEDED", "SHIPPED", "ARCHIVED"})
+_PLAN_DONE = frozenset(
+    {
+        "EXECUTED",
+        "COMPLETE",
+        "SUPERSEDED",
+        "SHIPPED",
+        "ARCHIVED",
+        "BUILT",
+        "IMPLEMENTED",
+        "RETIRED",
+        "FIXED",
+        "CLOSED",
+    }
+)  # the fallback when docs_updater has no PLAN_DONE; read through it otherwise
 
 
 def _tags(item: dict) -> set[str]:
@@ -4643,7 +4656,7 @@ def _open_plans(main: Path) -> list[str]:
                 status = str(mod.parse_plan_status(path)[0]).upper().strip()
             except OSError:
                 continue
-            if (status.split() or [""])[0] not in _PLAN_DONE:
+            if (status.split() or [""])[0] not in getattr(mod, "PLAN_DONE", _PLAN_DONE):
                 out.append(f"{path.relative_to(main).as_posix()} ({status})")
         return out
     except Exception:

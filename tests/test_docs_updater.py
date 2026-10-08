@@ -283,7 +283,7 @@ class TestPlansTableOwnerColumn:
         assert "| beta | IN_PROGRESS | 1 |" in by_name["2026-01-01-epic-1-thing.md"]
         assert "(epics/2026-01-01-epic-1-thing.md)" in table
         # the Phase source is DEFINED in the block's own header comment
-        assert "<!-- Phase:" in table and "phased_order" in table
+        assert "<!-- Phase:" in table and "depends_on" in table
 
     @staticmethod
     def _stale_index(tmp_path: Path) -> Path:
@@ -697,3 +697,74 @@ def test_structure_outside_git_is_plain_walk(tmp_path):
     )
     body = _run_sync(tmp_path)
     assert "x.md" in body and "gone.md" not in body, body
+
+
+# site-provisioner 01M4DBKECA: a status VALUE outside the exact-first tuple was graded by whatever
+# word came later in its own line — `BUILT … Earlier: CONVERGED` read CONVERGED.
+def _plan_with_status(tmp_path, line: str):
+    p = tmp_path / "2026-10-08-plan-x.md"
+    p.write_text(f"# Plan\n\n**Status:** {line}\n\n## Tasks\n", encoding="utf-8")
+    return p
+
+
+def test_a_status_value_is_never_overridden_by_later_history_text(tmp_path):
+    import docs_updater as du
+
+    p = _plan_with_status(tmp_path, "BUILT 2026-09-05 — shipped in 0074c60. Earlier: CONVERGED")
+    assert du.parse_plan_status(p)[0] == "BUILT"
+    # real status lines from plans on the box (design critiques, Opus + Fable)
+    for line, want in (
+        ("✅ EXECUTED 2026-08-13 — whole-plan review converged", "EXECUTED"),
+        ("⛔ PINNED — DO NOT EXECUTE AS-WRITTEN (was CONVERGED 2026-07-07)", "PINNED"),
+        ("✅ **CLOSED 2026-06-02**", "CLOSED"),
+        ("BUILT IN PART, not EXECUTED (relabelled 2026-10-02)", "PARTIAL"),
+        ("DONE IN PART, remaining items pending", "PARTIAL"),
+        ("✓ EXECUTED — superseded by X (converged)", "EXECUTED"),
+        ("✓ EXECUTED, converged with baseline", "EXECUTED"),
+        ("BUILT; converged earlier", "BUILT"),
+        ("BUILT, IN PART, not EXECUTED", "PARTIAL"),
+        ("In-Progress — phase 2", "IN_PROGRESS"),
+        ("DONE (2026-07-01) — converged earlier", "COMPLETE"),
+        ("RESOLVED — see Resolution", "RESOLVED"),
+    ):
+        p = _plan_with_status(tmp_path, line)
+        assert du.parse_plan_status(p)[0] == want, line
+    for word in sorted(du._PLAN_STATUS_WORDS):
+        p = _plan_with_status(tmp_path, f"{word.upper()} — earlier: converged, then executed")
+        assert du.parse_plan_status(p)[0] == word.upper(), word
+
+
+def test_the_done_sets_agree_and_a_built_plan_is_done():
+    """docs_updater's PLAN_DONE and work.py's _PLAN_DONE grade the same plans as finished; a BUILT
+    plan is finished in both (it is never handed an owner nor listed as active)."""
+    import docs_updater as du
+    import work
+
+    assert du.PLAN_DONE == work._PLAN_DONE
+    assert {"BUILT", "IMPLEMENTED", "SHIPPED", "CLOSED", "FIXED"} <= du.PLAN_DONE
+    # RESOLVED labels a resolved issue inside an unfinished plan (check_plan_lock_release)
+    assert "RESOLVED" not in du.PLAN_DONE and "PARTIAL" not in du.PLAN_DONE
+
+
+def test_the_phase_note_names_no_hub_only_path():
+    """The note is written into every repo's PLANS.md; a project has no scripts/epic_order.py."""
+    import docs_updater as du
+
+    assert "epic_order.py" not in du._PLANS_PHASE_NOTE
+    assert "depends_on" in du._PLANS_PHASE_NOTE
+
+
+def test_work_open_plans_reads_the_shared_done_set(tmp_path):
+    """work.py's open-plan view lists a not-finished plan and hides a BUILT one, through the
+    docs_updater it imports (review B-S2: the agreement test never ran the consumer)."""
+    import work
+
+    plans = tmp_path / "docs" / "development" / "plans"
+    plans.mkdir(parents=True)
+    (plans / "2026-10-01-plan-a.md").write_text(
+        "# A\n\n**Status:** BUILT 2026-10-01 — Earlier: CONVERGED\n"
+    )
+    (plans / "2026-10-02-plan-b.md").write_text("# B\n\n**Status:** APPROVED — phases pending\n")
+    out = work._open_plans(tmp_path)
+    assert any("plan-b" in line for line in out), out
+    assert not any("plan-a" in line for line in out), out
