@@ -451,7 +451,7 @@ if this run shipped a feature/route/service/schema/config change:
 
 run FULL final gate: python scripts/final_gate.py --json     # Tier 2 (mypy+bandit+semgrep), never --lean
 fix until {"status": "success"} (baseline check: a red that was red at step-8 start is a sibling's, not yours — and a review record may then embed that FAILING gate beside a ONE-LINE `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration — `<N>` is the failing check's TOTAL findings, ≥ 1 (`0 of 0` is refused); the value stays on that line as plain text, a backtick span or an inline fence, never a block fence below, and a hard-wrapped declaration is not a declaration; `check_convergence.py` accepts the pair, and a non-zero count is yours to fix)
-run §Finish: /fabrik-review over the WHOLE-plan cumulative diff (→ coverage-adjudicated exit) → gate green (fresh) → requirements coverage → clean up OWN worktree → release scope lock + plan Status: EXECUTED → archive plan to plans/archived/ (only if 100% verified) → PUSH (task-end law; ladder on rejection) → name the deploy decision
+run §Finish: /fabrik-review over the WHOLE-plan cumulative diff (→ coverage-adjudicated exit) → gate green (fresh) → requirements coverage → clean up OWN worktree → release scope lock + plan Status: EXECUTED → archive plan to plans/archived/ (only if 100% verified; a plan an existing DECISIONS row cites stays EXECUTED for the merge owner to archive) → PUSH (task-end law; ladder on rejection) → name the deploy decision
 ```
 
 ## Dispatcher Mode — spine+ticket plan sets
@@ -1223,7 +1223,8 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    from here, and there is no workaround to attempt:** `git -C`, `--git-dir`, `GIT_DIR`/`GIT_WORK_TREE`
    and `cd` into the main checkout are all blocked while isolated. Report the merge AND the removal as
    OWED, naming the branch, the worktree path and the exact commands, for the operator to complete. On
-   that path steps 5–7 run HERE, in the worktree: release the lock, flip and archive the plan, and push
+   that path steps 5–7 run HERE, in the worktree: release the lock, flip the plan and archive it as step 6
+   allows, and push
    `BASE` — the owed merge then carries all of it, because those edits are commits on the branch like any
    other. Coder worktrees created BY this run are removed from this tree as usual — they are inside it,
    so no redirect is involved.
@@ -1237,21 +1238,29 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    is blocked. Then output the completion block above.
 6. **Archive the plan — ONLY when 100% verified done.** The plan is finished only when ALL of: the
    whole-plan review (step 1) came back clean, the final gate (step 2) is green THIS turn, and requirements
-   coverage (step 3) accounts for every agreed item. Then archive: a monolith plan moves as
+   coverage (step 3) accounts for every agreed item. ⚠️ **BEFORE any move, list the REFERRERS:**
+   `command grep -rln '<plan-stem>' docs/ *.md`. ⚠️ **A `docs/DECISIONS.md` row already on `BASE` that
+   cites a file of the plan by its pre-archive path decides WHO archives** — `BASE` here is the branch
+   your work finally merges into. Never repoint that row: the ledger merge refuses any conflict where
+   EITHER side edits an existing line, so an edited row turns every open branch's row insertion beside it
+   into a hand merge (LESSONS 2026-10-01). The link check reads `DECISIONS.md`, so the plan is then not
+   archived: it stays where it is with `Status: EXECUTED`, your Finish row cites it at that path and says
+   the archive is owed, and the hand-over names it — the merge request from an agent window, the OWED
+   report, or, from the main checkout, a work item or mail addressed to the repo's merge owner. The
+   archive is the merge owner's, with
+   every referrer in one commit, timed so no open request inserts beside the rows it repoints (D-484;
+   a90b35a3b archived twelve plans that way). No such row → archive now: a monolith plan moves as
    `git mv docs/development/plans/<plan>.md docs/development/plans/archived/<plan>.md`; a spine+ticket
    plan SET moves as a **whole-directory** `git mv docs/development/plans/<dir>
    docs/development/plans/archived/<dir>` (spine, tickets, and Board travel together — never the
    single-file move, which strands the tickets as gate-flagged orphans). Explicit paths either way;
    repoint the lock's `plan` field to the
-   archived path. ⚠️ **A rename is only half a change until its REFERRERS move with it — repoint
-   every doc that cites the plan by its pre-archive path, IN THIS SAME COMMIT.** `command grep -rln
-   '<plan-stem>' docs/ *.md` names them; the two that exist for any plan worth executing are
-   `docs/DECISIONS.md` (rows minted while it was in flight) and `docs/STRATEGIC_BACKLOG.md` (rows
-   routed out of its reviews). Doc Link
-   Integrity DOES catch a missed one of those — but at the last gate before the commit, after the move, so it costs a
-   full gate re-run and lands the repair in a commit whose message was already written
-   (`01M2GCTCP5F8`; hit again on the 2026-09-12 mail-triage plan's own Finish, where a `DECISIONS.md`
-   row still pointed at the pre-archive path). **The grep also lists the review receipts under
+   archived path. ⚠️ **A rename is only half a change until its REFERRERS move with it — repoint every
+   doc the grep named, IN THIS SAME COMMIT** — `docs/DECISIONS.md` (rows minted while the plan was in
+   flight) and `docs/STRATEGIC_BACKLOG.md` (rows routed out of its reviews) for any plan worth executing.
+   Doc Link Integrity DOES catch a missed one — but at the last gate before the commit, after the move,
+   so it costs a full gate re-run and lands the repair in a commit whose message was already written
+   (`01M2GCTCP5F8`). **The grep also lists the review receipts under
    `docs/development/reviews/` — never repoint those, nor any verbatim captured output:** a receipt is a
    frozen artifact, rewriting one re-admits it to `check_convergence`/`check_review_coverage` under
    today's grammar (four 2026-08/09 receipts redded on the first try, `01M4BYT60T`), and the link check

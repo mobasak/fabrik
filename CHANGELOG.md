@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan's archive step never edits an existing ledger row (2026-10-08)
+- `commands/_sources/fabrik-execute-plan.md` Finish step 6 told the run to repoint `docs/DECISIONS.md` rows that cite the plan's pre-archive path. The ledger merge (`merge_request.py::_resolve_insertions`) refuses a conflict where either side edits an existing line, so that edit turned every open branch's row insertion beside it into a hand merge (LESSONS 2026-10-01). The step now lists the referrers before any move. A plan cited by a row already on the branch the work merges into stays `Status: EXECUTED`, with the owed archive named in the hand-over for the merge owner, who archives it with every referrer in one commit (D-484; a90b35a3b). Step 4's OWED path and the § Finish summary follow suit. Grader: `tests/test_execute_plan_d7.py::test_the_archive_step_never_edits_a_ledger_row_and_leaves_a_ledger_cited_plan_to_the_merge_owner`, which also drives `check_doc_links`' ref extraction and resolution over a ledger row.
+
 ### Added — `command_run.py step --terminal-amend` restates a /fabrik-task terminal before its design lands (2026-10-08)
 - A run's terminal was fixed by `start --terminal`, so when the design critiques narrowed the work the close had to explain a superseded goal (five /fabrik-task verdicts). `step --terminal-amend "<text>"` (fabrik-task only) replaces it, keeping `{from, to, at}` in `terminal_amends`; it is accepted only before or with the run's `--design` — never after, a re-entered phase 2 included — so the goal cannot be moved to fit the build. Blank or multi-line text is refused, a same-text amend is a no-op, and every close row of an amended run counts `terminal_amends`. Doc: `docs/reference/command-run-protocol.md`. kaizen 01M4DB7C7V.
 
