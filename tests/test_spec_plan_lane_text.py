@@ -476,15 +476,20 @@ def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch)
             "run_close event, D-716 — carry that path into the restart, since the next `start` overwrites the record") in text
     # the behaviour the D-716 sentence relies on: handoff keeps the seed's bytes under resume_copy
     monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "cr"))
+    monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(tmp_path / "ev"))
     cr = [sys.executable, str(REPO / "scripts" / "command_run.py")]
     subprocess.run([*cr, "start", "--command", "fabrik-spec", "--phases", "6", "--terminal", "t"], check=True,
                    capture_output=True)
     seed = tmp_path / "seed.md"
     seed.write_text("## RESUME\nrestart: /fabrik-task --from-downgrade R1\n", encoding="utf-8")
     fb = "confusion: none · waste: none · change: none · filed: none — surfaces exercised: probe"
-    subprocess.run([*cr, "handoff", "--command", "fabrik-spec", "--resume", str(seed), "--reason", "DOWNGRADE: R1 — x",
-                    "--feedback", fb], check=True, capture_output=True)
+    p = subprocess.run([*cr, "handoff", "--command", "fabrik-spec", "--resume", str(seed), "--reason",
+                        "DOWNGRADE: R1 — x", "--feedback", fb], check=True, capture_output=True, text=True)
     seed.unlink()
-    recs = [json.loads(p.read_text()) for p in (tmp_path / "cr").glob("*.json")]
+    assert "handoff: the resume artifact is kept at " in p.stdout, p.stdout
+    recs = [json.loads(q.read_text()) for q in (tmp_path / "cr").glob("*.json")]
     kept = [r.get("resume_copy") for r in recs if r.get("resume_copy")]
     assert kept and Path(kept[0]).read_text(encoding="utf-8").startswith("## RESUME"), recs
+    closes = [json.loads(ln) for f in (tmp_path / "ev").glob("*.jsonl") for ln in f.read_text().splitlines()
+              if '"run_close"' in ln]
+    assert any(json.dumps(c).count(kept[0]) for c in closes), closes
