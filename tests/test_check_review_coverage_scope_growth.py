@@ -154,28 +154,23 @@ def test_an_unexecuted_candidate_closes_no_loop_under_any_exit():
     assert not crc._scope_growth_exit(text, rows)
 
 
-def test_check_file_accepts_the_stop_and_still_demands_a_fresh_seat(tmp_path):
-    """The exemption is scoped to the QUIETNESS rule. V11 — the closing round carried a fresh
-    non-authoring finder — is NOT exempt: a loop that stopped because it was reviewing its own
-    fixes needs an outside reader more than a quiet one does, not less.
-
-    Graded through `check_file`, the real entry point, on a file on disk — no `hasattr` hedge,
-    which would make this pass vacuously the day the function is renamed."""
+def test_check_file_refuses_a_declared_stop_without_a_quiet_close(tmp_path):
+    """D-355 (2026-09-23, operator): a review closes only when its closing pass confirms zero,
+    whatever stopped it. A receipt being written NOW that declares the D-252 scope-growth stop
+    over a non-quiet last row is refused like any other non-quiet exit (kaizen 01M4CPWDK0)."""
     crc = _crc()
     quiet_err = "the exit round must be quiet"
     rows = [_row(1, 14), _row(2, 4)]
-
     declared = tmp_path / "declared.md"
     declared.write_text(_doc("CONVERGED on the D-252 scope-growth stop", rows), encoding="utf-8")
-    errs = crc.check_file(declared)
-    assert not any(quiet_err in e for e in errs), errs
-
-    # the SAME ledger without the declaration still reports the quietness failure — which is what
-    # makes the assertion above a statement about the declaration rather than about the fixture
-    plain = tmp_path / "plain.md"
-    plain.write_text(_doc("CONVERGED", rows), encoding="utf-8")
-    errs2 = crc.check_file(plain)
-    assert any(quiet_err in e for e in errs2), errs2
+    assert any(quiet_err in e for e in crc.check_file(declared))
+    # the declared stop closing on a QUIET row is an ordinary converged review
+    quiet = tmp_path / "quiet.md"
+    quiet.write_text(
+        _doc("CONVERGED on the D-252 scope-growth stop", [_row(1, 14), _row(2, 4), _row(3, 0)]),
+        encoding="utf-8",
+    )
+    assert not any(quiet_err in e for e in crc.check_file(quiet))
 
 
 def test_the_round_count_stays_in_lockstep_with_the_stop_that_defines_it():
@@ -312,22 +307,152 @@ def test_the_exemption_is_fail_closed_on_any_negation_before_the_phrase():
         assert crc._scope_growth_exit(affirmation, still_converging), affirmation
 
 
+def _git(cwd, *args, env=None):
+    import os
+    import subprocess
+
+    full = {
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.invalid",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.invalid",
+        **(env or {}),
+    }
+    subprocess.run(["git", *args], cwd=cwd, env=full, check=True, capture_output=True)
+
+
+def test_the_committed_advisory_grandfathers_only_receipts_older_than_d355(tmp_path):
+    """The committed advisory keeps the D-252 exemption ONLY for receipts first committed before
+    D-355 (2026-09-23) — a sanctioned close at the time, never nagged forever (the D-497 pattern).
+    A receipt first committed after the ruling is flagged like any other non-quiet exit."""
+    crc = _crc()
+    text = _doc("CONVERGED on the D-252 scope-growth stop", [_row(1, 14), _row(2, 4)])
+    reviews = tmp_path / crc.REVIEWS_DIR
+    reviews.mkdir(parents=True)
+    _git(tmp_path, "init", "-q", "-b", "master")
+    for name, when in (
+        ("old-review.md", "2026-09-20T12:00:00"),
+        ("new-review.md", "2026-10-02T12:00:00"),
+    ):
+        (reviews / name).write_text(text, encoding="utf-8")
+        _git(tmp_path, "add", str(reviews / name))
+        _git(
+            tmp_path,
+            "commit",
+            "-q",
+            "-m",
+            name,
+            env={"GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when},
+        )
+    out = crc._committed_nonquiet(tmp_path, set())
+    assert not any("old-review.md" in line for line in out), out
+    assert any("new-review.md" in line for line in out), out
+
+
+def test_a_users_log_follow_config_grandfathers_no_copy(tmp_path, monkeypatch):
+    """`log.follow=true` in a user's git config re-enables `--follow` for a one-path log, which
+    follows COPIES: a post-ruling receipt identical to a pre-ruling one would inherit its date
+    and its exemption. Both first-commit helpers pin `log.follow=false` (Fable critique, D-355)."""
+    crc = _crc()
+    text = _doc("CONVERGED on the D-252 scope-growth stop", [_row(1, 14), _row(2, 4)])
+    _git(tmp_path, "init", "-q", "-b", "master")
+    for name, when in (("old.md", "2026-09-20T12:00:00"), ("new.md", "2026-10-02T12:00:00")):
+        (tmp_path / name).write_text(text, encoding="utf-8")
+        _git(tmp_path, "add", name)
+        _git(
+            tmp_path,
+            "commit",
+            "-q",
+            "-m",
+            name,
+            env={"GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when},
+        )
+    cfg = tmp_path / "follow.gitconfig"
+    cfg.write_text("[log]\n\tfollow = true\n", encoding="utf-8")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(cfg))
+    assert crc._first_commit_date(tmp_path, tmp_path / "new.md") == "2026-10-02"
+    cc = _load("check_convergence.py")
+    assert cc._first_commit_date(tmp_path, "new.md") == "2026-10-02"
+
+
+def test_a_leaked_git_dir_never_dates_a_receipt_from_another_repo(tmp_path, monkeypatch):
+    """A hook or wrapper that leaves GIT_DIR/GIT_WORK_TREE set pointed git at ANOTHER repository,
+    so a post-ruling receipt was dated by a sibling repo's older commit and grandfathered (review
+    A-S1). The one first-commit reader scrubs git's location environment; check_convergence's
+    D-497 reader delegates to it."""
+    crc = _crc()
+    cc = _load("check_convergence.py")
+    repos = {}
+    for name, when in (("other", "2026-01-01T12:00:00"), ("mine", "2026-10-01T12:00:00")):
+        repo = tmp_path / name
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "master")
+        (repo / "r.md").write_text("x\n", encoding="utf-8")
+        _git(repo, "add", "r.md")
+        _git(
+            repo,
+            "commit",
+            "-q",
+            "-m",
+            "r",
+            env={"GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when},
+        )
+        repos[name] = repo
+    monkeypatch.setenv("GIT_DIR", str(repos["other"] / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(repos["other"]))
+    mine = repos["mine"]
+    assert crc._first_commit_date(mine, mine / "r.md") == "2026-10-01"
+    assert crc._first_commit_date(None, mine / "r.md") == "2026-10-01"
+    assert cc._first_commit_date(mine, "r.md") == "2026-10-01"
+
+
+def test_check_file_lets_a_pre_d355_receipt_be_edited_but_not_a_newer_one(tmp_path):
+    """The uncommitted reader grandfathers the same receipts the committed advisory does: an edit
+    to a receipt first committed before D-355 (a link fix) is not refused for the stop it closed
+    on then, while a receipt first committed after the ruling — or never committed — is."""
+    crc = _crc()
+    quiet_err = "the exit round must be quiet"
+    text = _doc("CONVERGED on the D-252 scope-growth stop", [_row(1, 14), _row(2, 4)])
+    _git(tmp_path, "init", "-q", "-b", "master")
+    paths = {}
+    for name, when in (("old.md", "2026-09-20T12:00:00"), ("new.md", "2026-10-02T12:00:00")):
+        paths[name] = tmp_path / name
+        paths[name].write_text(text, encoding="utf-8")
+        _git(tmp_path, "add", name)
+        _git(
+            tmp_path,
+            "commit",
+            "-q",
+            "-m",
+            name,
+            env={"GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when},
+        )
+    for path in paths.values():  # the edit under review
+        path.write_text(text + "\nA fixed link.\n", encoding="utf-8")
+    assert not any(quiet_err in e for e in crc.check_file(paths["old.md"]))
+    assert any(quiet_err in e for e in crc.check_file(paths["new.md"]))
+    fresh = tmp_path / "fresh.md"
+    fresh.write_text(text, encoding="utf-8")
+    assert any(quiet_err in e for e in crc.check_file(fresh))
+
+
 def test_the_committed_path_honours_the_same_scope_growth_exemption():
-    """Two readers, ONE rule. `check_file` granted the exemption and `_committed_nonquiet` did not,
-    so a receipt that took a SANCTIONED exit was accepted uncommitted and then nagged FOREVER once
-    committed — the reader-divergence this module's own docstring calls its founding enemy, running
-    in the opposite direction. Measured when this landed: 10 permanent false advisories removed
-    across the live receipts, 0 added. Found by the heavy review of D-281."""
+    """Two readers, ONE rule (D-281's heavy review; narrowed to pre-D-355 receipts by D-355). Both
+    readers consult `_legacy_scope_growth_exit`, so a receipt that took the then-sanctioned stop is
+    neither accepted uncommitted and nagged once committed, nor the reverse."""
     crc = _crc()
     text = _doc("CONVERGED on the D-252 scope-growth stop", [_row(1, 14), _row(2, 4)])
     rows = crc._ledger_shapes(text)[2]
-    # the precondition: this receipt IS exempt at the uncommitted reader
+    # the precondition: this receipt declares the stop the legacy exemption keys on
     assert crc._scope_growth_exit(text, rows), "fixture no longer earns the exemption"
     # and the committed reader must reach the same verdict — the guard is the `and not` clause
     import inspect
 
     src = inspect.getsource(crc._committed_nonquiet)
     head = src.split("COMMITTED with a non-quiet exit round")[0]
-    assert "_scope_growth_exit(text, ordered_rows)" in head, (
+    assert "_legacy_scope_growth_exit(" in head, (
         "the committed path stopped consulting the exemption — the two readers have diverged again"
     )

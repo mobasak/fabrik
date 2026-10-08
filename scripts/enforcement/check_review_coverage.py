@@ -547,6 +547,87 @@ def _scope_growth_exit(text: str, ordered_rows: list[_Row]) -> bool:
     return all(r[1] is not None and r[1] > 0 for r in ordered_rows[-window:])
 
 
+# D-355 superseded the D-252 exit on 2026-09-23. A receipt first committed BEFORE that day closed
+# on a then-sanctioned stop and is never nagged for it (the D-497 grandfathering pattern); one
+# first committed on or after it gets no exemption. Cobra (D-253): the cheapest way past the
+# cut-over is to backdate a commit — visible in `git log`, and it buys only an advisory's silence.
+_D355_CUTOVER = "2026-09-23"
+
+
+# Environment that would point git at ANOTHER repository or index — a hook or wrapper can leak it
+# (review A-S1: a leaked GIT_DIR dated a receipt from a sibling repo's history). Mirrors
+# task_lane._GIT_ENV_OVERRIDES; enforcement scripts ship without task_lane, so it is restated here.
+_GIT_LOCATION_ENV = frozenset(
+    {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_NAMESPACE",
+        "GIT_CEILING_DIRECTORIES",
+        "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+        "GIT_LITERAL_PATHSPECS",
+        "GIT_GLOB_PATHSPECS",
+        "GIT_NOGLOB_PATHSPECS",
+        "GIT_ICASE_PATHSPECS",
+    }
+)
+
+
+def _first_commit_date(root: Path | None, path: Path) -> str:
+    """The receipt's first-commit date (``YYYY-MM-DD``), or "" when git cannot say.
+
+    The ONE first-commit reader: check_convergence's D-497 cut-over delegates here. Never
+    ``--follow`` — and ``-c log.follow=false``, because a user's ``log.follow=true`` turns it on for
+    a one-path log: it follows COPIES too, so a new receipt similar enough to an older one (they
+    share a template) inherits the older one's date and its exemption — measured. Without it a
+    rename, a shallow clone's graft and a squash all read as a LATER date, so every limit errs
+    toward naming the receipt, never toward hiding it. git runs with ``_GIT_LOCATION_ENV`` removed,
+    so the repository asked is the one ``root`` names. ``root=None`` resolves the work tree from the
+    receipt's own directory (the uncommitted check has no root of its own); a failed resolution
+    answers ""."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_ENV}
+    try:
+        if root is None:
+            top = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                cwd=path.resolve().parent,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                env=env,
+            )
+            if top.returncode != 0 or not top.stdout.strip():
+                return ""
+            root = Path(top.stdout.strip())
+        rel = str(path.resolve().relative_to(root.resolve()))
+        r = subprocess.run(
+            ["git", "-c", "log.follow=false", "log", "--diff-filter=A", "--format=%cs", "--", rel],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return ""
+    out = r.stdout.split() if r.returncode == 0 else []
+    return out[-1] if out else ""
+
+
+def _legacy_scope_growth_exit(
+    root: Path | None, path: Path, text: str, ordered_rows: list[_Row]
+) -> bool:
+    """The D-252 exemption, kept ONLY for a receipt first committed before D-355. An undatable
+    or never-committed receipt gets no exemption (fail closed: the check then names it)."""
+    if not _scope_growth_exit(text, ordered_rows):
+        return False
+    first = _first_commit_date(root, path)
+    return bool(first) and first < _D355_CUTOVER
+
+
 def _blocked_sections(text: str) -> int:
     """How many BLOCKED sections carry their own in-section evidence — the per-finding
     3-attempts phrase, or (loop-level exit) a NON-CONVERGENCE heading naming a foundation error.
@@ -766,15 +847,11 @@ def check_file(p: Path) -> list[str]:
             "after the real ledger becomes the exit round (round-13, reproduced with an "
             "appendix example row). Quote examples inside code fences"
         )
-    # ⚠️ the scope-growth exit is exempted HERE ONLY — from the quietness rule. The closing-seat
-    # rule below (V11) is NOT exempt: a loop that stopped because it was reviewing its own
-    # fixes needs a fresh non-authoring reader more than a quiet one does, not less.
-    if (
-        ordered_rows
-        and not blocked_ok
-        and not _in_progress(text)
-        and not _scope_growth_exit(text, ordered_rows)
-    ):
+    # D-355 (2026-09-23, operator): a review closes only when its closing pass confirms zero,
+    # whatever stopped it — the D-252 scope-growth stop routes own-fix work, it is not an exit.
+    # A receipt first committed before the ruling keeps its then-sanctioned stop, so an edit to
+    # one (a link fix) is not refused; a new or post-ruling receipt gets no exemption.
+    if ordered_rows and not blocked_ok and not _in_progress(text):
         last = ordered_rows[-1]
         quiet = _confirmed_quiet(last)
         if quiet is None:  # no `confirmed:` counter — the legacy rule stands
@@ -782,7 +859,7 @@ def check_file(p: Path) -> list[str]:
             named = f"raised {last[0]}"
         else:
             named = _exit_counters(last, f"found: {last[0]}")
-        if not quiet:
+        if not quiet and not _legacy_scope_growth_exit(None, p, text, ordered_rows):
             errs.append(
                 f"final ledger round {named} (a candidate CONFIRMED by execution counts; RECORDED and REFUTED rows never reopen the loop — D-206) — the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts), or the report must declare `Status: IN-PROGRESS`"
             )
@@ -2814,12 +2891,12 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
                 named = legacy
             else:
                 named = _exit_counters(last, legacy)
-        # ⚠️ The SAME exemption `check_file` grants at the uncommitted path. Without it the two
+        # ⚠️ The SAME legacy-only exemption `check_file` grants (D-355). Without it the two
         # readers disagree by construction in the direction this function's own docstring calls its
         # founding enemy — accepted uncommitted, then nagged FOREVER once committed, telling an
         # author who took a SANCTIONED exit that "committing a review does not converge it". Found
         # by the heavy review of D-281; the exemption existed at one reader only.
-        if not quiet and not _scope_growth_exit(text, ordered_rows):
+        if not quiet and not _legacy_scope_growth_exit(root, p, text, ordered_rows):
             out.append(
                 f"{p.relative_to(root)}: COMMITTED with a non-quiet exit round ({named}) "
                 "— committing a review does not converge it. Finish the loop; BLOCKED-escalate the "

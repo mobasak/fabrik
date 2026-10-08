@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the D-252 scope-growth stop no longer closes a review on a non-quiet row (D-355) (2026-10-08)
+- `scripts/enforcement/check_review_coverage.py`: `check_file` and the committed advisory both consult `_legacy_scope_growth_exit`, which keeps the D-252 exemption only for a receipt first committed before 2026-09-23 (the D-355 ruling). A receipt written now that declares the stop must still close on a `confirmed: 0 · fixed: 0 · unexecuted: 0` row. An edit to one of the 14 pre-ruling receipts is not refused. The committed advisory newly names the 2 post-ruling receipts that relied on the stop.
+- `_first_commit_date` is the one first-commit reader (check_convergence's D-497 cut-over delegates to it). It runs `git -c log.follow=false` because a user's `log.follow=true` follows copies and would give a new receipt an old template's date. It also removes git's location environment, because a leaked `GIT_DIR` dated a receipt from another repo.
+- `scripts/enforcement/check_convergence.py`: a cited scope-growth close is credited only for a pre-ruling receipt.
+- `scripts/command_run.py`: both SCOPE GROWTH verdicts now say to close on a confirmed-zero round. `scripts/task_lane.py`'s Status refusal text matches.
+- Graders in `tests/test_check_review_coverage_scope_growth.py`, `tests/test_check_convergence.py`, `tests/test_command_run.py`, `tests/test_task_lane_receipt.py` and `tests/test_task_lane_review_stop.py`. Kaizen mail 01M4CPWDK0; review `docs/development/reviews/2026-10-08-d355-scope-growth-close-review.md`.
+
 ### Fixed — merge_request.py merges in a repo named fabrik-lib and resolves the caller without whoami_agent (2026-10-08)
 - `_throwaway` no longer links `<tmp>/fabrik-lib` over the worktree that already holds that path (every merge in /opt/fabrik-lib raised FileExistsError). `merge_request.py` and `mail.py` take a valid `CLAUDE_AGENT` as the caller when `whoami_agent.py` is not vendored, as the merge-request contract told repos (D-665).
 

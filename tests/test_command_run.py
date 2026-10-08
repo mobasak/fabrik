@@ -6938,3 +6938,24 @@ def test_a_malformed_counter_on_the_record_never_crashes_a_round(
     r = _cr(run_dir, "round", "--findings", "1", "--classes-new", "a")
     assert r.returncode == 0 and "Traceback" not in r.stderr, r.stderr
     assert "ROUND" in r.stdout, r.stdout
+
+
+
+def test_the_scope_growth_verdicts_close_on_a_confirmed_zero_round():
+    """D-355: neither SCOPE GROWTH verdict tells the agent to close on a round that confirmed
+    something (kaizen 01M4CPWDK0); both name the confirmed-zero close over the fixed set."""
+    cr = _load("command_run_d355", _SCRIPT)
+    ordinary = cr.scope_growth_warning(
+        [
+            {"n": 1, "confirmed": 9, "own_fix": 0},
+            {"n": 2, "confirmed": 7, "own_fix": 7},
+            {"n": 3, "confirmed": 4, "own_fix": 4},
+        ]
+    )
+    lane = cr.scope_growth_warning(
+        [{"n": 1, "confirmed": 9, "own_fix": 0}, {"n": 2, "confirmed": 3, "own_fix": 3}], lane=True
+    )
+    for warn in (ordinary, lane):
+        assert "SCOPE GROWTH" in warn, warn
+        assert "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355)" in warn, warn
+        assert "ORIGINAL surface" not in warn, warn

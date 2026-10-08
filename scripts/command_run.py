@@ -530,8 +530,8 @@ def scope_growth_warning(rows: list[Any], command: str = "", *, lane: bool = Fal
     if str(command or "").strip().lower() in PER_UNIT_ROUND_COMMANDS:
         # per-unit rounds describe DIFFERENT surfaces (round 4 is T11's review, round 5 is
         # T08's), so two tickets each closing out their own residue is healthy, and this
-        # advisory's exit sentence — "close on the last round that swept the ORIGINAL surface" —
-        # has no referent when the rounds share no surface. Same stand-down, same reason, as the oscillation
+        # advisory's exit sentence — "re-verify the fixed set, then close on a confirmed-zero
+        # round" — has no single fixed set when the rounds share no surface. Same stand-down, same reason, as the oscillation
         # advisory above (review round 1, C4).
         return ""
     # NO filtering: `_count` returns None for a non-dict, which OCCUPIES its slot and never
@@ -553,9 +553,10 @@ def scope_growth_warning(rows: list[Any], command: str = "", *, lane: bool = Fal
                 f"text this review itself added (confirmed/own-fix: {c}/{o}) under a running "
                 "/fabrik-task.\n"
                 "    Exit (term-edit / term-coverage § Scope-growth stop, lane variant): STOP the "
-                "loop — route the remaining own-fix work to a backlog row with a named destination, "
-                "and close on the last round that swept the ORIGINAL surface; the receipt carries "
-                "`**Lane:** fabrik-task`.\n"
+                "hunt — fix the window's open defects, route the remaining own-fix work to "
+                "/fabrik-spec or a backlog row with a named destination, re-verify the fixed set "
+                "alone, and close on a `confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355); "
+                "the receipt carries `**Lane:** fabrik-task`.\n"
                 "    (Advisory only — nothing is blocked.)"
             )
     if len(rows) < SCOPE_GROWTH_ROUNDS:
@@ -601,10 +602,11 @@ def scope_growth_warning(rows: list[Any], command: str = "", *, lane: bool = Fal
             # the pointer names BOTH fragments: a term-coverage loop (`/fabrik-review`,
             # `/fabrik-repo-review`) never reads term-edit, and naming one sends the reader to a
             # section its command does not carry — the `_trend_label` incident's shape (round 1, S1)
-            "    Exit (term-edit / term-coverage § Scope-growth stop): STOP the loop — route the "
-            "remaining own-fix "
-            "work to a backlog row with a named destination, and close on the last round that "
-            "swept the ORIGINAL surface — its state is the one that matters.\n"
+            "    Exit (term-edit / term-coverage § Scope-growth stop): STOP the hunt — fix the "
+            "window's open defects, route the remaining own-fix work to /fabrik-spec or a backlog "
+            "row with a named destination, re-verify the fixed set alone, and close on a "
+            "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355) — a review never closes on "
+            "a round that confirmed something.\n"
             "    (Advisory only — nothing is blocked.)"
         )
 

@@ -992,17 +992,21 @@ def _converged_targets(root: Path) -> list[Path]:
     return targets
 
 
-def _scope_growth_closed(rtext: str) -> bool:
-    """check_review_coverage's own `_scope_growth_exit` over the receipt's own ledger rows."""
+def _scope_growth_closed(root: Path, path: Path, rtext: str) -> bool:
+    """check_review_coverage's own `_legacy_scope_growth_exit` over the receipt's own ledger rows:
+    the D-252 stop closed a review only for a receipt first committed before D-355 (2026-09-23)."""
     try:
-        from .check_review_coverage import _ledger_shapes, _scope_growth_exit  # noqa: PLC0415
+        from .check_review_coverage import (  # noqa: PLC0415
+            _ledger_shapes,
+            _legacy_scope_growth_exit,
+        )
     except ImportError:  # direct-script invocation
         sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
         from scripts.enforcement.check_review_coverage import (  # noqa: PLC0415
             _ledger_shapes,
-            _scope_growth_exit,
+            _legacy_scope_growth_exit,
         )
-    return _scope_growth_exit(rtext, _ledger_shapes(rtext)[2])
+    return _legacy_scope_growth_exit(root, path, rtext, _ledger_shapes(rtext)[2])
 
 
 # D-497 — the D-206 cut-over for whole-plan receipts that PREDATE the Pass-row grammar: a receipt
@@ -1015,19 +1019,17 @@ _D206_CUTOVER = "2026-09-09"
 
 
 def _first_commit_date(root: Path, relpath: str) -> str:
-    """Committer date (YYYY-MM-DD) of the OLDEST commit that added ``relpath``, or "" if none."""
+    """Committer date (YYYY-MM-DD) of the OLDEST commit that added ``relpath``, or "" if none —
+    check_review_coverage's one first-commit reader (``log.follow`` pinned off, git's location
+    environment scrubbed), so the D-206 and D-355 cut-overs date a receipt the same way."""
     try:
-        r = subprocess.run(
-            ["git", "log", "--diff-filter=A", "--format=%cs", "--", relpath],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=15,
+        from .check_review_coverage import _first_commit_date as _crc_first  # noqa: PLC0415
+    except ImportError:  # direct-script invocation
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from scripts.enforcement.check_review_coverage import (  # noqa: PLC0415
+            _first_commit_date as _crc_first,
         )
-    except Exception:
-        return ""
-    dates = r.stdout.split() if r.returncode == 0 else []
-    return dates[-1] if dates else ""
+    return _crc_first(root, root / relpath)
 
 
 def _legacy_receipt(root: Path, relpath: str, rtext: str) -> str:
@@ -1110,12 +1112,13 @@ def _check_executed_plan(
         # the whole-text search; the row grammar is the only witness of a round that ran
         if any(QUIET_PASS.search(m.group(0)) for m in _LEDGER_LINE.finditer(rtext)):
             return fails  # citation satisfied; spine-set findings (if any) still surface
-        # W-5b541aab: the D-252 scope-growth stop is a SANCTIONED exit at check_review_coverage —
-        # a receipt that closed on it carries no quiet row by design. The predicate is IMPORTED
+        # W-5b541aab: the D-252 scope-growth stop WAS a sanctioned exit at check_review_coverage —
+        # a receipt that closed on it carries no quiet row. D-355 retired it on 2026-09-23, so
+        # only a receipt first committed before that day still satisfies the citation. The predicate is IMPORTED
         # (one law, both graders): copying it is how the two gates came to disagree about the
         # same receipt. Its cobra cost is stated at its definition (the phrase alone never exits;
         # the ledger must show the trailing confirming rounds).
-        if _scope_growth_closed(rtext):
+        if _scope_growth_closed(root, rp, rtext):
             return fails
         first = _legacy_receipt(root, c, rtext)
         if first:

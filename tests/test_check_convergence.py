@@ -2160,20 +2160,34 @@ def _crc():
     return mod
 
 
-def test_a_review_closed_on_the_scope_growth_stop_satisfies_the_executed_citation(
+def _cite_scope_growth_review(repo: Path, committed_on: str) -> int:
+    """Commit the scope-growth review on `committed_on`, then stage the EXECUTED plan citing it."""
+    review = _scope_growth_review([5, 4, 5])
+    path = repo / "docs/development/reviews/2026-08-03-plan-x-review.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(review, encoding="utf-8")
+    _commit_at(repo, committed_on, "review")
+    return _run_files(repo, {"docs/development/plans/2026-08-03-plan-x.md": EXECUTED_PLAN_CITES})
+
+
+def test_a_pre_d355_review_closed_on_the_scope_growth_stop_satisfies_the_executed_citation(
     repo: Path,
 ) -> None:
-    """W-5b541aab: check_review_coverage accepts a receipt that closed on the D-252 scope-growth
-    stop (`_scope_growth_exit`), while this gate demanded a quiet row from the SAME receipt — the
-    two gates disagreed about one artifact. The predicate is imported, never copied."""
+    """W-5b541aab: the D-252 stop was a sanctioned close, and check_review_coverage still honours
+    it for a receipt first committed before D-355 (2026-09-23) — so must this gate, one law. The
+    predicate is imported, never copied."""
     review = _scope_growth_review([5, 4, 5])
     crc = _crc()
     assert crc._scope_growth_exit(review, crc._ledger_shapes(review)[2])
-    files = {
-        "docs/development/plans/2026-08-03-plan-x.md": EXECUTED_PLAN_CITES,
-        "docs/development/reviews/2026-08-03-plan-x-review.md": review,
-    }
-    assert _run_files(repo, files) == 0
+    assert _cite_scope_growth_review(repo, "2026-09-20") == 0
+
+
+def test_a_post_d355_review_closed_on_the_scope_growth_stop_does_not_satisfy_the_citation(
+    repo: Path,
+) -> None:
+    """D-355 (kaizen 01M4CPWDK0): after 2026-09-23 a review closes only on a confirmed-zero round,
+    so a receipt first committed later that closed on the stop certifies no EXECUTED plan."""
+    assert _cite_scope_growth_review(repo, "2026-10-02") == 1
 
 
 def test_the_scope_growth_phrase_alone_never_satisfies_the_executed_citation(repo: Path) -> None:
