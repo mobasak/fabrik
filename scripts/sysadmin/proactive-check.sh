@@ -185,8 +185,9 @@ done
 #
 # Hub-only check here to keep proactive-check.sh fast (15-min cron); spokes'
 # Backrest is monitored indirectly via the spoke `promtail-positions` volume
-# (now written by Alloy) and via Backrest health probes (future W10.b —
-# Gatus). The hub repo failing is the
+# (read once by Alloy at the hand-over to migrate its offsets; Alloy's own
+# positions then live under the `alloy-data` volume, --storage.path) and via
+# Backrest health probes (future W10.b — Gatus). The hub repo failing is the
 # canonical "backups not happening" signal.
 
 if command -v docker >/dev/null 2>&1 && sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^backrest$'; then
@@ -397,8 +398,9 @@ fi
 # Both services are deployed only on the hub (vps1) — spokes have neither
 # Authelia nor GlitchTip in the current fleet shape. We probe via apprise,
 # the only container on the fabrik docker network that ships curl.
-# (sysadmin-bot is a systemd unit, not a container; alloy uses
-# network_mode: host and has no curl — both are unsuitable as probes.)
+# (sysadmin-bot is a systemd unit, not a container; the hub's alloy runs on
+# the `fabrik` network with no host port and has no curl — both are
+# unsuitable as probes.)
 # Auth-free endpoints:
 #   - Authelia: GET http://authelia:9091/api/health → {"status":"OK"}
 #   - GlitchTip: GET http://glitchtip-web:8000/_health/ → "ok"

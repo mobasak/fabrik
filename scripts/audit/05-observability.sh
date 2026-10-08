@@ -3,9 +3,9 @@
 # Usage: ssh vps 'bash -s' < scripts/audit/05-observability.sh
 set -uo pipefail
 
-# Helper: run curl from inside coolify network
-coolify_curl() {
-  sudo docker run --rm --network coolify curlimages/curl:latest -sS "$@" 2>/dev/null
+# Helper: run curl from inside the fabrik network (renamed from coolify 2026-05-31)
+fabrik_curl() {
+  sudo docker run --rm --network fabrik curlimages/curl:latest -sS "$@" 2>/dev/null
 }
 
 echo "========== PROMETHEUS =========="
@@ -29,7 +29,7 @@ try:
 except: print('FAILED to parse rules')
 "
 echo "--- ready ---"
-coolify_curl -o /dev/null -w "%{http_code}" "http://prometheus:9090/-/ready"
+fabrik_curl -o /dev/null -w "%{http_code}" "http://prometheus:9090/-/ready"
 echo ""
 
 echo ""
@@ -54,12 +54,12 @@ fi
 echo ""
 echo "========== LOKI =========="
 echo "--- ready ---"
-coolify_curl "http://loki:3100/ready"
+fabrik_curl "http://loki:3100/ready"
 echo "--- labels ---"
-coolify_curl "http://loki:3100/loki/api/v1/labels"
+fabrik_curl "http://loki:3100/loki/api/v1/labels"
 echo ""
 echo "--- container_name label values ---"
-coolify_curl "http://loki:3100/loki/api/v1/label/container_name/values" | python3 -c "
+fabrik_curl "http://loki:3100/loki/api/v1/label/container_name/values" | python3 -c "
 import json,sys
 try:
     d=json.load(sys.stdin)
@@ -81,14 +81,26 @@ echo "========== ALLOY =========="
 # first tail and loki_write_* only after the first successful push to Loki —
 # there is no Alloy equivalent of promtail_targets_active_total (the nearest
 # is loki_source_file_files_active_total, the files actively tailed).
-coolify_curl "http://alloy:12345/metrics" | grep -E "loki_write_sent_entries_total|loki_write_dropped_entries_total|loki_source_file_files_active_total"
+#
+# Fail-closed (O1): an unreachable Alloy / missing container prints nothing from
+# a bare curl|grep, and a cold start (no push yet) silently drops the loki_write_*
+# line out of the grep -E output — both read as a clean audit unless said aloud.
+_alloy_metrics=$(fabrik_curl "http://alloy:12345/metrics")
+if [ -z "$_alloy_metrics" ]; then
+  echo "FAILED: alloy metrics unreachable on alloy:12345"
+else
+  echo "$_alloy_metrics" | grep -E "loki_write_sent_entries_total|loki_write_dropped_entries_total|loki_source_file_files_active_total"
+  if ! echo "$_alloy_metrics" | grep -q "^loki_write_sent_entries_total"; then
+    echo "WARNING: alloy has not pushed to Loki yet (no loki_write_* series)"
+  fi
+fi
 
 echo ""
 echo "========== GRAFANA =========="
 TOKEN=$(grep '^GRAFANA_SERVICE_ACCOUNT_TOKEN=' /opt/fabrik/.env 2>/dev/null | cut -d= -f2-)
 if [ -n "$TOKEN" ]; then
   echo "--- datasources ---"
-  coolify_curl -H "Authorization: Bearer $TOKEN" "http://grafana:3000/api/datasources" | python3 -c "
+  fabrik_curl -H "Authorization: Bearer $TOKEN" "http://grafana:3000/api/datasources" | python3 -c "
 import json,sys
 try:
     for d in json.load(sys.stdin):
@@ -96,7 +108,7 @@ try:
 except: print('FAILED')
   "
   echo "--- dashboard count ---"
-  coolify_curl -H "Authorization: Bearer $TOKEN" "http://grafana:3000/api/search?type=dash-db" | python3 -c "
+  fabrik_curl -H "Authorization: Bearer $TOKEN" "http://grafana:3000/api/search?type=dash-db" | python3 -c "
 import json,sys
 try: print(f\"{len(json.load(sys.stdin))} dashboards\")
 except: print('FAILED')
@@ -108,13 +120,13 @@ fi
 echo ""
 echo "========== GLITCHTIP =========="
 echo "--- api health ---"
-coolify_curl -o /dev/null -w "HTTP %{http_code}" "http://glitchtip-web:8000/api/0/"
+fabrik_curl -o /dev/null -w "HTTP %{http_code}" "http://glitchtip-web:8000/api/0/"
 echo ""
 GT_TOKEN=$(grep '^GLITCHTIP_AUTH_TOKEN=' /opt/fabrik/.env 2>/dev/null | cut -d= -f2-)
 GT_ORG=$(grep '^GLITCHTIP_ORG_SLUG=' /opt/fabrik/.env 2>/dev/null | cut -d= -f2-)
 if [ -n "$GT_TOKEN" ] && [ -n "$GT_ORG" ]; then
   echo "--- projects ---"
-  coolify_curl -H "Authorization: Bearer $GT_TOKEN" "http://glitchtip-web:8000/api/0/organizations/$GT_ORG/projects/" | python3 -c "
+  fabrik_curl -H "Authorization: Bearer $GT_TOKEN" "http://glitchtip-web:8000/api/0/organizations/$GT_ORG/projects/" | python3 -c "
 import json,sys
 try:
     projects=json.load(sys.stdin)
@@ -129,7 +141,7 @@ fi
 
 echo ""
 echo "========== GATUS =========="
-coolify_curl "http://gatus:8080/api/v1/endpoints/statuses" 2>/dev/null | python3 -c "
+fabrik_curl "http://gatus:8080/api/v1/endpoints/statuses" 2>/dev/null | python3 -c "
 import json,sys
 try:
     data=json.load(sys.stdin)
@@ -145,7 +157,7 @@ except: print('FAILED to parse Gatus')
 
 echo ""
 echo "========== PUSHGATEWAY =========="
-coolify_curl "http://pushgateway:9091/metrics" 2>/dev/null | grep "fabrik_audit" | head -5 || echo "no fabrik_audit metrics"
+fabrik_curl "http://pushgateway:9091/metrics" 2>/dev/null | grep "fabrik_audit" | head -5 || echo "no fabrik_audit metrics"
 
 echo ""
 echo "========== STACK CONTAINER HEALTH =========="
