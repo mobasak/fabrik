@@ -2107,7 +2107,15 @@ _BY_DESIGN = re.compile(r"RECORDED\s*—\s*by design\s*\(([^)]*)\)")
 # (500 bare, 3 sub-findings `F8a`–`F8c`) and 40 are prefixed (`AF1`–`AF15`, `BF1`, `A-F1`–`A-F4`,
 # `U0-F1`–`U3-F2`); 0 are hyphenated `F-nnn`. FULLMATCHED, never searched — a search would lift
 # `F9` out of `AF9` and pass an owner that does not exist.
-_OWNER_ID = re.compile(r"[A-Za-z0-9]{0,3}-?F\d+[a-z]?")
+# The SECOND shape is the review-loop workflow's own (W-528f123e): `<slice>-<O|S|H|L><n>` with a reused id
+# suffixed `#n` (.claude/workflows/fabrik-review-loop.js), the slice name free text with hyphens
+# (`rule-grammar-S1`, `R1-T03-A-O14`). Of 690 such first cells in the tree at 8fcc01023 the F-only shape refused
+# every one as an owner, so writers fell back to `RECORDED — measured` (iie b9885cf). The seat letter is only
+# ever O, S, H or L, so prose like `Pass-P1` or `A-SH1` stays refused; a pass-suffixed id (`B-S1-p3`) and the
+# placeholders `A-S?` / `A#2` are not owner shapes — cite the base id.
+_OWNER_ID = re.compile(
+    r"[A-Za-z0-9]{0,3}-?F\d+[a-z]?|[A-Za-z0-9][A-Za-z0-9-]{0,60}-[OSHL]\d+[a-z]?(?:#\d+)?"
+)
 _D_OWNER = re.compile(r"D-\d+")
 _BY_DESIGN_ENTRY = re.compile(r"^(?P<owner>.*?)\s*,\s*round\s*(?P<n>\d+)$", re.I)
 # `| F9, F12–F16 |` — one multi-owner cell exists in the corpus, and its range must expand or
@@ -2180,17 +2188,24 @@ def _residual_errors(text_s: str, ordered: list[_Row]) -> list[str]:
     verdicts = list(_BY_DESIGN.finditer(text_s))
     if not verdicts:
         return []
-    ids = _row_ids(text_s)
+    lines = text_s.splitlines()
+    by_line: dict[int, set[str]] = {}
     closing = _closing_pass_row(ordered)
     repair = "cite the owning row's first-cell id verbatim, or `(D-nnn)`"
     out: list[str] = []
     for v in verdicts:
+        # the citing row is never its own owner (W-528f123e critique): `_row_ids` reads every first cell, so
+        # `| A-S1 | RECORDED — by design (A-S1, round 1) |` with no other A-S1 row licensed itself
+        at = text_s.count("\n", 0, v.start())
+        if at not in by_line:
+            by_line[at] = _row_ids("\n".join(lines[:at] + lines[at + 1 :]))
+        ids = by_line[at]
         for raw in v.group(1).split(";"):
             entry = raw.strip()
             if not entry:
                 continue
             em = _BY_DESIGN_ENTRY.match(entry)
-            owner = em.group("owner").strip() if em else entry
+            owner = (em.group("owner") if em else entry).strip().strip("*`").strip()
             n = int(em.group("n")) if em else None
             if _D_OWNER.fullmatch(owner):
                 if n is not None:
