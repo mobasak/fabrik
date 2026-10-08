@@ -1347,10 +1347,18 @@ REFUSAL_SHAPE = (
 REFUSAL_CLASSIFIER = (
     "a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it "
     "moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command "
-    "into the same destination under your scratch dir (the pinned or base copy, by `cp`, when the brief names one), "
+    "into the same destination under your scratch dir (the pinned or base copy, by `cp` then `chmod u+w`, when the brief names one), "
     "else mark that check unverified — never a different destination — and say in MACHINERY which command was "
     "refused how many times of how many tries"
 )
+
+
+def test_the_refusal_rule_names_a_copy_the_seat_can_write():
+    """kaizen 01M4DXXNYP: `review_loop_ledger.py pin` writes pins read-only and `cp` keeps the mode, so
+    the copy the rule sent a seat to make was `r--r--r--` and its next step (mutate the copy) was
+    refused with EACCES (executed). The rule names the `chmod u+w` that makes the copy writable."""
+    assert "by `cp` then `chmod u+w`" in REFUSAL_CLASSIFIER
+
 
 def _shell_seat_prompts() -> tuple[str, str]:
     """The rendered finder and refuter prompts of one shell slice (a candidate makes the refuter run)."""
