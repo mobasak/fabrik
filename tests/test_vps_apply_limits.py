@@ -202,6 +202,26 @@ def test_apply_sets_every_unbounded_container(env):
     assert "0 of 12 containers unbounded" in r.stdout
 
 
+def test_apply_drives_the_new_alloy_container_too(env):
+    """T02-S1 (confirmed). The CEILINGS table now carries `alloy 256`, but LIVE_TODAY models the
+    hub as it stood on 2026-09-04 — a month before Alloy existed — so it has no `alloy` entry.
+    Every --apply test above therefore runs the applier against a universe where `alloy` prints
+    `MISSING    alloy  (no such container)` and is silently skipped: the row in the table was
+    never actually proven driven through `docker update`. LIVE_TODAY is left exactly as it models
+    today's hub for every OTHER container; this stands up its own fake-docker universe with
+    `alloy` present and unbounded, the shape it has after the T02 compose change goes live."""
+    env.write_state({**LIVE_TODAY, "alloy": 0})
+
+    r = env.run("--apply")
+
+    assert r.returncode == 0, r.stderr
+    assert "MISSING" not in r.stdout, r.stdout
+    assert env.limits()["alloy"] == 256 * MIB, (
+        "alloy is in the applier's CEILINGS table but was not actually set to its ceiling"
+    )
+    assert "0 of 13 containers unbounded" in r.stdout
+
+
 def test_it_never_lowers_an_existing_ceiling(env):
     """THE hazard. prometheus runs with a live 1.5 GiB ceiling; nothing in this applier's
     table may cut it. The predecessor would have — silently, with a ✅."""
@@ -336,9 +356,10 @@ def test_the_ceilings_match_the_converged_spec():
     mismatched = {n: (script[n], spec[n]) for n in script if spec[n] != script[n]}
     assert not mismatched, f"script vs spec ceiling disagreement (script, spec): {mismatched}"
 
-    # The ten the spec actually decided must all be carried, or the applier silently under-covers.
-    assert len(script) == 10, (
-        f"expected the spec's ten ceilings, parsed {len(script)}: {sorted(script)}"
+    # The ten original plus Alloy (D5) the spec actually decided must all be carried, or the
+    # applier silently under-covers.
+    assert len(script) == 11, (
+        f"expected the spec's eleven ceilings, parsed {len(script)}: {sorted(script)}"
     )
 
 
@@ -400,6 +421,7 @@ def test_the_compose_files_declare_the_same_ceilings_the_applier_asserts():
         "infra/vps1/monitoring/compose.yaml": [
             "loki",
             "promtail",
+            "alloy",
             "alertmanager",
             "node-exporter",
             "cadvisor",
@@ -446,3 +468,28 @@ def test_the_compose_files_declare_the_same_ceilings_the_applier_asserts():
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash required")
 def test_the_script_is_syntactically_valid():
     assert subprocess.run(["bash", "-n", str(SCRIPT)]).returncode == 0
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash required")
+def test_mesh_only_ports_names_alloys_http_server():
+    """T03-S1 (confirmed). FABRIK_MESH_ONLY_PORTS is the DOCKER-USER firewall's single source of
+    truth (ACCEPT from wg0, DROP from the public iface) and its own header says 'Add new ports
+    here when new mesh-only services are introduced' — node-exporter (9100) and cadvisor (8080)
+    are there, but Alloy's `--server.http.listen-addr` on the spoke mesh IP (spec D3) never
+    landed. The file is sourced rather than regex-parsed: it is pure variable assignment with no
+    side effects, and a regex reader of bash array syntax would be a second interpreter of the
+    same array the shell itself evaluates — exactly the trap `_spec_ceilings()`'s docstring
+    warns about for a different table.
+    """
+    bootstrap_config = REPO / "scripts" / "bootstrap" / "bootstrap-config.sh"
+    r = subprocess.run(
+        ["bash", "-c", f'. "{bootstrap_config}" && printf "%s\\n" "${{FABRIK_MESH_ONLY_PORTS[@]}}"'],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert r.returncode == 0, r.stderr
+    ports = r.stdout.split()
+    assert "12345" in ports, (
+        f"alloy's mesh-only HTTP port 12345 is missing from FABRIK_MESH_ONLY_PORTS: {ports}"
+    )

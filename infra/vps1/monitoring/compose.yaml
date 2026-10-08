@@ -28,12 +28,38 @@ services:
     platform: linux/amd64
     container_name: promtail
     restart: unless-stopped
+    profiles:
+    - rollback
     volumes:
     - /opt/monitoring/configs/promtail:/etc/promtail:ro
     - promtail-positions:/run/promtail
     - /var/log:/var/log:ro
     - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command: -config.file=/etc/promtail/promtail-config.yaml
+    networks:
+    - fabrik
+    depends_on:
+      loki:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+  alloy:
+    image: grafana/alloy:v1.20.1
+    platform: linux/amd64
+    container_name: alloy
+    restart: unless-stopped
+    volumes:
+    - /opt/monitoring/configs/alloy:/etc/alloy:ro
+    - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    - promtail-positions:/run/promtail:ro
+    - alloy-data:/var/lib/alloy/data
+    command:
+    - run
+    - /etc/alloy/config.alloy
+    - --server.http.listen-addr=0.0.0.0:12345
+    - --storage.path=/var/lib/alloy/data
     networks:
     - fabrik
     depends_on:
@@ -238,6 +264,7 @@ services:
 volumes:
   loki-data: null
   promtail-positions: null
+  alloy-data: null
   prometheus-data: null
   alertmanager-data: null
   grafana-data: null

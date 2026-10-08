@@ -254,6 +254,7 @@ observed peak with 25–50% margin for stable services, and never from idle star
 |---|---|---|---|
 | `cadvisor` | 323.9 MiB | 512M | Largest of the fifteen; ~58% margin |
 | `promtail` | 135.1 MiB | 256M | Page-cache heavy (tails logs) |
+| `alloy` | — | 256M | Replaces `promtail`'s ceiling unchanged — fixed overhead, not ingest volume (`docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md` § The delta › D5) |
 | `loki` | 131.0 MiB | 512M | Page-cache heavy; ingest bursts |
 | `grafana` | 86.9 MiB | 256M | Dashboard rendering spikes |
 | `traefik` | 52.7 MiB | 256M | Ingress — generous, because failing it fails everything |
@@ -264,10 +265,13 @@ observed peak with 25–50% margin for stable services, and never from idle star
 | `redis-main` | 5.2 MiB | 640M | **See below** — it forks |
 
 (The IDLE-derived caveat that stood here applied to `ocoron-com-backup-1`, struck by Amendment 1. No
-remaining row is sized from a dormant measurement — every one of the ten is a continuously-running
-service measured in steady state.)
+remaining row is sized from a dormant measurement — every one of the original ten is a
+continuously-running service measured in steady state. `alloy` is the one exception: it is not a
+measured row but Promtail's inherited ceiling, added by the 2026-10-05 Alloy migration design.)
 
-Total ceilings: **2,752 MiB = 2.69 GiB, 23% of the 11.63 GiB host** (10 rows, re-derived after Amendment 1; it was 4,288 MiB over 15 rows). Existing limits already total ~19 GiB — limits are
+Total ceilings: **3,008 MiB = 2.94 GiB, 25% of the 11.63 GiB host** (11 rows — the original 10,
+re-derived after Amendment 1, plus `alloy` 256M added by the 2026-10-05 Alloy migration; it was 4,288
+MiB over 15 rows before Amendment 1). Existing limits already total ~19 GiB — limits are
 ceilings, not reservations, so overcommit is normal and unchanged by this work.
 
 **`redis-main` is the one that could have gone wrong, and the first draft of this spec got it wrong.**

@@ -54,6 +54,7 @@ CEILINGS="
 cadvisor              512    # 244.7 MiB — largest of the ten
 loki                  512    # 131.6 MiB — page-cache heavy, ingest bursts
 promtail              256    # 134.4 MiB — page-cache heavy (tails logs)
+alloy                 256    # unchanged from promtail's ceiling, Alloy replaces it (spec D5)
 grafana               256    # 86.6 MiB  — dashboard rendering spikes
 traefik               256    # 52.8 MiB  — ingress; generous, failing it fails all
 alertmanager          128    # 33.1 MiB  — small, stable

@@ -50,7 +50,7 @@ implements and restates nothing that section settles.
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01 | The Alloy configs are the converter's output, committed | — | ⚡ | ✅ | merged (wave 1) |
-| T02 | The hub monitoring compose runs Alloy, Promtail kept under the rollback profile | T01 | ⚡ | ⬜ | |
+| T02 | The hub monitoring compose runs Alloy, Promtail kept under the rollback profile | T01 | ⚡ | ✅ | merged (wave 2) |
 | T03 | The spoke stack and bootstrap step 11 ship Alloy | T01 | ⚡ | ⬜ | |
 | T04a | The Prometheus job and the Gatus endpoint move to Alloy | — | ⚡ | ✅ | merged (wave 1) |
 | T04b | Every repo consumer names Alloy's container, port and metrics | — | ⚡ | ✅ | merged (wave 1) |

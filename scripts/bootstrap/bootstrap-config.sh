@@ -44,6 +44,7 @@ FABRIK_MESH_ONLY_PORTS=(
     9100    # node-exporter
     8080    # cadvisor + traefik internal API
     3100    # loki push API
+    12345   # alloy (spoke HTTP server on the mesh IP; scraped by vps1 Prometheus)
     7700    # meilisearch
     8000    # glitchtip
 )
@@ -117,7 +118,7 @@ FABRIK_HUB_SERVICE_START_ORDER=(
     redis          # redis-main — sessions/auth state, no deps
     traefik        # public ingress + ACME, no deps
     authelia       # forward-auth, depends on redis
-    monitoring     # prometheus + grafana + loki + alertmanager + cadvisor + node-exporter + promtail
+    monitoring     # prometheus + grafana + loki + alertmanager + cadvisor + node-exporter + alloy (promtail: rollback profile)
     apprise        # notifier, no deps
     backrest       # backup engine, no deps
     gatus          # uptime probes, depends on traefik for cert
@@ -216,5 +217,6 @@ FABRIK_HUB_VOLUMES_TO_EXCLUDE=(
     monitoring_prometheus-data          # 15d retention, scrapes resume from new hub
     monitoring_loki-data                # regenerates from container stdout
     monitoring_promtail-positions       # tail offsets, recomputes
+    monitoring_alloy-data               # alloy's own positions store, recomputes
     ocoron-com_redis_data               # tenant session cache, ephemeral
 )

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the hub monitoring compose runs Alloy, Promtail kept under the rollback profile (2026-10-08)
+
+`infra/vps1/monitoring/compose.yaml` gains the `alloy` service (grafana/alloy:v1.20.1, 256M, Promtail's positions read-only,
+its own `alloy-data` volume) and moves `promtail` under `profiles: [rollback]`; the `alloy 256` ceiling lands in the limits
+spec, `vps_apply_limits.sh` and its test, `monitoring_alloy-data` is classified recomputable, and 12345 joins the mesh-only
+ports (plan 2026-10-08-plan-1, T02).
+
 ### Changed — every repo consumer of the log shipper names Alloy's container, port and metrics (2026-10-08)
 
 The observability audit reads Alloy's measured metrics on 12345 through the `fabrik` network (its helper still used the
