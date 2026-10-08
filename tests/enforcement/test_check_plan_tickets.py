@@ -3012,3 +3012,132 @@ def test_touches_shapes_round_three_quoted_prose_and_separated_continuations(
         tickets={"T01-schema.md": flagged, "T02-api.md": T02, "T99-integration.md": T99},
     )
     assert any("prose inside ## Touches" in m for m in _errors(cpt.check_plan_dir(plan_dir)))
+
+
+T03 = """# T03 — report
+
+Depends: T02
+Parallel: ⛓️
+Complexity: simple
+Docs: none
+Gate: pytest -q tests/test_report.py
+
+## Scope
+
+Report. DO-NOT touch the api.
+
+## Touches
+
+- src/app/report.py
+- tests/test_report.py
+
+## Behavior Contract
+
+- **Given** a widget, **When** reported, **Then** listed (src/app/report.py:1).
+
+## Context Files
+
+- docs/small-context.md
+"""
+
+
+def _build_chain(root: Path, t01: str = T01, t02: str = T02, t03: str = T03) -> Path:
+    """The fixture plan with a plain (non-integration) T03 between T02 and T99, so a Gate on T03
+    is graded — the per-ticket loop skips the integration ticket (W-b60b65a1 design critique)."""
+    spine = (
+        SPINE.replace(
+            "| T99 | integration | T02 |",
+            "| T03 | report | T02 | ⛓️ | ⬜ | |\n| T99 | integration | T03 |",
+        )
+        .replace("2. T02\n3. T99", "2. T02\n3. T03\n4. T99")
+        .replace(
+            "- tests/test_api.py\n",
+            "- tests/test_api.py\n- src/app/report.py\n- tests/test_report.py\n",
+        )
+        .replace(
+            "- **Given** the merged plan",
+            "- **Given** a widget, **When** reported, **Then** listed (src/app/report.py:1).\n- **Given** the merged plan",
+        )
+    )
+    t99 = T99.replace("Depends: T02", "Depends: T03")
+    return _build(
+        root,
+        spine=spine,
+        tickets={
+            "T01-schema.md": t01,
+            "T02-api.md": t02,
+            "T03-report.md": t03,
+            "T99-integration.md": t99,
+        },
+    )
+
+
+def _gate_refusals(plan_dir: Path) -> list[str]:
+    return [m for m in _errors(cpt.check_plan_dir(plan_dir)) if "Gate: runs" in m]
+
+
+_GUARD = "scripts/dist_identity.py"
+
+
+def test_a_gate_may_run_a_file_a_depends_ancestor_creates(tmp_path: Path) -> None:
+    """W-b60b65a1 (web-ecommerce-factory 01M4DHVXWA): a shared guard an earlier ticket creates can
+    gate the tickets that Depend on it, directly or transitively — the executor dispatches a ticket
+    only once every Depends row is ✅ (fabrik-execute-plan.md:470)."""
+    t01 = T01.replace("- tests/test_schema.py", f"- tests/test_schema.py\n- {_GUARD}")
+    assert _GUARD in t01
+    base = _build_chain(tmp_path / "base", t01=t01)
+    assert _gate_refusals(base) == [], "the chain fixture must be clean before a Gate is added"
+    t02 = T02.replace("Gate: pytest -q tests/test_api.py", f"Gate: python {_GUARD} compare")
+    assert _GUARD in t02
+    assert _gate_refusals(_build_chain(tmp_path / "direct", t01=t01, t02=t02)) == []
+    t03 = T03.replace("Gate: pytest -q tests/test_report.py", f"Gate: python {_GUARD} compare")
+    assert _GUARD in t03
+    assert _gate_refusals(_build_chain(tmp_path / "transitive", t01=t01, t03=t03)) == []
+
+
+def test_a_gate_on_a_file_a_non_ancestor_creates_is_still_refused(tmp_path: Path) -> None:
+    """Only a Depends ancestor orders the creating ticket first: a descendant's or an unrelated
+    ticket's Touches never names a Gate path, and the refusal keeps `exists nowhere` and names
+    the Depends remedy."""
+    # descendant: T01 gates on a file T02 (which Depends on T01) creates
+    t01 = T01.replace("Gate: pytest -q tests/test_schema.py", f"Gate: python {_GUARD} compare")
+    t02 = T02.replace("- tests/test_api.py", f"- tests/test_api.py\n- {_GUARD}")
+    assert _GUARD in t01 and _GUARD in t02
+    desc = _gate_refusals(_build_chain(tmp_path / "desc", t01=t01, t02=t02))
+    assert len(desc) == 1 and desc[0].startswith("T01:") and f"`{_GUARD}`" in desc[0], desc
+    assert "exists nowhere" in desc[0] and "a ticket it Depends on" in desc[0], desc
+    # unrelated: T03 no longer Depends on T02, and gates on a file T01 creates
+    t01 = T01.replace("- tests/test_schema.py", f"- tests/test_schema.py\n- {_GUARD}")
+    t03 = T03.replace("Depends: T02", "Depends: none").replace(
+        "Gate: pytest -q tests/test_report.py", f"Gate: python {_GUARD} compare"
+    )
+    assert "Depends: none" in t03 and _GUARD in t03
+    unrel = _gate_refusals(_build_chain(tmp_path / "unrel", t01=t01, t03=t03))
+    assert len(unrel) == 1 and unrel[0].startswith("T03:") and f"`{_GUARD}`" in unrel[0], unrel
+
+
+def test_a_depends_cycle_ends_the_ancestor_walk(tmp_path: Path) -> None:
+    """A Depends cycle (T01 ↔ T02) cannot hang the walk, and the walk still runs THROUGH it: T03
+    (Depends T02) may gate on a file T01 creates, while a file only T03 creates stays a ghost to
+    T02 — a descendant is never an ancestor, cycle or not (review pass 2, A-S1: the first cut
+    passed on the pre-fix code too)."""
+    import threading
+
+    other = "scripts/schema_guard.py"
+    t01 = T01.replace("Depends: none", "Depends: T02").replace(
+        "- tests/test_schema.py", f"- tests/test_schema.py\n- {other}"
+    )
+    t02 = T02.replace("Gate: pytest -q tests/test_api.py", f"Gate: python {_GUARD} compare")
+    t03 = T03.replace("- tests/test_report.py", f"- tests/test_report.py\n- {_GUARD}").replace(
+        "Gate: pytest -q tests/test_report.py", f"Gate: python {other}"
+    )
+    assert (
+        "Depends: T02" in t01 and other in t01 and _GUARD in t02 and _GUARD in t03 and other in t03
+    )
+    plan_dir = _build_chain(tmp_path, t01=t01, t02=t02, t03=t03)
+    box: list[list[str]] = []
+    worker = threading.Thread(target=lambda: box.append(_gate_refusals(plan_dir)), daemon=True)
+    worker.start()
+    worker.join(timeout=30)
+    assert box, "check_plan_dir did not return within 30 s on a Depends cycle"
+    assert len(box[0]) == 1 and box[0][0].startswith("T02:") and f"`{_GUARD}`" in box[0][0], box[0]
