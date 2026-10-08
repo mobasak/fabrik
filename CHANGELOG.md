@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `/fabrik-task` phase 2 says what MIRROR must list (2026-10-08)
+- Phase 2 said only "MIRROR is mandatory"; seven queue verdicts asked for a reader kind their run missed, a claim executed rather than inferred, or a cost measured rather than estimated. MIRROR now names every reader of what changes, each found by an executed search with its failing shape and measured cost, and readers the build leaves untouched go unbackticked, since at v2 a backticked MIRROR path counts as declared at close. The source size cap rises 11974 → 12439 B (D-675).
+
 ### Changed — design critiques run before the build and are adjudicated once both are in (2026-10-08)
 - The `design-critique` fragment (included by `/fabrik-task` and four design-review commands) said to dispatch the two critiques before `step --design` records the design, and `/fabrik-task` queue verdicts reported test files written before the critiques reshaped the design and dispositions folded before the second seat returned. It now says the critiques go out before phase 3 builds anything, and that every concern is adjudicated once both critiques are in hand (the stand-in Opus seat's when Fable failed, the re-dispatched seat's when one came back empty).
 
