@@ -290,6 +290,7 @@ FINDING_LABELS = {
     "NO-LIFECYCLE",
     "NO-INTAKE",
     "HOLLOW-INTAKE",
+    "NON-QUIET-LEDGER",
 }
 
 
@@ -425,3 +426,133 @@ def test_a_double_dash_ends_the_options(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "0 CONVERGED spec(s) examined of 1 named" in out and "NOT-FOUND: --all" in out, out
     assert "other-design" not in out, "the repo-wide audit ran instead of the named path"
+
+
+# --- W-85496017: a CONVERGED spec's closing Pass row must read confirmed: 0 (the plan twin's own rule) ----------
+#
+# Armed 2026-10-08: 31 of 260 CONVERGED /opt specs embed a ledger with a counter row, 0 fire; the same function
+# fires on 3 of 57 plans. Graded through check_convergence.py's `_closing_row_fail` — one grammar, never a copy.
+
+
+def _ledger_spec(
+    root: Path, status: str, rows: str, name: str = "2026-08-27-ledger-design.md"
+) -> Path:
+    body = (
+        f"**Status:** {status}\n\nno external facts.\n## Residual unknowns\n- none\n\n"
+        "| Pass | Finders | Counters | Method |\n|---|---|---|---|\n" + rows
+    )
+    return _spec_file(root, name=name, body=body)
+
+
+_NONQUIET = "| Pass 1 | sonnet×1 | found: 3, new: 3, confirmed: 2, fixed: 2, unexecuted: 0 | method: citation |\n"
+_QUIET = "| Pass 2 | sonnet×1 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |\n"
+
+
+def _labels(root: Path) -> list[str]:
+    _examined, findings = chk._audit(root)
+    return [f.label for f in findings]
+
+
+def test_a_non_quiet_closing_row_is_a_finding(tmp_path, capsys):
+    _ledger_spec(tmp_path, "CONVERGED", _NONQUIET)
+    _examined, findings = chk._audit(tmp_path)
+    assert findings and findings[0].label == "NON-QUIET-LEDGER", [f.label for f in findings]
+    assert "confirmed: 2" in findings[0].detail and "refused" not in findings[0].detail, findings[
+        0
+    ].detail
+    assert chk.main(["--root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "NON-QUIET-LEDGER" in out and "D-206" in out, out
+
+
+def test_quiet_absent_or_draft_ledgers_are_untouched(tmp_path):
+    q = tmp_path / "q"
+    _ledger_spec(q, "CONVERGED", _NONQUIET + _QUIET)
+    assert "NON-QUIET-LEDGER" not in _labels(q)
+    a = tmp_path / "a"
+    _spec_file(a, body=CONVERGED + "no external facts.\n## Residual unknowns\n- none\n")
+    assert "NON-QUIET-LEDGER" not in _labels(a)
+    d = tmp_path / "d"
+    _ledger_spec(d, "DRAFT", _NONQUIET)
+    assert "NON-QUIET-LEDGER" not in _labels(d)
+
+
+def test_the_twin_grammar_decides(tmp_path):
+    """The twin's quoting policy holds: a counter only inside a code span is a quote, and a ledger that
+    stopped counting is graded on its LAST counter row."""
+    s = tmp_path / "span"
+    _ledger_spec(
+        s,
+        "CONVERGED",
+        "| Pass 1 | sonnet×1 | `found: 3, new: 3, confirmed: 2, fixed: 2` | method: citation |\n",
+    )
+    assert "NON-QUIET-LEDGER" not in _labels(s)
+    t = tmp_path / "tail"
+    _ledger_spec(
+        t,
+        "CONVERGED",
+        _NONQUIET + "| Pass 2 | sonnet×1 | no counters this pass | method: citation |\n",
+    )
+    assert "NON-QUIET-LEDGER" in _labels(t)
+
+
+def test_a_draft_quoting_the_flip_is_untouched(tmp_path):
+    """This check's own CONVERGED_RE matches the phrase anywhere; a DRAFT mid-review that QUOTES the flip
+    carries a non-quiet ledger by nature. The twin's claim grammar decides whether it is a CONVERGED claim."""
+    body = (
+        "**Status:** DRAFT\n\nThe loop flips `Status: CONVERGED` after a quiet round.\n"
+        "no external facts.\n## Residual unknowns\n- none\n\n"
+        "| Pass | Finders | Counters | Method |\n|---|---|---|---|\n" + _NONQUIET
+    )
+    _spec_file(tmp_path, body=body)
+    assert "NON-QUIET-LEDGER" not in _labels(tmp_path)
+
+
+def test_a_broken_twin_skips_only_this_rule(tmp_path, monkeypatch, capsys):
+    """A twin that raises, or lacks the function, skips THIS rule only — the census and every other finding
+    still print and the check exits 0 (main()'s catch-all would otherwise replace them all with one line)."""
+    _ledger_spec(tmp_path, "CONVERGED", _NONQUIET, name="2026-08-27-x-design.md")
+    (tmp_path / "docs" / "superpowers" / "specs" / "2026-08-27-y-design.md").write_text(
+        "# D\n\n" + CONVERGED, encoding="utf-8"
+    )
+
+    def _boom(_text):
+        raise TypeError("signature changed")
+
+    monkeypatch.setattr(chk, "_closing_row_rule", lambda: (_boom, lambda t: True, lambda t: t))
+    assert chk.main(["--root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "could not evaluate" not in out, out
+    assert "SILENT-1a" in out or "NO-RESIDUAL" in out, out
+    assert "NON-QUIET-LEDGER" not in out, out
+
+
+def test_a_missing_twin_skips_the_rule(tmp_path):
+    """A lone copy of the check with no check_convergence.py beside it: the rule is skipped, everything else
+    runs, exit 0, no traceback (run in a subprocess so no cached twin can make this pass trivially)."""
+    import shutil
+    import subprocess
+    import sys as _sys
+
+    lone = tmp_path / "lone"
+    lone.mkdir()
+    shutil.copy(
+        REPO / "scripts" / "enforcement" / "check_spec_convergence.py",
+        lone / "check_spec_convergence.py",
+    )
+    root = tmp_path / "root"
+    _ledger_spec(root, "CONVERGED", _NONQUIET)
+    r = subprocess.run(
+        [_sys.executable, str(lone / "check_spec_convergence.py"), "--root", str(root)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "Traceback" not in r.stderr and "could not evaluate" not in r.stdout, (
+        r.stdout,
+        r.stderr,
+    )
+    assert "NON-QUIET-LEDGER" not in r.stdout and "spec convergence: 1 CONVERGED" in r.stdout, (
+        r.stdout
+    )

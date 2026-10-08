@@ -41,6 +41,7 @@ repos truncated, 93 findings hidden).
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import re
 import sys
 from pathlib import Path
@@ -133,6 +134,77 @@ def _say(line: str) -> None:
     print(_ascii(line))
 
 
+# The closing-row rule (W-85496017, armed 2026-10-08). A CONVERGED spec that EMBEDS its Pass ledger must close
+# it on `confirmed: 0` (D-206) — graded through `check_convergence.py`'s own `_closing_row_fail`, the plan
+# twin's rule, never a copy (a copied predicate is how two gates came to disagree; a naive grep fires on
+# the adoption spec's quoted `confirmed:` fixture). Measured with the twin's masking over the /opt main
+# checkouts: 31 of 260 CONVERGED specs embed a ledger with a counter row, 0 fire; the same function fires
+# on 3 of 57 plans, so the class is live. REACH, said plainly: a ledger kept only in the chat report is out
+# of reach (the termination contract permits that), and a receipt's ledger is check_review_coverage.py's.
+# COBRA (D-253): the cheapest way past this rule is to not embed the ledger, or to add an unearned
+# `confirmed: 0` row — so it is a backstop, never the proof; the detectable lie (more Pass rows than the
+# run record's `round` count) is read by no grader yet.
+_TWIN_UNSET = object()
+_TWIN: object = _TWIN_UNSET
+
+
+def _closing_row_rule():
+    """The twin's (`_closing_row_fail`, `_claims_converged`, `_blank_quoted`) — or None on ANY doubt.
+
+    Loaded once, by path, from the file beside this one, WITHOUT registering it in `sys.modules` (a test
+    suite patching the twin's module object must not be handed a second one), and probed before use: a
+    twin that is missing, fails to import, lacks a function or answers wrongly skips THIS rule only."""
+    global _TWIN
+    if _TWIN is not _TWIN_UNSET:
+        return _TWIN
+    _TWIN = None
+    try:
+        path = Path(__file__).resolve().parent / "check_convergence.py"
+        spec = importlib.util.spec_from_file_location("_spec_conv_twin", path)
+        if spec is None or spec.loader is None or not path.is_file():
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        fns = tuple(
+            getattr(mod, n, None)
+            for n in ("_closing_row_fail", "_claims_converged", "_blank_quoted")
+        )
+        if not all(callable(f) for f in fns):
+            return None
+        fail, _claims, _blank = fns
+        if fail("") is not None or not isinstance(
+            fail("| Pass 1 | found: 1, new: 1, confirmed: 2, fixed: 0 |\n"), str
+        ):
+            return None
+        _TWIN = fns
+    except Exception:  # the CLASS: a broken twin never costs the rest of this check
+        _TWIN = None
+    return _TWIN
+
+
+def _closing_row_finding(name: str, text: str) -> Finding | None:
+    """NON-QUIET-LEDGER for a spec the TWIN reads as a CONVERGED claim whose last counter row is not 0."""
+    rule = _closing_row_rule()
+    if rule is None:
+        return None
+    fail, claims, blank = rule
+    try:
+        if not claims(blank(text)):
+            return None  # a DRAFT that merely QUOTES the flip mid-review is not a convergence claim
+        refusal = fail(text)
+    except Exception:  # a twin that raises skips this rule, never the census
+        return None
+    if not refusal:
+        return None
+    m = re.search(r"confirmed:\s*(\S+?)\)?$", refusal)
+    counter = m.group(1) if m else "?"
+    return Finding(
+        name,
+        "NON-QUIET-LEDGER",
+        f"last counter row reads confirmed: {counter} - CONVERGED needs a quiet closing round (D-206)",
+    )
+
+
 class Finding:
     __slots__ = ("spec", "label", "detail")
 
@@ -143,6 +215,9 @@ class Finding:
 def _grade(name: str, filename: str, text: str) -> list[Finding]:
     """The findings for ONE converged spec. `name` labels them; `filename` carries the date gate."""
     findings: list[Finding] = []
+    closing = _closing_row_finding(name, text)
+    if closing is not None:
+        findings.append(closing)  # FIRST: the budgeted view must show the most serious finding
     if not URL_RE.search(text) and not NO_EXTERNAL_RE.search(text):
         findings.append(
             Finding(

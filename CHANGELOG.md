@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — check_spec_convergence grades a CONVERGED spec's closing Pass row (2026-10-08)
+
+- `scripts/enforcement/check_spec_convergence.py`: NON-QUIET-LEDGER — a CONVERGED spec that embeds its Pass ledger and closes it on a non-zero `confirmed:` row, graded through `check_convergence.py`'s own `_closing_row_fail` (one grammar for plans and specs), fail-open per call, a DRAFT that quotes the flip never fires. Fires on 0 of 31 specs today; the same function fires on 3 of 57 plans (D-712, W-85496017).
+
 ### Fixed — check_spec_convergence lists every finding on request, grades one spec alone, and fits its own budget (2026-10-08)
 
 - `scripts/enforcement/check_spec_convergence.py`: the truncation marker said "run the check directly", which was the same truncated run with no flag to get past it (iterative_image_editor 01M40T050B; 10 of 14 repos truncated, 93 findings hidden). `--all` now prints every finding; naming spec files or directories grades only those, unbudgeted, with an "of N named" census and a line for every named path not fully graded (NOT-FOUND, UNREADABLE, NOT-CONVERGED, UNDATED, IGNORED). The default run's budget is now counted on the escaped line and cuts its first line to fit (it printed up to 506 of 500 chars), and the marker names `--all` (D-708, W-7cdad5d5).
