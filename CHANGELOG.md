@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the docusaurus pack serves 404s, caches only hashed assets and names the registry codename (2026-10-08)
+- `.windsurf/rules/core/42-docusaurus.md` replaces the SPA fallback `try_files … /index.html` (every mistyped URL answered 200 with the landing page) with a full nginx.conf served and checked in nginx:mainline-trixie, drops the curl layer and the gzip middleware, scopes the immutable cache to `/assets/`, and states the image choice. `/fabrik-spec`, `/fabrik-vision` and `check_docker.py` stop naming bookworm; the dead APPROVED_BASES list is gone (D-664).
+
 ### Changed — the review family's Persist step names the receipt skeleton (2026-10-08)
 - `commands/_fragments/term-coverage.md` obligation 3 (rendered into /fabrik-review, /fabrik-repo-review, /fabrik-conformance-review, /fabrik-service-test, /fabrik-user-test) told reviewers to create the receipt "with the Coverage Checklist skeleton" but named no tool, so they hand-built standing rows, grouped Hunt rows and missed the `## Phase` heading the gate keys on. It now says that in `/fabrik-review`, the one diff-surface consumer, `review_receipt.py --init --changed … --scope …` writes it, with `--range <base>..HEAD` for committed work. The skeleton pastes the rubric and carries per-path Hunt rows, the standing rows, the ledger and the Phase and Gate sections, and the reviewer adds the rubric's class rows. That skeleton has existed since 2026-09-06, but the command named it only in § Reporting, far below. Answers 10 /fabrik-review feedback verdicts (kaizen).
 

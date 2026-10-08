@@ -448,7 +448,7 @@ missing auth decision (`fabrik-lib/fastapi-user-auth` Pattern A / Authelia / cus
   wired it. ⚠️ The catalog is metadata-only — never read `secrets/all-envs.env` at planning time.
 - **High-maintenance where set-and-forget exists?** Prefer solutions that auto-heal/auto-backup/
   auto-monitor via the existing Prometheus/Gatus/Backrest stack.
-- **Incompatible with Fabrik infra?** Port conflicts (`PORTS.md`), Alpine images (bookworm-slim only),
+- **Incompatible with Fabrik infra?** Port conflicts (`PORTS.md`), Alpine images (Debian `-slim` on the registry's `debian_codename` only),
   `localhost` assumptions (use `postgres-main:5432`), x86_64 issues, 12-Factor violations.
 - **Duplicate functionality?** Check `docs/BUSINESS_MODEL.md` § Portfolio + `agents-fabrik.md` §
   Microservices.
@@ -490,7 +490,7 @@ re-run. Do NOT proceed on a thin foundation.
 4. **Duplicate check** — no overlap with existing projects.
 5. **Port conflicts** — check `PORTS.md` per service.
 6. **SSH+Docker Compose deployment** — every component deployable via `fabrik apply`?
-7. **No Alpine** — bookworm-slim only (`30-ops.md`).
+7. **No Alpine** — Debian `-slim` on the registry's `debian_codename` only (`30-ops.md`, `.windsurf/rules/versions.yaml`).
 8. **12-Factor compliance** — any architectural violations?
 9. **Solo dev capacity** — achievable by one person + AI agents?
 10. **Observability** — every **`kind: service` / `worker`** exposes `/health` (Gatus, testing ALL real
@@ -543,7 +543,7 @@ re-run. Do NOT proceed on a thin foundation.
     agentic recursion. State the chosen caps in the vision; a cap raised without thought is how a
     runaway-reasoning loop empties the budget overnight.
 20. **Node ESM / Python version floors** — Node greenfield: `"type": "module"` + `engines.node
-    ">=22.0.0"` (24 LTS preferred). Python: `python:<current-stable>-slim-bookworm`.
+    ">=22.0.0"` (24 LTS preferred). Python: `python:<current-stable>-slim-<debian_codename>` (the codename from `.windsurf/rules/versions.yaml`).
 
 **Multi-scaffold check.** A single vision spanning multiple scaffold types (e.g., python-api +
 saas-skeleton + mobile-app, or chrome-extension + python-api backend) → list which features map to which
@@ -788,7 +788,7 @@ the scaffold type.
 | Billing routing | iyzico (TR) / Paddle (intl) / RevenueCat (mobile IAP); Stripe NOT wired; PayTR only if WooCommerce (per `85-payments-billing.md`) | grep imports for `@stripe/stripe-node`, `stripe`, `iyzipay`, `@paddle/paddle-node`, `@paddle/paddle-js` | Compliant / Deviates / N/A |
 | LLM gateway | Scoped by domain — see constraint 15 | grep deps + imports | Compliant / Deviates / N/A |
 | Node ESM mandate | `"type": "module"`, `engines.node >=22.0.0`, `npm ci --ignore-scripts` (per `12-node.md`) | Inspect `package.json` + `Dockerfile` | Compliant / Deviates / N/A |
-| Python version floor | `python:<current-stable>-slim-bookworm`, `uv` — no raw `pip` (per `10-python.md` + `30-ops.md`) | Inspect `Dockerfile` + `pyproject.toml` | Compliant / Deviates / N/A |
+| Python version floor | `python:<current-stable>-slim-<debian_codename>` (registry codename), `uv` — no raw `pip` (per `10-python.md` + `30-ops.md`) | Inspect `Dockerfile` + `pyproject.toml` | Compliant / Deviates / N/A |
 | file_erasure_audit hash-chain (file-api) | Tamper-evident sibling audit table with `prev_hash`/`current_hash` columns via a `BEFORE INSERT` trigger; `verify_chain()` adapted from `/opt/fabrik-lib/app-audit-log/`; quarterly verification scheduled (per `67-file-api.md` § "Data Lifecycle & KVKK Compliance", its Art. 7(3) bullet) | Inspect schema for `file_erasure_audit` + trigger + verify scheduler | Compliant / Missing / N/A |
 | Fabrik-synced files unmodified | Byte-identical to `/opt/fabrik` source | Run `check_synced_unmodified.py` | Compliant / Drift |
 

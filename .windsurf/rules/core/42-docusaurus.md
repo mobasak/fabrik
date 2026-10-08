@@ -30,7 +30,7 @@ Do not use Docusaurus when:
 Deploy via `fabrik apply` using a **two-stage Dockerfile**:
 
 1. **Build stage**: `node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim` — `npm ci` then `npm run build`, then `npx -y pagefind --site build` for search indexing.
-2. **Serve stage**: `nginx:mainline-<!--v:debian_codename-->trixie<!--/v-->` — copy `build/` to `/usr/share/nginx/html`.
+2. **Serve stage**: `nginx:mainline-<!--v:debian_codename-->trixie<!--/v-->` — copy `build/` to `/usr/share/nginx/html`. The stock image is the deliberate choice: it is upstream's default, its master process runs as root and its workers as the `nginx` user (uid 101), and it serves on port 80 like every Fabrik service behind Traefik. `nginxinc/nginx-unprivileged` is the alternative: every process runs as uid 101, and with this pack's config it still serves on 80 under Docker; adopting its own default port 8080 instead changes the `EXPOSE`, the health check and the Traefik `loadbalancer.server.port` label together.
 
 ```dockerfile
 FROM node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim AS builder
@@ -41,16 +41,47 @@ COPY . .
 RUN npm run build && npx -y pagefind --site build
 
 FROM nginx:mainline-<!--v:debian_codename-->trixie<!--/v-->
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/build /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+# the health check fetches a page the build contains: / needs a root page (src/pages/index)
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -f http://localhost:80/ || exit 1
 EXPOSE 80
 ```
 
-The Nginx config must include `try_files $uri $uri/ /index.html;` to support Docusaurus client-side (React Router) deep links and hard refreshes. Cache static assets aggressively: `Cache-Control: public, max-age=31536000, immutable` for JS/CSS/fonts/images/WASM.
+The stock nginx image already installs `curl` (its own Dockerfile does), so the `HEALTHCHECK` needs no extra layer. Point the health check at a page the build is sure to contain: `/` only when the site has a root page (`src/pages/index`), otherwise a docs page such as `/docs/intro/` — a directory with no `index.html` answers 403, never healthy.
+
+Docusaurus pre-renders every route to its own HTML file and emits a real `404.html`, so the server looks a path up and answers 404 when nothing matches — never the SPA fallback `try_files … /index.html`, which answers 200 with the landing page for every mistyped URL and, on a site with no root page, loops to a 500. `nginx.conf`:
+
+```nginx
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    absolute_redirect off;
+
+    gzip on;
+    gzip_vary on;
+    gzip_types text/css application/javascript application/json image/svg+xml application/wasm text/xml;
+
+    location / {
+        add_header Cache-Control "no-cache";
+        try_files $uri $uri.html $uri/index.html =404;
+    }
+
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    error_page 404 /404.html;
+    location = /404.html {
+        internal;
+    }
+}
+```
+
+The lookup serves every shape Docusaurus writes with no redirect: `docs.html` for `trailingSlash: false`, `docs/intro/index.html` for the default, whether or not the request ends in `/`. It never tests a bare directory, so a directory with no `index.html` answers 404, not 403. `absolute_redirect off` keeps any redirect nginx still issues relative, so it stays on Traefik's https instead of naming `http://`. `gzip_vary` marks compressed responses for any cache placed in front later.
+
+Only `/assets/` is content-hashed by the Docusaurus build, so only `/assets/` gets the year-long immutable cache. Everything else answers `Cache-Control: no-cache`, so the browser revalidates on `ETag`/`Last-Modified`: with no header at all a browser may reuse stale HTML that names chunk hashes the next deploy removed. Each `location` that sets `add_header` replaces every server-level `add_header`, so a security header added later goes in both locations. Compression is on in nginx (it ships `gzip off`), not in Traefik.
 
 **compose.yaml:**
 
@@ -59,7 +90,7 @@ services:
   docs:
     build: .
     platform: linux/amd64
-    healthcheck:
+    healthcheck:  # same path as the Dockerfile HEALTHCHECK: / only with a root page
       test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 30s
       timeout: 5s
@@ -76,7 +107,6 @@ services:
       - traefik.http.routers.docs.entrypoints=websecure
       - traefik.http.routers.docs.tls.certresolver=letsencrypt
       - traefik.http.services.docs.loadbalancer.server.port=80
-      - traefik.http.routers.docs.middlewares=gzip@docker
     networks:
       - fabrik
 
@@ -85,7 +115,7 @@ networks:
     external: true
 ```
 
-**Rules:** no `ports:` section (Traefik routes traffic), `deploy.resources.limits.memory` mandatory, `platform: linux/amd64` mandatory. See `30-ops.md` for full compose rules.
+**Rules:** no `ports:` section (Traefik routes traffic), `deploy.resources.limits.memory` mandatory, `platform: linux/amd64` mandatory, and no Traefik middleware — a docs site is public, and public services carry none (`30-ops.md`). See `30-ops.md` for full compose rules.
 
 ## Search
 
@@ -208,17 +238,17 @@ to forget precisely because it feels like "just docs".
 ## Done When
 
 - [ ] Dockerfile uses two-stage build: `node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim` → `nginx:mainline-<!--v:debian_codename-->trixie<!--/v-->` — a STATIC serve stage, never a Node runtime.
-- [ ] Nginx serve stage has `curl` installed (stock image doesn't include it — HEALTHCHECK fails without it).
 - [ ] Dockerfile has HEALTHCHECK instruction.
 - [ ] `docs/DEPLOYMENT.md` + `docs/OPERATIONS.md` name this site as a deployed service (D-065) — the
       hub's deploy AI reads them to learn what runs on the VPS.
 - [ ] Pagefind runs post-build (`npx -y pagefind --site build`) — no Algolia or JS-bundled search.
-- [ ] Nginx config includes `try_files $uri $uri/ /index.html;` for SPA routing.
+- [ ] Nginx config uses `try_files $uri $uri.html $uri/index.html =404;`, `error_page 404 /404.html;` with an `internal` `/404.html` location, and `absolute_redirect off;` — a missing page answers 404, never the landing page, and redirects stay relative.
+- [ ] The health check targets a page the build contains (`/` only with a root page).
 - [ ] compose.yaml has `platform: linux/amd64`, `deploy.resources.limits.memory`, Traefik labels, `fabrik` network, no `ports:`.
 - [ ] `docusaurus.config.js` sets `onBrokenLinks: 'throw'` and `onBrokenAnchors: 'throw'`.
 - [ ] All `.md`/`.mdx` files have `title` and `description` frontmatter.
 - [ ] No `versioned_docs/` or `versioned_sidebars/` directories exist.
 - [ ] API docs use Scalar (`@scalar/docusaurus`) — no static OpenAPI generators.
 - [ ] Interactive MDX components registered globally in `src/theme/MDXComponents.js`.
-- [ ] Static assets served with immutable cache headers.
+- [ ] `/assets/` (the content-hashed build output) is served with `Cache-Control: public, max-age=31536000, immutable`; nothing else is.
 - [ ] Fonts self-hosted in `static/fonts/` — no Google Fonts CDN.

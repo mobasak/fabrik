@@ -17,14 +17,6 @@ HEALTHCHECK_PATTERN = re.compile(r"HEALTHCHECK", re.IGNORECASE)
 EXPOSE_PATTERN = re.compile(r"EXPOSE\s+(\d+)", re.IGNORECASE)
 COMPOSE_PORT_PATTERN = re.compile(r'["\']\$\{?PORT[^}]*\}?:(\d+)["\']|["\'](\d+):(\d+)["\']')
 
-APPROVED_BASES = [
-    "python:3.12-slim-bookworm",
-    "python:3.13-slim-bookworm",
-    "node:22-bookworm-slim",
-    "debian:bookworm-slim",
-    "ubuntu:24.04",
-]
-
 # Pattern to detect Alpine in compose image: directives (including -alpine tags)
 COMPOSE_ALPINE_PATTERN = re.compile(r"image:\s*['\"]?(?:alpine|[^'\"\s]*-alpine)", re.IGNORECASE)
 
@@ -113,10 +105,11 @@ def check_file(file_path: Path) -> list[CheckResult]:
                         # Postgres for no correctness gain.
                         severity=Severity.WARN,
                         message="Alpine image detected in compose file."
-                        " Prefer Debian/Ubuntu slim-bookworm where a variant exists.",
+                        " Prefer the Debian -slim variant on the registry's debian_codename"
+                        " (.windsurf/rules/versions.yaml) where one exists.",
                         file_path=str(file_path),
                         line_number=line_num,
-                        fix_hint="Use debian:bookworm-slim or specific -bookworm-slim variants",
+                        fix_hint="Use the image's Debian -slim variant on the registry codename",
                     )
                 )
         except (OSError, UnicodeDecodeError):
@@ -143,10 +136,11 @@ def check_file(file_path: Path) -> list[CheckResult]:
             CheckResult(
                 check_name="docker",
                 severity=Severity.ERROR,
-                message="Alpine base image detected. Use Debian/Ubuntu slim-bookworm.",
+                message="Alpine base image detected. Use a Debian -slim base on the registry codename.",
                 file_path=str(file_path),
                 line_number=line_num,
-                fix_hint="Use python:3.12-slim-bookworm or node:22-bookworm-slim",
+                fix_hint="Use python:<version>-slim-<debian_codename> or node:<lts>-<debian_codename>-slim"
+                " (.windsurf/rules/versions.yaml)",
             )
         )
 
