@@ -15,7 +15,8 @@
 - Deploy mechanism: SSH + Docker Compose via `fabrik apply` (no Coolify — removed 2026-05-30).
 - vps1 hosts 31 containers (29 platform + 2 T-P5 watchdog-dogfood; shared infra + monitoring + WordPress tenant).
 - vps2/vps3 host 5 containers each: traefik + monitoring agents (node-exporter, cadvisor,
-  promtail) + backrest.
+  alloy) + backrest. (`promtail` stays defined under the `rollback` profile — stopped, not
+  counted here — until Gate S.)
 - All containers stable-named (no UUID suffix). All on the `fabrik` Docker network
   (renamed from `coolify` 2026-05-31).
 - Backups: Backrest + restic → Backblaze B2.
