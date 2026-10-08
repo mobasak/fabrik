@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the round-zero probe tests a new guard on five legitimate spellings and a re-cut on its mutant's mirrors (2026-10-08)
+- `commands/_fragments/term-coverage.md` (rendered into /fabrik-review, /fabrik-repo-review, /fabrik-conformance-review, /fabrik-user-test, /fabrik-service-test): the round-zero input space now lists five LEGITIMATE spellings of a guard's subject, pointing at `45-testing-strategy` § Banned Patterns (under 5/5 is a finding), and, for a phrase guard, the re-cut's mutant AND its mirrors (its negation in the same word order and a reordered rewording). Answers 5 /fabrik-review verdicts over five days. D-711 records how one-off verdicts are now disposed of. Grader: `tests/enforcement/test_review_exit_contract.py::test_round_zero_probes_a_guard_on_five_legitimate_spellings_and_its_mutant_mirrors`, which also checks the cited row is still in that section.
+
 ### Fixed — command_run round --slices accepts a never-claimed slice as 0/0 (2026-10-08)
 - `scripts/command_run.py round --slices` refused any slice with 0 claims, while /fabrik-review and term-coverage tell the agent to restate EVERY round-1 slice — so a slice whose candidates were all refuted could not be stated (site-provisioner 01M4DR9PAB). `<name>:0/0` is now a clean slice, refused only when an earlier round stated that slice WITH claims, or when a round confirms defects while every slice it names is 0/0. A stored row with a missing or broken claim count still reads open. `docs/reference/command-run-protocol.md` says the same. Two Opus/Fable-proposed counters and an advisory were measured on the box's 26 sliced rounds and rejected (each would trap or flag real rounds).
 
