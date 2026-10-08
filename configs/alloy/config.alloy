@@ -1,0 +1,61 @@
+loki.process "containers" {
+	forward_to = [loki.write.default.receiver]
+
+	stage.json {
+		expressions = {
+			attrs  = "",
+			output = "log",
+			stream = "stream",
+		}
+	}
+
+	stage.json {
+		expressions = {
+			tag = "",
+		}
+		source = "attrs"
+	}
+
+	stage.regex {
+		expression = "(?P<container_name>(?:[a-zA-Z0-9][a-zA-Z0-9_.-]+))"
+		source     = "tag"
+	}
+
+	stage.labels {
+		values = {
+			container_name = null,
+			stream         = null,
+		}
+	}
+
+	stage.drop {
+		source     = "container_name"
+		expression = "^ocoron-com-backup-1$"
+	}
+
+	stage.output {
+		source = "output"
+	}
+}
+
+loki.source.file "containers" {
+	targets = [{
+		__address__ = "localhost",
+		__path__    = "/var/lib/docker/containers/*/*log",
+		host        = "vps1",
+		job         = "containerlogs",
+	}]
+	forward_to = [loki.process.containers.receiver]
+
+	file_match {
+		enabled = true
+	}
+	legacy_positions_file = "/run/promtail/positions.yaml"
+}
+
+loki.write "default" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+	external_labels = {}
+}

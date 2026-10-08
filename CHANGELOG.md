@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the Alloy configs are the promtail→alloy converter's output (2026-10-08)
+
+`configs/alloy/config.alloy` (hub) and `scripts/bootstrap/templates/alloy.alloy.template` (spoke) are committed as the exact
+output of `alloy convert --source-format=promtail` (grafana/alloy:v1.20.1), and `tests/test_alloy_configs.py` re-runs the
+converter and `alloy run` in containers so any drift fails (plan 2026-10-08-plan-1, T01).
+
 ### Fixed — a window named by `whoami_agent.py --as` gets its role charter (2026-10-08)
 - kaizen 01M4C0VN6A: the SessionStart charter hook `.claude/hooks/agent_role.py` read only `CLAUDE_AGENT`, so a window bound with `whoami_agent.py --as <name>` (the route the ORIENT block offers) got its items and mail but never its charter. It now falls back to `whoami_agent.resolve_agent_name()`, loaded by file path so a project-local module cannot shadow what the resolver imports; a project without the script, or an older copy, stays a silent no-op. Helps resumed and compacted sessions; a brand-new session still binds after SessionStart. `scripts/mail.py`'s `--to-agent` and `route` help strings now name kaizen.
 
