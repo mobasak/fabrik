@@ -25,6 +25,9 @@ still holding a frozen pre-2026-07-11 copy in `docs/BUSINESS_MODEL.md` were aske
 - `scripts/command_run.py`: both SCOPE GROWTH verdicts now say to close on a confirmed-zero round. `scripts/task_lane.py`'s Status refusal text matches.
 - Graders in `tests/test_check_review_coverage_scope_growth.py`, `tests/test_check_convergence.py`, `tests/test_command_run.py`, `tests/test_task_lane_receipt.py` and `tests/test_task_lane_review_stop.py`. Kaizen mail 01M4CPWDK0; review `docs/development/reviews/2026-10-08-d355-scope-growth-close-review.md`.
 
+### Changed — /fabrik-review-scoped: an own-fix count is evidenced, never asserted (2026-10-08)
+- Step 4's `--own-fix` count decides the scope-growth stop, and calling an original-surface defect own-fix both trips that stop sooner and buys the backlog exit. The term fragments bound this ("own-fix is EVIDENCED, never asserted"); `/fabrik-review-scoped`, which keeps no receipt, did not. Step 4 now says each counted defect names the round whose fix hunk holds its line or created the contradiction it reports (`own-fix: round k`), shown by diffing that round's pin against the next pass's pin, in the report and the close's `--evidence`, and that any other defect is never own-fix.
+
 ### Changed — /fabrik-review-scoped: a remainder-round own-fix defect stays out of `--confirmed` (2026-10-08)
 - Step 5 said a further own-fix defect a remainder round raises is RECORDED onto the routed backlog row, and queue verdicts asked what that does to the round's counter. It now says the defect stays out of that round's `--confirmed`, as the term fragments rule for every RECORDED candidate, so a remainder round that only records reads confirmed zero.
 

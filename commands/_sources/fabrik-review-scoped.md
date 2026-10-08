@@ -66,7 +66,10 @@ proportionate answer.
    quiet — so never omit it. **The round ledger IS this command's artifact** (a stated deviation from the fragment,
    which persists a report) — deliberately no review file: `check_review_coverage.py` grades the heavy command's
    reports; this one's proof is the record the Stop hook reads (that asymmetry is the lightness,
-   stated so nobody "fixes" it).
+   stated so nobody "fixes" it). `--own-fix` is EVIDENCED, never asserted: each defect it counts names
+   the round whose fix hunk holds the defect's line or created the contradiction it reports
+   (`own-fix: round k`, shown by diffing that round's pin against the next pass's pin), in your
+   report and the close's `--evidence`; any other defect is never own-fix.
 5. **Loop:** pass 1 reads the whole changed surface; every later pass is a DELTA round exactly as the
    fragment defines it (COUNTED under D-230, SIZED under D-335 — the floor paragraph below), over the
    same class ledger (a pass is never a re-scope). Done ONLY on a closing pass in which the round-1 seats, over their own slices, **CONFIRM zero** —
