@@ -247,7 +247,7 @@ Steps:
 - **Given** a failing unintegrated review, **When** the gate reports it, **Then** a NOTE names the commit and its Agent-Name or author; a passing run's OK line counts both sources (spec § The delta 3, 6)
 - **Given** the main checkout of a repo whose branch is `mobasak/<repo>` tracking `origin/mobasak/<repo>`, **When** the scan runs, **Then** its unpushed failing review blocks (I6)
 
-## Phase B — the docs
+## Phase B — the docs — ✅ EXECUTED 2026-10-09 (9b9cf5a28)
 
 Appetite: 30
 
