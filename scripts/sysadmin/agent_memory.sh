@@ -155,6 +155,12 @@ cmd_reclaim() {
         *) echo "skipped: pgrep failed (rc $prc) — refusing to act blind"; return 10 ;;
     esac
     live=$(printf '%s' "$pids" | grep -c . || true)
+    # the same fail-closed rule as every other numeric here: a grep that cannot run leaves
+    # `live` empty, `[ "" -gt 0 ]` exits 2, and `if` read that as "no sessions" (W-6154115b)
+    if ! _is_num "$live"; then
+        echo "skipped: cannot count live claude sessions — refusing to act blind"
+        return 10
+    fi
     # GUARD: swapoff must fit every swapped page back into RAM at once and stalls the box for up
     # to a minute. This tree routinely runs 3+ concurrent agent sessions whose turns would freeze
     # mid-tool-call, so it refuses while any is alive.

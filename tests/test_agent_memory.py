@@ -53,7 +53,9 @@ for i in "${!args[@]}"; do
       # a DEVICE argument actually restores it — APPEND, because a multi-device box restores one
       # at a time and an overwriting stub would silently wipe the device restored a moment ago
       [ -s "$AGENT_MEMORY_SWAPS" ] || printf 'Filename\tType\tSize\tUsed\tPriority\n' > "$AGENT_MEMORY_SWAPS"
-      printf '%s partition 67108864 0 -2\n' "$nxt" >> "$AGENT_MEMORY_SWAPS"; exit 0 ;;
+      # the kernel writes a newline in a device name as \\012 — escape it, or one restored device
+      # lands as two lines and no NUL-vs-newline split could ever be graded (W-6154115b)
+      printf '%s partition 67108864 0 -2\n' "${nxt//$'\n'/\\\\012}" >> "$AGENT_MEMORY_SWAPS"; exit 0 ;;
   esac
 done
 exit 0
@@ -610,3 +612,29 @@ def test_a_dash_prefixed_policy_line_is_still_verified(stub_bin, tmp_path):
         "a `-`-prefixed policy line is applied by sysctl and must still be checked:\n"
         + r.stdout + r.stderr
     )
+
+
+def test_a_broken_grep_refuses_rather_than_reading_no_sessions(stub_bin):
+    """W-6154115b, finding 1. `live` was the one numeric in cmd_reclaim never `_is_num`-validated:
+    with grep unable to run, `live=""`, `[ "" -gt 0 ]` exits 2, `if` reads that as false and the
+    swapoff ran with agent sessions live. A count it cannot read now refuses, like every other."""
+    (stub_bin / "grep").write_text("#!/usr/bin/env bash\nexit 2\n")
+    (stub_bin / "grep").chmod(0o755)
+    before = stub_bin.swaps_file.read_text()
+    r = _run(stub_bin, "reclaim", busy=True)
+    assert r.returncode == 10, f"an unreadable session count is a skip, got {r.returncode}\n{r.stdout}{r.stderr}"
+    assert "refusing" in r.stdout.lower(), r.stdout
+    assert stub_bin.swaps_file.read_text() == before, "swap was touched with sessions live"
+
+
+def test_a_device_name_with_a_newline_is_restored_as_one_device(stub_bin):
+    """W-6154115b, finding 2. `_swap_devices` NUL-delimits because a kernel `\\012` un-escapes to a
+    newline, and a newline split turned one device into two bogus ones ("2/2 restored" while the
+    real one stayed down) — but no grader used such a name, so reverting the NUL split passed."""
+    stub_bin.swaps_file.write_text(
+        "Filename\tType\tSize\tUsed\tPriority\n/swap\\012file partition 33554432 512 -2\n"
+    )
+    ok = _run(stub_bin, "reclaim")
+    assert ok.returncode == 0, f"{ok.stdout}{ok.stderr}"
+    rows = stub_bin.swaps_file.read_text().splitlines()[1:]
+    assert rows == ["/swap\\012file partition 67108864 0 -2"], rows

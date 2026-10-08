@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — agent_memory.sh reclaim refuses when it cannot count live sessions (2026-10-08)
+
+- `scripts/sysadmin/agent_memory.sh`: the live-session count is now `_is_num`-validated like every other numeric in `reclaim`, so a grep that cannot run refuses (rc 10) instead of reading as zero sessions and running the swapoff; a new grader restores a `\\012`-named swap device as one device, guarding the NUL-delimited device list (W-6154115b).
+
 ### Fixed — the fleet-exhausted stamp is replaced, never truncated; undateable promises and unreadable holds fail toward the wall (2026-10-08)
 
 - `scripts/sysadmin/claude_rotate.py` (and its `aro-wake` twin): a content write of a dated stamp builds beside and replaces, refusing a non-regular file at the path; `_promised_resume` validates through `_dateable_ts`; `_hold_is_wall` reads a non-dict hold as the wall (D-699, W-06733560 items 3/6/7; item 1 boarded as W-37003fa1). Receipt: `docs/development/reviews/2026-10-08-rotation-stamp-tier-hygiene-review.md`.

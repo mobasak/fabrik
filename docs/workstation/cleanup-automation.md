@@ -292,7 +292,8 @@ and refuses again if the swapped bytes exceed `MemAvailable` (where `swapoff` wo
 ENOMEM part-way) or if `/proc/meminfo` cannot be read at all. ⚠️ **`--force` overrides the
 live-session refusal ONLY** — the ENOMEM, unreadable-`/proc/meminfo` and no-device-to-restore
 refusals are absolute, because each of them means the tool cannot prove it could undo what it is
-about to do. (An earlier cut of this sentence said simply "`--force` overrides", which was true of
+about to do — and so are a failed `pgrep` and a session count it cannot read (rc **10**), because
+the live-session guard cannot be applied blind. (An earlier cut of this sentence said simply "`--force` overrides", which was true of
 one refusal in four.) A refused `swapoff` that leaves the box unchanged returns **11** — distinct
 from the guard's own skip (**10**) and from a critical failure (**1**), because a box that never
 lost its swap must not break the heartbeat. The sysctl policy
