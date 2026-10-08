@@ -82,11 +82,10 @@ re-run, or the record stays at phase 1. It lands ONCE — a second `--design` is
 while everything else reads like success. Add a `## Behaviours` list — each naming its test, at
 most 7 (an 8th is the `behaviours` UPGRADE, *(v2)*) — and name every file the build will touch,
 the Behaviours' tests, deletions and a rename's both paths included, under line-start UPPERCASE
-`APPROACH:`/`MIRROR:` labels with no sub-heading inside, one bare repo-relative path per backtick
-pair (`a.py::f`, `a.py:120` and `a.py, b.py` match nothing; a `--review` receipt is exempt): *(v2)* a
-committed path missing from both REFUSES `done` at close (v1 measures `--file` instead and only
-RECORDS); the remedy is `step --phase 2 --design-amend <path>` *(v2)*,
-append-only — it never overwrites a recorded field — and counted on the close as `design_amends`.
+`APPROACH:`/`MIRROR:` labels with no `# ` line inside (fenced or not), one bare repo-relative path
+per backtick pair (`a.py::f`, `a.py:120` and `a.py, b.py` match nothing; only a `--review` receipt
+is exempt): *(v2)* a committed path missing from both REFUSES `done` at close (v1 measures `--file`
+instead and only RECORDS); the remedy is `step --phase 2 --design-amend <path>` *(v2)*, append-only — it never overwrites a recorded field — and counted on the close as `design_amends`.
 MIRROR is mandatory (`CLAUDE.md` § Behavior). The fields
 are the D-row's draft: APPROACH+DECISION+MIRROR → *what*, PROBLEM → *why*, the declared files →
 *where*; OUT and TERMINAL stay in the record. ⚠️ A literal `|` is written `&#124;` — a backslash

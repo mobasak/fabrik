@@ -6,8 +6,9 @@ ticket T03 Behavior Contract), plus (T07, plan 2026-10-02-plan-1) the Revision-2
 
 1. SIZE + INCLUDES — the source is at most `SIZE_CAP` bytes (D-296 raised it to 8980 above C2's
    original 8,847; T07 raises it again to 11672 for D3/D6/D7/D8's required prose plus the v1/v2
-   scope tags and the O7 fix review round 1 found missing — D-501; D-657 raises it to 11919 for
-   phase 2's path-naming rule, see the comment above `SIZE_CAP`) and its only `{{include:}}` is `run-record`. The include half
+   scope tags and the O7 fix review round 1 found missing — D-501; D-657 raises it to 11938 for
+   phase 2's path-naming rule, see the comment above `SIZE_CAP`) and its only `{{include:}}` is
+   `run-record`. The include half
    is C2's cobra counter (cobra 8): the cheapest way to satisfy a source-byte cap is to move the
    prose into a fragment, so a second include is refused whatever the byte count says.
 2. RENDER — the source renders: a temp-dir `render()` (never the installed corpus — the renderer
@@ -57,10 +58,11 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # keeps today's gate, so the text has to say which) plus the O7 contradiction fix — D-501.
 # D-517 (operator ruling 2026-10-03, two independent design critiques before design approval) added the
 # phase-2 `design-critique` include inside this cap — the cap did not move.
-# D-657 (kaizen, 2026-10-08): 11672 -> 11919 for phase 2's path-naming rule (the label form, one
-# bare repo-relative path per backtick pair, tests/deletions/renames included, the --review
-# receipt exempt — ~15 feedback rows), after retiring phase 5's restatement of the same rule.
-SIZE_CAP = 11919
+# D-657 (kaizen, 2026-10-08): 11672 -> 11938 for phase 2's path-naming rule (the label form, one
+# bare repo-relative path per backtick pair, no `# ` line inside a field, tests/deletions/renames
+# included, only the --review receipt exempt — ~15 feedback rows), after retiring phase 5's
+# restatement of the same rule.
+SIZE_CAP = 11938
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -256,7 +258,7 @@ def _asserted(text: str, pattern: str) -> bool:
 def test_source_size_and_single_include() -> None:
     """The byte ceiling, and `run-record` + `orient` + `design-critique` as the only includes.
 
-    ⚠️ The cap is `SIZE_CAP` (11919 B since D-657's phase-2 path-naming rule), NOT the spec's C2
+    ⚠️ The cap is `SIZE_CAP` (11938 B since D-657's phase-2 path-naming rule), NOT the spec's C2
     figure of 8,847 nor D-296's 8980 (the latter stood until T07, plan 2026-10-02-plan-1, which
     gained the Behaviours cap, multi-commit build, `--design-amend`, the review flavour by
     surface, the close refusal, the four new UPGRADE tokens, and (review round 1) the v1/v2 scope
@@ -442,9 +444,9 @@ def test_design_note_names_behaviours_cap_and_the_design_amend_remedy() -> None:
         "Add a `## Behaviours` list — each naming its test, at most 7 (an 8th is the "
         "`behaviours` UPGRADE, *(v2)*) — and name every file the build will touch, the "
         "Behaviours' tests, deletions and a rename's both paths included, under line-start "
-        "UPPERCASE `APPROACH:`/`MIRROR:` labels with no sub-heading inside, one bare "
-        "repo-relative path per backtick pair (`a.py::f`, `a.py:120` and `a.py, b.py` match "
-        "nothing; a `--review` receipt is exempt): *(v2)* a committed path missing from both "
+        "UPPERCASE `APPROACH:`/`MIRROR:` labels with no `# ` line inside (fenced or not), one "
+        "bare repo-relative path per backtick pair (`a.py::f`, `a.py:120` and `a.py, b.py` match "
+        "nothing; only a `--review` receipt is exempt): *(v2)* a committed path missing from both "
         "REFUSES `done` at close (v1 measures `--file` instead and only RECORDS);"
     )
     amend = (
