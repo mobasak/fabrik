@@ -16,7 +16,8 @@ what makes the run's ledger row ANALYSABLE — a 40-file plan set and a 3-file d
 runs of the same command; name it at `start` (the close accepts `--surface` too if you learn it
 late). The agent (`CLAUDE_AGENT`) and the active account are captured for you.
 
-Close it EXACTLY ONE of two ways — never by simply stopping:
+Close it EXACTLY ONE of these ways — never by simply stopping (a third, ``handoff --resume <a file with a
+`## RESUME` block>``, only where this command's own text names that close):
 
 - `python3 scripts/command_run.py done --command {{COMMAND}} --evidence "<what proves the terminal
   condition was met>" --feedback "<what you filed, to whom | none — the surfaces this run exercised>"`

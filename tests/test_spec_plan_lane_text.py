@@ -249,11 +249,12 @@ def test_fabrik_spec_phase5_closing_sentence_never_claims_review_runs_unconditio
 def test_fabrik_spec_phase0_downgrade_instructs_writing_seed_file_before_handoff():
     """T05b-S2 (CONFIRMED): `command_run.py`'s real `handoff` implementation REFUSES (rc 1) a
     `--resume` path that does not already exist as a regular file carrying a `## RESUME` heading
-    (`command_run.py:4746-4756`) — the bullet must instruct WRITING that file (path, `## RESUME`
+    (`command_run.py`'s handoff branch) — the bullet must instruct WRITING that file (path, `## RESUME`
     heading, refusal id, the brief) before the handoff command, not just name the command."""
     phase0 = _spec_phase0()
     assert "WRITE the seed file to disk FIRST" in phase0
-    assert "command_run.py:4746-4756" in phase0
+    assert "(`command_run.py`'s `handoff` branch — grep `## RESUME`)" in " ".join(phase0.split())
+    assert "command_run.py:4746-4756" not in phase0, "a line range into command_run.py drifts"
     write_idx = phase0.index("WRITE the seed file to disk FIRST")
     handoff_idx = phase0.index("python3 scripts/command_run.py handoff")
     assert write_idx < handoff_idx, "the write instruction must precede the handoff command"
@@ -269,3 +270,68 @@ def test_fabrik_spec_phase0_downgrade_write_instruction_names_resume_heading_and
     assert "## RESUME" in write_sentence
     assert "/fabrik-task --from-downgrade <refusal id>" in write_sentence
     assert "refusal id" in write_sentence
+
+
+def test_fabrik_spec_names_both_endings_and_a_sanctioned_close(tmp_path, monkeypatch) -> None:
+    """/fabrik-spec queue (kaizen D-711 audit, 9 rows): `--terminal` is fixed at start, the
+    `Size: small` verdict that decides where the run ends lands in Phase 5, and command_run.py
+    refuses `--terminal-amend` outside /fabrik-task -- so the text names both endings, right after
+    the run-record `start` block. Also: Phase 4 no longer stops per section, Phase 6's "stop" has a
+    sanctioned close, the NEXT map names the Size: small branch, and a hard seat cap is honoured."""
+    import importlib.util
+    import subprocess
+    import sys
+
+    def norm(t: str) -> str:
+        return " ".join(t.split())
+
+    both = ("**`--terminal` names both endings:** the `Size:` verdict lands in Phase 5 and `--terminal-amend` "
+            "belongs to `/fabrik-task` alone, so start with `--terminal \"the spec CONVERGED by /fabrik-spec-review "
+            "and its approval gate answered, or — when Phase 5 writes Size: small — the DRAFT handed to "
+            "/fabrik-plan-after-chat\"`.")
+    spec = importlib.util.spec_from_file_location("asm_spec_probe", REPO / "commands" / "assemble_commands.py")
+    asm = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(asm)
+    asm.render(tmp_path / "r", tmp_path / "r" / "_skills", agents_dest=tmp_path / "r" / "_agents")
+    rendered = norm((tmp_path / "r" / "fabrik-spec.md").read_text(encoding="utf-8"))
+    start = rendered.index("python3 scripts/command_run.py start --command fabrik-spec")
+    at = rendered.index(both)
+    assert at < start, "the both-endings rule must come before the start block it governs"
+    assert ("Close it EXACTLY ONE of these ways — never by simply stopping (a third, ``handoff --resume <a file "
+            "with a `## RESUME` block>``, only where this command's own text names that close):") in rendered
+    assert asm.NEXT["fabrik-spec"].endswith("a `Size: small` spec goes to /fabrik-plan-after-chat <spec path> instead.")
+
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "command-runs"))
+    cr = [sys.executable, str(REPO / "scripts" / "command_run.py")]
+    subprocess.run([*cr, "start", "--command", "fabrik-spec", "--phases", "6", "--terminal", "t"],
+                   check=True, capture_output=True)
+    amend = subprocess.run([*cr, "step", "--phase", "2", "--title", "t", "--terminal-amend", "u"],
+                           capture_output=True, text=True)
+    assert "--terminal-amend belongs to --command fabrik-task" in amend.stdout + amend.stderr
+
+    src = (REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8")
+    p4 = norm(_section(src, r"^## Phase 4 —", r"^## Phase 5 —"))
+    assert ("Present in sections scaled to complexity; an operator present may redirect any section, but the run "
+            "does not stop for a per-section yes — the approval gate is the one Phase 6 names.") in p4
+    import re
+
+    for sec in (p4, norm(_section(src, r"^## Phase 3 —", r"^## Phase 4 —"))):
+        assert re.search(r"(?i)\b(yes|approv\w*)\b[^.]*\bafter each\b", sec) is None, "a per-section stop is back"
+    assert ("**HARD GATE:** no implementation or scaffold until the design is approved at that gate (a `Size: small` "
+            "spec's plan is drafted before it and approved with it).") in p4
+    assert "no code or scaffold — and no plan except a `Size: small` spec's" in norm(src)
+    assert "- Write code or a scaffold, or a plan outside the `Size: small` path, before the design is approved" in norm(src)
+    p6 = norm(_spec_phase6())
+    text = norm(src)
+    assert ("surface those and close with `python3 scripts/command_run.py handoff --command fabrik-spec --resume "
+            "<scratch file> --reason \"<the open question>\" --feedback …`, the file's `## RESUME` block naming the "
+            "question and the restart `/fabrik-spec <spec path>` — never by stopping on a `running` record.") in p6
+    assert "surface those and stop" not in text
+    assert ("A hard cap outranks the floor (D-189): when `dispatch_headroom.py` prints fewer `SEATS:`, dispatch that "
+            "many, name the dependencies no seat grounded, and dispatch them when headroom returns.") in text
+    assert ("`firecrawl_scrape` on the library's OFFICIAL docs site for framework/API detail (`WebFetch` only to "
+            "locate the page) → the **`gh` CLI** (`gh search code` / `gh api -H 'Accept: application/vnd.github.raw' "
+            "repos/<o>/<r>/contents/<path>`") in text
+    assert ("from a RAW fetch (`firecrawl_scrape` as markdown, the raw `gh api` call above, the raw file — a "
+            "`WebFetch` reply summarises, below)") in text
