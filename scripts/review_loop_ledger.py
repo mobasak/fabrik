@@ -471,9 +471,13 @@ def pin(
     for f in files:
         rel = os.path.normpath(f)
         cand = root / rel
-        if cand.is_symlink():
+        # with --from the bytes come from the commit, so the WORKING-TREE shape of the path (a local
+        # symlink, a deletion) is irrelevant: escape is judged lexically and a symlink AT the ref by its
+        # tree mode below (pin-refusal wording review A-S1)
+        if ref is None and cand.is_symlink():
             raise PinError(f"cannot pin {f}: a symlink (its bytes may live outside the repo)")
-        if not cand.resolve().is_relative_to(root) or rel.startswith(".."):
+        outside = rel.startswith("..") or os.path.isabs(rel)
+        if outside or (ref is None and not cand.resolve().is_relative_to(root)):
             raise PinError(f"cannot pin {f}: it resolves outside the repo root {root}")
         if ref is None and not cand.is_file():
             raise PinError(

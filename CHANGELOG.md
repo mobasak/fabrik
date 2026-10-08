@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Changed — `/fabrik-task` phase 1 lists what MEASURE executes before the design (2026-10-08)
 - Twenty-five queue verdicts reported a design drafted before a sibling's landed fix, a pre-existing red, a writer, a host or a vendor list was looked at. Phase 1 now replays a reported command as reported, then writes each command and its output to `measure.md` beside `design.md`: the declared files' own tests, a fetch and diff against the remote branch the work merges into, the prior record, the measured population with its n, and a live probe of each external contract. Size cap 12439 → 13610 B (D-679).
 
+### Fixed — two synced reference docs name the base image by the registry key, not bookworm (2026-10-08)
+- `docs/reference/technology-stack-decision-guide.md` and `docs/reference/prebuilt-app-containers.md` named `bookworm` literally. The fleet pin is `debian_codename: trixie` in `.windsurf/rules/versions.yaml`, so both now name the variant through that key. They scope the Debian `-slim` and no-Alpine rule to images we build, as `core/30-ops.md` does, and credit `check_docker.py`. The job-queue example uses `redis:7-alpine`, matching the doc's own table and the live redis-main. Fleet mail 01M4DA453Y.
+
 ### Changed — a dead mutant is defined once, in the coverage terms (2026-10-08)
 - Queue verdicts reported a `FileNotFoundError` read as a kill, a vitest `-t` filter that selected no test read as green, an equal-size mutant running a stale `.pyc`, and a grep count standing in for proof the mutant was applied. `commands/_fragments/term-coverage.md` rule (4) now says a mutant is dead only when the named test fails on its own assertion or on an exception raised in the mutated code, quoted, after the same command on the unmutated copy selected tests and passed, with `__pycache__` purged, `PYTHONDONTWRITEBYTECODE=1` set, the mutated module's `__file__` printed with output capture off and the mutant shown applied by a diff against the pin. `/fabrik-review`'s finder lessons and Phase 2 point at that rule. Grader: `tests/test_review_loop_workflow.py::test_a_dead_mutant_is_defined_once_and_the_finder_lessons_point_at_it`.
 
@@ -29,6 +32,10 @@ All notable changes to this project will be documented in this file.
 ### Fixed — command_run counts Workflow-launched seats (2026-10-08)
 - `scripts/command_run.py::_seat_transcripts` reads `<sid>/subagents/` recursively. A Workflow-tool seat writes `subagents/workflows/wf_<id>/agent-<id>.jsonl`, which the top-level glob never saw. As a result, every review-loop close printed "seats declared N vs seen 0", recorded seats_seen 0 and dropped those seats' tokens from its FEEDBACK line, and the no-round nudge missed them too. 35% of one session's seat transcripts sat at that depth. Every file is a seat: no dedupe (0 duplicate seat names measured).
 - `docs/reference/command-run-protocol.md` and `.windsurf/rules/core/62-using-subagents.md` name the Workflow depth. Grader in `tests/test_command_feedback.py`. Kaizen mail 01M4D35GZ9; review `docs/development/reviews/2026-10-08-seats-seen-rglob-review.md`.
+
+### Fixed — `pin --from` no longer refuses a committed file over an unrelated working-tree symlink (2026-10-08)
+
+- `scripts/review_loop_ledger.py pin --from` judged the path by its WORKING-TREE shape, so a regular file at the ref was refused when the working tree held a symlink there; ref mode now refuses only what the commit makes unpinnable. The workflow's refusal text and the reference doc no longer say a deleted file is always refused (kaizen ba7fc026a). Receipt: `docs/development/reviews/2026-10-08-pin-refusal-wording-review.md`.
 
 ### Changed — a receipt row whose overflow cells carry text now fails the gate (2026-10-08)
 

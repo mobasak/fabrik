@@ -28,7 +28,7 @@ These constraints are **mandatory** for all Fabrik projects. The generic flowcha
 
 | Constraint | Rule | Enforced By |
 |------------|------|-------------|
-| **Base images** | `python:<current-stable>-slim-bookworm` or `node:<current-LTS>-bookworm-slim`. **Never Alpine.** | `core/30-ops.md` |
+| **Base images** | Images we build: `python:<current-stable>-slim-<debian_codename>` or `node:<current-LTS>-<debian_codename>-slim`, the codename read from `debian_codename` in `.windsurf/rules/versions.yaml`. **Never Alpine** in an image we build; upstream official images (`postgres`, `redis`) may ship Alpine tags. | `core/30-ops.md`, `check_docker.py` |
 | **amd64** | All Docker images must support `linux/amd64`. VPS is x86_64 (AMD EPYC-Genoa). | `core/30-ops.md`, `check_docker.py` |
 | **Deployment** | Docker Compose via **`fabrik apply`** (SSH + `docker compose up -d` on VPS). Not Vercel, Railway, K8s, or Coolify. | `core/30-ops.md`, `AGENTS.md` |
 | **Port ranges** | Python services: **8000–8099**. Frontend/Node.js: **3000–3099**. Register in `PORTS.md`. | `core/10-python.md`, `core/20-typescript.md` |
