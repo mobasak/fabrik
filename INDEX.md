@@ -1018,7 +1018,7 @@ docs/
 │   │   ├── infra-probe-2026-06-07T20-20Z.yaml
 │   │   └── infra-probe-2026-08-03T18-37Z.yaml
 │   ├── prometheus-app-metrics-setup.md
-│   ├── promtail-noise-filter-setup.md
+│   ├── alloy-noise-filter-setup.md
 │   ├── vps-ai-sysadmin.md
 │   ├── vps-bootstrap-plan.md
 │   ├── vps-complete-inventory.md

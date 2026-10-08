@@ -117,7 +117,7 @@
 | :--- | :--- |
 | Wireguard mesh | ✅ both spokes handshaking in the last ~2 min |
 | Cross-Atlantic mesh RTT | ✅ ~135–136 ms, 0 % loss (vps2 ~135.6 ms, vps3 ~136.6 ms; re-verified live 2026-06-15) |
-| Prometheus scrape targets | ✅ 17 `job_name`s configured / 16 active (`fabrik-services` null-target; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20; prior live probe 2026-07-12: 20/20 targets up). `node-spokes` / `cadvisor-spokes` / `promtail-spokes` ARE live (2 targets each, `prometheus.yml:46,58,70`) |
+| Prometheus scrape targets | ✅ 17 `job_name`s configured / 16 active (`fabrik-services` null-target; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20; prior live probe 2026-07-12: 20/20 targets up). `node-spokes` / `cadvisor-spokes` ARE live (2 targets each) and `alloy` is live (3 targets — hub + both spokes, `prometheus.yml:46,58,70`) |
 | Mesh-bound shared infra on vps1 (`5432, 6379, 8000, 9091, 3100`) | ✅ all 5 listening on `10.99.0.1` |
 | Spoke DNS resolving | ✅ `vps2.ocoron.com`, `*.vps2`, `vps3.ocoron.com`, `*.vps3` all return correct A records |
 | Cloudflare API token in `/opt/fabrik/.env` | ✅ verified active (refreshed today) |
@@ -617,7 +617,7 @@ postgres-main          healthy  (bound to 10.99.0.1:5432)
 postgres-exporter      healthy
 redis-exporter         running
 loki                   healthy  (bound to 10.99.0.1:3100)
-promtail               running
+alloy                  running  (serves /metrics + /-/ready on :12345, `fabrik` network only)
 prometheus             healthy
 alertmanager           healthy
 grafana                healthy
@@ -639,13 +639,15 @@ ocoron-com-redis-1     healthy    (WP tenant)
 ocoron-com-backup-1    running    (WP tenant — nightly mysqldump sidecar)
 ```
 
+`promtail` is not in this list: it stays **defined** under the `rollback` profile (`infra/vps1/monitoring/compose.yaml`) — stopped, its `promtail-positions` volume kept read-only for Alloy's D4 handover — until Gate S removes it (spec § The delta › D6).
+
 ### vps2 (5 running)
 
 ```text
 traefik                running  (public 80+443; authelia-vps1@file middleware ready)
 node-exporter          running  (10.99.0.2:9100)
 cadvisor               healthy  (10.99.0.2:8080)
-promtail               running  (10.99.0.2:9080 → pushes to 10.99.0.1:3100)
+alloy                  running  (10.99.0.2:12345 → pushes to 10.99.0.1:3100)
 backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backups/spokes/vps2/; 2 plans: host-state + opt-configs)
 ```
 
@@ -655,9 +657,11 @@ backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backu
 traefik                running
 node-exporter          running  (10.99.0.3:9100)
 cadvisor               healthy  (10.99.0.3:8080)
-promtail               running  (10.99.0.3:9080)
+alloy                  running  (10.99.0.3:12345)
 backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backups/spokes/vps3/; 2 plans: host-state + opt-configs)
 ```
+
+Each spoke's `promtail` is the same rollback-profile story as vps1's: defined, stopped, kept until Gate S.
 
 ---
 
@@ -685,8 +689,8 @@ backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backu
 | :--- | :--- |
 | SSH | ✅ matches vps1 (no root, no password, `ozgur` key only) — Lesson 65 takeaway |
 | UFW | ✅ installed (`dpkg ii`) + active; 8 ALLOW rules (22/80/443/51820 IPv4+IPv6); default policy `deny (incoming) / allow (outgoing) / deny (routed)` — shipped by W1 2026-05-31 evening; pre-W1 was `rc` state (Lesson 68) |
-| Mesh-only ports | ✅ `10.99.0.<N>:9100,8080,9080` listening on wg0 only; mesh-only port DROP verified via tcpdump (SYN arrives, no SYN-ACK) |
-| Promtail gRPC | 🟡 binds `*:<random>` (`promtail.yaml: grpc_listen_port: 0`) — observed `*:38969` (vps2) / `*:44987` (vps3) at 2026-06-01T00-14Z probe. **UFW shields it** (default deny on 1–65535 except 22/80/443/51820), so not internet-reachable. Pin to a known port or `127.0.0.1` if a future audit needs determinism. |
+| Mesh-only ports | ✅ `10.99.0.<N>:9100,8080,12345` listening on wg0 only; mesh-only port DROP verified via tcpdump (SYN arrives, no SYN-ACK) |
+| Alloy HTTP server | ✅ binds `{{SPOKE_MESH_IP}}:12345` deliberately, not `0.0.0.0` and not a random port (`--server.http.listen-addr`, `monitoring-agent.compose.yaml.template`, spec D3) — serves `/metrics` + `/-/ready`; reachable from vps1 over the mesh, UFW shields it from the public internet. Promtail's old random-port gRPC listener (`grpc_listen_port: 0`) has no Alloy equivalent — the rollback-profile `promtail` service is stopped, so nothing binds that surface today. |
 | DOCKER-USER chain | ✅ applied by bootstrap step_10; unchanged by W1 (probe: 2 rules each host) |
 | Traefik | ✅ public 80 + 443, `authelia-vps1@file` middleware in `dynamic/authelia.yml` |
 | Tenants | None yet (DNS ready) |
@@ -695,11 +699,11 @@ backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backu
 
 ## Observability snapshot
 
-### Prometheus — 17 `job_name`s configured / 16 active (`fabrik-services` null-target; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20; prior live probe 2026-07-12: 20/20 targets up) ( Spoke federation `node-spokes` / `cadvisor-spokes` / `promtail-spokes` IS live — 2 targets each)
+### Prometheus — 17 `job_name`s configured / 16 active (`fabrik-services` null-target; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20; prior live probe 2026-07-12: 20/20 targets up) ( Spoke federation `node-spokes` / `cadvisor-spokes` IS live — 2 targets each; the `alloy` job — hub + both spokes — is live too, 3 targets, since the D3 watcher change renamed `promtail-spokes` → `alloy`)
 
-vps1-local (11 jobs / 11 targets — re-verified against `/api/v1/targets` 2026-07-12): `alertmanager`, `authelia`, `cadvisor`, `gatus`, `grafana`, `loki`, `meilisearch`, `node`, `postgres`, `prometheus`, `redis`. (`pushgateway` runs as a container but is NOT a scrape job; `fabrik-services` is configured with null targets — a placeholder.) Plus `aro-wake` (3 targets) and the spoke federation `node-spokes` / `cadvisor-spokes` / `promtail-spokes` (2 targets each). So 16 job_names configured → 15 active at that probe. **Current repo config (2026-07-20): 17 `job_name`s / 16 active — `pushgateway` scrape RESTORED `b8071f40` 2026-07-19** (it is no longer an unscraped container).
+vps1-local (11 jobs / 11 targets — re-verified against `/api/v1/targets` 2026-07-12): `alertmanager`, `authelia`, `cadvisor`, `gatus`, `grafana`, `loki`, `meilisearch`, `node`, `postgres`, `prometheus`, `redis`. (`pushgateway` runs as a container but is NOT a scrape job; `fabrik-services` is configured with null targets — a placeholder.) Plus `aro-wake` (3 targets) and the spoke federation `node-spokes` / `cadvisor-spokes` (2 targets each; this count predates the Alloy switch, which added the `alloy` job on top). So 16 job_names configured → 15 active at that probe. **Current repo config (2026-07-20): 17 `job_name`s / 16 active — `pushgateway` scrape RESTORED `b8071f40` 2026-07-19** (it is no longer an unscraped container).
 
-Spoke scrape jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes`) — **live in `prometheus.yml`** (`:46,:58,:70`; re-verified 2026-07-12 via `/api/v1/targets`: 2 targets each, all up). They scrape the spoke-side `node-exporter`/`cadvisor`/`promtail` agents at `/opt/monitoring-agent/` over the mesh (the `ufw allow from 10.99.0.0/24` rule from W8 is in place via `bootstrap-vps.sh` step_02). The `aro-wake` job (3 targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) adds SLI/health metrics on top. Loki side: promtail push-based ingest works — Loki has `host=vps1|vps2|vps3` log streams (verified 2026-06-07T20:20Z).
+Spoke scrape jobs (`node-spokes`, `cadvisor-spokes`) — **live in `prometheus.yml`** (`:46,:58`; re-verified 2026-07-12 via `/api/v1/targets`: 2 targets each, all up). They scrape the spoke-side `node-exporter`/`cadvisor` agents at `/opt/monitoring-agent/` over the mesh (the `ufw allow from 10.99.0.0/24` rule from W8 is in place via `bootstrap-vps.sh` step_02). The `alloy` job (`:70`, 3 targets: `alloy:12345` on the hub plus `10.99.0.2:12345`/`10.99.0.3:12345`) scrapes the log shipper's own `/metrics` on all three hosts — the renamed successor to the old `promtail-spokes` job (spec D3). The `aro-wake` job (3 targets: vps1:10.0.1.1:8201, vps2:10.99.0.2:8201, vps3:10.99.0.3:8201) adds SLI/health metrics on top. Loki side: Alloy's push-based ingest works — Loki has `host=vps1|vps2|vps3` log streams (verified 2026-06-07T20:20Z, when Promtail still shipped them; the shipper changed, the stream labels did not).
 
 Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Loki), `glitchtip-web` (django-prometheus not bundled). Every active series carries a `host` label (`vps1`, `vps2`, or `vps3`). Reload: `ssh vps "sudo docker kill -s HUP prometheus"`.
 
@@ -714,7 +718,7 @@ Not scraped: `traefik` (no metrics scrape job — health observed via Gatus + Lo
 ### Loki — multi-host ingest
 
 - Bound to `10.99.0.1:3100` on vps1 (mesh ingest).
-- Both spokes' promtail successfully pushing — `host` label values `["vps1","vps2","vps3"]` visible in Grafana's Loki explore.
+- Both spokes' Alloy successfully pushing (`loki.write` to `/loki/api/v1/push`) — `host` label values `["vps1","vps2","vps3"]` visible in Grafana's Loki explore.
 
 ### Grafana
 

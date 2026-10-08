@@ -292,4 +292,4 @@ grep -c "glitchtip_init" /opt/fabrik/src/fabrik/scaffold.py
 - Sentry SDK Node: <https://docs.sentry.io/platforms/javascript/guides/node/>
 - Sister runbooks (same canonical style):
   - `docs/infrastructure/grafana-provisioning-setup.md`
-  - `docs/infrastructure/promtail-noise-filter-setup.md`
+  - `docs/infrastructure/alloy-noise-filter-setup.md`

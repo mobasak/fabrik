@@ -185,7 +185,7 @@ Deployed once when bootstrapping the VPS; not touched by normal `fabrik apply` o
 | `specs/infrastructure/meilisearch.yaml` | MeiliSearch | ✅ deployed |
 | `specs/infrastructure/n8n.yaml` | n8n (workflow automation) | ✅ deployed |
 
-The hub monitoring stack is **not a spec** and never passes through `fabrik apply`: it is a hand-maintained Compose stack at `/opt/monitoring/compose.yaml` on vps1 (prometheus, grafana, alertmanager, loki, promtail, node-exporter, cadvisor, pushgateway, postgres-exporter, redis-exporter), mirrored in the repo at `infra/vps1/monitoring/compose.yaml` (nothing deploys from `infra/` — `infra/README.md`). Config: `/opt/monitoring/configs/prometheus/prometheus.yml`. Reload: hot-reload via `POST /-/reload` from inside the prometheus container, fallback to `docker restart <the prometheus container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8) (`drivers/prometheus.py::_reload_prometheus`).
+The hub monitoring stack is **not a spec** and never passes through `fabrik apply`: it is a hand-maintained Compose stack at `/opt/monitoring/compose.yaml` on vps1 (prometheus, grafana, alertmanager, loki, alloy, node-exporter, cadvisor, pushgateway, postgres-exporter, redis-exporter — `promtail` stays defined under the `rollback` profile, stopped, until Gate S), mirrored in the repo at `infra/vps1/monitoring/compose.yaml` (nothing deploys from `infra/` — `infra/README.md`). Config: `/opt/monitoring/configs/prometheus/prometheus.yml`. Reload: hot-reload via `POST /-/reload` from inside the prometheus container, fallback to `docker restart <the prometheus container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8) (`drivers/prometheus.py::_reload_prometheus`).
 
 ### 3.2 Service specs — `specs/services/`
 
@@ -279,7 +279,8 @@ Local copies of VPS-side config files. **Source of truth is on the VPS** (Docker
 | `configs/prometheus/prometheus.yml` | `/opt/monitoring/configs/prometheus/prometheus.yml` | Same pattern as Alertmanager. |
 | `configs/prometheus/rules/alerts.yml` | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Contains alert rules. Edit → hot-reload via `POST /-/reload` (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02). On failure the driver (`drivers/prometheus.py::_reload_prometheus`) falls back to `docker restart <the ^prometheus(-|$) container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8); `scripts/sync_prometheus_to_vps.sh` has no fallback — it prints a WARN and exits 1. |
 | `configs/loki/loki-config.yaml` | Loki volume | Rarely edited. |
-| `configs/promtail/promtail-config.yaml` | Promtail volume | Rarely edited. |
+| `configs/alloy/config.alloy` | Alloy volume (the running log shipper) | Rarely edited — `alloy convert` output, no hand edits (spec D1). |
+| `configs/promtail/promtail-config.yaml` | Promtail volume (`rollback`-profile service, stopped until Gate S) | Rarely edited; kept only for D6 rollback. |
 | `configs/n8n/workflows/*.json` | n8n UI imports | Seed workflows after n8n redeploy. |
 
 **Important:** Every file here should appear in `.gitignore` **if it ever contains secrets**. The `alertmanager.yml` is `.gitignore`d because it embeds the Telegram bot token.
@@ -383,13 +384,14 @@ Files that live **on the VPS only**, outside the Fabrik repo. Grouped by service
 
 | Path | Purpose | Edit mechanism |
 |---|---|---|
-| `/opt/monitoring/compose.yaml` | The whole monitoring stack (Prometheus, Grafana, Alertmanager, Loki, Promtail, node-exporter, cAdvisor, Pushgateway, postgres-exporter, redis-exporter); mirrored at `infra/vps1/monitoring/compose.yaml`. `/opt/prometheus/` was removed — Prometheus runs in this stack. | `cd /opt/monitoring && sudo docker compose up -d`. |
+| `/opt/monitoring/compose.yaml` | The whole monitoring stack (Prometheus, Grafana, Alertmanager, Loki, Alloy, node-exporter, cAdvisor, Pushgateway, postgres-exporter, redis-exporter; Promtail stays defined under the `rollback` profile — stopped — until Gate S); mirrored at `infra/vps1/monitoring/compose.yaml`. `/opt/prometheus/` was removed — Prometheus runs in this stack. | `cd /opt/monitoring && sudo docker compose up -d`. |
 | `/opt/monitoring/configs/prometheus/prometheus.yml` | Scrape targets + alerting config. Retention: `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB`. | Edit → hot-reload via `POST /-/reload` (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02). On failure the driver (`drivers/prometheus.py::_reload_prometheus`) falls back to `docker restart <the ^prometheus(-|$) container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8); `scripts/sync_prometheus_to_vps.sh` has no fallback — it prints a WARN and exits 1. |
 | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Alert rules (ContainerDown, HighCPU, HighMemory, OOMKilled, etc.) | Same pattern. |
 | `/opt/monitoring/configs/alertmanager/alertmanager.yml` | Routes, receivers (Telegram), inhibit rules. **Secret-bearing** (Telegram bot token). | Edit → `sudo docker restart alertmanager`. |
 | `/opt/monitoring/configs/gatus/` | Gatus blackbox monitoring. Per-service files in `apps/` subdir (one YAML per project). **Git-versioned** (whitelisted in `drivers/locks.py::git_commit_config()`). `_base.yaml` for global alerting → Apprise. | Edit → Gatus auto-reloads on file change. |
 | `/opt/monitoring/configs/loki/loki-config.yaml` | Loki storage config. | Edit → `sudo docker restart loki`. |
-| `/opt/monitoring/configs/promtail/promtail-config.yaml` | Log shipper → Loki. Has `drop` stage filter for infrastructure container noise. | Edit → `sudo docker restart promtail`. |
+| `/opt/monitoring/configs/alloy/config.alloy` | Log shipper → Loki. Has a `stage.drop` to filter infrastructure container noise (`docs/infrastructure/alloy-noise-filter-setup.md`). | Edit → `sudo docker restart alloy`. |
+| `/opt/monitoring/configs/promtail/promtail-config.yaml` | `rollback`-profile log shipper — stopped, kept only for the D6 rollback path until Gate S. | Not edited while stopped. |
 
 ### 7.4 Network, firewall, persistence
 
@@ -727,8 +729,8 @@ Errors during rollback are logged and accumulated — rollback never aborts, alw
 | **Traefik** | Implicit | Docker labels in compose → Traefik picks up automatically. No registrar needed. | auto |
 | **GlitchTip** | Yes — creates Sentry project + DSN; injects + verifies via `docker inspect` | `drivers/glitchtip.py::create_project()` | `shape.kind in {service, worker, wordpress}` |
 | **Grafana** | Yes — writes deployment annotation | `drivers/grafana.py::post_deployment_annotation()` | Always (non-fatal) |
-| **Loki** | Auto | Promtail scrapes `/var/lib/docker/containers/*` — picks up every container automatically. | auto |
-| **Promtail** | Auto | Container auto-discovery via Docker socket. Has `drop` stage filter for infrastructure noise. | auto |
+| **Loki** | Auto | Alloy's `loki.source.file` tails `/var/lib/docker/containers/*/*log` — picks up every container automatically. | auto |
+| **Alloy** | Auto | File-tailing auto-discovery against the same glob (not Docker-socket discovery — `core/55-observability.md`). Has a `stage.drop` for infrastructure noise (`docs/infrastructure/alloy-noise-filter-setup.md`). Promtail stays defined under the `rollback` profile until Gate S. | auto |
 | **Prometheus** | Yes — appends scrape target for `/metrics` endpoint | `drivers/prometheus.py::add_scrape_target()` | `shape.exposes_metrics` |
 | **Alertmanager** | No — receivers/routes are static | Manual per-service alert routes if needed. | — |
 | **cAdvisor** | Auto | Discovers all containers via Docker socket. | auto |
@@ -852,7 +854,7 @@ Every invariant below has been validated against live VPS behavior. Cross-refere
 
 | Runbook | Purpose | Where it runs |
 |---|---|---|
-| [`infrastructure/promtail-noise-filter-setup.md`](infrastructure/promtail-noise-filter-setup.md) | Promtail `drop` stage to filter infrastructure log noise | VPS |
+| [`infrastructure/alloy-noise-filter-setup.md`](infrastructure/alloy-noise-filter-setup.md) | Alloy `stage.drop` to filter infrastructure log noise | VPS |
 | [`infrastructure/grafana-provisioning-setup.md`](infrastructure/grafana-provisioning-setup.md) | File-based Grafana datasource provisioning (Prometheus + Loki) via host bind mount | VPS |
 | [`infrastructure/grafana-dashboards-setup.md`](infrastructure/grafana-dashboards-setup.md) | API-based dashboard import (Node Exporter Full, Docker monitoring, Prometheus Stats) | VPS |
 
