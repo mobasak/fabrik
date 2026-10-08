@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the coordinator counts a worker's queue from the main checkout, and the worker is told to merge (2026-10-08)
+- `scripts/work.py` counted a worker's queued items from the worker's own tree, which sees the coordinator's assignments only after it merges main: right after `triage --apply` the worker read 0, the coordinator's Stop kept saying `triage`, and a second apply re-assigned the floor (6 against 3). A worker's count now reads main's item set (main's file wins per id) plus the items only its tree holds, filtered by the shared markers and claims, at the Stop cause, `queue` and `triage`. A worker whose tree lacks items main assigns it gets a new `merge` Stop action naming the base branch, then `claim` once merged. Doc: `docs/reference/work-tracking.md`. site-provisioner 01M4DNHWES.
+
 ### Changed — every seat with a shell gets the one refusal rule; the scope-growth silence hedge is exact (2026-10-08)
 - `commands/_fragments/subagents-core.md` now carries the refusal rule SEAT_ISOLATION and the fabrik-reviewer House rules already state (verbatim from `REFUSAL_SHAPE`/`REFUSAL_CLASSIFIER`), scoped to a seat with a shell, so an Agent-tool seat of another type no longer re-paths after a refusal (intel 01M4DSCHTM, W-68f8f358). `commands/_fragments/scope-growth-exit.md` said nothing prints when the loop is "simply converging"; it now says "MERELY converging with no own-fix residue (a falling count that is mostly own-fix DOES print the stop)", the form `core/50-code-review.md` uses. Grader: `tests/test_review_loop_workflow.py::test_every_seat_facing_text_carries_the_one_refusal_rule_and_the_precise_silence_hedge`.
 

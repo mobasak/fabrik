@@ -153,7 +153,7 @@ else; in the hub that agent is infra (D-471 superseded D-395's intel). Since D-5
 ruling D-512: "no agent waits idle if there is work to be done") the distributor keeps every PRESENT
 worker — a registered `.claude/worktrees/<name>` with a live `claude` process — at the floor (3,
 `queue_floor` in `config.json`) of QUEUED work: an owned `task`, or owned backlog promoted with the
-`queued` tag (backlog is a list, not an order). `work.py queue` shows each window against the floor,
+`queued` tag (backlog is a list, not an order). A worker's queued count is read from the MAIN checkout's store (the store of record for assignment, D-516) plus the items only its own tree holds — main's file wins for an id both hold — so an assignment counts the moment the distributor writes it, before the worker merges. `work.py queue` shows each window against the floor,
 the routable and waiting-backlog counts and the plans not yet executed; `work.py triage` plans the
 top-up (it prints each item's tags — the coordinator judges role fit) and `--apply` assigns it, never
 promoting, dropping or creating anything; items tagged `runtime`, `hold` or `waits-*` are never
@@ -163,9 +163,9 @@ release it. `waits-<slug>` (an event: `waits-tojlo`) parks until the tag is remo
 `waits-YYYY-MM-DD` parks until that UTC date and is live again on it, and a dated tag that is not a
 real date is refused when written. `runtime` is never parked: assigned by hand it is due work.
 Parking an existing item is the distributor's call (`work.py assign <id> --tag …`); `add --tag`
-sets the tags of a new item. `queue` counts each agent's OWNED parked items, and the Stop result
+sets the tags of a new item. `queue` counts each agent's OWNED parked items (a worker's from its own tree), and the Stop result
 counts the parked items the agent owns or this session has claimed. The Stop hook enforces both sides through `work.py queue --stop`: a window
-with queued work and no claim is told to claim it, a worker whose queue is empty rings the
+with queued work and no claim is told to claim it, a worker whose tree lacks items main already assigns it is told to merge the base branch and then claim, a worker whose queue is empty rings the
 coordinator, the distributor is told to triage while a present worker sits below the floor and
 work waits (routable or backlog items, or its own queue above the floor), and a
 one-window repo (or one with no distributor) is its own coordinator. A repo whose `config.json` carries

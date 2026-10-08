@@ -375,3 +375,84 @@ def test_triage_reports_only_what_it_wrote_when_an_item_was_taken_meanwhile(
     assert f"skipped {item}" in out
     assert "SendMessage" not in out, "no worker is told of an assignment that did not happen"
     assert _items(repo)[item]["owner"] == "someone-else"
+
+
+def _commit_store(repo: Path, env: dict, msg: str = "store") -> None:
+    _git(repo, env, "add", ".fabrik")
+    _git(repo, env, "commit", "-q", "-m", msg)
+
+
+def _owned(repo: Path, owner: str) -> list[str]:
+    return sorted(i["id"] for i in _items(repo).values() if i.get("owner") == owner)
+
+
+def test_a_worker_queue_counts_main_assignments_before_the_worker_merges(tmp_path):
+    """site-provisioner 01M4DNHWES: the coordinator assigns on main; a worker's tree sees those items only
+    after it merges main. Counted from the tree, the worker read 0 — the coordinator's Stop kept saying
+    `triage` and a second `triage --apply` handed out the floor again (6 against 3)."""
+    env, repo, trees = _setup(tmp_path, workers=("w1",), present=("w1",))
+    for n in range(6):
+        _add(repo, env, "task", f"t{n}")
+    assert run(["triage", "--apply"], env, repo).returncode == 0
+    assert len(_owned(repo, "w1")) == 3
+    q = {a["agent"]: a["queued"] for a in _queue(repo, env)["agents"]}
+    assert q["w1"] == 3, q
+    out = _stop(repo, env, session="sid-coord")
+    assert out["action"] != "triage", out
+    assert run(["triage", "--apply"], env, repo).returncode == 0
+    assert len(_owned(repo, "w1")) == 3, (
+        "a worker already at the floor on main is never topped up again"
+    )
+
+
+def test_a_worker_queue_takes_mains_copy_per_id_and_the_trees_own_items(tmp_path):
+    """Main's file wins for an id it holds (D-516: the store of record for assignment), so an item
+    reassigned away from w1 on main counts for w2 only — never for both; an item only w1's tree holds
+    (its own, unmerged) counts once for w1."""
+    env, repo, trees = _setup(tmp_path, workers=("w1", "w2"), present=("w1", "w2"))
+    moved = _add(repo, env, "task", "moved")
+    _assign(repo, env, moved, "w1")
+    _commit_store(repo, env)
+    _git(trees["w1"], env, "merge", "-q", "master")
+    _assign(repo, env, moved, "w2")
+    own = _add(trees["w1"], env, "task", "mine, unmerged")
+    _assign(trees["w1"], env, own, "w1")
+    q = {a["agent"]: a["queued"] for a in _queue(repo, env)["agents"]}
+    assert q["w1"] == 1 and q["w2"] == 1, q
+
+
+def test_a_worker_with_unmerged_assignments_is_told_to_merge(tmp_path):
+    """The coordinator now stops nagging once a worker is at the floor on main, so the worker must hear
+    it: a tree holding none of the items main assigns it gets `merge` naming the base branch and the
+    first id, and once merged it gets `claim`."""
+    env, repo, trees = _setup(tmp_path, workers=("w1",), present=("w1",))
+    for n in range(3):
+        _add(repo, env, "task", f"t{n}")
+    assert run(["triage", "--apply"], env, repo).returncode == 0
+    _commit_store(repo, env, "triage")
+    first = _owned(repo, "w1")
+    w1 = {**env, "CLAUDE_AGENT": "w1"}
+    out = _stop(trees["w1"], w1)
+    assert out["action"] == "merge", out
+    assert "master" in out["text"] and any(i in out["text"] for i in first), out["text"]
+    _git(trees["w1"], env, "merge", "-q", "master")
+    assert _stop(trees["w1"], w1, session="sid-w1-after")["action"] == "claim"
+
+
+def test_under_autonomy_the_merge_rung_fingerprint_names_its_first_waiting_item(tmp_path):
+    """Review A-S1: under `"autonomy": true` every rung but claim and triage collapsed to a constant
+    `rung:<action>`, so a warned-through `merge` stayed silent while new assignments arrived. Like
+    claim, merge keys on its first waiting item."""
+    env, repo, trees = _setup(tmp_path, workers=("w1",), present=("w1",))
+    cfg = repo / ".fabrik" / "work" / "config.json"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    data["autonomy"] = True
+    cfg.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    for n in range(3):
+        _add(repo, env, "task", f"t{n}")
+    assert run(["triage", "--apply"], env, repo).returncode == 0
+    _commit_store(repo, env, "triage")
+    out = _stop(trees["w1"], {**env, "CLAUDE_AGENT": "w1"})
+    assert out["action"] == "merge", out
+    fp = out["fp"]
+    assert fp.startswith("rung:merge:W-") and fp[len("rung:merge:") :] in _owned(repo, "w1"), out
