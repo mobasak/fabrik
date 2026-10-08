@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T02:52:49.462112Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3860ebf6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "open /fabrik-task for the docusaurus nginx template + the codename literals after the Alloy plan's T07",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Docusaurus scaffold follow-up to D-664: templates/docusaurus/nginx.conf.j2 still emits the SPA try_files fallback (no no-cache, gzip_types without text/xml) — copy the full nginx block from .windsurf/rules/core/42-docusaurus.md § Docker Deployment; fix templates/docusaurus/src/pages/index.js.j2's citation and tests/test_docusaurus_static_runtime.py:274; replace the -slim-bookworm literal in templates/scaffold/docker/Dockerfile.python, templates/file-worker/Dockerfile.j2, DEPLOYMENT_TEMPLATE.md:87, CONFIGURATION_TEMPLATE.md:214, templates/spec-pipeline/{02-spec-prompt.md:56,README.md:92} and src/fabrik/scaffold.py:5831/5836/6144/6149 with the debian_codename registry key"
+}

@@ -1,6 +1,6 @@
 # Wave 3 review — T05a-T05e and T06 of the Promtail -> Alloy plan
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 67d77f10d981b6f616ff38d0ed017c353ebfd1ff; range tip 67d77f10d981b6f616ff38d0ed017c353ebfd1ff; `git diff 58d77be2e..67d77f10d -- docs/DEPLOYMENT_ARCHITECTURE.md docs/SERVICES.md docs/infrastructure/alloy-noise-filter-setup.md docs/infrastructure/audit-prompts/01-full-system-audit.md docs/infrastructure/audit-prompts/02-container-health.md docs/infrastructure/audit-prompts/03-security-hardening.md docs/infrastructure/audit-prompts/04-performance-bottleneck.md docs/infrastructure/audit-prompts/05-observability-pipeline.md docs/infrastructure/audit-prompts/07-pre-production-checklist.md docs/infrastructure/audit-prompts/08-hardening-remediation.md docs/infrastructure/audit-prompts/README.md docs/infrastructure/glitchtip-sdk-integration-setup.md docs/infrastructure/grafana-dashboards-setup.md docs/infrastructure/grafana-provisioning-setup.md docs/infrastructure/prometheus-app-metrics-setup.md docs/infrastructure/promtail-noise-filter-setup.md docs/infrastructure/vps-ai-sysadmin.md docs/infrastructure/vps-bootstrap-plan.md docs/infrastructure/vps-complete-inventory.md docs/infrastructure/vps-fleet-architecture.md docs/infrastructure/vps-hub-rebuild.md docs/infrastructure/vps-spoke-rebuild.md docs/infrastructure/vps-status.md docs/infrastructure/vps-urls.md docs/operations/disaster-recovery.md docs/operations/hub-restore-inventory.md docs/operations/promtail-to-alloy-runbook.md docs/reference/architecture.md docs/reference/health-monitoring.md docs/workflows/development-and-deployment-workflow.md infra/README.md scripts/bootstrap/README.md templates/scaffold/docs/RESILIENCE_TEMPLATE.md tests/test_alloy_runbook.py` md5 fa37742d39805447c455775310f55ad7 (163406 bytes)
 **Command:** /fabrik-review · **Changed:** `docs/DEPLOYMENT_ARCHITECTURE.md`, `docs/SERVICES.md`, `docs/infrastructure/alloy-noise-filter-setup.md`, `docs/infrastructure/audit-prompts/01-full-system-audit.md`, `docs/infrastructure/audit-prompts/02-container-health.md`, `docs/infrastructure/audit-prompts/03-security-hardening.md`, `docs/infrastructure/audit-prompts/04-performance-bottleneck.md`, `docs/infrastructure/audit-prompts/05-observability-pipeline.md`, `docs/infrastructure/audit-prompts/07-pre-production-checklist.md`, `docs/infrastructure/audit-prompts/08-hardening-remediation.md`, `docs/infrastructure/audit-prompts/README.md`, `docs/infrastructure/glitchtip-sdk-integration-setup.md`, `docs/infrastructure/grafana-dashboards-setup.md`, `docs/infrastructure/grafana-provisioning-setup.md`, `docs/infrastructure/prometheus-app-metrics-setup.md`, `docs/infrastructure/promtail-noise-filter-setup.md`, `docs/infrastructure/vps-ai-sysadmin.md`, `docs/infrastructure/vps-bootstrap-plan.md`, `docs/infrastructure/vps-complete-inventory.md`, `docs/infrastructure/vps-fleet-architecture.md`, `docs/infrastructure/vps-hub-rebuild.md`, `docs/infrastructure/vps-spoke-rebuild.md`, `docs/infrastructure/vps-status.md`, `docs/infrastructure/vps-urls.md`, `docs/operations/disaster-recovery.md`, `docs/operations/hub-restore-inventory.md`, `docs/operations/promtail-to-alloy-runbook.md`, `docs/reference/architecture.md`, `docs/reference/health-monitoring.md`, `docs/workflows/development-and-deployment-workflow.md`, `infra/README.md`, `scripts/bootstrap/README.md`, `templates/scaffold/docs/RESILIENCE_TEMPLATE.md`, `tests/test_alloy_runbook.py`
 **Plan:** `docs/development/plans/2026-10-08-plan-1-promtail-to-alloy/2026-10-08-plan-1-promtail-to-alloy.md`
@@ -321,9 +321,22 @@ The doc sweep names Alloy as the running shipper with every remaining Promtail m
 
 ## Gate
 
+Run: `/opt/fabrik/.venv/bin/python scripts/final_gate.py --check --json` at 2442a9f6b, under the hub venv (a system-python run fails only mypy, on missing `types-requests` stubs in three untouched `src/` files — an interpreter difference, not this diff).
+
 `final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
 `"status": "success"`):
 
 ```json
-UNCHECKED — paste the gate output here at the CONVERGED flip
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 64,
+  "failed": 0,
+  "skipped": 3,
+  "skipped_checks": [
+    "bandit",
+    "semgrep",
+    "pytest"
+  ]
+}
 ```
