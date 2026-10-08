@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:28:32.310881Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-37003fa1",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "final_gate_stop.py:4172-4181 yields on the stamp's existence and dispatch_headroom.py:278 reads bool(hold); at urgent-90 quota_stop denies nothing. Decide before building (Opus+Fable critiques 2026-10-08 differ): (a) block at urgent-90 with the reason ordering commit+push+close, never a review start (Opus: CAP=3 bounds it, the next tick walls; rewrite the 09-06 comment at :4142-4152); or (b) at urgent-90 yield only the heavy causes (gate, review) and keep commit/push/run-record armed (Fable). Then copy _stamp_tier as the 4th reader (parity counts 3->4 in tests/test_quota_posture.py :1412/:1466/:1474, the 'three copies' notes at quota_stop.py:513 and quota_posture_hook.py:215), grade an unreadable stamp still yields, and distribute (fleet-synced hook). Drafted graders: scratchpad t_item1.py.",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "The Stop hook's quota yield and dispatch_headroom's hold are tier-blind — urgent-90 holds nothing (W-06733560 item 1, split out)"
+}
