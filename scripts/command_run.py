@@ -2741,6 +2741,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="/fabrik-task only: record that file's TEXT as the run's design — once, whole (no cap — D-314)",
     )
     p.add_argument(
+        "--terminal-amend",
+        default=None,
+        metavar="TEXT",
+        help="/fabrik-task only: restate the run's terminal BEFORE or WITH its --design (the "
+        "critiques narrowed the work) — the old one is kept in terminal_amends, counted on the close row",
+    )
+    p.add_argument(
         "--design-amend",
         action="append",
         metavar="PATH",
@@ -4603,20 +4610,9 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # legitimately steps through phases with zero rounds — firing there is noise that trains
         # scroll-past (youtube 01M153H14, hit on a 5-phase linear plan run). The terminal string
         # the run DECLARED at start is the honest signal for whether a loop was ever promised.
-        _terminal = str(rec.get("terminal") or "").lower()
-        # `confirmed:` is the D-206 exit vocabulary — a nudge keyed only to the retired words
-        # would go silent on exactly the review loops it was built for
-        _loop_shaped = any(
-            k in _terminal for k in ("round", "no-op", "noop", "found:", "new:", "confirmed:")
-        )
-        if target >= 3 and _loop_shaped and not (rec.get("rounds") or []):
-            sys.stderr.write(
-                f"[command_run] NOTICE — /{rec.get('command') or '?'} is at phase {target} with "
-                "ZERO rounds recorded. If this command has a convergence loop, every round "
-                "advisory (oscillation, terminal verdict) has been silent because it never ran, "
-                "not because the loop is healthy. Record them: `round --findings <n> "
-                "--confirmed <n> --classes-swept <…> --classes-new <…>`.\n"
-            )
+        # The check runs just before the `phase` event below, after every refusal: it then judges
+        # the terminal this step LEAVES (a same-step `--terminal-amend` included) and never a step
+        # that is about to be refused (review A-S1, A-S4).
         rec["phase"] = target
         rec["phase_title"] = args.title
         # STRICTLY before the `phase` event is queued below — never merely "before `save`":
@@ -4645,6 +4641,36 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 return _refuse("REFUSED — fabrik-task: --design-amend needs a path")
             _prev = rec.get("design_amends")
             rec["design_amends"] = (_prev if isinstance(_prev, list) else []) + _amends
+        _ta = getattr(args, "terminal_amend", None)
+        if _ta is not None:
+            # kaizen 01M4DB7C7V (five /fabrik-task verdicts): the critiques narrow the work after
+            # `start --terminal` fixed it. Restated only BEFORE or WITH the design: `--design`
+            # lands once, after the critiques, while the phase number can be re-entered after the
+            # build — a phase gate would let a run move its goal to fit the result.
+            if str(rec.get("command") or "").lstrip("/") != _TASK_COMMAND:
+                return _refuse("REFUSED — --terminal-amend belongs to --command fabrik-task")
+            if "design" in rec:
+                return _refuse(
+                    "REFUSED — fabrik-task: the terminal is restated only before or with the design "
+                    '(`step --phase 2 --design <path> --terminal-amend "<t>"`); this run\'s design '
+                    "is already recorded"
+                )
+            _new_t = str(_ta).strip()
+            if not _new_t or "\n" in str(_ta) or "\r" in str(_ta):
+                return _refuse("REFUSED — fabrik-task: --terminal-amend needs one non-blank line")
+            _old_t = str(rec.get("terminal") or "")
+            if _new_t == _old_t.strip():
+                # a same-text amend would count a restatement that restated nothing
+                sys.stderr.write(
+                    "[command_run] NOTE — fabrik-task: --terminal-amend equals the current "
+                    "terminal; nothing recorded\n"
+                )
+            else:
+                _prev_t = rec.get("terminal_amends")
+                rec["terminal_amends"] = (_prev_t if isinstance(_prev_t, list) else []) + [
+                    {"from": _old_t, "to": _new_t, "at": _now()}
+                ]
+                rec["terminal"] = _new_t
         if _design:
             # PRESENCE, not truth. An EMPTY design file sets `design = ''`, which is falsy, so a
             # truthiness guard let the next `--design` overwrite it with no NOTE — defeating the
@@ -4691,6 +4717,20 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             _marks.append({"phase": target, "appetite": _ap, "started": time.time()})
         if _marks:
             rec["phase_marks"] = _marks
+        _terminal = str(rec.get("terminal") or "").lower()
+        # `confirmed:` is the D-206 exit vocabulary — a nudge keyed only to the retired words
+        # would go silent on exactly the review loops it was built for
+        _loop_shaped = any(
+            k in _terminal for k in ("round", "no-op", "noop", "found:", "new:", "confirmed:")
+        )
+        if target >= 3 and _loop_shaped and not (rec.get("rounds") or []):
+            sys.stderr.write(
+                f"[command_run] NOTICE — /{rec.get('command') or '?'} is at phase {target} with "
+                "ZERO rounds recorded. If this command has a convergence loop, every round "
+                "advisory (oscillation, terminal verdict) has been silent because it never ran, "
+                "not because the loop is healthy. Record them: `round --findings <n> "
+                "--confirmed <n> --classes-swept <…> --classes-new <…>`.\n"
+            )
         fields = _queue(rec, outbox, "phase", {"n": rec["phase"], "title": rec["phase_title"]})
         _touch(rec)
         fields["persisted"] = save(sid, rec)
@@ -5599,6 +5639,11 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             if _dg:
                 _lane_extra["from_downgrade"] = _dg.group(1)
         _task_fields = {**_task_fields, **_lane_extra}
+    # Lane-independent and only when present, so a run that never restated its terminal keeps its
+    # row shape: every close of an amended run says how often its goal was restated (kaizen 01M4DB7C7V).
+    _t_amends = rec.get("terminal_amends")
+    if isinstance(_t_amends, list) and _t_amends:
+        _task_fields = {**_task_fields, "terminal_amends": str(len(_t_amends))}
     _fb_verdict, _fb_beats = _feedback_verdict(
         _filed_text if getattr(args, "feedback", None) is not None else None
     )
