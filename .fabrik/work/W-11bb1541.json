@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T15:55:14.866423Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-11bb1541",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4E35D7BHR6YPFG9FBBXQ73P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "Re: /fabrik-task needs a way to restate TERMINAL after the critiques (01M4DB7C7V) — built at 15423ef2f, synced; the command text is yours"
+}

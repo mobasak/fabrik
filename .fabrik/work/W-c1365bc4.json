@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-08T11:48:20.368452Z",
+  "created": "2026-10-08T13:57:56.374849Z",
   "creator": "infra",
   "evidence": "",
-  "id": "W-8e86294d",
+  "id": "W-c1365bc4",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M4DB7C7V19X30QG2VBFH0RCP",
+    "mail": "01M4DWQ1DHX1A3ZETJGYD35JS9",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "infra",
   "priority": 2,
   "status": "done",
-  "title": "/fabrik-task needs a way to restate TERMINAL (and DECISION) after the critiques — 5 queue rows, a command_run.py verb"
+  "title": "check_rule_grounding matches a digest quote against the whole cited FILE, so a wrong :line passes green"
 }

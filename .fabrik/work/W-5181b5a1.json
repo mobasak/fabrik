@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T15:34:33.452210Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-5181b5a1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4E26NNZ9RFF9PH4Z8Q398MH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "the Constraints Digest's column contract is stated nowhere a plan author reads it — three authors in three weeks wrote a shape check_rule_grounding cannot grade"
+}

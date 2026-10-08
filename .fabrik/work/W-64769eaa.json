@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T14:35:09.026071Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-64769eaa",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DXXNYPXRBCQ5W2ACJ8ZR94",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "REFUSAL_CLASSIFIER says \"the pinned or base copy, by `cp`\" — cp keeps a pin's r--r--r-- mode"
+}
