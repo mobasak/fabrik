@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the shared PIN rule takes a manifest and a base SHA per pass (2026-10-08)
+- `commands/_fragments/subagents-core.md`'s PIN paragraph, rendered into 21 commands, told the dispatcher to `cp` the artifact and carry one md5. It now matches `/fabrik-review-scoped` step 5: per pass, the `md5sum` manifest FIRST, then fresh copies checked against it, `git rev-parse HEAD` captured in the same shell as the base SHA, and `md5sum -c` before adjudicating. A manifest stays valid when the surface is committed mid-review and covers untracked files, where a diff against `HEAD` empties. +491 B per render. Answers 5 /fabrik-review feedback verdicts (kaizen).
+
 ### Fixed — core/40-documentation's llms.txt line names the hub instead of "THIS repo" (2026-10-08)
 - `review_rubric.py` injects the pack's mandate lines into PROJECT finder prompts, where "In THIS repo `llms.txt` is GENERATED (`scripts/generate_capability_index.py`)" read as a project fact: a Fable panel seat at web-ecommerce-factory probed the missing generator and filed it as MACHINERY (wef2 01M4C63S0F). The line now says the hub (`/opt/fabrik`), and that a project has no such generator and owns any `llms.txt` it ships, hand-written or built (web-ecommerce-factory's bhdtrade site builds one from a route). A case-insensitive sweep of all 57 packs found no other "this repo" line (kaizen).
 
