@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-03T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "ab2ba7880dccbe85221bb5f33691761db2fc456b",
   "id": "W-1f6fac5a",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:5f122e4830f4",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`fabrik apply` provisions a second flywheel database nothing reads (2026-09-03, owner: fleet)"
 }
