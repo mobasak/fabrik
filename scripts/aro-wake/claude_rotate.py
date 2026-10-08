@@ -4988,7 +4988,7 @@ def _write_quota_posture(posture: dict) -> None:
     # under a pid that never returns. The old shared name self-healed by overwrite; this one
     # accumulates, so sweep anything of ours older than an hour before staging a new one.
     try:
-        cutoff = _now() - 3600.0
+        cutoff = time.time() - 3600.0  # WALL time, never `_now()` (W-43eb1e48's review, A-S1)
         for orphan in p.parent.glob(f"{p.name}.*.tmp"):
             if orphan != tmp and orphan.stat().st_mtime < cutoff:
                 orphan.unlink()
@@ -7008,7 +7008,8 @@ def _advisory_ledger_latch(email: str, now: float) -> bool:
     # the ONE validator for the promise too: `float()` of a giant int raised out of this latch
     # (and the tick), and `Infinity` latched forever — an unusable promise reads as NO promise,
     # exactly as the re-arm writes it (Delta 21 seat A, A1 mirror)
-    promised = _usable_ts(last.get("resume_epoch"))
+    # `_dateable_ts`, the reader's own validator (`_promised_resume`, D-699), so one field reads alike
+    promised = _dateable_ts(last.get("resume_epoch"))
     # and the STAMP reader's relation on top (`_promised_resume`: a promise not in the future of
     # its own row is NO promise) — without it a promise at or before the row's ts read as
     # RELEASED here and as a week-long hold there, one field, two verdicts (Delta 22 seat A, A1)
@@ -7056,7 +7057,7 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     at = float(ts)  # converts by `_open_wall_rows`'s INVARIANT; `os.utime` may still refuse it
     # unusable, or not in the future of its own row, = NO promise: the stamp reader's rule
     # (`_promised_resume`) and the ledger latch's, so one field reads the same everywhere (A1)
-    promised = _usable_ts(row.get("resume_epoch"))
+    promised = _dateable_ts(row.get("resume_epoch"))
     content = str(int(promised)) if promised is not None and promised > at else "0"
     # the tier rides back too: re-arming a WARNING as a full hold would reintroduce, from the
     # repair path, exactly the premature stop D-306 removes. Unknown → walled, as everywhere.
@@ -7081,7 +7082,9 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
         # a temp under a pid that never returns — so sweep ours older than an hour first, as
         # `_write_quota_posture` does for its staging file (Delta 22 seat A, A2)
         try:
-            cutoff = now - 3600.0
+            # WALL time, never the caller's `now` (W-43eb1e48): the sweep judges real files by their
+            # real mtimes — the class D-699's review fixed in `_replace_stamp`
+            cutoff = time.time() - 3600.0
             # BOTH suffixes: `_upgrade_stamp_tier_to_walled` leaves `.raise` temps on the same
             # failures, and until this glob covered them nothing on the box ever removed one
             for orphan in (
