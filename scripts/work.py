@@ -4588,6 +4588,41 @@ def _queued(tree: Path, agent: str) -> list[dict]:
     ]
 
 
+def _worker_queues(main: Path, workers: dict[str, Path]) -> dict[str, list[dict]]:
+    """Each worker's queued items as the coordinator must count them (site-provisioner 01M4DNHWES).
+    The coordinator assigns on MAIN, the store of record for assignment (D-516); a worker's tree sees
+    those items only after it merges main, so counting from the tree read 0 and `triage` re-assigned
+    the floor on every call. Item files are per tree, closed markers and claims are shared: main's
+    item set is read ONCE, its file wins for every id it holds, the worker's tree adds only the ids
+    main lacks (its own unmerged items), and main's markers and claims filter both. A cross-tree READ
+    for a count — D-403's "every verb acts on the caller's own tree" governs verbs, not this."""
+    base = {i["id"]: i for i in _iter_items(main) if isinstance(i.get("id"), str)}
+    closed, claims = _closed_ids(main), _live_claims(main)
+    out: dict[str, list[dict]] = {}
+    for name, tree in workers.items():
+        items = dict(base)
+        if tree != main and _has_store(tree):
+            for i in _iter_items(tree):
+                if isinstance(i.get("id"), str) and i["id"] not in items:
+                    items[i["id"]] = i
+        out[name] = [
+            i
+            for i in _ready_from(list(items.values()), closed, claims)
+            if i.get("owner") == name and _is_work(i) and not _is_parked(i)
+        ]
+    return out
+
+
+def _merge_waiting(main: Path, tree: Path, agent: str) -> list[dict]:
+    """The items main assigns ``agent`` that its tree does not hold at all — what only a merge brings."""
+    held = (
+        {i["id"] for i in _iter_items(tree) if isinstance(i.get("id"), str)}
+        if _has_store(tree)
+        else set()
+    )
+    return [i for i in _queued(main, agent) if i["id"] not in held]
+
+
 def _pool(main: Path) -> dict[str, list[dict]]:
     """The main checkout's unowned, ready items: routable work, waiting backlog, held."""
     pool: dict[str, list[dict]] = {"routable": [], "backlog": [], "held": []}
@@ -4759,7 +4794,7 @@ def _classic_rungs(
     coordinator: str,
     none: dict,
 ) -> dict:
-    """The coordinator rungs of D-521 — claim · doorbell · triage · self — for a session that holds
+    """The coordinator rungs of D-521 — claim · merge · doorbell · triage · self — for a session that holds
     no claim (the classic path) or, under autonomy, as the ladder's middle rungs."""
     pool = _pool(main)
     routable, backlog = len(pool["routable"]), len(pool["backlog"])
@@ -4776,6 +4811,22 @@ def _classic_rungs(
             f"`python3 scripts/work.py claim {first['id']}` and start it, or end on a formatted "
             "`BLOCKED:` escalation naming why it cannot start.",
         }
+    if is_worker and tree != main:
+        # The coordinator counts this worker from main, so once it is at the floor nothing else
+        # prompts the merge that brings those items into this tree (worker-queue design critiques).
+        waiting = _merge_waiting(main, tree, agent)
+        if waiting:
+            base = _base_branch(main) or "the main checkout's branch"
+            return {
+                "agent": agent,
+                "role": "worker",
+                "action": "merge",
+                "fp": f"merge:{_bucket(len(waiting))}",
+                "text": f"{len(waiting)} item(s) are assigned to you ({agent}) on the main checkout and "
+                f"your tree does not hold them — first {waiting[0]['id']} — "
+                f"{waiting[0].get('title', '')}. Merge `{base}` into your branch, then "
+                f"`python3 scripts/work.py claim {waiting[0]['id']}`.",
+            }
     if is_worker:
         if not (routable or backlog):
             return {**none, "role": "worker"}
@@ -4801,7 +4852,8 @@ def _classic_rungs(
     if workers and coordinator and agent == coordinator:
         present = _present(workers) or set()
         floor = _floor(main)
-        below = sorted(w for w in present if len(_queued(workers[w], w)) < floor)
+        counts = _worker_queues(main, {w: workers[w] for w in present})
+        below = sorted(w for w in present if len(counts[w]) < floor)
         own = len(_queued(main, coordinator))
         if below and (routable or backlog or own > floor):
             return {
@@ -5003,6 +5055,11 @@ def _autonomy_candidates(
         first = _queued(tree, agent)[:1] if classic["action"] == "claim" else []
         if first:
             fp = f"item:{first[0]['id']}"
+        elif classic["action"] == "merge":
+            # per first waiting item, like claim: a constant `rung:merge` stayed exhausted for the
+            # session once warned through, while new assignments kept arriving (review A-S1)
+            waiting = _merge_waiting(main, tree, agent)
+            fp = f"rung:merge:{waiting[0]['id']}" if waiting else "rung:merge"
         elif classic["action"] == "triage":
             fp = "rung:triage:" + str(classic["fp"])[len("triage:") :].rsplit(":", 2)[0]
         else:
@@ -5114,13 +5171,14 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
                 "tree": str(main),
             }
         )
+    counts = _worker_queues(main, workers)
     for name, tree in sorted(workers.items()):
         agents.append(
             {
                 "agent": name,
                 "role": "worker",
                 "present": present is not None and name in present,
-                "queued": len(_queued(tree, name)),
+                "queued": len(counts[name]),
                 "parked": _parked_count(tree, name),
                 "tree": str(tree),
             }
@@ -5169,8 +5227,9 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
     pool = _pool(main)
     free = list(pool["routable"])
     plan: dict[str, list[dict]] = {}
+    counts = _worker_queues(main, {n: workers[n] for n in present})
     for name in sorted(present):
-        need = floor - len(_queued(workers[name], name))
+        need = floor - len(counts[name])
         if need > 0 and free:
             plan[name], free = free[:need], free[need:]
     for name, items in plan.items():

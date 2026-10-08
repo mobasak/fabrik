@@ -2047,7 +2047,7 @@ def _main_checkout_git(root: Path) -> tuple[Path, Path] | None:
 
 
 # EIGHTH cause — coordinator assignment (W-83021827, D-521): `work.py queue --stop` decides ONE action
-# (claim · doorbell · triage · self) for this session, and this hook only acts on it. Its attempts
+# (claim · merge · doorbell · triage · self) for this session, and this hook only acts on it. Its attempts
 # live in their OWN file keyed by a fingerprint (the action plus a count bucket, never item ids), so
 # the 7-slot counter is untouched and a churning queue does not re-arm it; after CAP blocks the cause
 # warns through ONCE and stays silent for that fingerprint until the queue changes, and a null action
