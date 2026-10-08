@@ -556,3 +556,35 @@ def test_a_missing_twin_skips_the_rule(tmp_path):
     assert "NON-QUIET-LEDGER" not in r.stdout and "spec convergence: 1 CONVERGED" in r.stdout, (
         r.stdout
     )
+
+
+def test_a_twin_that_fails_to_import_skips_the_rule(tmp_path):
+    """The twin is PRESENT but broken (a half-synced or hand-edited copy): the loader's guard skips this rule,
+    and the census and every other finding still print — never main()'s single "could not evaluate" line."""
+    import shutil
+    import subprocess
+    import sys as _sys
+
+    lone = tmp_path / "lone"
+    lone.mkdir()
+    shutil.copy(
+        REPO / "scripts" / "enforcement" / "check_spec_convergence.py",
+        lone / "check_spec_convergence.py",
+    )
+    (lone / "check_convergence.py").write_text("def _closing_row_fail(:\n", encoding="utf-8")
+    root = tmp_path / "root"
+    _ledger_spec(root, "CONVERGED", _NONQUIET)
+    r = subprocess.run(
+        [_sys.executable, str(lone / "check_spec_convergence.py"), "--root", str(root)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "could not evaluate" not in r.stdout and "Traceback" not in r.stderr, (
+        r.stdout,
+        r.stderr,
+    )
+    assert "spec convergence: 1 CONVERGED" in r.stdout and "NON-QUIET-LEDGER" not in r.stdout, (
+        r.stdout
+    )
