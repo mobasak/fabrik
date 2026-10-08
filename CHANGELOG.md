@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rule (3)'s residue rewrite fires per site, not only per round (2026-10-08)
+- `commands/_fragments/term-coverage.md` and `commands/_fragments/term-edit.md` rule (3) forced the one-batch rewrite only when two consecutive delta rounds confirmed ONLY residue, so one site could yield own-fix defects every round and never trigger it. It now also fires when one site (sentence, bullet item, table row; a function or top-level statement in term-coverage) yields an own-fix defect in two consecutive delta rounds, cited `site:`; the rewrite counts as one more attempt toward the existing per-finding/per-axis BLOCKED escalation; the scope-growth stop takes over from the first round that prints it (D-698, W-cc2b8600). Grader: `tests/enforcement/test_review_exit_contract.py::test_rule_three_fires_per_site_and_stands_down_at_the_stop`.
+
 ### Fixed — the contracts' GATE row cites land on final_gate.py again; the shared-repo mutant names kaizen (2026-10-08)
 - `final_gate.py`'s setup-error probe and tier block moved 12 lines (71201e6a3), so both contracts cited the wrong code: `:3161-3178` → `:3173-3190`, `:3180-3186` → `:3192-3198`. The `shared-fleet-intel-edit-main` mutant in `tests/test_governance_template_split.py` still targeted the two-agent sentence kaizen's 0d688b720 replaced; it now targets the three-agent one, and the checker requires `.claude/worktrees/kaizen`. Both graders were red on HEAD.
 
