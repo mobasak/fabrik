@@ -1340,6 +1340,19 @@ def test_a_different_file_with_the_same_name_is_still_unread() -> None:
     ) == ["src/a.py", "tests/b.py", "c.md"]
 
 
+# One refusal rule, verbatim in SEAT_ISOLATION and in the fabrik-reviewer House rules (01M4DQZGPC)
+REFUSAL_SHAPE = (
+    "a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard's shapes) is a rule: "
+    "fix the named shape, every path still under your scratch dir, never re-send it unchanged"
+)
+REFUSAL_CLASSIFIER = (
+    "a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it "
+    "moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command "
+    "into the same destination under your scratch dir (the pinned or base copy, by `cp`, when the brief names one), "
+    "else mark that check unverified — never a different destination — and say in MACHINERY which command was "
+    "refused how many times of how many tries"
+)
+
 def _shell_seat_prompts() -> tuple[str, str]:
     """The rendered finder and refuter prompts of one shell slice (a candidate makes the refuter run)."""
     results = {
@@ -1422,8 +1435,12 @@ def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
         "inside a `-c` program or a heredoc body",
         "`git -C`",
     )
-    for needed in (*bans, "no Write tool", "splitting the command", ".venv/bin/python"):
+    for needed in (*bans, "no Write tool", ".venv/bin/python"):
         assert needed in rules, needed
+    # 01M4DQZGPC: the permission classifier refuses a compliant command and accepts it moments later — the
+    # old "never by re-sending it" left the incident's one-plain-command `git show > SCRATCH` no legal move
+    assert "never by re-sending it" not in rules
+    assert REFUSAL_SHAPE in rules and REFUSAL_CLASSIFIER in rules
     assert "never a bare `python3`" in rules, (
         "a probe on the system interpreter lacks the project's packages"
     )
@@ -1516,7 +1533,8 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
     src = _script()
     assert src.count("const SEAT_ISOLATION = ") == 1
     assert src.count("${SEAT_ISOLATION}") == 2
-    iso = src[src.index("const SEAT_ISOLATION = ") : src.index("const PYTEST_PINS = ")]
+    start = src.index("const SEAT_ISOLATION = ")
+    iso = src[start : src.index("\n", start)]  # the constant's own line, never BRIEF_IS_TASK below it
     assert "archive -o into SCRATCH, ls-tree, show" in iso, (
         "the pin recipe's read-only git must stay legal"
     )
@@ -1539,6 +1557,14 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
         "not the live checkout, not /tmp outside SCRATCH"
     )
     assert scope.replace("`", "\\`") in iso, "the write-scope rule, as one span"
+    # 01M4DQZGPC + review of the design (Opus C1-C5, Fable 1-5): a refusal naming a shape or path is a rule; one
+    # naming neither is the classifier — one unchanged retry, then the same bytes into the same SCRATCH
+    # destination, else unverified; the clause sits after the write scope and reaches both rendered prompts
+    shape, classifier = (c.replace("`", "\\`") for c in (REFUSAL_SHAPE, REFUSAL_CLASSIFIER))
+    assert shape in iso and classifier in iso
+    assert iso.index(scope.replace("`", "\\`")) < iso.index(shape) < iso.index(classifier) < iso.index("The shell returns")
+    for prompt in _shell_seat_prompts():
+        assert REFUSAL_SHAPE in prompt and REFUSAL_CLASSIFIER in prompt
     # review A-S1/A-S2: tempfile writes under TMPDIR (default /tmp), and PIN_IMPORT keeps the REAL user
     # base for imports — the remedy names TMPDIR and says that line only reads
     assert "set HOME, TMPDIR and the module's path constants to SCRATCH first" in iso
