@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped lints before each pin and gates the staged surface (2026-10-08)
+- Step 5 now runs `ruff check` and `ruff format --check` on the touched `.py` before each pin, so no seat is spent on a mechanical finding. Step 6 states that `final_gate.py --check` lints only staged ∪ base…HEAD (`final_gate.py:1003-1009`), lists an author's unstaged `.py` under `skipped_checks` rather than failing, and must be read there. Answers 6 /fabrik-review-scoped feedback verdicts (kaizen).
+
 ### Changed — the shared PIN rule takes a manifest and a base SHA per pass (2026-10-08)
 - `commands/_fragments/subagents-core.md`'s PIN paragraph, rendered into 21 commands, told the dispatcher to `cp` the artifact and carry one md5. It now follows `/fabrik-review-scoped` step 5's manifest rule: per pass (a delta or closing pass's files include those the previous fix touched), the `md5sum` manifest FIRST, written outside the tree over repo-relative paths; then `git rev-parse HEAD` as the base SHA; then one copy layout for every consumer (`cp --parents` into `<scratch>/pass<N>/`, which is `pins_dir` under the workflow), checked with `md5sum -c` from inside it; finders state the per-file hash they read; and `md5sum -c` from the repo root before adjudicating. A manifest stays valid when the surface is committed mid-review and covers untracked files, where a diff against `HEAD` empties. `/fabrik-review`'s Phase 1 now points briefs at that PIN instead of a diff md5 plus a live re-read, and `docs/reference/review-loop-workflow.md`'s digest row says so. +935 B per render (on top of master's fragment, which already carries intel's no-Bash line-count clause, now folded into this rule). Answers 5 /fabrik-review feedback verdicts (kaizen).
 
