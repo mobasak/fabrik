@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — agent_memory.sh reclaim refuses when it cannot count live sessions (2026-10-08)
 
-- `scripts/sysadmin/agent_memory.sh`: the live-session count is now `_is_num`-validated like every other numeric in `reclaim`, so a grep that cannot run refuses (rc 10) instead of reading as zero sessions and running the swapoff; a new grader restores a `\\012`-named swap device as one device, guarding the NUL-delimited device list (W-6154115b).
+- `scripts/sysadmin/agent_memory.sh`: the live-session count is now `_is_num`-validated like every other numeric in `reclaim`, so a grep that cannot run refuses (rc 10) instead of reading as zero sessions and running the swapoff; a new grader restores a `\012`-named swap device as one device, guarding the NUL-delimited device list (W-6154115b).
 
 ### Fixed — the fleet-exhausted stamp is replaced, never truncated; undateable promises and unreadable holds fail toward the wall (2026-10-08)
 
