@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T22:32:26.843834Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e8a4e50c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DXC4F9AS4G3CBNPT0X2CSN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: check_rule_grounding ignores the cited :line (01M4DWQ1) — taken by intel, in one task with W-31f488d9"
+}

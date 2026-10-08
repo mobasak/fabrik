@@ -300,6 +300,30 @@ def pinned_line(rec: dict[str, Any]) -> str:
 # report, never past its first megabyte, and an unbounded read of a device never returns.
 _RESUME_READ_CAP = 1_000_000
 
+# The commands with NO closing pass: their own source orders no loop `round` (one carrying
+# `--classes-swept`/`--confirmed`/`--own-fix`) on its own record and includes no termination
+# fragment, so the round report's two-round rule and its "run the closing pass" prose do not apply
+# — a quiet round 1 is TERMINAL there (fabrik-spec verdict 1790969786.235392, W-29e3424f). DERIVED
+# from the corpus and pinned both ways by `tests/test_command_run.py`; a wording test put
+# /fabrik-command-improve in and left /fabrik-plan-after-chat out (both design critiques).
+NO_CLOSING_PASS = frozenset(
+    {
+        "fabrik-catchup",
+        "fabrik-decommission",
+        "fabrik-deploy",
+        "fabrik-deploy-plan",
+        "fabrik-deploy-verify",
+        "fabrik-epics",
+        "fabrik-generate-tests",
+        "fabrik-plan-after-chat",
+        "fabrik-release",
+        "fabrik-spec",
+        "fabrik-task",
+        "fabrik-upstream",
+        "fabrik-vision",
+    }
+)
+
 CONFIRMED_REQUIRED_COMMANDS = frozenset(
     {
         "fabrik-review",
@@ -823,6 +847,8 @@ def _round_report(rec: dict[str, Any]) -> str:
     # one-`Pass`-row receipt the coverage gate hard-refuses — the two halves of the same redesign
     # disagreeing about whether one clean pass can end a loop (D7 seam #1).
     quiet = swept_all and not lapsed and counter == 0
+    has_closing = _norm_command(rec.get("command")) not in NO_CLOSING_PASS
+    min_rounds = 2 if has_closing else 1
     slices = _slice_rows(last)
     failing = _failing_slices(last)
     vanished = _vanished_slices(rounds)
@@ -835,8 +861,8 @@ def _round_report(rec: dict[str, Any]) -> str:
                 for s in slices
             )
         )
-    terminal = quiet and len(rounds) >= 2 and not failing and not vanished
-    if quiet and len(rounds) >= 2 and vanished:
+    terminal = quiet and len(rounds) >= min_rounds and not failing and not vanished
+    if quiet and len(rounds) >= min_rounds and vanished:
         lines.append(
             "⛔ NOT TERMINAL — slice ledger missing this round for ("
             + ", ".join(vanished)
@@ -845,7 +871,7 @@ def _round_report(rec: dict[str, Any]) -> str:
             "with no open claim needs no seat and no extra round: re-state it at its last "
             "`<verified>/<claims>` in THIS round's `--slices` (W-c8069437)"
         )
-    if quiet and len(rounds) >= 2 and failing:
+    if quiet and len(rounds) >= min_rounds and failing:
         lines.append(
             "⛔ NOT TERMINAL — "
             + "; ".join(
@@ -868,9 +894,11 @@ def _round_report(rec: dict[str, Any]) -> str:
                 "close with `handoff`, the failing slices and their claims named (D-335)"
                 if failing or vanished
                 else "run the closing pass now, or close with `handoff` naming what is unverified (D-335)"
+                if has_closing
+                else "close with `done`, or `handoff` naming what is unverified"
             )
         )
-    if quiet and len(rounds) < 2:
+    if quiet and len(rounds) < min_rounds:
         lines.append(
             "⛔ NOT TERMINAL — round 1 is the full pass, never the closing round; run the closing "
             "pass — the round-1 seats over their own slices (the receipt gate demands a confirming "
@@ -912,9 +940,13 @@ def _round_report(rec: dict[str, Any]) -> str:
                 "`round --confirmed 0`)"
             )
             + (" — every slice verified" if slices else "")
-            + ". The closing pass is the round-1 seats confirming their own slices' ledgers, its "
-            "receipt citing the standing-clean classes from the last full pass (D-206, D-335). "
-            "Close the run: "
+            + (
+                ". The closing pass is the round-1 seats confirming their own slices' ledgers, its "
+                "receipt citing the standing-clean classes from the last full pass (D-206, D-335). "
+                if has_closing
+                else ". This command has no closing pass. "
+            )
+            + "Close the run: "
             f"python3 scripts/command_run.py done --command {rec.get('command') or '<name>'} "
             '--evidence "<proof>" --feedback "<what you filed, to whom | none — surfaces swept>"'
         )

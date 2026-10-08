@@ -115,7 +115,9 @@ persists across rounds:
 - A round that leaves **every known class clean** prints the **TERMINAL verdict** — never on round 1
   (round 1 is the full pass; the receipt gate demands a confirming Pass 2, so a clean first round prints
   `⛔ NOT TERMINAL — round 1 is the full pass, never the closing round` and the next quiet delta round
-  closes): when the LAST round
+  closes) — except for a command in `NO_CLOSING_PASS` (its own source orders no loop `round` and includes
+  no termination fragment: `/fabrik-spec`, `/fabrik-plan-after-chat`, `/fabrik-task`, the deploy and
+  release commands, …), where a quiet round 1 is TERMINAL and no line demands a closing pass: when the LAST round
   states `--confirmed`, TERMINAL fires on `confirmed == 0`. The old **`--findings 0`** rule stands only
   for a record whose rounds **NEVER** state `confirmed` — and never for a review-family run, where a
   `round` without `--confirmed` is REFUSED outright (`CONFIRMED_REQUIRED_COMMANDS`, D-335) — adoption is **sticky per record**: once any
@@ -132,7 +134,8 @@ persists across rounds:
 `start --budget <minutes>` (≥ 1, else refused rc 2) stores `budget_min`; the pinned line prints `· budget
 <used>/<m> min` (and `⚠️ OVER` past it) so a run can see how much of its second objective term is spent — rounds are
 not capped and nothing is refused on the budget: past it, a non-terminal round report ADVISES the close — `handoff`
-with the failing slices and their claims named. `round --slices A:12/12,B:5/6` stores the per-slice claim ledger
+with the failing slices and their claims named, else the closing pass or a `handoff` naming what is unverified (for a
+`NO_CLOSING_PASS` command: close with `done`, or `handoff` naming what is unverified). `round --slices A:12/12,B:5/6` stores the per-slice claim ledger
 (`verified/claims` per round-1 slice; a malformed value, `verified > claims` or a repeated name is
 refused, rc 2; `0/0` is a slice with no claim to verify and is clean, but a `0/0` for a slice any earlier round stated
 with claims, or a round confirming defects while every slice it names is `0/0`, is refused too; a later round that OMITS the ledger, or any slice ANY earlier round stated, is `⛔ NOT TERMINAL` and `done`

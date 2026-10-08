@@ -1,0 +1,26 @@
+{
+  "block_digest": "1aa3527d4a183d3426dd72f79829fa5524b7e3e9e18f00e1fac11a2f875528ba",
+  "blocked_by": [],
+  "created": "2026-10-08T13:58:09.347792Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-44734e3a",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "b3b43ed2cc8017d62e6a962c5de3b968cd6f729b7702d2bda6398c7301ce52bd"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May fleet run a read-only probe on vps1 to measure current CPU use and CPU limits for all 32 containers (`docker ps -a`, `docker inspect -f '{{.HostConfig.NanoCpus}}'`, one `docker stats --no-stream`), to size the missing CPU limits?",
+  "status": "awaiting-operator",
+  "title": "May fleet run a read-only probe on vps1 to measure current CPU use and CPU limits for all 32 containers (`docker ps -a`, `docker inspect -f '{{.HostConfig.NanoCpus}}'`, one `docker stats --no-stream`), to size the missing CPU limits?"
+}
