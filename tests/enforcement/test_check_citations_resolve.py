@@ -262,3 +262,28 @@ def test_zero_graded_never_ticks_green(tmp_path, capsys):
     assert "0 citations found across 1 docs" in out and "all land" not in out, out
     assert chk.main(["--root", str(repo), "--quiet"]) == 0
     assert capsys.readouterr().out == ""
+
+
+def test_a_fenced_example_or_a_url_never_makes_a_bare_name_ambiguous(tmp_path):
+    """Review A-S1/A-S2: the spelled-elsewhere scan read the RAW text, so a path inside a fenced
+    example (not a claim) or a URL ending in the same name flipped a real citation to ambiguous."""
+    repo = _git_repo(tmp_path, {"scripts/tool.py": _FIVE})
+    for text in (
+        "ok tool.py:9\n```\nsrc/elsewhere/tool.py in an example\n```\n",
+        "ok tool.py:9 and see https://github.com/x/y/tool.py\n",
+    ):
+        seen, _bare, ambiguous, _outside, findings = chk.check_text_full(text, repo)
+        assert (seen, ambiguous) == (1, 0) and findings, (text, seen, ambiguous, findings)
+
+
+def test_doc_refuses_a_missing_path_aloud(tmp_path, capsys):
+    """Review A-S4/A-S5: a trailing --doc was dropped silently (the glob scan ran instead), and a
+    missing --doc file printed 'examined' beside a glob-mode 'nothing in scope' line."""
+    repo = _git_repo(tmp_path, {"scripts/tool.py": _FIVE})
+    assert chk.main(["--root", str(repo), "--doc"]) == 0
+    out = capsys.readouterr().out
+    assert "--doc needs a path" in out and "nothing in scope" not in out, out
+    missing = tmp_path / "nope.md"
+    assert chk.main(["--root", str(repo), "--doc", str(missing)]) == 0
+    out = capsys.readouterr().out
+    assert f"--doc {missing} is not a file" in out and "nothing in scope" not in out, out

@@ -110,8 +110,11 @@ def _basename_index(repo: Path) -> dict[str, list[str]]:
 
 def _spelled_elsewhere(text: str, base: str, resolved: str) -> bool:
     """The doc ALSO spells a path ending in `/<base>` that is not the resolved file — an `/opt/<repo>/…`
-    or `~/.claude/…` path, or another repo-relative one: the bare citation is then shorthand for THAT."""
-    for m in re.finditer(rf"[\w.~-]*(?:/[\w.~-]+)*/{re.escape(base)}(?![\w.-])", text):
+    or `~/.claude/…` path, or another repo-relative one: the bare citation is then shorthand for THAT.
+    Read over the fence-stripped text with URLs removed (review A-S1/A-S2): a path in an example is not a
+    claim, and a URL ending in the same name names no file here."""
+    prose = re.sub(r"\b[a-z][a-z0-9+.-]*://\S+", " ", _strip_fences(text))
+    for m in re.finditer(rf"[\w.~-]*(?:/[\w.~-]+)*/{re.escape(base)}(?![\w.-])", prose):
         spelled = m.group(0).lstrip("~.")
         if not (resolved.endswith(spelled.lstrip("/")) or spelled.endswith("/" + resolved)):
             return True
@@ -288,7 +291,15 @@ def main(argv: list[str] | None = None) -> int:
     if "--since-days" in args:
         since = int(args[args.index("--since-days") + 1])
     only = _changed_docs(repo) if "--changed" in args else None
+    if args and args[-1] == "--doc":
+        # review A-S4: a trailing --doc used to be dropped and the glob scan ran in its place
+        print("citations: REFUSED — --doc needs a path")
+        return 0
     given = [Path(args[i + 1]) for i, a in enumerate(args[:-1]) if a == "--doc"] or None
+    if given is not None:
+        for p in given:
+            if not p.is_file():
+                print(f"citations: --doc {p} is not a file — not examined")
     ndocs, ncites, bare, ambiguous, outside, findings = check_repo_full(
         repo, since_days=since, only=only, docs_given=given
     )
@@ -300,7 +311,8 @@ def main(argv: list[str] | None = None) -> int:
     if given is not None:
         # --doc names its own scope, so the run says which files it examined (term-edit.md: a gate run
         # counts only when the artifact is shown to be in the examined set)
-        print(f"citations: --doc examined {ndocs} file(s): {', '.join(str(p) for p in given)}")
+        named = ", ".join(str(p) for p in given if p.is_file()) or "none"
+        print(f"citations: --doc examined {ndocs} file(s): {named}")
     if findings:
         print(
             f"⚠ check_citations_resolve ADVISORY — {len(findings)} citation(s) do not land, of "
@@ -316,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
         # clean zero. Since W-191404c0 a bare filename is a claim whenever it can resolve, so a doc of
         # bare, ambiguous or foreign citations says so too.
         print(f"⚠ check_citations_resolve NOTHING GRADED across {ndocs} docs — {tally}")
-    elif not quiet and not ndocs:
+    elif not quiet and not ndocs and given is None:
         print(f"citations: nothing in scope — 0 docs under {repo} match the source families")
     elif not quiet and not found:
         print(f"citations: 0 citations found across {ndocs} docs — nothing to grade")
