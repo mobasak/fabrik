@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scratch_sweep removes a stale dir holding a read-only pin (2026-10-08)
+- `scripts/scratch_sweep.py --apply` printed `FAILED <dir> (13: Permission denied)` on a stale scratch dir holding a review seat's copied pin (`dr-xr-xr-x`, files 0444), so those dirs survived every sweep. On a PermissionError the row now gives the owner rwx on the target and every real directory inside it (never its parent, never through a symlink) and removes it again; a tree that still refuses ends on its `FAILED` line. A first cut used rmtree's `onexc` retry and was rewritten after the scoped review: it raised TypeError past the per-row handler on a mode-000 dir, chmodded the target's parent, and needed Python 3.12. intel 01M4E3M1JJ.
+
 ### Fixed — final_gate shows a missing checker as a SKIP, never a PASS (2026-10-08)
 - `scripts/final_gate.py`: a checker absent from the tree came back as a bare green row — `[PASS]` in the human view, `pass` in the `--json` roster — so a gate run in a checker-less probe worktree read green; only `--json` `warnings` carried it, and the Convention Validator and Kilo rows not even that. One helper (`_not_present_row`) now builds all four sites' row as `<check> (NOT PRESENT)`: a new `_SKIP_MARKERS` token, so it renders `[SKIP]`, lists in `skipped_checks`, keeps its ⚠ `check not present, skipping: <path>` message and names its rerun. Mirror: a project lacking an optional checker now reports `skipped > 0`, which is the true count. The hub contract's throwaway-worktree paragraph now says to run every grader from inside the probe (`final_gate.py` grades its working directory); the project template's probe paragraph and `docs/workflows/FINAL_GATE_WORKFLOW.md` describe the SKIP row; both contracts' GATE cites moved with the code. kaizen 01M4DZCA2B.
 
