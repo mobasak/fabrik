@@ -843,7 +843,7 @@ PARAMS = {
     "fabrik-spec": {
         "close-chain": {
             "COMMAND": "fabrik-spec",
-            "ARTIFACT_CHECK": "`python3 scripts/enforcement/check_spec_convergence.py` (repo-wide; the spec is CONVERGED by then)",
+            "ARTIFACT_CHECK": "`python3 scripts/enforcement/check_spec_convergence.py <spec path>` (scoped to this spec: on a CONVERGED spec its census reads `1 CONVERGED spec(s) examined of 1 named`, every finding printed in full below it)",
         },
         "subagents-core": {
             "HEADLINE": "`fanout` the grounding, `set_quality` the verdict",
