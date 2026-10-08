@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T00:35:41.997041Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-857fc640",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "switch both to --network fabrik and extend the scripts/sysadmin/test_claude_run.py:223 coolify ban to scripts/audit and scripts/provision_*.sh",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Two scripts still curl through the removed docker network coolify: scripts/audit/08-hardening-verify.sh:95,108 and scripts/provision_glitchtip_project.sh:100 (found by the Alloy wave-1 review; the network was renamed fabrik 2026-05-31)"
+}
