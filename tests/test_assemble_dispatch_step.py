@@ -1274,3 +1274,20 @@ def test_docs_review_citations_carry_a_quoted_anchor() -> None:
         "an earlier fix that adds or removes a line",
     ):
         assert needle in text, needle
+
+
+def test_term_edit_grades_a_pin_outside_the_citation_globs_with_doc() -> None:
+    """intel W-191404c0: a pin outside check_citations_resolve's SOURCE_GLOBS was examined by
+    nothing; --doc grades it and names it."""
+    text = " ".join((REPO / "commands" / "_fragments" / "term-edit.md").read_text().split())
+    for needle in (
+        "check_citations_resolve.py --doc <pin> --root <repo>",
+        "whose `--doc examined 1 file(s): <pin>` line is the proof it was in the examined set",
+        "(`0 file(s): none` means the path was wrong)",
+        "prints `0 citations found` when the pin cites none",
+        "and a `--changed` run there prints `nothing in scope` when no doc matches",
+        "always, unless that root is a git checkout in which the copy shows as changed",
+    ):
+        assert needle in text, needle
+    assert "backlog EXTEND" not in text
+    assert "anchors stay the seats" not in text

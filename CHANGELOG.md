@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — term-edit's pin-time citation check grades the pin itself with `--doc` (2026-10-08)
+- `commands/_fragments/term-edit.md` said `check_citations_resolve.py` examines nothing for an artifact outside its source globs and called a `--pin` root a backlog item. Intel's `--doc` flag is on master, so the fragment now names `check_citations_resolve.py --doc <pin> --root <repo>`, whose `--doc examined` line is the examined-set proof (intel W-191404c0). Grader: `tests/test_assemble_dispatch_step.py::test_term_edit_grades_a_pin_outside_the_citation_globs_with_doc`.
+
 ### Fixed — check_plan_tickets lets a Gate run a file a Depends ancestor creates (2026-10-08)
 - `scripts/enforcement/check_plan_tickets.py`'s Gate-path rule named a path only when it was on disk or in the same ticket's Touches, so a shared guard an earlier ticket builds could never gate its dependants. A Depends ancestor's Touches (direct or transitive) now name it too — the executor dispatches a ticket only once every Depends row is ✅. A descendant's or an unrelated ticket's Touches still do not; the refusal keeps "exists nowhere" and names the Depends remedy. Graders in `tests/enforcement/test_check_plan_tickets.py`. web-ecommerce-factory 01M4DHVXWA.
 
