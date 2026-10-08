@@ -1,6 +1,6 @@
 # Plan — the review-coverage gate grades committed-but-unintegrated reviews (W-f847a317)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** —
 **Surface:** `git rev-parse HEAD` = d897964c0 at authoring; `scripts/enforcement/check_review_coverage.py` 3286 lines
