@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the wall-stamp re-arm sweeps orphans by wall time, and every resume_epoch reader uses one validator (2026-10-08)
+
+- `scripts/sysadmin/claude_rotate.py` (and its `aro-wake` twin): `_rearm_wall_stamp` swept `.rearm`/`.raise` temps older than an hour by the caller's clock, so a tick clock running ahead could unlink a live sibling's fresh temp — it now uses wall time, as D-699 made `_replace_stamp` do. The advisory latch and the re-arm read `resume_epoch` through `_dateable_ts`, the validator `_promised_resume` uses since D-699 (W-43eb1e48).
+
 ### Fixed — check_rule_grounding reads the digest as a table: an unreadable source column is ungraded once, never a row of missing files (2026-10-08)
 
 - `scripts/enforcement/check_rule_grounding.py`: a digest whose source column holds no file path is UNGRADED with one reason (and a minority of bare rows is skipped and noted) instead of printing "digest cites <word> which does not exist" per row; cells split on unescaped pipes and an escaped pipe compares un-escaped on both sides. The cited `:line` stays ungraded, deferred on measurement (D-703, supersedes D-691; W-31f488d9, fleet 01M4DWQ1DH). Receipt: `docs/development/reviews/2026-10-08-rule-grounding-table-reading-review.md`.

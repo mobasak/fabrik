@@ -8129,15 +8129,12 @@ def test_the_orphan_sweep_covers_the_tier_raise_temps_too(tmp_path, monkeypatch)
     unrelated = state / "fleet-exhausted.999995.other"
     for f in (stale_raise, stale_rearm, fresh_raise, unrelated):
         f.write_text("junk")
-    # ⚠️ "fresh" means fresh relative to the FIXTURE clock (`FLEET_NOW`), not the real one — the
-    # sweep's cutoff is `now - 3600`, and FLEET_NOW sits well ahead of wall-clock time, so a file
-    # created just now looks ancient to it. The first cut of this grader got that wrong and its
-    # own assertion caught it.
-    old = FLEET_NOW - 7200.0
+    # Ages are WALL time: the sweep's cutoff is `time.time() - 3600`, never the caller's clock
+    # (W-43eb1e48) — FLEET_NOW sits well ahead of the wall, which is exactly how a tick clock running
+    # ahead used to read a live sibling's fresh temp as an orphan.
+    old = time.time() - 7200.0
     for f in (stale_raise, stale_rearm):
         os.utime(f, (old, old))
-    for f in (fresh_raise, unrelated):
-        os.utime(f, (FLEET_NOW, FLEET_NOW))
 
     cr._rearm_wall_stamp(stamp, "a@x", FLEET_NOW)
 
@@ -8662,3 +8659,36 @@ def test_a_hold_that_is_not_a_dict_is_a_wall(capsys):
     cr._print_picture(pic)
     out = capsys.readouterr().out
     assert "picture: hold none" not in out and "unreadable" in out, out
+
+
+def test_the_rearm_orphan_sweep_judges_by_wall_time_not_the_tick_clock(tmp_path, monkeypatch):
+    """W-43eb1e48 (found by the D-699 review's pass-2 seat): `_rearm_wall_stamp` swept `.rearm`/`.raise`
+    temps older than an hour by the CALLER's `now`, so a tick clock running ahead read a live sibling's
+    fresh temp as an orphan and unlinked it mid-write — the class D-699's review fixed in `_replace_stamp`."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    now = time.time() + 7200  # the tick's clock two hours ahead of the wall
+    (state / "rotate-ledger.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "fleet-active-wall",
+                "ts": now - 900,
+                "account": "a@x",
+                "resume_epoch": now + 3600,
+            }
+        )
+        + "\n"
+    )
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    stamp = locks / "fleet-exhausted"
+    fresh = locks / "fleet-exhausted.99993.rearm"  # a live sibling's temp, written a moment ago
+    fresh.write_text("x")
+    old = locks / "fleet-exhausted.99994.raise"
+    old.write_text("x")
+    os.utime(old, (time.time() - 7200, time.time() - 7200))
+    cr._rearm_wall_stamp(stamp, "a@x", now)
+    assert fresh.exists(), "a fresh sibling temp was swept as an orphan"
+    assert not old.exists(), "a two-hour-old orphan must still be swept"
+    assert stamp.read_text(encoding="utf-8").endswith("\nwalled\n"), stamp.read_text()
