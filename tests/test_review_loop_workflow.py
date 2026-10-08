@@ -1565,3 +1565,7 @@ def test_an_empty_slice_list_is_refused_before_it_can_read_as_closable() -> None
     for bad in ([], None, "S"):
         _, err, _ = _harness({**_ARGS, "slices": bad}, {}, expect_fail=True)
         assert "slices" in err and "AGENT CALLED" not in err, (bad, err[-400:])
+    # review A-S1: an entry that is not an object is refused by its index, never a raw TypeError or a dropped stage
+    for bad in ([None], [42], [["a.py"]]):
+        _, err, _ = _harness({**_ARGS, "slices": bad}, {}, expect_fail=True)
+        assert "slices[0] must be an object" in err and "TypeError" not in err, (bad, err[-400:])

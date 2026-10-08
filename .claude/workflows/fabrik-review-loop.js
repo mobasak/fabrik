@@ -154,6 +154,10 @@ function normalizeLedger(slice) {
 if (!Array.isArray(args.slices) || args.slices.length === 0) {
   throw new Error(`slices must be a non-empty list — got ${JSON.stringify(args.slices)}: a launch over zero slices reads nothing and would return closable`)
 }
+// review A-S1: a null entry crashed below with a raw TypeError, and a number was dropped later as a thrown stage
+args.slices.forEach((s, i) => {
+  if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Error(`slices[${i}] must be an object { name, files, … } — got ${JSON.stringify(s)}`)
+})
 for (const s of args.slices) Object.assign(s, { ledger: normalizeLedger(s) }, normalizeSeats(s))
 
 // kaizen 01M4CGJZAX: a workflow script has no filesystem, so the lead's `review_loop_ledger.py pin` writes the
