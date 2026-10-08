@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T19:20:52.376533Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-25f02799",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure how many /opt specs the twin reads as CONVERGED but CONVERGED_RE misses, then decide (panel) whether the outer gate adopts _claims_converged — it widens every rule's population (W-85496017 review A-S2)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "check_spec_convergence's outer CONVERGED_RE gate is narrower than check_convergence's claim grammar: a spec reading 'Status: COMPLETE — converged after N passes' is graded by no rule at all"
+}
