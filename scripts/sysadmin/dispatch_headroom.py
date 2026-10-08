@@ -289,7 +289,6 @@ def quota() -> dict:
             "eligible_raw": eligible_raw,
             "active_in_band": bool(act.get("in_drain_band")) if act else None,
             "hold": _hold_is_wall(pic.get("hold")),
-            "hold_urgent": pic.get("hold") is not None and not _hold_is_wall(pic.get("hold")),
             "drain_band": band,
         }
         # ⚠️ The posture WINS when it is fresh, and that is the point: the seat budget and the
@@ -711,11 +710,6 @@ def budget(
                 "fleet-exhausted HOLD is on (the wall tier) — dispatch nothing until relief"
             )
         else:
-            if q.get("hold_urgent"):
-                reasons.append(
-                    "fleet-exhausted stamp at the urgent-90 tier — a warning, not the wall: "
-                    "the band below decides the cap (checkpoint first)"
-                )
             band = float(q.get("drain_band") or 85.0)
             unknown = q["hottest_pct"] is None
             # the picture publishes its own in_drain_band predicate; read it, don't re-derive it

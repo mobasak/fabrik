@@ -249,3 +249,33 @@ def test_dispatch_headroom_urgent_tier_is_not_a_wall(monkeypatch, hold, walls):
     q = mod.quota()
     assert q["ok"] is True, q
     assert q["hold"] is walls, (hold, q["hold"])
+
+
+def test_dispatch_headroom_hold_predicate_matches_the_tick(monkeypatch):
+    """The seat budget's `_hold_is_wall` is a hand MIRROR of `claude_rotate.py::_hold_is_wall` —
+    this script shells out to the tick and imports none of it. Grade both against one corpus, so
+    a third tier added to the tick cannot silently desync the seat budget (review B-S3)."""
+    import importlib.util as _iu
+
+    mod = _load()
+    spec = _iu.spec_from_file_location(
+        "rotate_hold_probe",
+        Path(__file__).resolve().parents[1] / "scripts/sysadmin/claude_rotate.py",
+    )
+    tick = _iu.module_from_spec(spec)
+    spec.loader.exec_module(tick)
+    corpus = (
+        None,
+        {},
+        {"tier": None},
+        {"tier": "walled"},
+        {"tier": "urgent-90"},
+        {"tier": "URGENT-90"},
+        {"tier": "x"},
+        "s",
+        0,
+        [],
+        [{"tier": "urgent-90"}],
+    )
+    for hold in corpus:
+        assert mod._hold_is_wall(hold) is tick._hold_is_wall(hold), hold

@@ -449,3 +449,66 @@ def test_walled_and_unreadable_tiers_still_yield_everything(urgent) -> None:
     stamp.mkdir()
     assert urgent.stop(fails="A,B")[0] == "", "an unreadable stamp reads as the wall"
     assert any(r.get("event") == "stop_allowed_quota_hold" for r in urgent.events_of())
+
+
+def _hook_module():
+    import importlib.util as _iu
+
+    spec = _iu.spec_from_file_location("final_gate_stop_urgent_probe", _HOOK)
+    mod = _iu.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.fixture
+def checkpoint(tmp_path: Path, monkeypatch):
+    """`_urgent_checkpoint` with every probe stubbed: only a RUNNING record is true, and the
+    sidecar lives in tmp_path — so each grader below varies exactly one input."""
+    mod = _hook_module()
+    monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(tmp_path / "events"))
+    monkeypatch.setattr(mod, "_dirty_paths", lambda root: set())
+    monkeypatch.setattr(mod, "_ahead_of_upstream", lambda *a, **k: 0)
+    monkeypatch.setattr(
+        mod, "_run_record", lambda sid: {"state": "running", "command": "fabrik-review"}
+    )
+    monkeypatch.setattr(mod, "_seats_in_flight", lambda rec, tp: False)
+    monkeypatch.setattr(mod, "_unreviewed_spontaneous_files", lambda *a, **k: [])
+    monkeypatch.setattr(mod, "_merge_owner_duty", lambda root, sid: None)
+    monkeypatch.setattr(mod, "_run_record_raw", lambda sid: None)
+    side = tmp_path / "side.urgent"
+    monkeypatch.setattr(mod, "_urgent_sidecar", lambda sid: side)
+
+    def run(sid: str = "s-real") -> str | None:
+        return mod._urgent_checkpoint(tmp_path, sid, sid, {}, [], None, "")
+
+    return mod, run, side, monkeypatch
+
+
+def test_urgent_checkpoint_honours_seats_in_flight(checkpoint) -> None:
+    """Review A-S2: a running record whose own seats are verifiably in flight is not owed a step
+    this turn — the same `run_blocks` predicate `_stall_gate` uses (W-4c7edc74)."""
+    mod, run, side, mp = checkpoint
+    mp.setattr(mod, "_seats_in_flight", lambda rec, tp: True)
+    assert run() is None, "seats in flight: the record is not a checkpoint item"
+    mp.setattr(mod, "_seats_in_flight", lambda rec, tp: False)
+    assert run(), "control: with no seats out the running record blocks"
+
+
+def test_urgent_checkpoint_fails_open_when_the_sidecar_cannot_be_written(
+    checkpoint, tmp_path
+) -> None:
+    """Review A-H2: an unwritable sidecar must not turn "once per episode" into "every stop"."""
+    mod, run, side, mp = checkpoint
+    mp.setattr(mod, "_urgent_sidecar", lambda sid: tmp_path / "no-such-dir" / "side.urgent")
+    assert run() is None, (
+        "the block fired with no sidecar to remember it — it would fire every stop"
+    )
+
+
+def test_urgent_checkpoint_never_blocks_an_id_less_session(checkpoint) -> None:
+    """Review A-S3: every id-less payload is `nosession`, so its sidecar would be SHARED — one
+    session's block would silently stand down another's. An id-less stop never blocks here."""
+    mod, run, side, mp = checkpoint
+    assert run("nosession") is None
+    assert not side.exists()
+    assert run("s-real"), "control: a real session id blocks"

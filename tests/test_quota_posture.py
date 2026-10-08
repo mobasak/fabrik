@@ -1501,7 +1501,7 @@ def test_the_three_tier_readers_agree_on_the_shapes_that_actually_diverge(tmp_pa
         assert got[0] == want, f"{body!r}: all four agree on {got[0]!r}, but it must be {want!r}"
     # ⚠️ SUBPROCESS + TIMEOUT, and a VALUE, not agreement. In-process this grader HUNG under the
     # guard-removal mutant instead of redding — the very failure the comment above claims to have
-    # closed — and `len(set(...)) == 1` is satisfied by three readers agreeing on the wrong thing.
+    # closed — and `len(set(...)) == 1` is satisfied by four readers agreeing on the wrong thing.
     import subprocess as _sp
     import sys as _sys
 

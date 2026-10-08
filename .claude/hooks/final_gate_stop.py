@@ -1247,6 +1247,7 @@ def _urgent_checkpoint(
     authored_map: dict[str, int],
     own_commits: list[tuple[str, int, int]],
     stall: tuple[str, str] | None,
+    transcript_p: str = "",
 ) -> str | None:
     """W-37003fa1 — the Stop at the `urgent-90` tier. Returns ONE block reason, or None to end the turn.
 
@@ -1289,7 +1290,9 @@ def _urgent_checkpoint(
         items.append(f"PUSH {ahead} commit(s) of yours not yet on origin — {how}, never --force")
         stood.append(("unpushed", {"ahead": ahead}))
     run = _run_record(sid) or {}
-    if run.get("state") == "running":
+    # the same predicate as `_stall_gate`'s `run_blocks`: a record whose own dispatched seats
+    # are verifiably in flight is not owed a step this turn (W-4c7edc74, review A-S2)
+    if run.get("state") == "running" and not _seats_in_flight(run, transcript_p):
         name = str(run.get("command") or "?")
         items.append(
             f"KEEP the /{name} run record current — `python3 scripts/command_run.py step` (or "
@@ -1310,9 +1313,16 @@ def _urgent_checkpoint(
         owed.append("the waiting merge request — python3 scripts/merge_request.py merge")
         stood.append(("merge-request", {}))
     side = _urgent_sidecar(sid)
-    if items and not side.exists():
-        with contextlib.suppress(OSError):
+    blockable = bool(items) and bool(sid) and sid != "nosession" and not side.exists()
+    if blockable:
+        # Write FIRST, block only if it landed: an unwritable sidecar would otherwise block every
+        # stop of the episode (review A-H2); an id-less payload shares `nosession` with every
+        # other id-less session, so it never owns an episode to block once in (review A-S3).
+        try:
             side.write_text(str(time.time()))
+        except OSError:
+            blockable = False
+    if blockable:
         _kaizen(
             "stop_block",
             ev_sid,
@@ -4318,7 +4328,9 @@ def main(argv: list[str]) -> int:
             ):
                 # D-306's two tiers. Only `walled` denies the tools that clear the causes below, so
                 # only a stamp that PLAINLY says `urgent-90` stops this yield — any doubt, an
-                # exception included, is the wall and the full yield of D-158 (W-37003fa1).
+                # exception included, is the wall and the full yield of D-158 (W-37003fa1). At
+                # urgent-90 a SessionStart still records its baseline below (a gate subprocess, no
+                # tokens — and the baseline the post-relief causes need); only the Stop skips it.
                 try:
                     urgent = _stamp_tier(_state / "fleet-exhausted") == _STAMP_TIER_URGENT
                 except Exception:
@@ -4384,7 +4396,9 @@ def main(argv: list[str]) -> int:
         decision_ground = judged[1][1] if judged and judged[1][0] else None
         if urgent:
             try:
-                _ureason = _urgent_checkpoint(root, sid, ev_sid, authored_map, own_commits, stall)
+                _ureason = _urgent_checkpoint(
+                    root, sid, ev_sid, authored_map, own_commits, stall, transcript_p
+                )
             except Exception as e:  # fail-open, like every cause: never trap a session at the tier
                 sys.stderr.write(
                     f"[final_gate_stop] urgent checkpoint failed, allowing stop: {e}\n"
