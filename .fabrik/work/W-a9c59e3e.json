@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T09:49:57.641549Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-a9c59e3e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DE0R2HPBE45T3CQWE4VZ93",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "a review seat deleted ~/.claude/skills box-wide (shutil.rmtree in a probe) — restored by render; the brief's \"never read $HOME/.claude*\" does not stop a write"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T08:52:50.458356Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-3f482974",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DA7NZ84TRAMAM95P4NQRBW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: the by-design owner shape (01M4D7C2Z9) and the two pin_manifest wording gaps (01M4D8FAK2) — fixed in ba7fc026a"
+}

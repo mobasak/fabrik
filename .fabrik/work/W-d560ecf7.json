@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-08T08:15:47.973390Z",
+  "created": "2026-10-08T09:03:48.871770Z",
   "creator": "kaizen",
   "evidence": "",
-  "id": "W-c8dabd9a",
+  "id": "W-d560ecf7",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M4D8FAK20MBYCT4BGT6202RX",
+    "mail": "01M4DC1ERNM6E2NKRQGEW7ZH4H",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "kaizen",
   "priority": 2,
   "status": "done",
-  "title": "pin_manifest is now required (intel 182400f8a, review running) — two wording gaps in your beat that the switch exposes"
+  "title": "Re: ba7fc026a — pin_manifest is mandatory on master (393a30ed8); one follow-up on my side from your \"deleted\" correction"
 }
