@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:02:11.001815Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ca02e4eb",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "check_plan_tickets: the integration-ticket skip (:2355) runs before the gate-mask ERROR its comment says still grades; and the Board's Depends column is never cross-validated against a ticket's Depends: line (W-b60b65a1 critiques)"
+}

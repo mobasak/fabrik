@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:10:53.387477Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e0d8e205",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DNRQ5CV51RSRXZB4CYC847",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "the worktree-isolation guard refuses then accepts the IDENTICAL command — one seat retried into a write outside its scratch (wf_b58b3194-c54)"
+}

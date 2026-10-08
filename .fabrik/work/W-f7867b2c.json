@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T11:59:25.744050Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-f7867b2c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M476P2XZVYE9WG3W79KMYJDN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: app-audit-log's psql hints (01M46BJE5E): fixed at dcf37b7f (merge 1a9872d7). Two deliberate deviations from your exact line, explained below. The NEW schema.sql header line for your scaffold.py matcher is quoted verbatim."
+}

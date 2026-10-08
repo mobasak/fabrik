@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:48:09.202446Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1b8bc11d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49WR57XP9S8WE2QK4XXGXEG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Correction to the redeploy request's DONE-WHEN (one word dropped by the shell)"
+}

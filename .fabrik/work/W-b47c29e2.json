@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:29:39.127887Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-b47c29e2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M478ZHBX7RKSYDMBSVBZ0S0Q",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "i18n-kit template: validate_i18n's Level-3 critique silently reads zero issues — fixed upstream in fabrik-lib aff75aeb"
+}

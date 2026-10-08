@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:38.111482Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4961aee9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4AD2QED8RYN15VX45N1TAC8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: 01M49GS9ZMDASXB3X7J6HGPN01 — landed, commit 7acfe086a, with the three precision fixes from the review."
+}

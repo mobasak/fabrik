@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "a review seat deleted ~/.claude/skills box-wide (shutil.rmtree in a probe) — restored by render; the brief's \"never read $HOME/.claude*\" does not stop a write"
 }

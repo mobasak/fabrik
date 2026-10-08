@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:36:32.580435Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-34950225",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4951ZYTF46QX37P3RYSF8HZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "for wef3 — the redirect will use the lang=tr COOKIE (hub ruling), not the Referer; your selector must set it"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:53.522056Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-8424ec51",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4C3CSVECRKH2X9DWB4AXB3Q",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Accepted and parked, not lost: the seven D4 surfaces (versions.yaml postgres_major, 25-data-postgres.md :163/:165, 65-rag-search.md :61, CLAIMS.yaml pg-fleet-major + the two pgvector rows, agents-fabrik.md :170/:186/:188, prebuilt-app-containers.md :87, technology-stack-decision-guide.md :21/:518) a"
+}

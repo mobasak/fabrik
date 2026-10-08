@@ -51,6 +51,10 @@ All notable changes to this project will be documented in this file.
 ### Changed — assemble_commands --check names every cause of a corpus difference (2026-10-08)
 - `commands/assemble_commands.py`: the command, skill and agent drift rows said `HAND-EDITED` for any difference between this tree's render and the installed corpus. The cause is usually an unrendered source edit, or a worktree behind the last render (fleet's worktree showed 27 such rows). They now read `DIFFERS from what this tree renders (… an unrendered edit here, this tree behind the last render, or a hand-edit of the installed file: in the main checkout render then re-check; in a worktree merge master first)`. `commands/_fragments/grounding-rules.md` names the new label. Grader in `tests/test_assemble_dispatch_step.py`. Intel mail 01M4D9HNXM.
 
+### Changed — `shape.is_admin_dashboard`'s contract text says it gates the whole domain (2026-10-08)
+
+The field description in `src/fabrik/spec_loader.py` said only "hosts an admin UI", and youtube read it as an `/admin` gate and locked its customers out (mail 01M1HJ0S4F, W-61360b89). It now says the registrar's two_factor rule and the python-api/node-api router middleware gate every path except the health/metrics bypasses and the bearer prefix, and that an admin surface of a customer-facing app goes on its own hostname (D-366). D-690 records why no new router, refusal or consistency check was added, with the measured counts, and leaves whatsapp-agent's flag as an open case put to its owner.
+
 ### Fixed — the scaffolded audit-log fold no longer tells the operator to apply `libs/audit_log/schema.sql` on its own (2026-10-08)
 
 `_audit_log_schema_block` (src/fabrik/scaffold.py) dropped the module's own apply hint by matching its exact

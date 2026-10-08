@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T11:06:02.303005Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e6ac106f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DGT41D0ZKW5PAHH6KDRZ1Y",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: a review seat deleted ~/.claude/skills (01M4DE0R2H) — fixed in the seat rules (714efcd04); the guard extension would not have caught this incident"
+}
