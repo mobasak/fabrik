@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — check_review_coverage blocks on reviews committed but not yet integrated (2026-10-09)
+
+- `scripts/enforcement/check_review_coverage.py`: the blocking scan now also grades review artifacts in commits not yet in an integration ref (`git log --cc HEAD --not <refs>` — a receipt hand-added inside a merge commit counts), so committing a review and then gating no longer passes it silently (W-f847a317, D-715). The refs are full names admitted by branch CONFIGURATION, never because a remote name exists: a linked worktree excludes the main checkout's branch and its configured upstream (else origin/master or origin/main), a main checkout its configured upstream (else the same fallback). A shallow clone, an unresolvable ref or a git failure keeps the working-tree scope with one NOTE; no base at all is today's behaviour. A failing unintegrated review prints who added it (Agent-Name trailers, else author) and that the remedy is to mail or revert, never to push. `-z` porcelain and bytes-safe printing grade and show non-ASCII and non-UTF-8 review names; `--base <ref>` overrides (an option-looking value is refused). `final_gate.py` is unchanged. Named residuals: push-then-gate in a main checkout, `Status: IN-PROGRESS`, and deliberate local ref or config rewrites. 30 graders in `tests/enforcement/test_review_coverage_unintegrated.py`, each red on the old code or by a named mutant.
+
 ### Added — check_spec_convergence grades a CONVERGED spec's closing Pass row (2026-10-08)
 
 - `scripts/enforcement/check_spec_convergence.py`: NON-QUIET-LEDGER — a CONVERGED spec that embeds its Pass ledger and closes it on a non-zero `confirmed:` row, graded through `check_convergence.py`'s own `_closing_row_fail` (one grammar for plans and specs), fail-open per call, a DRAFT that quotes the flip never fires. Fires on 0 of 31 specs today; the same function fires on 3 of 57 plans (D-712, W-85496017).

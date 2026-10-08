@@ -109,7 +109,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | "**Watched-fail-first** (for tests this change adds or modifies" | .windsurf/rules/core/45-testing-strategy.md:22 | Red first |
 | "**No skipped heading levels** — `##` to `###`, never `##` to `####`" | .windsurf/rules/core/40-documentation.md:242 | Docs |
 
-## Phase A — the checker: the base, the unintegrated scan, byte-safe -z porcelain
+## Phase A — the checker: the base, the unintegrated scan, byte-safe -z porcelain — ✅ EXECUTED 2026-10-09 (2abf019c5)
 
 Appetite: 150
 
