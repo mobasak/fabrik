@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:01:34.789971Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-18543ee2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "claude_rotate.py's caps loader fails soft to {} ('rotating UNCAPPED', :3945-3953), so a mis-read cap writes urgent-90 where a readable one writes walled for the same account (ob@ 5h 91 / weekly 93 / cap 90). Spec a 'caps unknown' signal distinct from 'no cap' (fail closed to walled when the file exists but cannot be read); a new mechanism, so /fabrik-task with the full review.",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "An unreadable caps.json demotes the fleet's walled stamp to urgent-90 (W-06733560 item 2)"
+}
