@@ -1038,6 +1038,7 @@ docs/
 │   ├── hub-restore-inventory.md
 │   ├── n8n-webhooks.md             # n8n webhook configuration
 │   ├── postgres-major-upgrade-runbook.md # PostgreSQL major upgrade (16→18) operator runbook
+│   ├── promtail-to-alloy-runbook.md # Promtail → Alloy switch window: per-host steps, battery, rollback, Gate S
 │   ├── spoke-restore-inventory.md
 │   └── wsl-environment.md
 ├── orchestrator
@@ -1436,6 +1437,8 @@ docs/
 | [vps-urls.md](docs/infrastructure/vps-urls.md) | All deployed service URLs |
 | [disaster-recovery.md](docs/operations/disaster-recovery.md) | Backup and recovery procedures |
 | [postgres-major-upgrade-runbook.md](docs/operations/postgres-major-upgrade-runbook.md) | PostgreSQL major upgrade (16→18): WSL rehearsal, hub dump/restore window, release, project requests |
+| [promtail-to-alloy-runbook.md](docs/operations/promtail-to-alloy-runbook.md) | Promtail → Grafana Alloy switch window: preflight, per-host stop → start (vps3, vps2, vps1), battery V4–V11, rollback, the close, Gate S, the infra mail |
+| [test_alloy_runbook.py](tests/test_alloy_runbook.py) | structural grader for the Promtail → Alloy runbook: host order, steps (a)–(d), the D3 checks and pushes, V6 markers, rollback, Gate S, the close, the D-035 infra mail, and the command shapes (ssh alias vs host label, anchored status filter, canary-only V6, silence expiry by matcher) (plan 2026-10-08-plan-1, T06) |
 <!-- duplicati-setup.md archived 2026-04-28; Backrest is the live backup tool — see backup.vps1.ocoron.com and AGENTS.md -->
 | [coolify-migration.md](docs/infrastructure/archive/coolify-migration.md) | Coolify migration procedures |
 

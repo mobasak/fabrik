@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the fleet docs name Grafana Alloy as the log shipper, and the switch window has its runbook (2026-10-08)
+
+Thirty-two current-state docs (audit prompts, setup guides, the VPS inventory, status, architecture, operations and rebuild
+guides, the scaffold resilience template) now name `alloy` on port 12345 with its configs and metrics, keeping Promtail only
+as history or the `rollback` profile; the noise-filter doc is renamed `alloy-noise-filter-setup.md`; and
+`docs/operations/promtail-to-alloy-runbook.md` carries the operator's per-host window, battery, rollback, Gate S and the infra
+mail, graded by `tests/test_alloy_runbook.py` (plan 2026-10-08-plan-1, T05a–T06; receipt
+`docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T05a-review.md`).
+
 ### Changed — the spoke stack and bootstrap step 11 ship Alloy (2026-10-08)
 
 The spoke monitoring-agent template runs Alloy on the mesh IP (128M, cpus 0.25) with Promtail under the rollback profile;
