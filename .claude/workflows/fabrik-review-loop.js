@@ -169,7 +169,7 @@ for (const s of args.slices) Object.assign(s, { ledger: normalizeLedger(s) }, no
 // refused HERE, before any seat runs. Optional under D-663 until every launcher passed it (kaizen e29ffb101).
 // COBRA (D-253): a typed map of the right shape passes this check — the script cannot hash — so the pass reader's
 // `read --pins` (UNPINNED / NOT CHECKED) stays the check that catches a fake.
-const PIN_HOW = 'run `python3 scripts/review_loop_ledger.py pin --pins-dir <a new dir> <every slice file>` from the repo root (a project copy without the verb: the hub\'s /opt/fabrik/scripts/review_loop_ledger.py, same arguments) and pass the pin_manifest it prints, naming each slice file exactly as pin printed it; a file pin refuses — deleted, outside the repo, a symlink — is not a slice file: review it through its callers, or run the agent-tool fallback'
+const PIN_HOW = 'run `python3 scripts/review_loop_ledger.py pin --pins-dir <a new dir> <every slice file>` from the repo root (a project copy without the verb: the hub\'s /opt/fabrik/scripts/review_loop_ledger.py, same arguments) and pass the pin_manifest it prints, naming each slice file exactly as pin printed it; a file pin refuses is not a slice file (the refusal names why): review it through its callers in the slice, or run the agent-tool fallback'
 const m = args.pin_manifest
 if (m === undefined || m === null) throw new Error(`pin_manifest is required — ${PIN_HOW}`)
 if (typeof m !== 'object' || Array.isArray(m) || !Object.values(m).every((v) => typeof v === 'string' && /^[0-9a-f]{32}$/.test(v))) {

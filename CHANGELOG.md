@@ -24,6 +24,10 @@ All notable changes to this project will be documented in this file.
 - `scripts/command_run.py::_seat_transcripts` reads `<sid>/subagents/` recursively. A Workflow-tool seat writes `subagents/workflows/wf_<id>/agent-<id>.jsonl`, which the top-level glob never saw. As a result, every review-loop close printed "seats declared N vs seen 0", recorded seats_seen 0 and dropped those seats' tokens from its FEEDBACK line, and the no-round nudge missed them too. 35% of one session's seat transcripts sat at that depth. Every file is a seat: no dedupe (0 duplicate seat names measured).
 - `docs/reference/command-run-protocol.md` and `.windsurf/rules/core/62-using-subagents.md` name the Workflow depth. Grader in `tests/test_command_feedback.py`. Kaizen mail 01M4D35GZ9; review `docs/development/reviews/2026-10-08-seats-seen-rglob-review.md`.
 
+### Fixed — `pin --from` no longer refuses a committed file over an unrelated working-tree symlink (2026-10-08)
+
+- `scripts/review_loop_ledger.py pin --from` judged the path by its WORKING-TREE shape, so a regular file at the ref was refused when the working tree held a symlink there; ref mode now refuses only what the commit makes unpinnable. The workflow's refusal text and the reference doc no longer say a deleted file is always refused (kaizen ba7fc026a). Receipt: `docs/development/reviews/2026-10-08-pin-refusal-wording-review.md`.
+
 ### Changed — a receipt row whose overflow cells carry text now fails the gate (2026-10-08)
 
 - `scripts/enforcement/check_review_hygiene.py --strict`, registered by `final_gate.py`, blocks a staged or tracked-modified receipt row whose cells past the header's width carry text (GFM drops them); every other hygiene hit stays advisory and now reaches `--json` warnings (W-205934fb, D-677). `check_mcp_scope` gets its liveness canary and its Tier-2 count. Receipt: `docs/development/reviews/2026-10-08-review-hygiene-strict-review.md`.

@@ -462,6 +462,22 @@ def test_pin_from_a_ref_and_dirty_marker(tmp_path: Path) -> None:
     assert json.loads((tmp_path / "p1" / "MANIFEST.json").read_text())["source"] != "working-tree"
 
 
+def test_pin_from_a_ref_ignores_the_working_tree_shape(tmp_path: Path) -> None:
+    """Review A-S1 (pin-refusal wording): `--from` reads the bytes from the commit, so a working-tree
+    symlink or deletion at that path is irrelevant — the committed regular file is pinned. A path that
+    escapes the repo is still refused lexically, and a symlink AT the ref still by its tree mode."""
+    repo = _repo(tmp_path)
+    (repo / "a.py").unlink()
+    (repo / "a.py").symlink_to(tmp_path)  # an unrelated local symlink, pointing outside the repo
+    got = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p1"), "--from", "HEAD", "a.py")
+    assert got.returncode == 0, got.stderr
+    assert (tmp_path / "p1" / "a.py").read_text() == "A = 1\n"
+    out = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p2"), "--from", "HEAD", "../x.py")
+    assert out.returncode == 2 and "outside the repo root" in out.stderr, out.stderr
+    wt = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p3"), "a.py")
+    assert wt.returncode == 2 and "a symlink" in wt.stderr, wt.stderr
+
+
 def test_pin_base_extracts_the_commit_read_only(tmp_path: Path) -> None:
     """Row 1791115993: a whole base tree beside the pins, so a seat needs no repository command against the
     live checkout — the COMMITTED bytes, read-only to the directory level."""
