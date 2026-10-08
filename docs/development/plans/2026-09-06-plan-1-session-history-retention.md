@@ -595,6 +595,31 @@ The four named windows' current sessions are in the manifest: fleet `1970a0ff` 7
 re-archived each). **Phase B is blocked from this network:** `--fetch` needs the download host the
 SNI filter cuts (`docs/workstation/session-history-retention.md` § Restore).
 
+**2026-10-09 — Gate S GREEN, ahead of Phase B; Phase B BLOCKED (missing infra: a network path to
+B2's download host).** Infra merged the branch (a224626af). Gate S ran before Gate B because the
+timer only archives and uploads, which is non-destructive. "No phase may merge forward" guards Phase
+C's deletions, and Phase C stays deferred. Every day without the timer was a day with no off-site
+copy.
+
+```
+$ bash scripts/sysadmin/install_session_archive_timer.sh   (main checkout, archiver md5 0767f5bd = this branch)
+Created symlink …/timers.target.wants/session-archive.timer → …/session-archive.timer.
+$ systemctl --user list-timers session-archive.timer
+Sat 2026-10-10 00:11:16 +03  22h -  -  session-archive.timer  session-archive.service
+$ systemctl --user start session-archive.service; systemctl --user show session-archive.service -p Result -p ExecMainStatus
+Result=success
+ExecMainStatus=0
+$ .venv/bin/python scripts/sysadmin/archive_transcripts.py --fetch /-opt-fabrik/fa631570-1f8f-4df9-a15e-467e872b897f.jsonl.zst <scratch>/b1-r.zst; echo rc=$?
+archive_transcripts: /-opt-fabrik/fa631570-….jsonl.zst was not downloaded: absent from the bucket, or B2's download host is unreachable from this network
+rc=1
+$ curl -sS -o /dev/null -w "%{http_code}\n" -I https://f004.backblazeb2.com/
+000          # SSL_ERROR_SYSCALL at SSL_connect; with --resolve, the f004 NAME fails at f000's IP and the f000 name passes at f004's IP
+```
+
+Resume: from a network that reaches `https://f004.backblazeb2.com` (the check above prints a 4xx
+instead of `000`), run Phase B (B.1-B.5), then the Finish `/fabrik-review`, then flip EXECUTED.
+The plan lock stays `active`.
+
 ## Evidence
 
 **Revision 2026-10-05 — the measurements the B2-direct route is built on** (this machine):
