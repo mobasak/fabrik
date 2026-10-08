@@ -341,3 +341,58 @@ def test_execute_plan_loop_and_header_note_are_distinct_sections() -> None:
     assert _execute_plan_run_record_note() != _execute_plan_loop_section()
     assert "for each PHASE in dependency order" in _execute_plan_loop_section()
     assert "for each PHASE in dependency order" not in _execute_plan_run_record_note()
+
+
+
+def test_the_set_hash_recipe_is_path_independent_and_the_spec_gate_is_stated_truly(tmp_path) -> None:
+    """/fabrik-plan-review queue (kaizen D-711 audit): the combined-hash recipe hashed md5sum's path column as
+    typed, so the same set hashed differently in the tree and in a seat's pin; and the dropped-requirement row said
+    check_stage_artifacts only checks the cited spec HAS a status, while it refuses the flip on a non-CONVERGED
+    spec. The recipe is run here on two copies at different paths, and the spec gate is driven."""
+    import importlib.util
+    import os
+    import shutil
+    import subprocess
+
+    src = (REPO / "commands" / "_sources" / "fabrik-plan-review.md").read_text(encoding="utf-8")
+    text = " ".join(src.split())
+    recipe = "(cd \"<plan-dir>\" && find . -name '*.md' -print0 | LC_ALL=C sort -z | xargs -0 md5sum) | md5sum"
+    assert f"`{recipe}`" in text
+    a = tmp_path / "tree" / "2026-01-01-plan-x"
+    a.mkdir(parents=True)
+    (a / "2026-01-01-plan-x.md").write_text("# spine\n")
+    (a / "T01-a.md").write_text("# ticket\n")
+    (a / "T01a-b.md").write_text("# split\n")
+    (a / "T01-Z.md").write_text("# upper\n")
+    b = tmp_path / "pins" / "p1" / "2026-01-01-plan-x"
+    shutil.copytree(a, b)
+
+    def run(d, lc: str = "C") -> str:
+        env = {**os.environ, "LC_ALL": lc, "LANG": lc}
+        return subprocess.run(["bash", "-c", recipe.replace("<plan-dir>", str(d))], capture_output=True, text=True,
+                              check=True, env=env).stdout
+
+    assert run(a) == run(b), "identical bytes must hash the same in the tree and in the pin"
+    assert not run(a).startswith("d41d8cd98f00b204e9800998ecf8427e"), "the recipe hashed nothing"
+    assert run(a) == run(a, "en_US.UTF-8"), "the hash must not depend on the caller's locale"
+    (b / "T01-a.md").write_text("# edited\n")
+    assert run(a) != run(b), "an edited ticket must change the hash"
+    assert "only checks that the plan's cited spec HAS a status" not in text
+    assert ("`check_stage_artifacts.py` (Tier-2 gate) refuses a new CONVERGED flip while the spec the plan designates "
+            "(its `Spec:` field, else its first 40 non-table lines) is missing or not CONVERGED — a spec under, or moved "
+            "to, `docs/superpowers/specs/archived/` is exempt — and compares no requirements") in text
+    assert "`d41d8cd98f00b204e9800998ecf8427e` is the empty input — the `cd` failed, never record it" in text
+    spec = importlib.util.spec_from_file_location("csa_probe", REPO / "scripts" / "enforcement" / "check_stage_artifacts.py")
+    csa = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(csa)
+    root = tmp_path / "repo"
+    (root / "docs" / "superpowers" / "specs").mkdir(parents=True)
+    (root / "docs" / "development" / "plans").mkdir(parents=True)
+    spec_rel = "docs/superpowers/specs/2026-01-01-x-design.md"
+    plan = root / "docs" / "development" / "plans" / "2026-01-01-plan-1-x.md"
+    plan.write_text(f"# Plan\n\nStatus: CONVERGED\nSpec: `{spec_rel}`\n")
+    (root / spec_rel).write_text("# Spec\n\nStatus: DRAFT\n")
+    assert csa._check_plan_spec_freshness(root, plan), "a DRAFT cited spec must block the plan's flip"
+    (root / spec_rel).write_text("# Spec\n\nStatus: CONVERGED\n")
+    assert csa._check_plan_spec_freshness(root, plan) == []

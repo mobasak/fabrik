@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-plan-review's set hash is path-independent and its spec-gate claim is true (2026-10-08)
+- `commands/_sources/fabrik-plan-review.md`: the combined set hash hashed md5sum's path column as typed, so the same plan set hashed differently in the tree and in a seat's `cp -r` copy; it now runs from inside the set (`cd "<plan-dir>"`, `LC_ALL=C sort`) and names the empty-input hash `d41d8cd9…` as a failed `cd`, never recorded. The dropped-requirement row said `check_stage_artifacts.py` only checks the cited spec HAS a status; it now states the Tier-2 refusal of a new CONVERGED flip on a missing or non-CONVERGED designated spec (archived exempt) and that it compares no requirements. Answers 4 /fabrik-plan-review verdicts confirmed as text defects by the D-711 Opus audit. Grader: `tests/test_plan_review_small_gate.py::test_the_set_hash_recipe_is_path_independent_and_the_spec_gate_is_stated_truly`, which runs the recipe on two copies at different paths and under two locales, and drives `_check_plan_spec_freshness`.
+
 ### Added — command_feedback_report --queue names the held subjects; --reject warns on a re-hold (2026-10-08)
 - `scripts/command_feedback_report.py --queue <command>` adds one header line, `held (all time): <k> subject(s) on <m> of <n> rejected row(s) — …`, listing the `HELD:<subject>` tags in that command's rejected reasons (each once per row, count first), so the improve run can see a new verdict on a held subject; it prints nothing for a command with no tags. `--reject` now warns when its reason names a subject already held — a second verdict is edited, never re-rejected (D-711). kaizen 01M4E88KDV.
 
