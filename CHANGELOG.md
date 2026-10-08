@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan names the whole-plan receipt by the plan's own stem (2026-10-08)
+- `commands/_sources/fabrik-execute-plan.md` started the whole-plan receipt with `review_receipt.py --init --scope <plan-slug>`, which dates the file the day it is made; `check_convergence.py` then failed to match a later-dated receipt whose plan slug has one distinctive token. D7 and Finish step 1 now start it with `--init --out docs/development/reviews/<plan>-review.md` (the plan's own dated stem), Finish step 1 names both gate runs of the close, and `/fabrik-review` § Reporting points a plan's receipt at that naming. Grader: `tests/test_execute_plan_d7.py::test_the_whole_plan_receipt_is_named_by_the_plan_stem_so_check_convergence_matches_it`, which also drives `_cite_matches_plan`.
+
 ### Changed — the project contract says how to make a probe worktree gradable (2026-10-08)
 - `templates/governance/CLAUDE.md`'s throwaway-worktree paragraph sent a project to `git worktree add`, which holds none of the gitignored Fabrik-synced files, so the probe's gate ran without its checkers and read green (a missing checker renders `[PASS]`). It now says to copy in what `.worktreeinclude` lists plus `.fabrik/synced.lock`, run the gate from inside the probe with `--json`, treat a `check not present` warning the own-checkout run lacks as a void probe, and confirm the lock arrived (D-701, W-c0a68194). Grader: `tests/test_governance_template_split.py::test_the_template_tells_a_project_probe_worktree_to_copy_in_the_ignored_checkers`.
 
