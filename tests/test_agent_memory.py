@@ -726,10 +726,18 @@ def test_force_never_overrides_a_session_count_it_cannot_read(stub_bin, broken):
     )
 
 
-def test_status_prints_a_question_mark_for_a_session_count_it_cannot_read(stub_bin):
+@pytest.mark.parametrize(
+    ("pgrep", "want"),
+    [
+        ("#!/usr/bin/env bash\nexit 2\n", "?"),  # broken: never a confident number
+        (PGREP_IDLE, "0"),  # review A-O7: the working count paths too, or an always-`?`
+        ("#!/usr/bin/env bash\necho 4242\necho 4343\n", "2"),  # status passes the suite
+    ],
+)
+def test_status_prints_a_question_mark_for_a_session_count_it_cannot_read(stub_bin, pgrep, want):
     """Review A-S1: status counted with `pgrep | wc -l`, so a broken pgrep printed a confident
     `0` live sessions — the fail-open reclaim already closed, and what the daily cron log shows."""
-    (stub_bin / "pgrep").write_text("#!/usr/bin/env bash\nexit 2\n")
+    (stub_bin / "pgrep").write_text(pgrep)
     (stub_bin / "pgrep").chmod(0o755)
     env = _clean_env(
         PATH=f"{stub_bin}:{os.environ['PATH']}",
@@ -742,4 +750,4 @@ def test_status_prints_a_question_mark_for_a_session_count_it_cannot_read(stub_b
         ["bash", str(SCRIPT), "status"], capture_output=True, text=True, env=env, timeout=120
     )
     line = next(ln for ln in r.stdout.splitlines() if "claude sessions live" in ln)
-    assert line.split()[-1] == "?", line
+    assert line.split()[-1] == want, line
