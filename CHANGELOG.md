@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review-loop workflow refuses a launch without a pin manifest (2026-10-08)
+
+- `.claude/workflows/fabrik-review-loop.js` now requires `pin_manifest` (D-663's switch, made once every launcher passed it): an absent or null manifest is refused before any seat runs with the `pin` command named, slice files are normalised as `pin` keys them and handed to the seats in that form (D-673). Receipt: `docs/development/reviews/2026-10-08-review-loop-mandatory-pin-manifest-review.md`.
+
 ### Fixed — check_frozen_chain reads a split Status/Version header (2026-10-08)
 - `scripts/enforcement/check_frozen_chain.py`: a contract whose `Status:` and `Version:` sit on separate header lines (bold or plain labels, `v` optional) now registers its version. Before, every pin against it was skipped and a stale one passed silently. 10 of 36 chain docs on the box split them; 9 now register, 0 change value. The version token refuses `v5a`, `v6.12` and `2026-10-05`. On the Status line, the Version must be a field, never a mention in prose. The body-prose sweep matches filenames by equality, not substring.
 - Newly visible stale pins: tryton-crm `docs/ui-design.md` (data-contract v43, at v44) and brand-identiy-creator `docs/ui-design.md` (data-contract at v33).
