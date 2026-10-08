@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — core/40-documentation's llms.txt line names the hub instead of "THIS repo" (2026-10-08)
+- `review_rubric.py` injects the pack's mandate lines into PROJECT finder prompts, where "In THIS repo `llms.txt` is GENERATED (`scripts/generate_capability_index.py`)" read as a project fact: a Fable panel seat at web-ecommerce-factory probed the missing generator and filed it as MACHINERY (wef2 01M4C63S0F). The line now says the hub (`/opt/fabrik`) and that a project has neither file unless it writes its own `llms.txt`. A case-insensitive sweep of all 57 packs found no other "this repo" line (kaizen).
+
 ### Changed — /fabrik-task names the path form its close can match, at design time (2026-10-08)
 - The v2 close refuses `done` on any committed path missing from APPROACH or MIRROR, and its matcher reads one bare repo-relative path per backtick pair under line-start UPPERCASE labels, so a design naming `a.py::f`, `a.py:120` or `a.py, b.py`, using a Title-case or numbered label or a field-word or `#` line inside the field, or leaving out the Behaviours' tests or a rename's old path was refused at close. Phase 2 now states the form, the label and the inclusions where the design is written (of receipts, only a `--review` one is exempt; v1 measures `--file`); phase 5 points back instead of restating it. The file's size cap rises 11672 → 11974 B (D-657). Answers 15 /fabrik-task feedback verdicts (kaizen).
 
