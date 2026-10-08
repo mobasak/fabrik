@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-ui-design-review reads the mobile component patterns for every mobile project (2026-10-08)
+- The command listed `mobile-app/ocoron-mobile-design-system.md` as the Ocoron identity's "RN variant", inside the established-brand branch, so a CREATE-mode or non-house-brand mobile review skipped the component patterns. Since D-473 the pack is brand-neutral: it now sits with the mobile surface pack for every mobile project, axis A names it, and the house brands read only when declared (intel mail 01M3VX3S43).
+
 ### Fixed — the docusaurus pack serves 404s, caches only hashed assets and names the registry codename (2026-10-08)
 - `.windsurf/rules/core/42-docusaurus.md` replaces the SPA fallback `try_files … /index.html` (every mistyped URL answered 200 with the landing page) with a full nginx.conf served and checked in nginx:mainline-trixie, drops the curl layer and the gzip middleware, scopes the immutable cache to `/assets/`, and states the image choice. `/fabrik-spec`, `/fabrik-vision` and `check_docker.py` stop naming bookworm; the dead APPROVED_BASES list is gone (D-664).
 
