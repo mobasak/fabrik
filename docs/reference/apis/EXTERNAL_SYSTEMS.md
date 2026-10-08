@@ -1,7 +1,7 @@
 # Fabrik External Systems — the fleet index of every outside dependency and how we reach it
 
 **Last Updated:** 2026-09-02 (converged by `/fabrik-doc-converge`; the 2026-06-02 Coolify-era version is in git history)
-**Denominator (measured 2026-09-02):** 148 distinct systems (143 blocks below + the 5 rows in § Retired that have no block of their own — Supabase and Promtail carry both a block and a Retired row) = the union of this doc's previous entries ∪ `scripts/service_catalog.json` (109 vendors) — the catalog grows daily as the chain's classify step names code-only hosts, so this count is re-measured at every closing pass ∪ every vendor-shaped key in `/opt/*/.env.example` (40 files) + `specs/services/*.yaml` (72 specs) ∪ the live `docker ps` of vps1/vps2/vps3 ∪ `docs/reference/apis/*.md` ∪ **every `https://<host>` literal in source across the 45 git repos under `/opt`** (the code call-site scan, `scripts/gather_envs.py` — added the same day after the env-key proxy was measured to miss 239 of 495 code-referenced hosts; 8 of those were fleet-used systems with no key anywhere: PostHog, Axiom, Slack, Vercel, Cerebras, LinkedIn, BLS, Google APIs/Gmail). **116 are fleet-used** — the count is DERIVED from the blocks: a block counts when its meta line names ≥1 project (`Used by: N project(s)`, N ≥ 1 — env key, spec or code call site) or a running container (`Runs on:`); the rest are catalogued-only or retired and say so.
+**Denominator (measured 2026-09-02):** 149 distinct systems (143 blocks below + the 6 rows in § Retired that have no block of their own — Supabase carries both a block and a Retired row; Promtail's block became Grafana Alloy's on 2026-10-08, plan 2026-10-08-plan-1) = the union of this doc's previous entries ∪ `scripts/service_catalog.json` (109 vendors) — the catalog grows daily as the chain's classify step names code-only hosts, so this count is re-measured at every closing pass ∪ every vendor-shaped key in `/opt/*/.env.example` (40 files) + `specs/services/*.yaml` (72 specs) ∪ the live `docker ps` of vps1/vps2/vps3 ∪ `docs/reference/apis/*.md` ∪ **every `https://<host>` literal in source across the 45 git repos under `/opt`** (the code call-site scan, `scripts/gather_envs.py` — added the same day after the env-key proxy was measured to miss 239 of 495 code-referenced hosts; 8 of those were fleet-used systems with no key anywhere: PostHog, Axiom, Slack, Vercel, Cerebras, LinkedIn, BLS, Google APIs/Gmail). **116 are fleet-used** — the count is DERIVED from the blocks: a block counts when its meta line names ≥1 project (`Used by: N project(s)`, N ≥ 1 — env key, spec or code call site) or a running container (`Runs on:`); the rest are catalogued-only or retired and say so.
 **Contract:** every fleet-used external system has a block here with the **12-field Capability Profile** (`core/57-external-data-sourcing` § The Capability Profile) plus its **resilience posture** (`core/58-resilience`). A cell is a grounded value *with its source*, or exactly `UNKNOWN — tried: …` — an unstated cell is a defect, an UNKNOWN one is a visible gap. Vendor numbers rot: a value carries its date; re-verify before it decides a design, a cost estimate or a scale-up (57 § Doc Sync). The VENDOR's contract lives here; YOUR handling (timeouts, retry layer, breaker, pause key, failover, backup) lives in the consuming project's `docs/RESILIENCE.md` §2b card, which LINKS this index and never copies it.
 
 ## The types of external service the fleet depends on (the taxonomy)
@@ -3016,29 +3016,29 @@ Two axes decide the integration before any code — the **mechanism** (57 § The
 - **Usage in Fabrik** _(2026-06-02 entry)_: - Functions: Log aggregation and querying - Port: 3100 - Config: `/opt/fabrik/configs/loki/loki-config.yaml`
 - **Notes** _(2026-06-02 entry)_: - Self-hosted on VPS - amd64 compatible - Part of monitoring stack
 
-### Promtail
+### Grafana Alloy
 
-**Type:** observe · **Reach:** self-hosted container on the `fabrik` network · **Runs on:** vps1, vps2, vps3 (`docker ps` 2026-09-02) · **Used by:** 0 project(s) — fleet service, no per-project key
+**Type:** observe · **Reach:** self-hosted container — hub on the `fabrik` network, spokes on the host network listening on the mesh IP · **Runs on:** vps1, vps2, vps3 (after the 2026-10 switch window, `docs/operations/promtail-to-alloy-runbook.md`; image `grafana/alloy:v1.20.1`) · **Used by:** 0 project(s) — fleet service, no per-project key
 
 | # | Field | Value (source) |
 |---|---|---|
-| 1 | Limits & quota | self-operated — container memory limit **96m** (docs/infrastructure/vps-complete-inventory.md:620); connection/pool caps are the service's own config |
+| 1 | Limits & quota | self-operated — container memory limit **256M** on the hub (`scripts/vps_apply_limits.sh` `alloy 256`) and **128M**, cpus 0.25, on the spokes (`scripts/bootstrap/templates/monitoring-agent.compose.yaml.template`); measured 83.18 MiB under a 96 MiB cap (spec 2026-10-05-promtail-to-alloy-design.md D5) |
 | 2 | Behaviour AT the cap | self-operated — behaviour at the cap is the service's own (connection refused / OOM-kill → `restart:` policy, 58 row 9); no vendor throttling |
 | 3 | Concurrency & parallelism | self-operated — concurrency = our worker count vs the service's connection limit; scoped per container |
 | 4 | Identity posture | n/a — no vendor identity; access is network-scoped to the `fabrik` net (+ Authelia where admin-facing) |
-| 5 | Failure & resume | UNKNOWN — tried: catalog, the 2026-06-02 entry, rules corpus, vendor docs; live re-verify pending |
+| 5 | Failure & resume | `loki.write` retries an unreachable Loki and does not exit; file positions live under `--storage.path` (`alloy-data` volume), imported once from Promtail's `legacy_positions_file` (spec D4; rehearsed V3, plan 2026-10-08-plan-1 receipt) |
 | 6 | Cost model | self-operated — cost is the host's memory/disk budget (`deploy.resources.limits.memory` is mandatory); no per-call billing |
-| 7 | Usage observability | self-operated — Prometheus exporters + Grafana on the hub (`postgres-exporter`, `redis-exporter`, `cadvisor`, `node-exporter` — `docker ps` 2026-09-02) |
-| 8 | Health signal | UNKNOWN — tried: catalog, the 2026-06-02 entry, rules corpus, vendor docs; live re-verify pending |
+| 7 | Usage observability | self-operated — Alloy's own `/metrics` on port 12345 (`loki_write_sent_entries_total`, `loki_write_dropped_entries_total`, `loki_source_file_files_active_total`), scraped by Prometheus job `alloy` |
+| 8 | Health signal | `/-/ready` on port 12345 — Gatus endpoint `alloy` (`configs/gatus/apps/observability-agents.yaml`), Prometheus `up{job="alloy"}` for the three hosts |
 | 9 | Credential lifecycle | self-operated — credentials are minted by the registrar / compose env and rotate on OUR schedule (58 § credential lifecycle applies to the consumer) |
 | 10 | Interface lifecycle | self-operated — the interface changes when WE bump the image tag (`30-ops` pins; D-062 marker spans); no vendor deprecation channel |
 | 11 | Data contract | UNKNOWN — tried: catalog, the 2026-06-02 entry, rules corpus, vendor docs; live re-verify pending |
 | 12 | Push delivery (webhooks/streams) | n/a — pull-only integration |
-| — | **Resilience posture (58)** | EOL upstream; runs on all three hosts (probed 2026-09-02); Alloy migration filed |
+| — | **Resilience posture (58)** | replaced Promtail (EOL 2026-03-02); Promtail stays defined under the compose profile `rollback`, stopped, until Gate S (V8 and V9 green for 14 days) |
 
-- **Purpose** _(2026-06-02 entry)_: Log shipping agent
-- **Usage in Fabrik** _(2026-06-02 entry)_: - Functions: Ship logs to Loki - Config: `/opt/fabrik/configs/promtail/promtail-config.yaml`
-- **Notes** _(2026-06-02 entry)_: - Self-hosted on VPS - amd64 compatible - Part of monitoring stack
+- **Purpose**: Log shipping agent — tails `/var/lib/docker/containers/*/*log` and pushes to Loki
+- **Usage in Fabrik**: hub config `configs/alloy/config.alloy` (the `alloy convert` output of the Promtail config), spoke config rendered from `scripts/bootstrap/templates/alloy.alloy.template` to `/opt/monitoring-agent/alloy.alloy` by bootstrap step 11
+- **Notes**: Self-hosted on VPS; `platform: linux/amd64`; part of the monitoring stack (history: the 2026-06-02 entry described Promtail, `configs/promtail/promtail-config.yaml`)
 
 ### Alertmanager
 
@@ -3332,7 +3332,7 @@ Two axes decide the integration before any code — the **mechanism** (57 § The
 | Kilo | RETIRED with Windsurf/Cascade — LLM access is Claude Max OAuth + OpenRouter only |
 | Context7 | RETIRED from the roster (D-003) — official-docs WebFetch covers the need |
 | Supabase | RETIRING as a runtime target (self-host by default) — 11 specs still reference it; keep the entry until the last migrates (trade-intelligence) |
-| Promtail | END-OF-LIFE upstream (2026-03-02) and STILL RUNNING on hub + both spokes — migration to Alloy filed (mail 01M1EQ3NCA98EF178ZY366V47T) |
+| Promtail | END-OF-LIFE upstream (2026-03-02); replaced by Grafana Alloy v1.20.1 (plan 2026-10-08-plan-1, D-651) — stays defined, stopped, under the compose profile `rollback` until Gate S, then removed |
 | `tco` (catalog `research-data`) | **NOT AN EXTERNAL VENDOR** — `TCO_API_KEY` points at the internal `triggered-content-orchestration` python-api on port 8025 (`PORTS.md:123`); its only consumer was the archived `wpf` (`/opt/archived/wpf/docs/CONFIGURATION.md:22`). The catalog row is a misclassification — reclassify or delete at the catalog's next touch (grounded live 2026-09-02) |
 
 
