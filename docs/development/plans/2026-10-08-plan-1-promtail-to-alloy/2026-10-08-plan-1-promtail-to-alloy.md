@@ -133,6 +133,28 @@ MATCHED eight packs and injects four FLOOR rows, each named here with the line t
   every merge happens on the `fleet-alloy` branch in § Merge Order, and the results merge/dedupe at T07, which re-runs every ticket's gate on the merged branch.
 - **Ids** — every D-row this plan mints uses `python3 scripts/decisions.py --reserve-id .`.
 
+## RESUME
+
+Paused 2026-10-08 on the quota drain band (execute-plan D2: quota pressure pauses the plan, never thins the review).
+Board: T01–T06 ✅ (waves 1–3 merged on `fleet-alloy`; receipts `-T01-review.md`, `-T02-review.md`, `-T05a-review.md`).
+T07 part 1 landed at 1418e38cb: `docs/reference/apis/EXTERNAL_SYSTEMS.md` rewritten, Gate S boarded as W-a7ee59fd, and the
+three rehearsals run locally on throwaway `t07r-` containers and projects, all PASS:
+
+- **V5a** — after the forward switch `['alloy running', 'promtail exited']`; after the D6 rollback `['promtail running']`;
+  after a plain `up -d` `['promtail running']` (no alloy container).
+- **V4a** — Loki 3.4.2 label names `container_name, filename, host, job, service_name, stream`, plus Loki's own internal
+  `__stream_shard__`.
+- **V3** — positions file at offset 1089 (after line 10 of 20): Alloy shipped exactly `t07r-line-11` … `t07r-line-20`
+  (10 lines), logged `successfully converted legacy positions file to the new format`, and shipped nothing again after a
+  restart.
+
+Resume, in the `fleet-alloy` worktree after the quota reset: `/fabrik-execute-plan docs/development/plans/2026-10-08-plan-1-promtail-to-alloy/`
+→ D7 whole-plan validation (`/fabrik-review` over `ad790046b..HEAD`, at least 3 Sonnet finders plus the authoritative seat)
+writing `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-review.md` with the rehearsal results above and the
+D-651 condition-1 correction → board the operator window as a `gate` DECISION → flip T07 ✅ and the spine to EXECUTED. The
+branch is NOT sent for merge (spec D8). Leftover from the first V5a run: docker volume `t07r-v5a_alloy-data` (throwaway,
+created 2026-10-08 by the rehearsal; deleting it is the operator's word).
+
 ## Behavior Contract
 
 - **Given** the hub Promtail config, **When** `alloy convert --source-format=promtail` runs on it, **Then** its output equals `configs/alloy/config.alloy` byte for byte (spec § The delta › D1; configs/promtail/promtail-config.yaml:12)
