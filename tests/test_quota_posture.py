@@ -1404,14 +1404,16 @@ def test_the_pretooluse_leg_defers_only_to_a_real_wall(tmp_path):
 
 
 def test_the_posture_hooks_tier_reader_agrees_with_the_tick_and_the_stop_hook(tmp_path):
-    """Three copies of one reader now decide whether the fleet is held. Grade all three against
-    the same bytes — a copy that drifts makes the band and the hold disagree about the wall."""
+    """Four copies of one reader now decide whether the fleet is held — the tick, quota_stop, this
+    hook, and the Stop hook's yield (W-37003fa1). Grade all four against the same bytes — a copy
+    that drifts makes the band, the hold and the Stop hook disagree about the wall."""
     mod = _load()
     root = Path(__file__).resolve().parents[1]
     others = []
     for name, rel in (
         ("tier_probe_tick", "scripts/sysadmin/claude_rotate.py"),
         ("tier_probe_stop", ".claude/hooks/quota_stop.py"),
+        ("tier_probe_final_stop", ".claude/hooks/final_gate_stop.py"),
     ):
         spec = importlib.util.spec_from_file_location(name, root / rel)
         m = importlib.util.module_from_spec(spec)
@@ -1454,7 +1456,7 @@ def test_the_checkpoint_clause_does_not_claim_nothing_is_held(tmp_path):
 
 
 def test_the_three_tier_readers_agree_on_the_shapes_that_actually_diverge(tmp_path):
-    """The first corpus covered the easy shapes. Three HAND-WRITTEN copies diverge on decoration:
+    """The first corpus covered the easy shapes. Four HAND-WRITTEN copies diverge on decoration:
     case, carriage returns, a third line, a NUL byte, control separators, a FIFO, a directory.
     Every one of those is graded here, because a copy that drifts makes the band and the hold
     disagree about whether the fleet is walled."""
@@ -1466,12 +1468,13 @@ def test_the_three_tier_readers_agree_on_the_shapes_that_actually_diverge(tmp_pa
     for name, rel in (
         ("tier_probe_tick2", "scripts/sysadmin/claude_rotate.py"),
         ("tier_probe_stop2", ".claude/hooks/quota_stop.py"),
+        ("tier_probe_final_stop2", ".claude/hooks/final_gate_stop.py"),
     ):
         spec = importlib.util.spec_from_file_location(name, root / rel)
         m = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(m)
         mods.append(m)
-    assert len({m.__file__ for m in mods}) == 3, "three DIFFERENT files, or this grades nothing"
+    assert len({m.__file__ for m in mods}) == 4, "four DIFFERENT files, or this grades nothing"
 
     # ⚠️ EXPECTED VALUES, not just agreement. The first cut asserted `len(set(got)) == 1`, so an
     # all-three drift back to the defect passed — a seat reverted `.split("\n")` to `.splitlines()`
@@ -1495,7 +1498,7 @@ def test_the_three_tier_readers_agree_on_the_shapes_that_actually_diverge(tmp_pa
         s.write_text(body)
         got = [m._stamp_tier(s) for m in mods]
         assert len(set(got)) == 1, f"readers disagree on {body!r}: {got}"
-        assert got[0] == want, f"{body!r}: all three agree on {got[0]!r}, but it must be {want!r}"
+        assert got[0] == want, f"{body!r}: all four agree on {got[0]!r}, but it must be {want!r}"
     # ⚠️ SUBPROCESS + TIMEOUT, and a VALUE, not agreement. In-process this grader HUNG under the
     # guard-removal mutant instead of redding — the very failure the comment above claims to have
     # closed — and `len(set(...)) == 1` is satisfied by three readers agreeing on the wrong thing.

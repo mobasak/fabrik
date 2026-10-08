@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — at the quota's urgent-90 tier the Stop hook enforces the checkpoint once, and the seat budget no longer reads the warning as the wall (2026-10-08)
+
+- `.claude/hooks/final_gate_stop.py`: the quota yield read only the stamp's existence, so at `urgent-90` — where `quota_stop.py` denies nothing and orders commit, push and a current run record — a session could end its turn with all three undone. It now reads the tier (a fourth `_stamp_tier` copy): the wall and every unreadable stamp keep the full yield; `urgent-90` blocks ONCE per session per episode, listing every true checkpoint item and the debt it stands down, and records each still-true cause as a kaizen `stood_down` with `tier` (D-706, W-37003fa1).
+- `scripts/sysadmin/dispatch_headroom.py`: only the `walled` hold caps the seat budget at 0; at `urgent-90` the band decides, as `quota_stop.py` and the posture hook already did.
+- Graders: five Stop-hook tests (once per episode, the run-record remedy, unpushed, no gate run, stood-down events), the tier table for the seat budget, and the tier-reader parity graders now cover four copies.
+
 ### Fixed — the wall-stamp re-arm sweeps orphans by wall time, and every resume_epoch reader uses one validator (2026-10-08)
 
 - `scripts/sysadmin/claude_rotate.py` (and its `aro-wake` twin): `_rearm_wall_stamp` swept `.rearm`/`.raise` temps older than an hour by the caller's clock, so a tick clock running ahead could unlink a live sibling's fresh temp — it now uses wall time, as D-699 made `_replace_stamp` do; the posture writer's staging-orphan sweep, the third of the shape, does too (review A-S1). The advisory latch and the re-arm read `resume_epoch` through `_dateable_ts`, the validator `_promised_resume` uses since D-699 (W-43eb1e48).
