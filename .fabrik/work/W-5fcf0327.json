@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:53.960362Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5fcf0327",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4CFNTTBNBXABX4GVPVNX9GK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: /fabrik-review's pin recipe grades the LIVE hub for FABRIK_ROOT-keyed code (01M3WMGRQ7) — the pytest launcher sets FABRIK_ROOT in-process"
+}

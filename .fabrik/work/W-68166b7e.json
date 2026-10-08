@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:38.530299Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-68166b7e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4AEBGPEQJR5MMN1DPQKC8CY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: 01M49K0NW7Z7BBHDXX7KVJ7SWW — done, commit 29b7391a4; your four asks plus the two lines they implied."
+}

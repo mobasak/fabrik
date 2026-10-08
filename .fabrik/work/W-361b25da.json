@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:39.366943Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-361b25da",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4BY0BX4V7AQ3P01AX3BAQVX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "D-639 and D-640 record the same operator ruling (catalog 05:00 cron removed) — keep both, cross-referenced"
+}

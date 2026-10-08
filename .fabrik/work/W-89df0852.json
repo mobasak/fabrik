@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:02:10.809011Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-89df0852",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "check_plan_tickets Gate-path rule: a directory Touches entry names no file under it (own and ancestor arms), and a 'python -m scripts.x' Gate dodges the path regex — decide directory coverage via _covered_by and resolve dotted modules (W-b60b65a1 critiques)"
+}

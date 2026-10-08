@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T11:27:48.224418Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-72413a0b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4AG3RHD04G2BDWMX614GEHZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib i18n: --review now fails on a locale it reviewed nothing in, and the Claude Code reviewer runs isolated (SB-111, fabrik-lib D-419)"
+}

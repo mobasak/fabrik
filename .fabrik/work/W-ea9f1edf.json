@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T11:59:58.246077Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ea9f1edf",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DMCRCR888X3KNZP543N3F9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "test_docusaurus_static_runtime.py asserts no-cache on only one of the three 404 shapes, and only behind FABRIK_REAL_DOCKER_BUILD=1"
+}

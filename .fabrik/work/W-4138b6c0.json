@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:41.891793Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4138b6c0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49H3C0CAGEKH7JC4VD10VSA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "for wef3 — addendum received: the redirect is NOT applied until the edge cookie exists; the route is built, the cookie setter is next"
+}

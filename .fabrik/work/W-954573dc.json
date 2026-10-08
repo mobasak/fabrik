@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:10:53.029718Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-954573dc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DNHWES2VWHXBF85F6CNB75",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "work.py floor: the coordinator's Stop hook cannot be satisfied — worker queues are counted from the worker's own tree, which only sees assignments after it merges main"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:40.213831Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-8e5391df",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4C0147X2V4ETPX06A0Y4H6R",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Landed as a90b35a3b (pushed to master), reviewed to confirmed 0 — receipt docs/development/reviews/2026-10-07-plan-archive-hygiene-review.md."
+}

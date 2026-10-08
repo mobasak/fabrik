@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:37:59.951018Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5aaad703",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4795Q835RD0D26RYKDX7EBV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "request: 01M478WHG2HYKZYA26J2QKGP0B"
+}

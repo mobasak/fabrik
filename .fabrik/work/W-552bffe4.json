@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:50:58.319464Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-552bffe4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DH0RP4CM75P12Y649N1TE5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-docs-review seat brief should demand a quoted anchor beside every cited line number (W-8efe3357, routed to your beat)"
+}
