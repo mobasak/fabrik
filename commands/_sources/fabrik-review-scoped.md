@@ -38,8 +38,10 @@ proportionate answer.
    four standing recurrence classes (fail-open/fail-closed · cost/limit edges · boundary/sentinel ·
    behavior-without-a-test) are your hunt list.
 3. **Pass 1 (wide):** read every changed hunk PLUS the enclosing function and its callers. Hunt the
-   armed classes. Every finding is FIXED in-run (watched-fail-first where behavior changed) or
-   REFUTED with the disproving line — no third bucket, no "noted". **LOCAL findings (unambiguous,
+   armed classes. Every finding is FIXED in-run (watched-fail-first where behavior changed — the
+   FIXED row names its test and the mutant, run on a copy, that removes the guard and turns that test
+   red on the defect itself, never on an import or attribute error; a test green on the parent or with
+   the guard deleted proves nothing) or REFUTED with the disproving line — no third bucket, no "noted". **LOCAL findings (unambiguous,
    contained) you just fix — the common case; an ARCHITECTURAL one — the correct fix moves a contract,
    boundary, data model or auth/isolation posture ANOTHER module or repo depends on — you still fix,
    and it owes a ledger row per `/fabrik-review` § Phase 3, which is canonical for that rule** (do not
