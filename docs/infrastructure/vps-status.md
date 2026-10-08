@@ -617,7 +617,7 @@ postgres-main          healthy  (bound to 10.99.0.1:5432)
 postgres-exporter      healthy
 redis-exporter         running
 loki                   healthy  (bound to 10.99.0.1:3100)
-promtail               running
+alloy                  running  (serves /metrics + /-/ready on :12345, `fabrik` network only)
 prometheus             healthy
 alertmanager           healthy
 grafana                healthy
@@ -639,13 +639,15 @@ ocoron-com-redis-1     healthy    (WP tenant)
 ocoron-com-backup-1    running    (WP tenant — nightly mysqldump sidecar)
 ```
 
+`promtail` is not in this list: it stays **defined** under the `rollback` profile (`infra/vps1/monitoring/compose.yaml`) — stopped, its `promtail-positions` volume kept read-only for Alloy's D4 handover — until Gate S removes it (spec § The delta › D6).
+
 ### vps2 (5 running)
 
 ```text
 traefik                running  (public 80+443; authelia-vps1@file middleware ready)
 node-exporter          running  (10.99.0.2:9100)
 cadvisor               healthy  (10.99.0.2:8080)
-promtail               running  (10.99.0.2:9080 → pushes to 10.99.0.1:3100)
+alloy                  running  (10.99.0.2:12345 → pushes to 10.99.0.1:3100)
 backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backups/spokes/vps2/; 2 plans: host-state + opt-configs)
 ```
 
@@ -655,9 +657,11 @@ backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backu
 traefik                running
 node-exporter          running  (10.99.0.3:9100)
 cadvisor               healthy  (10.99.0.3:8080)
-promtail               running  (10.99.0.3:9080)
+alloy                  running  (10.99.0.3:12345)
 backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backups/spokes/vps3/; 2 plans: host-state + opt-configs)
 ```
+
+Each spoke's `promtail` is the same rollback-profile story as vps1's: defined, stopped, kept until Gate S.
 
 ---
 
@@ -685,8 +689,8 @@ backrest               running  (W11 — own restic repo at b2:vps1-ocoron-backu
 | :--- | :--- |
 | SSH | ✅ matches vps1 (no root, no password, `ozgur` key only) — Lesson 65 takeaway |
 | UFW | ✅ installed (`dpkg ii`) + active; 8 ALLOW rules (22/80/443/51820 IPv4+IPv6); default policy `deny (incoming) / allow (outgoing) / deny (routed)` — shipped by W1 2026-05-31 evening; pre-W1 was `rc` state (Lesson 68) |
-| Mesh-only ports | ✅ `10.99.0.<N>:9100,8080,9080` listening on wg0 only; mesh-only port DROP verified via tcpdump (SYN arrives, no SYN-ACK) |
-| Promtail gRPC | 🟡 binds `*:<random>` (`promtail.yaml: grpc_listen_port: 0`) — observed `*:38969` (vps2) / `*:44987` (vps3) at 2026-06-01T00-14Z probe. **UFW shields it** (default deny on 1–65535 except 22/80/443/51820), so not internet-reachable. Pin to a known port or `127.0.0.1` if a future audit needs determinism. |
+| Mesh-only ports | ✅ `10.99.0.<N>:9100,8080,12345` listening on wg0 only; mesh-only port DROP verified via tcpdump (SYN arrives, no SYN-ACK) |
+| Alloy HTTP server | ✅ binds `{{SPOKE_MESH_IP}}:12345` deliberately, not `0.0.0.0` and not a random port (`--server.http.listen-addr`, `monitoring-agent.compose.yaml.template`, spec D3) — serves `/metrics` + `/-/ready`; reachable from vps1 over the mesh, UFW shields it from the public internet. Promtail's old random-port gRPC listener (`grpc_listen_port: 0`) has no Alloy equivalent — the rollback-profile `promtail` service is stopped, so nothing binds that surface today. |
 | DOCKER-USER chain | ✅ applied by bootstrap step_10; unchanged by W1 (probe: 2 rules each host) |
 | Traefik | ✅ public 80 + 443, `authelia-vps1@file` middleware in `dynamic/authelia.yml` |
 | Tenants | None yet (DNS ready) |
