@@ -1,0 +1,26 @@
+{
+  "block_digest": "839cc5e85b097f2af61431111646daa79cfbddf448d3996920938bab7ee1b343",
+  "blocked_by": [],
+  "created": "2026-10-08T05:53:24.119169Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-3247bfdd",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "839cc5e85b097f2af61431111646daa79cfbddf448d3996920938bab7ee1b343"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May the operator run the Promtail-to-Alloy switch window on vps3, vps2 and then vps1 from the fleet-alloy branch, following docs/operations/promtail-to-alloy-runbook.md?",
+  "status": "awaiting-operator",
+  "title": "May the operator run the Promtail-to-Alloy switch window on vps3, vps2 and then vps1 from the fleet-alloy branch, following docs/operations/promtail-to-alloy-runbook.md?"
+}
