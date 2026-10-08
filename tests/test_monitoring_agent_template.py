@@ -270,8 +270,8 @@ def test_step_11_verify_fails_closed_unless_alloy_is_up() -> None:
     assert "err " in guard_tail
 
 
-NOT_UP = ("alloy Restarting (1) 2 seconds ago", ("false 3", "false 4"))
-IS_UP = ("alloy Up 5 seconds", ("true 0", "true 0"))
+NOT_UP = ("alloy Restarting (1) 2 seconds ago", ("restarting 3", "restarting 4"))
+IS_UP = ("alloy Up 5 seconds", ("running 0", "running 0"))
 
 
 def test_step_11_verify_fails_a_crash_loop_caught_between_restarts() -> None:
@@ -280,15 +280,25 @@ def test_step_11_verify_fails_a_crash_loop_caught_between_restarts() -> None:
     # 6 s later shows the restart count moved, so the step must still fail.
     status, _ = IS_UP
     result = _run_step_11_verify(
-        "alloy Up Less than a second", skip_mesh=False, inspect=("true 2", "true 3")
+        "alloy Up Less than a second", skip_mesh=False, inspect=("running 2", "running 3")
     )
     assert "RC=1" in result.stdout and "ERR:" in result.stdout, (status, result.stdout)
+
+
+def test_step_11_verify_fails_a_crash_loop_waiting_out_its_backoff() -> None:
+    # D7 INFRA-O7: during a restart backoff Docker reads State.Running=true, Status
+    # `restarting`, and the count holds still (seen live: `true restarting 9` on successive
+    # reads). Two identical `restarting N` reads must still fail the step.
+    result = _run_step_11_verify(
+        "alloy Restarting (1) 20 seconds ago", skip_mesh=False, inspect=("restarting 9", "restarting 9")
+    )
+    assert "RC=1" in result.stdout and "ERR:" in result.stdout, result.stdout
 
 
 def test_step_11_verify_passes_a_rerun_with_old_restarts_on_the_count() -> None:
     # a rerun after a --skip-mesh drill: the container kept its RestartCount, but it is
     # running and the count does not move between the two reads.
-    result = _run_step_11_verify("alloy Up 9 seconds", skip_mesh=False, inspect=("true 5", "true 5"))
+    result = _run_step_11_verify("alloy Up 9 seconds", skip_mesh=False, inspect=("running 5", "running 5"))
     assert "RC=0" in result.stdout and "ERR:" not in result.stdout
 
 
