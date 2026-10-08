@@ -173,9 +173,15 @@ const PIN_HOW = 'run `python3 scripts/review_loop_ledger.py pin --pins-dir <a ne
 const m = args.pin_manifest
 if (m === undefined || m === null) throw new Error(`pin_manifest is required — ${PIN_HOW}`)
 if (typeof m !== 'object' || Array.isArray(m) || !Object.values(m).every((v) => typeof v === 'string' && /^[0-9a-f]{32}$/.test(v))) {
-  throw new Error(`pin_manifest must map each pinned path to its md5 (review_loop_ledger.py pin prints it) — got ${JSON.stringify(m)}`)
+  throw new Error(`pin_manifest must map each pinned path to its md5 — got ${JSON.stringify(m)}; ${PIN_HOW}`)
 }
-const norm = (p) => String(p).replace(/^(\.\/)+/, '')
+// review A-S1: `pin` keys each path by os.path.normpath, so a slice file is normalised the same way —
+// `a/./b.py`, `a//b.py`, `./a/b.py` and `x/../a/b.py` all name the pin `a/b.py`
+const norm = (p) => String(p).split('/').reduce((out, seg) => {
+  if (seg === '' || seg === '.') return out
+  if (seg === '..' && out.length && out[out.length - 1] !== '..') return out.slice(0, -1)
+  return [...out, seg]
+}, []).join('/')
 const held = new Set(Object.keys(m).map(norm))
 const unpinned = args.slices.flatMap((s) => s.files.filter((f) => !held.has(norm(f))).map((f) => `${s.name}:${f}`))
 if (unpinned.length) throw new Error(`pin_manifest holds no pin for ${unpinned.join(', ')} — ${PIN_HOW}`)

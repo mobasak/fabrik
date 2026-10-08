@@ -1605,3 +1605,35 @@ def test_an_empty_slice_list_is_refused_before_it_can_read_as_closable() -> None
     for bad in ([None], [42], [["a.py"]]):
         _, err, _ = _harness({**_ARGS, "slices": bad}, {}, expect_fail=True)
         assert "slices[0] must be an object" in err and "TypeError" not in err, (bad, err[-400:])
+
+
+def test_a_slice_file_matches_its_pin_under_the_normalisation_pin_uses() -> None:
+    """Review A-S1: `pin` keys each path by os.path.normpath, while the script stripped only a leading `./`, so a
+    slice file typed `a/./b.py` was refused although pinned as `a/b.py` — a hard stop once the manifest became
+    required. The script normalises both sides the same way."""
+    for typed in ("a/./b.py", "a//b.py", "x/../a/b.py", "./a/b.py"):
+        args = {
+            **_ARGS,
+            "slices": [{"name": "S", "files": [typed]}],
+            "pin_manifest": {"a/b.py": "0" * 32},
+        }
+        out, _, _ = _harness(args, {})
+        assert out["pinned"] is True, typed
+    args = {
+        **_ARGS,
+        "slices": [{"name": "S", "files": ["a/../../b.py"]}],
+        "pin_manifest": {"b.py": "0" * 32},
+    }
+    _, err, _ = _harness(args, {}, expect_fail=True)
+    assert "holds no pin for S:a/../../b.py" in err, err[-400:]
+
+
+def test_every_manifest_refusal_names_the_pin_command() -> None:
+    """Review A-S2: a falsy non-null manifest (`false`, `0`, `""`) took the shape refusal, which did not say how to
+    build one; every manifest refusal now carries the same how-to as the absent case."""
+    for bad in (False, 0, "", [], {"a.py": "nope"}):
+        _, err, _ = _harness({**_ARGS, "pin_manifest": bad}, _QUIET, expect_fail=True)
+        assert "review_loop_ledger.py pin --pins-dir" in err and "AGENT CALLED" not in err, (
+            bad,
+            err[-400:],
+        )

@@ -41,6 +41,7 @@ The tool returns `async_launched`; the ledger arrives as one result — the lead
              gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..], closable, open: [..] }] }
 ```
 
+- `pinned` — always `true`: a launch without `pin_manifest` is refused before it runs; kept so a reader of the field never breaks.
 - `seats[].files_read` — a COUNT here (the number of files the seat listed), not the list it returned; the list is in the seat's own result row (`journal.jsonl`), which `review_loop_ledger.py read` keeps.
 - `candidates` — the two finders' union: two DIFFERENT seats citing the same file and class within five lines are one candidate (`also` carries the twin's id, `also_seat` its seat, and `also_seats` every seat that raised it — the list the per-seat `confirmed` credit is computed from); the same seat's neighbours are never merged. A candidate both raised credits both seats' `confirmed`.
 - `verdicts` — one per candidate from the slice's Sonnet refuter (`effort: high`; the finders run at `medium`): `confirmed | refuted | recorded | unverified`; the script writes `unverified` for a candidate the refuter never answered and for a `refuted` with no command or output (refutation needs counter-evidence); a `refuted` whose command is a placeholder (`n/a`, `none`, `-`) or whose output is empty counts as none, and two rows for one id that disagree are `unverified`; the `id` is always the candidate's — the union suffixes a reused id (`#2`) before the refuter sees it — never the seat's echo; with
