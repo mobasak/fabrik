@@ -692,8 +692,11 @@ gate-enforced) owns the monolith's mandatory closing work: the whole-plan doc re
 `final_gate.py --check --json` + `check_convergence.py` run; its command outputs and doc-drift fixes
 flow through `## Deltas` (D3), and it merges like any ticket. D7's validation is the adversarial
 layer ON TOP of those receipts — never a substitute for them. **The whole-plan receipt starts from
-`python scripts/review_receipt.py --init --scope <plan-slug> --changed <the plan's code paths> --range
-<baseline>..HEAD --plan <spine>`** — the generator writes the rubric run, the `Surface:` hash, the standing
+`python scripts/review_receipt.py --init --out docs/development/reviews/<plan>-review.md --changed
+<the plan's code paths> --range <baseline>..HEAD --plan <spine>`** — `<plan>` is the plan file's (a set's
+spine's) own dated stem, because `check_convergence.py` matches the citation by it: an undated
+`--scope <plan-slug>` is dated the day it is made, and a later date with one distinctive slug token
+(`plan-3-mail`) matches nothing. The generator writes the rubric run, the `Surface:` hash, the standing
 rows and the ledger/phase shapes; the reviewer writes every verdict (born `IN-PROGRESS`; a lazy flip fails
 the gate). Under `Profile: small` this is the plan's ONLY review artifact.
 
@@ -1165,7 +1168,11 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    appears once the phases combine — a Phase-A interface a later phase quietly violated, a global invariant
    that only breaks in aggregate, a regression a later phase introduced into earlier phases' code, a
    requirement that fell between phases. This is **not a new methodology** — it's `/fabrik-review` over the
-   whole plan. Fix + re-review to a clean pass before you proceed to archive.
+   whole plan. Fix + re-review to a clean pass before you proceed to archive. Its receipt starts as D7's does
+   (`review_receipt.py --init --out docs/development/reviews/<plan>-review.md --changed <the plan's code paths>
+   --range <baseline>..HEAD --plan <the plan file>`) and closes in `/fabrik-review` § Reporting's order — two
+   gate runs, one embedded while the receipt reads `IN-PROGRESS`, one after the `CONVERGED` flip embedded in
+   its place; it is the file step 5 cites.
 2. **Gate green (fresh, this turn)** — `python scripts/final_gate.py --json` (Tier 2) shows
    `"status":"success"`; fix to green first. Run it **now**, in the finishing turn — never cite an earlier
    run (freshness, CLAUDE.md FINAL OUTPUT). **Cross-check the step-8 baseline:** any check that was *already
