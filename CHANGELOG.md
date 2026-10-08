@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the review loop refuses an empty or malformed slice list before it can read as closable (2026-10-08)
+
+- `.claude/workflows/fabrik-review-loop.js` returned `closable: true` over `slices: []` (every() over nothing), and a null entry crashed with a raw TypeError; a non-array, empty or non-object slice list is now refused before any seat runs (kaizen 01M4CJKZRH, D-666). Receipt: `docs/development/reviews/2026-10-08-review-loop-empty-slices-review.md`.
+
 ### Added — the review loop builds and checks its own pins (2026-10-08)
 
 - `scripts/review_loop_ledger.py pin` writes read-only pins (directories included), a manifest and an optional read-only base tree, and prints the Workflow args fragment; `read --pins` re-hashes after the pass (PIN MOVED exits 3 and names the seats live then; LIVE MOVED is informational; a read without it says `pins: NOT CHECKED`). `.claude/workflows/fabrik-review-loop.js` refuses a launch whose slice file the `pin_manifest` lacks before any seat runs, labels an unpinned launch, and with `base_pin_dir` gives seats the lead's base tree in place of `git archive` (kaizen 01M4CGJZAX, D-663). Receipt: `docs/development/reviews/2026-10-08-review-loop-pin-enforcement-review.md`.
