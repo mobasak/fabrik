@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Scaffold lint refuses eagerly built logging messages (2026-10-09, D-722)
+
+- `templates/scaffold/python/pyproject.toml.template`: ruff `select` gains G001-G004, so a new project's lint refuses an f-string, `.format`, `+` or `%` inside a logging call. Under D-126's `event_level=ERROR` such a message ships its text to GlitchTip. The leak probe keeps its inline eager call with a targeted `noqa: G003`; `tests/test_scaffold_logging_lint.py` grades both. Residuals are named in docs/FEATURES.md.
+
 ### Fixed — /fabrik-plan-after-chat tells its plan gates the truth (2026-10-09)
 - `commands/_sources/fabrik-plan-after-chat.md`: a ticket's `Appetite:` sits before its first `##` heading (the only zone `plan_appetite.header_zone` reads) and the worked skeleton carries it; the Coverage Checklist is a table of CLEAN/FIXED/REFUTED rows holding the pasted `review_rubric.py` OUTPUT (an invocation does not match `RUBRIC_RUN`); the byte recipe counts each path once; a G/W/T row stays on one physical line; Phase 5's stops add an unconverged cited spec and close by `handoff`; and Phase 1 greps the tests pinning a moved function, executes a load-bearing behavioural claim once, and pastes Evidence from captured output. Answers 12 text-defect and 8 recurring /fabrik-plan-after-chat verdicts (D-711). Grader: `tests/test_spec_plan_lane_text.py::test_fabrik_plan_after_chat_tells_the_gates_truth`, which drives `header_zone` and `RUBRIC_RUN`.
 

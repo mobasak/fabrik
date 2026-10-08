@@ -88,7 +88,7 @@ def _raise_with_secrets_in_play() -> None:
         body = await request.json()  # noqa: F841
         signing = request.headers.get("X-Signing-Secret")  # noqa: F841
         logging.getLogger("leak-guard").error("otp=%s", SECRETS["otp"])
-        logging.getLogger("leak-guard").error("connecting to " + SECRETS["dsn_no_at"])
+        logging.getLogger("leak-guard").error("connecting to " + SECRETS["dsn_no_at"])  # noqa: G003 — the eager shape under test
         # the outbound URL, key and all, travels in the transaction's http span data
         with contextlib.suppress(httpx.HTTPError):
             httpx.get(f"http://127.0.0.1:1/probe?apikey={SECRETS['apikey']}", timeout=0.05)
