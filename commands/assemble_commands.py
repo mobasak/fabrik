@@ -90,6 +90,29 @@ NEXT = {
 }
 
 
+def _differs(rendered: str, installed: str) -> str:
+    """A drift label that names every cause the check cannot tell apart (intel 01M4D9HNXM): it
+    compares what THIS tree renders with the installed corpus, so an unrendered edit here, a tree
+    behind the commit last rendered, and a hand-edit of the installed file all look the same —
+    "HAND-EDITED" named one and sent readers to the wrong file. No HEAD render settles it: in the
+    main checkout the corpus is rendered before the commit, and a worktree's HEAD is its branch.
+    The count is CHANGED lines — removed plus added, line endings kept, so a `---` frontmatter line,
+    a lost trailing newline and a CRLF file all count (review A-O1/A-O3; parsing unified-diff text
+    mistook a removed `---` for a header and normalised endings away)."""
+    a, b = rendered.splitlines(keepends=True), installed.splitlines(keepends=True)
+    n = sum(
+        (i2 - i1) + (j2 - j1)
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes()
+        if tag != "equal"
+    )
+    return (
+        f"DIFFERS from what this tree renders ({n} changed lines — an unrendered edit here, this "
+        "tree behind the last render, or a hand-edit of the installed file: in the main checkout "
+        "render then re-check; in a worktree merge master, and rows from this branch's own "
+        "unmerged edits stay until they merge)"
+    )
+
+
 def _yaml_dq(s: str) -> str:
     """Escape a string for a YAML double-quoted scalar. Backslash FIRST (so a
     source `\\n` stays a literal backslash-n, not a decoded newline), then quote."""
@@ -1043,8 +1066,7 @@ def agent_drift(dest: Path) -> list[str]:
         # corrupted agent definition is reported as drift instead of killing the read-only gate
         want, have = _render_agent(src, frags), live.read_text(errors="replace")
         if want != have:
-            n = len(list(difflib.unified_diff(want.splitlines(), have.splitlines())))
-            drift.append(f"agents/{src.name}: HAND-EDITED ({n} diff lines)")
+            drift.append(f"agents/{src.name}: {_differs(want, have)}")
     return drift
 
 
@@ -1314,25 +1336,18 @@ def check():
             if not inst.exists():
                 drift.append(f"{f.name}: MISSING in {OUT}")
                 continue
-            if inst.read_text(errors="replace") != f.read_text():
-                d = list(
-                    difflib.unified_diff(
-                        f.read_text().splitlines(),
-                        inst.read_text(errors="replace").splitlines(),
-                        "rendered",
-                        "installed",
-                        lineterm="",
-                    )
-                )
-                drift.append(f"{f.name}: HAND-EDITED ({len(d)} diff lines)")
+            want, have = f.read_text(), inst.read_text(errors="replace")
+            if have != want:
+                drift.append(f"{f.name}: {_differs(want, have)}")
         # every command must ALSO have an in-sync SKILL.md
         for sd in sorted(tmp_sk.glob("*/SKILL.md")):
             inst = SKILLS / sd.parent.name / "SKILL.md"
             if not inst.exists():
                 drift.append(f"skills/{sd.parent.name}: MISSING SKILL.md in {SKILLS}")
                 continue
-            if inst.read_text(errors="replace") != sd.read_text():
-                drift.append(f"skills/{sd.parent.name}: HAND-EDITED SKILL.md")
+            want, have = sd.read_text(), inst.read_text(errors="replace")
+            if have != want:
+                drift.append(f"skills/{sd.parent.name}: SKILL.md {_differs(want, have)}")
         # orphan detection: an installed GENERATED command/skill whose _source is gone
         # (catches a rename/delete that wasn't followed by a re-render — the prune).
         src_names = {s.stem for s in SRC.glob("*.md")}

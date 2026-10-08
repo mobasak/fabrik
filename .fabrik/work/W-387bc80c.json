@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T08:52:50.022898Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-387bc80c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4D9C6ZZ17JS5K32F9AX2ZFR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: dispatch_headroom --slices sizes finders only (O2, O4) — dispositioned as D-672"
+}

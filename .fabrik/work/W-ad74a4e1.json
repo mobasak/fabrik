@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T08:17:50.287629Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ad74a4e1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4D7K84A934TN3Q2JE532SJP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "42-docusaurus.md nginx block (D-664): three behaviours found by executing it"
+}

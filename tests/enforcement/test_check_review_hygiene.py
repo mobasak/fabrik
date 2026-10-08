@@ -510,11 +510,13 @@ def test_json_mode_emits_its_envelope_even_when_the_self_selection_is_empty(tmp_
     assert json.loads(r.stdout) == {"hits": [], "files": 0, "notes": [], "ungraded_rows": 0}
 
 
-def test_the_gate_registers_it_warn_only():
+def test_the_gate_registers_it_strict():
+    """W-205934fb (DD6 met): the gate passes `--strict`; the AST pin with mutants is in
+    test_final_gate_registration.py — this is the suite-local tripwire."""
     gate = (REPO / "scripts/final_gate.py").read_text(encoding="utf-8")
-    assert '"scripts/enforcement/check_review_hygiene.py"' in gate
     idx = gate.index('"scripts/enforcement/check_review_hygiene.py"')
-    assert "warn_only=True" in gate[idx : idx + 400]
+    window = gate[idx : idx + 200]
+    assert '"--strict"' in window and "warn_only" not in window, window
 
 
 # ---------------------------------------------------------------- the measured fire rate
@@ -1425,3 +1427,86 @@ def test_the_docstring_names_the_md_only_classes():
     """T4.7 (01M285X4H): three of four classes run only on `.md` surfaces — the pin recipe copies
     to any name, so the docstring says which classes a non-.md surface silently loses."""
     assert 'path.endswith(".md")' in crh.__doc__, crh.__doc__[:600]
+
+
+# ---------------------------------------------------------------- the blocking form (W-205934fb, DD6)
+
+_HEADER = "| Class | Status |\n|---|---|\n"
+
+
+def _receipt_repo(tmp_path: Path, body: str, *, stage: bool = True) -> Path:
+    root = _scratch_repo(tmp_path)
+    rel = "docs/development/reviews/2026-10-08-x-review.md"
+    (root / rel).write_text("# Review\n\n" + _HEADER + body, encoding="utf-8")
+    if stage:
+        subprocess.run(["git", "-C", str(root), "add", rel], check=True)
+    return root
+
+
+def test_strict_fails_on_a_text_overflow_receipt_row(tmp_path):
+    """A cell past the header's width is DISCARDED by GFM — the text after a stray `|` is lost to
+    every rendered reader. Under `--strict` that row fails the run and is named."""
+    root = _receipt_repo(tmp_path, "| fail-open | CLEAN |\n| boundary | FIXED (a || b) |\n")
+    r = _run(["--strict"], root)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "[BLOCKING] raw-pipe" in r.stdout and "2026-10-08-x-review.md:6" in r.stdout, r.stdout
+    assert "1 blocking" in r.stdout
+
+
+def test_strict_ignores_harmless_shapes(tmp_path):
+    """Shapes the renderer loses nothing from stay advisory: an overflow of only empty or
+    comment cells, a row indented into a code block, a short row, a dual verdict."""
+    body = (
+        "| a | CLEAN ||\n"
+        "| b | CLEAN |  |\n"
+        "| c | CLEAN | <!-- note --> |\n"
+        "| d |\n"
+        "| e | FIXED — the spans REFUTED again |\n"
+        "\n"
+        "    | Class | Status |\n"
+        "    |---|---|\n"
+        "    | f | CLEAN | lost |\n"
+        "\n"
+        # review A-S1: a TAB advances to the next 4-column stop (CommonMark), so a tab-led row
+        # is an indented code block too — as is two spaces then a tab
+        "\t| Class | Status |\n"
+        "\t|---|---|\n"
+        "\t| g | CLEAN | lost |\n"
+        "\n"
+        "  \t| Class | Status |\n"
+        "  \t|---|---|\n"
+        "  \t| h | CLEAN | lost |\n"
+    )
+    root = _receipt_repo(tmp_path, body)
+    r = _run(["--strict"], root)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "[BLOCKING]" not in r.stdout, r.stdout
+
+
+def test_three_spaces_is_still_a_table_row(tmp_path):
+    """The exemption's boundary: up to 3 leading spaces is a table row in GFM, so its overflow
+    still blocks — the tab fix must not widen the exemption below 4 columns."""
+    root = _receipt_repo(tmp_path, "   | boundary | FIXED (a || b) |\n")
+    r = _run(["--strict"], root)
+    assert r.returncode == 1 and "[BLOCKING]" in r.stdout, r.stdout + r.stderr
+
+
+def test_strict_demotes_an_untracked_receipt(tmp_path):
+    """A sibling's untracked draft is graded at staging, never against another session's gate —
+    the selection check_review_coverage makes."""
+    root = _receipt_repo(tmp_path, "| boundary | FIXED (a || b) |\n", stage=False)
+    r = _run(["--strict"], root)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "untracked" in r.stdout and "[BLOCKING]" not in r.stdout, r.stdout
+
+
+def test_without_strict_every_hit_stays_advisory(tmp_path):
+    """In-round callers keep exit 0; the marker still prints, LAST, so a clipped gate row keeps it,
+    and the first line opens with the warning sign the gate's --json surfaces a green row by."""
+    body = "| boundary | FIXED (a || b) |\n| e | FIXED — the spans REFUTED again |\n"
+    root = _receipt_repo(tmp_path, body)
+    r = _run([], root)
+    assert r.returncode == 0, r.stdout + r.stderr
+    lines = r.stdout.splitlines()
+    assert lines[0].startswith("⚠"), lines[:2]
+    assert "[BLOCKING]" in lines[-2] and "1 blocking" in lines[-1], lines[-3:]

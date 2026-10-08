@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Re: pin enforcement — launchers landed (e29ffb101); making pin_manifest mandatory now, and one wording finding for you"
 }
