@@ -343,7 +343,9 @@ def _overflow_loses_text(row: str, cells: list[tuple[str, str]], width: int) -> 
     without it, and a row indented 4+ spaces is an indented code block rendered verbatim; both
     stay advisory (measured 2026-10-08: 63 of 64 hand-read excess rows lose text, the one
     exception an empty overflow)."""
-    if len(row) - len(row.lstrip(" ")) >= 4:
+    # review A-S1: a tab advances to the next 4-column stop (CommonMark), so the leading whitespace
+    # is measured in COLUMNS — `\t|…` and `  \t|…` are indented code blocks like four spaces
+    if len(row[: len(row) - len(row.lstrip(" \t"))].expandtabs(4)) >= 4:
         return False
     return any(_COMMENT.sub("", raw).strip() for raw, _ in cells[width:])
 

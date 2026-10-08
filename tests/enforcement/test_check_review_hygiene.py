@@ -1466,11 +1466,29 @@ def test_strict_ignores_harmless_shapes(tmp_path):
         "    | Class | Status |\n"
         "    |---|---|\n"
         "    | f | CLEAN | lost |\n"
+        "\n"
+        # review A-S1: a TAB advances to the next 4-column stop (CommonMark), so a tab-led row
+        # is an indented code block too — as is two spaces then a tab
+        "\t| Class | Status |\n"
+        "\t|---|---|\n"
+        "\t| g | CLEAN | lost |\n"
+        "\n"
+        "  \t| Class | Status |\n"
+        "  \t|---|---|\n"
+        "  \t| h | CLEAN | lost |\n"
     )
     root = _receipt_repo(tmp_path, body)
     r = _run(["--strict"], root)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "[BLOCKING]" not in r.stdout, r.stdout
+
+
+def test_three_spaces_is_still_a_table_row(tmp_path):
+    """The exemption's boundary: up to 3 leading spaces is a table row in GFM, so its overflow
+    still blocks — the tab fix must not widen the exemption below 4 columns."""
+    root = _receipt_repo(tmp_path, "   | boundary | FIXED (a || b) |\n")
+    r = _run(["--strict"], root)
+    assert r.returncode == 1 and "[BLOCKING]" in r.stdout, r.stdout + r.stderr
 
 
 def test_strict_demotes_an_untracked_receipt(tmp_path):
