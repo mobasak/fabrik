@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the close chain gates before it pushes (2026-10-09)
+- `commands/_fragments/close-chain.md` (rendered into 37 commands): the chain pushed at (2) and gated at (3), so in a main checkout the push integrated the branch before the gate ran and a check scoped to work not yet integrated (intel's check_review_coverage leg, W-f847a317) could never fire (intel 01M4EJTSCY). Now (2) commits, (3) gates and then pushes; a red gate's fix is committed before (3) re-runs, and a run that wrote nothing gates but pushes nothing. `commands/_sources/fabrik-execute-plan.md` step 7 gates its step 5-6 commits before its own push. Grader: `tests/test_producing_command_fragments.py::test_the_close_chain_gates_before_it_pushes`.
+
 ### Fixed — command_run handoff keeps a durable copy of its resume seed (2026-10-08)
 - `scripts/command_run.py handoff --resume <path>` stored only the path. A /fabrik-task UPGRADE seed lives in the session's scratch, which dies with the session, and the run record holding the path is overwritten by the session's next `start`, which is the /fabrik-spec the UPGRADE opens. The close now reads the artifact once, bounded, and copies the bytes it validated byte for byte to `~/.claude/state/command-runs/seeds/<safe session id>-<content hash>.md`, so a nested run never overwrites its parent's seed and an odd session id never writes outside `seeds/`. It names the copy as `resume_copy` in the run_close event and its output, and refuses an artifact over the 1 MB cap or a copy that cannot be written. intel 01M4EDB9TC.
 
