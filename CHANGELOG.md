@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the citations check grades resolvable bare filenames and a named doc (2026-10-08)
+
+- `scripts/enforcement/check_citations_resolve.py` grades a bare `tool.py:43` when it names one tracked file outside the root, templates/ and the command sources; `--doc <path>` grades a pinned or out-of-glob artifact and lists it; a run that graded none never ticks green, quiet or not (W-191404c0, D-682). Receipt: `docs/development/reviews/2026-10-08-citations-bare-basenames-review.md`.
+
 ### Changed — `/fabrik-task` phase 1 lists what MEASURE executes before the design (2026-10-08)
 - Twenty-five queue verdicts reported a design drafted before a sibling's landed fix, a pre-existing red, a writer, a host or a vendor list was looked at. Phase 1 now replays a reported command as reported, then writes each command and its output to `measure.md` beside `design.md`: the declared files' own tests, a fetch and diff against the remote branch the work merges into, the prior record, the measured population with its n, and a live probe of each external contract. Size cap 12439 → 13610 B (D-679).
 
