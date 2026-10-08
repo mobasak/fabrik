@@ -413,8 +413,11 @@ def main() -> int:
     examined = 0  # the docs the loop actually graded — the lean row's denominator (round 3)
 
     def _live(p: str) -> bool:
-        """The ONE live-doc predicate — the grading loop and the name count share it, so the two
-        populations cannot drift (W-c256027a review: the lean filter must not shrink the count)."""
+        """The live-doc predicate the grading loop applies. The shared-name count below does NOT use
+        it on purpose: it reads EVERY tracked + untracked `*.md` (root, archived and excluded files
+        included), because a bare name in INDEX.md is ambiguous whenever any such file shares it
+        (W-c256027a design critiques). It is also built before the `--untracked-only` filter, so the
+        lean row counts the same population as the full gate."""
         if p.startswith(EXCLUDE_PREFIXES) or p in EXCLUDE_EXACT or _SELECTION_RE.match(p):
             return False
         if p in _PRISTINE_SEEDS and _is_pristine_seed(p):
@@ -436,15 +439,19 @@ def main() -> int:
     # (warn before block; the flip is work item W-84088533). COBRA: advisory lines are ignorable — the
     # dated flip is the counter; at the flip the cheapest pass is a bare path mention, as today.
     names: dict[str, list[str]] = {}
-    for rel in dict.fromkeys(
-        [
-            *(_ls(patterns=("*.md",)) or []),
-            *(_ls("--others", "--exclude-standard", patterns=("*.md",)) or []),
-        ]
-    ):
+    shared_problems: list[str] = []
+    all_md = _ls(patterns=("*.md",))
+    all_untracked_md = _ls("--others", "--exclude-standard", patterns=("*.md",))
+    if all_md is None or all_untracked_md is None:
+        # review A-S1: an empty fallback made the advisory go quiet with nothing to tell it from
+        # "no sharing" — say the sub-check examined nothing (advisory, so the run's verdict stands)
+        shared_problems.append(
+            "shared-name check skipped — git could not list the repo's *.md files, so no doc was "
+            "checked for riding a shared basename this run"
+        )
+    for rel in dict.fromkeys([*(all_md or []), *(all_untracked_md or [])]):
         if _lstat_state(REPO / rel) != "absent":
             names.setdefault(Path(rel).name, []).append(rel)
-    shared_problems: list[str] = []
     # sorted(): `untracked` is a set, so the finding ORDER varied between runs on identical input.
     for p in dict.fromkeys([*tracked, *sorted(untracked)]):
         if untracked_only and p not in untracked:

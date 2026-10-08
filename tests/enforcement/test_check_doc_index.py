@@ -1,7 +1,9 @@
 # AFTER-EDIT: scripts/enforcement/check_doc_index.py
 """Behavior contract for the INDEX↔tree drift gate (docs-truth plan Phase F)."""
 
+import contextlib
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -1045,3 +1047,40 @@ def test_untracked_only_sees_a_tracked_namesake(tmp_path):
     adv = payload.get("shared_name_advisory", [])
     assert rc == 0 and len(adv) == 1 and "docs/x/README.md" in adv[0], payload
     assert "docs/README.md" in adv[0] and adv[0].endswith("INDEX row)"), adv
+
+
+def test_a_failed_name_listing_says_so_instead_of_going_quiet(monkeypatch, tmp_path):
+    """Review A-S1: the whole-repo *.md listing that feeds the shared-name count swallowed a git
+    failure (`or []`), so the advisory went silent with nothing to tell it from 'no sharing'."""
+    import importlib.util
+
+    # this tree's copy, never the module-level `cdi` (which reads the main checkout's script)
+    spec = importlib.util.spec_from_file_location(
+        "cdi_tree", Path(__file__).resolve().parents[2] / "scripts/enforcement/check_doc_index.py"
+    )
+    tree = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tree)
+    (tmp_path / "INDEX.md").write_text("# INDEX\n\n- README.md\n", encoding="utf-8")
+    monkeypatch.setattr(tree, "REPO", tmp_path)
+    monkeypatch.setattr(tree.sys, "argv", ["check_doc_index.py"])
+    (tmp_path / "docs" / "a").mkdir(parents=True)
+    (tmp_path / "docs" / "a" / "README.md").write_text("x")
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kw):
+        if "ls-files" in cmd:
+            failing = "*.md" in cmd
+
+            class R:
+                stdout = b"" if failing else b"docs/a/README.md"
+                returncode = 128 if failing else 0
+
+            return R()
+        return real_run(cmd, **kw)
+
+    monkeypatch.setattr(tree.subprocess, "run", fake_run)
+    monkeypatch.setattr(tree, "_added_code_paths", lambda: [])
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        rc = tree.main()
+    assert rc == 0 and "shared-name check skipped" in out.getvalue(), out.getvalue()
