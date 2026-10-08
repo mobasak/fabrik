@@ -149,6 +149,11 @@ function normalizeLedger(slice) {
     throw new Error(`slice ${slice.name}: ledger row ${i + 1} is neither { id, file, line, claim } nor a claim string — got ${JSON.stringify(row)}`)
   })
 }
+// kaizen 01M4CJKZRH (row 1791120510): `closable` is `every` over the slices, so an empty list read as a CLOSING round
+// having read nothing — refused HERE, before anything runs, like a bad model or ledger row
+if (!Array.isArray(args.slices) || args.slices.length === 0) {
+  throw new Error(`slices must be a non-empty list — got ${JSON.stringify(args.slices)}: a launch over zero slices reads nothing and would return closable`)
+}
 for (const s of args.slices) Object.assign(s, { ledger: normalizeLedger(s) }, normalizeSeats(s))
 
 // kaizen 01M4CGJZAX: a workflow script has no filesystem, so the lead's `review_loop_ledger.py pin` writes the
