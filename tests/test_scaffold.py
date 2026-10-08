@@ -16,6 +16,7 @@ from fabrik.scaffold import (
     create_project,
     fix_project,
 )
+from fabrik.version_registry import load_versions
 
 # Skip tests that require full fabrik environment (templates at /opt/fabrik)
 # These tests can only run locally where /opt/fabrik exists
@@ -393,7 +394,8 @@ class TestChromeExtensionScaffold:
 
         # Verify Dockerfile content
         dockerfile = (project_dir / "Dockerfile").read_text()
-        assert "python:3.12-slim-bookworm" in dockerfile
+        # The Debian variant comes from the version registry (W-3860ebf6), never a literal.
+        assert f"python:3.12-slim-{load_versions()['debian_codename']}" in dockerfile
         assert "PYTHONPATH=/app/server/src" in dockerfile
         assert "uvicorn test_ext.main:app" in dockerfile
 

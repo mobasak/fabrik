@@ -238,8 +238,8 @@ All compose templates emit `container_name: {{ spec.id }}` for stable Docker nam
 | `templates/scaffold/complex.yaml` | Canonical complex-service spec example (5+ env vars, db, storage, auth). |
 | `templates/scaffold/docker/compose.yaml.template` | Base compose template shared across service types. |
 | `templates/scaffold/docker/compose.dev.yaml.template` | Developer-mode override (ports exposed on `127.0.0.1` only). |
-| `templates/scaffold/docker/Dockerfile.node` | Canonical Node.js Dockerfile (`node:<LTS>-bookworm-slim`). |
-| `templates/scaffold/docker/Dockerfile.python` | Canonical Python Dockerfile (`python:<stable>-slim-bookworm`). |
+| `templates/scaffold/docker/Dockerfile.node` | Canonical Node.js Dockerfile (`node:<LTS>-<debian_codename>-slim`; `<debian_codename>` is the registry key in `.windsurf/rules/versions.yaml`, filled at scaffold time). |
+| `templates/scaffold/docker/Dockerfile.python` | Canonical Python Dockerfile (`python:<stable>-slim-<debian_codename>`; `<debian_codename>` is the registry key in `.windsurf/rules/versions.yaml`, filled at scaffold time). |
 | `templates/scaffold/*` (full shared asset set) | Tests, CI workflows, README, .env.example, .gitignore, AGENTS.md boilerplate. |
 
 ### 4.3 Template-defaults registrar matrix (what fires on `fabrik apply` by default)
@@ -308,7 +308,7 @@ Pre-deploy invariant checks. Called by `scripts/final_gate.py` as part of the qu
 | `check_env_example.py` | Every env var referenced in code appears in `.env.example`. |
 | `check_env_updates.py` | When `.env.example` changes, `CHANGELOG.md` is updated. |
 | `check_env_vars.py` | Env vars follow `UPPER_SNAKE_CASE`. |
-| `check_docker.py` | `compose.yaml` uses `platform: linux/amd64`; base images are `-slim-bookworm`; `HEALTHCHECK` present; no public `ports:` mappings. |
+| `check_docker.py` | `compose.yaml` uses `platform: linux/amd64`; base images are the Debian `-slim` variant on the registry's `debian_codename`; `HEALTHCHECK` present; no public `ports:` mappings. |
 | `check_compose_services.py` | Compose services declare `networks: [fabrik]` when behind Traefik. |
 | `check_ports.py` | Ports used fall in allocated ranges (8000–8099 Python, 3000–3099 frontend); no duplicates. |
 | `check_health.py` | Every service has a `/health` endpoint that tests real dependencies. |
@@ -419,7 +419,7 @@ These are **hard rules** for every deploy. Violating any of them puts the VPS or
 
 - **VPS arch:** x86_64 (amd64), AMD EPYC-Genoa, 6 vCPU, 12 GB RAM, Ubuntu 24.04, TZ `Europe/Istanbul` (+03).
 - **Every compose service MUST declare** `platform: linux/amd64` (enforced by `check_docker.py` and `deployer_ssh._validate_compose()`).
-- **Base images:** `python:<current-stable>-slim-bookworm` or `node:<current-LTS>-bookworm-slim`. **Never Alpine**.
+- **Base images:** `python:<current-stable>-slim-<debian_codename>` or `node:<current-LTS>-<debian_codename>-slim`, the codename from `.windsurf/rules/versions.yaml`. **Never Alpine**.
 
 ### 8.2 Networking
 

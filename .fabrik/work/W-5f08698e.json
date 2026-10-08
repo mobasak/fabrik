@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-08T09:30:40.070074Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "588b1445dd72cedb468e2c15c643c8bf2d8376c5",
   "id": "W-5f08698e",
   "kind": "backlog",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "review-loop"
   ],
