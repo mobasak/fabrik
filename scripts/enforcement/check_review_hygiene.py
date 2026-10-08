@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: tests/enforcement/test_check_review_hygiene.py docs/workflows/FINAL_GATE_WORKFLOW.md
-"""Review hygiene — the grep-shaped classes every review re-sweeps. ADVISORY, ALWAYS exits 0.
+"""Review hygiene — the grep-shaped classes every review re-sweeps; advisory, and --strict blocks a text-losing receipt overflow.
 
 The orchestrator runs this at the START of every review round on that round's surface, again at
 the round's CLOSE, and at the flip (spec D4/DD6/DD13, docs/superpowers/specs/
@@ -39,14 +39,27 @@ Classes (each hit is a `path:line` with its class name):
                      ``RECORDED — measured (<n> mirrors read)`` — a verdict form
                      ``check_review_coverage.py`` already accepts — never FIXED or false positive.
 
-CONTRACT: this script has NO failing exit path. It is registered ``warn_only=True`` in
-``final_gate.py`` and invoked by the orchestrator; it is NOT a pre-commit hook and it writes to no
-file. A non-zero exit from a ``warn_only`` check is a BLOCKING red across ~46 repos
-(``check_retired_terms.py``'s contract), so every path here returns 0.
+CONTRACT: without ``--strict`` this script has NO failing exit path — the orchestrator's in-round
+calls (with arguments) always exit 0. ``final_gate.py`` registers it with ``--strict``: a
+``[BLOCKING]`` hit then exits 1, and an internal error exits 2 (a blocking check that crashed must
+not read as a pass). Every other hit stays ``[ADVISORY]``. It is NOT a pre-commit hook and it writes
+to no file. Self-selection is inert outside a git repo (no receipts, exit 0 — fail-open, stated).
 
-GRADUATION (DD6): it stays advisory until infra measures its false-positive rate below 5 % over
-20 receipts, counted from the receipts' own ``RECORDED — hygiene false positive (…)`` rows. Do not
-add a blocking mode before that measurement exists.
+BLOCKING (W-205934fb, DD6 met 2026-10-08): ONE shape — a ``raw-pipe`` receipt row whose cells past
+the header's width carry text (GFM discards those cells, so the text is lost to every rendered
+reader), not indented into a code block, in a receipt that is staged or tracked-modified. An
+untracked draft is swept but never blocks (``check_review_coverage``'s own selection: a sibling's
+draft is graded at staging). Measured with the receipts' own record (no ``RECORDED — hygiene false
+positive`` row has ever named a raw-pipe hit) and by hand: 63 of 64 excess rows read across the hub
+(24, all) and the projects (40 of 188, random) lose text; the one exception, an empty overflow, is
+exempt. A short row, dual-verdict (it grades no row of a template receipt) and every surface class
+stay advisory. Only UNCOMMITTED receipts are read, so a receipt committed before the gate runs is
+graded by nothing here.
+KNOWN BLIND SPOTS (missed defects, never false positives): GFM splits a row on a ``|`` inside a code
+span and renders a row with no leading ``|``; this script masks the first and skips the second.
+COBRA (D-253): those two are the cheapest dodges — dropping a row's leading ``|`` or wrapping the
+pipe in backticks passes here while the renderer still loses the text. Widening the header is a FIX,
+not a dodge: it renders the discarded column.
 """
 
 from __future__ import annotations
@@ -59,7 +72,7 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
@@ -129,6 +142,9 @@ class Hit:
     line: int
     what: str
     occurrences: int = 1  # T4.7: one row per (path, line, class, what); the count rides here
+    blocking: bool = (
+        False  # W-205934fb: a text-losing receipt overflow — fails the run under --strict
+    )
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -137,11 +153,13 @@ class Hit:
             "line": self.line,
             "what": self.what,
             "occurrences": self.occurrences,
+            **({"blocking": True} if self.blocking else {}),
         }
 
     def line_out(self) -> str:
         times = f" (×{self.occurrences})" if self.occurrences > 1 else ""
-        return f"[ADVISORY] {self.cls} {_display(self.path)}:{self.line} — {self.what}{times}"
+        tag = "[BLOCKING]" if self.blocking else "[ADVISORY]"
+        return f"{tag} {self.cls} {_display(self.path)}:{self.line} — {self.what}{times}"
 
 
 _LABEL: dict[str, str] = {}  # T4.7 (--label): the artifact name a scratch COPY stands for
@@ -315,6 +333,21 @@ def _split_cells(row: str) -> list[tuple[str, str]]:
     return cells
 
 
+_COMMENT = re.compile(r"<!--.*?-->", re.S)
+
+
+def _overflow_loses_text(row: str, cells: list[tuple[str, str]], width: int) -> bool:
+    """W-205934fb: GFM DISCARDS every cell past the header's width, so an overflow that carries
+    text deletes it from every rendered reader — the one shape the gate blocks. An overflow of
+    only empty or comment cells (`| a | b ||`, `| a | b | <!-- n --> |`) renders like the row
+    without it, and a row indented 4+ spaces is an indented code block rendered verbatim; both
+    stay advisory (measured 2026-10-08: 63 of 64 hand-read excess rows lose text, the one
+    exception an empty overflow)."""
+    if len(row) - len(row.lstrip(" ")) >= 4:
+        return False
+    return any(_COMMENT.sub("", raw).strip() for raw, _ in cells[width:])
+
+
 def _is_separator(row: str) -> bool:
     """The GFM delimiter-row grammar, per cell — the rule `_table_rows` applies internally
     (check_review_coverage.py), re-stated here because only the header row carries the cell-count
@@ -399,8 +432,12 @@ def _table_parity_hits(
                     + (
                         "a MISSING cell (the row is short; add the empty cell)"
                         if short
-                        else "an unescaped `|` inside a cell (write `\\|`)"
+                        else "an unescaped `|` inside a cell (write `\\|`, or widen the header "
+                        "if the column is real)"
                     ),
+                    blocking=cls == "raw-pipe"
+                    and not short
+                    and _overflow_loses_text(row, cells, width),
                 )
             )
             continue
@@ -687,7 +724,12 @@ def _dedupe(hits: list[Hit]) -> list[Hit]:
             # the SAME site reported twice (the same selector given twice) is one site — the
             # count is the line's, never the sum over producers (round 3)
             out[k] = Hit(
-                prev.cls, prev.path, prev.line, prev.what, max(prev.occurrences, h.occurrences)
+                prev.cls,
+                prev.path,
+                prev.line,
+                prev.what,
+                max(prev.occurrences, h.occurrences),
+                prev.blocking or h.blocking,
             )
         else:
             out[k] = h
@@ -900,10 +942,12 @@ def _repo_root() -> Path:
     return _HERE.parents[1]
 
 
-def _changed_receipts(root: Path) -> list[Path]:
-    """Changed/untracked receipts under docs/development/reviews/ — the selection
-    ``check_review_coverage.py``'s ``main()`` makes with ``_changed_md`` (rotated
-    ``*-archive.md`` finding tables and ``archived/`` carry no ledger by design)."""
+def _changed_receipts(root: Path) -> tuple[list[Path], set[Path]]:
+    """(changed/untracked receipts under docs/development/reviews/, the untracked subset) — the
+    selection ``check_review_coverage.py``'s ``main()`` makes with ``_changed_md`` (rotated
+    ``*-archive.md`` finding tables and ``archived/`` carry no ledger by design). Untracked
+    (``??``) picks are still swept, but never BLOCK: like the coverage gate, a sibling's
+    in-flight draft is graded at staging, never against another session's run (W-205934fb)."""
     try:
         out = subprocess.run(
             ["git", "status", "--porcelain", "--untracked-files=all", "--", REVIEWS_PREFIX],
@@ -913,8 +957,9 @@ def _changed_receipts(root: Path) -> list[Path]:
             check=True,
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError, OSError):
-        return []
+        return [], set()  # not a repo, or no git: inert (fail-open, stated in the module contract)
     picked = []
+    untracked: set[Path] = set()
     for line in out.splitlines():
         rel = line[3:].split(" -> ")[-1].strip().strip('"')
         if (
@@ -924,12 +969,20 @@ def _changed_receipts(root: Path) -> list[Path]:
             and (root / rel).is_file()
         ):
             picked.append(root / rel)
-    return picked
+            if line[:2] == "??":
+                untracked.add(root / rel)
+    return picked, untracked
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
-        description="Advisory review-hygiene sweep — never blocks, always exits 0."
+        description="Review-hygiene sweep — advisory; with --strict a text-losing receipt "
+        "overflow row exits 1."
+    )
+    ap.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit 1 when a [BLOCKING] hit remains (the gate registration passes it)",
     )
     ap.add_argument(
         "--surface", action="append", default=[], help="file or dir on the surface (repeatable)"
@@ -1004,10 +1057,11 @@ def main(argv: list[str] | None = None) -> int:
         # spec's executed mutant)
         return _refuse("REFUSED — --claim needs --surface")
     self_selected = not (surfaces or receipts or args.phrase or args.symbol)
+    untracked: set[Path] = set()
     if self_selected:
         # THE GATE REGISTRATION passes no arguments: self-select the changed receipts and stay
         # silent when there are none, so the check is inert on every unrelated commit.
-        receipts = _changed_receipts(_repo_root())
+        receipts, untracked = _changed_receipts(_repo_root())
         if not receipts and not args.json:
             # `--json` still emits its envelope: a consumer that parses stdout must never be
             # handed an empty string, which is not JSON.
@@ -1021,33 +1075,54 @@ def main(argv: list[str] | None = None) -> int:
         args.claim,
         stop_at_heading=args.stop_at_heading,
     )
+    hits, notes = list(sweep.hits), list(sweep.notes)
+    if untracked:
+        drafts = {_resolved(p) for p in untracked}
+        for i, h in enumerate(hits):
+            if h.blocking and _resolved(Path(h.path)) in drafts:
+                hits[i] = replace(h, blocking=False)
+                notes.append(
+                    f"{_display(h.path)}:{h.line}: untracked receipt — not blocking until it is "
+                    "staged or tracked (a sibling's draft never reds another session's run)"
+                )
+    blocking = [h for h in hits if h.blocking]
+    rc = 1 if args.strict and blocking else 0
     if args.json:
         print(
             json.dumps(
                 {
-                    "hits": [h.as_dict() for h in sweep.hits],
+                    "hits": [h.as_dict() for h in hits],
                     "files": sweep.files,
-                    "notes": sweep.notes,
+                    "notes": notes,
                     "ungraded_rows": sweep.ungraded,
                 },
                 indent=2,
             )
         )
-        return 0
-    for note in sweep.notes:
+        return rc
+    if hits:
+        # `⚠` FIRST: the gate's --json lists a GREEN row's stdout only when it opens with it
+        # (final_gate.py's `warnings`), so the advisory classes stay visible after the promotion
+        print(f"⚠ review hygiene: {len(hits)} hit(s), {len(blocking)} blocking")
+    for note in notes:
         print(f"[NOTE] {note}")
-    for h in sweep.hits:
+    # blocking rows LAST, beside the summary: a clipped gate row keeps its tail
+    for h in [h for h in hits if not h.blocking] + blocking:
         print(h.line_out())
     print(
-        f"hygiene: {len(sweep.hits)} hit(s) over {sweep.files} file(s), "
-        f"{sweep.ungraded} rows ungraded"
+        f"hygiene: {len(hits)} hit(s) over {sweep.files} file(s), "
+        f"{sweep.ungraded} rows ungraded, {len(blocking)} blocking"
     )
-    return 0
+    return rc
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception as exc:  # noqa: BLE001 — advisory contract: never block the gate
-        print(f"check_review_hygiene: internal error ({exc}) — advisory check, not blocking")
-        sys.exit(0)
+    except Exception as exc:  # noqa: BLE001 — the advisory contract never blocks; --strict does
+        strict = "--strict" in sys.argv[1:]
+        print(
+            f"check_review_hygiene: internal error ({exc}) — "
+            + ("NOT CHECKED under --strict" if strict else "advisory check, not blocking")
+        )
+        sys.exit(2 if strict else 0)

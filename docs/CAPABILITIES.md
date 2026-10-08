@@ -172,7 +172,7 @@
 - [scripts/enforcement/check_readme_md.py](../INDEX.md) (owner: infra): Enforce README.md updates when structure changes.
 - [scripts/enforcement/check_retired_terms.py](../INDEX.md) (owner: infra): Retired-tech tripwire — WARN-only, ALWAYS exits 0 (docs-truth convergence 2026-07-20).
 - [scripts/enforcement/check_reusable_modules.py](../INDEX.md) (owner: infra): Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
-- [scripts/enforcement/check_review_hygiene.py](../INDEX.md) (owner: infra): Review hygiene — the grep-shaped classes every review re-sweeps. ADVISORY, ALWAYS exits 0.
+- [scripts/enforcement/check_review_hygiene.py](../INDEX.md) (owner: infra): Review hygiene — the grep-shaped classes every review re-sweeps; advisory, and --strict blocks a text-losing receipt overflow.
 - [scripts/enforcement/check_rivals_dossier.py](../INDEX.md) (owner: infra): Rivals-dossier gate — ADVISORY. A competitive dossier must satisfy its own terminal contract.
 - [scripts/enforcement/check_routing_policy.py](../INDEX.md) (owner: infra): The operator's routing policy is ENFORCED, not merely written down (D-159).
 - [scripts/enforcement/check_rule_grounding.py](../INDEX.md) (owner: infra): Rule-grounding gate — ADVISORY. A CONVERGED plan must PROVE its packs were open, not assert it.
