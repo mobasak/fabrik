@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — design critiques run before the build and are adjudicated once both are in (2026-10-08)
+- The `design-critique` fragment (included by `/fabrik-task` and four design-review commands) said to dispatch the two critiques before `step --design` records the design, and `/fabrik-task` queue verdicts reported test files written before the critiques reshaped the design and dispositions folded before the second seat returned. It now says the critiques go out before phase 3 builds anything, and that every concern is adjudicated once both critiques are in hand (the stand-in Opus seat's when Fable failed, the re-dispatched seat's when one came back empty).
+
 ### Fixed — review wording for the required pin manifest and the by-design owner shape (2026-10-08)
 - `term-edit.md`'s verdict grammar advertised `RECORDED — by design (I#, round k)`, an owner `check_review_coverage.py` refuses; it now names `(F#, round k)` (the owning row's F-id or its review-loop id, e.g. `A-S1`). `/fabrik-execute-plan`'s per-phase review launch now passes the args fragment `review_loop_ledger.py pin` printed, as printed, and the launcher test reads it. The `subagents-core` PIN paragraph and `/fabrik-review-scoped` step 5 say a file `pin` refuses is not a slice file and is reviewed through its callers. Reported by intel (01M4D7C2Z9, 01M4D8FAK2) as `pin_manifest` becomes mandatory.
 

@@ -1,6 +1,6 @@
 **Two independent design critiques before the operator decides (operator ruling 2026-10-03).** Before the
 design-approval DECISION block — and in `/fabrik-task`, after writing `design.md` and BEFORE `step --design`
-records it — dispatch two author-blind critique seats in ONE message: `fabrik-reviewer` with `model: "opus"`
+records it, so before phase 3 builds anything — dispatch two author-blind critique seats in ONE message: `fabrik-reviewer` with `model: "opus"`
 (the latest Opus) and `fabrik-reviewer` with `model: "fable"` (the latest Fable) — the operator's exception to
 the tier map's "Fable is never a routine finder" (D-517). **Dispatch step (D-191):** the pair is fixed at two
 seats, under the floor `dispatch_headroom.py` always grants, so no sizing run is owed — stamp them BEFORE they
@@ -25,7 +25,8 @@ COLD and return:
 Fable runs on metered usage credits. When Fable is unavailable, refused or out of credit, run a second
 Opus seat in its place, and say so in the presentation with the reason. Never present a single critique.
 
-**You adjudicate every concern by executing its claim**, then give it one disposition:
+**Once both critiques are in hand (the stand-in Opus seat's when Fable failed, the re-dispatched seat's when
+one came back empty), you adjudicate every concern by executing its claim**, then give it one disposition:
 - `ACCEPTED` — the change is applied, and reviewed before anyone approves it: in spec-review and plan-review
   it re-opens the loop for ONE delta round by the round-1 seats over the fix, and `Status: CONVERGED` stands only
   if that round confirms 0 (else the loop continues); in `/fabrik-task` you edit `design.md` before `step
