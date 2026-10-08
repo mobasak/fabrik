@@ -42,7 +42,8 @@ proportionate answer.
    no "noted". A behaviour fix is proven by its test going red on the DEFECT (written first and
    watched fail, or red-on-revert with the fix undone on a copy): a red the defect does not cause, such
    as the test's own setup failing, or a test that stays green with the fix undone, proves nothing.
-   Name that test and its red in your report and the close's `--evidence`; a docs or config fix owes none. **LOCAL findings (unambiguous,
+   Name that test and its red in your report and the close's `--evidence`; a docs or config fix
+   owes none. **LOCAL findings (unambiguous,
    contained) you just fix — the common case; an ARCHITECTURAL one — the correct fix moves a contract,
    boundary, data model or auth/isolation posture ANOTHER module or repo depends on — you still fix,
    and it owes a ledger row per `/fabrik-review` § Phase 3, which is canonical for that rule** (do not
