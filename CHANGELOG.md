@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the subagents pack names the hold tier that zeroes seats (2026-10-08)
+- `.windsurf/rules/core/62-using-subagents.md`: after D-706, `dispatch_headroom.py` caps seats at 0 only when the fleet HOLD stands at its `walled` tier; at `urgent-90` the band decides. Constraint 4 and the five-constraints preamble both still said any HOLD dispatches nothing / drops the floor; both now name the tier. Reported by intel with D-706.
+
 ### Fixed — scratch_sweep removes a stale dir holding a read-only pin (2026-10-08)
 - `scripts/scratch_sweep.py --apply` printed `FAILED <dir> (13: Permission denied)` on a stale scratch dir holding a review seat's copied pin (`dr-xr-xr-x`, files 0444), so those dirs survived every sweep. On a PermissionError the row now gives the owner rwx on the target and every real directory inside it (never its parent, never through a symlink) and removes it again; a tree that still refuses ends on its `FAILED` line. A first cut used rmtree's `onexc` retry and was rewritten after the scoped review: it raised TypeError past the per-row handler on a mode-000 dir, chmodded the target's parent, and needed Python 3.12. intel 01M4E3M1JJ.
 
