@@ -171,6 +171,40 @@ def test_python_backend_gets_module_table_revokes_header_env(
     assert "psycopg[binary]" in reqs.read_text()
 
 
+@requires_fabrik_env
+def test_folded_block_drops_the_modules_own_apply_hint() -> None:
+    """Folded into db/schema.sql, the module's hint to apply ``libs/audit_log/schema.sql`` on its
+    own is false: the file's header applies the fold. fabrik-lib reworded the hint (01M476P2), so
+    the fold matches the hint's ``-f libs/audit_log/schema.sql`` line, not its whole text."""
+    block = scaffold._audit_log_schema_block()
+    assert "-f libs/audit_log/schema.sql" not in block, block[:600]
+    assert "folded into db/schema.sql — applied by its header, as the owner" in block
+
+
+def test_fold_fails_loud_when_the_module_hint_is_gone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A module whose apply hint moved again raises rather than folding a stale hint silently."""
+    (tmp_path / "schema.sql").write_text(
+        "-- no apply hint here\nCREATE TABLE audit_log (id int);\n"
+    )
+    monkeypatch.setattr(scaffold, "APP_AUDIT_LOG_DIR", tmp_path)
+    with pytest.raises(ValueError, match="apply hint"):
+        scaffold._audit_log_schema_block()
+
+
+def test_fold_keeps_the_lines_around_the_hint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only the hint line is replaced: a blank line after it, and the next statement, survive."""
+    (tmp_path / "schema.sql").write_text(
+        "-- header\n--   psql -f libs/audit_log/schema.sql\n\nCREATE TABLE audit_log (id int);\n"
+    )
+    monkeypatch.setattr(scaffold, "APP_AUDIT_LOG_DIR", tmp_path)
+    block = scaffold._audit_log_schema_block()
+    assert "applied by its header, as the owner\n\nCREATE TABLE audit_log (id int);" in block, block
+
+
 # ── Row 2: node types get the table and revokes only; the rest nothing ─────
 
 

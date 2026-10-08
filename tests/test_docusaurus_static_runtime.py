@@ -696,8 +696,9 @@ def test_real_build_serves_the_static_site(tmp_path: Path) -> None:
         # D-676: a 404 revalidates too; the bare /404 route and an /assets/ directory are 404s.
         assert headers404.get("cache-control") == "no-cache", headers404
         for path in ("/404", "/assets/js/"):
-            status, _, body = _get(f"{base}{path}")
+            status, headers, body = _get(f"{base}{path}")
             assert status == 404 and b"Page Not Found" in body, (path, status, body[:200])
+            assert headers.get("cache-control") == "no-cache", (path, headers)
 
         asset = next(m for m in re.findall(r'src="(/assets/js/[^"]+\.js)"', html))
         status, headers, _ = _get(f"{base}{asset}", {"Accept-Encoding": "gzip"})
