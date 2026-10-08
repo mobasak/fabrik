@@ -1486,6 +1486,23 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
         "into a file under SCRATCH that you then read, because a large stdout is saved by the harness under $HOME, where you may not read."
     )
     assert clause in iso, "W-27fc7fa9: the large-output clause, subject through reason, as one span"
+    # 01M4DE0R2H + W-5f08698e: a probe rmtree'd Path.home()/.claude/skills box-wide, and a relative
+    # `git archive -o` left 85 MB in a live worktree — the rule is a SCOPE (nothing written outside
+    # SCRATCH), not only a spelling (absolute paths), and it names $HOME and the redirect
+    scope = (
+        "create, modify or delete NOTHING outside SCRATCH — not $HOME (`Path.home()`, `~`, `expanduser`), "
+        "not the live checkout, not /tmp outside SCRATCH"
+    )
+    assert scope.replace("`", "\\`") in iso, "the write-scope rule, as one span"
+    # review A-S1/A-S2: tempfile writes under TMPDIR (default /tmp), and PIN_IMPORT keeps the REAL user
+    # base for imports — the remedy names TMPDIR and says that line only reads
+    assert "set HOME, TMPDIR and the module's path constants to SCRATCH first" in iso
+    assert "only READS the real user base" in iso
+    # review A-S3 (pass 2, own-fix: round 1): the rule names TMPDIR, so both recipes it sits beside set it
+    for name in ("const PIN_IMPORT = ", "const PYTEST_PINS = "):
+        start = src.index(name)
+        body = src[start : src.index("\n", start)]
+        assert 'os.environ["TMPDIR"]="SCRATCH/tmp"' in body, name
 
 
 def test_fabrik_review_lessons_carry_the_leak_check() -> None:

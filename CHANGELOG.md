@@ -33,6 +33,10 @@ All notable changes to this project will be documented in this file.
 - `scripts/command_run.py::_seat_transcripts` reads `<sid>/subagents/` recursively. A Workflow-tool seat writes `subagents/workflows/wf_<id>/agent-<id>.jsonl`, which the top-level glob never saw. As a result, every review-loop close printed "seats declared N vs seen 0", recorded seats_seen 0 and dropped those seats' tokens from its FEEDBACK line, and the no-round nudge missed them too. 35% of one session's seat transcripts sat at that depth. Every file is a seat: no dedupe (0 duplicate seat names measured).
 - `docs/reference/command-run-protocol.md` and `.windsurf/rules/core/62-using-subagents.md` name the Workflow depth. Grader in `tests/test_command_feedback.py`. Kaizen mail 01M4D35GZ9; review `docs/development/reviews/2026-10-08-seats-seen-rglob-review.md`.
 
+### Fixed — review seats are told to write nothing outside their scratch, $HOME and TMPDIR included (2026-10-08)
+
+- `.claude/workflows/fabrik-review-loop.js` SEAT_ISOLATION states a write SCOPE, not only absolute paths, after a seat's probe deleted `~/.claude/skills` box-wide (infra 01M4DE0R2H) and another left an 85 MB archive in a live worktree (W-5f08698e); the probe and pytest recipes set HOME and TMPDIR under SCRATCH. Receipt: `docs/development/reviews/2026-10-08-seat-write-scope-review.md`.
+
 ### Fixed — `pin --from` no longer refuses a committed file over an unrelated working-tree symlink (2026-10-08)
 
 - `scripts/review_loop_ledger.py pin --from` judged the path by its WORKING-TREE shape, so a regular file at the ref was refused when the working tree held a symlink there; ref mode now refuses only what the commit makes unpinnable. The workflow's refusal text and the reference doc no longer say a deleted file is always refused (kaizen ba7fc026a). Receipt: `docs/development/reviews/2026-10-08-pin-refusal-wording-review.md`.
