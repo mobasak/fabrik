@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-08T16:38:46.395220Z",
+  "created": "2026-10-08T17:27:19.216515Z",
   "creator": "infra",
   "evidence": "",
-  "id": "W-d0a5658a",
+  "id": "W-ea17f8ed",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M4E3M1JJT4CYPJDRM521KXFF",
+    "mail": "01M4E8NRNP9J8YGKD4GF9E410Z",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "infra",
   "priority": 2,
   "status": "done",
-  "title": "scratch_sweep --apply fails with EACCES on a seat's copied read-only pin, so stale seat dirs survive"
+  "title": "branch: worktree-intel"
 }

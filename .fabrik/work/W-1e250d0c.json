@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T17:27:54.841735Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-1e250d0c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4E73EN07HMM08K0WATYM6NN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: final_gate renders a missing checker as [PASS] (01M4DZCA2B) — fixed at 97589f2bc, synced (D-707)"
+}
