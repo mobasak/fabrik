@@ -28,6 +28,7 @@ SOURCES = [
     ROOT / "commands" / "_sources" / "fabrik-plan-review.md",
     ROOT / "commands" / "_sources" / "fabrik-review-scoped.md",
     ROOT / "commands" / "_sources" / "fabrik-deploy-plan-review.md",
+    ROOT / "commands" / "_sources" / "fabrik-execute-plan.md",
     ROOT / "commands" / "_fragments" / "subagents-core.md",
 ]
 BRIEF = ROOT / "commands" / "_agents" / "fabrik-reviewer.md"

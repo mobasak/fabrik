@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review wording for the required pin manifest and the by-design owner shape (2026-10-08)
+- `term-edit.md`'s verdict grammar advertised `RECORDED — by design (I#, round k)`, an owner `check_review_coverage.py` refuses; it now names `(F#, round k)` (the owning row's F-id or its review-loop id, e.g. `A-S1`). `/fabrik-execute-plan`'s per-phase review launch now passes the args fragment `review_loop_ledger.py pin` printed, as printed, and the launcher test reads it. The `subagents-core` PIN paragraph and `/fabrik-review-scoped` step 5 say a file `pin` refuses is not a slice file and is reviewed through its callers. Reported by intel (01M4D7C2Z9, 01M4D8FAK2) as `pin_manifest` becomes mandatory.
+
 ### Fixed — command_run counts Workflow-launched seats (2026-10-08)
 - `scripts/command_run.py::_seat_transcripts` reads `<sid>/subagents/` recursively. A Workflow-tool seat writes `subagents/workflows/wf_<id>/agent-<id>.jsonl`, which the top-level glob never saw. As a result, every review-loop close printed "seats declared N vs seen 0", recorded seats_seen 0 and dropped those seats' tokens from its FEEDBACK line, and the no-round nudge missed them too. 35% of one session's seat transcripts sat at that depth. Every file is a seat: no dedupe (0 duplicate seat names measured).
 - `docs/reference/command-run-protocol.md` and `.windsurf/rules/core/62-using-subagents.md` name the Workflow depth. Grader in `tests/test_command_feedback.py`. Kaizen mail 01M4D35GZ9; review `docs/development/reviews/2026-10-08-seats-seen-rglob-review.md`.
