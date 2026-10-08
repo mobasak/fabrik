@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:30:38.321913Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-29e3424f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "command_run round verdict: do not demand a closing review pass on a /fabrik-spec run that hands off to spec-review/plan-review (fabrik-spec verdict 1790969786.235392, kaizen 01M4EJQEEG)"
+}
