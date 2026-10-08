@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the contracts' GATE row cites land on final_gate.py again; the shared-repo mutant names kaizen (2026-10-08)
+- `final_gate.py`'s setup-error probe and tier block moved 12 lines (71201e6a3), so both contracts cited the wrong code: `:3161-3178` → `:3173-3190`, `:3180-3186` → `:3192-3198`. The `shared-fleet-intel-edit-main` mutant in `tests/test_governance_template_split.py` still targeted the two-agent sentence kaizen's 0d688b720 replaced; it now targets the three-agent one, and the checker requires `.claude/worktrees/kaizen`. Both graders were red on HEAD.
+
 ### Fixed — `is_admin_dashboard` advice names its own host, never the customer-facing domain (2026-10-08)
 - `.windsurf/rules/core/35-security-auth.md` told authors to set `shape.is_admin_dashboard` on "public services with admin UI"; the flag 2FAs the whole domain, which is how youtube locked out its customers (D-690). It now names a dedicated admin host on its own domain and the standing `/health`/`/metrics` bypasses. The same un-caveated line is fixed in the project contract (`templates/governance/CLAUDE.md`), the hub `CLAUDE.md` and `templates/scaffold/AFCL_TEMPLATE.md` (D-366). fleet 01M4DSTKXX.
 
