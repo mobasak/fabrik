@@ -889,7 +889,7 @@ npm run dev
 ### Python Dockerfile
 
 Multi-stage build with:
-- Base: `python:<current-stable>-slim-bookworm` (NOT Alpine, NOT plain slim)
+- Base: `python:<current-stable>-slim-<debian_codename>`, the codename from `.windsurf/rules/versions.yaml` (NOT Alpine, NOT plain slim)
 - Non-root user
 - Health check
 - Entry point customization
@@ -897,7 +897,7 @@ Multi-stage build with:
 **Template:** `@/opt/fabrik/templates/scaffold/docker/Dockerfile.python`
 
 ```dockerfile
-FROM python:<current-stable>-slim-bookworm AS builder
+FROM python:<current-stable>-slim-<debian_codename> AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev && rm -rf /var/lib/apt/lists/*
@@ -905,7 +905,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir uv && \
     uv pip install --system --no-cache -r requirements.txt
 
-FROM python:<current-stable>-slim-bookworm
+FROM python:<current-stable>-slim-<debian_codename>
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 curl && rm -rf /var/lib/apt/lists/*
@@ -1110,9 +1110,9 @@ class Config:
 
 | Use Case | Base Image |
 |----------|------------|
-| Python apps | `python:<current-stable>-slim-bookworm` |
-| Node.js apps | `node:<current-LTS>-bookworm-slim` |
-| General | `debian:bookworm-slim` |
+| Python apps | `python:<current-stable>-slim-<debian_codename>` |
+| Node.js apps | `node:<current-LTS>-<debian_codename>-slim` |
+| General | `debian:<debian_codename>-slim` |
 
 **Never use Alpine** — glibc compatibility, pre-built wheels, consistent behavior.
 
@@ -1122,7 +1122,7 @@ class Config:
 |---------|-------------|
 | `/tmp/` directory | Project `.tmp/` |
 | Hardcoded localhost | `os.getenv()` |
-| Alpine base images | `*-bookworm-slim` |
+| Alpine base images | the Debian `-slim` variant on `debian_codename` |
 | Class-level config | Function-level loading |
 
 ---
@@ -1149,8 +1149,8 @@ class Config:
 
 ### Docker templates (`templates/scaffold/docker/`)
 
-- `Dockerfile.python` — Python multi-stage Dockerfile (Python 3 slim-bookworm)
-- `Dockerfile.node` — Node.js Dockerfile (Node LTS slim-bookworm)
+- `Dockerfile.python` — Python multi-stage Dockerfile (Python 3 slim, Debian variant from the registry's `debian_codename`)
+- `Dockerfile.node` — Node.js Dockerfile (Node slim, Debian variant from the registry's `debian_codename`)
 - `compose.yaml.template` — production Compose template
 - `compose.dev.yaml.template` — dev overlay (bind-mount hot reload)
 - `dockerignore.template`

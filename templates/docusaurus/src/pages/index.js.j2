@@ -1,5 +1,5 @@
-{% raw %}// The site root redirects to the first doc page. It also makes `build/index.html` exist, which the
-// nginx fallback `try_files $uri $uri/ /index.html;` points at: without it nginx loops on a missing path.
+{% raw %}// The site root redirects to the first doc page. It also makes `build/index.html` exist, so `/`
+// answers 200 under nginx's lookup `try_files $uri $uri.html $uri/index.html =404;` instead of the 404 page.
 import React from 'react';
 import {Redirect} from '@docusaurus/router';
 

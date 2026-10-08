@@ -1,5 +1,5 @@
-# File Worker - Python 3.12 Bookworm (amd64)
-FROM python:3.12-slim-bookworm
+# File Worker - Python 3.12 slim on the registry's Debian variant (amd64)
+FROM python:3.12-slim-{{ versions.debian_codename }}
 
 # Install system dependencies for processing
 RUN apt-get update && apt-get install -y --no-install-recommends \

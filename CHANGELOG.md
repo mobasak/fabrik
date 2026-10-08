@@ -16,6 +16,26 @@ All notable changes to this project will be documented in this file.
 ### Changed — assemble_commands --check names every cause of a corpus difference (2026-10-08)
 - `commands/assemble_commands.py`: the command, skill and agent drift rows said `HAND-EDITED` for any difference between this tree's render and the installed corpus. The cause is usually an unrendered source edit, or a worktree behind the last render (fleet's worktree showed 27 such rows). They now read `DIFFERS from what this tree renders (… an unrendered edit here, this tree behind the last render, or a hand-edit of the installed file: in the main checkout render then re-check; in a worktree merge master first)`. `commands/_fragments/grounding-rules.md` names the new label. Grader in `tests/test_assemble_dispatch_step.py`. Intel mail 01M4D9HNXM.
 
+### Fixed — every scaffold type takes its Debian base-image variant from the version registry (2026-10-08)
+
+Eleven of the twelve scaffold types wrote a hard-coded `bookworm` base image (`python:3.12-slim-bookworm`,
+`node:22-bookworm-slim`) while the registry pins `debian_codename: trixie`. The templates now carry
+`{{ versions.debian_codename }}`: the Jinja Dockerfiles render it, `scaffold.py` fills it in every plain template it copies,
+the two inline Dockerfiles and the reference `templates/saas-skeleton/Dockerfile` every project receives. `create_project`
+and `fix_project` read the registry before writing anything, so an unusable registry no longer leaves a half-built
+project. `fabrik fix` also substitutes the package name in a re-created Dockerfile (it wrote `<package_name>.main:app`).
+The doc templates and hub docs name the registry key instead of a codename. Graders:
+`tests/test_scaffold_base_image_codename.py`, which scaffolds every type with a sentinel codename. W-3860ebf6 part 2.
+
+### Fixed — the docusaurus scaffold serves nginx the way the D-664 pack says (2026-10-08)
+
+`templates/docusaurus/nginx.conf.j2` is now the fenced nginx block of `.windsurf/rules/core/42-docusaurus.md`: a page is looked
+up as `$uri`, `$uri.html` or `$uri/index.html` and a missing one answers 404 with the build's `404.html` (it answered 200 with
+the landing page), pages carry `Cache-Control: no-cache`, gzip adds `gzip_vary` and `text/xml`. The test now asserts the
+scaffold ships the pack's block verbatim, and the opt-in real-image test (`test_real_build_serves_the_static_site`) expects
+the build's 404 page and no redirect, and passed against a real build. W-3860ebf6 part 1. Re-copied after D-676: an `/assets/`
+directory and GET `/404` answer 404, every 404 carries `Cache-Control: no-cache`, and the graders name those rules.
+
 ### Fixed — the docusaurus pack's nginx block answers every missing path with 404 and no-cache (2026-10-08)
 - `.windsurf/rules/core/42-docusaurus.md`: an `/assets/` directory answered 403, GET `/404` served the 404 page as a 200, and every 404 carried no Cache-Control (`add_header` skips 4xx). The block now adds `try_files $uri =404;` in `/assets/`, `location = /404 { internal; }`, and `add_header Cache-Control "no-cache" always;` on the 404 page. Executed in nginx:mainline-trixie: every missing path answers 404 with the build's 404.html and no-cache, while hashed assets keep the immutable cache. The prose is corrected sentence by sentence (403 claims, the `trailingSlash: false` shape, security headers in all three locations, i18n 404 pages).
 - Graders in `tests/test_docusaurus_pack.py`. Fleet mail 01M4D7K84A; review `docs/development/reviews/2026-10-08-docusaurus-nginx-404-review.md`.

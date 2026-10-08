@@ -34,6 +34,21 @@ from fabrik.config import FABRIK_ROOT
 from fabrik.spec_generator import SPEC_ENABLED_TYPES, generate_and_save_spec
 from fabrik.version_registry import load_versions
 
+# The base-image Debian variant is never a template literal: plain templates carry this token and
+# _with_registry_codename fills it from the registry (W-3860ebf6, D-664). The Jinja templates render
+# the same name from their `versions` context.
+_CODENAME_TOKEN = "{{ versions.debian_codename }}"
+
+
+def _registry_codename() -> str:
+    """The fleet-pinned Debian codename. Raises VersionRegistryError by name when the registry is unusable."""
+    return load_versions()["debian_codename"]
+
+
+def _with_registry_codename(text: str, codename: str) -> str:
+    return text.replace(_CODENAME_TOKEN, codename)
+
+
 logger = logging.getLogger(__name__)
 
 # Non-secret env var patterns to exclude from auto-detection
@@ -1463,6 +1478,11 @@ def _scaffold_shared(
                 *_TOOL_CACHES, ".next", "node_modules", ".turbo", "dist", "build"
             ),
         )
+        reference_dockerfile = project_saas_skeleton / "Dockerfile"
+        if reference_dockerfile.is_file():
+            reference_dockerfile.write_text(
+                _with_registry_codename(reference_dockerfile.read_text(), _registry_codename())
+            )
 
     # Copy templates/spec-pipeline/ for Traycer discovery workflow (Stage 0)
     fabrik_spec_pipeline = FABRIK_ROOT / "templates" / "spec-pipeline"
@@ -1970,10 +1990,11 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
     # Default Fabrik convention is ``<name>.vps1.ocoron.com``; users can
     # edit the file post-scaffold for staging/custom domains.
     domain = f"{name}.vps1.ocoron.com"
+    codename = _registry_codename()
     for src, dest in _PYTHON_API_TEMPLATE_MAP.items():
         src_path = TEMPLATE_DIR / src
         if src_path.exists():
-            content = src_path.read_text()
+            content = _with_registry_codename(src_path.read_text(), codename)
             for old, new in [
                 ("[Project Name]", name),
                 ("<project>", name),  # QUICKSTART paths + compose service name
@@ -3462,7 +3483,7 @@ def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> N
     # uses /api/health.
     dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.python"
     if dockerfile_src.exists():
-        df = dockerfile_src.read_text()
+        df = _with_registry_codename(dockerfile_src.read_text(), _registry_codename())
         df = df.replace("PROJECT_NAME", name).replace("<package_name>", package_name)
         df = df.replace("${PORT:-8000}/health", "${PORT:-8000}/api/health")
         (server_dir / "Dockerfile").write_text(df)
@@ -4190,6 +4211,7 @@ def _scaffold_saas_skeleton(
     project_dir: Path, name: str, description: str, **kwargs: object
 ) -> None:
     """Copy the saas-skeleton template into the project directory, patching names."""
+    codename = _registry_codename()
     for src in SAAS_SKELETON_DIR.rglob("*"):
         if not src.is_file():
             continue
@@ -4209,7 +4231,7 @@ def _scaffold_saas_skeleton(
 
         try:
             content = src.read_text(encoding="utf-8")
-            content = content.replace("saas-skeleton", name)
+            content = _with_registry_codename(content.replace("saas-skeleton", name), codename)
             # B26: replace `npm ci` with `npm install` in the Dockerfile.
             # The shipped template Dockerfile uses `RUN npm ci`, but `npm ci`
             # requires a `package-lock.json` and the scaffolder does not run
@@ -4360,7 +4382,7 @@ def _scaffold_node_api(project_dir: Path, name: str, description: str, **kwargs:
     # b) Copy and patch Dockerfile.node -> Dockerfile
     dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.node"
     if dockerfile_src.exists():
-        content = dockerfile_src.read_text()
+        content = _with_registry_codename(dockerfile_src.read_text(), _registry_codename())
         content = content.replace("PROJECT_NAME", name)
         content = content.replace("dist/index.js", "src/index.js")
         content = content.replace("./dist", "./src")
@@ -4688,7 +4710,7 @@ module.exports = logger;
     # c) Copy and patch Dockerfile.node -> Dockerfile
     dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.node"
     if dockerfile_src.exists():
-        content = dockerfile_src.read_text()
+        content = _with_registry_codename(dockerfile_src.read_text(), _registry_codename())
         content = content.replace("PROJECT_NAME", name)
         content = content.replace("dist/index.js", "src/index.js")
         content = content.replace("./dist", "./src")
@@ -4812,7 +4834,7 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
     # d) Copy and patch Dockerfile.python -> Dockerfile
     dockerfile_src = TEMPLATE_DIR / "docker" / "Dockerfile.python"
     if dockerfile_src.exists():
-        content = dockerfile_src.read_text()
+        content = _with_registry_codename(dockerfile_src.read_text(), _registry_codename())
         content = content.replace("myproject", name)
         content = content.replace("PROJECT_NAME", name)
         # Replace CMD: perform explicit line substitution to handle both the raw
@@ -5828,12 +5850,12 @@ ephemeral — never register in a bare global).
     # 3. Docker files
     # Dockerfile (Python server only)
     (project_dir / "Dockerfile").write_text(
-        f"""FROM python:3.12-slim-bookworm AS builder
+        f"""FROM python:3.12-slim-{_registry_codename()} AS builder
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-{_registry_codename()}
 WORKDIR /app
 
 # Install curl for healthcheck
@@ -6141,12 +6163,12 @@ def _scaffold_mobile_app(project_dir: Path, name: str, description: str, **kwarg
     # 6. Backend Dockerfile (inline, FastAPI — package ``app``), mirroring
     #    _scaffold_chrome_extension. The RN client is excluded via .dockerignore.
     (project_dir / "Dockerfile").write_text(
-        """FROM python:3.12-slim-bookworm AS builder
+        """FROM python:3.12-slim-{{ versions.debian_codename }} AS builder
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-{{ versions.debian_codename }}
 WORKDIR /app
 
 # Install curl for healthcheck
@@ -6167,7 +6189,7 @@ COPY requirements.txt .
 COPY server/ ./server/
 
 CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
-"""
+""".replace(_CODENAME_TOKEN, _registry_codename())
     )
 
     # 7. compose.yaml — canonical Coolify-correct helper. No CORS labels: a
@@ -7231,6 +7253,8 @@ def create_project(
             raise NotImplementedError(WORDPRESS_REFUSAL)
         raise NotImplementedError(f"Scaffolder for '{project_type}' not yet implemented")
     scaffolder = _TYPE_SCAFFOLDERS[project_type]
+    # The registry feeds every base image; an unusable one fails here, before any file exists.
+    _registry_codename()
 
     today = date.today().isoformat()
 
@@ -7635,6 +7659,9 @@ def fix_project(
 
     # Shared required file set for fast membership test
     shared_required_set = set(_SHARED_REQUIRED_FILES)
+    # Read before any repair writes, so an unusable registry repairs nothing.
+    codename = _registry_codename()
+    package_name = _get_package_name(name)
 
     # Create missing files (if any)
     for f in missing:
@@ -7669,7 +7696,7 @@ def fix_project(
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 
         if template_path is not None:
-            content = template_path.read_text()
+            content = _with_registry_codename(template_path.read_text(), codename)
             for old, new in [
                 ("[Project Name]", name),
                 ("<project>", name),
@@ -7677,8 +7704,14 @@ def fix_project(
                 ("[Brief description]", f"{name} project"),
                 ("[One-line description]", f"{name} project"),
                 ("myproject", name),  # Makefile
+                ("[package_name]", package_name),  # README imports, as at create time
+                ("<package_name>", package_name),  # Dockerfile CMD, TROUBLESHOOTING imports
             ]:
                 content = content.replace(old, new)
+            if dest_path.name == "Dockerfile":
+                # Only the Dockerfile's comments carry a bare PROJECT_NAME to fill: the shared doc
+                # templates keep `{PROJECT_NAME}` as a deliberate stub marker check_doc_stubs reads.
+                content = content.replace("PROJECT_NAME", name)
             dest_path.write_text(content)
         else:
             # Create minimal placeholder for shared docs

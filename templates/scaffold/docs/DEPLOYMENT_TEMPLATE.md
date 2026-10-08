@@ -84,7 +84,7 @@ fabrik redeploy [project-name]
 
 ## Infrastructure Rules
 
-- **Base images:** `python:3.12-slim-bookworm` or `node:22-bookworm-slim` — never Alpine
+- **Base images:** `python:3.12-slim-<codename>` or `node:22-<codename>-slim`, on the Debian variant pinned as `debian_codename` in `.windsurf/rules/versions.yaml` — never Alpine
 - **Architecture:** `linux/amd64` required — VPS is x86_64
 - **Networking:** on the HUB, Docker service names (`postgres-main`, `redis-main`) — never `localhost` in production. On a SPOKE (`target_vps: vps2/vps3`), the registrar injects the hub's mesh IP `10.99.0.1:<port>` into your `.env` (WireGuard carries packets, not DNS) — trust the injected value
 - **Health checks:** Every service must have `/health` that tests actual dependencies

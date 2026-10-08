@@ -211,4 +211,4 @@ Before deploying:
 - [ ] No hardcoded `localhost` in `compose.yaml` (use service names)
 - [ ] Logs writing to expected location
 - [ ] Environment-specific settings verified (dev vs prod)
-- [ ] amd64 compatibility confirmed (base images use `-slim-bookworm`, not Alpine)
+- [ ] amd64 compatibility confirmed (base images use the `-slim` variant on the Debian variant pinned as `debian_codename` in `.windsurf/rules/versions.yaml`, not Alpine)
