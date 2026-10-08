@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `/fabrik-docs-review` citations carry a quoted anchor (2026-10-08)
+- Reconciler seats cited doc lines by bare number; after an earlier fix inserted or deleted a line, every later number pointed at the wrong text and each fix was re-anchored by hand (intel W-8efe3357). A seat's return now cites every `path:line` with a short, unique fragment of the line in a code span, and fixes re-anchor by the fragment; Pass Ledger rows, receipts and the docs keep a plain `path:line`, because graders parse the first two. Grader: `tests/test_assemble_dispatch_step.py::test_docs_review_citations_carry_a_quoted_anchor`.
+
 ### Fixed — an Agent-tool seat brief carries the seat write scope (2026-10-08)
 - `commands/_fragments/subagents-core.md`'s seat rule banned mutating git verbs but never said a seat writes nothing outside its own scratch dir; only the `Workflow` seats got that rule (`SEAT_ISOLATION`, after a seat's rmtree deleted every session's skills, 01M4DE0R2H). The fragment now states it for the read-only seats a lead briefs by hand, with the in-program recipe (`PYTHONUSERBASE` before `HOME`, or a child process loses the `--user` packages); a writer seat writes only the paths its brief names. Grader: `tests/test_review_loop_workflow.py::test_an_agent_tool_seat_brief_carries_the_write_scope`.
 
