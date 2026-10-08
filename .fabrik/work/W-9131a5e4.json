@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T18:43:08.189060Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9131a5e4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "command_feedback_report: a HELD subject stays listed after its edit lands (mark-answered rows carry no reason/tag) — retire a subject when an answered row names it"
+}
