@@ -194,7 +194,7 @@ Claude Code reaches these from inside the Docker `fabrik` network via `sudo dock
 
 `proactive-check.sh` tags every anomaly with the originating host (e.g. `cpu_high[vps2]` instead of `cpu_high`). A `prom_hosts()` helper extracts the unique `host` label values from each PromQL result.
 
-> **✅ Truth check RE-VERIFIED 2026-07-12:** the spoke scrape jobs **`node-spokes` / `cadvisor-spokes` / `promtail-spokes` ARE now live** in `prometheus.yml` (`:46,:58,:70`; 2 targets each, all up — 17 `job_name`s configured / 16 active in the repo config since the 2026-07-19 `pushgateway` restore). Spoke federation shipped in `8342ef1`, superseding the 2026-06-07 note that said they were absent. `proactive-check.sh` queries against `node_cpu_seconds_total{host=~"vps[23]"}` therefore DO return rows for spokes now. The per-spoke `aro-wake` job (3 targets) and each spoke's own `vps-sysadmin-bot.service` + `proactive-check.sh` cron remain in place on top.
+> **✅ Truth check RE-VERIFIED 2026-07-12:** the spoke scrape jobs **`node-spokes` / `cadvisor-spokes` ARE now live** in `prometheus.yml` (`:46,:58`; 2 targets each, all up — 17 `job_name`s configured / 16 active in the repo config since the 2026-07-19 `pushgateway` restore); the log-shipper job, originally `promtail-spokes`, is now `alloy` (`:70`, 3 targets — hub + both spokes, migration spec D3). Spoke federation shipped in `8342ef1`, superseding the 2026-06-07 note that said they were absent. `proactive-check.sh` queries against `node_cpu_seconds_total{host=~"vps[23]"}` therefore DO return rows for spokes now. The per-spoke `aro-wake` job (3 targets) and each spoke's own `vps-sysadmin-bot.service` + `proactive-check.sh` cron remain in place on top.
 
 ~~New Prometheus alert rules in group `spoke_health`~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**. The 5 actual live groups: `aro_wake` (2), `container_health` (6), `host_health` (3 — fires on `host=vps2|vps3` labels for host-level metrics that ARE available), `service_health` (1), `fabrik-registrar-drift` (1 live; 3 once plan-2 rollout R0 syncs FabrikRegistryHealFailed + FabrikAuditStale, separate file).
 
@@ -202,7 +202,7 @@ Originally designed (kept as a recipe, NOT live):
 
 | Rule | Catches | Condition | Live? |
 | :--- | :--- | :--- | :--- |
-| SpokeDown | Spoke target stops reporting | `up{job=~"node-spokes\|cadvisor-spokes\|promtail-spokes"} == 0` for 5 m | ❌ |
+| SpokeDown | Spoke target stops reporting | `up{job=~"node-spokes\|cadvisor-spokes"} == 0 or up{job="alloy", host=~"vps[23]"} == 0` for 5 m (the `alloy` job also scrapes the hub) | ❌ |
 | SpokeHighCPU | Spoke vCPU > 85 % sustained | for 10 m, warning | ❌ |
 | SpokeHighRAM | Spoke RAM > 85 % sustained | for 10 m, warning | ❌ |
 
@@ -252,7 +252,7 @@ Container classification on spokes (post-bootstrap):
 | Category | Spoke containers | Permissions |
 | :--- | :--- | :--- |
 | critical-infra | traefik | READ ONLY |
-| monitoring agents | node-exporter, cadvisor, promtail | READ ONLY |
+| monitoring agents | node-exporter, cadvisor, alloy (promtail stays defined under `rollback`, stopped, until Gate S) | READ ONLY |
 | application | (future spoke tenants) | Full autonomous |
 
 ## Container Classification
@@ -260,7 +260,7 @@ Container classification on spokes (post-bootstrap):
 | Category | Containers (vps1 + spokes) | Claude's permissions |
 |---|---|---|
 | **critical-infra** | traefik (every host), postgres-main, redis-main, wg0 (mesh) | READ ONLY. Never restart/stop/scale. |
-| **monitoring** | prometheus, grafana, loki, promtail (every host), alertmanager, cadvisor (every host), node-exporter (every host), gatus, pushgateway, exporters | READ ONLY. Touching these blinds Claude. (`netdata` is in this list pattern but **not deployed today**.) |
+| **monitoring** | prometheus, grafana, loki, alloy (every host), alertmanager, cadvisor (every host), node-exporter (every host), gatus, pushgateway, exporters | READ ONLY. Touching these blinds Claude. (`netdata` is in this list pattern but **not deployed today**; `promtail` stays defined under the `rollback` profile — stopped — on every host until Gate S.) |
 | **platform** | authelia, apprise, backrest, n8n, glitchtip-web/worker, meilisearch, gotenberg, browserless | Restart autonomously. Report after. |
 | **application** | site-provisioner (interim, vps1), ocoron-com-* (vps1), any spoke tenants deployed via `fabrik apply --target-vps vpsN` | Full autonomous management. |
 

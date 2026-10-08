@@ -24,14 +24,14 @@ dead chain pages via Telegram and heals by re-`/login` on that host. Quota conse
 ## Quick state (current — container counts re-verified live 2026-07-12: vps1=31, vps2=5, vps3=5; 16 compose stacks on vps1, 3 on each spoke)
 
 - **vps1:** 31 containers — the 29 documented below plus `watchdog-test` + `watchdog-test-watchdog` (T-P5 dogfood test running since 2026-06-03; sidecar self-heals nginx via Claude Code Opus diagnose + `restart_container` Tier A action; verified end-to-end 2026-06-04 with 34s incident→action close time). 4 shared infra services (postgres-main, redis-main, glitchtip-web, authelia) + loki are bound to `10.99.0.1:<port>` mesh IPs so spokes can reach them.
-- **vps2:** 5 containers — monitoring agents (node-exporter / cadvisor / promtail) + Traefik (public TLS for `*.vps2.ocoron.com`). DNS is **live** as of 2026-05-31 afternoon.
+- **vps2:** 5 containers — monitoring agents (node-exporter / cadvisor / alloy) + Traefik (public TLS for `*.vps2.ocoron.com`); Promtail stays defined under the `rollback` profile (stopped) until Gate S (`docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md` D6). DNS is **live** as of 2026-05-31 afternoon.
 - **vps3:** 5 containers — same as vps2. DNS is **live** as of 2026-05-31 afternoon.
 - **Mesh handshakes:** active, cross-Atlantic RTT 133–134 ms, 0 % loss
 - **Cross-host shared infra reachable:** postgres `5432` / redis `6379` / glitchtip `8000` / authelia `9091` / loki `3100` — all verified from vps2 via `10.99.0.1:<port>`
 - **Spoke DNS (NEW today):** `vps2.ocoron.com` + `*.vps2.ocoron.com` → `96.9.214.128`; `vps3.ocoron.com` + `*.vps3.ocoron.com` → `104.128.190.151`. Wildcards cover `auth.vpsN`, `<tenant>.vpsN`, etc. Apex + wildcard each, no per-service A records needed.
 - **Spoke Traefik:** listening on 80 + 443 on each spoke's public IP; `authelia-vps1@file` middleware ready (forward-auth → `http://10.99.0.1:9091/api/verify`). Public TLS via Let's Encrypt will issue on first tenant deploy.
 - **Loki ingest:** spokes pushing logs successfully (`host` label values: `["vps1","vps2","vps3"]`)
-- **Prometheus:** **17 `job_name`s configured / 16 active (`fabrik-services` null-target; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20; prior live probe 2026-07-12: 20/20 targets up)**; every series carries `host` + `role` labels. Spoke federation jobs (`node-spokes`, `cadvisor-spokes`, `promtail-spokes`) added 2026-06-17 in commit `8342ef1`, scraping spoke exporters over the wg0 mesh.
+- **Prometheus:** **17 `job_name`s configured / 16 active (`fabrik-services` null-target; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20; prior live probe 2026-07-12: 20/20 targets up)**; every series carries `host` + `role` labels. Spoke federation jobs (`node-spokes`, `cadvisor-spokes`) added 2026-06-17 in commit `8342ef1`, scraping spoke exporters over the wg0 mesh; the log-shipper job, originally `promtail-spokes`, is now `alloy` (hub + both spokes, migration spec D3).
 - **Grafana:** all 5 dashboards have `host` template variable (regex `/^vps/`)
 - **Alert rules:** ~~`spoke_health` group~~ — **NOT in alerts.yml as of 2026-06-07T20:20Z**. The 5 live groups: aro_wake (2 rules), container_health (6), host_health (3), service_health (1), fabrik-registrar-drift (1 live; 3 once plan-2 rollout R0 syncs FabrikRegistryHealFailed + FabrikAuditStale).
 - **AI sysadmin:** `proactive-check.sh` tags every anomaly with originating host (`cpu_high[vps2]`)
@@ -124,7 +124,8 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 | `prometheus` | 1.5g | Time-series store + alert evaluator. 30 d / 5 GB retention. |
 | `grafana` | — | Dashboards (Prometheus + Loki sources, pre-provisioned) |
 | `loki` | — | Log aggregator. Bound to `10.99.0.1:3100` for spoke pushes. 7 d retention. |
-| `promtail` | — | Ships vps1 container stdout to Loki |
+| `alloy` | 256m | Ships vps1 container stdout to Loki (port 12345 `/metrics`+`/-/ready`, migration spec D3/D5) |
+| `promtail` | 256m | Rollback-only (`profiles: [rollback]`) — stopped; removed at Gate S (migration spec D6) |
 | `alertmanager` | — | Routes Prometheus alerts → Telegram via **native `telegram_configs`** + webhook → `aro-wake` (`10.0.1.1:8201`). Does **not** go through Apprise (`configs/alertmanager/alertmanager.yml:58-84`) |
 | `cadvisor` | — | Container metrics for vps1's Prometheus |
 | `node-exporter` | — | Host metrics for vps1's Prometheus |
@@ -193,7 +194,8 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 | `traefik` | `0.0.0.0:80,443` (public) | Public TLS termination for `*.vps2.ocoron.com`. `authelia-vps1@file` middleware ready. **`gzip@docker` middleware now defined (W15 ship 2026-06-02)** via labels on the Traefik container itself. First Let's Encrypt cert issued live (for `canary.vps2.ocoron.com`) confirms the routing path works end-to-end. |
 | `node-exporter` | `10.99.0.2:9100` (mesh-only) | Host metrics → vps1's Prometheus over mesh |
 | `cadvisor` | `10.99.0.2:8080` (mesh-only) | Container metrics → vps1's Prometheus over mesh |
-| `promtail` | `10.99.0.2:9080` (mesh-only) | Ships container stdout → vps1's Loki at `10.99.0.1:3100` |
+| `alloy` | `10.99.0.2:12345` (mesh-only) | Ships container stdout → vps1's Loki at `10.99.0.1:3100` |
+| `promtail` | n/a (rollback profile, stopped) | Kept defined for rollback; removed at Gate S (migration spec D6) |
 | `backrest` | no public/mesh bind | W11 — writes backups to own restic repo at `b2:vps1-ocoron-backups/spokes/vps2/`. 2 plans: `host-state` + `opt-configs`. Restic password mirrored to DR-store as `vps2-restic-password-latest`. |
 
 ### `/opt` structure on vps2
@@ -201,7 +203,7 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 ```text
 /opt/
 ├── containerd/
-├── monitoring-agent/        — compose.yaml + promtail.yaml (rendered by bootstrap-vps.sh)
+├── monitoring-agent/        — compose.yaml + alloy.alloy + promtail.yaml (promtail.yaml kept for rollback until Gate S; both rendered by bootstrap-vps.sh step 11)
 ├── traefik/                 — compose.yaml + traefik.yml + acme.json + dynamic/authelia.yml
 └── backrest/                — compose.yaml + .env.backrest + config/config.json + .restic-password (W11)
 ```
@@ -221,7 +223,7 @@ ssh vps 'sudo docker exec site-provisioner curl -sf http://localhost:8001/health
 
 ### Container inventory — vps3 (5 running)
 
-Identical to vps2: `traefik` (public 80+443, with the W15 `labels:` block now in place), `node-exporter` / `cadvisor` / `promtail` bound to mesh IP (10.99.0.3), and `backrest` (W11) writing to its own restic repo at `b2:vps1-ocoron-backups/spokes/vps3/`.
+Identical to vps2: `traefik` (public 80+443, with the W15 `labels:` block now in place), `node-exporter` / `cadvisor` / `alloy` bound to mesh IP (10.99.0.3), and `backrest` (W11) writing to its own restic repo at `b2:vps1-ocoron-backups/spokes/vps3/`. Promtail stays defined under the `rollback` profile (stopped) until Gate S.
 
 ### `/opt` structure on vps3
 
@@ -440,12 +442,12 @@ Rule precedence: Authelia is first-match-wins. Specific `^/api/` bypasses for ad
        │                        │                  │                       │
        │  node-exporter:9100    │ ─ scrapes ─▶     │  node-exporter:9100   │
        │  cadvisor:8080         │ ─ scrapes ─▶     │  cadvisor:8080        │
-       │  promtail:9080         │ ◀─ pushes logs   │  promtail:9080        │
+       │  alloy:12345           │ ◀─ pushes logs   │  alloy:12345          │
        │                        │      to vps1     │                       │
        └────────────────────────┘                  └───────────────────────┘
 ```
 
-### Prometheus scrape targets (**17 `job_name`s configured / 16 active** in `configs/prometheus/prometheus.yml` — `fabrik-services` is a null-target placeholder; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20. Prior live probe 2026-07-12: 20/20 targets up. Spoke federation IS live: `node-spokes` / `cadvisor-spokes` / `promtail-spokes` scrape `10.99.0.{2,3}` over `wg0` (2 targets each))
+### Prometheus scrape targets (**17 `job_name`s configured / 16 active** in `configs/prometheus/prometheus.yml` — `fabrik-services` is a null-target placeholder; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20. Prior live probe 2026-07-12: 20/20 targets up. Spoke federation IS live: `node-spokes` / `cadvisor-spokes` scrape `10.99.0.{2,3}` over `wg0` (2 targets each); the log-shipper job `alloy` scrapes all three hosts — `alloy:12345` (hub) + `10.99.0.{2,3}:12345` (spokes), migration spec D3)
 
 vps1-local + mesh (17 jobs configured / 16 active — pushgateway restored 2026-07-19; prior live probe 2026-07-12 = 20/20 targets):
 
@@ -467,7 +469,7 @@ vps1-local + mesh (17 jobs configured / 16 active — pushgateway restored 2026-
 
 The `pushgateway` **container** still runs on vps1 (64m memory limit) but is **NOT a Prometheus scrape job** — there is no `pushgateway` `job_name` in `prometheus.yml`. (There are also no `blackbox`, `fabrik-registrar`, or `glitchtip-web` scrape jobs.)
 
-Spokes — **`node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs ARE live in `prometheus.yml`** (`configs/prometheus/prometheus.yml:46,58,70`; spoke federation shipped in `8342ef1`, re-verified live 2026-07-12: 2 targets each, all up). Spoke coverage is therefore full node/container/log metrics over the mesh, plus the `aro-wake` job (3 targets — vps1, vps2, vps3). Promtail log shipping (push-based) also works — Loki has `host=vps1|vps2|vps3` streams.
+Spokes — **`node-spokes` / `cadvisor-spokes` jobs ARE live in `prometheus.yml`** (`configs/prometheus/prometheus.yml:46,58`; spoke federation shipped in `8342ef1`, re-verified live 2026-07-12: 2 targets each, all up); the log-shipper job, renamed `promtail-spokes` → `alloy` (migration spec D3), now scrapes all three hosts at `prometheus.yml:70` (3 targets: `alloy:12345` hub + `10.99.0.{2,3}:12345` spokes). Spoke coverage is therefore full node/container/log metrics over the mesh, plus the `aro-wake` job (3 targets — vps1, vps2, vps3). Alloy log shipping (push-based) also works — Loki has `host=vps1|vps2|vps3` streams.
 
 Historical / NOT live (preserved as a recipe to restore):
 
@@ -475,7 +477,7 @@ Historical / NOT live (preserved as a recipe to restore):
 | :--- | :--- | :--- |
 | `node-spokes` | `10.99.0.2:9100`, `10.99.0.3:9100` | ✅ (2/2 up) |
 | `cadvisor-spokes` | `10.99.0.2:8080`, `10.99.0.3:8080` | ✅ (2/2 up) |
-| `promtail-spokes` | `10.99.0.2:9080`, `10.99.0.3:9080` | ✅ (2/2 up) |
+| `alloy` | `alloy:12345` (hub), `10.99.0.2:12345`, `10.99.0.3:12345` | ✅ (3/3 up) |
 
 **Not scraped (intentionally or by gap):**
 
@@ -493,11 +495,12 @@ Reload: `ssh vps "sudo docker kill -s HUP prometheus"`.
 - **Mesh exposure:** added 2026-05-31 — `ports: ["10.99.0.1:3100:3100"]` in `/opt/monitoring/compose.yaml`. Internal-only on vps1 prior to that.
 - **Spoke pushes:** verified working — `host` label values include `["vps2","vps3"]`
 
-### Promtail (per host)
+### Alloy (per host)
 
-- **vps1:** ships `/var/lib/docker/containers/*/*log` to local `loki:3100` (Docker DNS on `fabrik` network)
-- **vps2/vps3:** same path, but ships to `http://10.99.0.1:3100/loki/api/v1/push` over mesh
+- **vps1:** ships `/var/lib/docker/containers/*/*log` to local `loki:3100` (Docker DNS on `fabrik` network); config `configs/alloy/config.alloy`, mounted at `/etc/alloy/config.alloy`; serves `/metrics` + `/-/ready` on `12345`
+- **vps2/vps3:** same path, but ships to `http://10.99.0.1:3100/loki/api/v1/push` over mesh; config `/opt/monitoring-agent/alloy.alloy`
 - **Per-host labels:** every line tagged with `host: vps1` / `vps2` / `vps3` so Grafana can filter
+- **Promtail:** stays defined under the `rollback` profile (stopped) on every host until Gate S, then removed along with the `promtail-positions` volume and the two Promtail configs (migration spec D6)
 
 ### Grafana
 
@@ -617,7 +620,7 @@ Implication for current ops: most of the "service URL", "M2M auth", "metrics" co
 | `gatus` | 256m |
 | `pushgateway` | 64m |
 
-Containers without a memory limit (unbounded, by design or oversight): `alertmanager`, `cadvisor`, `grafana`, `loki`, `node-exporter`, `postgres-exporter`, `promtail`, `redis-exporter`, `redis-main`, `traefik`, all 5 WP tenant containers. Limits are reapplied on reboot via `scripts/vps_apply_limits.sh`.
+Containers without a memory limit (unbounded, by design or oversight): `alertmanager`, `cadvisor`, `grafana`, `loki`, `node-exporter`, `postgres-exporter`, `redis-exporter`, `redis-main`, `traefik`, all 5 WP tenant containers. Limits are reapplied on reboot via `scripts/vps_apply_limits.sh`. (`alloy` and the rollback-only `promtail` both carry an explicit 256M ceiling — see the table above and `scripts/vps_apply_limits.sh` — so neither belongs on this unbounded list.)
 
 vps2/vps3 limits per monitoring agent (set by `monitoring-agent.compose.yaml.template`):
 
@@ -625,7 +628,8 @@ vps2/vps3 limits per monitoring agent (set by `monitoring-agent.compose.yaml.tem
 | :--- | :--- | :--- |
 | `node-exporter` | 64m | 0.25 |
 | `cadvisor` | 256m | 0.5 |
-| `promtail` | 96m | 0.25 |
+| `alloy` | 128m | 0.25 |
+| `promtail` (rollback, stopped) | 96m | 0.25 |
 
 ---
 
@@ -722,9 +726,9 @@ This table answers "when X breaks, what wakes up an AI to look at it?" — and l
 
 | Source | What it observes | Where the signal lands | Wakes an AI? |
 | :--- | :--- | :--- | :--- |
-| `prometheus` (vps1) | 17 jobs configured / 16 active (pushgateway restored 2026-07-19; prior live probe 2026-07-12 = 20/20 targets): node, cadvisor, postgres, redis, gatus, grafana, authelia, meilisearch, loki, alertmanager, prometheus, `aro-wake` (3 targets — vps1+vps2+vps3 over mesh), plus the spoke federation `node-spokes` / `cadvisor-spokes` / `promtail-spokes` (2 targets each, `prometheus.yml:46,58,70`). (No `blackbox`, `fabrik-registrar`, or `glitchtip-web` scrape jobs; `pushgateway` IS scraped since the 2026-07-19 restore.) | `alertmanager` → Telegram (native) **AND** queried by `proactive-check.sh` cron | ✅ via `proactive-check.sh` (every 15 min, rate-limited 5 Claude wakes/h) |
+| `prometheus` (vps1) | 17 jobs configured / 16 active (pushgateway restored 2026-07-19; prior live probe 2026-07-12 = 20/20 targets): node, cadvisor, postgres, redis, gatus, grafana, authelia, meilisearch, loki, alertmanager, prometheus, `aro-wake` (3 targets — vps1+vps2+vps3 over mesh), plus the spoke federation `node-spokes` / `cadvisor-spokes` (2 targets each, `prometheus.yml:46,58`) and the log-shipper job `alloy` (3 targets — hub + both spokes, `prometheus.yml:70`, migration spec D3). (No `blackbox`, `fabrik-registrar`, or `glitchtip-web` scrape jobs; `pushgateway` IS scraped since the 2026-07-19 restore.) | `alertmanager` → Telegram (native) **AND** queried by `proactive-check.sh` cron | ✅ via `proactive-check.sh` (every 15 min, rate-limited 5 Claude wakes/h) |
 | `alertmanager` (vps1) | Prometheus rule alerts from 5 live groups: `aro_wake` (2), `container_health` (6), `host_health` (3 — fires on host=vps1\|vps2\|vps3 labels), `service_health` (1), `fabrik-registrar-drift` (1 live; 3 once plan-2 rollout R0 syncs FabrikRegistryHealFailed + FabrikAuditStale, separate `rules/fabrik-drift.yml`). No `spoke_health` group exists (was planned, never landed). | Native `telegram_configs` → Telegram | ❌ (operator-in-loop by design; ARO-Brain receiver stub in config but not built) |
-| `loki` (vps1) | logs from promtail on all 3 hosts (`host` label vps1/vps2/vps3) | Grafana dashboards; **no ruler / log-alert wiring** | ❌ |
+| `loki` (vps1) | logs from alloy on all 3 hosts (`host` label vps1/vps2/vps3) | Grafana dashboards; **no ruler / log-alert wiring** | ❌ |
 | `gatus` (vps1) | 31 synthetic endpoints across 18 config files (apps/core/data/observability/external) | Custom alerter → Apprise → Telegram | ❌ |
 | `glitchtip-web` + `glitchtip-worker` (vps1) | Sentry-compat exception ingest from instrumented apps; 7 retained projects | DSN → web UI; per-project alerts → Apprise → Telegram | ❌ |
 | `backrest` (each host) | backup plan run results | container logs + a working failure hook → `http://apprise:8000/notify/alerts` → Telegram (hostname + Apprise `alerts` config both fixed 2026-07-12) | ✅ |
