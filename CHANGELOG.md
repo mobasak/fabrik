@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — merge_request.py merges in a repo named fabrik-lib and resolves the caller without whoami_agent (2026-10-08)
+- `_throwaway` no longer links `<tmp>/fabrik-lib` over the worktree that already holds that path (every merge in /opt/fabrik-lib raised FileExistsError). `merge_request.py` and `mail.py` take a valid `CLAUDE_AGENT` as the caller when `whoami_agent.py` is not vendored, as the merge-request contract told repos (D-665).
+
 ### Fixed — /fabrik-ui-design-review reads the mobile component patterns for every mobile project (2026-10-08)
 - The command listed `mobile-app/ocoron-mobile-design-system.md` as the Ocoron identity's "RN variant", inside the established-brand branch, so a CREATE-mode or non-house-brand mobile review skipped the component patterns. Since D-473 the pack is brand-neutral: it now sits with the mobile surface pack for every mobile project, axis A names it, and the house brands read only when declared (intel mail 01M3VX3S43).
 

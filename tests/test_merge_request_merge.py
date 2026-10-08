@@ -1384,3 +1384,93 @@ def test_a_tracked_file_where_the_include_list_has_a_directory_never_crashes_the
     assert mod._copy_worktree_include(ctx, wt, _git(main, "rev-parse", "HEAD")) is None
     assert (wt / "local").read_text(encoding="utf-8") == "a tracked file\n"
     assert (wt / ".env").read_text(encoding="utf-8") == "A=1\n"  # the rest is still copied
+
+
+# W-29ba0047 (fabrik-lib 01M3TW5MF2) — a repo NAMED fabrik-lib builds its throwaway: the
+# `<tmp>/fabrik-lib` link must not collide with the worktree that already holds that path.
+def test_a_repo_named_fabrik_lib_builds_its_throwaway(tmp_path, monkeypatch):
+    mod = _load_module()
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "scratch"))
+    (tmp_path / "scratch").mkdir()
+    for key, value in {
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.invalid",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.invalid",
+    }.items():
+        monkeypatch.setenv(key, value)
+    main = tmp_path / "fabrik-lib"
+    main.mkdir()
+    _git(main, "init", "-q", "-b", "master")
+    (main / "README.md").write_text("lib\n", encoding="utf-8")
+    _git(main, "add", "README.md")
+    _git(main, "commit", "-q", "-m", "init")
+    ctx = mod._Ctx(main, main / ".git", "infra")
+    rec = {"id": "01TESTTHROWAWAY"}
+    with mod._throwaway(ctx, rec, "master") as wt:
+        assert wt.name == "fabrik-lib" and (wt / "README.md").is_file()
+        assert (
+            wt / ".git"
+        ).exists()  # a real worktree; on HEAD the link step raised FileExistsError
+
+
+def test_a_repo_without_whoami_agent_resolves_the_caller_from_claude_agent(tmp_path, monkeypatch):
+    """The request told repos CLAUDE_AGENT is enough when whoami_agent.py cannot be vendored."""
+    mod = _load_module()
+    monkeypatch.setattr(sys, "path", list(sys.path))  # _caller_agent inserts HERE; keep it local
+    monkeypatch.setattr(mod, "HERE", tmp_path)  # a scripts/ dir with no whoami_agent.py
+    monkeypatch.setitem(sys.modules, "whoami_agent", None)  # the import fails
+    monkeypatch.setenv("CLAUDE_AGENT", "fleet")
+    assert mod._caller_agent() == "fleet"
+    monkeypatch.setenv("CLAUDE_AGENT", "../etc")  # outside the agent-name grammar
+    assert mod._caller_agent() == ""
+    monkeypatch.delenv("CLAUDE_AGENT")
+    assert mod._caller_agent() == ""
+
+
+def test_mail_claim_resolves_the_caller_without_whoami_agent(monkeypatch):
+    """The owner side too: mail.py's caller check falls back to a valid CLAUDE_AGENT."""
+    spec = importlib.util.spec_from_file_location("mail_t03", SCRIPT.parent / "mail.py")
+    mail = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mail)
+    monkeypatch.setattr(mail, "_whoami", lambda: None)
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    assert mail._caller_agent() == "infra"
+    monkeypatch.setenv("CLAUDE_AGENT", "Infra/../x")
+    assert mail._caller_agent() == ""
+
+
+def test_the_merge_request_name_grammar_is_whoami_agents():
+    mod = _load_module()
+    spec = importlib.util.spec_from_file_location("whoami_t03", SCRIPT.parent / "whoami_agent.py")
+    who = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(who)
+    assert mod._AGENT_NAME_RE.pattern == who._NAME_RE.pattern
+
+
+def test_a_fabrik_lib_alias_of_the_main_checkout_links_to_the_throwaway(tmp_path, monkeypatch):
+    """`<parent>/fabrik-lib -> <main>`: the throwaway's ../fabrik-lib is the commit under test."""
+    mod = _load_module()
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "scratch"))
+    (tmp_path / "scratch").mkdir()
+    for key, value in {
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.invalid",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.invalid",
+    }.items():
+        monkeypatch.setenv(key, value)
+    main = tmp_path / "lib-real"
+    main.mkdir()
+    _git(main, "init", "-q", "-b", "master")
+    (main / "README.md").write_text("lib\n", encoding="utf-8")
+    _git(main, "add", "README.md")
+    _git(main, "commit", "-q", "-m", "init")
+    (tmp_path / "fabrik-lib").symlink_to(main)
+    ctx = mod._Ctx(main, main / ".git", "infra")
+    with mod._throwaway(ctx, {"id": "01TESTALIAS"}, "master") as wt:
+        assert (wt.parent / "fabrik-lib").resolve() == wt.resolve()
