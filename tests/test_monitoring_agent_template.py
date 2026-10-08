@@ -277,7 +277,7 @@ IS_UP = ("alloy Up 5 seconds", ("running 0", "running 0"))
 def test_step_11_verify_fails_a_crash_loop_caught_between_restarts() -> None:
     # D7 INFRA-O2: a crash-looping alloy reads "Up Less than a second" on one `docker ps`
     # (seen live on a throwaway --restart unless-stopped container); the second inspect read
-    # 6 s later shows the restart count moved, so the step must still fail.
+    # 15 s later shows the restart count moved, so the step must still fail.
     status, _ = IS_UP
     result = _run_step_11_verify(
         "alloy Up Less than a second", skip_mesh=False, inspect=("running 2", "running 3")
@@ -293,6 +293,16 @@ def test_step_11_verify_fails_a_crash_loop_waiting_out_its_backoff() -> None:
         "alloy Restarting (1) 20 seconds ago", skip_mesh=False, inspect=("restarting 9", "restarting 9")
     )
     assert "RC=1" in result.stdout and "ERR:" in result.stdout, result.stdout
+
+
+def test_step_11_verify_read_gap_outlasts_dockers_backoff_reset() -> None:
+    # D7 INFRA-O9: with 6 s between the reads, a loop that ran ~8 s before crashing read
+    # `running 2` twice and passed (1 of 6 live rounds). Docker resets the restart backoff
+    # after 10 s of uptime, so the gap between the two inspect reads must exceed 10 s.
+    block = _step_11_verify_block()
+    between = block.split("alloy_first=", 1)[1].split("alloy_second=", 1)[0]
+    gaps = [int(w.split()[0]) for w in between.split("sleep ")[1:]]
+    assert gaps and sum(gaps) > 10, gaps
 
 
 def test_step_11_verify_passes_a_rerun_with_old_restarts_on_the_count() -> None:
