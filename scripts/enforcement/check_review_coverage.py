@@ -29,6 +29,7 @@ Checklist and are not this gate's subject (check_convergence.py covers them).
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import os
 import re
@@ -2160,22 +2161,30 @@ def _row_ids(text_s: str) -> set[str]:
     """
     ids: set[str] = set()
     for line in text_s.splitlines():
-        stripped = line.strip()
-        if not stripped.startswith("|") or _SEP_ROW.fullmatch(stripped):
+        ids |= _line_ids(line)
+    return ids
+
+
+def _line_ids(line: str) -> set[str]:
+    """The row ids ONE line carries — its first cell, comma/semicolon split, ranges expanded; empty for a line
+    that is not a non-separator `|` row."""
+    ids: set[str] = set()
+    stripped = line.strip()
+    if not stripped.startswith("|") or _SEP_ROW.fullmatch(stripped):
+        return ids
+    cells = _row_cells(line)
+    if not cells:
+        return ids
+    for tok in re.split(r"[,;]", cells[0]):
+        tok = tok.strip().strip("*`").strip()
+        if not tok:
             continue
-        cells = _row_cells(line)
-        if not cells:
-            continue
-        for tok in re.split(r"[,;]", cells[0]):
-            tok = tok.strip().strip("*`").strip()
-            if not tok:
-                continue
-            ids.add(tok)
-            rng = _OWNER_RANGE.match(tok)
-            if rng is not None:
-                lo, hi = int(rng.group(2)), int(rng.group(3))
-                if lo <= hi and hi - lo < 200:
-                    ids.update(f"{rng.group(1)}{i}" for i in range(lo, hi + 1))
+        ids.add(tok)
+        rng = _OWNER_RANGE.match(tok)
+        if rng is not None:
+            lo, hi = int(rng.group(2)), int(rng.group(3))
+            if lo <= hi and hi - lo < 200:
+                ids.update(f"{rng.group(1)}{i}" for i in range(lo, hi + 1))
     return ids
 
 
@@ -2188,18 +2197,24 @@ def _residual_errors(text_s: str, ordered: list[_Row]) -> list[str]:
     verdicts = list(_BY_DESIGN.finditer(text_s))
     if not verdicts:
         return []
-    lines = text_s.splitlines()
-    by_line: dict[int, set[str]] = {}
+    # each line's ids ONCE, and the lines an id occurs on — the citing line is located by the SAME line
+    # boundaries (`splitlines(keepends=True)` offsets), so a bare `\r` cannot shift it (review A-S1) and the
+    # per-verdict owner check is a lookup, not a re-join of the whole document (A-S2: quadratic in verdicts)
+    starts: list[int] = []
+    on_lines: dict[str, set[int]] = {}
+    pos = 0
+    for i, line in enumerate(text_s.splitlines(keepends=True)):
+        starts.append(pos)
+        pos += len(line)
+        for tok in _line_ids(line):
+            on_lines.setdefault(tok, set()).add(i)
     closing = _closing_pass_row(ordered)
     repair = "cite the owning row's first-cell id verbatim, or `(D-nnn)`"
     out: list[str] = []
     for v in verdicts:
         # the citing row is never its own owner (W-528f123e critique): `_row_ids` reads every first cell, so
         # `| A-S1 | RECORDED — by design (A-S1, round 1) |` with no other A-S1 row licensed itself
-        at = text_s.count("\n", 0, v.start())
-        if at not in by_line:
-            by_line[at] = _row_ids("\n".join(lines[:at] + lines[at + 1 :]))
-        ids = by_line[at]
+        at = bisect.bisect_right(starts, v.start()) - 1
         for raw in v.group(1).split(";"):
             entry = raw.strip()
             if not entry:
@@ -2214,7 +2229,7 @@ def _residual_errors(text_s: str, ordered: list[_Row]) -> list[str]:
                         "— a D-row is earlier than any closing round by construction"
                     )
                 continue
-            if not _OWNER_ID.fullmatch(owner) or owner not in ids:
+            if not _OWNER_ID.fullmatch(owner) or not (on_lines.get(owner, set()) - {at}):
                 out.append(f"`RECORDED — by design ({entry})`: the owning row is absent — {repair}")
                 continue
             if n is None:

@@ -910,3 +910,39 @@ def test_a_residual_row_never_licenses_itself(row_id: str) -> None:
     errs = _self_cited(row_id, f"by design ({row_id}, round 3)")
     assert errs and "owning row is absent" in errs[0], (row_id, errs)
     assert _self_cited(row_id, f"by design ({row_id}, round 3)", ids=f"| {row_id} |") == []
+
+
+def test_a_bare_carriage_return_cannot_move_the_citing_line() -> None:
+    """Review A-S1: the citing line was located by counting `\\n`, the owner set built by `splitlines()`, which
+    also breaks on a bare `\\r` — so one stray CR before the verdict excluded the WRONG line and the row licensed
+    itself again. Both now use the same line boundaries."""
+    rows = [
+        "| F1 | note |",
+        "|---|---|",
+        "| F2 | RECORDED — by design (F2, round 1) |",
+        "| Pass 18 | opus×1 | found: 0, confirmed: 0, fixed: 0 | m |",
+    ]
+    text = "\r".join(rows)
+    text_s = crc._strip_fences(text)
+    errs = crc._residual_errors(text_s, crc._ledger_shapes(text)[2])
+    assert errs and "owning row is absent" in errs[0], errs
+
+
+def test_the_owner_lookup_reads_each_line_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Review A-S2: the owner set was re-built from the whole document once per citing line — quadratic, 3.8 s at
+    a few thousand verdicts. Each line's ids are now read ONCE, whatever the verdict count."""
+    n = 300
+    rows = [f"| F{i} | finding |" for i in range(1, n + 1)]
+    rows += [f"| R{i} | RECORDED — by design (F{i}, round 1) |" for i in range(1, n + 1)]
+    text = "\n".join(["| id | note |", "|---|---|", *rows, "", HEADER, SEP, PRIOR, CLOSING, ""])
+    calls = {"n": 0}
+    real = crc._line_ids
+
+    def counting(line: str) -> set[str]:
+        calls["n"] += 1
+        return real(line)
+
+    monkeypatch.setattr(crc, "_line_ids", counting)
+    text_s = crc._strip_fences(text)
+    assert crc._residual_errors(text_s, crc._ledger_shapes(text)[2]) == []
+    assert calls["n"] <= len(text.splitlines()) + 1, calls
