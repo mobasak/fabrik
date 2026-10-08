@@ -337,7 +337,10 @@ Every candidate lands on ONE of these, and only the first counts toward `confirm
 - **`RECORDED — by design (<the owning row's first-cell id>, round N[; …])`** or **`(D-nnn)`** —
   reproduced and kept on purpose. The owning row is a receipt row adjudicated in an EARLIER round N
   (never the round being closed — otherwise the closing round mints its own licence) or a D-row,
-  which needs no round token.
+  which needs no round token. The parentheses hold the owner and nothing else — with its
+  `, round N` for a receipt row, several owners `;`-joined — and the reason follows them:
+  `RECORDED — by design (D-432) — <why>`; a reason inside them, `(D-432: <why>)`, is refused as an
+  absent owner.
 - **`RECORDED — measured (<why>)`** — executed and shown TRUE but making no code or doc claim (a
   prevalence figure). It never enters `unexecuted:`.
 - **`RECORDED — hygiene false positive (<why>)`** — a hygiene-script hit you adjudicated false; note
@@ -349,7 +352,7 @@ not classify is still CONFIRMED — under ambiguity, execute it.
 ## Phase 3 — Prove & fix (depth) — every survivor terminates FIXED, REFUTED or RECORDED
 
 Every finding that survived Phase 2 — **CONFIRMED and PLAUSIBLE alike** — must reach one of exactly THREE
-terminal states: FIXED, REFUTED, or one of Phase 2's four `RECORDED — <kind> (<why>)` forms, which are a
+terminal states: FIXED, REFUTED, or one of Phase 2's four `RECORDED — <kind> (…)` forms, which are a
 NARROW, grammar-bound disposition the gate reads, not a bucket. **There is no "noted / probably fine /
 to-watch / deferred" state, and the user does NOT accept an unfixed CONFIRMED finding** — a candidate you
 reproduced is FIXED in the round that confirmed it, or it is `RECORDED — by design` with its owning row named.
@@ -556,7 +559,7 @@ full pass carrying those counters, read by a seat that did not author the surfac
 **Emit a per-finding disposition ledger — this is what makes a skipped finding impossible to hide.** Every
 candidate raised by any finder across all rounds appears as one row ending in exactly ONE terminal state:
 `FIXED` (cite the commit + the regression test), `REFUTED` (quote the proof and the command you ran), or one
-of the four `RECORDED — <kind> (<why>)` forms. A finding that appears in no
+of the four `RECORDED — <kind> (…)` forms. A finding that appears in no
 row — or sits in a "noted / to-watch / accepted" bucket — **is a skipped finding**, the exact
 failure this command exists to prevent. Count them: `N candidates → N FIXED + N REFUTED + N RECORDED`, and the three must sum.
 
