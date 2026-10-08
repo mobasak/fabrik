@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — PreToolUse seat guard for review seats (2026-10-08)
+- `.claude/hooks/seat_guard.py` refuses `pkill`/`killall`/`xargs kill`/non-pid kills and git writes outside the seat's own scratch, only for `fabrik-reviewer` subagent calls; fleet-synced via AGENT_HOOK_FILES, registered existence-guarded in `.claude/settings.json`, 26 graders in `tests/test_seat_guard.py` (D-659).
+
 ### Changed — /fabrik-execute-plan's Finish no longer repoints frozen review receipts (2026-10-08)
 - Finish step 6 told the archiving agent to repoint "the review receipts under `docs/development/reviews/`" with the other referrers; a receipt is a frozen artifact, and rewriting one re-admits it to `check_convergence`/`check_review_coverage` under today's grammar (four 2026-08/09 receipts redded on infra's first archive pass, `01M4BYT60T`). Receipts and verbatim captured output keep their pre-archive cite. The hub-agent counts in four more command texts (`agent-feedback.md`, `/fabrik-upstream`, `/fabrik-repo-review`, the `fabrik-reviewer` agent) now read kaizen or "several sessions". Answers 2 /fabrik-execute-plan feedback verdicts (kaizen).
 

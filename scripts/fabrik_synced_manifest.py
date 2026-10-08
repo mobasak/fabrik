@@ -275,6 +275,7 @@ AGENT_HOOK_FILES = [
     ".claude/hooks/session_orient.py",  # SessionStart orientation: governance/memory/session-recall/mesh
     ".claude/hooks/mail_notify.py",  # SessionStart + UserPromptSubmit: surface unread fabrik-mail (fail-open)
     ".claude/hooks/quota_stop.py",  # PreToolUse: fleet-wide graceful stop on the tick's fleet-exhausted stamp (fail-open)
+    ".claude/hooks/seat_guard.py",  # PreToolUse (Bash): a review seat may not kill by pattern or write git outside its scratch (W-6569a3fa, fail-open)
     ".claude/hooks/agent_role.py",
     ".claude/hooks/mcp_watch.py",  # UserPromptSubmit: the D-041 per-message MCP forcing layer — staleness + cached-liveness banners (01M1GJQ3: the old comment was agent_role.py's)
     # NOT a hook: the review-family commands' seat launcher (`Workflow({scriptPath: "<repo root>/.claude/
