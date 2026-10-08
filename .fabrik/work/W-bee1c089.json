@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T11:49:27.702507Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-bee1c089",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "call _audit_log_schema_block() up front in create_project for types that fold the audit log, beside _registry_codename(); recorded by the 01M476P2 scoped review (S3/O2)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "scaffold"
+  ],
+  "title": "fabrik new leaves a half-written project when the audit-log fold fails (fabrik-lib missing, or the module's apply hint moved): validate the fold before the first write"
+}

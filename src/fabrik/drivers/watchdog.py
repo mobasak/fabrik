@@ -397,7 +397,6 @@ class _RenderContext:
     # Operator-tunable runtime knobs — agent.py has defaults if absent.
     check_interval_seconds: int = 60
     log_level: str = "INFO"
-    promtail_update_url: str = ""
     image_tag: str = ""
     # Filled in by _build_context.
     build_ctx_local: Path | None = None
@@ -601,7 +600,6 @@ class WatchdogDriver:
             project_git_remote=project_git_remote,
             check_interval_seconds=int(wcfg.get("check_interval_seconds", 60)),
             log_level=str(wcfg.get("log_level", "INFO")),
-            promtail_update_url=str(wcfg.get("promtail_update_url", "")),
             image_tag=image_tag,
             target_vps=getattr(ctx, "target_vps", None) or spec.get("target_vps") or "vps1",
         )
@@ -1062,7 +1060,6 @@ class WatchdogDriver:
             "WATCHDOG_PROJECT_GIT_REMOTE": rctx.project_git_remote,
             "WATCHDOG_CHECK_INTERVAL": str(rctx.check_interval_seconds),
             "WATCHDOG_LOG_LEVEL": rctx.log_level,
-            "WATCHDOG_PROMTAIL_UPDATE_URL": rctx.promtail_update_url,
         }
         # Event-driven bus sources (independent of Tier-D). Only set when the
         # spec opts in; leaving it UNSET keeps the library on its legacy poll
