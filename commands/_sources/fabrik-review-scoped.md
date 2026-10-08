@@ -105,7 +105,8 @@ proportionate answer.
    a named destination, then run remainder rounds that re-verify THAT FIXED SET and nothing else, so
    they terminate. Close normally per step 6; the last round must still reach `confirmed 0`
    (D-355). ⚠️ A further own-fix defect a remainder round raises is RECORDED onto the
-   routed backlog row and never re-arms the stop.
+   routed backlog row, stays out of that round's `--confirmed` (a RECORDED candidate never counts there)
+   and never re-arms the stop.
    ⚠️ **The CLOSING pass owes ONE INDEPENDENT reader that actually RETURNED — a self-sweep may not
    close this loop.** Every other exit condition here is satisfiable by the orchestrator's own
    passes, and an orchestrator re-reading its own diff checks whether it did what it meant to; it
