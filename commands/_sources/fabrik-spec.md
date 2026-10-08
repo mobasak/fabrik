@@ -116,7 +116,7 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
   ACTUAL source, confirm a signature, or check its latest release/open issues when docs are thin or a
   claim needs verifying against the real repo (authenticated, zero idle processes — D-014 retired the github MCP).
 - Capture the **real** endpoint / signature / auth model / limits / pricing from a RAW fetch (`firecrawl_scrape`
-  as markdown, the raw `gh api` call above, the raw file — a `WebFetch` reply summarises, below) and **cite the source URL + the date you fetched
+  as markdown with `maxAge: 0`, the raw `gh api` call above, the raw file — a `WebFetch` reply summarises, below) and **cite the source URL + the date you fetched
   it** in the spec.
 - **Freshness (CLAUDE.md):** the research must be run in THIS session. An external claim with no fresh cited
   source is a defect.
@@ -215,7 +215,7 @@ build this — never pick an approach from training memory or first instinct:
 - **Cite the source + date** for each best-practice/leanness claim in the spec's Chosen-approach section, and
   **actually fetch it this session** (`WebFetch` / `firecrawl_scrape`) — a claim you didn't
   open is memory. ⚠️ **To QUOTE, fetch the RAW document** (`raw.githubusercontent.com`, view-source,
-  `firecrawl_scrape`) and match the string — normalising whitespace first (raw HTML wraps lines
+  `firecrawl_scrape` with `maxAge: 0`, a live fetch) and match the string — normalising whitespace first (raw HTML wraps lines
   mid-sentence; a bare `grep -c` on a true quote returns 0 and flags a REAL quote as fabricated): a `WebFetch` reply is a small model's ANSWER about the page,
   not an extract, and quoting it ships a sentence the page does not contain.
 - ⚠️ **A cached/mirroring fetch tool is NOT a liveness oracle.** `mcp__exa__web_fetch_exa` serves crawl
@@ -334,7 +334,8 @@ If the research direction is fundamentally wrong for Fabrik (e.g. AWS serverless
 
 Present in sections scaled to complexity; an operator present may redirect any section, but the run does not
 stop for a per-section yes — the approval gate is the one Phase 6 names. Cover: architecture, the
-**vendor→enhance→build composition**, data flow, external integrations (grounded), error/failure handling,
+**vendor→enhance→build composition**, data flow (as invariants + touchpoints — the step sequence is the plan's),
+external integrations (grounded), error/failure handling,
 testing approach, `shape:`/infra implications. **Design for isolation:** small focused units with clear
 interfaces — for each you can state *what it does / how you use it / what it depends on*.
 **HARD GATE:** no implementation or scaffold until the design is approved at that gate (a `Size: small`
