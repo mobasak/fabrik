@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:08:32.001395Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-22d1e851",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Measure first: how many committed reviews/docs carry the 'path:line — fragment' or path:line + code-span shape; if any, add a FRAGMENT-MISMATCH class (advisory) that checks the fragment occurs on the cited line",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "citations"
+  ],
+  "title": "check_citations_resolve: grade a cited fragment against its line (kaizen 01M4DNZH8B — /fabrik-docs-review now asks seats to quote a short fragment beside each path:line)"
+}

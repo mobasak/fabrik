@@ -252,7 +252,7 @@ NEUTERS: dict[str, tuple[str, str]] = {
     ),
     "check_env_vars": ("        if r.severity == Severity.ERROR", "        if False"),
     "check_doc_index": (
-        "        if p not in index_text and base not in index_text:",
+        "        if base not in index_text:",
         "        if False:",
     ),
     "check_certification_coverage": ("        if FORBIDDEN_HEADING in text:", "        if False:"),

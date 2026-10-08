@@ -1,7 +1,9 @@
 # AFTER-EDIT: scripts/enforcement/check_doc_index.py
 """Behavior contract for the INDEX↔tree drift gate (docs-truth plan Phase F)."""
 
+import contextlib
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -971,3 +973,114 @@ def test_quiet_silences_the_clean_banner_and_never_a_finding(monkeypatch, capsys
     clean = run(["check_doc_index.py"])
     clean_quiet = run(["check_doc_index.py", "--quiet"])
     assert banner in clean and banner not in clean_quiet
+
+
+# --------------------------------------------------------------------------------------
+# W-c256027a — a SHARED basename no longer silently indexes a doc (advisory until the flip).
+# These run the TREE's own copy (the module import above reads the main checkout).
+# --------------------------------------------------------------------------------------
+
+
+def _tree_repo(
+    tmp_path: Path, files: dict[str, str], untracked: dict[str, str] | None = None
+) -> Path:
+    repo = tmp_path / "repo"
+    (repo / "scripts/enforcement").mkdir(parents=True)
+    here = Path(__file__).resolve().parents[2] / "scripts/enforcement/check_doc_index.py"
+    shutil.copy(here, repo / "scripts/enforcement/")
+    for rel, body in files.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(body, encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    for rel, body in (untracked or {}).items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(body, encoding="utf-8")
+    return repo
+
+
+def _run_tree(repo: Path, *args: str) -> tuple[int, dict]:
+    r = subprocess.run(
+        [sys.executable, str(repo / "scripts/enforcement/check_doc_index.py"), "--json", *args],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    return r.returncode, json.loads(r.stdout)
+
+
+def test_a_shared_basename_is_advisory_and_names_the_other_path(tmp_path):
+    """The root README's row used to index docs/README.md too; now the doc gets an advisory line
+    naming the namesake, and the run does not fail (warn before block)."""
+    repo = _tree_repo(
+        tmp_path,
+        {
+            "INDEX.md": "# Index\n\n| README.md | the root readme |\n",
+            "README.md": "# r\n",
+            "docs/README.md": "# d\n",
+        },
+    )
+    rc, payload = _run_tree(repo)
+    assert rc == 0 and payload["drift"] == [], payload
+    adv = payload.get("shared_name_advisory", [])
+    assert (
+        len(adv) == 1 and "docs/README.md" in adv[0] and '"README.md" is also README.md' in adv[0]
+    ), adv
+
+
+def test_a_unique_basename_still_indexes_its_doc(tmp_path):
+    repo = _tree_repo(tmp_path, {"INDEX.md": "# Index\n\n- guide.md\n", "docs/guide.md": "# g\n"})
+    rc, payload = _run_tree(repo)
+    assert rc == 0 and payload["drift"] == [] and not payload.get("shared_name_advisory"), payload
+
+
+def test_untracked_only_sees_a_tracked_namesake(tmp_path):
+    """The lean row counts names over the FULL population, so a new untracked docs/x/README.md
+    beside a tracked docs/README.md is reported on the authoring run, not the next one."""
+    repo = _tree_repo(
+        tmp_path,
+        {"INDEX.md": "# Index\n\n- docs/README.md README.md\n", "docs/README.md": "# d\n"},
+        untracked={"docs/x/README.md": "# x\n"},
+    )
+    rc, payload = _run_tree(repo, "--untracked-only")
+    adv = payload.get("shared_name_advisory", [])
+    assert rc == 0 and len(adv) == 1 and "docs/x/README.md" in adv[0], payload
+    assert "docs/README.md" in adv[0] and adv[0].endswith("INDEX row)"), adv
+
+
+def test_a_failed_name_listing_says_so_instead_of_going_quiet(monkeypatch, tmp_path):
+    """Review A-S1: the whole-repo *.md listing that feeds the shared-name count swallowed a git
+    failure (`or []`), so the advisory went silent with nothing to tell it from 'no sharing'."""
+    import importlib.util
+
+    # this tree's copy, never the module-level `cdi` (which reads the main checkout's script)
+    spec = importlib.util.spec_from_file_location(
+        "cdi_tree", Path(__file__).resolve().parents[2] / "scripts/enforcement/check_doc_index.py"
+    )
+    tree = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tree)
+    (tmp_path / "INDEX.md").write_text("# INDEX\n\n- README.md\n", encoding="utf-8")
+    monkeypatch.setattr(tree, "REPO", tmp_path)
+    monkeypatch.setattr(tree.sys, "argv", ["check_doc_index.py"])
+    (tmp_path / "docs" / "a").mkdir(parents=True)
+    (tmp_path / "docs" / "a" / "README.md").write_text("x")
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kw):
+        if "ls-files" in cmd:
+            failing = "*.md" in cmd
+
+            class R:
+                stdout = b"" if failing else b"docs/a/README.md"
+                returncode = 128 if failing else 0
+
+            return R()
+        return real_run(cmd, **kw)
+
+    monkeypatch.setattr(tree.subprocess, "run", fake_run)
+    monkeypatch.setattr(tree, "_added_code_paths", lambda: [])
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        rc = tree.main()
+    assert rc == 0 and "shared-name check skipped" in out.getvalue(), out.getvalue()

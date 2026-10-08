@@ -1372,6 +1372,9 @@ docs/
 | Document | Purpose |
 |----------|--------|
 | [QUICKSTART.md](docs/QUICKSTART.md) | Get Fabrik running in 5 minutes |
+| [docs/README.md](docs/README.md) | The docs/ tree's charter and folder map — one role per folder |
+| [preplans/README.md](docs/preplans/README.md) | Preplans folder — stage 1 of the Fabrik lifecycle, captured intent before `fabrik scaffold` |
+| [workstation/kaizen.md](docs/workstation/kaizen.md) | The kaizen continuous-improvement loop on this box — the daily measurement half and the analysis half |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration guide - credentials, architecture, troubleshooting |
 | [DEPLOYMENT_ARCHITECTURE.md](docs/DEPLOYMENT_ARCHITECTURE.md) | Deploy code architecture reference |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
@@ -1434,6 +1437,8 @@ docs/
 |----------|--------|
 | [vps-status.md](docs/infrastructure/vps-status.md) | Current VPS state and configuration |
 | [vps-urls.md](docs/infrastructure/vps-urls.md) | All deployed service URLs |
+| [audit-prompts/README.md](docs/infrastructure/audit-prompts/README.md) | VPS audit prompts, fleet edition |
+| [probe-reports/README.md](docs/infrastructure/probe-reports/README.md) | Infrastructure probe reports — the dated fleet-state baselines |
 | [disaster-recovery.md](docs/operations/disaster-recovery.md) | Backup and recovery procedures |
 | [postgres-major-upgrade-runbook.md](docs/operations/postgres-major-upgrade-runbook.md) | PostgreSQL major upgrade (16→18): WSL rehearsal, hub dump/restore window, release, project requests |
 <!-- duplicati-setup.md archived 2026-04-28; Backrest is the live backup tool — see backup.vps1.ocoron.com and AGENTS.md -->
