@@ -492,4 +492,5 @@ def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch)
     assert kept and Path(kept[0]).read_text(encoding="utf-8").startswith("## RESUME"), recs
     closes = [json.loads(ln) for f in (tmp_path / "ev").glob("*.jsonl") for ln in f.read_text().splitlines()
               if '"run_close"' in ln]
-    assert any(json.dumps(c).count(kept[0]) for c in closes), closes
+    assert f"kept at {kept[0]}" in p.stdout, p.stdout
+    assert any(kept[0] in (c.get("resume_copy"), (c.get("fields") or {}).get("resume_copy")) for c in closes), closes
