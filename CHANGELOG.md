@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a dead mutant is defined once, in the coverage terms (2026-10-08)
+- Queue verdicts reported a `FileNotFoundError` read as a kill, a vitest `-t` filter that selected no test read as green, an equal-size mutant running a stale `.pyc`, and a grep count standing in for proof the mutant was applied. `commands/_fragments/term-coverage.md` rule (4) now says a mutant is dead only when the named test fails on its own assertion or on an exception raised in the mutated code, quoted, after the same command on the unmutated copy selected tests and passed, with `__pycache__` purged, `PYTHONDONTWRITEBYTECODE=1` set, the mutated module's `__file__` printed with output capture off and the mutant shown applied by a diff against the pin. `/fabrik-review`'s finder lessons and Phase 2 point at that rule. Grader: `tests/test_review_loop_workflow.py::test_a_dead_mutant_is_defined_once_and_the_finder_lessons_point_at_it`.
+
 ### Changed — assemble_commands --check names every cause of a corpus difference (2026-10-08)
 - `commands/assemble_commands.py`: the command, skill and agent drift rows said `HAND-EDITED` for any difference between this tree's render and the installed corpus. The cause is usually an unrendered source edit, or a worktree behind the last render (fleet's worktree showed 27 such rows). They now read `DIFFERS from what this tree renders (… an unrendered edit here, this tree behind the last render, or a hand-edit of the installed file: in the main checkout render then re-check; in a worktree merge master first)`. `commands/_fragments/grounding-rules.md` names the new label. Grader in `tests/test_assemble_dispatch_step.py`. Intel mail 01M4D9HNXM.
 

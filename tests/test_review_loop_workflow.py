@@ -1005,6 +1005,29 @@ def test_the_mutation_copy_is_made_from_the_pin_dir() -> None:
     assert "COPY of the surface made FROM the pin dir" in _finder_lessons()
 
 
+def test_a_dead_mutant_is_defined_once_and_the_finder_lessons_point_at_it() -> None:
+    """/fabrik-review queue verdicts: an rc!=0 from a FileNotFoundError read as a kill, a `-t`
+    filter selecting 0 tests read GREEN, an equal-size mutant ran a stale `.pyc`, and a grep count
+    stood in for proof the mutant was applied."""
+    pointer = "as `/opt/fabrik/commands/_fragments/term-coverage.md` rule (4) says"
+    assert pointer in _finder_lessons()
+    assert "(dead " + pointer + ")" in REVIEW_SOURCE.read_text(encoding="utf-8")
+    rule4 = (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text(encoding="utf-8")
+    for needle in (
+        "its result line quoted",
+        "`__pycache__` purged and `PYTHONDONTWRITEBYTECODE=1` set",
+        "printing the mutated module's `__file__` with output capture off",
+        "an equal-size mutant written in the same second runs the old code",
+        "vitest's `-t` is a regex that exits 0 when it selects none",
+        "fails on its own assertion or on an exception raised in the mutated code",
+        "an import, collection or harness error is no kill",
+        "on the unmutated copy selected tests and passed",
+        "pytest exits 5 then, and 4 on a malformed `-k`",
+        "shown applied by a diff of the copy against the pin, never a grep count",
+    ):
+        assert needle in rule4, needle
+
+
 def test_the_finder_lessons_tell_a_seat_to_import_the_pin_and_state_the_ledger_high_water_mark() -> (
     None
 ):
