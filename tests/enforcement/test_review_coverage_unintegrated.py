@@ -369,6 +369,57 @@ def test_g9_attribution_names_the_author_who_added_it_not_a_later_editor(tmp_pat
     )
 
 
+def test_g9_attribution_survives_renames_globs_and_re_adds(tmp_path: Path) -> None:
+    """A rename is an edit (the renamer 'changed' it), a glob character matches only its own file, and
+    an add-delete-re-add names the author of the file now on disk."""
+    _, main = _origin(tmp_path)
+    _write(main, "2026-10-08-orig-review.md", _FAILING)
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "a\n\nAgent-Name: alice")
+    _git(main, "push", "-q")
+    _git(main, "mv", f"{RV}/2026-10-08-orig-review.md", f"{RV}/2026-10-08-moved-review.md")
+    _git(main, "commit", "-qm", "mv\n\nAgent-Name: bob")
+    _write(main, "2026-10-08-[x]-review.md", _FAILING)
+    _write(main, "2026-10-08-x-review.md", _FAILING)
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "g\n\nAgent-Name: carol")
+    _write(main, "2026-10-08-x-review.md", _FAILING + "\n")
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "x\n\nAgent-Name: dave")
+    p = _write(main, "2026-10-08-re-review.md", _FAILING)
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "r1\n\nAgent-Name: erin")
+    p.unlink()
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "rm\n\nAgent-Name: erin")
+    _write(main, "2026-10-08-re-review.md", _FAILING)
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "r2\n\nAgent-Name: frank")
+    r = _run(main)
+    assert re.search(r"moved-review\.md was changed in [0-9a-f]{7,} \(bob\)", r.stdout), r.stdout
+    assert re.search(r"\[x\]-review\.md entered history in [0-9a-f]{7,} \(carol\)", r.stdout), (
+        r.stdout
+    )
+    assert re.search(r"re-review\.md entered history in [0-9a-f]{7,} \(frank\)", r.stdout), r.stdout
+
+
+def test_g9_an_edited_glob_named_review_names_its_own_editor(tmp_path: Path) -> None:
+    """The edit query names the path LITERALLY: `[x]` as a glob would match `x` and blame its editor."""
+    _, main = _origin(tmp_path)
+    g = _write(main, "2026-10-08-[x]-review.md", _FAILING)
+    x = _write(main, "2026-10-08-x-review.md", _FAILING)
+    _commit(main)
+    _git(main, "push", "-q")
+    g.write_text(_FAILING + "\ng\n", encoding="utf-8")
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "g\n\nAgent-Name: carol")
+    x.write_text(_FAILING + "\nx\n", encoding="utf-8")
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "x\n\nAgent-Name: dave")
+    r = _run(main)
+    assert re.search(r"\[x\]-review\.md was changed in [0-9a-f]{7,} \(carol\)", r.stdout), r.stdout
+
+
 def test_g9_the_ok_line_counts_both_sources(tmp_path: Path) -> None:
     _, main = _origin(tmp_path)
     _write(main, "2026-10-08-g9c-review.md", _IN_PROGRESS)

@@ -267,41 +267,68 @@ def _unintegrated_md(
     for p in paths:
         # the commit that ADDED the review inside the range names its author; a review that existed
         # before the range and was only edited inside it names its newest editor, worded so (A-O7)
-        for verb, extra in (
-            ("entered history in", ("--diff-filter=A",)),
-            ("was changed in", ("-1",)),
-        ):
-            who_line = _attribution(root, p, bases, extra)
+        for verb, adds in (("entered history in", True), ("was changed in", False)):
+            who_line = _attribution(root, p, bases, prefix, adds)
             if who_line:
                 who[p] = f"{verb} {who_line}"
                 break
     return paths, who, []
 
 
-def _attribution(root: Path, p: Path, bases: list[str], extra: tuple[str, ...]) -> str:
-    """``<sha> (<Agent-Name trailers, else author>)`` of the OLDEST commit ``git log <extra>`` lists for
-    ``p`` inside the range, or "" — several Agent-Name trailers are joined on one line (A-O6)."""
+_HDR = "--format=%x1e%h%x00%(trailers:key=Agent-Name,valueonly,separator=%x2C%x20)%x00%an%x00"
+
+
+def _attribution(root: Path, p: Path, bases: list[str], prefix: str, adds: bool) -> str:
+    """``<sha> (<Agent-Name trailers, else author>)`` of the NEWEST commit in the range that ADDED ``p``
+    (``adds``) or that touched it at all, or "" — several Agent-Name trailers are joined on one line.
+
+    The newest add is the author of the file now on disk (add, delete, re-add names the re-adder). The
+    add query reads the whole review ``prefix`` with ``-M``, so a rename pairs with its source and counts
+    as an edit (worded "was changed in"), never an add; the edit query names ``p`` as a LITERAL pathspec,
+    so a glob character in a review's name matches only that file (Phase A review, passes 1-2)."""
+    rel = str(p.relative_to(root))
+    spec = prefix if adds else rel
     rc, out = _git_bytes(
         root,
         "log",
         "--cc",  # so a review hand-added inside a merge commit is attributed to that merge
-        "--name-only",  # --cc alone prints the patch; names keep each record short and parseable
-        *extra,
-        # each record OPENS with \x1e, so whatever git prints after the header stays in that record
-        "--format=%x1e%h%x00%(trailers:key=Agent-Name,valueonly,separator=%x2C%x20)%x00%an%x00",
+        "-M",
+        "-z",
+        "--name-status",
+        *(("--diff-filter=A",) if adds else ("-1",)),
+        _HDR,  # each record OPENS with \x1e, so the name-status tokens git prints stay in it
         "HEAD",
         "--not",
         *bases,
         "--",
-        os.fsencode(str(p.relative_to(root))),
+        b":(literal)" + os.fsencode(spec),
     )
-    recs = out.split(b"\x1e")[1:] if rc == 0 else []
-    if not recs:
-        return ""
-    f = [x.decode("utf-8", "replace").strip() for x in recs[-1].split(b"\0")[:3]]
-    if len(f) != 3 or not f[0]:
-        return ""
-    return f"{f[0]} ({f[1] or f[2]})"
+    for rec in out.split(b"\x1e")[1:] if rc == 0 else []:
+        toks = [t.strip(b"\n") for t in rec.split(b"\0")]
+        if len(toks) < 3 or not toks[0]:
+            continue
+        if adds and not _adds_path(toks[3:], rel):
+            continue
+        f = [x.decode("utf-8", "replace").strip() for x in toks[:3]]
+        return f"{f[0]} ({f[1] or f[2]})"
+    return ""
+
+
+def _adds_path(names: list[bytes], rel: str) -> bool:
+    """True when ``git log -z --name-status`` tokens (``ST path``, or ``R/C ST old new``) ADD ``rel``."""
+    i = 0
+    while i < len(names):
+        st = names[i].decode("ascii", "replace")
+        if not st:
+            i += 1
+            continue
+        if st[0] in "RC":
+            i += 3
+            continue
+        if i + 1 < len(names) and "A" in st and os.fsdecode(names[i + 1]) == rel:
+            return True
+        i += 2
+    return False
 
 
 def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str], list[Path]]:
