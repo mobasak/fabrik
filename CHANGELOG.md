@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review seats get one refusal rule: fix a named shape, retry an unnamed refusal once, never re-path (2026-10-08)
+
+- `SEAT_ISOLATION` in `.claude/workflows/fabrik-review-loop.js` and the House rules in `commands/_agents/fabrik-reviewer.md` now carry the same two-branch refusal rule (D-695), replacing "never by re-sending it": the permission classifier refuses compliant commands non-deterministically, and a seat re-pathed outside its scratch to get past one. Receipt: `docs/development/reviews/2026-10-08-seat-refusal-rule-review.md`.
+
 ### Changed — term-edit's pin-time citation check grades the pin itself with `--doc` (2026-10-08)
 - `commands/_fragments/term-edit.md` said `check_citations_resolve.py` examines nothing for an artifact outside its source globs and called a `--pin` root a backlog item. Intel's `--doc` flag is on master, so the fragment now names `check_citations_resolve.py --doc <pin> --root <repo>`, whose `--doc examined` line is the examined-set proof (intel W-191404c0). Grader: `tests/test_assemble_dispatch_step.py::test_term_edit_grades_a_pin_outside_the_citation_globs_with_doc`.
 
