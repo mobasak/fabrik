@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T02:17:57.679008Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-bd5699c7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4CFNTWTKBG5JRRP9B4MQ983",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: the seat PINS recipe (01M4BY4SFQ) — item 1 already fixed (D-643), item 2 landed"
+}
