@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the MCP roster doc and emitter comments state the D-638 split: fabrik-lib full, the hub minus HUB_EXCLUDE (2026-10-09)
+- `docs/workstation/mcp-roster.md` still described the hub and fabrik-lib as one full-roster set, both in the layer table and in the net-effect paragraph, where it also contradicted itself. It also said the hub keeps playwright and that fabrik-lib's own `.mcp.json` had not landed. All now say that fabrik-lib carries the full roster and the hub carries it minus `HUB_EXCLUDE` (D-638). `scripts/sysadmin/emit_mcp_project_config.py`'s comments now say the same, and `HUB_CLASS` no longer claims to be out of the default sweep. `tests/enforcement/test_check_mcp_scope.py` pins the fabrik-lib warning's `extra` list rather than only the repo name, which kills a mutant the old assertion passed. Closes the D-638 receipt (W-65969e35).
+
 ### Fixed — /fabrik-plan-after-chat tells its plan gates the truth (2026-10-09)
 - `commands/_sources/fabrik-plan-after-chat.md`: a ticket's `Appetite:` sits before its first `##` heading (the only zone `plan_appetite.header_zone` reads) and the worked skeleton carries it; the Coverage Checklist is a table of CLEAN/FIXED/REFUTED rows holding the pasted `review_rubric.py` OUTPUT (an invocation does not match `RUBRIC_RUN`); the byte recipe counts each path once; a G/W/T row stays on one physical line; Phase 5's stops add an unconverged cited spec and close by `handoff`; and Phase 1 greps the tests pinning a moved function, executes a load-bearing behavioural claim once, and pastes Evidence from captured output. Answers 12 text-defect and 8 recurring /fabrik-plan-after-chat verdicts (D-711). Grader: `tests/test_spec_plan_lane_text.py::test_fabrik_plan_after_chat_tells_the_gates_truth`, which drives `header_zone` and `RUBRIC_RUN`.
 

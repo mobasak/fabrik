@@ -16,8 +16,8 @@ Since plan-3's emission run, MCP config is **layered** (Claude Code precedence: 
 
 | Layer | File | Content |
 |---|---|---|
-| PROJECT (per repo) | `<repo>/.mcp.json` — EMITTED by `scripts/sysadmin/emit_mcp_project_config.py`, GITIGNORED (carries the repo's resolved `DATABASE_URL`) | the repo's RULED set: universal 6 + per-type + overlays (this doc's tables are canonical); hub + fabrik-lib carry the full 16 |
-| USER (per account) | `~/.claude.json` (ad-hoc leftover) + `~/.claude-fleet/{ob,can,sarp,mob}/.claude.json` (the **active** symlink picks the live one) | **the 5** (session-recall, exa, brave-search, firecrawl, serena; postgres-pro rides per-repo per D-031) — rotator-synced, md5-identical across every fleet file and the ad-hoc copy; DR-backed. fabrik-lib interim: universal 6 until its own .mcp.json lands |
+| PROJECT (per repo) | `<repo>/.mcp.json` — EMITTED by `scripts/sysadmin/emit_mcp_project_config.py`, GITIGNORED (carries the repo's resolved `DATABASE_URL`) | the repo's RULED set: universal 6 + per-type + overlays (this doc's tables are canonical); fabrik-lib carries the full 16, the hub the full set minus `HUB_EXCLUDE` (D-638) |
+| USER (per account) | `~/.claude.json` (ad-hoc leftover) + `~/.claude-fleet/{ob,can,sarp,mob}/.claude.json` (the **active** symlink picks the live one) | **the 5** (session-recall, exa, brave-search, firecrawl, serena; postgres-pro rides per-repo per D-031) — rotator-synced, md5-identical across every fleet file and the ad-hoc copy; DR-backed. fabrik-lib's own `.mcp.json` (landed by its agent with `--repo`) carries its full roster on top |
 | POOL (Runtime B) | `/opt/fabrik/mcp.json` | research four (incl. pool-only context7) — untouched by the split |
 | PROFILE | `~/.claude-youtube-headless/.claude.json` | separate CLAUDE_CONFIG_DIR profile; **the universal 6** |
 
@@ -78,11 +78,11 @@ Weight = measured RSS across live processes (per-window cost scales with window 
 
 **Net effect of the split as RULED:** a typical headless API repo drops 16 → **6** servers (the
 universal set: session-recall + exa + brave-search + firecrawl + postgres-pro + serena); the full
-roster survives only hub-class (hub + fabrik-lib, D-015) — the HUB minus the four per-session heavy
-servers (`maestro`, `mobile-mcp`, `playwright`, `chrome-devtools`; `HUB_EXCLUDE` in the emitter,
-operator ruling 2026-10-07 after 48 orphaned Maestro JVMs held ~11 GB of swap), fabrik-lib the FULL
-roster, maestro included (the same ruling: maestro is for mobile projects and fabrik-lib, which vendors
-and tests the mobile modules): a mobile or browser task runs in the owning repo's window or fabrik-lib. `scripts/enforcement/check_mcp_scope.py` grades every emitted
+roster survives only in fabrik-lib, maestro included (D-015, D-638: maestro is for mobile projects and
+fabrik-lib, which vendors and tests the mobile modules); the hub carries it minus the four per-session
+heavy servers (`maestro`, `mobile-mcp`, `playwright`, `chrome-devtools`; `HUB_EXCLUDE` in the emitter,
+operator ruling 2026-10-07 after 48 orphaned Maestro JVMs held ~11 GB of swap), so a mobile or browser
+task runs in the owning repo's window or fabrik-lib. `scripts/enforcement/check_mcp_scope.py` grades every emitted
 `.mcp.json` as a subset of its ruling, and `scripts/sysadmin/mcp_orphan_reaper.py` (SessionEnd + the
 WSL startup hook) reaps a stdio server whose session is gone.
 
@@ -156,8 +156,8 @@ MV3 test harness — `launchPersistentContext`) · `desktop-app` (Electron UI) �
 `docusaurus` (rendered-site certification) · `mobile-app` is NOT in this set (its loop is
 maestro/mobile-mcp). The `fabrik-gui` agent declares playwright by name. **Headless types
 (python-api, python-api-gpu, node-api, file-api, file-worker) have zero use for it — nothing to
-render.** Disposition: ON for the 6 UI-bearing types, OFF for headless; the hub keeps it only via
-its hub-class full roster. Its companion `chrome-devtools` (performance/Core-Web-Vitals audits in
+render.** Disposition: ON for the 6 UI-bearing types, OFF for headless; fabrik-lib keeps it via its
+full roster, and the hub does NOT (`HUB_EXCLUDE`, D-638). Its companion `chrome-devtools` (performance/Core-Web-Vitals audits in
 the same loop) takes the same disposition. **Plus the per-repo overlay: `web-ecommerce-factory`
 (D-016)** — wef drives and verifies the ecommerce sites it produces, rendered-surface work its own
 repo type would not otherwise grant. (wef IS `saas-skeleton`, so playwright already comes by TYPE; the D-016 overlay is redundant but harmless.)
@@ -202,7 +202,7 @@ already-registered sources; decision rides the same split.
 
 ## The two standing rulings behind the split
 
-**fabrik-lib is HUB-CLASS (D-015): full roster, exactly like /opt/fabrik** — it builds modules for every scaffold type and its agent needs the whole toolbox; the split trims project windows and leaves hub + fabrik-lib at the full set. **session-recall · exa · brave-search · firecrawl are UNIVERSAL (D-013) — every project, no exception**; any trim excludes these four, and the firecrawl→curl corpus swap is DEAD. The split itself is EXECUTED: the user-level roster is the universal set and every repo's `.mcp.json` is emitted from this doc's tables (§ Config topology).
+**fabrik-lib is HUB-CLASS (D-015): the full roster** — it builds modules for every scaffold type and its agent needs the whole toolbox; the split trims project windows, leaves fabrik-lib at the full set and the hub at the full set minus `HUB_EXCLUDE` (D-638). **session-recall · exa · brave-search · firecrawl are UNIVERSAL (D-013) — every project, no exception**; any trim excludes these four, and the firecrawl→curl corpus swap is DEAD. The split itself is EXECUTED: the user-level roster is the universal set and every repo's `.mcp.json` is emitted from this doc's tables (§ Config topology).
 
 **Related:** [MCP_HTTP_TRANSPORT.md](MCP_HTTP_TRANSPORT.md) (transport detail) ·
 [wsl-mcp.md](wsl-mcp.md) (the Claude-Desktop bridge server; `wsl-shell-mcp-setup.md` is the superseded stdio bridge) ·
