@@ -7,6 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Changed — `/fabrik-task` phase 2 says what MIRROR must list (2026-10-08)
 - Phase 2 said only "MIRROR is mandatory"; seven queue verdicts asked for a reader kind their run missed, a claim executed rather than inferred, or a cost measured rather than estimated. MIRROR now names every reader of what changes, each found by an executed search with its failing shape and measured cost, and readers the build leaves untouched go unbackticked, since at v2 a backticked MIRROR path counts as declared at close. The source size cap rises 11974 → 12439 B (D-675).
 
+### Fixed — the docusaurus pack's nginx block answers every missing path with 404 and no-cache (2026-10-08)
+- `.windsurf/rules/core/42-docusaurus.md`: an `/assets/` directory answered 403, GET `/404` served the 404 page as a 200, and every 404 carried no Cache-Control (`add_header` skips 4xx). The block now adds `try_files $uri =404;` in `/assets/`, `location = /404 { internal; }`, and `add_header Cache-Control "no-cache" always;` on the 404 page. Executed in nginx:mainline-trixie: every missing path answers 404 with the build's 404.html and no-cache, while hashed assets keep the immutable cache. The prose is corrected sentence by sentence (403 claims, the `trailingSlash: false` shape, security headers in all three locations, i18n 404 pages).
+- Graders in `tests/test_docusaurus_pack.py`. Fleet mail 01M4D7K84A; review `docs/development/reviews/2026-10-08-docusaurus-nginx-404-review.md`.
+
 ### Changed — design critiques run before the build and are adjudicated once both are in (2026-10-08)
 - The `design-critique` fragment (included by `/fabrik-task` and four design-review commands) said to dispatch the two critiques before `step --design` records the design, and `/fabrik-task` queue verdicts reported test files written before the critiques reshaped the design and dispositions folded before the second seat returned. It now says the critiques go out before phase 3 builds anything, and that every concern is adjudicated once both critiques are in hand (the stand-in Opus seat's when Fable failed, the re-dispatched seat's when one came back empty).
 
@@ -16,6 +20,10 @@ All notable changes to this project will be documented in this file.
 ### Fixed — command_run counts Workflow-launched seats (2026-10-08)
 - `scripts/command_run.py::_seat_transcripts` reads `<sid>/subagents/` recursively. A Workflow-tool seat writes `subagents/workflows/wf_<id>/agent-<id>.jsonl`, which the top-level glob never saw. As a result, every review-loop close printed "seats declared N vs seen 0", recorded seats_seen 0 and dropped those seats' tokens from its FEEDBACK line, and the no-round nudge missed them too. 35% of one session's seat transcripts sat at that depth. Every file is a seat: no dedupe (0 duplicate seat names measured).
 - `docs/reference/command-run-protocol.md` and `.windsurf/rules/core/62-using-subagents.md` name the Workflow depth. Grader in `tests/test_command_feedback.py`. Kaizen mail 01M4D35GZ9; review `docs/development/reviews/2026-10-08-seats-seen-rglob-review.md`.
+
+### Changed — the review-loop workflow refuses a launch without a pin manifest (2026-10-08)
+
+- `.claude/workflows/fabrik-review-loop.js` now requires `pin_manifest` (D-663's switch, made once every launcher passed it): an absent or null manifest is refused before any seat runs with the `pin` command named, slice files are normalised as `pin` keys them and handed to the seats in that form (D-673). Receipt: `docs/development/reviews/2026-10-08-review-loop-mandatory-pin-manifest-review.md`.
 
 ### Fixed — check_frozen_chain reads a split Status/Version header (2026-10-08)
 - `scripts/enforcement/check_frozen_chain.py`: a contract whose `Status:` and `Version:` sit on separate header lines (bold or plain labels, `v` optional) now registers its version. Before, every pin against it was skipped and a stale one passed silently. 10 of 36 chain docs on the box split them; 9 now register, 0 change value. The version token refuses `v5a`, `v6.12` and `2026-10-05`. On the Status line, the Version must be a field, never a mention in prose. The body-prose sweep matches filenames by equality, not substring.

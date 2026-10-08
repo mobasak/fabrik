@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T08:16:47.270397Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9343f424",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-672",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "price one Sonnet refuter per slice in the COST line only (never in SEATS or the caps), with a grader; the stamp formula in fabrik-review.md can then drop '+ one refuter per slice' (kaizen wording)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "dispatch_headroom --slices COST line omits the review loop's per-slice Sonnet refuter (D-672)"
+}

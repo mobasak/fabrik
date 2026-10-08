@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T05:50:09.562892Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c93484d7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4CXK4KBAF6Z3R0ZJZRB3HRD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "check_frozen_chain.py reads a contract's version line-by-line, so a two-line Status/Version header registers NO version and stale pins against it pass silently"
+}
