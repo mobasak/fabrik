@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the fleet-exhausted stamp is replaced, never truncated; undateable promises and unreadable holds fail toward the wall (2026-10-08)
+
+- `scripts/sysadmin/claude_rotate.py` (and its `aro-wake` twin): a content write of a dated stamp builds beside and replaces, refusing a non-regular file at the path; `_promised_resume` validates through `_dateable_ts`; `_hold_is_wall` reads a non-dict hold as the wall (D-699, W-06733560 items 3/6/7; item 1 boarded as W-37003fa1). Receipt: `docs/development/reviews/2026-10-08-rotation-stamp-tier-hygiene-review.md`.
+
 ### Fixed — the review loop retries a refuter that left candidates unanswered, and says when one failed (2026-10-08)
 - `.claude/workflows/fabrik-review-loop.js`: a refuter that returned nothing, or no verdict for some candidates, left them silently `unverified` with nothing re-dispatched and no seat marked failed. The unanswered candidates now get ONE retry (`refute:<slice>:retry`, its own scratch dir, a box sized to the subset); whatever the retry still leaves unanswered sets the slice's `refuter.failed`, adds `refuter failed` to `open` and counts in a new `failed_refuters`. A case- or space-slipped id is matched to its one candidate instead of being retried. `dropped_seats` stays the failed-finder count. Doc: `docs/reference/review-loop-workflow.md`; `/fabrik-review-scoped` names `refuter.failed` beside `seats[].failed`. fleet 01M4DP81PE.
 
