@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-08T12:43:52.709562Z",
+  "created": "2026-10-08T16:46:47.945945Z",
   "creator": "infra",
   "evidence": "",
-  "id": "W-65fb308e",
+  "id": "W-10e090e0",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M4DR9PABCGZH6823N3QT5N5H",
+    "mail": "01M4E6ENGVYP7SS4GCNEHZTVWF",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "infra",
   "priority": 2,
   "status": "done",
-  "title": "/fabrik-review says restate EVERY round-1 slice in `round --slices`; command_run.py refuses a slice with 0 claims"
+  "title": "branch: worktree-kaizen"
 }

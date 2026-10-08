@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T18:12:51.174905Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fbdd17c8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EB8AX16FDJ14BF7ZH1ASPS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: scripts/work.py `_drift_report` gives a BLOCKED plan status no check at all, so any plan led with \"BLOCKED\" passes `sync --check`, with any reason or none."
+}

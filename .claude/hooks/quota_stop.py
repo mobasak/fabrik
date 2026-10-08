@@ -512,7 +512,8 @@ def _stamp() -> Path:
 
 # COPIED from `claude_rotate.py` (`_STAMP_TIERS`/`_stamp_tier`) — this hook is fleet-synced and
 # imports nothing from the tick. `test_the_hooks_tier_reader_agrees_with_the_tick_that_writes_it`
-# grades the two copies against the same bytes, including every fail-closed shape.
+# grades the two copies against the same bytes, including every fail-closed shape; the four-way
+# graders in `tests/test_quota_posture.py` add `quota_posture_hook.py` and `final_gate_stop.py`.
 _STAMP_TIER_WALLED = "walled"
 _STAMP_TIER_URGENT = "urgent-90"
 _STAMP_TIERS = frozenset({_STAMP_TIER_WALLED, _STAMP_TIER_URGENT})

@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-08T13:28:32.310881Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "707abee81a6407ec82485ff7f99787a18c70c845",
   "id": "W-37003fa1",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "The Stop hook's quota yield and dispatch_headroom's hold are tier-blind — urgent-90 holds nothing (W-06733560 item 1, split out)"
 }

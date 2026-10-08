@@ -976,7 +976,11 @@ def apply_rows(
             if p.is_symlink() or p.is_file():
                 os.unlink(p)
             elif p.is_dir():
-                shutil.rmtree(p)  # raises on a symlink by design — never follows one
+                try:
+                    shutil.rmtree(p)  # raises on a symlink by design — never follows one
+                except PermissionError:
+                    _own_tree(p)
+                    shutil.rmtree(p)
             else:
                 continue
             removed += 1
@@ -984,6 +988,23 @@ def apply_rows(
         except OSError as exc:
             print(f"FAILED {r.path} ({exc.errno}: {exc.strerror})", file=out)
     return removed
+
+
+def _own_tree(root: Path) -> None:
+    """Give the owner rwx on `root` and on every real directory under it, top-down, so a retried
+    rmtree can list and unlink inside: a review seat's copied pin is a READ-ONLY tree
+    (`dr-xr-xr-x`, files 0444, a dir may be 000), and rmtree's EACCES left the stale dir behind on
+    every `--apply` (intel 01M4E3M1JJ). Only `root` and what is under it change — never its
+    parent — and a symlink is never chmodded or descended (chmod would follow it out of the tree);
+    a file needs no bit, since unlinking reads only its directory's."""
+    if root.is_symlink() or not root.is_dir():
+        return
+    os.chmod(root, root.stat().st_mode | 0o700)
+    for dirpath, dirnames, _files in os.walk(root, followlinks=False):
+        for name in dirnames:
+            d = os.path.join(dirpath, name)
+            if not os.path.islink(d):
+                os.chmod(d, os.stat(d).st_mode | 0o700)
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────────────────────────────

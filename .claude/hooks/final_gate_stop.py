@@ -1203,6 +1203,154 @@ def _hold_in_force(tick_age_s: float, stale_s: float) -> bool:
     return not (tick_age_s > stale_s)
 
 
+# COPIED from `.claude/hooks/quota_stop.py` (itself copied from `claude_rotate.py`, which WRITES the
+# stamp) — the FOURTH copy, graded with the other three by the parity tests in
+# `tests/test_quota_posture.py`. This hook is fleet-synced and standalone, so it imports none of them.
+# Here `walled` — anything not plainly saying urgent — means D-158's FULL yield, the reading this hook
+# has always had: the lenient one for a Stop hook, and the right pairing with quota_stop.py's deny.
+_STAMP_TIER_WALLED = "walled"
+_STAMP_TIER_URGENT = "urgent-90"
+_STAMP_TIERS = frozenset({_STAMP_TIER_WALLED, _STAMP_TIER_URGENT})
+
+
+def _stamp_tier(stamp: Path) -> str:
+    """Which arm wrote this stamp — line 2. `walled` for anything not plainly saying otherwise:
+    missing, unreadable, pre-tier (one numeric line), or a tier this version does not know."""
+    try:
+        # `is_file()` BEFORE the read: a FIFO at this path blocks forever, and a Stop hook that
+        # never returns hangs the end of every turn. `.split("\n")`, never `.splitlines()`, and
+        # `newline=""`: a control byte or a bare `\r` in line 1 must not shift line 2 into place.
+        if not stamp.is_file():
+            return _STAMP_TIER_WALLED
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return _STAMP_TIER_WALLED
+    tier = lines[1].strip() if len(lines) > 1 else ""
+    return tier if tier in _STAMP_TIERS else _STAMP_TIER_WALLED
+
+
+_URGENT_PREFIX = "FLEET QUOTA AT THE URGENT TIER — checkpoint, then end the turn: "
+
+
+def _urgent_sidecar(sid: str | None) -> Path:
+    """`<tempdir>/fabrik-gate-stop-<sid>.urgent` — present once THIS urgent episode has had its one
+    block. Unlinked on every Stop where the urgent hold is not in force, so the next episode gets
+    its own block. A file, never an eighth counter slot: the 7-slot record stays byte-identical."""
+    return _counter_path(sid).with_suffix(".urgent")
+
+
+def _urgent_checkpoint(
+    root: Path,
+    sid: str | None,
+    ev_sid: str | None,
+    authored_map: dict[str, int],
+    own_commits: list[tuple[str, int, int]],
+    stall: tuple[str, str] | None,
+    transcript_p: str = "",
+) -> str | None:
+    """W-37003fa1 — the Stop at the `urgent-90` tier. Returns ONE block reason, or None to end the turn.
+
+    D-306: at `urgent-90` quota_stop.py denies nothing and ORDERS a checkpoint — commit, push, keep
+    the run record current. So those three are the checkpoint items, and they block ONCE per
+    session per urgent episode, together; every other cause stands down with its debt named. Never
+    through the CAP-3 counters: a warn-through RE-ARMS a counter (attempts → 0), so cap 1 per cause
+    blocked seven stops in a row (executed by the design critique). The gate is not run — a full
+    `final_gate.py --lean` subprocess to name checks no one may fix now — and the coordinator is not
+    consulted; neither is counted as stood down, because neither was evaluated.
+
+    ⚠️ COBRA (D-253): the cheapest way past this block is to end the turn twice — the second stop
+    always passes. That is the design, not a hole: the tier is a WARNING, the wall comes next, and a
+    block that repeats spends the last of the quota on the argument. The debt is not forgiven: each
+    still-true item lands in the kaizen stream as `stood_down` with `tier=urgent-90`.
+    """
+    items: list[str] = []
+    owed: list[str] = []
+    stood: list[tuple[str, dict]] = []
+    dirty = _dirty_paths(root)
+    mine = sorted(
+        rel
+        for rel, edit_ts in authored_map.items()
+        if rel in dirty and not (edit_ts and _last_commit_ts(root, rel) >= edit_ts)
+    )
+    if mine:
+        more = f" (+{len(mine) - 8} more)" if len(mine) > 8 else ""
+        items.append(
+            f"COMMIT your own work — {', '.join(mine[:8])}{more} — with explicit pathspecs and "
+            "Agent Provenance Trailers (git commit -m <msg> -- <your files>)"
+        )
+        stood.append(("uncommitted", {"files": len(mine)}))
+    ahead = _ahead_of_upstream(
+        root,
+        set(_this_sessions_edits(authored_map, _baseline_floor(sid))),
+        lambda: _session_agent(root, sid),
+    )
+    if ahead:
+        how = "`git push`" if _has_upstream(root) else "`git push -u origin HEAD`"
+        items.append(f"PUSH {ahead} commit(s) of yours not yet on origin — {how}, never --force")
+        stood.append(("unpushed", {"ahead": ahead}))
+    run = _run_record(sid) or {}
+    # the same predicate as `_stall_gate`'s `run_blocks`: a record whose own dispatched seats
+    # are verifiably in flight is not owed a step this turn (W-4c7edc74, review A-S2)
+    if run.get("state") == "running" and not _seats_in_flight(run, transcript_p):
+        name = str(run.get("command") or "?")
+        items.append(
+            f"KEEP the /{name} run record current — `python3 scripts/command_run.py step` (or "
+            "`round`) with where it stands; finish it after the reset, never at this tier"
+        )
+        stood.append(("run-record", {"command": name}))
+    if stall:
+        f = _stall_fields(stall)
+        owed.append(f"the {f['cause']} this stop caught ({stall[1][:80]})")
+        stood.append((f.pop("cause"), f))
+    unreviewed = _unreviewed_spontaneous_files(
+        _run_record_raw(sid), authored_map, _baseline_floor(sid), sid, root, own_commits
+    )
+    if unreviewed:
+        owed.append(f"a review of {len(unreviewed)} file(s) — /fabrik-review-scoped")
+        stood.append(("unreviewed-spontaneous", {"files": len(unreviewed)}))
+    if _merge_owner_duty(root, sid) is not None:
+        owed.append("the waiting merge request — python3 scripts/merge_request.py merge")
+        stood.append(("merge-request", {}))
+    side = _urgent_sidecar(sid)
+    blockable = bool(items) and bool(sid) and sid != "nosession" and not side.exists()
+    if blockable:
+        # Write FIRST, block only if it landed: an unwritable sidecar would otherwise block every
+        # stop of the episode (review A-H2); an id-less payload shares `nosession` with every
+        # other id-less session, so it never owns an episode to block once in (review A-S3).
+        try:
+            side.write_text(str(time.time()))
+        except OSError:
+            blockable = False
+    if blockable:
+        _kaizen(
+            "stop_block",
+            ev_sid,
+            cause="urgent-checkpoint",
+            outcome="blocked",
+            tier=_STAMP_TIER_URGENT,
+            items=[c for c, _ in stood],
+        )
+        return (
+            _URGENT_PREFIX
+            + " · ".join(items)
+            + ". "
+            + (f"Still owed after the reset: {'; '.join(owed)}. " if owed else "")
+            + "The gate was not evaluated at the urgent tier. This block fires ONCE per episode — "
+            "after the checkpoint, end the turn; the wall tier follows if the quota runs out."
+        )
+    for cause, fields in stood:
+        _kaizen(
+            "stop_block",
+            ev_sid,
+            cause=cause,
+            outcome="stood_down",
+            tier=_STAMP_TIER_URGENT,
+            **fields,
+        )
+    return None
+
+
 def _finite(v: object) -> float | None:
     """`_run_record`'s own guard, lifted verbatim: json.loads accepts bare NaN/Infinity, and a bool
     is an int — `Infinity` gave a permanent exemption, `true` read as 1970 (review A-F6)."""
@@ -4150,6 +4298,7 @@ def main(argv: list[str]) -> int:
         # end IS the graceful stop. Same stamp path and env override as quota_stop.py; fail-OPEN
         # on any doubt (a stale stamp makes this hook lenient for one dead-cron episode, which
         # costs nothing — the opposite mistake costs the last of the quota).
+        urgent = False  # W-37003fa1 — set only at the `urgent-90` tier with the hold in force
         try:
             _state = Path(os.environ.get("ROTATE_STATE_DIR") or Path.home() / ".claude" / "state")
             # A-F1 (review 2026-09-06, CRITICAL): quota_stop.py fails OPEN when the tick log is
@@ -4177,11 +4326,26 @@ def main(argv: list[str]) -> int:
                 # produced the held-and-blocked deadlock A-F1 exists to end (review P1-6)
                 and _hold_in_force(time.time() - _tick.stat().st_mtime, _stale)
             ):
-                _kaizen("stop_allowed_quota_hold", ev_sid)
-                _store_decision(_ta, sid, judged, _repo)
-                return 0
+                # D-306's two tiers. Only `walled` denies the tools that clear the causes below, so
+                # only a stamp that PLAINLY says `urgent-90` stops this yield — any doubt, an
+                # exception included, is the wall and the full yield of D-158 (W-37003fa1). At
+                # urgent-90 a SessionStart still records its baseline below (a gate subprocess, no
+                # tokens — and the baseline the post-relief causes need); only the Stop skips it.
+                try:
+                    urgent = _stamp_tier(_state / "fleet-exhausted") == _STAMP_TIER_URGENT
+                except Exception:
+                    urgent = False
+                if not urgent:
+                    with contextlib.suppress(OSError):
+                        _urgent_sidecar(sid).unlink(missing_ok=True)
+                    _kaizen("stop_allowed_quota_hold", ev_sid)
+                    _store_decision(_ta, sid, judged, _repo)
+                    return 0
         except Exception:
             pass
+        if not urgent:  # the episode is over (or never began): the next urgent one gets its block
+            with contextlib.suppress(OSError):
+                _urgent_sidecar(sid).unlink(missing_ok=True)
 
         # SessionStart: record the inherited failing set, then always allow.
         # RESUME/COMPACT keep the ORIGINAL baseline: a revived session (the
@@ -4230,6 +4394,22 @@ def main(argv: list[str]) -> int:
             else None
         )
         decision_ground = judged[1][1] if judged and judged[1][0] else None
+        if urgent:
+            try:
+                _ureason = _urgent_checkpoint(
+                    root, sid, ev_sid, authored_map, own_commits, stall, transcript_p
+                )
+            except Exception as e:  # fail-open, like every cause: never trap a session at the tier
+                sys.stderr.write(
+                    f"[final_gate_stop] urgent checkpoint failed, allowing stop: {e}\n"
+                )
+                _ureason = None
+            if _ureason:
+                sys.stdout.write(json.dumps({"decision": "block", "reason": _ureason}) + "\n")
+                return 0
+            _store_decision(_ta, sid, judged, _repo)
+            _kaizen_pass(ev_sid, transcript_p, waived, warned, decision_ground)
+            return 0
 
         def _stall_gate() -> int:
             """Final causes on an otherwise-allowed stop: the PUSH law (committed

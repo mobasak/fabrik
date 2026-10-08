@@ -228,6 +228,19 @@ def _posture_hot(act: dict) -> float | None:
     return float(u) if ok else None
 
 
+def _hold_is_wall(hold: object) -> bool:
+    """Does the picture's hold actually HOLD? MIRRORED from `claude_rotate.py::_hold_is_wall` (this
+    script shells out to the tick and imports none of it): since D-306 only the `walled` tier
+    default-denies tools; at `urgent-90` quota_stop.py denies nothing, so the band decides the cap
+    (W-37003fa1). No hold → no wall; a hold that is not a dict, or a dict with no tier (pre-tier) or
+    an unknown one → the wall: fail closed, the direction a seat budget must never be lenient in."""
+    if hold is None:
+        return False
+    if not isinstance(hold, dict):
+        return True
+    return hold.get("tier", "walled") != "urgent-90"
+
+
 def quota() -> dict:
     """The active account's hottest window + eligible-standby count, via claude_rotate.py. The
     drain band is read from the picture, not re-hardcoded, so the two cannot drift."""
@@ -275,7 +288,7 @@ def quota() -> dict:
             "eligible": eligible,
             "eligible_raw": eligible_raw,
             "active_in_band": bool(act.get("in_drain_band")) if act else None,
-            "hold": bool(pic.get("hold")),
+            "hold": _hold_is_wall(pic.get("hold")),
             "drain_band": band,
         }
         # ⚠️ The posture WINS when it is fresh, and that is the point: the seat budget and the
@@ -693,7 +706,9 @@ def budget(
     if q.get("ok"):
         if q["hold"]:
             caps["quota_cap"] = 0
-            reasons.append("fleet-exhausted HOLD is on — dispatch nothing until relief")
+            reasons.append(
+                "fleet-exhausted HOLD is on (the wall tier) — dispatch nothing until relief"
+            )
         else:
             band = float(q.get("drain_band") or 85.0)
             unknown = q["hottest_pct"] is None

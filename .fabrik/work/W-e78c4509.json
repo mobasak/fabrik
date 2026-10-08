@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "final_gate renders a missing checker as [PASS] (only --json warnings carry it); the hub's probe-worktree paragraph never says run the gate from inside the probe"
 }
