@@ -1,7 +1,7 @@
 # plan-3 — committed-but-unintegrated review grading (W-f847a317)
 
-**Status:** IN-PROGRESS
-**Surface:** `git rev-parse HEAD` = 03a019253d778301afdd089f79cc624faca82159; range tip 03a019253d778301afdd089f79cc624faca82159; `git diff 4db122511..HEAD -- .fabrik/plan-locks/2026-10-08-plan-3-review-coverage-commit-scope.json CHANGELOG.md INDEX.md docs/development/plans/2026-10-08-plan-3-review-coverage-commit-scope.md docs/workflows/FINAL_GATE_WORKFLOW.md scripts/enforcement/check_review_coverage.py tests/enforcement/test_review_coverage_unintegrated.py` md5 32b555faab2efb968dbb24e9f86c0233 (68610 bytes)
+**Status:** CONVERGED
+**Surface:** `git rev-parse HEAD` = 6054bf25cb9bd9f025b5ad9e990082c2ce6b7a3e; range tip 6054bf25cb9bd9f025b5ad9e990082c2ce6b7a3e; `git diff 4db122511..HEAD -- .fabrik/plan-locks/2026-10-08-plan-3-review-coverage-commit-scope.json CHANGELOG.md INDEX.md docs/development/plans/2026-10-08-plan-3-review-coverage-commit-scope.md docs/workflows/FINAL_GATE_WORKFLOW.md scripts/enforcement/check_review_coverage.py tests/enforcement/test_review_coverage_unintegrated.py` md5 b0301db6d7ec499e29999fe56c0cb202 (70947 bytes)
 **Command:** /fabrik-review · **Changed:** `.fabrik/plan-locks/2026-10-08-plan-3-review-coverage-commit-scope.json`, `CHANGELOG.md`, `INDEX.md`, `docs/development/plans/2026-10-08-plan-3-review-coverage-commit-scope.md`, `docs/workflows/FINAL_GATE_WORKFLOW.md`, `scripts/enforcement/check_review_coverage.py`, `tests/enforcement/test_review_coverage_unintegrated.py`
 
 ## Coverage Checklist
@@ -175,19 +175,19 @@ $ python scripts/review_rubric.py --changed .fabrik/plan-locks/2026-10-08-plan-3
 
 | Class | Status |
 |---|---|
-| Hunt: `.fabrik/plan-locks/2026-10-08-plan-3-review-coverage-commit-scope.json` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `CHANGELOG.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `INDEX.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/development/plans/2026-10-08-plan-3-review-coverage-commit-scope.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/workflows/FINAL_GATE_WORKFLOW.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/enforcement/check_review_coverage.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/enforcement/test_review_coverage_unintegrated.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `.fabrik/plan-locks/2026-10-08-plan-3-review-coverage-commit-scope.json` — every changed hunk, its enclosing function, its callers | CLEAN (.fabrik/plan-locks/2026-10-08-plan-3-review-coverage-commit-scope.json — owned_paths match the plan's File Scope; status/phase fields read by check_plan_locks) |
+| Hunt: `CHANGELOG.md` — every changed hunk, its enclosing function, its callers | CLEAN (CHANGELOG.md — the one [Unreleased] Changed entry dated 2026-10-09 matches the shipped behaviour: blocking unintegrated leg, refs, --base, NOTEs) |
+| Hunt: `INDEX.md` — every changed hunk, its enclosing function, its callers | CLEAN (INDEX.md — the new tests/enforcement/test_review_coverage_unintegrated.py row sits beside its siblings and names what the graders pin) |
+| Hunt: `docs/development/plans/2026-10-08-plan-3-review-coverage-commit-scope.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/development/plans/2026-10-08-plan-3-review-coverage-commit-scope.md — Phase A/B EXECUTED stamps carry real shas; the no-base Behavior row corrected in Phase A) |
+| Hunt: `docs/workflows/FINAL_GATE_WORKFLOW.md` — every changed hunk, its enclosing function, its callers | CLEAN (docs/workflows/FINAL_GATE_WORKFLOW.md — the Tier-1 blocking-scope sentence states the no-ref silence the spec chose, the shallow/rc NOTE and the residuals) |
+| Hunt: `scripts/enforcement/check_review_coverage.py` — every changed hunk, its enclosing function, its callers | FIXED r2 (A-H1/A-H2 r1 then A-S1p2/B-NEW1 r2 — a vanished path is filtered from both lists before grading and counting, and _grade turns a read OSError into one failure line; 6054bf25c) |
+| Hunt: `tests/enforcement/test_review_coverage_unintegrated.py` — every changed hunk, its enclosing function, its callers | FIXED r2 (B-S2 protocol.file.allow and B-S3 denominator r1; the vanish grader's overcount corrected and a direct _grade grader added r2; 13 fix mutants red in a throwaway worktree) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r2 (scripts/enforcement/check_review_coverage.py — the residual vanish race now fails closed with a failure line; the no-ref silence is RECORDED by design under A-S1) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (scripts/enforcement/check_review_coverage.py — one git log per run plus one attribution query per FAILED path only; census ran 264 trees with 0 tracebacks) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | CLEAN (scripts/enforcement/check_review_coverage.py integration_refs — full ref names, never --short, graded by G15 local-tag and tag-shadowing cases; dash-leading --base refused) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r2 (tests/enforcement/test_review_coverage_unintegrated.py — 32 graders; Phase A 14 mutants and Finish 13 mutants each red, the restored tree 32 passed) |
+| Recurrence: denominator on every count — bounded searches state their bound | FIXED r2 (B-NEW1 — scripts/enforcement/check_review_coverage.py OK line counts only graded paths; census table states 264 trees, 4 skipped, 21 prunable skipped) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (tests/enforcement/test_review_coverage_unintegrated.py — every verdict rests on an executed pytest, probe or mutant run over the pins; 551 checker-importing tests passed) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -211,6 +211,9 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×3 + haiku×3, refuter×3 | found: 7, new: 7, confirmed: 4, fixed: 4, unexecuted: 0 | method: three slices read whole over pins at 90271f88e; A-H1, A-H2, B-S2, B-S3 fixed in 1d7edfb46; A-S1, C-H1, B-S1 refuted |
+| Pass 2 | native sonnet×2 + haiku×2, refuter×2 | found: 3, new: 2, confirmed: 2, fixed: 2, unexecuted: 0 | method: round-1 seats re-verified their ledgers over 1d7edfb46 plus one hop; A-S1p2 and B-NEW1 fixed in 6054bf25c |
+| Pass 3 | native sonnet×2 + haiku×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the seats re-verified every open ledger id over 6054bf25c plus one hop; every count and anchor re-derived |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -263,9 +266,17 @@ b81834abe, `2026-10-05-w93d32c7f-session-logout-review.md`) lacks `Hunt:` rows f
 not a scan defect. All four are integrated now, which is why the snapshot reds nothing. Upper bound on the accepted R2 window:
 4 of 178 merges (2.2%) would have reddened a merge owner, each for a genuine receipt defect.
 
+| A-S1 | RECORDED — by design (D-715) |
+| C-H1 | REFUTED (git diff-filter accepts lowercase letters as exclusions; `--diff-filter=d` drops deletions, run on the pins) |
+| B-S1 | REFUTED (an assert inside the loop reds on whichever value regresses; a passing value never aborts the loop) |
+
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase A — the unintegrated blocking leg in check_review_coverage: CLEAN
+
+### Phase B — the gate-workflow doc, INDEX and CHANGELOG: CLEAN
+
+### Phase C — the fleet census: CLEAN
 
 ## Gate
 
@@ -273,5 +284,459 @@ not a scan defect. All four are integrated now, which is why the snapshot reds n
 `"status": "success"`):
 
 ```json
-UNCHECKED — paste the gate output here at the CONVERGED flip
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 63,
+  "failed": 0,
+  "skipped": 4,
+  "skipped_checks": [
+    "bandit",
+    "bandit scripts/",
+    "semgrep",
+    "pytest"
+  ],
+  "advisory": [
+    {
+      "check": "pytest (NOT RUN)",
+      "output": "this repo's CI does not invoke pytest, so the gate does not either \u2014 PERMANENT, not a per-diff skip. Deliberate (a CI that never reds has no red to prevent, and a hub-scale suite would brick every completion gate), but it means THIS GREEN ASSERTS NOTHING ABOUT THE TEST SUITE. Run it yourself: `python -m pytest tests/ -q`, or make the gate run it every time with `mkdir -p .fabrik && touch .fabrik/run-pytest` \u2014 required if this repo retires its GitHub workflows, since deleting them otherwise disarms this check \u2014 the suite is OUTSIDE this gate",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 56 identical \u00b7 11 declared-design \u00b7 22 UNREVIEWED diff \u00b7 13 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~13 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nlare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/core/62-using-subagents.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 13,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    },
+    {
+      "check": "Routing Policy (operator deny + allowlist)",
+      "output": "check_routing_policy: OK \u2014 6 of 6 task kinds have a routing section, 30 routable model entries, all allowed and none denied",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Governance Tables (rules must render)",
+      "output": "check_governance_tables: OK \u2014 every table row renders at its header width across 2 contract(s)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Plan-lock release",
+      "output": "0 stale | 0 likely-stale | 0 half-applied | 0 plan-field-stale | 0 orphan | 0 foreign | 0 unknown-status | 0 unevaluable\nOK - 0 stale of 87 plan lock(s) examined (1 non-terminal evaluated | 86 terminal/unevaluable | 0 foreign)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rivals dossier",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Spec convergence",
+      "output": "spec convergence: 50 CONVERGED spec(s) examined, 16 with findings (artifact-only; citations not re-fetched)\n  SILENT-1a: 2026-07-15-autonomous-factory-driver-design.md no cited source and no 'no external facts' statement - indistinguishable from skipping the research gate\n  ... 29 more finding(s) - rerun with --all, or name the spec(s)\n  -> run /fabrik-spec-review to a no-op; a spec with no external facts must SAY so, and a converged spec must enumerate its residual unknowns",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rule grounding (plans)",
+      "output": "rule grounding: 3 CONVERGED in-window plan(s) examined, 0 with findings (artifact-only; reading quality is the review's)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Citations resolve (path:line lands)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Feedback duty",
+      "output": "feedback duty: 21 close(s) in 14d, all carried a verdict",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Trigger routing (advertised phrase -> its own command)",
+      "output": "trigger routing: 157 advertised phrase(s) - 108 reach their own command, 49 route nowhere, 0 mis-routed (sees whether an advertised phrase reaches its own command; cannot tell whether the phrase is one an operator would ever type, and deliberately does not grade phrases that route nowhere)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Corpus Weight (byte ratchet)",
+      "output": "corpus-weight: CLAUDE.md 108579 B \u00b7 baseline 98610 (+9969) \u00b7 base origin/worktree-intel (\u2014)\ncorpus-weight: templates/governance/CLAUDE.md 106211 B \u00b7 baseline 91060 (+15151) \u00b7 base origin/worktree-intel (\u2014)\ncorpus-weight: commands/_sources 1137611 B \u00b7 baseline 1053408 (+84203) \u00b7 base origin/worktree-intel (\u2014)\ncorpus-weight: commands/_fragments 157717 B \u00b7 baseline 119777 (+37940) \u00b7 base origin/worktree-intel (\u2014)\ncorpus-weight: commands/_agents 31273 B \u00b7 baseline 24465 (+6808) \u00b7 base origin/worktree-intel (\u2014)\ncorpus-weight: .windsurf/rules 1800054 B \u00b7 baseline 1319893 (+480161) \u00b7 base origin/worktree-intel (\u2014)\ncorpus-weight: OK \u2014 no owned surface grew vs origin/worktree-intel\ncorpus-weight: worktree \u2014 reporting only, nothing written",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Frozen Chain (contract pins)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Mutation (opt-in FABRIK_MUTMUT)",
+      "output": "MUTATION (advisory): skipped in the per-commit gate \u2014 mutation testing is diff-scoped + nightly (45-testing-strategy.md), not per-PR blocking. Run it on changed code with:\n    FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Doc stub fill",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Script Coupling Header",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "User-Level Hooks Registered",
+      "output": "user-level hooks: present in every account dir",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Retired-Tech Tripwire",
+      "output": "WARN: docs/CAPABILITIES.md:17: unmarked retired-tech mention: - [fabrik domain ready](../AGENTS.md) (owner: fleet): Check if domain is ready for Coolify deployment.\nWARN: docs/CAPABILITIES.md:63: unmarked retired-tech mention: - [authelia](SERVICES.md) (owner: fleet): Authelia access-control rule provisioning for the Coolify-managed container.\nWARN: docs/CAPABILITIES.md:72: unmarked retired-tech mention: - [meilisearch](SERVICES.md) (owner: fleet): MeiliSearch index provisioning on the shared Coolify-managed instance.\nWARN: docs/CAPABILITIES.md:226: unmarked retired-tech mention: - [scripts/kilo_terminal_runner.py](../INDEX.md) (owner: infra): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrap\nWARN: docs/CONFIGURATION.md:854: unmarked retired-tech mention: DATABASE_URL = os.getenv('DATABASE_URL')  # Supabase provides this, for the exception path only\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:398: unmarked retired-tech mention: | `/etc/iptables/add-docker-user-rules.sh` | DOCKER-USER chain rules. Only 80/443 serve traffic; the script also RETURNs\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:429: unmarked retired-tech mention: - **Allowed public TCP ports:** 80, 443 (the only ports serving traffic). The iptables script also still allows 6001/600\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:474: unmarked retired-tech mention: | **Iptables DOCKER-USER** | All Docker ports | `/etc/iptables/add-d\n\u2026 [truncated: ~37 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_retired_terms.py` for the FULL set; NEVER scope a fix to this preview] \u2026\ntion: - **Kilo CLI Health Check** - `check_kilo_health.sh` (shared with Tier 2, `tier >= 2`)\nWARN: docs/workflows/FINAL_GATE_WORKFLOW.md:510: unmarked retired-tech mention: - `scripts/check_kilo_health.sh` \u2014 Kilo CLI Health Check (Tier 2/3; appended outside `run_optional_check` \u2014 appended dir\nWARN: docs/workstation/WSL2-DNS-FIX.md:24: unmarked retired-tech mention: 5. Node.js relies on `getaddrinfo()`, so Kilo CLI fails\nWARN: docs/workstation/WSL2-DNS-FIX.md:150: unmarked retired-tech mention: Verified by: Kilo CLI connectivity test\ncheck_retired_terms: 48 WARN(s) \u2014 advisory only, not blocking",
+      "truncated": true,
+      "omitted_lines": 37,
+      "rerun": "python scripts/enforcement/check_retired_terms.py"
+    },
+    {
+      "check": "Rule-pack reachability",
+      "output": "reachable: core/75-workers-jobs.md @ file-worker \u2014 via worker\n  reachable: core/app-audit-log.md @ saas-skeleton \u2014 via server/db/schema.sql\n  reachable: core/app-audit-log.md @ python-api \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ python-api-gpu \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ node-api \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ file-api \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ file-worker \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ office-extension \u2014 via server/db/schema.sql\n  reachable: core/app-audit-log.md @ chrome-extension \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ mobile-app \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ desktop-app \u2014 via db/schema.sql\n  reachable: core/app-audit-log.md @ static-site \u2014 via server/db/schema.sql\n  reachable: core/app-audit-log.md @ docusaurus \u2014 via db/schema.sql\n  reachable: saas/88-saas-launch-checklist.md @ saas-skeleton \u2014 via app/(marketing)/terms\n  reachable: saas/95-multi-tenant-saas.md @ saas-skeleton \u2014 via server/src/fastapi_user_auth/rls\nExamined 4 pack(s) / 15 claim-pair(s) declaring applies_to for a checked type (of 13 scaffold type(s) checked).\nOK \u2014 every VERIFIABLE applies_to claim reaches at least one emitted path (15 of 4 examined pack(s) verified).",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": ".env.example Completeness",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Phase Tests (plan-window)",
+      "output": "PHASE-TESTS (advisory): OK \u2014 no active plan window shipping behavior without tests.",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Ticket Breadth (plan sets)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    }
+  ],
+  "blocking": 38,
+  "checks": [
+    {
+      "name": "check json",
+      "outcome": "pass"
+    },
+    {
+      "name": "check yaml",
+      "outcome": "pass"
+    },
+    {
+      "name": "mypy",
+      "outcome": "pass"
+    },
+    {
+      "name": "bandit (diff-sensed skip \u2014 no src/ changes)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "bandit scripts/ (diff-sensed skip \u2014 no scripts/ changes)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "semgrep (diff-sensed skip \u2014 no src/ changes)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "pytest (NOT RUN)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "sqlfluff-lint",
+      "outcome": "pass"
+    },
+    {
+      "name": "vulture",
+      "outcome": "pass"
+    },
+    {
+      "name": "Convergence Evidence (plans + reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Coverage Checklist (reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Vendored Drift (sync-excluded repos)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Review hygiene",
+      "outcome": "pass"
+    },
+    {
+      "name": "Routing Policy (operator deny + allowlist)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Governance Tables (rules must render)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Certification Coverage (advisory; board mix-up BLOCKS)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-lock release",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rivals dossier",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Spec convergence",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule grounding (plans)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Citations resolve (path:line lands)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Feedback duty",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Trigger routing (advertised phrase -> its own command)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Secrets (Zero Hardcoding)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hardcoded localhost/127.0.0.1 Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "Imports Resolvable (clean checkout)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Lint Ratchet (repo-wide, no new debt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Corpus Weight (byte ratchet)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Frozen Chain (contract pins)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc Sync Matrix",
+      "outcome": "pass"
+    },
+    {
+      "name": "Subagent Flywheel (pool-or-declare \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mutation (opt-in FABRIK_MUTMUT)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc stub fill",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Script Coupling Header",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc-Script Links",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc-Script Coverage (ratchet)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Print/Console.log Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "No Host Ports on Traefik Services",
+      "outcome": "pass"
+    },
+    {
+      "name": "Full Traefik Label Set (\u00a77)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Spec <-> Project DB Name Match (Phase 1c)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Undeclared Imports (requirements.txt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Fabrik-Synced Files Unmodified",
+      "outcome": "pass"
+    },
+    {
+      "name": "Project Structure",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hooks Index Fresh",
+      "outcome": "pass"
+    },
+    {
+      "name": "MCP Scope (.mcp.json \u2286 ruling)",
+      "outcome": "pass"
+    },
+    {
+      "name": "User-Level Hooks Registered",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Sync Trigger Coverage",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc Link Integrity (live tree)",
+      "outcome": "pass"
+    },
+    {
+      "name": "INDEX.md \u2194 docs tree drift",
+      "outcome": "pass"
+    },
+    {
+      "name": "Retired-Tech Tripwire",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule-pack reachability",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Behavior Contract Proposal",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-Set Contract (Spine+Tickets)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Stage-Skip Artifact Gate (spec freshness + FROZEN header shape)",
+      "outcome": "pass"
+    },
+    {
+      "name": "README.md (Primary Entry Point)",
+      "outcome": "pass"
+    },
+    {
+      "name": ".env.example Completeness",
+      "outcome": "advisory"
+    },
+    {
+      "name": "User Guide Presence",
+      "outcome": "pass"
+    },
+    {
+      "name": "Phase Tests (plan-window)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Command Corpus (references resolve \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Ticket Breadth (plan sets)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Work items (sync)",
+      "outcome": "pass"
+    },
+    {
+      "name": "epic_order --check",
+      "outcome": "pass"
+    },
+    {
+      "name": "Kilo CLI Health Check",
+      "outcome": "pass"
+    }
+  ],
+  "failures": [],
+  "warnings": [
+    {
+      "check": "Coverage Checklist (reviews)",
+      "output": "\u26a0 check_review_coverage ADVISORY \u2014 committed review(s) needing attention:\n  \u26a0 docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) \u2014 committing a review does not converge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) \u2014 finders: pool fanout \u00d73 (deepseek-v3.2 raised 9 on the') \u2014 punctuate the counts or fence the quote\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026\n\u2026 [truncated: ~13 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-10-07-mcp-scope-fabrik-lib-correction-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\ncheck_review_coverage: OK \u2014 0 unproven coverage claims across 1 changed + 0 unintegrated review artifact(s)",
+      "truncated": true,
+      "omitted_lines": 13,
+      "rerun": "python scripts/enforcement/check_review_coverage.py"
+    },
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 56 identical \u00b7 11 declared-design \u00b7 22 UNREVIEWED diff \u00b7 13 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~13 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nlare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/core/62-using-subagents.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 13,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    },
+    {
+      "check": "Work items (sync)",
+      "output": "\u26a0 work-store drift (advisory until blocking):\nDRIFT 1 (advisory)  docs/superpowers/specs/2026-07-15-autonomous-factory-driver-design.md\nDRIFT 1 (advisory)  docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md\nDRIFT 1 (advisory)  docs/superpowers/specs/2026-09-17-review-scoped-scope-growth-exit-design.md\nDRIFT 1 (advisory)  docs/superpowers/specs/2026-09-19-enforcement-git-decoder-design.md\nDRIFT 4 (blocking)  docs/development/plans/2026-10-06-plan-1-postgresql-18-upgrade/2026-10-06-plan-1-postgresql-18-upgrade.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-08-22-plan-1-fabrik-mail-loop-safety.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-09-25-plan-1-work-store-single-tracker/2026-09-25-plan-1-work-store-single-tracker.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-09-29-plan-1-hub-worktree-cutover/2026-09-29-plan-1-hub-worktree-cutover.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-09-30-plan-1-merge-request-loop/2026-09-30-plan-1-merge-request-loop.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-10-01-plan-1-docusaurus-static-runtime.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-10-03-plan-1-scaffold-retired-agent-surface.md\nDRIFT 4 (blocking)  docs/development/plans/archived/2026-10-06-plan-2-rotation-capability-probe.md\nDRIFT 7 (advisory)  docs/STRATEGIC_BACKLOG.md\nDRIFT 8 (advisory)  docs/development/plans/2026-06-29-plan-watchdog-deploy-side.md\nDRIFT 8 (advisory)  docs/development/plans/2026-07-06-plan-1-universal-watchdog.md\nDRIFT 8 (advisory)  docs/development/plans/2026-07-12-plan-1-wavespeed-integration.md\nDRIFT 8 (advisory)  docs/development/plans/2026-08-11-plan-deploy-tryton-crm.md\nDRIFT 8 (advisory)  docs/development/plans/2026-10-02-plan-3-coordinator-assignment.md",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "untracked sources (advisory)",
+      "output": "\u26a0 1 untracked source file(s) NOT in gate scope (unstaged \u2192 unscanned): test_flock.py \u2014 if yours: `git add` them and RE-RUN the gate (they ship unlinted otherwise); if a sibling's: leave them.",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    }
+  ]
+}
 ```

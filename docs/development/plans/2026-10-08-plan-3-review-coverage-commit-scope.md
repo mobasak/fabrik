@@ -1,6 +1,7 @@
 # Plan — the review-coverage gate grades committed-but-unintegrated reviews (W-f847a317)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-10-09
+Whole-plan review: docs/development/reviews/2026-10-08-plan-3-review-coverage-commit-scope-review.md
 Profile: small
 **Owner:** —
 **Surface:** `git rev-parse HEAD` = d897964c0 at authoring; `scripts/enforcement/check_review_coverage.py` 3286 lines
@@ -266,7 +267,7 @@ Steps:
 **Behavior Contract (Phase B):**
 - **Given** an agent reading the gate workflow after a red from the new leg, **When** it looks up the Coverage Checklist row, **Then** the doc names both scopes and how the base is chosen (spec § Documentation landing sites)
 
-## Phase C — blast radius and Finish
+## Phase C — blast radius and Finish — ✅ EXECUTED 2026-10-09 (6054bf25c)
 
 Appetite: 90
 
