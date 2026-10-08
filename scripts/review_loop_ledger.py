@@ -29,8 +29,8 @@ file, not its scrollback. So:
     review_loop_ledger.py read RUN_DIR --pins DIR …
         After the pass, BEFORE any fix, re-hashes every manifest entry into the pass file's `pins`: a pin whose
         bytes changed is `PIN MOVED` — the pass is void for the slices that read it, the read exits 3, and it
-        names every seat whose transcript span covers the pin's mtime (attribution without an agent step per
-        seat); a working-tree pin whose live file no longer matches is `LIVE MOVED`, informational — the lead's
+        names every seat whose transcript span, widened by two minutes, covers the pin's mtime (attribution
+        without an agent step per seat); a working-tree pin whose live file no longer matches is `LIVE MOVED`, informational — the lead's
         own fix or a sibling's commit moves it, so its candidates are re-verified against the current tree. A
         DIR with no manifest reads `UNPINNED`, and a read without --pins says `pins: NOT CHECKED`.
 
@@ -318,6 +318,8 @@ def _vcs(root: Path, *argv: str) -> bytes:
 
 
 def _fresh(top: Path, replace: bool) -> None:
+    if top.exists() and not top.is_dir():
+        raise PinError(f"{top} exists and is not a directory — name a NEW pins dir")  # review A-S1
     if top.exists() and any(top.iterdir()):
         if not replace:
             raise PinError(
@@ -347,10 +349,17 @@ def pin(
     blobs: dict[str, bytes] = {}
     for f in rels:
         if ref is not None:
+            # a regular file at REF only: `show REF:<dir>` prints a TREE LISTING at rc 0 and a symlink's blob is its
+            # target text — either would be pinned as the file's bytes (review pass 1, L-1)
             try:
-                blobs[f] = _vcs(root, "show", f"{ref}:{f}")
+                entry = _vcs(root, "ls-tree", ref, "--", f).decode(errors="replace").split()
             except subprocess.CalledProcessError as exc:
                 raise PinError(f"cannot pin {f} from {ref}: {exc.stderr.decode(errors='replace').strip()}") from exc
+            if not entry:
+                raise PinError(f"cannot pin {f} from {ref}: no such path at {ref}")
+            if entry[0] not in ("100644", "100755"):
+                raise PinError(f"cannot pin {f} from {ref}: not a regular file there (mode {entry[0]})")
+            blobs[f] = _vcs(root, "cat-file", "blob", entry[2])
         else:
             blobs[f] = (root / f).read_bytes()
     _fresh(pins_dir, replace)
@@ -367,13 +376,19 @@ def pin(
             if head != blobs[f]:
                 dirty.append(f)
     manifest = {f: hashlib.md5(b).hexdigest() for f, b in blobs.items()}
-    for f, b in blobs.items():
-        (pins_dir / f).parent.mkdir(parents=True, exist_ok=True)
-        (pins_dir / f).write_bytes(b)
-    (pins_dir / "MANIFEST.md5").write_text("".join(f"{m}  {f}\n" for f, m in manifest.items()))
-    (pins_dir / "MANIFEST.json").write_text(
-        json.dumps({"root": str(root), "source": ref or "working-tree", "files": manifest}, indent=1)
-    )
+    try:
+        for f, b in blobs.items():
+            (pins_dir / f).parent.mkdir(parents=True, exist_ok=True)
+            (pins_dir / f).write_bytes(b)
+        (pins_dir / "MANIFEST.md5").write_text("".join(f"{m}  {f}\n" for f, m in manifest.items()))
+        (pins_dir / "MANIFEST.json").write_text(
+            json.dumps({"root": str(root), "source": ref or "working-tree", "files": manifest}, indent=1)
+        )
+    except OSError as exc:
+        # a half-written, still-writable pins dir is never left for a seat to read (review A-S3)
+        if pins_dir.exists():
+            _unlock_and_remove(pins_dir)
+        raise PinError(f"cannot write the pins into {pins_dir}: {exc}") from exc
     frag: dict = {"pins_dir": str(pins_dir), "pin_manifest": manifest, "digest": _md5(pins_dir / "MANIFEST.md5")}
     _lock_tree(pins_dir)
     if base:
@@ -405,6 +420,11 @@ def pin(
         frag["base_pin_dir"] = str(base_dir)
         frag["base_skipped"] = skipped
     return frag, dirty
+
+
+# a transcript's timestamps are when a seat LOGGED, not every moment it ran, and a one-line transcript is a
+# zero-width span (review A-S2): attribution widens each span by this many seconds on both sides
+_SLACK = 120.0
 
 
 def _span(transcript: Path) -> tuple[float, float] | None:
@@ -449,7 +469,9 @@ def check_pins(pins_dir: Path, run: Path) -> dict:
     at_move: dict[str, list[str]] = {}
     for f in pin_moved:
         when = (pins_dir / f).stat().st_mtime if (pins_dir / f).exists() else None
-        at_move[f] = sorted(s for s, (a, b) in spans.items() if when is not None and a <= when <= b)
+        at_move[f] = sorted(
+            s for s, (a, b) in spans.items() if when is not None and a - _SLACK <= when <= b + _SLACK
+        )
     return {
         "status": "checked",
         "source": doc.get("source"),
@@ -531,7 +553,7 @@ def main(argv: list[str] | None = None) -> int:
                     ensure_ascii=False,
                 )
             )
-    except FileNotFoundError as exc:
+    except OSError as exc:  # FileNotFoundError, and any filesystem error a verb did not turn into its own
         print(f"review_loop_ledger: {exc}", file=sys.stderr)
         return 2
     except (LedgerError, PinError) as exc:

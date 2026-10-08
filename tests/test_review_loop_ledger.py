@@ -464,6 +464,10 @@ def test_pin_refuses_a_file_it_cannot_pin(tmp_path: Path) -> None:
     for bad in ("missing.py", "../outside.py", "sub", "link.py"):
         got = _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py", bad)
         assert got.returncode == 2 and bad in got.stderr, (bad, got.returncode, got.stderr)
+    # from a commit too: `show REF:<dir>` prints a tree listing at rc 0, which was pinned as the file (review L-1)
+    for bad in ("sub", "missing.py"):
+        got = _tool_in(repo, "pin", "--pins-dir", str(pins), "--from", "HEAD", "a.py", bad)
+        assert got.returncode == 2 and bad in got.stderr, (bad, got.returncode, got.stderr)
     assert not pins.exists(), "a refused pin wrote something"
 
 
@@ -546,3 +550,47 @@ def test_pin_base_skips_an_absolute_link_and_names_it(tmp_path: Path) -> None:
     assert frag["base_skipped"] == ["vault"] and "SKIPPED vault" in got.stdout, (frag, got.stdout)
     assert (Path(frag["base_pin_dir"]) / "a.py").is_file()
     assert not (Path(frag["base_pin_dir"]) / "vault").exists()
+
+
+def test_pin_refuses_a_pins_dir_that_is_a_file_and_rolls_back_a_failed_write(tmp_path: Path) -> None:
+    """Review pass 1: A-S1 — `--pins-dir <an existing file>` raised NotADirectoryError past main(), a traceback at
+    rc 1; A-S3 — an OSError mid-write left a half-written, still-writable pins dir. Both are now exit 2 with
+    nothing left behind."""
+    repo = _repo(tmp_path)
+    afile = tmp_path / "taken"
+    afile.write_text("x")
+    got = _tool_in(repo, "pin", "--pins-dir", str(afile), "a.py")
+    assert got.returncode == 2 and "not a directory" in got.stderr and "Traceback" not in got.stderr, got.stderr
+    # a pins dir whose PARENT is read-only cannot be written: the verb must refuse cleanly, leaving nothing
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    locked.chmod(0o555)
+    try:
+        got = _tool_in(repo, "pin", "--pins-dir", str(locked / "pins"), "a.py")
+        assert got.returncode == 2 and "Traceback" not in got.stderr, (got.returncode, got.stderr)
+        assert not (locked / "pins").exists()
+    finally:
+        locked.chmod(0o755)
+
+
+def test_read_pins_attributes_a_seat_with_a_one_line_transcript(tmp_path: Path) -> None:
+    """Review A-S2: a one-timestamp transcript is a zero-width span, so a seat that logged once and wrote the pin
+    a few seconds later was never named. Spans are widened by `_SLACK` on both sides."""
+    import os
+    from datetime import UTC, datetime
+
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    run = tmp_path / "wf_one"
+    run.mkdir()
+    (run / "journal.jsonl").write_text(json.dumps({"type": "started", "agentId": "z1", "label": "find:A:haiku"}) + "\n")
+    (run / "agent-z1.jsonl").write_text(json.dumps({"timestamp": "2026-09-23T06:00:00.000Z"}) + "\n")
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
+    pins.chmod(0o755)
+    (pins / "a.py").chmod(0o644)
+    (pins / "a.py").write_text("A = 7\n")
+    stamp = datetime(2026, 9, 23, 6, 0, 30, tzinfo=UTC).timestamp()
+    os.utime(pins / "a.py", (stamp, stamp))
+    out = tmp_path / "pass.json"
+    got = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(pins))
+    assert got.returncode == 3, got.stdout
+    assert json.loads(out.read_text())["pins"]["live_at_move"]["a.py"] == ["find:A:haiku"]

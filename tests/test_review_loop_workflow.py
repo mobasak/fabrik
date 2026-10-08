@@ -1434,6 +1434,8 @@ def test_workflow_base_pin_clause_replaces_git_archive() -> None:
         assert "cp -r /bp/base SCRATCH/arch" in prompts[label], prompts[label][:400]
         assert "chmod -R u+w SCRATCH/arch" in prompts[label]
         assert "in place of the archive" in prompts[label]
+        # review B-S1: the clause names the recipe steps it replaces, so a seat never runs both
+        assert "skip their mkdir, ls-tree, git archive, tar and ROOTS steps" in prompts[label]
     _, _, plain = _harness(_ARGS, _QUIET)
     assert "/bp/base" not in plain["find:S:sonnet"] and "chmod -R u+w" not in plain["find:S:sonnet"]
 
