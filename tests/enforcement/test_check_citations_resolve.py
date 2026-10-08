@@ -144,7 +144,9 @@ def test_summary_counts_citations_outside_the_root(tmp_path, capsys):
         assert chk.main(args) == 0
         out = capsys.readouterr().out
         assert "⚠ check_citations_resolve NOTHING GRADED across 1 docs" in out, (args, out)
-        assert f"0 graded of 3 found (1 bare filename, 2 not under root {repo})" in out, out
+        assert (
+            f"0 graded of 3 found (1 bare filename, 0 ambiguous, 2 not under root {repo})" in out
+        ), out
         assert "all land" not in out, out
 
 
@@ -156,19 +158,24 @@ def test_summary_has_no_skip_clause_when_all_cited_paths_exist(tmp_path, capsys)
     assert chk.main(["--root", str(repo)]) == 0
     out = capsys.readouterr().out
     assert "1 `path:line` citation(s) across 1 docs all land" in out, out
-    assert f"1 graded of 1 found (0 bare filename, 0 not under root {repo})" in out, out
+    assert f"1 graded of 1 found (0 bare filename, 0 ambiguous, 0 not under root {repo})" in out, (
+        out
+    )
     assert "⚠" not in out, out
 
 
-def test_bare_filenames_alone_never_print_nothing_graded(tmp_path, capsys):
+def test_bare_filenames_that_grade_nothing_print_nothing_graded_even_quietly(tmp_path, capsys):
+    """W-191404c0: bare names are claims once they can resolve, so a doc whose citations are all
+    bare and grade to nothing says so — under --quiet too, the mode the gate runs."""
     repo = _repo(tmp_path)
     doc = repo / "docs" / "reference" / "d.md"
     doc.parent.mkdir(parents=True)
     doc.write_text("see agents-fabrik.md:158 and compose.yaml:60\n", encoding="utf-8")
-    assert chk.main(["--root", str(repo), "--quiet"]) == 0
-    assert capsys.readouterr().out == ""  # bare names are non-claims: a quiet run stays silent
-    assert chk.main(["--root", str(repo)]) == 0
-    assert "0 graded of 2 found (2 bare filename, 0 not under root" in capsys.readouterr().out
+    for args in (["--root", str(repo), "--quiet"], ["--root", str(repo)]):
+        assert chk.main(args) == 0
+        out = capsys.readouterr().out
+        assert "NOTHING GRADED" in out and "all land" not in out, (args, out)
+        assert "0 graded of 2 found (2 bare filename, 0 ambiguous, 0 not under root" in out, out
 
 
 def test_an_empty_root_is_nothing_in_scope_not_all_land(tmp_path, capsys):
@@ -176,3 +183,82 @@ def test_an_empty_root_is_nothing_in_scope_not_all_land(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "citations: nothing in scope — 0 docs under" in out, out
     assert "all land" not in out, out
+
+
+# ---------------------------------------------------------------- bare basenames, --doc (W-191404c0)
+
+import subprocess  # noqa: E402
+
+
+def _git_repo(tmp_path: Path, files: dict[str, str]) -> Path:
+    repo = tmp_path / "g"
+    for rel, body in files.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(body, encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    chk._INDEX.clear()
+    return repo
+
+
+_FIVE = "a\nb\nc\nd\ne\n"
+
+
+def test_a_unique_bare_basename_is_graded(tmp_path):
+    repo = _git_repo(tmp_path, {"scripts/tool.py": _FIVE})
+    seen, findings = chk.check_text("ok tool.py:2 · beyond tool.py:9\n", repo)
+    assert seen == 2, (seen, findings)
+    assert findings == ["BEYOND-EOF tool.py:9 (→ scripts/tool.py) (file has 5 lines)"], findings
+
+
+def test_excluded_and_ambiguous_bare_names_are_counted_not_graded(tmp_path):
+    repo = _git_repo(
+        tmp_path,
+        {
+            "a/dup.py": _FIVE,
+            "b/dup.py": _FIVE,
+            "commands/_sources/fabrik-x.md": _FIVE,
+            "commands/_agents/seat.md": _FIVE,
+            "templates/app/app.config.ts": _FIVE,
+            "ROOT.md": _FIVE,
+            "src/conf.py": _FIVE,
+        },
+    )
+    text = (
+        "dup.py:9 fabrik-x.md:9 seat.md:9 app.config.ts:9 ROOT.md:9\n"
+        "conf.py:9 — the one in /opt/seo/src/seo/core/conf.py, not ours\n"
+    )
+    seen, bare, ambiguous, outside, findings = chk.check_text_full(text, repo)
+    assert (seen, bare, ambiguous, outside, findings) == (0, 0, 6, 0, []), (
+        seen,
+        bare,
+        ambiguous,
+        outside,
+        findings,
+    )
+
+
+def test_a_non_git_root_keeps_bare_names_bare(tmp_path):
+    repo = _repo(tmp_path)  # not a repository: no index, today's behaviour
+    chk._INDEX.clear()
+    seen, bare, ambiguous, outside, findings = chk.check_text_full("x.py:9\n", repo)
+    assert (seen, bare, ambiguous, findings) == (0, 1, 0, []), (seen, bare, ambiguous, findings)
+
+
+def test_doc_grades_a_named_file_outside_the_globs(tmp_path, capsys):
+    repo = _git_repo(tmp_path, {"scripts/tool.py": _FIVE})
+    scratch = tmp_path / "scratch" / "design.md"
+    scratch.parent.mkdir()
+    scratch.write_text("see scripts/tool.py:9\n", encoding="utf-8")
+    assert chk.main(["--root", str(repo), "--doc", str(scratch)]) == 0
+    out = capsys.readouterr().out
+    assert "BEYOND-EOF scripts/tool.py:9" in out and str(scratch) in out, out
+
+
+def test_zero_graded_never_ticks_green(tmp_path, capsys):
+    repo = _git_repo(tmp_path, {"docs/reference/d.md": "no citations here\n"})
+    assert chk.main(["--root", str(repo)]) == 0
+    out = capsys.readouterr().out
+    assert "0 citations found across 1 docs" in out and "all land" not in out, out
+    assert chk.main(["--root", str(repo), "--quiet"]) == 0
+    assert capsys.readouterr().out == ""
