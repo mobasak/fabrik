@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the print ban matches a call of the builtin, not a name ending in print (2026-10-08)
+- `scripts/enforcement/check_print_ban.py` matched the substring `print(`, so `def _fingerprint(`, `blueprint(` and `self.print(` were reported as print() (web-ecommerce-factory, mail 01M3ZHT9HB). It now matches `print(` with no word or dot before it (plus `builtins.print(` and `__builtins__.print(`), skips `def print(` definitions, and catches `console?.log(`. A method named `print`, such as rich's `console.print(`, is no longer flagged. Across the hub's 1107 tracked files no line is newly flagged.
+
 ### Fixed — check_convergence grades a receipt whose header Status claims a finished review (2026-10-08)
 - A review receipt with `Status: CLOSED`, `DONE`, `CLEAN` or any other finished word, and no claim word in its body, passed with no embedded gate. The header Status is now a claim unless it names an unfinished state or an evidenced BLOCKED escalation; the failure names the header as its trigger (D-662).
 
