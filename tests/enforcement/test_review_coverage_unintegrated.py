@@ -150,7 +150,24 @@ def test_g3_a_catch_up_merge_from_a_remote_ahead_adds_no_review(tmp_path: Path) 
     _git(wt, "merge", "-q", "--no-edit", "origin/master")
     r = _run(wt)
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "2026-10-08-other-review.md" not in r.stdout.split("ADVISORY")[0], r.stdout
+    assert "2026-10-08-other-review.md" not in r.stdout, r.stdout
+    assert "0 changed + 0 unintegrated" in r.stdout, r.stdout
+
+
+def test_g3_the_configured_upstream_alone_excludes_a_remote_ahead_merge(tmp_path: Path) -> None:
+    """No fallback ref exists in the I6 shape, so only B's configured upstream can exclude the merged
+    commits — a lookup that silently drops it reds the worktree for another session's review."""
+    origin, main = _origin(tmp_path, branch="mobasak/x")
+    wt = _worktree(main, tmp_path)
+    other = _clone(tmp_path, origin, "other")
+    _write(other, "2026-10-08-other-review.md", _FAILING)
+    _commit(other)
+    _git(other, "push", "-q", "origin", "mobasak/x")
+    _git(wt, "fetch", "-q", "origin")
+    _git(wt, "merge", "-q", "--no-edit", "origin/mobasak/x")
+    r = _run(wt)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "2026-10-08-other-review.md" not in r.stdout, r.stdout
 
 
 # --- G4: a sibling's unpushed commit on the main checkout's branch is not the worktree's ---------------------
@@ -177,6 +194,28 @@ def test_g5_no_remote_keeps_todays_porcelain_scope(tmp_path: Path) -> None:
     _commit(root)
     r = _run(root)
     assert r.returncode == 0, r.stdout + r.stderr
+    # no base is today's behaviour exactly: no scan, and no NOTE (spec § The delta 2)
+    assert "NOTE" not in r.stdout and "0 changed + 0 unintegrated" in r.stdout, r.stdout
+
+
+def test_g5_a_repo_with_no_commits_never_tracebacks(tmp_path: Path) -> None:
+    origin, _ = _origin(tmp_path)
+    root = tmp_path / "unborn"
+    root.mkdir()
+    _git(root, "init", "-q", "-b", "master")
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "fetch", "-q", "origin")
+    r = _run(root)
+    assert r.returncode == 0 and "Traceback" not in r.stderr, r.stdout + r.stderr
+
+
+def test_g5_a_base_that_looks_like_an_option_is_refused(tmp_path: Path) -> None:
+    _, main = _origin(tmp_path)
+    _write(main, "2026-10-08-g5c-review.md", _FAILING)
+    _commit(main)
+    for bad in ("--all", "-x", ""):
+        r = _run(main, f"--base={bad}")
+        assert r.returncode == 2, (bad, r.stdout + r.stderr)
 
 
 def test_g5_an_unresolvable_base_is_a_note_never_a_traceback(tmp_path: Path) -> None:
@@ -307,6 +346,29 @@ def test_g9_a_failure_names_the_commit_and_its_agent(tmp_path: Path) -> None:
     assert "never push to clear it" in r.stdout, r.stdout
 
 
+def test_g9_attribution_names_the_author_who_added_it_not_a_later_editor(tmp_path: Path) -> None:
+    _, main = _origin(tmp_path)
+    p = _write(main, "2026-10-08-g9d-review.md", _FAILING)
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "add\n\nAgent-Name: alice")
+    p.write_text(_FAILING + "\nedited\n", encoding="utf-8")
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "edit\n\nAgent-Name: bob\nAgent-Name: carol")
+    r = _run(main)
+    assert re.search(r"g9d-review\.md entered history in [0-9a-f]{7,} \(alice\)", r.stdout), (
+        r.stdout
+    )
+    # an edit-only review names its newest editor, all trailers on ONE line
+    _git(main, "push", "-q")
+    p.write_text(_FAILING + "\nedited again\n", encoding="utf-8")
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "edit2\n\nAgent-Name: bob\nAgent-Name: carol")
+    r = _run(main)
+    assert re.search(r"g9d-review\.md was changed in [0-9a-f]{7,} \(bob, carol\)", r.stdout), (
+        r.stdout
+    )
+
+
 def test_g9_the_ok_line_counts_both_sources(tmp_path: Path) -> None:
     _, main = _origin(tmp_path)
     _write(main, "2026-10-08-g9c-review.md", _IN_PROGRESS)
@@ -419,6 +481,28 @@ def test_g15_pushing_head_to_master_in_a_non_master_repo_clears_nothing(tmp_path
     _git(main, "push", "-q", "origin", "HEAD:master")
     r = _run(main)
     assert r.returncode == 1 and "2026-10-08-g15b-review.md" in r.stdout, r.stdout + r.stderr
+
+
+def test_g15_a_local_tag_named_like_the_integration_ref_clears_nothing(tmp_path: Path) -> None:
+    _, main = _origin(tmp_path)
+    wt = _worktree(main, tmp_path)
+    _write(wt, "2026-10-08-g15d-review.md", _FAILING)
+    _commit(wt)
+    _git(wt, "tag", "origin/master", "HEAD")
+    _git(wt, "tag", "master", "HEAD")
+    r = _run(wt)
+    assert r.returncode == 1 and "2026-10-08-g15d-review.md" in r.stdout, r.stdout + r.stderr
+
+
+def test_g15_a_tag_shadowing_the_fallback_ref_clears_nothing(tmp_path: Path) -> None:
+    _, main = _origin(tmp_path)
+    _git(main, "checkout", "-q", "-b", "side")  # no upstream: the fallback origin/master is reached
+    wt = _worktree(main, tmp_path, start="master")
+    _write(wt, "2026-10-08-g15e-review.md", _FAILING)
+    _commit(wt)
+    _git(wt, "tag", "origin/master", "HEAD")
+    r = _run(wt)
+    assert r.returncode == 1 and "2026-10-08-g15e-review.md" in r.stdout, r.stdout + r.stderr
 
 
 def test_g15_pushing_head_to_the_upstream_less_main_branch_clears_nothing(tmp_path: Path) -> None:

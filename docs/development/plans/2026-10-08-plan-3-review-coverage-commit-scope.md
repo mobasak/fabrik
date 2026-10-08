@@ -240,7 +240,7 @@ Steps:
 - **Given** a linked worktree that pushed its branch to its own remote unmerged, **When** the scan runs there, **Then** the failing review still blocks (spec § The delta 1, the push-first cobra)
 - **Given** a catch-up merge of a remote integration branch that is ahead of the local one, **When** the worktree scans, **Then** none of the merged commits' reviews enter its range (spec § The delta 2)
 - **Given** a sibling's unpushed commit on the main checkout's branch that a linked worktree's branch contains, **When** the worktree scans, **Then** that commit's review is not in its range (spec § Validation)
-- **Given** no resolvable base, a failing `git log` or a shallow clone, **When** the scan runs, **Then** it exits on today's porcelain scope with one NOTE and no traceback (spec § The delta 2)
+- **Given** no resolvable base, **When** the scan runs, **Then** it is today's porcelain scope exactly, with no NOTE; **Given** a failing `git log` or a shallow clone, **Then** it keeps that scope with one NOTE and no traceback (spec § The delta 2 — row corrected in execution, Phase A review A-O3)
 - **Given** an unintegrated `Status: IN-PROGRESS` receipt, **When** the scan runs, **Then** it exits 0 and the receipt is reported once (spec § The delta 3)
 - **Given** a review whose name holds a non-ASCII byte, **When** either scan runs, **Then** it is graded, and a non-UTF-8 name never raises (spec § The delta 2, 5)
 - **Given** an unintegrated mega report over epics that moved, **When** the scan runs, **Then** it is graded `live=False` (spec § The delta 4)

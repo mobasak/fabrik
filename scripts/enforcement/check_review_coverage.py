@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/enforcement/check_convergence.py | tests/enforcement/test_mega_validation_reports.py | tests/enforcement/test_review_exit_contract.py | tests/test_check_review_coverage_rederivation.py | tests/test_check_review_coverage_blocked.py | tests/test_check_review_coverage_precommit.py | tests/enforcement/test_review_confirmed_grammar.py | tests/enforcement/test_review_refusals.py | tests/test_task_lane_review_stop.py (the in-lane window and its lockstep with scripts/task_lane.py)
+# AFTER-EDIT: scripts/enforcement/check_convergence.py | tests/enforcement/test_mega_validation_reports.py | tests/enforcement/test_review_exit_contract.py | tests/test_check_review_coverage_rederivation.py | tests/test_check_review_coverage_blocked.py | tests/test_check_review_coverage_precommit.py | tests/enforcement/test_review_confirmed_grammar.py | tests/enforcement/test_review_refusals.py | tests/test_task_lane_review_stop.py (the in-lane window and its lockstep with scripts/task_lane.py) | tests/enforcement/test_review_coverage_unintegrated.py | docs/workflows/FINAL_GATE_WORKFLOW.md
 """Coverage-checklist gate — run by final_gate via run_optional_check (non-zero = fail).
 
 Companion to check_convergence.py for the coverage-adjudicated review commands
@@ -14,7 +14,8 @@ configured upstream, else the first of origin/master, origin/main; in the main c
 configured upstream, else the same fallback. `--base <ref>` overrides the set. A shallow clone, an
 unresolvable ref or a git failure keeps today's working-tree scope plus one NOTE. Cheapest ways
 past it, named not closed (cobra, D-253): push before gating in a main checkout (the push IS the
-integration there), `Status: IN-PROGRESS`, or rewriting branch configuration.
+integration there), `Status: IN-PROGRESS`, or a deliberate local act on refs or configuration
+(`--set-upstream-to`, a main checkout's `git push -u`, `git update-ref`).
 
 A changed reviews/*.md containing a "Coverage Checklist" table:
   -> every checklist row must carry a verdict: CLEAN / FIXED / REFUTED.
@@ -152,7 +153,11 @@ def _is_review_md(root: Path, rel: str) -> bool:
 
 
 def integration_refs(root: Path) -> list[str]:
-    """The ref NAMES the unintegrated range excludes; [] when none resolves.
+    """The FULL ref names (`refs/heads/…`, `refs/remotes/…`) the unintegrated range excludes; [] when none.
+
+    Full names, because a short one is shadowed by any local tag or branch of the same name (git
+    resolves refs/tags and refs/heads before refs/remotes), which one `git tag` would turn into an
+    empty range (Phase A review, A-O1).
 
     A member is admitted by CONFIGURATION or as the one fallback, never because a remote name exists:
     every member shrinks the range and `git push origin HEAD:<name>` creates any remote name (plan
@@ -160,29 +165,42 @@ def integration_refs(root: Path) -> list[str]:
     configured upstream (which also excludes commits merged from a remote ahead of B), and only when B
     has no configured upstream the first of origin/master, origin/main — never this branch's OWN
     upstream (pushing a worktree branch must not take its reviews out of scope before they merge).
-    Main checkout: its configured upstream, else the same fallback. Residual (named, not guarded):
-    rewriting branch configuration, and where the fallback is reached, a push that creates it.
+    Main checkout: its configured upstream, else the same fallback. Residual (named, not guarded —
+    each a deliberate local act on refs or configuration, never a by-product of normal work):
+    rewriting branch configuration (`--set-upstream-to`, or a main checkout's `git push -u`, which
+    writes it), moving a ref by hand (`git update-ref`), and where the fallback is reached, a push
+    that creates it.
     """
 
     def fallback() -> list[str]:
-        return next(([r] for r in ("origin/master", "origin/main") if _ref_ok(root, r)), [])
+        return next(
+            (
+                [r]
+                for r in ("refs/remotes/origin/master", "refs/remotes/origin/main")
+                if _ref_ok(root, r)
+            ),
+            [],
+        )
 
     git_dir = _git_line(root, "rev-parse", "--path-format=absolute", "--git-dir")
     common = _git_line(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
     refs: list[str] = []
     if git_dir and common and git_dir != common:
-        b = _git_line(root, "--git-dir", common, "symbolic-ref", "--quiet", "--short", "HEAD")
-        head = _git_line(root, "symbolic-ref", "--quiet", "--short", "HEAD")
+        # FULL names from symbolic-ref (no --short): `--short` disambiguates to `heads/<b>` once a
+        # same-named tag exists, and that spelling would silently drop B from the set
+        b = _git_line(root, "--git-dir", common, "symbolic-ref", "--quiet", "HEAD")
+        head = _git_line(root, "symbolic-ref", "--quiet", "HEAD")
         if b and b != head:
             refs.append(b)
-            up = _git_line(
-                root, "rev-parse", "--abbrev-ref", "--symbolic-full-name", f"{b}@{{upstream}}"
-            )
+            # `<branch>@{upstream}` takes the SHORT branch name: `refs/heads/x@{upstream}` resolves to
+            # nothing, which would drop the configured upstream and leave only the fallback
+            short = b.removeprefix("refs/heads/")
+            up = _git_line(root, "rev-parse", "--symbolic-full-name", f"{short}@{{upstream}}")
             refs.extend([up] if up else fallback())
         else:
             refs.extend(fallback())
     else:
-        up = _git_line(root, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+        up = _git_line(root, "rev-parse", "--symbolic-full-name", "@{upstream}")
         refs.extend([up] if up else fallback())
     out: list[str] = []
     for r in refs:
@@ -247,21 +265,43 @@ def _unintegrated_md(
             paths.append(root / rel)
     who: dict[Path, str] = {}
     for p in paths:
-        rc, line = _git_bytes(
-            root,
-            "log",
-            "-1",
-            "--format=%h%x00%(trailers:key=Agent-Name,valueonly)%x00%an",
-            "HEAD",
-            "--not",
-            *bases,
-            "--",
-            os.fsencode(str(p.relative_to(root))),
-        )
-        f = [x.decode("utf-8", "replace").strip() for x in line.split(b"\0")] if rc == 0 else []
-        if len(f) == 3 and f[0]:
-            who[p] = f"{f[0]} ({f[1] or f[2]})"
+        # the commit that ADDED the review inside the range names its author; a review that existed
+        # before the range and was only edited inside it names its newest editor, worded so (A-O7)
+        for verb, extra in (
+            ("entered history in", ("--diff-filter=A",)),
+            ("was changed in", ("-1",)),
+        ):
+            who_line = _attribution(root, p, bases, extra)
+            if who_line:
+                who[p] = f"{verb} {who_line}"
+                break
     return paths, who, []
+
+
+def _attribution(root: Path, p: Path, bases: list[str], extra: tuple[str, ...]) -> str:
+    """``<sha> (<Agent-Name trailers, else author>)`` of the OLDEST commit ``git log <extra>`` lists for
+    ``p`` inside the range, or "" — several Agent-Name trailers are joined on one line (A-O6)."""
+    rc, out = _git_bytes(
+        root,
+        "log",
+        "--cc",  # so a review hand-added inside a merge commit is attributed to that merge
+        "--name-only",  # --cc alone prints the patch; names keep each record short and parseable
+        *extra,
+        # each record OPENS with \x1e, so whatever git prints after the header stays in that record
+        "--format=%x1e%h%x00%(trailers:key=Agent-Name,valueonly,separator=%x2C%x20)%x00%an%x00",
+        "HEAD",
+        "--not",
+        *bases,
+        "--",
+        os.fsencode(str(p.relative_to(root))),
+    )
+    recs = out.split(b"\x1e")[1:] if rc == 0 else []
+    if not recs:
+        return ""
+    f = [x.decode("utf-8", "replace").strip() for x in recs[-1].split(b"\0")[:3]]
+    if len(f) != 3 or not f[0]:
+        return ""
+    return f"{f[0]} ({f[1] or f[2]})"
 
 
 def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str], list[Path]]:
@@ -3352,6 +3392,10 @@ def main() -> int:
         "(final_gate.py never passes it; the checker resolves the refs itself)",
     )
     args = ap.parse_args()
+    if args.base is not None and (not args.base or args.base.startswith("-")):
+        # passed verbatim to `git log --not`: a leading dash would be read as an OPTION
+        # (`--base=--all` excluded every ref and passed green — Phase A review, A-O5)
+        ap.error("--base must name a ref, not an option or an empty string")
     root = Path(args.root).resolve()
     failures: list[str] = []
     if args.paths:
@@ -3431,7 +3475,7 @@ def main() -> int:
             if p in who and p not in changed:
                 print(
                     _shown(
-                        f"  NOTE: {p.relative_to(root)} entered history in {who[p]} — mail its "
+                        f"  NOTE: {p.relative_to(root)} {who[p]} — mail its "
                         "author or revert it; never push to clear it"
                     )
                 )
