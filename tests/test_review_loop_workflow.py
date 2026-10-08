@@ -1347,7 +1347,7 @@ REFUSAL_SHAPE = (
 REFUSAL_CLASSIFIER = (
     "a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it "
     "moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command "
-    "into the same destination under your scratch dir (the pinned or base copy, by `cp` then `chmod u+w`, when the brief names one), "
+    "into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), "
     "else mark that check unverified — never a different destination — and say in MACHINERY which command was "
     "refused how many times of how many tries"
 )
@@ -1356,8 +1356,10 @@ REFUSAL_CLASSIFIER = (
 def test_the_refusal_rule_names_a_copy_the_seat_can_write():
     """kaizen 01M4DXXNYP: `review_loop_ledger.py pin` writes pins read-only and `cp` keeps the mode, so
     the copy the rule sent a seat to make was `r--r--r--` and its next step (mutate the copy) was
-    refused with EACCES (executed). The rule names the `chmod u+w` that makes the copy writable."""
-    assert "by `cp` then `chmod u+w`" in REFUSAL_CLASSIFIER
+    refused with EACCES (executed). The rule names the `chmod` that makes the copy writable — RECURSIVE,
+    because the base copy is a directory whose nested files keep their bits (review A-S1, executed:
+    a plain `chmod u+w` left a nested file read-only, BASE_PIN's own `chmod -R u+w` does not)."""
+    assert "by `cp -r` then `chmod -R u+w`" in REFUSAL_CLASSIFIER
 
 
 def _shell_seat_prompts() -> tuple[str, str]:
@@ -1702,7 +1704,8 @@ def test_workflow_base_pin_clause_replaces_git_archive() -> None:
         # review B-S1: the clause names the recipe steps it replaces, so a seat never runs both
         assert "skip their mkdir, ls-tree, git archive, tar and ROOTS steps" in prompts[label]
     _, _, plain = _harness(_ARGS, _QUIET)
-    assert "/bp/base" not in plain["find:S:sonnet"] and "chmod -R u+w" not in plain["find:S:sonnet"]
+    # BASE_PIN's own step, not the bare `chmod -R u+w` the refusal rule now names in every prompt (01M4DXXNYP)
+    assert "/bp/base" not in plain["find:S:sonnet"] and "chmod -R u+w SCRATCH/arch" not in plain["find:S:sonnet"]
 
 
 def test_every_launcher_passes_a_pin_manifest() -> None:

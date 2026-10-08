@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — the refusal rule names a copy a seat can write: `cp` then `chmod u+w` (2026-10-08)
+### Fixed — the refusal rule names a copy a seat can write: `cp -r` then `chmod -R u+w` (2026-10-08)
 
-- The shared refusal rule (`REFUSAL_CLASSIFIER`, verbatim in `SEAT_ISOLATION`, the fabrik-reviewer House rules and `commands/_fragments/subagents-core.md`) sent a refused seat to copy a pin with `cp`, which keeps the pin's read-only mode, so the seat's next step was refused with EACCES. It now says `cp` then `chmod u+w` (kaizen 01M4DXXNYP, D-695).
+- The shared refusal rule (`REFUSAL_CLASSIFIER`, verbatim in `SEAT_ISOLATION`, the fabrik-reviewer House rules and `commands/_fragments/subagents-core.md`) sent a refused seat to copy a pin with `cp`, which keeps the pin's read-only mode, so the seat's next step was refused with EACCES. It now says `cp -r` then `chmod -R u+w` — recursive, because the base copy is a directory whose nested files keep their bits (kaizen 01M4DXXNYP, D-695).
 
 ### Fixed — agent_memory.sh reclaim refuses when it cannot count live sessions (2026-10-08)
 
