@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-review shows where a by-design verdict's reason goes (2026-10-08)
 - `commands/_sources/fabrik-review.md`'s `RECORDED — by design` bullet now shows the form the coverage gate accepts, `RECORDED — by design (D-432) — <why>`, and the refused one, `(D-432: <why>)`, which V5 reads as an absent owner; a receipt-row owner keeps its `, round N` inside, and the two generic `RECORDED — <kind> (…)` mentions no longer show a reason inside the parentheses. `commands/_fragments/term-edit.md`'s verdict list says the same in one clause. Three `/fabrik-review` closes asked for it. Grader: `tests/enforcement/test_review_refusals.py::test_the_commands_by_design_example_passes_and_its_counter_example_is_refused` drives both forms from the source through the gate and pins the receipt-row and term-edit wording.
 
+### Changed — review seats get one refusal rule: fix a named shape, retry an unnamed refusal once, never re-path (2026-10-08)
+
+- `SEAT_ISOLATION` in `.claude/workflows/fabrik-review-loop.js` and the House rules in `commands/_agents/fabrik-reviewer.md` now carry the same two-branch refusal rule (D-695), replacing "never by re-sending it": the permission classifier refuses compliant commands non-deterministically, and a seat re-pathed outside its scratch to get past one. Receipt: `docs/development/reviews/2026-10-08-seat-refusal-rule-review.md`.
+
 ### Changed — term-edit's pin-time citation check grades the pin itself with `--doc` (2026-10-08)
 - `commands/_fragments/term-edit.md` said `check_citations_resolve.py` examines nothing for an artifact outside its source globs and called a `--pin` root a backlog item. Intel's `--doc` flag is on master, so the fragment now names `check_citations_resolve.py --doc <pin> --root <repo>`, whose `--doc examined` line is the examined-set proof (intel W-191404c0). Grader: `tests/test_assemble_dispatch_step.py::test_term_edit_grades_a_pin_outside_the_citation_globs_with_doc`.
 
