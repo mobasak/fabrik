@@ -47,15 +47,22 @@ for i in "${!args[@]}"; do
       # ⚠️ EBUSY on an ALREADY-ACTIVE device, as the real swapon does. Without this the stub made
       # re-enabling a live device look free, so deleting the intactness guard was undetectable —
       # one of seven fixes a review seat mutated away with the whole suite staying green.
-      grep -qxF -- "$nxt" <(awk 'NR>1 && $1!="" {gsub(/\\\\040/," ",$1); print $1}' \
-        "$AGENT_MEMORY_SWAPS" 2>/dev/null) && {
+      # review A-O3: all four kernel escapes, compared exactly through ENVIRON (`-v` would
+      # interpret backslashes, and `grep -x` reads a newline in the name as two patterns)
+      N="$nxt" awk 'NR>1 && $1!="" {gsub(/\\\\011/,"\\t",$1); gsub(/\\\\012/,"\\n",$1);
+          gsub(/\\\\040/," ",$1); gsub(/\\\\134/,"\\\\",$1); if ($1 == ENVIRON["N"]) f=1}
+          END {exit !f}' "$AGENT_MEMORY_SWAPS" 2>/dev/null && {
           echo "swapon: $nxt: Device or resource busy" >&2; exit 255; }
+      # review A-O1: what swapon RECEIVED, NUL-delimited, so a grader can tell an un-escaped name
+      # from the literal kernel token the stub would otherwise write straight back
+      printf '%s\\0' "$nxt" >> "$AGENT_MEMORY_SWAPS.received"
       # a DEVICE argument actually restores it — APPEND, because a multi-device box restores one
       # at a time and an overwriting stub would silently wipe the device restored a moment ago
       [ -s "$AGENT_MEMORY_SWAPS" ] || printf 'Filename\tType\tSize\tUsed\tPriority\n' > "$AGENT_MEMORY_SWAPS"
-      # the kernel writes a newline in a device name as \\012 — escape it, or one restored device
-      # lands as two lines and no NUL-vs-newline split could ever be graded (W-6154115b)
-      printf '%s partition 67108864 0 -2\n' "${nxt//$'\n'/\\\\012}" >> "$AGENT_MEMORY_SWAPS"; exit 0 ;;
+      # the kernel writes these four as \\134 \\040 \\011 \\012 (backslash first) — escape them, or
+      # one restored device lands as two lines or two fields (W-6154115b, review A-O4)
+      esc=${nxt//\\\\/\\\\134}; esc=${esc// /\\\\040}; esc=${esc//$'\\t'/\\\\011}; esc=${esc//$'\\n'/\\\\012}
+      printf '%s partition 67108864 0 -2\n' "$esc" >> "$AGENT_MEMORY_SWAPS"; exit 0 ;;
   esac
 done
 exit 0
@@ -585,9 +592,10 @@ def test_a_device_name_with_a_tab_is_matched_against_its_own_line(stub_bin):
     )
     ok = _run(stub_bin, "reclaim")
     assert ok.returncode == 0, f"{ok.stdout}{ok.stderr}"
-    assert "/tab\tfile" in stub_bin.swaps_file.read_text(), (
-        "swapon must receive the UN-ESCAPED name, not the literal \\011 token:\n"
-        + stub_bin.swaps_file.read_text()
+    # review A-O4: the stub now writes the kernel escape back, so what swapon RECEIVED is read
+    # from its own record, never from the fake /proc/swaps
+    assert _received(stub_bin) == ["/tab\tfile"], (
+        "swapon must receive the UN-ESCAPED name, not the literal \\011 token"
     )
 
 
@@ -670,5 +678,68 @@ def test_a_device_name_with_a_newline_is_restored_as_one_device(stub_bin):
     )
     ok = _run(stub_bin, "reclaim")
     assert ok.returncode == 0, f"{ok.stdout}{ok.stderr}"
+    # review A-O1: swapon must RECEIVE the real newline — the stub writes the escape back, so the
+    # fake /proc/swaps alone cannot tell an un-escaped name from the literal kernel token
+    assert _received(stub_bin) == ["/swap\nfile"], _received(stub_bin)
     rows = stub_bin.swaps_file.read_text().splitlines()[1:]
     assert rows == ["/swap\\012file partition 67108864 0 -2"], rows
+
+
+def _received(stub_bin) -> list[str]:
+    """The device names the sudo stub's swapon was handed, in order (NUL-delimited record)."""
+    log = Path(str(stub_bin.swaps_file) + ".received")
+    return [n for n in log.read_text().split("\0") if n] if log.exists() else []
+
+
+@pytest.mark.parametrize("broken", ["pgrep", "grep"])
+def test_force_never_overrides_a_session_count_it_cannot_read(stub_bin, broken):
+    """Review A-O2: --force overrides the live-session refusal ONLY (cleanup-automation.md). A
+    failed pgrep, or a count grep cannot produce, is absolute — the guard cannot be applied blind."""
+    before = stub_bin.swaps_file.read_text()
+    tool = "pgrep" if broken == "pgrep" else "grep"
+    # _run rewrites the pgrep stub on every call, so this test plants the broken tool itself and
+    # calls the script directly
+    (stub_bin / tool).write_text("#!/usr/bin/env bash\nexit 2\n")
+    (stub_bin / tool).chmod(0o755)
+    if broken == "grep":
+        (stub_bin / "pgrep").write_text(PGREP_BUSY)
+        (stub_bin / "pgrep").chmod(0o755)
+    env = _clean_env(
+        PATH=f"{stub_bin}:{os.environ['PATH']}",
+        AGENT_MEMORY_SWAPS=str(stub_bin.swaps_file),
+        AGENT_MEMORY_MEMINFO=str(stub_bin.meminfo),
+        AGENT_MEMORY_SYSCTL=str(stub_bin.sysctl),
+        AGENT_MEMORY_CONF=str(stub_bin.conf),
+    )
+    r = subprocess.run(
+        ["bash", str(SCRIPT), "reclaim", "--force"],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=120,
+    )
+    assert r.returncode == 10, (
+        f"--force must not override a blind count ({broken}): {r.returncode}\n{r.stdout}"
+    )
+    assert stub_bin.swaps_file.read_text() == before, (
+        "swap was touched under --force with the count unknown"
+    )
+
+
+def test_status_prints_a_question_mark_for_a_session_count_it_cannot_read(stub_bin):
+    """Review A-S1: status counted with `pgrep | wc -l`, so a broken pgrep printed a confident
+    `0` live sessions — the fail-open reclaim already closed, and what the daily cron log shows."""
+    (stub_bin / "pgrep").write_text("#!/usr/bin/env bash\nexit 2\n")
+    (stub_bin / "pgrep").chmod(0o755)
+    env = _clean_env(
+        PATH=f"{stub_bin}:{os.environ['PATH']}",
+        AGENT_MEMORY_SWAPS=str(stub_bin.swaps_file),
+        AGENT_MEMORY_MEMINFO=str(stub_bin.meminfo),
+        AGENT_MEMORY_SYSCTL=str(stub_bin.sysctl),
+        AGENT_MEMORY_CONF=str(stub_bin.conf),
+    )
+    r = subprocess.run(
+        ["bash", str(SCRIPT), "status"], capture_output=True, text=True, env=env, timeout=120
+    )
+    line = next(ln for ln in r.stdout.splitlines() if "claude sessions live" in ln)
+    assert line.split()[-1] == "?", line

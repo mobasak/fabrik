@@ -131,7 +131,15 @@ cmd_status() {
     printf "  %-28s %s GB in use of %s GB\n" "swap" "$(_gb "$u")" "$(_gb "$t")"
     printf "  %-28s %s GB\n" "anon (agents+apps)" "$(_gb "$(_meminfo AnonPages)")"
     printf "  %-28s %s GB\n" "page cache (reclaimable)" "$(_gb "$(_meminfo Cached)")"
-    printf "  %-28s %s\n" "claude sessions live" "$(pgrep -x claude | wc -l)"
+    # `pgrep | wc -l` took the pipeline's rc from wc, so a broken pgrep printed a confident 0 —
+    # the fail-open reclaim already closed, one function over (review A-S1, W-6154115b)
+    local pids prc live="?"
+    pids=$(pgrep -x claude); prc=$?
+    if [ "$prc" -le 1 ]; then
+        live=$(printf '%s' "$pids" | grep -c . || true)
+        _is_num "$live" || live="?"
+    fi
+    printf "  %-28s %s\n" "claude sessions live" "$live"
 }
 
 # Pull already-swapped agent pages back into RAM. The sysctl policy prevents FUTURE bad eviction;
