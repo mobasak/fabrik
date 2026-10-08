@@ -142,11 +142,11 @@ T6_CLAIMS = (
     # claimed this grader proved the two copies identical when it asserted nothing about the
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
-    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3180-3186`)",
+    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3192-3198`)",
     "the rows that can never fail — `WARN_ONLY_CHECKS`, `:515-528` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    'a `status: "setup-error"` envelope (`:3161-3178` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
+    'a `status: "setup-error"` envelope (`:3173-3190` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -873,8 +873,8 @@ _GATE_CITES = {
     "final_gate.py:1565-1575": "if (",
     ":1233": "elif code == 5:",
     ":1276": "if code != 0 and _PYTEST_EARLY_STOP in out:",
-    ":3161-3178": "missing = _toolchain_missing(PYTHON)",
-    ":3180-3186": "# Determine tier",
+    ":3173-3190": "missing = _toolchain_missing(PYTHON)",
+    ":3192-3198": "# Determine tier",
 }
 
 
@@ -1581,7 +1581,11 @@ def _check_hub_shared_repo(text: str) -> None:
     for needle in ("MAIN CHECKOUT", "agent-1", "merge owner", "pipeline"):
         assert needle in opening, f"§ Shared repo's opening does not name {needle!r}: {opening!r}"
     head = item[:900]
-    for wt in ("`.claude/worktrees/fleet`", "`.claude/worktrees/intel`"):
+    for wt in (
+        "`.claude/worktrees/fleet`",
+        "`.claude/worktrees/intel`",
+        "`.claude/worktrees/kaizen`",
+    ):
         assert wt in head, f"§ Shared repo's opening does not place {wt} in its own worktree"
     assert "never edit the main checkout" in head, "the worktree agents are not kept out of main"
     wrong = _SHARED_REPO_WRONG.findall(item)
@@ -1658,10 +1662,10 @@ _HUB_MUTANTS = (
     ),
     (
         "shared-fleet-intel-edit-main",
-        "Fleet and intel work in `.claude/worktrees/fleet` and `.claude/worktrees/intel` and never "
-        "edit the main checkout, yet",
-        "Fleet and intel also edit the main checkout; `.claude/worktrees/fleet` and "
-        "`.claude/worktrees/intel` stay unused, yet",
+        "Fleet, intel and kaizen work in `.claude/worktrees/fleet`, `.claude/worktrees/intel` and "
+        "`.claude/worktrees/kaizen` and never edit the main checkout, yet",
+        "Fleet, intel and kaizen also edit the main checkout; `.claude/worktrees/fleet`, "
+        "`.claude/worktrees/intel` and `.claude/worktrees/kaizen` stay unused, yet",
         _check_hub_shared_repo,
     ),
     (

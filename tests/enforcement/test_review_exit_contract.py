@@ -382,3 +382,50 @@ def test_neither_command_run_nor_dispatch_headroom_carries_a_delta_budget() -> N
     assert not hasattr(mods["cr_mirror"], "DELTA_BUDGET") and not hasattr(
         mods["dh_mirror"], "DELTA_BUDGET"
     )
+
+
+def test_rule_three_fires_per_site_and_stands_down_at_the_stop() -> None:
+    """W-cc2b8600 (and /fabrik-review queue rows 413, 415): rule (3) was round-shaped — `only` let one
+    site yield own-fix residue every round without a rewrite, and its third-yield exit needed the rewrite
+    to be ABSENT. Both termination fragments now carry a SITE arm inside rule (3), count a rewritten site's
+    repeat into the existing per-finding/per-axis escalation, and hand over to the scope-growth stop from
+    the first round it applies. Presence only, inside rule (3)'s span — the same limit as the parity loop."""
+    frag = REPO / "commands" / "_fragments"
+    te = " ".join((frag / "term-edit.md").read_text(encoding="utf-8").split())
+    tc = " ".join((frag / "term-coverage.md").read_text(encoding="utf-8").split())
+
+    def rule3(text: str) -> str:
+        s = text.index("(3) **TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE**")
+        ends = [i for i in (text.find("(4) **", s), text.find("When a check reports", s)) if i > s]
+        return text[s : min(ends)]
+
+    for name, text, escalation, attempt in (
+        ("term-edit", te, "per-axis", "the rewrite counts as one more reconcile attempt on each claim it answers"),
+        ("term-coverage", tc, "per-finding", "the rewrite counts as one more fix attempt on each claim it answers"),
+    ):
+        r3 = rule3(text)
+        for phrase in (
+            "yields an own-fix defect in two consecutive delta rounds, whatever else those rounds found",
+            "the smallest enclosing unit: a sentence, bullet item or table row",
+            "`site: <a quotable anchor>`",
+            "`; class rewrite — <site or paragraph> (rounds k, k+1)`",
+            "a third residue pass without a rewrite is the non-convergence breaker's foundation error",
+            attempt,
+            f"is paused under the {escalation} BLOCKED escalation",
+        ):
+            assert phrase in r3, (name, phrase)
+        for phrase in (
+            "takes over from the FIRST round at which it applies — the first whose `round` prints "
+            "`SCOPE GROWTH —` or `SCOPE GROWTH (in-lane)`, never `SCOPE GROWTH UNCOMPUTABLE`, and for a command "
+            "`round` never prints it for, rule (3) governs throughout",
+            "a rewrite emits new text, new text is in-hunk",
+            "a rewrite triggered in or before that round is still owed before the CLOSING round and is the one "
+            "own-fix item the backlog exit does not take",
+            "any later yield, at a new site or a rewritten one, goes to the stop's exit",
+        ):
+            assert phrase in text, (name, phrase)
+    assert "the scope-growth stop below takes over" in rule3(tc)
+    assert "Rule (3) and this stop can fire in the same round, and the stop takes over" in te
+    assert "ONLY-residue pass" not in te and "rule 3 ever triggers" not in te
+    assert "(patch, patch, rewrite)" not in te and "(patch, patch, rewrite)" not in tc
+    assert "function or top-level statement" in rule3(tc) and "function or top-level statement" not in te
