@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_frozen_chain reads a split Status/Version header (2026-10-08)
+- `scripts/enforcement/check_frozen_chain.py`: a contract whose `Status:` and `Version:` sit on separate header lines (bold or plain labels, `v` optional) now registers its version. Before, every pin against it was skipped and a stale one passed silently. 10 of 36 chain docs on the box split them; 9 now register, 0 change value. The version token refuses `v5a`, `v6.12` and `2026-10-05`. On the Status line, the Version must be a field, never a mention in prose. The body-prose sweep matches filenames by equality, not substring.
+- Newly visible stale pins: tryton-crm `docs/ui-design.md` (data-contract v43, at v44) and brand-identiy-creator `docs/ui-design.md` (data-contract at v33).
+- Graders in `tests/enforcement/test_check_frozen_chain.py`. Site-provisioner mail 01M4CXK4KB; review `docs/development/reviews/2026-10-08-frozen-chain-split-header-review.md`.
+
 ### Fixed — the D-252 scope-growth stop no longer closes a review on a non-quiet row (D-355) (2026-10-08)
 - `scripts/enforcement/check_review_coverage.py`: `check_file` and the committed advisory both consult `_legacy_scope_growth_exit`, which keeps the D-252 exemption only for a receipt first committed before 2026-09-23 (the D-355 ruling). A receipt written now that declares the stop must still close on a `confirmed: 0 · fixed: 0 · unexecuted: 0` row. An edit to one of the 14 pre-ruling receipts is not refused. The committed advisory newly names the 2 post-ruling receipts that relied on the stop.
 - `_first_commit_date` is the one first-commit reader (check_convergence's D-497 cut-over delegates to it). It runs `git -c log.follow=false` because a user's `log.follow=true` follows copies and would give a new receipt an old template's date. It also removes git's location environment, because a leaked `GIT_DIR` dated a receipt from another repo.

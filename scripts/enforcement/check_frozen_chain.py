@@ -11,10 +11,11 @@ that no longer exists, with no check saying so (transdoc upstream proposal
 caught by an operator question for the third time in one repo).
 
 WHAT IT CHECKS (per artifact in the registry, present-if-exists):
-- **Self-version:** the header's ``**Status:** <S> · **Version:** v<N>`` line
-  (first ~5 lines). ``DRAFT`` artifacts are skipped entirely — their authoring
-  loop owns them. Absence of the file is silent (headless types have no
-  ui-design; pre-flows projects have no flows.md — absence is never a finding).
+- **Self-version:** the header's ``**Status:** <S> · **Version:** v<N>`` — bold or plain
+  labels, on one line or with a line OPENING with the Version label later in the first 5, ``v``
+  optional. ``DRAFT`` artifacts are skipped entirely — their authoring loop owns them. Absence
+  of the file is silent (headless types have no ui-design; pre-flows projects have no
+  flows.md — absence is never a finding).
 - **Pins:** within the artifact's HEADER BLOCK only (everything before the first
   ``## `` heading, soft-wrapped lines joined), every mention of another registry
   artifact's filename followed (within a bounded window) by a bold ``**vN**`` is
@@ -47,11 +48,17 @@ CHAIN_REGISTRY: dict[str, str] = {
     "docs/design-system.md": "/fabrik-ui-design",
 }
 
-_STATUS_RE = re.compile(
-    r"^>?\s*\*\*Status:\*\*\s*(?P<status>FROZEN|DRAFT|CONVERGED)\b.*?"
-    r"\*\*Version:\*\*\s*v(?P<version>\d+)",
-    re.I,
-)
+# The labels may be bold (`**Status:**`, the scaffold template) or plain (`Status: FROZEN`, the form
+# /fabrik-data-contract and /fabrik-ui-design prescribe). The version token's `v` is optional, and a
+# token that runs on into a letter, or a dot or dash and MORE DIGITS (`v5a`, `v6.12`, `2026-10-05`),
+# is no version at all — it reads nothing rather than a misread number; `v5.` or `v5-final` is 5.
+_STATUS_HEAD = r"^>?\s*\*{0,2}Status:\*{0,2}\s*(?P<status>FROZEN|DRAFT|CONVERGED)\b"
+_VERSION_TOKEN = r"\*{0,2}Version:\*{0,2}\s*v?(?P<version>\d+)(?!\w|[.\-]\d)"
+# On the Status line the Version is a FIELD: right after the Status, or after a `·`/`|` field
+# separator — never a mention mid-prose (`see data-contract.md **Version:** v3`), review A-S1.
+_STATUS_RE = re.compile(_STATUS_HEAD + r"(?:\s*|.*?[·|]\s*)" + _VERSION_TOKEN, re.I)
+_STATUS_LINE_RE = re.compile(_STATUS_HEAD, re.I)
+_VERSION_LINE_RE = re.compile(r"^>?\s*" + _VERSION_TOKEN, re.I)
 #: chars after a filename mention within which a bold **vN** counts as its pin
 _PIN_WINDOW = 120
 
@@ -89,11 +96,28 @@ _ATTEST_RE = re.compile(r"Independently\s+reviewed:?\*{0,2}\s*:?\s*\*{0,2}v(\d+)
 
 
 def _self_version(text: str) -> tuple[str, int] | None:
-    """``(status, version)`` from the first 5 lines, or None (no parseable header)."""
-    for line in text.splitlines()[:5]:
+    """``(status, version)`` from the first 5 lines, or None (no parseable header).
+
+    A Status line carrying its Version is read as one line. A Status line WITHOUT one pairs with
+    the first later header line that STARTS with the Version label, never crossing a ``## ``
+    heading (site-provisioner 01M4CXK4KB: a two-line header read None, which skipped every pin
+    against the file — 10 of 36 chain docs on the box split them). Pairing only a line that opens
+    with the label keeps a pin or history note that merely mentions a Version from being read as
+    the doc's own; a Version written before its Status is still never paired."""
+    lines = text.splitlines()[:5]
+    for i, line in enumerate(lines):
         m = _STATUS_RE.search(line)
         if m:
             return m.group("status").upper(), int(m.group("version"))
+        sm = _STATUS_LINE_RE.search(line)
+        if not sm:
+            continue
+        for later in lines[i + 1 :]:
+            if later.startswith("## "):
+                break
+            vm = _VERSION_LINE_RE.search(later)
+            if vm:
+                return sm.group("status").upper(), int(vm.group("version"))
     return None
 
 
@@ -260,7 +284,9 @@ def check_chain(root: Path) -> list[str]:
             if pinned is None:
                 continue
             for m in _BODY_PIN_RE.finditer(body_only):
-                if m.group("name") not in other:
+                # EQUALITY, never containment: `contract.md` is a substring of `data-contract.md`
+                # and named another file (review A-S2).
+                if m.group("name").lower() != other:
                     continue
                 # PRESCRIPTIVE prose only. The first cut flagged every body mention and
                 # lit up 5 of 6 existing fixtures — body prose legitimately cites history
