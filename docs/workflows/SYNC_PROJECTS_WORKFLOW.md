@@ -7,7 +7,7 @@
 **Direction:** Projects → Fabrik
 **Outputs:**
 - `data/projects.yaml` (aggregated registry, machine-readable)
-- `docs/BUSINESS_MODEL.md` (AUTO-GENERATED:PROJECTS block, human-readable)
+- `docs/PROJECT_CATALOG.md` (AUTO-GENERATED:PROJECTS block, human-readable; synced to projects as `docs/reference/opt-project-catalog.md`)
 
 > **Coders:** When modifying `scripts/sync_projects.py`, update this workflow doc to match.
 
@@ -22,7 +22,7 @@ Scans all `/opt/*` projects and builds a unified project catalog. The **primary 
 ```
 /opt/<project>/project.yaml   ──┐
                                  ├──→ scripts/sync_projects.py ──→ data/projects.yaml (registry)
-Auto-detection (README, stack)  ──┘                             └──→ docs/BUSINESS_MODEL.md (catalog)
+Auto-detection (README, stack)  ──┘                             └──→ docs/PROJECT_CATALOG.md (catalog)
 ```
 
 ---
@@ -104,7 +104,7 @@ wp-config.php         → WordPress
 
 ## Deletion Detection
 
-On each scan, the script compares current `/opt/*` projects against the previous `data/projects.yaml`. Deleted projects appear in a **"Recently Removed"** section in BUSINESS_MODEL.md. This is non-destructive — the old registry entry is simply no longer present.
+On each scan, the script compares current `/opt/*` projects against the previous `data/projects.yaml`. Deleted projects are reported on the console only: the catalog is a synced, byte-identical file, so it carries no scan-history section. This is non-destructive — the old registry entry is simply no longer present.
 
 ---
 
@@ -143,7 +143,7 @@ projects:
     - 18011
 ```
 
-### Catalog (`docs/BUSINESS_MODEL.md`)
+### Catalog (`docs/PROJECT_CATALOG.md`)
 
 Updates the `<!-- AUTO-GENERATED:PROJECTS:START -->` block:
 
@@ -153,12 +153,6 @@ Updates the `<!-- AUTO-GENERATED:PROJECTS:START -->` block:
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
 | **captcha** | Anti-captcha solving | FastAPI + Redis | ✅ Production | https://... | ✅ Current |
-
-### Recently Removed (1 projects)
-
-| Project | Note |
-|---------|------|
-| ~~old-project~~ | Folder deleted since last scan |
 ```
 
 ---
@@ -204,7 +198,7 @@ Pattern matching via `fnmatch` against `DEFAULT_EXCLUDES` (`scripts/sync_project
 | Code | Meaning |
 |------|---------|
 | 0 | Registry + catalog updated successfully |
-| 1 | Failed to update BUSINESS_MODEL.md |
+| 1 | Failed to update docs/PROJECT_CATALOG.md |
 
 ---
 

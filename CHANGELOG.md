@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the /opt project catalog: a null category, a scalar project.yaml, pipes and non-link URLs (2026-10-08)
+
+`scripts/sync_projects.py` now auto-categorizes a project whose `category:` is empty, no longer aborts the whole scan on a
+scalar `project.yaml` or a list category, escapes `|` in table cells, and renders a `url` that is not a link as `-`
+(proxy and youtube carried descriptions there). `docs/PROJECT_CATALOG.md` is regenerated, which also corrects
+brand-identiy-creator's URL (mail 01M49YA501). The workflow doc names the catalog's real path, and the 35 projects
+still holding a frozen pre-2026-07-11 copy in `docs/BUSINESS_MODEL.md` were asked to delete it. Graders:
+`tests/test_sync_projects_catalog.py` (5 tests, each red on the pre-fix generator). W-34d48ecb.
+
 ### Fixed — a window named by `whoami_agent.py --as` gets its role charter (2026-10-08)
 - kaizen 01M4C0VN6A: the SessionStart charter hook `.claude/hooks/agent_role.py` read only `CLAUDE_AGENT`, so a window bound with `whoami_agent.py --as <name>` (the route the ORIENT block offers) got its items and mail but never its charter. It now falls back to `whoami_agent.resolve_agent_name()`, loaded by file path so a project-local module cannot shadow what the resolver imports; a project without the script, or an older copy, stays a silent no-op. Helps resumed and compacted sessions; a brand-new session still binds after SessionStart. `scripts/mail.py`'s `--to-agent` and `route` help strings now name kaizen.
 

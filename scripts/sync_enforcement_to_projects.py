@@ -2308,7 +2308,7 @@ def sync_scripts_to_project(
         # Safe to delete: these were synced artifacts, never authored in projects.
         for stale_rel in (
             "docs/reference/fabrik-lifecycle.md",  # moved to docs/operations/
-            "docs/reference/fabrik-project-catalog.md",  # consolidated into docs/BUSINESS_MODEL.md
+            "docs/reference/fabrik-project-catalog.md",  # renamed docs/reference/opt-project-catalog.md
             "docs/reference/windsurf/cascade-models.md",  # Cascade retired 2026-07-19; doc archived, pipeline dismantled 2026-07-20
         ):
             stale_path = project_dir / stale_rel
