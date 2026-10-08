@@ -119,7 +119,7 @@ New projects never needed a Coolify API token.
 | `SESSION_ARCHIVE_B2_KEY_ID` / `SESSION_ARCHIVE_B2_APPLICATION_KEY` | an application key restricted to that bucket, read + write |
 | `SESSION_ARCHIVE_B2_PREFIX` | path under the bucket, default `archive` |
 | `SESSION_ARCHIVE_ENV_FILE` | where the archiver reads every `SESSION_ARCHIVE_*` setting (key, bucket, prefix) from when the process environment lacks it or holds an empty value, default `/opt/fabrik/.env` — only `SESSION_ARCHIVE_*` lines are read |
-| `ARCHIVE_ROOT` / `ARCHIVE_AFTER_DAYS` / `ARCHIVE_MAX_FILE_MB` | local archive dir (`~/.claude/archive`), idle window in days (default 1), optional per-file ceiling |
+| `ARCHIVE_ROOT` / `ARCHIVE_AFTER_DAYS` / `ARCHIVE_MAX_FILE_MB` | local archive dir (`~/.claude/archive`), idle window in days (default 0 — every MAIN transcript, so an open window ships a daily snapshot), optional per-file ceiling |
 
 **How to get the key:** B2 console → Application Keys → Add a New Application Key, restricted to
 the bucket, read + write; put both values in `/opt/fabrik/.env` (gitignored). The `B2_*` keys
