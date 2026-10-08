@@ -946,3 +946,23 @@ def test_the_owner_lookup_reads_each_line_once(monkeypatch: pytest.MonkeyPatch) 
     text_s = crc._strip_fences(text)
     assert crc._residual_errors(text_s, crc._ledger_shapes(text)[2]) == []
     assert calls["n"] <= len(text.splitlines()) + 1, calls
+
+
+def test_the_commands_by_design_example_passes_and_its_counter_example_is_refused() -> None:
+    """kaizen, /fabrik-review queue: three closes asked where the reason goes; written INSIDE the parentheses, which V5 reads as the
+    owner and refuses as absent. The command now shows both forms; this drives each one, as written in the
+    source, through the gate, so the text cannot teach a form the gate refuses."""
+    src = " ".join((REPO / "commands" / "_sources" / "fabrik-review.md").read_text().split())
+    ok = re.search(r"`RECORDED — (by design \(D-\d+\)) — <why>`", src)
+    bad = re.search(r"a reason inside them, `(\(D-\d+: <why>\))`, is refused as an absent owner", src)
+    assert ok and bad, "the by-design example and counter-example are missing from fabrik-review.md"
+    assert _residual(f"{ok.group(1)} — kept on purpose") == []
+    assert _residual("by design (F342, round 2) — kept on purpose") == [], "a receipt-row owner keeps its round"
+    assert _residual("by design (F342) — round 2, kept on purpose"), "the round is inside the parentheses"
+    term_edit = " ".join((REPO / "commands" / "_fragments" / "term-edit.md").read_text().split())
+    assert "only the owner, with a receipt-row owner's round, sits inside the parentheses, the reason after them" in term_edit
+    assert "with its `, round N` for a receipt row, several owners `;`-joined" in src
+    assert "owner alone" not in src and "owner alone" not in term_edit
+    assert "RECORDED — <kind> (<why>)" not in src, "the generic template puts a by-design reason inside"
+    errs = _residual("by design " + bad.group(1).replace("<why>", "kept on purpose"))
+    assert errs and "owning row is absent" in errs[0], errs
