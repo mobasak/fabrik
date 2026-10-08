@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "check_convergence accepts an UNREVIEWED --init skeleton as a plan's whole-plan proof (fenced example row read as a quiet pass); _cite_matches_plan docstring promises a fallback the code does not have"
 }
