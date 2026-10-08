@@ -295,14 +295,14 @@ def test_step_11_verify_fails_a_crash_loop_waiting_out_its_backoff() -> None:
     assert "RC=1" in result.stdout and "ERR:" in result.stdout, result.stdout
 
 
-def test_step_11_verify_read_gap_outlasts_dockers_backoff_reset() -> None:
+def test_step_11_verify_read_gap_is_the_15_s_the_comment_promises() -> None:
     # D7 INFRA-O9: with 6 s between the reads, a loop that ran ~8 s before crashing read
-    # `running 2` twice and passed (1 of 6 live rounds). Docker resets the restart backoff
-    # after 10 s of uptime, so the gap between the two inspect reads must exceed 10 s.
+    # `running 2` twice and passed (1 of 6 live rounds). A loop is caught only when it stays
+    # up no longer than the gap, so the gap is the bound the comment states (INFRA-O10).
     block = _step_11_verify_block()
     between = block.split("alloy_first=", 1)[1].split("alloy_second=", 1)[0]
     gaps = [int(w.split()[0]) for w in between.split("sleep ")[1:]]
-    assert gaps and sum(gaps) > 10, gaps
+    assert gaps and sum(gaps) >= 15, gaps
 
 
 def test_step_11_verify_passes_a_rerun_with_old_restarts_on_the_count() -> None:

@@ -766,10 +766,9 @@ step_11_install_monitoring_agents() {
     # between two restarts ("Up Less than a second"). Read its State.Status and
     # RestartCount twice, 15 s apart; both must say `running` with the same
     # count. State.Running is no use here: Docker keeps it true while a
-    # container waits out its restart backoff (Status `restarting`). The gap
-    # is longer than the 10 s of uptime after which Docker resets the backoff,
-    # so any loop that crashes within 15 s of a start moves the count; a
-    # slower loop is the daily V9 read's (restarts 0, runbook § 6). Comparing the two counts
+    # container waits out its restart backoff (Status `restarting`). Any loop
+    # that stays up no longer than the gap moves the status or the count; a
+    # slower loop can pass, and that limit is backlog W-0913992c. Comparing the two counts
     # (not RestartCount == 0) keeps a rerun green when an earlier --skip-mesh
     # drill left restarts on the count.
     alloy_first=$(remote 'sudo docker inspect -f "{{.State.Status}} {{.RestartCount}}" alloy' 2>/dev/null || true)
