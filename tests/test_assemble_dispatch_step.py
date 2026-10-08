@@ -612,14 +612,38 @@ def test_check_reports_a_corrupted_installed_file_instead_of_crashing(
     tmp_path, monkeypatch, capsys, tree
 ):
     """A GENERATED installed file that acquired non-UTF-8 bytes (a bad-encoding hand edit, a truncated
-    write) is reported as HAND-EDITED drift, never a traceback — for every installed tree, including the
+    write) is reported as drift, never a traceback — for every installed tree, including the
     agents tree `agent_drift` reads first (round 14: that sixth read was still bare)."""
     generated, _stray, _orphan = _installed(tmp_path, monkeypatch)[tree]
     generated.write_bytes(_STRAY)
     with pytest.raises(SystemExit) as exc:
         ac.check()
     assert exc.value.code == 1
-    assert "HAND-EDITED" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    # the label names all three causes the check cannot tell apart (intel 01M4D9HNXM), the remedy
+    # for each tree, and a changed-line count — never just one cause
+    for part in (
+        "an unrendered edit here",
+        "this tree behind the last render",
+        "a hand-edit of the installed file",
+        "in the main checkout render then re-check",
+        "in a worktree merge master",
+        "rows from this branch's own unmerged edits stay until they merge",
+        "changed lines",
+    ):
+        assert part in out, (part, out)
+    assert "DIFFERS from what this tree renders" in out and "HAND-EDITED" not in out, out
+
+
+def test_the_drift_count_is_changed_lines_only() -> None:
+    """A unified diff's headers and context are not differences: one changed line reads 2 (one
+    removed, one added), never 7 (review A-S1)."""
+    label = ac._differs("a\nb\nc\nd\n", "a\nX\nc\nd\n")
+    assert "(2 changed lines" in label, label
+    # a removed `---` frontmatter line, a lost trailing newline and CRLF endings are changes too
+    assert "(1 changed lines" in ac._differs("---\na\n", "a\n")
+    assert "(2 changed lines" in ac._differs("a\nb\n", "a\nb")
+    assert "(4 changed lines" in ac._differs("a\nb\n", "a\r\nb\r\n")
 
 
 @pytest.mark.parametrize("tree", ["commands", "skills"])
