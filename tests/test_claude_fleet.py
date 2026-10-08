@@ -6127,6 +6127,25 @@ def test_posture_write_failure_is_raised_not_swallowed(tmp_path, monkeypatch):
         cr._write_quota_posture({"schema": 1, "ts": FLEET_NOW})
 
 
+def test_posture_orphan_sweep_judges_by_wall_time_not_the_tick_clock(tmp_path, monkeypatch):
+    """W-43eb1e48's review (A-S1) — the posture writer's staging-orphan sweep keyed its cutoff on
+    `_now()`, so a tick clock ahead of the wall read a live sibling's fresh staging file as an
+    hour-old orphan and unlinked it mid-write; the class fixed in `_rearm_wall_stamp`/`_replace_stamp`."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    monkeypatch.setattr(cr, "_now", lambda: time.time() + 7200)
+    p = cr._posture_path()
+    fresh = p.with_name(f"{p.name}.99993.tmp")  # a live sibling's staging file
+    fresh.write_text("x")
+    old = p.with_name(f"{p.name}.99994.tmp")
+    old.write_text("x")
+    os.utime(old, (time.time() - 7200, time.time() - 7200))
+    cr._write_quota_posture({"schema": 1, "ts": FLEET_NOW})
+    assert fresh.exists(), "a fresh sibling staging file was swept as an orphan"
+    assert not old.exists(), "a two-hour-old orphan must still be swept"
+
+
 def test_posture_a_past_reset_never_wins_the_forecast(monkeypatch):
     """B16 — a reset epoch already in the past is stale data, not a reset that "came first".
 

@@ -4988,7 +4988,7 @@ def _write_quota_posture(posture: dict) -> None:
     # under a pid that never returns. The old shared name self-healed by overwrite; this one
     # accumulates, so sweep anything of ours older than an hour before staging a new one.
     try:
-        cutoff = _now() - 3600.0
+        cutoff = time.time() - 3600.0  # WALL time, never `_now()` (W-43eb1e48's review, A-S1)
         for orphan in p.parent.glob(f"{p.name}.*.tmp"):
             if orphan != tmp and orphan.stat().st_mtime < cutoff:
                 orphan.unlink()

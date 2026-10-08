@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the wall-stamp re-arm sweeps orphans by wall time, and every resume_epoch reader uses one validator (2026-10-08)
 
-- `scripts/sysadmin/claude_rotate.py` (and its `aro-wake` twin): `_rearm_wall_stamp` swept `.rearm`/`.raise` temps older than an hour by the caller's clock, so a tick clock running ahead could unlink a live sibling's fresh temp — it now uses wall time, as D-699 made `_replace_stamp` do. The advisory latch and the re-arm read `resume_epoch` through `_dateable_ts`, the validator `_promised_resume` uses since D-699 (W-43eb1e48).
+- `scripts/sysadmin/claude_rotate.py` (and its `aro-wake` twin): `_rearm_wall_stamp` swept `.rearm`/`.raise` temps older than an hour by the caller's clock, so a tick clock running ahead could unlink a live sibling's fresh temp — it now uses wall time, as D-699 made `_replace_stamp` do; the posture writer's staging-orphan sweep, the third of the shape, does too (review A-S1). The advisory latch and the re-arm read `resume_epoch` through `_dateable_ts`, the validator `_promised_resume` uses since D-699 (W-43eb1e48).
 
 ### Fixed — check_rule_grounding reads the digest as a table: an unreadable source column is ungraded once, never a row of missing files (2026-10-08)
 
