@@ -38,6 +38,10 @@ All notable changes to this project will be documented in this file.
 ### Changed — the review family's Persist step names the receipt skeleton (2026-10-08)
 - `commands/_fragments/term-coverage.md` obligation 3 (rendered into /fabrik-review, /fabrik-repo-review, /fabrik-conformance-review, /fabrik-service-test, /fabrik-user-test) told reviewers to create the receipt "with the Coverage Checklist skeleton" but named no tool, so they hand-built standing rows, grouped Hunt rows and missed the `## Phase` heading the gate keys on. It now says that in `/fabrik-review`, the one diff-surface consumer, `review_receipt.py --init --changed … --scope …` writes it, with `--range <base>..HEAD` for committed work. The skeleton pastes the rubric and carries per-path Hunt rows, the standing rows, the ledger and the Phase and Gate sections, and the reviewer adds the rubric's class rows. That skeleton has existed since 2026-09-06, but the command named it only in § Reporting, far below. Answers 10 /fabrik-review feedback verdicts (kaizen).
 
+### Added — read --pins names a seat's stray write into the live tree (2026-10-08)
+
+- `scripts/review_loop_ledger.py pin` snapshots the repo toplevel before any write and `read --pins` names every new or changed path outside the manifest (NEW UNTRACKED, NEW IGNORED, NEW MODIFIED, CHANGED AGAIN) with its size and the seats live then; a tar whose pax comment is a commit of the repo reads SEAT ARCHIVE and exits 4 (infra 01M4CV040F, D-667). Receipt: `docs/development/reviews/2026-10-08-review-loop-stray-writes-review.md`.
+
 ### Fixed — the review loop refuses an empty or malformed slice list before it can read as closable (2026-10-08)
 
 - `.claude/workflows/fabrik-review-loop.js` returned `closable: true` over `slices: []` (every() over nothing), and a null entry crashed with a raw TypeError; a non-array, empty or non-object slice list is now refused before any seat runs (kaizen 01M4CJKZRH, D-666). Receipt: `docs/development/reviews/2026-10-08-review-loop-empty-slices-review.md`.
