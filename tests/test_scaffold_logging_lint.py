@@ -18,7 +18,7 @@ TEMPLATE = REPO / "templates" / "scaffold" / "python" / "pyproject.toml.template
 PROBE = REPO / "templates" / "scaffold" / "python" / "test_glitchtip_no_secret_leak.py"
 EAGER_CODES = ("G001", "G002", "G003", "G004")
 _NOQA = re.compile(
-    r"#\s*noqa\b\s*(?P<colon>:)?\s*(?P<codes>[A-Z]+[0-9]+(?:\s*,\s*[A-Z]+[0-9]+)*)?", re.I
+    r"#\s*noqa\b\s*(?P<colon>:)?\s*(?P<codes>[A-Z]+[0-9]+(?:[\s,]+[A-Z]+[0-9]+)*)?", re.I
 )
 _FILE_NOQA = re.compile(r"#\s*(?:ruff|flake8)\s*:\s*noqa\b", re.I)
 
@@ -32,7 +32,8 @@ def _enabled(code: str, lint: dict) -> bool:
         code.startswith(s) for s in lint.get("select", []) + lint.get("extend-select", [])
     )
     ignores = lint.get("ignore", []) + lint.get("extend-ignore", [])
-    ignores += [c for codes in lint.get("per-file-ignores", {}).values() for c in codes]
+    for table in ("per-file-ignores", "extend-per-file-ignores"):
+        ignores += [c for codes in lint.get(table, {}).values() for c in codes]
     return selected and not any(code.startswith(i) for i in ignores)
 
 
@@ -50,7 +51,7 @@ def test_the_leak_probe_keeps_its_inline_eager_call_with_a_targeted_noqa():
     eager = [ln for ln in lines if re.search(r"\.error\(\s*\"[^\"]*\"\s*\+", ln)]
     assert len(eager) == 1, 'the probe must keep exactly one inline `"..." + secret` logging call'
     m = _NOQA.search(eager[0])
-    codes = {c.strip().upper() for c in (m.group("codes") or "").split(",")} if m else set()
+    codes = {c.strip().upper() for c in re.split(r"[\s,]+", m.group("codes") or "")} if m else set()
     assert m and m.group("colon") and codes == {"G003"}, (
         f"the deliberate eager call must waive exactly G003, got {eager[0].strip()!r}"
     )
