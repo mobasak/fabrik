@@ -288,7 +288,7 @@ class PinError(Exception):
 
 
 def _md5(p: Path) -> str:
-    return hashlib.md5(p.read_bytes()).hexdigest()
+    return hashlib.md5(p.read_bytes(), usedforsecurity=False).hexdigest()  # an identity, not a secret
 
 
 def _lock_tree(top: Path) -> None:
@@ -375,7 +375,7 @@ def pin(
                 head = None  # untracked: not the commit's bytes either
             if head != blobs[f]:
                 dirty.append(f)
-    manifest = {f: hashlib.md5(b).hexdigest() for f, b in blobs.items()}
+    manifest = {f: hashlib.md5(b, usedforsecurity=False).hexdigest() for f, b in blobs.items()}
     try:
         for f, b in blobs.items():
             (pins_dir / f).parent.mkdir(parents=True, exist_ok=True)
@@ -397,20 +397,21 @@ def pin(
         # `vault -> /…` — is SKIPPED and named, never fatal (dogfooding this verb on the hub died on it with a
         # traceback and a half-extracted 94 MB base)
         skipped: list[str] = []
-
-        def _keep(member: tarfile.TarInfo, path: str) -> tarfile.TarInfo | None:
-            try:
-                return tarfile.data_filter(member, path)
-            except tarfile.FilterError:
-                skipped.append(member.name)
-                return None
-
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 tar = Path(tmp) / "base.tar"
                 _vcs(root, "archive", "-o", str(tar), base)  # the COMMITTED bytes, never the working tree's
                 with tarfile.open(tar) as t:
-                    t.extractall(base_dir, filter=_keep)
+                    # every member is validated BEFORE extraction and only the safe ones are named
+                    safe: list[tarfile.TarInfo] = []
+                    for member in t.getmembers():
+                        try:
+                            tarfile.data_filter(member, str(base_dir))
+                        except tarfile.FilterError:
+                            skipped.append(member.name)
+                        else:
+                            safe.append(member)
+                    t.extractall(base_dir, members=safe, filter="data")
         except (OSError, tarfile.TarError, subprocess.CalledProcessError) as exc:
             # never leave a half-extracted base, or the pins written beside it, for the lead to hand to a seat
             _unlock_and_remove(base_dir)
