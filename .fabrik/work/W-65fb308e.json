@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-review says restate EVERY round-1 slice in `round --slices`; command_run.py refuses a slice with 0 claims"
 }
