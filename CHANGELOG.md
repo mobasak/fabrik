@@ -7,11 +7,23 @@ All notable changes to this project will be documented in this file.
 ### Changed — `/fabrik-docs-review` citations carry a quoted anchor (2026-10-08)
 - Reconciler seats cited doc lines by bare number; after an earlier fix inserted or deleted a line, every later number pointed at the wrong text and each fix was re-anchored by hand (intel W-8efe3357). A seat's return now cites every `path:line` with a short, unique fragment of the line in a code span, and fixes re-anchor by the fragment; Pass Ledger rows, receipts and the docs keep a plain `path:line`, because graders parse the first two. Grader: `tests/test_assemble_dispatch_step.py::test_docs_review_citations_carry_a_quoted_anchor`.
 
+### Changed — 42-docusaurus Done When names the D-676 nginx rules (2026-10-08)
+- `.windsurf/rules/core/42-docusaurus.md`'s checklist now lists `try_files $uri =404;` in `/assets/`, `location = /404 { internal; }` and `always` on the 404 page's `no-cache`, as behaviours an agent can tick. Fleet 01M4DFJDA4; the default-run test gap is filed to fleet.
+
+### Fixed — docs_updater grades a plan status by its own first word (2026-10-08)
+- `scripts/docs_updater.py::parse_plan_status` graded only six status words by the value. Any other value, and any value led by ✅/⛔/emphasis, was graded by whatever word came later in the line: `BUILT … Earlier: CONVERGED` showed CONVERGED. Every status word the fleet writes is now graded as itself: the first word is read with any leading decoration and any punctuation after it set aside (`✓ EXECUTED, converged` is EXECUTED). `<word> IN PART` grades PARTIAL, and done/completed grade COMPLETE.
+- One `PLAN_DONE` set (RESOLVED deliberately absent, as in `check_plan_lock_release`) drives owner adoption, the unowned count and `work.py`'s open-plan view. The PLANS block's Phase note no longer cites the hub-only `scripts/epic_order.py`.
+- Over 712 plans on the box, 43 change grade (8 live done-ness flips, each read). Graders in `tests/test_docs_updater.py`. Site-provisioner mail 01M4DBKECA.
+
 ### Fixed — an Agent-tool seat brief carries the seat write scope (2026-10-08)
 - `commands/_fragments/subagents-core.md`'s seat rule banned mutating git verbs but never said a seat writes nothing outside its own scratch dir; only the `Workflow` seats got that rule (`SEAT_ISOLATION`, after a seat's rmtree deleted every session's skills, 01M4DE0R2H). The fragment now states it for the read-only seats a lead briefs by hand, with the in-program recipe (`PYTHONUSERBASE` before `HOME`, or a child process loses the `--user` packages); a writer seat writes only the paths its brief names. Grader: `tests/test_review_loop_workflow.py::test_an_agent_tool_seat_brief_carries_the_write_scope`.
 
 ### Changed — round zero enumerates a fix's input space before the pin (2026-10-08)
 - Eleven `/fabrik-review` queue verdicts reported an input class a later round's seat found instead of the author's own probe — an overlapping replace value, a shell `||` form, a guard's error path, a regex edge, a window at one record's length, a recursive helper's depth. The round-zero probe in `commands/_fragments/term-coverage.md` and its twin in `term-edit.md` now enumerate and run the fix's input space before the pin, and draft a regex fix against every confirmed shape at once. Grader: `tests/test_review_loop_workflow.py::test_round_zero_enumerates_the_fixs_input_space_before_the_pin`.
+
+### Changed — the citations check grades resolvable bare filenames and a named doc (2026-10-08)
+
+- `scripts/enforcement/check_citations_resolve.py` grades a bare `tool.py:43` when it names one tracked file outside the root, templates/ and the command sources; `--doc <path>` grades a pinned or out-of-glob artifact and lists it; a run that graded none never ticks green, quiet or not (W-191404c0, D-682). Receipt: `docs/development/reviews/2026-10-08-citations-bare-basenames-review.md`.
 
 ### Changed — `/fabrik-task` phase 1 lists what MEASURE executes before the design (2026-10-08)
 - Twenty-five queue verdicts reported a design drafted before a sibling's landed fix, a pre-existing red, a writer, a host or a vendor list was looked at. Phase 1 now replays a reported command as reported, then writes each command and its output to `measure.md` beside `design.md`: the declared files' own tests, a fetch and diff against the remote branch the work merges into, the prior record, the measured population with its n, and a live probe of each external contract. Size cap 12439 → 13610 B (D-679).

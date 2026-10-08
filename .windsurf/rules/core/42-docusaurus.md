@@ -249,6 +249,7 @@ to forget precisely because it feels like "just docs".
       hub's deploy AI reads them to learn what runs on the VPS.
 - [ ] Pagefind runs post-build (`npx -y pagefind --site build`) — no Algolia or JS-bundled search.
 - [ ] Nginx config uses `try_files $uri $uri.html $uri/index.html =404;`, `error_page 404 /404.html;` with an `internal` `/404.html` location, and `absolute_redirect off;` — a missing page answers 404, never the landing page, and redirects stay relative.
+- [ ] `/assets/` uses `try_files $uri =404;` and `location = /404 { internal; }` stands beside the error page — a directory under `/assets/` and a direct `GET /404` both answer 404 — and `/404.html` sets `add_header Cache-Control "no-cache" always;`, so every 404 carries `no-cache`.
 - [ ] The health check targets a page the build contains (`/` only with a root page).
 - [ ] compose.yaml has `platform: linux/amd64`, `deploy.resources.limits.memory`, Traefik labels, `fabrik` network, no `ports:`.
 - [ ] `docusaurus.config.js` sets `onBrokenLinks: 'throw'` and `onBrokenAnchors: 'throw'`.

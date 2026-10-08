@@ -17,8 +17,19 @@ What it grades, per citation `path:LINE` or `path:LINE-LINE` on a file that EXIS
 A path that does not exist here is NOT graded: measured on the hub at landing, 500+ of 1600 citations
 were old plans citing ANOTHER repo's files (transdoc, fabrik-lib modules) — a legitimate pattern, and
 flagging it would have made this check wallpaper on day one (FIX DIRECTIVE 5, measured, rejected).
+A BARE filename (`tool.py:43`) is graded against the one TRACKED file its basename names (`git ls-files`,
+W-191404c0) unless that file is root-level, under templates/, commands/_sources/ or commands/_agents/ (the
+rendered command is cited, not its source), or the doc spells another path ending in it (`/opt/seo/…/config.py`)
+— those count `ambiguous`; no tracked match counts `bare`. A finding names the cited token and the resolved
+path. Measured 2026-10-08 (hub window, 700 docs): 1,396 bare citations — 1,096 unique non-root, 72 root, 163
+several, 65 none; 150 of the unique ones sit in commands/_sources/.
 Sources: docs/superpowers/specs/**, docs/development/plans/** (incl. archived), docs/development/reviews/**,
-docs/reference/**. Fenced code blocks are skipped (a citation inside an example is not a claim).
+docs/reference/** — or exactly the files named by `--doc <path>` (repeatable: a pin, a scratch design note),
+which bypass the globs and the window and are listed in the output. Fenced code blocks are skipped (a
+citation inside an example is not a claim). A run that GRADED 0 never prints the ✓: citations found and none
+graded is `⚠ … NOTHING GRADED` (under --quiet too), docs without a citation `0 citations found`.
+COBRA (D-253): the cheapest dodge is a root-level, templates/ or ambiguous bare name — every one is counted
+in the tally, and a doc that grades 0 prints NOTHING GRADED even quietly.
 Never blocks. The gate runs it with `--changed` (the author's unstaged + staged + unpushed docs — the
 moment a citation is cheap to fix); a bare run sweeps every dated artifact of the last 30 days plus
 the undated reference docs (`--since-days N` widens; `--root <repo>` for another tree).
@@ -63,28 +74,81 @@ def _strip_fences(text: str) -> str:
 
 def check_text(text: str, repo: Path) -> tuple[int, list[str]]:
     """(citations examined, findings) for one document's text."""
-    seen, _bare, _outside, findings = check_text_full(text, repo)
+    seen, _bare, _ambiguous, _outside, findings = check_text_full(text, repo)
     return seen, findings
 
 
-def check_text_full(text: str, repo: Path) -> tuple[int, int, int, list[str]]:
-    """(citations examined, bare filenames skipped, citations whose path is not a file under
-    ``repo`` skipped, findings). Both skipped buckets are COUNTED, so a run that graded nothing
-    can say so instead of reading as a clean zero (01M3PNG4)."""
+# W-191404c0: a bare basename is resolved against the repo's TRACKED files. Built lazily (the first bare
+# citation pays one `git ls-files -z`, cwd = the root) and cached per resolved root; a root that is not a
+# repository yields an empty index, so a bare name there stays ungraded exactly as before.
+_INDEX: dict[Path, dict[str, list[str]]] = {}
+# A unique match is still NOT graded when it sits where a same-named file elsewhere is the likelier
+# referent (measured 2026-10-08, the design critiques): a ROOT-level file (17 of 28 hub root basenames
+# are hub-unique, but AGENTS.md, CHANGELOG.md, INDEX.md, PORTS.md recur in 38-47 repos), anything under
+# templates/ (emitted into a project, then edited there), and commands/_sources/ or commands/_agents/ —
+# docs cite the RENDERED command, whose include-expanded line numbers are not the source's (150 of 1,096
+# unique window hits). Those are counted `ambiguous`, like a basename naming several files.
+_RENDERED_ELSEWHERE = ("templates/", "commands/_sources/", "commands/_agents/")
+
+
+def _basename_index(repo: Path) -> dict[str, list[str]]:
+    key = repo.resolve()
+    if key not in _INDEX:
+        index: dict[str, list[str]] = {}
+        try:
+            res = subprocess.run(
+                ["git", "ls-files", "-z"], cwd=key, capture_output=True, check=False
+            )
+            names = res.stdout.decode("utf-8", "replace").split("\0") if res.returncode == 0 else []
+        except OSError:
+            names = []
+        for rel in filter(None, names):
+            index.setdefault(rel.rsplit("/", 1)[-1], []).append(rel)
+        _INDEX[key] = index
+    return _INDEX[key]
+
+
+def _spelled_elsewhere(text: str, base: str, resolved: str) -> bool:
+    """The doc ALSO spells a path ending in `/<base>` that is not the resolved file — an `/opt/<repo>/…`
+    or `~/.claude/…` path, or another repo-relative one: the bare citation is then shorthand for THAT.
+    Read over the fence-stripped text with URLs removed (review A-S1/A-S2): a path in an example is not a
+    claim, and a URL ending in the same name names no file here."""
+    prose = re.sub(r"\b[a-z][a-z0-9+.-]*://\S+", " ", _strip_fences(text))
+    for m in re.finditer(rf"[\w.~-]*(?:/[\w.~-]+)*/{re.escape(base)}(?![\w.-])", prose):
+        spelled = m.group(0).lstrip("~.")
+        if not (resolved.endswith(spelled.lstrip("/")) or spelled.endswith("/" + resolved)):
+            return True
+    return False
+
+
+def check_text_full(text: str, repo: Path) -> tuple[int, int, int, int, list[str]]:
+    """(citations examined, bare filenames left ungraded, bare filenames counted ambiguous, citations
+    whose path is not a file under ``repo``, findings). Every skipped bucket is COUNTED, so a run that
+    graded nothing can say so instead of reading as a clean zero (01M3PNG4)."""
     findings: list[str] = []
-    seen = 0
-    bare = 0
-    outside = 0
+    seen = bare = ambiguous = outside = 0
     cache: dict[str, list[str] | None] = {}
     for m in CITE_RE.finditer(_strip_fences(text)):
-        path, a, b = m.group(1), int(m.group(2)), m.group(3)
-        if "/" not in path:
-            # A BARE filename (`compose.yaml:60`, `AGENTS.md:73`) is ambiguous: a deploy plan cites the
-            # SERVICE repo's compose, which happens to share a name with the hub's 32-line one
-            # (review of 66aa32a5: 11 of 30 hits were this shape). Only a slashed path is a claim
-            # about THIS tree.
-            bare += 1
-            continue
+        cited, a, b = m.group(1), int(m.group(2)), m.group(3)
+        path, shown = cited, cited
+        if "/" not in cited:
+            # A BARE filename is graded only when it names ONE tracked file outside the excluded
+            # places and the doc spells no other path to it (66aa32a5: a deploy plan citing another
+            # repo's compose.yaml — 27 tracked copies on the hub, so it is ambiguous here).
+            hits = _basename_index(repo).get(cited, [])
+            if not hits:
+                bare += 1
+                continue
+            only = hits[0]
+            if (
+                len(hits) > 1
+                or "/" not in only
+                or only.startswith(_RENDERED_ELSEWHERE)
+                or _spelled_elsewhere(text, cited, only)
+            ):
+                ambiguous += 1
+                continue
+            path, shown = only, f"{cited}:{a}{'-' + b if b else ''} (→ {only})"
         target = repo / path
         if path not in cache:
             try:
@@ -97,20 +161,20 @@ def check_text_full(text: str, repo: Path) -> tuple[int, int, int, list[str]]:
                 cache[path] = None
         lines = cache[path]
         if lines is None:
-            outside += 1  # another repo's file, or a renamed one — not graded (see header), counted
+            outside += 1  # another repo's file, a renamed one, or tracked but deleted — counted
             continue
         seen += 1
         end = int(b) if b else a
+        where = shown if shown != cited else f"{path}:{a}{'-' + b if b else ''}"
         if a < 1 or end > len(lines) or end < a:
-            findings.append(
-                f"BEYOND-EOF {path}:{a}{'-' + b if b else ''} (file has {len(lines)} lines)"
-            )
+            findings.append(f"BEYOND-EOF {where} (file has {len(lines)} lines)")
             continue
         if a > 1 and BLANKISH.match(
             lines[a - 1]
         ):  # line 1 = a frontmatter `---` is a legitimate target
-            findings.append(f"BLANK-TARGET {path}:{a} → {lines[a - 1].strip()[:40]!r}")
-    return seen, bare, outside, findings
+            target_line = f"{path}:{a}" if shown == cited else f"{cited}:{a} (→ {path})"
+            findings.append(f"BLANK-TARGET {target_line} → {lines[a - 1].strip()[:40]!r}")
+    return seen, bare, ambiguous, outside, findings
 
 
 DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})-")
@@ -165,28 +229,37 @@ def _changed_docs(repo: Path) -> set[Path]:
 def check_repo(
     repo: Path, since_days: int = DEFAULT_SINCE_DAYS, only: set[Path] | None = None
 ) -> tuple[int, int, list[str]]:
-    ndocs, total, _bare, _outside, findings = check_repo_full(repo, since_days, only)
+    ndocs, total, _bare, _ambiguous, _outside, findings = check_repo_full(repo, since_days, only)
     return ndocs, total, findings
 
 
 def check_repo_full(
-    repo: Path, since_days: int = DEFAULT_SINCE_DAYS, only: set[Path] | None = None
-) -> tuple[int, int, int, int, list[str]]:
-    """``check_repo`` plus the two skipped counts of ``check_text_full``, summed over the docs."""
-    docs = sorted(
-        {
-            p
-            for g in SOURCE_GLOBS
-            for p in repo.glob(g)
-            if p.is_file() and _in_window(p, since_days) and (only is None or p in only)
-        }
-    )
-    total, bare, outside, findings = 0, 0, 0, []
+    repo: Path,
+    since_days: int = DEFAULT_SINCE_DAYS,
+    only: set[Path] | None = None,
+    docs_given: list[Path] | None = None,
+) -> tuple[int, int, int, int, int, list[str]]:
+    """``check_repo`` plus the three skipped counts of ``check_text_full``, summed over the docs.
+    ``docs_given`` (``--doc``) grades exactly those files — a pin, or an artifact outside the
+    source globs such as a scratch design note — bypassing globs, window and ``only``."""
+    if docs_given is not None:
+        docs = sorted({p.resolve() for p in docs_given if p.is_file()})
+    else:
+        docs = sorted(
+            {
+                p
+                for g in SOURCE_GLOBS
+                for p in repo.glob(g)
+                if p.is_file() and _in_window(p, since_days) and (only is None or p in only)
+            }
+        )
+    total, bare, ambiguous, outside, findings = 0, 0, 0, 0, []
     for doc in docs:
-        n, b, o, f = check_text_full(doc.read_text(encoding="utf-8", errors="replace"), repo)
-        total, bare, outside = total + n, bare + b, outside + o
-        findings += [f"{doc.relative_to(repo)}: {x}" for x in f]
-    return len(docs), total, bare, outside, findings
+        n, b, am, o, f = check_text_full(doc.read_text(encoding="utf-8", errors="replace"), repo)
+        total, bare, ambiguous, outside = total + n, bare + b, ambiguous + am, outside + o
+        name = doc.relative_to(repo) if doc.is_relative_to(repo) else doc
+        findings += [f"{name}: {x}" for x in f]
+    return len(docs), total, bare, ambiguous, outside, findings
 
 
 def _cwd_toplevel() -> Path | None:
@@ -218,11 +291,28 @@ def main(argv: list[str] | None = None) -> int:
     if "--since-days" in args:
         since = int(args[args.index("--since-days") + 1])
     only = _changed_docs(repo) if "--changed" in args else None
-    ndocs, ncites, bare, outside, findings = check_repo_full(repo, since_days=since, only=only)
-    found = ncites + bare + outside
-    tally = (
-        f"{ncites} graded of {found} found ({bare} bare filename, {outside} not under root {repo})"
+    if args and args[-1] == "--doc":
+        # review A-S4: a trailing --doc used to be dropped and the glob scan ran in its place
+        print("citations: REFUSED — --doc needs a path")
+        return 0
+    given = [Path(args[i + 1]) for i, a in enumerate(args[:-1]) if a == "--doc"] or None
+    if given is not None:
+        for p in given:
+            if not p.is_file():
+                print(f"citations: --doc {p} is not a file — not examined")
+    ndocs, ncites, bare, ambiguous, outside, findings = check_repo_full(
+        repo, since_days=since, only=only, docs_given=given
     )
+    found = ncites + bare + ambiguous + outside
+    tally = (
+        f"{ncites} graded of {found} found ({bare} bare filename, {ambiguous} ambiguous, "
+        f"{outside} not under root {repo})"
+    )
+    if given is not None:
+        # --doc names its own scope, so the run says which files it examined (term-edit.md: a gate run
+        # counts only when the artifact is shown to be in the examined set)
+        named = ", ".join(str(p) for p in given if p.is_file()) or "none"
+        print(f"citations: --doc examined {ndocs} file(s): {named}")
     if findings:
         print(
             f"⚠ check_citations_resolve ADVISORY — {len(findings)} citation(s) do not land, of "
@@ -233,12 +323,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"   - {f}")
         if len(findings) > 60:
             print(f"   … {len(findings) - 60} more")
-    elif outside and not ncites:
-        # printed under --quiet too: path citations were found and NONE graded — never a clean
-        # zero. Bare filenames alone never trip it: the header calls them non-claims by design.
+    elif found and not ncites:
+        # printed under --quiet too (the gate's mode): citations were found and NONE graded — never a
+        # clean zero. Since W-191404c0 a bare filename is a claim whenever it can resolve, so a doc of
+        # bare, ambiguous or foreign citations says so too.
         print(f"⚠ check_citations_resolve NOTHING GRADED across {ndocs} docs — {tally}")
-    elif not quiet and not ndocs:
+    elif not quiet and not ndocs and given is None:
         print(f"citations: nothing in scope — 0 docs under {repo} match the source families")
+    elif not quiet and not found:
+        print(f"citations: 0 citations found across {ndocs} docs — nothing to grade")
     elif not quiet:
         print(
             f"✓ citations resolve — {ncites} `path:line` citation(s) across {ndocs} docs all land"

@@ -1064,6 +1064,56 @@ def parse_plan_owner(plan_path: Path) -> str:
     return name.group(0) if name else NO_OWNER
 
 
+# The status VALUES plans on the box write as their first token (census of /opt plans,
+# 2026-10-08: executed, converged, draft, superseded, shipped, implemented, approved, archived,
+# retired, built, …). Each is graded by itself; `complete`/`not_done`/`partial`/`in progress`
+# keep their legacy substring handling below.
+_PLAN_STATUS_WORDS = frozenset(
+    {
+        "converged",
+        "draft",
+        "planned",
+        "executed",
+        "blocked",
+        "superseded",
+        "built",
+        "shipped",
+        "implemented",
+        "approved",
+        "archived",
+        "retired",
+        "revised",
+        "ready",
+        "open",
+        "planning",
+        "historical",
+        "validated",
+        "resolved",
+        "fixed",
+        "closed",
+        "pinned",
+    }
+)
+_STATUS_DECORATION = re.compile(r"^[^\w]+")  # any leading non-word run: ✅ ✓ ⛔ ⭐ ** — …
+# A plan whose status says its work is finished — never handed an owner, never "active". work.py
+# reads this set through its import of this module. RESOLVED is deliberately absent, as in
+# check_plan_lock_release.FINISHED_TOKENS: it labels a resolved issue inside an unfinished plan.
+PLAN_DONE = frozenset(
+    {
+        "EXECUTED",
+        "COMPLETE",
+        "SUPERSEDED",
+        "SHIPPED",
+        "ARCHIVED",
+        "BUILT",
+        "IMPLEMENTED",
+        "RETIRED",
+        "FIXED",
+        "CLOSED",
+    }
+)
+
+
 def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
     """Extract status and checkbox counts from a plan file.
 
@@ -1091,15 +1141,27 @@ def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
     )
     if status_match:
         raw_status = status_match.group(1).strip().lstrip("*:").strip()
-        lower = raw_status.lower()
-        first = lower.split()[0].rstrip(":*—–-") if lower.split() else ""
+        # Leading decoration (any non-word run: ✅ ✓ ⛔ emphasis, dashes) is not the value: `✅ EXECUTED … converged`
+        # graded CONVERGED by substring while its first word said EXECUTED (design critiques).
+        lower = _STATUS_DECORATION.sub("", raw_status).lower()
+        # The value is the first WORD; punctuation after it (`EXECUTED, converged …`,
+        # `BUILT, IN PART`) separates it from the rest (review A-S4, A-S5).
+        word = re.match(r"(\w+(?:-\w+)*)\W*(.*)", lower, re.S)
+        first, rest = (word.group(1), word.group(2)) if word else ("", "")
         # Exact-value-first (modern pipeline vocabulary, incl. BLOCKED): the status
         # VALUE is the first token. Substring fallbacks run LEGACY-first so a
         # free-text `COMPLETE — converged with baseline` stays COMPLETE (the
         # validate_plan_consistency check depends on it).
         # `superseded` is exact-first too: its rationale usually says "never executed",
         # which the substring fallback below graded EXECUTED (D-571: 2 plans misgraded).
-        if first in ("converged", "draft", "planned", "executed", "blocked", "superseded"):
+        # Every status WORD the fleet writes is exact-first (site-provisioner 01M4DBKECA:
+        # `BUILT … Earlier: CONVERGED` graded CONVERGED) — a value is never overridden by
+        # history text later in its own line.
+        if first in (_PLAN_STATUS_WORDS | {"done", "completed"}) and re.match(r"in\s+part\b", rest):
+            status = "PARTIAL"  # `BUILT IN PART, not EXECUTED` is not finished
+        elif first in ("done", "completed"):
+            status = "COMPLETE"
+        elif first in _PLAN_STATUS_WORDS:
             status = first.upper()
         elif first in ("in-progress", "in_progress"):
             status = "IN_PROGRESS"
@@ -1135,8 +1197,8 @@ _PLANS_TABLE_RULE = "|---|---|---|---|"
 # The Phase column has two DEFINED sources, stated in the block itself so the column is
 # never ambiguous (multi-agent-per-repo spec § Ownership surfaces names the header only).
 _PLANS_PHASE_NOTE = (
-    "<!-- Phase: epic rows = the epic's position in scripts/epic_order.py phased_order() "
-    "(1 = no upstream dependency; `cycle` = dependency cycle, see `epic_order.py --check`); "
+    "<!-- Phase: epic rows = the epic's phase in its `depends_on` order "
+    "(1 = no upstream dependency; `cycle` = a dependency cycle); "
     "plan rows = Board progress, checked/total task boxes (`-` = no boxes). "
     "Owner: the leading name token of a plan's **Owner:** line / a spine's Owner: header, "
     "or an epic's frontmatter `owner`; `—` = untagged (`--adopt` fills it). "
@@ -2119,7 +2181,7 @@ def _count_unowned_plans() -> int:
         if parse_plan_owner(p) != NO_OWNER:
             continue
         status, _checked, _total = parse_plan_status(p)
-        if status in ("EXECUTED", "COMPLETE"):
+        if status in PLAN_DONE:
             continue
         n += 1
     return n
@@ -2378,7 +2440,7 @@ def run_adopt(
         if parse_plan_owner(p) != NO_OWNER:
             continue
         status, _checked, _total = parse_plan_status(p)
-        if status in ("EXECUTED", "COMPLETE"):
+        if status in PLAN_DONE:
             continue
         owner_name = names[i % len(names)]
         if _insert_owner_line(p, owner_name, dry_run=dry_run):
