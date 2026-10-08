@@ -1892,3 +1892,19 @@ def test_an_ambiguous_fold_says_so_instead_of_no_verdict() -> None:
     v = {x["id"]: x for x in ledger["slices"][0]["verdicts"]}
     assert v["S-S1"]["verdict"] == "refuted", v
     assert v["s-s1"]["verdict"] == "unverified" and "ambiguous" in v["s-s1"]["mechanism"], v["s-s1"]
+
+
+def test_every_seat_facing_text_carries_the_one_refusal_rule_and_the_precise_silence_hedge() -> None:
+    """intel 01M4DSCHTM (W-68f8f358): the refusal rule lived in SEAT_ISOLATION and the fabrik-reviewer House
+    rules only, so an Agent-tool seat of another type, briefed from subagents-core, could still re-path after a
+    refusal (01M4DNRQ5C). And scope-growth-exit said nothing prints when the loop is "simply converging", weaker
+    than its own pack's "MERELY converging with no own-fix residue" (W-ad21a20f item 2)."""
+    core = " ".join((ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8").split())
+    # one contiguous span through the next sentence, as its two siblings above are (review A-S3)
+    assert f"for a seat with a shell, {REFUSAL_SHAPE}; {REFUSAL_CLASSIFIER}. The same brief bans" in core
+    exit_ = " ".join((ROOT / "commands" / "_fragments" / "scope-growth-exit.md").read_text(encoding="utf-8").split())
+    assert (
+        "nothing prints when the loop is MERELY converging with no own-fix residue (a falling count that is "
+        "mostly own-fix DOES print the stop). So" in exit_
+    )
+    assert "simply converging" not in exit_

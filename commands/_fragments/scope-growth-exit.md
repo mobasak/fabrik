@@ -8,7 +8,7 @@
    > **`? SCOPE GROWTH UNCOMPUTABLE`** — a window round never stated a readable
    > `--confirmed`/`--own-fix` pair and it would decide the verdict: state it and re-record before
    > deciding. ⚠️ **SILENCE IS COMMON AND IS NOT A VERDICT.** Nothing prints before the third round —
-   > the window is three rounds wide — and nothing prints when the loop is simply converging. So
+   > the window is three rounds wide — and nothing prints when the loop is MERELY converging with no own-fix residue (a falling count that is mostly own-fix DOES print the stop). So
    > silence NEVER means "this is not the scope-growth case": at round 2, or on any silent round, the
    > exit is your own reading of whether the defects are the ARTIFACT'S or this review's, exactly as it
    > was before the verdict existed. **Nested under a `fabrik-task` run at lane v2** (the receipt's header
