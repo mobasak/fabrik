@@ -46,10 +46,11 @@ ssh vps "sudo docker exec alertmanager amtool silence add --alertmanager.url=htt
 switched spoke until the watcher push. That is expected in this window; nothing else is.
 
 **The canary (spec § Validation V6).** Start it on every host before that host's step (a). It must be
-long-running and must NOT use `--rm`: its json-file log is what Promtail and then Alloy tail.
+long-running and must NOT use `--rm`: its json-file log is what Promtail and then Alloy tail. The `rm -f` first
+clears a canary an earlier, rolled-back window left behind; `docker run --name` refuses a name in use.
 
 ```bash
-for h in vps3 vps2 vps; do ssh "$h" 'sudo docker run -d --name alloy-canary --restart no alpine:3.20 sleep infinity'; done
+for h in vps3 vps2 vps; do ssh "$h" 'sudo docker rm -f alloy-canary >/dev/null 2>&1; sudo docker run -d --name alloy-canary --restart no alpine:3.20 sleep infinity'; done
 ```
 
 **Loki query helper.** Every battery read below goes through Loki's HTTP API from a throwaway curl container on
@@ -311,8 +312,17 @@ master versions back with the same two scripts and `FABRIK_ROOT=/opt/fabrik`.
 
 **Duplicate span.** Promtail resumes from its own positions file, which Alloy only read, so it re-ships the
 lines Alloy sent since step (c). They are stamped at read time and Loki keeps both copies. The duplicate span is
-as long as Alloy ran before the rollback, and a later roll-forward duplicates the rollback span the same way.
-Note both spans in the window's notes. After a rollback the branch is held until a later window passes.
+as long as Alloy ran before the rollback, and a later roll-forward that keeps Alloy's volume duplicates the
+rollback span the same way. Note both spans in the window's notes. After a rollback the branch is held until a
+later window passes.
+
+**Before a later roll-forward.** The rollback keeps Alloy's `alloy-data` volume (`monitoring_alloy-data` on the
+hub, `monitoring-agent_alloy-data` on a spoke), which holds this attempt's positions. Alloy converts Promtail's
+legacy positions only when it has no positions file of its own, so with the volume kept the next step (c)
+resumes where this attempt stopped, re-ships the rollback span, and V6 reads every pre-marker twice. The volume
+is classified recomputable (`scripts/bootstrap/bootstrap-config.sh:220`). Removing it before the next window —
+`sudo docker volume rm <name>` after `sudo docker volume inspect <name>` shows it is the one Alloy mounted, on
+the operator's word — lets the import run again. Volumes are data: never remove it as a reflex.
 
 ## 5. The close
 

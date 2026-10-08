@@ -51,7 +51,7 @@ D="sudo docker"
 # ── The ceiling table ──────────────────────────────────────────────────────────
 # container            MiB    measured 2026-09-04 (docker stats, steady state)
 CEILINGS="
-cadvisor              512    # 244.7 MiB — largest of the ten
+cadvisor              512    # 244.7 MiB — largest of the eleven
 loki                  512    # 131.6 MiB — page-cache heavy, ingest bursts
 promtail              256    # 134.4 MiB — page-cache heavy (tails logs)
 alloy                 256    # unchanged from promtail's ceiling, Alloy replaces it (spec D5)

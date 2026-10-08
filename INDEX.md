@@ -215,6 +215,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ├── config/                          # Runtime configuration files
 │   └── platform.yaml.example        # Platform config template
 ├── configs/                         # Runtime service configs (deployed services)
+│   ├── alloy/                       # Grafana Alloy log shipper config (hub)
 │   ├── loki/                        # Loki log aggregation config
 │   ├── promtail/                    # Promtail log scraper config
 │   ├── prometheus/                  # Prometheus metrics config

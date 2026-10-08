@@ -192,10 +192,10 @@ def test_v6_markers_pre_switch_and_exactly_once() -> None:
     battery = _child(host, "(d)").all_prose()
     assert "exactly once" in battery and "2 minutes" in battery
     canary = _h2("0. Preflight").all_fences()
-    assert (
-        "--name alloy-canary" in canary
-        and "--rm" not in canary.split("alloy-canary")[0].splitlines()[-1]
-    )
+    run_line = next(line for line in canary.splitlines() if "docker run -d --name alloy-canary" in line)
+    assert "--rm" not in run_line
+    # D7 RUNBOOK-S3: a canary left by a rolled-back window is cleared before the run.
+    assert run_line.index("docker rm -f alloy-canary") < run_line.index("docker run -d")
 
 
 # --- row 4: rollback restores the file and runs up -d --remove-orphans ---
@@ -213,6 +213,11 @@ def test_rollback_restores_the_file_and_never_stop_starts() -> None:
     assert "docker compose stop alloy" not in fences
     assert "Never roll back by stopping Alloy" in rb.all_prose()
     assert "Duplicate span" in rb.all_prose()
+    # D7 INFRA-O1: the rollback keeps alloy-data; the runbook names both volumes and the
+    # operator's word before a later roll-forward.
+    prose = " ".join(rb.all_prose().split())
+    for needle in ("monitoring_alloy-data", "monitoring-agent_alloy-data", "on the operator's word"):
+        assert needle in prose, needle
 
 
 # --- row 5: preflight silence, canary before (a), ss -ltn on each spoke ---
@@ -329,6 +334,9 @@ def test_seam_names_exist_in_the_compose_files_and_configs() -> None:
     assert "alloy" in hub["services"] and hub["services"]["promtail"]["profiles"] == ["rollback"]
     assert "--server.http.listen-addr=0.0.0.0:12345" in hub["services"]["alloy"]["command"]
     assert "/opt/monitoring/configs/alloy:/etc/alloy:ro" in hub["services"]["alloy"]["volumes"]
+    # D7 RUNBOOK-S5: the hub V8 step reads alloy from the fabrik network because it has no
+    # host port; a published port would break that premise (and the Traefik-only rule).
+    assert "ports" not in hub["services"]["alloy"]
     assert "alloy:" in SPOKE_TEMPLATE.read_text(encoding="utf-8")
     assert "/opt/monitoring-agent/alloy.alloy" in SPOKE_TEMPLATE.read_text(encoding="utf-8")
     jobs = [

@@ -114,12 +114,23 @@ def _step_11_verify_block() -> str:
     return step11[start:end]
 
 
-def _run_step_11_verify(agent_status: str, skip_mesh: bool) -> subprocess.CompletedProcess[str]:
+def _run_step_11_verify(
+    agent_status: str, skip_mesh: bool, inspect: tuple[str, str]
+) -> subprocess.CompletedProcess[str]:
+    """`remote` answers the `docker ps` read with `agent_status` and the two `docker inspect`
+    reads with `inspect[0]` then `inspect[1]` (a counter file, since each call runs in a
+    command-substitution subshell)."""
     block = _step_11_verify_block()
     wrapper = (
         "set -uo pipefail\n"
         f"SKIP_MESH={'true' if skip_mesh else 'false'}\n"
-        f"remote() {{ printf '%s\\n' {shlex.quote(agent_status)}; }}\n"
+        'CNT=$(mktemp); echo 0 > "$CNT"\n'
+        "remote() {\n"
+        f"  case \"$*\" in *inspect*) n=$(cat \"$CNT\"); echo $((n+1)) > \"$CNT\";\n"
+        f"    if [ \"$n\" = 0 ]; then printf '%s\\n' {shlex.quote(inspect[0])};"
+        f" else printf '%s\\n' {shlex.quote(inspect[1])}; fi ;;\n"
+        f"  *) printf '%s\\n' {shlex.quote(agent_status)} ;; esac\n"
+        "}\n"
         'err() { echo "ERR: $*"; }\n'
         'warn() { echo "WARN: $*"; }\n'
         'ok() { echo "OK: $*"; }\n'
@@ -252,20 +263,39 @@ def test_step_11_verify_fails_closed_unless_alloy_is_up() -> None:
     # O3: printing `docker ps` and logging success unconditionally is not a verify — the step
     # must fail when alloy is missing or crash-looping.
     step11 = _step_11_text()
-    assert "grep -q '^alloy Up'" in step11
-    guard_tail = step11.split("grep -q '^alloy Up'", 1)[1][:300]
+    guard = '"${alloy_second}" == "${alloy_first}"'
+    assert guard in step11
+    guard_tail = step11.split(guard, 1)[1][:700]
     assert "return 1" in guard_tail
     assert "err " in guard_tail
 
 
-NOT_UP = "alloy Restarting (1) 2 seconds ago"
-IS_UP = "alloy Up 5 seconds"
+NOT_UP = ("alloy Restarting (1) 2 seconds ago", ("false 3", "false 4"))
+IS_UP = ("alloy Up 5 seconds", ("true 0", "true 0"))
+
+
+def test_step_11_verify_fails_a_crash_loop_caught_between_restarts() -> None:
+    # D7 INFRA-O2: a crash-looping alloy reads "Up Less than a second" on one `docker ps`
+    # (seen live on a throwaway --restart unless-stopped container); the second inspect read
+    # 6 s later shows the restart count moved, so the step must still fail.
+    status, _ = IS_UP
+    result = _run_step_11_verify(
+        "alloy Up Less than a second", skip_mesh=False, inspect=("true 2", "true 3")
+    )
+    assert "RC=1" in result.stdout and "ERR:" in result.stdout, (status, result.stdout)
+
+
+def test_step_11_verify_passes_a_rerun_with_old_restarts_on_the_count() -> None:
+    # a rerun after a --skip-mesh drill: the container kept its RestartCount, but it is
+    # running and the count does not move between the two reads.
+    result = _run_step_11_verify("alloy Up 9 seconds", skip_mesh=False, inspect=("true 5", "true 5"))
+    assert "RC=0" in result.stdout and "ERR:" not in result.stdout
 
 
 def test_step_11_verify_still_fails_closed_when_mesh_is_up() -> None:
     # O9 regression guard: the SKIP_MESH branch must not weaken the real (mesh-up) case —
     # a crash-looping alloy with the mesh actually up still aborts the step.
-    result = _run_step_11_verify(NOT_UP, skip_mesh=False)
+    result = _run_step_11_verify(NOT_UP[0], skip_mesh=False, inspect=NOT_UP[1])
     assert "RC=1" in result.stdout
     assert "ERR:" in result.stdout
     assert "WARN:" not in result.stdout
@@ -276,7 +306,7 @@ def test_step_11_verify_warns_and_continues_under_skip_mesh() -> None:
     # (no wg0 → alloy can't bind the mesh IP → crash-loop → `return 1` → the rest of
     # bootstrap, steps 12-16, never ran under `set -euo pipefail`). It must warn and
     # continue instead, naming the follow-up.
-    result = _run_step_11_verify(NOT_UP, skip_mesh=True)
+    result = _run_step_11_verify(NOT_UP[0], skip_mesh=True, inspect=NOT_UP[1])
     assert "RC=0" in result.stdout
     assert "WARN:" in result.stdout
     assert "ERR:" not in result.stdout
@@ -286,7 +316,7 @@ def test_step_11_verify_warns_and_continues_under_skip_mesh() -> None:
 def test_step_11_verify_succeeds_when_alloy_is_up_regardless_of_skip_mesh() -> None:
     # the happy path must stay silent (no warn, no err) whether or not --skip-mesh was passed.
     for skip_mesh in (False, True):
-        result = _run_step_11_verify(IS_UP, skip_mesh=skip_mesh)
+        result = _run_step_11_verify(IS_UP[0], skip_mesh=skip_mesh, inspect=IS_UP[1])
         assert "RC=0" in result.stdout
         assert "ERR:" not in result.stdout
         assert "WARN:" not in result.stdout

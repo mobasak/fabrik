@@ -432,8 +432,8 @@ step_03_install_docker() {
         curl -fsSL https://get.docker.com | sudo sh; \
         fi'
     # Log rotation policy matches vps1 (10m × 3 files)
-    # daemon.json — log rotation + container tag for promtail's container_name
-    # label extraction. The `tag` field was missing pre-W4 (2026-06-02) which
+    # daemon.json — log rotation + container tag for alloy's container_name
+    # label extraction (the rollback-profile promtail reads the same tag). The `tag` field was missing pre-W4 (2026-06-02) which
     # left spoke logs in Loki without container_name, breaking per-container
     # log queries. Bootstrap now emits it always.
     remote 'sudo tee /etc/docker/daemon.json >/dev/null <<EOF
@@ -759,15 +759,23 @@ step_11_install_monitoring_agents() {
     # drill, not a real failure, and this step must not abort the rest of
     # bootstrap (steps 12-16 never run otherwise, under `set -euo pipefail`).
     sleep 4
-    local agent_status
+    local agent_status alloy_first alloy_second
     agent_status=$(remote 'sudo docker ps --filter name=node-exporter --filter name=cadvisor --filter name=alloy --format "{{.Names}} {{.Status}}"')
     echo "${agent_status}"
-    if echo "${agent_status}" | grep -q '^alloy Up'; then
+    # One `docker ps` read cannot tell a running alloy from a crash loop caught
+    # between two restarts ("Up Less than a second"). Read its Running flag and
+    # RestartCount twice, 6 s apart: a loop restarts in that gap, a healthy
+    # alloy does not. Comparing the two reads (not RestartCount == 0) keeps a
+    # rerun green when an earlier --skip-mesh drill left restarts on the count.
+    alloy_first=$(remote 'sudo docker inspect -f "{{.State.Running}} {{.RestartCount}}" alloy' 2>/dev/null || true)
+    sleep 6
+    alloy_second=$(remote 'sudo docker inspect -f "{{.State.Running}} {{.RestartCount}}" alloy' 2>/dev/null || true)
+    if [[ "${alloy_first}" == "true "* && "${alloy_second}" == "${alloy_first}" ]]; then
         :
     elif $SKIP_MESH; then
-        warn "step 11: alloy is not Up — expected under --skip-mesh (no wg0 to bind the mesh IP). Re-run step 11 once the mesh is up."
+        warn "step 11: alloy is not staying up — expected under --skip-mesh (no wg0 to bind the mesh IP). Re-run step 11 once the mesh is up."
     else
-        err "step 11: alloy container is not Up — monitoring agents failed to start"
+        err "step 11: alloy is not staying up (running/restarts '${alloy_first}', then '${alloy_second}' 6 s later) — monitoring agents failed to start"
         return 1
     fi
 

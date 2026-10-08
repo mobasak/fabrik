@@ -266,7 +266,7 @@ Internet
 | Service | Bind | Verified from spoke | Notes |
 | :--- | :--- | :--- | :--- |
 | Wireguard | `0.0.0.0:51820/udp` | n/a (hub listener) | |
-| Loki | `10.99.0.1:3100` | ✓ (spoke promtail pushing) | Added 2026-05-31 batch 1 |
+| Loki | `10.99.0.1:3100` | ✓ (spoke promtail pushing, 2026-05-31; Alloy pushes after the 2026-10 switch window) | Added 2026-05-31 batch 1 |
 | postgres-main | `10.99.0.1:5432` | ✓ (vps2 `pg_isready`) | Added 2026-05-31 batch 2 |
 | redis-main | `10.99.0.1:6379` | ✓ (vps2 `redis-cli ping`) | Added 2026-05-31 batch 2 |
 | glitchtip-web | `10.99.0.1:8000` | ✓ (vps2 HTTP 200) | Added 2026-05-31 batch 2 |

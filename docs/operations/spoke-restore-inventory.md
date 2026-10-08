@@ -42,7 +42,7 @@ Same list as the hub minus the hub-only bits (no `claude-code`, no `gh` if the s
 | `/etc/iptables/rules.v6` (~2 KB) | IPv6 mirror — same G5 caveat as above |
 | `/etc/ufw/user.rules` (~2 KB post-W8) | UFW IPv4 state (W1 baseline + W8 added `allow from 10.99.0.0/24` for mesh trust). Without the W8 rule, vps1's Prometheus cannot scrape spoke node-exporter / cadvisor / alloy — silent observability defect. |
 | `/etc/ufw/user6.rules` (1669 B) | UFW IPv6 mirror |
-| `/etc/docker/daemon.json` (~120 B) | log rotation; smaller than vps1's (no promtail tag yet — W4 pre-step) |
+| `/etc/docker/daemon.json` (~120 B) | log rotation plus `"tag": "{{.Name}}"`, which gives Alloy its `container_name` label (written by `bootstrap-vps.sh` step 03); smaller than vps1's |
 | `/etc/sysctl.d/99-cloudimg-ipv6.conf` | cloud-init injected — keep to preserve IPv6 posture |
 | `/etc/sysctl.d/99-sysctl.conf` | OS-default + operator tuning |
 | `/etc/sudoers.d/90-ozgur` | NOPASSWD line — without this, ozgur can't sudo after rebuild. **Path differs from hub** (`/etc/sudoers.d/ozgur`) because `bootstrap-vps.sh` step_00 uses the `90-` prefix for ordering clarity vs. potential future drop-ins. |
