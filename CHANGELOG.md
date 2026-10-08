@@ -13,6 +13,10 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the coordinator counts a worker's queue from the main checkout, and the worker is told to merge (2026-10-08)
 - `scripts/work.py` counted a worker's queued items from the worker's own tree, which sees the coordinator's assignments only after it merges main: right after `triage --apply` the worker read 0, the coordinator's Stop kept saying `triage`, and a second apply re-assigned the floor (6 against 3). A worker's count now reads main's item set (main's file wins per id) plus the items only its tree holds, filtered by the shared markers and claims, at the Stop cause, `queue` and `triage`. A worker whose tree lacks items main assigns it gets a new `merge` Stop action naming the base branch, then `claim` once merged. Doc: `docs/reference/work-tracking.md`. site-provisioner 01M4DNHWES.
 
+### Fixed — the refusal rule names a copy a seat can write: `cp -r` then `chmod -R u+w` (2026-10-08)
+
+- The shared refusal rule (`REFUSAL_CLASSIFIER`, verbatim in `SEAT_ISOLATION`, the fabrik-reviewer House rules and `commands/_fragments/subagents-core.md`) sent a refused seat to copy a pin with `cp`, which keeps the pin's read-only mode, so the seat's next step was refused with EACCES. It now says `cp -r` then `chmod -R u+w` — recursive, because the base copy is a directory whose nested files keep their bits (kaizen 01M4DXXNYP, D-695).
+
 ### Fixed — agent_memory.sh reclaim refuses when it cannot count live sessions (2026-10-08)
 
 - `scripts/sysadmin/agent_memory.sh`: the live-session count is now `_is_num`-validated like every other numeric in `reclaim`, so a grep that cannot run refuses (rc 10) instead of reading as zero sessions and running the swapoff, and `status` prints `?` for a session count it cannot read instead of a confident 0; a new grader restores a `\012`-named swap device as one device, guarding the NUL-delimited device list (W-6154115b).
