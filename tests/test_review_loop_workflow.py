@@ -1440,7 +1440,8 @@ def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
     # 01M4DQZGPC: the permission classifier refuses a compliant command and accepts it moments later — the
     # old "never by re-sending it" left the incident's one-plain-command `git show > SCRATCH` no legal move
     assert "never by re-sending it" not in rules
-    assert REFUSAL_SHAPE in rules and REFUSAL_CLASSIFIER in rules
+    # review A-S3: one contiguous span through its terminator, so nothing can be spliced between or after the branches
+    assert f"{REFUSAL_SHAPE}; {REFUSAL_CLASSIFIER};" in rules
     assert "never a bare `python3`" in rules, (
         "a probe on the system interpreter lacks the project's packages"
     )
@@ -1561,8 +1562,9 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
     # naming neither is the classifier — one unchanged retry, then the same bytes into the same SCRATCH
     # destination, else unverified; the clause sits after the write scope and reaches both rendered prompts
     shape, classifier = (c.replace("`", "\\`") for c in (REFUSAL_SHAPE, REFUSAL_CLASSIFIER))
-    assert shape in iso and classifier in iso
-    assert iso.index(scope.replace("`", "\\`")) < iso.index(shape) < iso.index(classifier) < iso.index("The shell returns")
+    # review A-S3: an order-only chain passed a clause spliced in after the classifier branch — assert one span
+    assert f"On a refused command: {shape}; {classifier}. The shell returns" in iso
+    assert iso.index(scope.replace("`", "\\`")) < iso.index(shape)
     for prompt in _shell_seat_prompts():
         assert REFUSAL_SHAPE in prompt and REFUSAL_CLASSIFIER in prompt
     # review A-S1/A-S2: tempfile writes under TMPDIR (default /tmp), and PIN_IMPORT keeps the REAL user
