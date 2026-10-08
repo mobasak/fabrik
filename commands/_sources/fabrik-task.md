@@ -58,7 +58,18 @@ commit. All twelve cobras and their counters are § Constraints C3 of
 
 ## Phase 1 — MEASURE
 
-FIX DIRECTIVE step 1. Then
+FIX DIRECTIVE step 1 whole — a failure reported with a command is replayed by that command, never
+a reconstruction. Then, before phase 2 and any edit, each command and its output goes to
+`<scratchpad>/fabrik-task/<sid>/<started_at>/measure.md`, beside phase 2's `design.md`, never in
+it (a pasted line opening with a field word or a `#` moves the declared paths): the tests that
+import or grade the declared files, that slice and never the whole suite (a red now is
+pre-existing); `git fetch` and the declared paths diffed against the remote branch the work merges
+into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings,
+`/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack
+the rule already lives in; the population the change writes or thresholds measured (its readers
+are MIRROR's) — every writer, every occurrence of the shape it admits, every host it runs on, and
+the n behind any rate, bound or zero the design will claim; each external contract probed live
+once, a list read whole, never a sample. Then
 `python scripts/select_rules.py --changed <the declared paths>` — the path-scoped form — and READ
 the packs it prints.
 
@@ -156,7 +167,7 @@ noticed mid-build, or a phase-4 seat's verdict (a mechanism found mid-run is not
 D-row names it — D-315) —
 **first materialises the seed** (the
 phase-2 `design.md` plus a `## RESUME` block naming the test crossed; before the design exists, that
-block alone), then closes. ⚠️ **`UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it** —
+block alone, naming phase 1's `measure.md`), then closes. ⚠️ **`UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it** —
 lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` (v1 and v2) · *(v2)*
 `contract` · `new-source` · `behaviours` · `appetite`, then a dash and the detail. Nothing
 downgrades mid-run:

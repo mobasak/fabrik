@@ -7,7 +7,8 @@ ticket T03 Behavior Contract), plus (T07, plan 2026-10-02-plan-1) the Revision-2
 1. SIZE + INCLUDES — the source is at most `SIZE_CAP` bytes (D-296 raised it to 8980 above C2's
    original 8,847; T07 raises it again to 11672 for D3/D6/D7/D8's required prose plus the v1/v2
    scope tags and the O7 fix review round 1 found missing — D-501; D-657 raises it to 11974 for
-   phase 2's path-naming rule; D-675 to 12439 for its MIRROR rule, see the comments above `SIZE_CAP`)
+   phase 2's path-naming rule; D-675 to 12439 for its MIRROR rule; D-679 to 13610 for phase 1's MEASURE list, see the comments above
+   `SIZE_CAP`)
    and its only `{{include:}}` is
    `run-record`. The include half
    is C2's cobra counter (cobra 8): the cheapest way to satisfy a source-byte cap is to move the
@@ -66,7 +67,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # D-675 (kaizen, 2026-10-08): 11974 -> 12439 for phase 2's MIRROR rule (every reader of what changes,
 # found by an executed search, its failing shape and measured cost; untouched readers unbackticked —
 # 7 feedback rows).
-SIZE_CAP = 12439
+# D-679 (kaizen, 2026-10-08): 12439 -> 13610 for phase 1's MEASURE list (tests on HEAD, fetch + diff,
+# the prior record, the measured population, live contract probes — 25 feedback rows).
+SIZE_CAP = 13610
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -437,6 +440,30 @@ def _assert_governs(text: str, sentence: str, why: str) -> None:
     assert not _asserted(_mutated(text, sentence, _glued_suffix), pat), (
         f"suffix-glue mutant wrongly passed for {why}"
     )
+
+
+def test_measure_lists_what_phase_1_executes_before_the_design() -> None:
+    """D-679: /fabrik-task verdicts reported designs drafted before the population, the prior
+    record, HEAD's own suite or a sibling's landed fix were looked at."""
+    text = _norm(_source_text())
+    for needle in (
+        "a failure reported with a command is replayed by that command, never a reconstruction",
+        "before phase 2 and any edit, each command and its output goes to",
+        "`<scratchpad>/fabrik-task/<sid>/<started_at>/measure.md`, beside phase 2's `design.md`, never in it",
+        "that slice and never the whole suite (a red now is pre-existing)",
+        "`git fetch` and the declared paths diffed against the remote branch the work merges into",
+        "(`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote)",
+        "FIX DIRECTIVE step 1 whole",
+        "`docs/DECISIONS.md`, the files' docstrings",
+        "(its readers are MIRROR's)",
+        "block alone, naming phase 1's `measure.md`",
+        "`/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one",
+        "the fragment or pack the rule already lives in",
+        "every writer, every occurrence of the shape it admits, every host it runs on",
+        "the n behind any rate, bound or zero the design will claim",
+        "each external contract probed live once, a list read whole, never a sample",
+    ):
+        assert needle in text, needle
 
 
 def test_design_note_names_behaviours_cap_and_the_design_amend_remedy() -> None:

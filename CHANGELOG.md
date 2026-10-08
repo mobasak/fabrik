@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `/fabrik-task` phase 1 lists what MEASURE executes before the design (2026-10-08)
+- Twenty-five queue verdicts reported a design drafted before a sibling's landed fix, a pre-existing red, a writer, a host or a vendor list was looked at. Phase 1 now replays a reported command as reported, then writes each command and its output to `measure.md` beside `design.md`: the declared files' own tests, a fetch and diff against the remote branch the work merges into, the prior record, the measured population with its n, and a live probe of each external contract. Size cap 12439 → 13610 B (D-679).
+
 ### Fixed — two synced reference docs name the base image by the registry key, not bookworm (2026-10-08)
 - `docs/reference/technology-stack-decision-guide.md` and `docs/reference/prebuilt-app-containers.md` named `bookworm` literally. The fleet pin is `debian_codename: trixie` in `.windsurf/rules/versions.yaml`, so both now name the variant through that key. They scope the Debian `-slim` and no-Alpine rule to images we build, as `core/30-ops.md` does, and credit `check_docker.py`. The job-queue example uses `redis:7-alpine`, matching the doc's own table and the live redis-main. Fleet mail 01M4DA453Y.
 
