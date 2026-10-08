@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T19:43:20.774025Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3fc1f3da",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "Stop hook: stand down the running-record cause while a dispatched seat of the live record is still running (plan-review verdict 1791336959.8491278, kaizen 01M4EG5F6D)"
+}
