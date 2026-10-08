@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — every seat with a shell gets the one refusal rule; the scope-growth silence hedge is exact (2026-10-08)
+- `commands/_fragments/subagents-core.md` now carries the refusal rule SEAT_ISOLATION and the fabrik-reviewer House rules already state (verbatim from `REFUSAL_SHAPE`/`REFUSAL_CLASSIFIER`), scoped to a seat with a shell, so an Agent-tool seat of another type no longer re-paths after a refusal (intel 01M4DSCHTM, W-68f8f358). `commands/_fragments/scope-growth-exit.md` said nothing prints when the loop is "simply converging"; it now says "MERELY converging with no own-fix residue (a falling count that is mostly own-fix DOES print the stop)", the form `core/50-code-review.md` uses. Grader: `tests/test_review_loop_workflow.py::test_every_seat_facing_text_carries_the_one_refusal_rule_and_the_precise_silence_hedge`.
+
 ### Changed — rule (3)'s residue rewrite fires per site, not only per round (2026-10-08)
 - `commands/_fragments/term-coverage.md` and `commands/_fragments/term-edit.md` rule (3) forced the one-batch rewrite only when two consecutive delta rounds confirmed ONLY residue, so one site could yield own-fix defects every round and never trigger it. It now also fires when one site (sentence, bullet item, table row; a function or top-level statement in term-coverage) yields an own-fix defect in two consecutive delta rounds, cited `site:`; the rewrite counts as one more attempt toward the existing per-finding/per-axis BLOCKED escalation; the scope-growth stop takes over from the first round that prints it (D-698, W-cc2b8600). Grader: `tests/enforcement/test_review_exit_contract.py::test_rule_three_fires_per_site_and_stands_down_at_the_stop`.
 
