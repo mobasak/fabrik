@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-spec's close chain prescribes the truncated repo-wide check_spec_convergence run — switch ARTIFACT_CHECK to the scoped form once D-708 merges"
 }
