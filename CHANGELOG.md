@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped: a seat that is still out, failed, or left candidates unverified (2026-10-08)
+- Step 5 said nothing about a seat that had not returned, and queue verdicts reported rounds recorded over one, a dead seat's slice counted as read, and no rule for a refuter that returned nothing. It now says a seat still out is open (`read` prints `NO RESULT` for it too): wait or re-dispatch, never close over it; a finder the `Workflow` call's own ledger marks failed (`seats[].failed`), or an Agent-tool seat that errored or brought no report, is re-dispatched or its slice read by the lead, and a round recorded that way is never the closing round (term-coverage.md); and every candidate a refuter left `unverified` or never reached is the lead's to execute, or to record `RECORDED — unexecuted (<why>)` for the next round, before the round is recorded.
+
 ### Changed — /fabrik-review-scoped: an own-fix count is evidenced, never asserted (2026-10-08)
 - Step 4's `--own-fix` count decides the scope-growth stop, and calling an original-surface defect own-fix both trips that stop sooner and buys the backlog exit. The term fragments bound this ("own-fix is EVIDENCED, never asserted"); `/fabrik-review-scoped`, which keeps no receipt, did not. Step 4 now says each counted defect names the round whose fix hunk holds its line or created the contradiction it reports (`own-fix: round k`), shown by diffing that round's pin against the next pass's pin, in the report and the close's `--evidence`, and that any other defect is never own-fix.
 
