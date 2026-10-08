@@ -1470,7 +1470,10 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
         "not the live checkout, not /tmp outside SCRATCH"
     )
     assert scope.replace("`", "\\`") in iso, "the write-scope rule, as one span"
-    assert "set HOME and the module's path constants to SCRATCH first" in iso
+    # review A-S1/A-S2: tempfile writes under TMPDIR (default /tmp), and PIN_IMPORT keeps the REAL user
+    # base for imports — the remedy names TMPDIR and says that line only reads
+    assert "set HOME, TMPDIR and the module's path constants to SCRATCH first" in iso
+    assert "only READS the real user base" in iso
 
 
 def test_fabrik_review_lessons_carry_the_leak_check() -> None:
