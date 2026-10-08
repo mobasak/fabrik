@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `pin --from` no longer refuses a committed file over an unrelated working-tree symlink (2026-10-08)
+
+- `scripts/review_loop_ledger.py pin --from` judged the path by its WORKING-TREE shape, so a regular file at the ref was refused when the working tree held a symlink there; ref mode now refuses only what the commit makes unpinnable. The workflow's refusal text and the reference doc no longer say a deleted file is always refused (kaizen ba7fc026a). Receipt: `docs/development/reviews/2026-10-08-pin-refusal-wording-review.md`.
+
 ### Changed — a receipt row whose overflow cells carry text now fails the gate (2026-10-08)
 
 - `scripts/enforcement/check_review_hygiene.py --strict`, registered by `final_gate.py`, blocks a staged or tracked-modified receipt row whose cells past the header's width carry text (GFM drops them); every other hygiene hit stays advisory and now reaches `--json` warnings (W-205934fb, D-677). `check_mcp_scope` gets its liveness canary and its Tier-2 count. Receipt: `docs/development/reviews/2026-10-08-review-hygiene-strict-review.md`.
