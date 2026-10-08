@@ -834,3 +834,115 @@ def test_corpus_the_new_rules_change_no_other_committed_verdict() -> None:
     root = files[0].parents[3]
     assert (root / "docs/development/reviews").is_dir(), root
     assert crc._committed_nonquiet(root, set()) == pre._committed_nonquiet(root, set())
+
+
+# --- a review-loop finding id owns a by-design licence (W-528f123e, iterative_image_editor 01M3XTWYRZ) -----------
+
+
+def _self_cited(row_id: str, verdict: str, ids: str = "") -> list[str]:
+    """`_residual`, but with the Residual row's OWN first cell set to `row_id` — the shape a review-loop receipt
+    writes (its residual rows are keyed by candidate id), so a self-cite is the natural mistake there."""
+    ledger = [HEADER, SEP, PRIOR, CLOSING]
+    text = "\n".join(
+        [
+            "## Findings",
+            "",
+            "| id | note |",
+            "|---|---|",
+            *([ids] if ids else []),
+            "",
+            "## Residual",
+            "",
+            f"| {row_id} | RECORDED — {verdict} |",
+            "",
+            "## Pass Ledger",
+            "",
+            *ledger,
+            "",
+        ]
+    )
+    text_s = crc._strip_fences(text)
+    return crc._residual_errors(text_s, crc._ledger_shapes(text)[2])
+
+
+@pytest.mark.parametrize(
+    "owner",
+    [
+        "A-S1",
+        "B-H2",
+        "A-O3",
+        "A-L1",
+        "T09R-O15",
+        "B-H2#2",
+        "rule-grammar-S1",
+        "R1-T03-A-O14",
+        "A1-docstring-exemption-H1",
+    ],
+)
+def test_a_review_loop_owner_id_licenses_a_by_design_verdict(owner: str) -> None:
+    """The workflow mints `<slice>-<O|S|H|L><n>` (a reused id suffixed `#n`), and slice names are free text with
+    hyphens. Of 690 such first cells in this tree the F-only `_OWNER_ID` refused every one as an owner, so writers
+    fell back to the weaker `RECORDED — measured` (iie b9885cf)."""
+    assert _residual(f"by design ({owner}, round 3)", ids=f"| {owner} |") == []
+    assert _residual(f"by design (`{owner}`, round 3)", ids=f"| `{owner}` |") == [], (
+        "a backticked owner"
+    )
+    errs = _residual(f"by design ({owner}, round 3)", ids="| F342 |")
+    assert errs and "owning row is absent" in errs[0], (owner, errs)
+    errs = _residual(f"by design ({owner}, round 18)", ids=f"| {owner} |")
+    assert errs and "not EARLIER than the closing" in errs[0], (owner, errs)
+
+
+def test_a_review_loop_owner_is_matched_whole_and_prose_is_not_an_owner() -> None:
+    assert _residual("by design (A-S1, round 3)", ids="| B-A-S1 |"), (
+        "A-S1 must not be lifted out of B-A-S1"
+    )
+    for prose in ("the A-S1 shape", "A-SH1", "Pass-P1", "A-S?", "A#2"):
+        errs = _residual(f"by design ({prose}, round 3)", ids=f"| {prose} |")
+        assert errs and "owning row is absent" in errs[0], (prose, errs)
+
+
+@pytest.mark.parametrize("row_id", ["A-S1", "F7"])
+def test_a_residual_row_never_licenses_itself(row_id: str) -> None:
+    """Critique of W-528f123e: the owner lookup read EVERY first cell, the citing Residual row's own included, so
+    `| A-S1 | RECORDED — by design (A-S1, round 1) |` with no other A-S1 row licensed itself — the round bound
+    then rests on a number the writer typed. The citing line is not its own owner; another row with the id is."""
+    errs = _self_cited(row_id, f"by design ({row_id}, round 3)")
+    assert errs and "owning row is absent" in errs[0], (row_id, errs)
+    assert _self_cited(row_id, f"by design ({row_id}, round 3)", ids=f"| {row_id} |") == []
+
+
+def test_a_bare_carriage_return_cannot_move_the_citing_line() -> None:
+    """Review A-S1: the citing line was located by counting `\\n`, the owner set built by `splitlines()`, which
+    also breaks on a bare `\\r` — so one stray CR before the verdict excluded the WRONG line and the row licensed
+    itself again. Both now use the same line boundaries."""
+    rows = [
+        "| F1 | note |",
+        "|---|---|",
+        "| F2 | RECORDED — by design (F2, round 1) |",
+        "| Pass 18 | opus×1 | found: 0, confirmed: 0, fixed: 0 | m |",
+    ]
+    text = "\r".join(rows)
+    text_s = crc._strip_fences(text)
+    errs = crc._residual_errors(text_s, crc._ledger_shapes(text)[2])
+    assert errs and "owning row is absent" in errs[0], errs
+
+
+def test_the_owner_lookup_reads_each_line_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Review A-S2: the owner set was re-built from the whole document once per citing line — quadratic, 3.8 s at
+    a few thousand verdicts. Each line's ids are now read ONCE, whatever the verdict count."""
+    n = 300
+    rows = [f"| F{i} | finding |" for i in range(1, n + 1)]
+    rows += [f"| R{i} | RECORDED — by design (F{i}, round 1) |" for i in range(1, n + 1)]
+    text = "\n".join(["| id | note |", "|---|---|", *rows, "", HEADER, SEP, PRIOR, CLOSING, ""])
+    calls = {"n": 0}
+    real = crc._line_ids
+
+    def counting(line: str) -> set[str]:
+        calls["n"] += 1
+        return real(line)
+
+    monkeypatch.setattr(crc, "_line_ids", counting)
+    text_s = crc._strip_fences(text)
+    assert crc._residual_errors(text_s, crc._ledger_shapes(text)[2]) == []
+    assert calls["n"] <= len(text.splitlines()) + 1, calls

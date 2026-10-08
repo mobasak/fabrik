@@ -58,6 +58,10 @@ still holding a frozen pre-2026-07-11 copy in `docs/BUSINESS_MODEL.md` were aske
 ### Changed — the review family's Persist step names the receipt skeleton (2026-10-08)
 - `commands/_fragments/term-coverage.md` obligation 3 (rendered into /fabrik-review, /fabrik-repo-review, /fabrik-conformance-review, /fabrik-service-test, /fabrik-user-test) told reviewers to create the receipt "with the Coverage Checklist skeleton" but named no tool, so they hand-built standing rows, grouped Hunt rows and missed the `## Phase` heading the gate keys on. It now says that in `/fabrik-review`, the one diff-surface consumer, `review_receipt.py --init --changed … --scope …` writes it, with `--range <base>..HEAD` for committed work. The skeleton pastes the rubric and carries per-path Hunt rows, the standing rows, the ledger and the Phase and Gate sections, and the reviewer adds the rubric's class rows. That skeleton has existed since 2026-09-06, but the command named it only in § Reporting, far below. Answers 10 /fabrik-review feedback verdicts (kaizen).
 
+### Fixed — a review-loop finding id can own a by-design verdict, and no row licenses itself (2026-10-08)
+
+- `scripts/enforcement/check_review_coverage.py` refused every review-loop id (`A-S1`, `T09R-O15`, `rule-grammar-S1`) as a `RECORDED — by design` owner; the shape is now admitted, the citing row is excluded from the owner lookup, and the lookup reads each line once (W-528f123e, D-670). Receipt: `docs/development/reviews/2026-10-08-review-coverage-loop-owner-ids-review.md`.
+
 ### Added — read --pins names a seat's stray write into the live tree (2026-10-08)
 
 - `scripts/review_loop_ledger.py pin` snapshots the repo toplevel before any write and `read --pins` names every new or changed path outside the manifest (NEW UNTRACKED, NEW IGNORED, NEW MODIFIED, CHANGED AGAIN) with its size and the seats live then; a tar whose pax comment is a commit of the repo reads SEAT ARCHIVE and exits 4 (infra 01M4CV040F, D-667). Receipt: `docs/development/reviews/2026-10-08-review-loop-stray-writes-review.md`.

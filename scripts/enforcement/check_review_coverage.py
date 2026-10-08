@@ -29,6 +29,7 @@ Checklist and are not this gate's subject (check_convergence.py covers them).
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import os
 import re
@@ -2184,7 +2185,15 @@ _BY_DESIGN = re.compile(r"RECORDED\s*—\s*by design\s*\(([^)]*)\)")
 # (500 bare, 3 sub-findings `F8a`–`F8c`) and 40 are prefixed (`AF1`–`AF15`, `BF1`, `A-F1`–`A-F4`,
 # `U0-F1`–`U3-F2`); 0 are hyphenated `F-nnn`. FULLMATCHED, never searched — a search would lift
 # `F9` out of `AF9` and pass an owner that does not exist.
-_OWNER_ID = re.compile(r"[A-Za-z0-9]{0,3}-?F\d+[a-z]?")
+# The SECOND shape is the review-loop workflow's own (W-528f123e): `<slice>-<O|S|H|L><n>` with a reused id
+# suffixed `#n` (.claude/workflows/fabrik-review-loop.js), the slice name free text with hyphens
+# (`rule-grammar-S1`, `R1-T03-A-O14`). Of 690 such first cells in the tree at 8fcc01023 the F-only shape refused
+# every one as an owner, so writers fell back to `RECORDED — measured` (iie b9885cf). The seat letter is only
+# ever O, S, H or L, so prose like `Pass-P1` or `A-SH1` stays refused; a pass-suffixed id (`B-S1-p3`) and the
+# placeholders `A-S?` / `A#2` are not owner shapes — cite the base id.
+_OWNER_ID = re.compile(
+    r"[A-Za-z0-9]{0,3}-?F\d+[a-z]?|[A-Za-z0-9][A-Za-z0-9-]{0,60}-[OSHL]\d+[a-z]?(?:#\d+)?"
+)
 _D_OWNER = re.compile(r"D-\d+")
 _BY_DESIGN_ENTRY = re.compile(r"^(?P<owner>.*?)\s*,\s*round\s*(?P<n>\d+)$", re.I)
 # `| F9, F12–F16 |` — one multi-owner cell exists in the corpus, and its range must expand or
@@ -2221,30 +2230,28 @@ def _closing_pass_row(ordered: list[_Row]) -> tuple[int, str] | None:
     return (int(m.group(1)), ordered[-1][4]) if m is not None else None
 
 
-def _row_ids(text_s: str) -> set[str]:
-    """Every ledger/finding row id in the receipt — the FIRST cell of every `|`-leading,
-    non-separator row ANYWHERE in the fence-stripped text, comma/semicolon split and ranges
-    expanded. Deliberately wider than the LEDGER BLOCKS of the token rule: 514 of the 543 owner
-    rows at 8092e8a8 sit in findings tables, outside any ledger block.
-    """
+def _line_ids(line: str) -> set[str]:
+    """The row ids ONE line carries — its first cell, comma/semicolon split, ranges expanded; empty for a line
+    that is not a non-separator `|` row. Every `|`-leading row ANYWHERE in the fence-stripped text counts, which is
+    deliberately wider than the LEDGER BLOCKS of the token rule: 514 of the 543 owner rows at 8092e8a8 sit in
+    findings tables, outside any ledger block."""
     ids: set[str] = set()
-    for line in text_s.splitlines():
-        stripped = line.strip()
-        if not stripped.startswith("|") or _SEP_ROW.fullmatch(stripped):
+    stripped = line.strip()
+    if not stripped.startswith("|") or _SEP_ROW.fullmatch(stripped):
+        return ids
+    cells = _row_cells(line)
+    if not cells:
+        return ids
+    for tok in re.split(r"[,;]", cells[0]):
+        tok = tok.strip().strip("*`").strip()
+        if not tok:
             continue
-        cells = _row_cells(line)
-        if not cells:
-            continue
-        for tok in re.split(r"[,;]", cells[0]):
-            tok = tok.strip().strip("*`").strip()
-            if not tok:
-                continue
-            ids.add(tok)
-            rng = _OWNER_RANGE.match(tok)
-            if rng is not None:
-                lo, hi = int(rng.group(2)), int(rng.group(3))
-                if lo <= hi and hi - lo < 200:
-                    ids.update(f"{rng.group(1)}{i}" for i in range(lo, hi + 1))
+        ids.add(tok)
+        rng = _OWNER_RANGE.match(tok)
+        if rng is not None:
+            lo, hi = int(rng.group(2)), int(rng.group(3))
+            if lo <= hi and hi - lo < 200:
+                ids.update(f"{rng.group(1)}{i}" for i in range(lo, hi + 1))
     return ids
 
 
@@ -2257,17 +2264,30 @@ def _residual_errors(text_s: str, ordered: list[_Row]) -> list[str]:
     verdicts = list(_BY_DESIGN.finditer(text_s))
     if not verdicts:
         return []
-    ids = _row_ids(text_s)
+    # each line's ids ONCE, and the lines an id occurs on — the citing line is located by the SAME line
+    # boundaries (`splitlines(keepends=True)` offsets), so a bare `\r` cannot shift it (review A-S1) and the
+    # per-verdict owner check is a lookup, not a re-join of the whole document (A-S2: quadratic in verdicts)
+    starts: list[int] = []
+    on_lines: dict[str, set[int]] = {}
+    pos = 0
+    for i, line in enumerate(text_s.splitlines(keepends=True)):
+        starts.append(pos)
+        pos += len(line)
+        for tok in _line_ids(line):
+            on_lines.setdefault(tok, set()).add(i)
     closing = _closing_pass_row(ordered)
     repair = "cite the owning row's first-cell id verbatim, or `(D-nnn)`"
     out: list[str] = []
     for v in verdicts:
+        # the citing row is never its own owner (W-528f123e critique): every first cell is an id, so
+        # `| A-S1 | RECORDED — by design (A-S1, round 1) |` with no other A-S1 row licensed itself
+        at = bisect.bisect_right(starts, v.start()) - 1
         for raw in v.group(1).split(";"):
             entry = raw.strip()
             if not entry:
                 continue
             em = _BY_DESIGN_ENTRY.match(entry)
-            owner = em.group("owner").strip() if em else entry
+            owner = (em.group("owner") if em else entry).strip().strip("*`").strip()
             n = int(em.group("n")) if em else None
             if _D_OWNER.fullmatch(owner):
                 if n is not None:
@@ -2276,7 +2296,7 @@ def _residual_errors(text_s: str, ordered: list[_Row]) -> list[str]:
                         "— a D-row is earlier than any closing round by construction"
                     )
                 continue
-            if not _OWNER_ID.fullmatch(owner) or owner not in ids:
+            if not _OWNER_ID.fullmatch(owner) or not (on_lines.get(owner, set()) - {at}):
                 out.append(f"`RECORDED — by design ({entry})`: the owning row is absent — {repair}")
                 continue
             if n is None:
