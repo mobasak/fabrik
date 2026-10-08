@@ -429,3 +429,30 @@ def test_rule_three_fires_per_site_and_stands_down_at_the_stop() -> None:
     assert "ONLY-residue pass" not in te and "rule 3 ever triggers" not in te
     assert "(patch, patch, rewrite)" not in te and "(patch, patch, rewrite)" not in tc
     assert "function or top-level statement" in rule3(tc) and "function or top-level statement" not in te
+
+
+def test_round_zero_probes_a_guard_on_five_legitimate_spellings_and_its_mutant_mirrors() -> None:
+    """/fabrik-review queue (5 verdicts over five days): a guard a fix added was proven on the one spelling the
+    fix answered, so the next round's seat met the bolded, slash or reordered form; and a re-cut was proven on
+    the new finding alone. The round-zero probe now points at the testing-strategy pack row that owns the
+    five-spellings floor and defines the re-cut's mirrors. The citation is graded against the pack itself: the row
+    must sit in the section the probe names and still say what the probe quotes."""
+    text = " ".join((REPO / "commands" / "_fragments" / "term-coverage.md").read_text().split())
+    assert (
+        "a guard against an input that shows the condition, one that does not, every error path and five "
+        "LEGITIMATE spellings of its subject (`45-testing-strategy` § Banned Patterns, the row *A GUARD proven only "
+        "by the ONE spelling*: under 5/5 is a finding), a re-cut guard against the mutant of the finding it answers "
+        "AND, for a phrase guard, that mutant's mirrors (its negation in the same word order and a reordered "
+        "rewording)," in text
+    )
+    assert "routed to the backlog rather than widened into its regex" not in text, (
+        "the pack makes a missed spelling a finding; a backlog route for it contradicts rule (3) and the row"
+    )
+    pack = (REPO / ".windsurf" / "rules" / "core" / "45-testing-strategy.md").read_text()
+    section = pack.split("\n## Banned Patterns\n", 1)
+    assert len(section) == 2, "the § Banned Patterns heading the probe cites is gone"
+    body = section[1].split("\n## ", 1)[0]
+    row = next((ln for ln in body.splitlines() if ln.startswith("| A GUARD proven only by the ONE spelling")), "")
+    assert row, "the cited row left § Banned Patterns — re-point the probe's citation"
+    assert "anything under 5/5 is a finding" in " ".join(row.split())
+

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the round-zero probe tests a new guard on five legitimate spellings and a re-cut on its mutant's mirrors (2026-10-08)
+- `commands/_fragments/term-coverage.md` (rendered into /fabrik-review, /fabrik-repo-review, /fabrik-conformance-review, /fabrik-user-test, /fabrik-service-test): the round-zero input space now lists five LEGITIMATE spellings of a guard's subject, pointing at `45-testing-strategy` § Banned Patterns (under 5/5 is a finding), and, for a phrase guard, the re-cut's mutant AND its mirrors (its negation in the same word order and a reordered rewording). Answers 5 /fabrik-review verdicts over five days. D-711 records how one-off verdicts are now disposed of. Grader: `tests/enforcement/test_review_exit_contract.py::test_round_zero_probes_a_guard_on_five_legitimate_spellings_and_its_mutant_mirrors`, which also checks the cited row is still in that section.
+
 ### Changed — the commands state the Constraints Digest contract check_rule_grounding grades (2026-10-08)
 - The digest's grammar lived only in `scripts/enforcement/check_rule_grounding.py`, so plan authors kept writing tables it could not grade (intel 01M4E26N, ~14 queue verdicts). `commands/_fragments/grounding-rules.md` now names the `## Constraints Digest` heading, the `| Quote | Source |` header and separator the checker takes from the first two table lines, a literal row, and the matching rule (case-exact substring of the whole cited file, whitespace collapsed, backticks and `*` dropped, no `…` elision, `\|` for a literal pipe). `/fabrik-plan-review` step 3 checks that grammar and has each spot-check confirm the cited `:line`, which the checker does not grade. Grader: `tests/enforcement/test_rule_grounding.py::test_the_digest_row_the_commands_teach_is_one_the_checker_grades`, which drives `_audit` for each stated rule.
 
