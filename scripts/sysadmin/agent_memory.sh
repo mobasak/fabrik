@@ -131,7 +131,15 @@ cmd_status() {
     printf "  %-28s %s GB in use of %s GB\n" "swap" "$(_gb "$u")" "$(_gb "$t")"
     printf "  %-28s %s GB\n" "anon (agents+apps)" "$(_gb "$(_meminfo AnonPages)")"
     printf "  %-28s %s GB\n" "page cache (reclaimable)" "$(_gb "$(_meminfo Cached)")"
-    printf "  %-28s %s\n" "claude sessions live" "$(pgrep -x claude | wc -l)"
+    # `pgrep | wc -l` took the pipeline's rc from wc, so a broken pgrep printed a confident 0 —
+    # the fail-open reclaim already closed, one function over (review A-S1, W-6154115b)
+    local pids prc live="?"
+    pids=$(pgrep -x claude); prc=$?
+    if [ "$prc" -le 1 ]; then
+        live=$(printf '%s' "$pids" | grep -c . || true)
+        _is_num "$live" || live="?"
+    fi
+    printf "  %-28s %s\n" "claude sessions live" "$live"
 }
 
 # Pull already-swapped agent pages back into RAM. The sysctl policy prevents FUTURE bad eviction;
@@ -155,6 +163,12 @@ cmd_reclaim() {
         *) echo "skipped: pgrep failed (rc $prc) — refusing to act blind"; return 10 ;;
     esac
     live=$(printf '%s' "$pids" | grep -c . || true)
+    # the same fail-closed rule as every other numeric here: a grep that cannot run leaves
+    # `live` empty, `[ "" -gt 0 ]` exits 2, and `if` read that as "no sessions" (W-6154115b)
+    if ! _is_num "$live"; then
+        echo "skipped: cannot count live claude sessions — refusing to act blind"
+        return 10
+    fi
     # GUARD: swapoff must fit every swapped page back into RAM at once and stalls the box for up
     # to a minute. This tree routinely runs 3+ concurrent agent sessions whose turns would freeze
     # mid-tool-call, so it refuses while any is alive.

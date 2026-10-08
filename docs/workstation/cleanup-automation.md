@@ -290,10 +290,11 @@ into RAM at once and stalls the box for up to a minute. This tree routinely runs
 sessions whose turns would freeze mid-tool-call, so it REFUSES while any `claude` process is alive,
 and refuses again if the swapped bytes exceed `MemAvailable` (where `swapoff` would abort with
 ENOMEM part-way) or if `/proc/meminfo` cannot be read at all. ⚠️ **`--force` overrides the
-live-session refusal ONLY** — the ENOMEM, unreadable-`/proc/meminfo` and no-device-to-restore
-refusals are absolute, because each of them means the tool cannot prove it could undo what it is
-about to do. (An earlier cut of this sentence said simply "`--force` overrides", which was true of
-one refusal in four.) A refused `swapoff` that leaves the box unchanged returns **11** — distinct
+live-session refusal ONLY** — the other refusals are absolute: a failed `pgrep` and a session
+count it cannot read (the live-session guard cannot be applied blind), an unreadable
+`/proc/meminfo`, ENOMEM, an unreadable `/proc/swaps`, and no device to restore — each means the
+tool cannot prove it could undo what it is about to do. (An earlier cut of this sentence said
+simply "`--force` overrides", which was true of one refusal of the set.) A refused `swapoff` that leaves the box unchanged returns **11** — distinct
 from the guard's own skip (**10**) and from a critical failure (**1**), because a box that never
 lost its swap must not break the heartbeat. The sysctl policy
 prevents FUTURE bad eviction; only this undoes what is already out there.
