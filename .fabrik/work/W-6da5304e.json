@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T03:05:10.645403Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-6da5304e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-command-improve fabrik-review: say 'the routing exit above' instead of 'the backlog exit above'",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "term-coverage scope-growth paragraph: 'Only work that is genuinely OWN-FIX takes the backlog exit above' names only the backlog route; when the stop routes to /fabrik-spec the sentence reads as excluding it (recorded in the scope-growth remainder of the 669d88798 review, 2026-10-08)"
+}
