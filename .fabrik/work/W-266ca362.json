@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-08T01:05:26.879714Z",
+  "created": "2026-10-08T03:32:04.211806Z",
   "creator": "intel",
   "evidence": "",
-  "id": "W-751b405d",
+  "id": "W-266ca362",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M4CGJZAXE9C1Y0BSNQ3YPFBJ",
+    "mail": "01M4CNGYK3PGPBY11MF75DC1HV",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "intel",
   "priority": 2,
   "status": "done",
-  "title": "six /fabrik-review feedback verdicts ask fabrik-review-loop.js to ENFORCE its pins, not describe them"
+  "title": "request: 01M4CNG85HWA0E53R4W1FMZPV9"
 }

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T03:32:03.749995Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-bc065702",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4CJKZRH4S0K584FSH2PZR7T",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "four more /fabrik-review-scoped verdicts for fabrik-review-loop.js (same class as 01M4CGJZAX)"
+}
