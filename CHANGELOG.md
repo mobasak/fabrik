@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped: every claim a fix adds is executed or deleted (2026-10-08)
+- `/fabrik-review-scoped` step 3 said a docs or config fix owes no test and nothing more, and queue verdicts kept reporting own-fix rounds spent correcting prose a fix added: a paraphrased mechanism, an unexecuted description of a tool, a restatement of a rule already stated nearby. Step 3 now says every checkable claim any fix adds (a doc or command sentence, a code comment, a commit message) is either executed, with its command and output named in the report, or deleted, and that something already stated in the code, its owning doc or the fixed file is pointed at, never paraphrased.
+
 ### Changed — /fabrik-review stamps the seat count dispatch_headroom printed (2026-10-08)
 - `/fabrik-review` Phase 1 said to stamp with `command_run.py dispatch --seats <n>` without saying what `<n>` is, and reviewers stamped their planned partition before reading the budget. It now says `<n>` is the `SEATS:` value `dispatch_headroom.py` just printed plus one refuter per slice, never a planned count, matching `/fabrik-review-scoped`. Answers 4 /fabrik-review feedback verdicts (kaizen).
 
