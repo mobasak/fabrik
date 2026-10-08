@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task phase 2 says how to restate the terminal after the critiques (2026-10-08)
+- `commands/_sources/fabrik-task.md` phase 2 now names `step --terminal-amend "<one line>"` beside `--design`: when MEASURE or the critiques narrowed the work, the run's terminal is restated on any step up to that call, refused once the design is recorded (D-705; infra built the verb, D-702). The source's byte cap moves to 13941. Grader: `tests/test_fabrik_task_source.py::test_phase_two_restates_the_terminal_with_the_design`, which also parses the line through the real argparse.
+
 ### Fixed — check_convergence no longer reads a receipt template's example row as a quiet pass (2026-10-08)
 - `scripts/enforcement/check_convergence.py` counted any quiet Pass row in a cited receipt, including the fenced "Row shapes" example every `review_receipt.py --init` skeleton carries, so a plan could claim EXECUTED citing a review nobody ran — as born (IN-PROGRESS), with its Status re-spelled, or hand-flipped to CONVERGED. The citation scan now removes that example block by its template anchor (`Row shapes (quoted here, …)`, present in all 456 skeleton-born receipts on the box), and a receipt whose header still reads IN-PROGRESS never satisfies the citation. Stripping every fence was measured and rejected: 49 real receipts keep their ledger inside ```text blocks. 23 receipts lose their only quiet row (6 IN-PROGRESS, 17 that closed on the scope-growth stop and only ever matched through the example); every plan citing them is archived, so no live plan changes verdict. The `_cite_matches_plan` docstring no longer promises a token-only fallback the code lacks. kaizen 01M4E1MYFJ.
 
