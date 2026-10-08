@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-03T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "2a685ea14837b32a9891a8ed44d012be298d5f14",
   "id": "W-61360b89",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:e8ecf12b4e08",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "`is_admin_dashboard` gates the whole DOMAIN, so a saas-skeleton cannot have both an admin surface and customers (2026-09-03, owner: fleet)"
 }

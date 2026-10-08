@@ -276,9 +276,16 @@ class Shape(BaseModel):
     is_admin_dashboard: bool = Field(
         default=False,
         description=(
-            "True if the service hosts an admin UI that must sit behind "
-            "Authelia 2FA forward-auth. When combined with has_bearer_api=true, "
-            "the dispatcher installs the ^/api/ bypass rule first (CSF §10)."
+            "True if the domain must sit behind Authelia 2FA forward-auth as a WHOLE: "
+            "the registrar adds a two_factor rule for the domain, and the python-api "
+            "and node-api templates put authelia-forward@docker on the service's "
+            "single router (other templates emit none, so a hand-written compose "
+            "must add it or the verifier fails the deploy). Every path is gated "
+            "except the standing /health and /metrics bypasses and, with "
+            "has_bearer_api=true, the bearer_bypass_prefix (default ^/api/), whose "
+            "bypass rule the dispatcher installs first (CSF §10). Never set it on a "
+            "host that serves customers: an admin surface of a customer-facing app "
+            "goes on its own hostname with its own spec (D-366, D-690)."
         ),
     )
     has_bearer_api: bool = Field(
