@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the i18n-kit validator no longer passes a run whose critique found issues or failed (2026-10-08)
+
+`templates/i18n-kit/scripts/validate_i18n.py` pulled the critique's JSON out of a noisy reply with a one-brace-level regex. A `fix` holding an ICU placeholder such as `{count}` puts the real reply three braces deep, so the regex returned the inner issue dict and the critique read zero issues. And `main()` never failed the run on a Level-2 drift, a Level-3 issue or a Level-3 error: each printed `ALL CHECKS PASSED` and exited 0. Now `extract_json_from_text` decodes at every `{` (ported from fabrik-lib aff75aeb, its D-401) and takes the one object carrying a caller-named key, in prose or in fences; a quoted fragment of that answer does not compete, and two keyed objects that still differ raise, because no position rule tells an answer from a worked example or an echo beside it. `llm_critique` names `issues`/`errors` and reports a reply with neither as an error; `back_translate` names the keys it asked for and reports a reply carrying none of them as an error; a reply nested past the decoder's recursion limit is unparseable, never an escaping `RecursionError`; and a drift, an issue or an error exits 1 (the skip outcome is one named result compared exactly, so a finding the model typed or worded `SKIP` still fails the run). On fabrik-lib's finding 01M478ZH; tests in `tests/test_i18n_kit_validate_json.py`. New projects get the fix at scaffold time; existing copies are each project's own.
+
 ### Fixed — every scaffold type takes its Debian base-image variant from the version registry (2026-10-08)
 
 Eleven of the twelve scaffold types wrote a hard-coded `bookworm` base image (`python:3.12-slim-bookworm`,
