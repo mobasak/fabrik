@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — every repo consumer of the log shipper names Alloy's container, port and metrics (2026-10-08)
+
+The observability audit reads Alloy's measured metrics on 12345 through the `fabrik` network (its helper still used the
+removed `coolify` network) and now says FAILED or WARNING instead of printing nothing; `vps_sync.py`, the inventory, the
+sysadmin texts, the backup audit and PORTS.md name Alloy, keeping Promtail only where the rollback profile needs it
+(plan 2026-10-08-plan-1, T04b; wave-1 review receipt `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T01-review.md`).
+
 ### Changed — the Prometheus `alloy` job and the Gatus `alloy` endpoint replace the Promtail watchers (2026-10-08)
 
 Prometheus job `promtail-spokes` becomes `alloy`, scraping the hub `alloy:12345` and both spokes on 12345 with their labels

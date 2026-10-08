@@ -85,6 +85,7 @@ for f in \
   "/opt/monitoring/configs/grafana/provisioning/datasources/fabrik.yaml" \
   "/opt/monitoring/configs/gatus/_base.yaml" \
   "/opt/monitoring/configs/loki/loki-config.yaml" \
+  "/opt/monitoring/configs/alloy/config.alloy" \
   "/opt/monitoring/configs/promtail/promtail-config.yaml" \
   "/opt/monitoring/configs/alertmanager/alertmanager.yml" \
   "/etc/docker/daemon.json" \
