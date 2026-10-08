@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the review loop builds and checks its own pins (2026-10-08)
+
+- `scripts/review_loop_ledger.py pin` writes read-only pins (directories included), a manifest and an optional read-only base tree, and prints the Workflow args fragment; `read --pins` re-hashes after the pass (PIN MOVED exits 3 and names the seats live then; LIVE MOVED is informational; a read without it says `pins: NOT CHECKED`). `.claude/workflows/fabrik-review-loop.js` refuses a launch whose slice file the `pin_manifest` lacks before any seat runs, labels an unpinned launch, and with `base_pin_dir` gives seats the lead's base tree in place of `git archive` (kaizen 01M4CGJZAX, D-663). Receipt: `docs/development/reviews/2026-10-08-review-loop-pin-enforcement-review.md`.
+
 ### Fixed — a corrupt round keeps its slot in the trend series, and `done` closes such a record (2026-10-08)
 
 - `scripts/command_run.py`: `_trend_series` keeps a non-dict round as None on both branches (filtering it let the oscillation advisory read across it); `_confirmed_adopted` decides the series for `_trend_series` and `_trend_label`; `convergence_warning` never diagnoses a window holding a None; the FEEDBACK trend prints `?`; the `done` ledger row's `findings` list keeps a null slot instead of raising, which had left such a record `running` for good (W-1bba6b75, D-661). Receipt: `docs/development/reviews/2026-10-08-trend-series-corrupt-slot-review.md`.
