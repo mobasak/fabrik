@@ -2091,3 +2091,39 @@ def test_a_handoff_resume_that_is_a_device_or_fifo_refuses_fast_and_never_reads_
         r = _handoff(run_dir, target)  # _cr's own 30 s timeout turns a hang into a test error
         assert r.returncode == 1, (target, r.stdout, r.stderr)
         assert "not a regular file" in r.stdout
+
+
+def test_workflow_launched_seats_are_seen_like_agent_tool_seats(tmp_path: Path) -> None:
+    """A seat launched through the Workflow tool writes its transcript one level down —
+    `<sid>/subagents/workflows/wf_<id>/agent-<id>.jsonl` — and a top-level-only glob never saw it,
+    so every review-loop close read `seen 0` and dropped its seats' tokens (kaizen 01M4D35GZ9;
+    35% of one session's seat transcripts sat there). Both shapes count, the window still applies,
+    and a workflow's own `journal.jsonl` is not a seat."""
+    import os
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _seat_transcripts, _sum_transcript_usage  # noqa: PLC0415
+
+    now = time.time()
+    start = now - 600
+    tr = tmp_path / "sid.jsonl"
+    tr.write_text(_usage_line(start + 10, "m1", tout=100) + "\n", encoding="utf-8")
+    sub = tmp_path / "sid" / "subagents"
+    _seat_file(sub, "top", [(start + 20, "s1", 1000, 10)])
+    wf = sub / "workflows" / "wf_abc-123"
+    _seat_file(wf, "wfseat", [(start + 30, "s2", 2000, 20)])
+    (wf / "journal.jsonl").write_text('{"type": "result"}\n', encoding="utf-8")
+    (wf / "agent-wfseat.meta.json").write_text("{}", encoding="utf-8")
+    (sub / "agent-top.meta.json").write_text("{}", encoding="utf-8")
+    # a resumed workflow's cached seat: touched now, every line before the window
+    old = _seat_file(sub / "workflows" / "wf_old", "old", [(start - 3600, "s9", 9999, 9)])
+    os.utime(old, (now, now))
+    names = sorted(p.name for p in _seat_transcripts(tr, start))
+    assert names == ["agent-old.jsonl", "agent-top.jsonl", "agent-wfseat.jsonl"], names
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["seats_seen"] == 2 and got["tok_seat_out"] == 3000
+    # two DIFFERENT seats that share a file name are both seats (review A-S1)
+    _seat_file(sub / "workflows" / "wf_other", "wfseat", [(start + 40, "s3", 400, 30)])
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["seats_seen"] == 3 and got["tok_seat_out"] == 3400

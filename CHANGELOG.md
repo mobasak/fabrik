@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command_run counts Workflow-launched seats (2026-10-08)
+- `scripts/command_run.py::_seat_transcripts` reads `<sid>/subagents/` recursively. A Workflow-tool seat writes `subagents/workflows/wf_<id>/agent-<id>.jsonl`, which the top-level glob never saw. As a result, every review-loop close printed "seats declared N vs seen 0", recorded seats_seen 0 and dropped those seats' tokens from its FEEDBACK line, and the no-round nudge missed them too. 35% of one session's seat transcripts sat at that depth. Every file is a seat: no dedupe (0 duplicate seat names measured).
+- `docs/reference/command-run-protocol.md` and `.windsurf/rules/core/62-using-subagents.md` name the Workflow depth. Grader in `tests/test_command_feedback.py`. Kaizen mail 01M4D35GZ9; review `docs/development/reviews/2026-10-08-seats-seen-rglob-review.md`.
+
 ### Fixed — check_frozen_chain reads a split Status/Version header (2026-10-08)
 - `scripts/enforcement/check_frozen_chain.py`: a contract whose `Status:` and `Version:` sit on separate header lines (bold or plain labels, `v` optional) now registers its version. Before, every pin against it was skipped and a stale one passed silently. 10 of 36 chain docs on the box split them; 9 now register, 0 change value. The version token refuses `v5a`, `v6.12` and `2026-10-05`. On the Status line, the Version must be a field, never a mention in prose. The body-prose sweep matches filenames by equality, not substring.
 - Newly visible stale pins: tryton-crm `docs/ui-design.md` (data-contract v43, at v44) and brand-identiy-creator `docs/ui-design.md` (data-contract at v33).

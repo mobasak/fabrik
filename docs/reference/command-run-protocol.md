@@ -402,7 +402,7 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   NOT on the parent transcript — the parent's tool-result line carries the seat's LAST turn only
   (`toolUseResult.usage` == one message; 251 of 251 checked, median 10× under), a background seat's
   completion notice repeats that number, and a background launch carries no usage at all. The whole
-  seat lives in its own transcript, `<transcript dir>/<sid>/subagents/agent-<id>.jsonl`, in the
+  seat lives in its own transcript, `<transcript dir>/<sid>/subagents/agent-<id>.jsonl` (a Workflow seat one level down, `subagents/workflows/wf_<id>/`), in the
   parent's per-message shape — the close sums those (in-window assistant lines, per-message maximum)
   into `tok_seat_in/out/cache_read/cache_create` and counts them as `seats_seen`; null when no seat
   file holds an in-window message. Measured 2026-09-08: one review's 21 seats billed 69.5M input
