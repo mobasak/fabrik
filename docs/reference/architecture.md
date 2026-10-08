@@ -278,7 +278,7 @@ src/fabrik/
 | `backups/` | Credential/config backups (gitignored). Target for CLAUDE.md backup rule: `cp <f> backups/<f>.backup.$(date)`. Created by scaffold for all project types | Active |
 | `build/` | **Moved to `/opt/wpf/build/`** (May 2026). Was WordPress deployer output (`build/sites/<site>/plan.json`, manifests, reports) | Moved |
 | `config/` | `platform.yaml.example` — config schema reference for VPS/Coolify/DNS/backup settings. Referenced by `src/fabrik/config.py` as `CONFIG_DIR` | Active (example only) |
-| `configs/` | **Repo-local source of VPS monitoring configs.** Prometheus scrape config + 9 alert rules, Alertmanager routing, 5 Grafana dashboards + provisioning, Loki + Promtail configs, n8n workflows (backup notification, uptime alert). `fabrik export` (`portability.py`) bundles only `configs/grafana/dashboards/*.json`. Deployed to `/opt/monitoring/configs/` on VPS (the compose itself is mirrored at `infra/vps1/monitoring/compose.yaml`) | Active |
+| `configs/` | **Repo-local source of VPS monitoring configs.** Prometheus scrape config + 9 alert rules, Alertmanager routing, 5 Grafana dashboards + provisioning, Loki + Alloy configs (Promtail's config stays too, for the `rollback` profile until Gate S), n8n workflows (backup notification, uptime alert). `fabrik export` (`portability.py`) bundles only `configs/grafana/dashboards/*.json`. Deployed to `/opt/monitoring/configs/` on VPS (the compose itself is mirrored at `infra/vps1/monitoring/compose.yaml`) | Active |
 | `data/` | `projects.yaml` (project registry) + `provision-jobs/` (SiteProvisioner saga state) | Active |
 | `docs/` | `DEPLOYMENT_ARCHITECTURE.md` (canonical deploy reference), `FEATURES.md`, `LESSONS_LEARNT.md`, `reference/` (this file + the CLI/driver/stack references), `traycer/` (workflow docs + agent test reports), `development/plans/` (archived + active plans) — no `guides/` dir (removed with the WordPress move) | Active |
 | `scripts/` | `final_gate.py`, `enforcement/` (48 checks), `dev_tracker.py`, `docs_updater.py`, Traycer agent scripts, `kilo-benchmarks/` (model-catalog pipeline; the `kilo_*` consult/review scripts are dormant — Kilo CLI retired) | Active |
@@ -306,7 +306,7 @@ The WordPress automation engine (~9,700 LoC: 13-stage deployer, planner, preset 
 | **Reverse proxy** | Traefik (managed by the shared monitoring/proxy stack) — 80/443 only |
 | **Auth** | Authelia forward-auth (`auth.vps1.ocoron.com`) for admin dashboards without native TOTP |
 | **Data** | `postgres-main` (shared), `redis-main` (shared), Backblaze B2 (via Backrest) |
-| **Observability** | Prometheus + Grafana + Alertmanager + Loki + Promtail; GlitchTip (errors); Gatus (uptime); Apprise (notifications) |
+| **Observability** | Prometheus + Grafana + Alertmanager + Loki + Alloy (Promtail: `rollback` profile until Gate S); GlitchTip (errors); Gatus (uptime); Apprise (notifications) |
 | **Search / PDF / Browser** | MeiliSearch, Gotenberg, Browserless (all internal APIs) |
 | **DNS** | site-provisioner service (`provision.vps1.ocoron.com`) → Namecheap + Cloudflare |
 

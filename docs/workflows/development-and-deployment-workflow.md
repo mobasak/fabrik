@@ -198,7 +198,7 @@ The moment the container is up:
   | AroWakeCostBurnHigh | warning | Claude cost burn >$5/h on a host | 10m |
 
   Routing: `Prometheus → Alertmanager → Telegram (native telegram_configs)`. ARO Brain (LLM alert triage) is planned but not yet deployed.
-- **Loki** (internal `:3100`) ingests logs via **Promtail**. High-cardinality fields (`request_id`, `user_id`, `client_ip`) must be embedded in the JSON payload, not used as stream labels.
+- **Loki** (internal `:3100`) ingests logs via **Alloy** (Promtail stays defined under `profiles: [rollback]` until Gate S). High-cardinality fields (`request_id`, `user_id`, `client_ip`) must be embedded in the JSON payload, not used as stream labels.
 - **Grafana** (`monitor.vps1.ocoron.com`) renders Prometheus + Loki dashboards. Provisioning bind-mounted from `configs/grafana/provisioning/`.
 - **GlitchTip** (`errors.vps1.ocoron.com`) auto-captures unhandled exceptions; the scaffolded `glitchtip_init.py` is no-op until `GLITCHTIP_DSN` is set per service via [scripts/provision_glitchtip_project.sh](../../scripts/provision_glitchtip_project.sh). Discipline: do NOT also `logger.exception()` for unhandled errors — that duplicates the traceback into Loki.
 - **Host metrics** (CPU / RAM / disk / network) flow through Prometheus + Grafana via `node-exporter` and `cadvisor` (Netdata was removed 2026-05-30).
