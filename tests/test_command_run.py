@@ -4534,6 +4534,60 @@ def test_a_delta_round_may_confirm_more_than_it_raised(run_dir: Path) -> None:
 # one clean pass can end a loop. ──────────────────────────────────────────────────────────────
 
 
+def test_a_command_with_no_closing_pass_closes_at_round_one(run_dir: Path) -> None:
+    """fabrik-spec verdict 1790969786.235392 (W-29e3424f): a /fabrik-spec run recorded one quiet
+    round and was told "round 1 is the full pass, never the closing round; run the closing pass —
+    the round-1 seats over their own slices". /fabrik-spec has no closing pass, no slices and no
+    receipt — its convergence is /fabrik-spec-review's. A command in `NO_CLOSING_PASS` closes at a
+    quiet round 1 and no line of its report demands a closing pass; a loop command keeps both."""
+    _cr(run_dir, "start", "--command", "fabrik-spec", "--phases", "7", "--terminal", "spec handed to review")
+    one = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "grounding,panel")
+    assert "TERMINAL VERDICT" in one.stdout, one.stdout
+    assert "NOT TERMINAL" not in one.stdout, one.stdout
+    assert "run the closing pass" not in one.stdout and "round-1 seats" not in one.stdout, one.stdout
+    rec = _rec(run_dir)
+    rec["budget_min"], rec["started_epoch"] = 1, time.time() - 3600
+    (run_dir / "s1.json").write_text(json.dumps(rec), encoding="utf-8")
+    over = _cr(run_dir, "round", "--findings", "2", "--classes-new", "grounding")
+    assert "BUDGET" in over.stdout, over.stdout
+    assert "run the closing pass" not in over.stdout, over.stdout
+    loop = run_dir.parent / "loop"
+    loop.mkdir()
+    _cr(loop, "start", "--command", "fabrik-command-improve", "--phases", "5", "--terminal", "x")
+    first = _cr(loop, "round", "--confirmed", "0", "--classes-swept", "logic")
+    assert "round 1 is the full pass" in first.stdout, first.stdout
+    assert "TERMINAL VERDICT" not in first.stdout, first.stdout
+
+
+def test_no_closing_pass_set_matches_the_command_sources() -> None:
+    """`NO_CLOSING_PASS` is DERIVED, never hand-picked, and pinned both ways: a command is in it
+    exactly when its OWN source neither orders a `round` carrying `--classes-swept`, `--confirmed`
+    or `--own-fix` on its own record nor includes `term-coverage`/`term-edit`. A wording test
+    (`closing pass`) put /fabrik-command-improve in ("Round 1, then the round-1 seat re-verifies its
+    own ledger … a quiet round 2") and left /fabrik-plan-after-chat out on a line about the PLAN it
+    emits (both design critiques, W-29e3424f)."""
+    import re as _re
+
+    command_run = _load("cr_no_closing", _SCRIPT)
+    src_dir = Path(__file__).resolve().parents[1] / "commands" / "_sources"
+    derived = set()
+    for p in src_dir.glob("*.md"):  # every source, `design-review.md` included
+        text = p.read_text(encoding="utf-8")
+        own_round = any(
+            _re.search(r"--(?:classes-swept|confirmed|own-fix)\b", ln) and _re.search(r"\bround\b", ln)
+            for ln in text.splitlines()
+        )
+        loop_fragment = _re.search(r"\{\{include:term-(?:coverage|edit)\}\}", text)
+        if not own_round and not loop_fragment:
+            derived.add(p.stem)
+    assert "fabrik-spec" in derived and "fabrik-plan-review" not in derived, derived
+    assert set(command_run.NO_CLOSING_PASS) == derived, (
+        sorted(set(command_run.NO_CLOSING_PASS) - derived),
+        sorted(derived - set(command_run.NO_CLOSING_PASS)),
+    )
+    assert not command_run.NO_CLOSING_PASS & command_run.CONFIRMED_REQUIRED_COMMANDS
+
+
 def test_a_clean_round_one_is_not_terminal_but_round_two_is(run_dir: Path) -> None:
     """A clean round 1 that swept every class STILL owes its closing pass (the round-1 seats over their own slices)."""
     _start(run_dir)

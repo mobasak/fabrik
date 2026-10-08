@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — command_run's round report no longer demands a closing pass from commands that have none (2026-10-09)
+- `scripts/command_run.py`: a quiet round 1 printed "⛔ NOT TERMINAL — round 1 is the full pass, never the closing round; run the closing pass — the round-1 seats over their own slices" on every command, including /fabrik-spec, which has no closing pass, no slices and no receipt (tryton-crm verdict 1790969786.235392). The new `NO_CLOSING_PASS` set holds the 13 commands whose own source orders no loop `round` and includes no termination fragment. For them a quiet round 1 is TERMINAL, and neither the TERMINAL verdict nor the BUDGET advisory mentions a closing pass. Every other command keeps the two-round rule. `tests/test_command_run.py` pins the set to `commands/_sources` both ways. `docs/reference/command-run-protocol.md` names the exception. W-29e3424f, D-719.
+
 ### Fixed — the close chain gates before it pushes (2026-10-09)
 - `commands/_fragments/close-chain.md` (rendered into 37 commands): the chain pushed at (2) and gated at (3), so in a main checkout the push integrated the branch before the gate ran and a check scoped to work not yet integrated (intel's check_review_coverage leg, W-f847a317) could never fire (intel 01M4EJTSCY). Now (2) commits, (3) gates and then pushes; a red gate's fix is committed before (3) re-runs, and a run that wrote nothing gates but pushes nothing. `commands/_sources/fabrik-execute-plan.md` step 7 gates its step 5-6 commits before its own push. Grader: `tests/test_producing_command_fragments.py::test_the_close_chain_gates_before_it_pushes`.
 
