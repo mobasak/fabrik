@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Phase E review's routed findings that still held (2026-10-09)
+
+- `check_structure.py`: in the hub, an unimportable `_doc_registry` no longer returns `[]` (read as ALL_TYPES parity); it says the check was NOT run (W-fe6e0ed3).
+- `sync_enforcement_to_projects.py --dry-run` names every file it WOULD copy or back up, not only the SKIP and WARN lines; `_atomic_copy`'s docstring no longer claims a plain-copy fallback it does not have.
+- `scratch_sweep.py` reads porcelain and ls-files output NUL-separated (`-z`): a path the line form quotes (tab, newline, quote, non-ASCII) resolves to the real file instead of a quote-stripped wrong one, and a rename's source is consumed, never read as an entry.
+
 ### Changed — check_review_coverage blocks on reviews committed but not yet integrated (2026-10-09)
 
 - `scripts/enforcement/check_review_coverage.py`: the blocking scan now also grades review artifacts in commits not yet in an integration ref (`git log --cc HEAD --not <refs>` — a receipt hand-added inside a merge commit counts), so committing a review and then gating no longer passes it silently (W-f847a317, D-715). The refs are full names admitted by branch CONFIGURATION, never because a remote name exists: a linked worktree excludes the main checkout's branch and its configured upstream (else origin/master or origin/main), a main checkout its configured upstream (else the same fallback). A shallow clone, an unresolvable ref or a git failure keeps the working-tree scope with one NOTE; no base at all is today's behaviour. A failing unintegrated review prints who added it (Agent-Name trailers, else author) and that the remedy is to mail or revert, never to push. `-z` porcelain and bytes-safe printing grade and show non-ASCII and non-UTF-8 review names; `--base <ref>` overrides (an option-looking value is refused). `final_gate.py` is unchanged. Named residuals: push-then-gate in a main checkout, `Status: IN-PROGRESS`, and deliberate local ref or config rewrites. 30 graders in `tests/enforcement/test_review_coverage_unintegrated.py`, each red on the old code or by a named mutant.
