@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T05:56:36.943246Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3c025b95",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make the sync export committed HEAD (git archive HEAD of the synced paths into a temp dir, rsync from there) and add a grader that a dirty synced path is not shipped",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "scripts/sync-vps-sysadmin.sh rsyncs the main checkout's WORKING TREE to vps1/vps2/vps3, so a run ships any sibling's uncommitted edits under scripts/sysadmin, scripts/audit, docs/infrastructure or specs/services, and vps_script_drift.py then reports the host as running uncommitted code (mail 01M4BXBJ9A)"
+}
