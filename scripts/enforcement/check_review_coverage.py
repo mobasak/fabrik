@@ -331,6 +331,14 @@ def _adds_path(names: list[bytes], rel: str) -> bool:
     return False
 
 
+def _read_or_empty(p: Path) -> str:
+    """The file's text, or "" when it vanished between listing and reading (a gate never tracebacks)."""
+    try:
+        return p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
 def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str], list[Path]]:
     """Changed/untracked .md under ``prefix`` (``git status --porcelain -z``), excluding archived/.
 
@@ -3460,9 +3468,7 @@ def main() -> int:
     unint, who, unint_notes = _unintegrated_md(root, REVIEWS_DIR, bases)
     have = {p.resolve() for p in changed}
     unint_only = [p for p in unint if p.resolve() not in have]
-    in_progress = {
-        p for p in unint_only if _in_progress(p.read_text(encoding="utf-8", errors="replace"))
-    }
+    in_progress = {p for p in unint_only if _in_progress(_read_or_empty(p))}
     # ⚠️ ADVISORY, not a failure — and the asymmetry is deliberate. The hole was that a committed
     # unconverged review was INVISIBLE; printing it fixes that. Hard-failing it would retro-grade
     # every historical report across ~46 synced repos on the next sync, on artifacts whose authors
@@ -3490,6 +3496,8 @@ def main() -> int:
         print(_shown(note))
     failed: list[Path] = []
     for p, live in [(p, True) for p in changed] + [(p, False) for p in unint_only]:
+        if not live and not p.is_file():
+            continue  # removed after the log listed it (a sibling's checkout mid-run): never a traceback
         errs = _grade(p, root, live=live)
         if errs:
             failed.append(p)

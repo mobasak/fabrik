@@ -168,6 +168,7 @@ def test_g3_the_configured_upstream_alone_excludes_a_remote_ahead_merge(tmp_path
     r = _run(wt)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "2026-10-08-other-review.md" not in r.stdout, r.stdout
+    assert "0 changed + 0 unintegrated" in r.stdout, r.stdout
 
 
 # --- G4: a sibling's unpushed commit on the main checkout's branch is not the worktree's ---------------------
@@ -226,6 +227,19 @@ def test_g5_an_unresolvable_base_is_a_note_never_a_traceback(tmp_path: Path) -> 
     assert r.returncode == 0, r.stdout + r.stderr
     assert "NOTE: unintegrated review scan skipped" in r.stdout, r.stdout
     assert "Traceback" not in r.stderr, r.stderr
+
+
+def test_g5_a_review_removed_after_the_log_listed_it_never_tracebacks(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """A path the range log listed but that is gone by the time it is read (a sibling checkout mid-run) is
+    skipped — never a traceback from the IN-PROGRESS read or the grader."""
+    _, main = _origin(tmp_path)
+    gone = main / RV / "2026-10-08-gone-review.md"
+    monkeypatch.setattr(crc, "_unintegrated_md", lambda root, prefix, bases: ([gone], {}, []))
+    monkeypatch.setattr(sys, "argv", ["check_review_coverage.py", "--root", str(main)])
+    assert crc.main() == 0
+    assert "0 changed + 1 unintegrated" in capsys.readouterr().out
 
 
 # --- G6: an unintegrated IN-PROGRESS receipt passes and is reported once -------------------------------------
@@ -455,7 +469,16 @@ def test_g12_a_shallow_detached_clone_never_reds_an_integrated_review(tmp_path: 
     _commit(main)
     _git(main, "push", "-q", "origin", "feat")
     _git(
-        tmp_path, "clone", "-q", "--depth", "1", "--no-single-branch", f"file://{origin}", "shallow"
+        tmp_path,
+        "-c",
+        "protocol.file.allow=always",
+        "clone",
+        "-q",
+        "--depth",
+        "1",
+        "--no-single-branch",
+        f"file://{origin}",
+        "shallow",
     )
     sh = tmp_path / "shallow"
     _git(sh, "checkout", "-q", "--detach", "origin/feat")
