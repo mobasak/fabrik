@@ -27,6 +27,10 @@ All notable changes to this project will be documented in this file.
 ### Changed — round zero enumerates a fix's input space before the pin (2026-10-08)
 - Eleven `/fabrik-review` queue verdicts reported an input class a later round's seat found instead of the author's own probe — an overlapping replace value, a shell `||` form, a guard's error path, a regex edge, a window at one record's length, a recursive helper's depth. The round-zero probe in `commands/_fragments/term-coverage.md` and its twin in `term-edit.md` now enumerate and run the fix's input space before the pin, and draft a regex fix against every confirmed shape at once. Grader: `tests/test_review_loop_workflow.py::test_round_zero_enumerates_the_fixs_input_space_before_the_pin`.
 
+### Changed — the review-coverage gate documents its finders-cell token bypass (2026-10-08)
+
+- `scripts/enforcement/check_review_coverage.py` now states, beside `_MODEL_TOK`, that a typed `opus×1` satisfies the closing-row finders rule with no seat dispatched, and that the counter-measure is /fabrik-spec work (W-b61f25cb, D-253). Receipt: `docs/development/reviews/2026-10-08-model-tok-cobra-note-review.md`.
+
 ### Changed — check_doc_index flags a doc indexed only by a shared basename (advisory until the flip) (2026-10-08)
 
 - `scripts/enforcement/check_doc_index.py` no longer lets a basename shared with another Markdown file index a doc silently: the doc gets an advisory line naming the namesakes (27 docs in 19 repos on 2026-10-08), blocking after the fleet indexes (W-84088533, D-686). The hub's 5 such docs are indexed by path. Receipt: `docs/development/reviews/2026-10-08-doc-index-shared-basename-review.md`.

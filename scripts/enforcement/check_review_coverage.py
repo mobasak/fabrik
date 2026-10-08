@@ -2206,6 +2206,14 @@ _CLOSING_PASS = re.compile(r"^\s*" + _LIST_MARK + r"\s*\|?\s*\**Pass\s*(\d+)", r
 # receipt already writes (`native opus×1 + sonnet×3`). The run record's stamp stays the
 # orchestrator's duty (DD10); this gate has no run-record reader and adding one would be a new
 # mechanism.
+# COBRA (D-253, W-b61f25cb): typing a token is cheaper than dispatching a seat — a cell reading
+# `the orchestrator (opus×1) re-read its own fix diff — no seat dispatched`, or `same seats as pass 1:
+# opus×1 + sonnet×2, re-prompted`, satisfies this search while describing the state the rule forbids.
+# The artifact that could falsify it is the `command_run.py dispatch --seats` stamp, which this gate
+# does not read; a counter-measure is /fabrik-spec work (D-262 ruled this grammar needs a spec, not a
+# patch). The rule's wording ("Finders cell") names the TABLE grammar; a prose closing row is graded on
+# the text before its counters (0 of the 42 graded closing rows were prose across 324 receipts, measured
+# 2026-09-19 for W-b61f25cb).
 _MODEL_TOK = re.compile(r"(?<![\w-])(?:opus|sonnet|haiku)\s*[×x]\s*\d+", re.I)
 
 
