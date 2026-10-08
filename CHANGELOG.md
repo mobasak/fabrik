@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan's archive step never edits an existing ledger row (2026-10-08)
+- `commands/_sources/fabrik-execute-plan.md` Finish step 6 told the run to repoint `docs/DECISIONS.md` rows that cite the plan's pre-archive path. The ledger merge (`merge_request.py::_resolve_insertions`) refuses a conflict where either side edits an existing line, so that edit turned every open branch's row insertion beside it into a hand merge (LESSONS 2026-10-01). The step now lists the referrers before any move. A plan cited by a row already on the branch the work merges into stays `Status: EXECUTED`, with the owed archive named in the hand-over for the merge owner, who archives it with every referrer in one commit (D-484; a90b35a3b). Step 4's OWED path and the § Finish summary follow suit. Grader: `tests/test_execute_plan_d7.py::test_the_archive_step_never_edits_a_ledger_row_and_leaves_a_ledger_cited_plan_to_the_merge_owner`, which also drives `check_doc_links`' ref extraction and resolution over a ledger row.
+
 ### Changed — /fabrik-execute-plan names the whole-plan receipt by the plan's own stem (2026-10-08)
 - `commands/_sources/fabrik-execute-plan.md` started the whole-plan receipt with `review_receipt.py --init --scope <plan-slug>`, which dates the file the day it is made; `check_convergence.py` then failed to match a later-dated receipt whose plan slug has one distinctive token. D7 and Finish step 1 now start it with `--init --out docs/development/reviews/<plan>-review.md` (the plan's own dated stem), Finish step 1 names both gate runs of the close, and `/fabrik-review` § Reporting points a plan's receipt at that naming. Grader: `tests/test_execute_plan_d7.py::test_the_whole_plan_receipt_is_named_by_the_plan_stem_so_check_convergence_matches_it`, which also drives `_cite_matches_plan`.
 
