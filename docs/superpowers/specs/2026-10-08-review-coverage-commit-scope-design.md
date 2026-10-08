@@ -25,7 +25,9 @@ ledger: `docs/reference/research/2026-10-08-review-coverage-commit-scope-ledger.
 ## Goal
 
 A review artifact committed before the gate runs is graded by the gate's blocking battery exactly as an uncommitted
-one is, without ever reddening a session for a commit it did not make in its own unintegrated range.
+one is, until it reaches an integration ref, without ever reddening a session for a commit it did not make in its own
+unintegrated range. In a MAIN checkout the push IS the integration, so the documented close chain — which pushes before
+it gates (`commands/_fragments/close-chain.md:7`) — still passes there; that window is residual R4.
 
 ## Why this exists
 
@@ -51,21 +53,29 @@ commit-then-gate passes green. Measured 2026-10-08: 45 committed artifacts flagg
 
 ## The delta
 
-1. **`--base <ref>`** on `check_review_coverage.py` — the integration ref, an explicit override. With no `--base` the
-   checker resolves it itself, by tree shape, on every no-path run — `final_gate.py`'s no-argument call is unchanged,
-   so a sync-excluded repo that pulls one file without the other never meets an unknown flag (plan 2026-10-08-plan-3
-   I7). In a LINKED worktree: the main checkout's branch (`_linked_worktree_base()`) when non-empty, else
-   `origin/master`, else `origin/main` — never the worktree branch's own upstream: pushing a worktree branch must not
-   take its reviews out of scope before they are merged (the push-first cobra). In the MAIN checkout: its branch's
-   upstream, else `origin/master`, else `origin/main` — pushing the main checkout's branch IS integration, and 5 of the
-   13 reviews-bearing /opt repos (the reporter among them) integrate on `origin/mobasak/<repo>`, which no
-   master/main fallback names (measured 2026-10-08, plan 2026-10-08-plan-3 I6). One order, in one file.
-2. **`_unintegrated_md(root, prefix, base)`** — review artifacts touched by NON-MERGE commits reachable from HEAD and
-   from neither `<base>` nor, when `<base>` is a local branch (`refs/heads/<base>` verifies — `mobasak/<repo>`
-   included), `origin/<base>`:
-   `git log -z --no-merges --name-only --format= --diff-filter=d HEAD --not <base> [origin/<base>] -- <prefix>`.
-   Non-merge excludes the merge commit of a catch-up merge (ledger rcs-3); `--not origin/<branch>` excludes commits a
-   worktree merged in from a remote ahead of its local integration branch; `--diff-filter=d` drops deletions (rcs-5);
+1. **The integration refs, and `--base <ref>`** on `check_review_coverage.py` as an explicit override. With no
+   `--base` the checker resolves them itself, by tree shape, on every no-path run — `final_gate.py`'s no-argument call
+   is unchanged, so a sync-excluded repo that pulls one file without the other never meets an unknown flag (plan
+   2026-10-08-plan-3 I7). The range excludes EVERY integration ref that resolves — a SET, because excluding one more
+   integration ref can only shrink the range, never red anyone: in a LINKED worktree the main checkout's branch
+   (`_linked_worktree_base()`), that branch's upstream, `origin/master` and `origin/main`, but never the worktree
+   branch's OWN upstream (pushing a worktree branch must not take its reviews out of scope before they are merged —
+   the push-first cobra); in the MAIN checkout its branch's upstream, `origin/master` and `origin/main`. Pushing the
+   main checkout's branch IS integration, and 5 of the 13 reviews-bearing /opt repos (the reporter among them)
+   integrate on `origin/mobasak/<repo>`, which no master/main ref names (measured 2026-10-08, plan 2026-10-08-plan-3
+   I6). The set also keeps a linked worktree in scope correctly when the main checkout sits on a feature branch: the
+   master commits that branch lacks are excluded by `origin/master` (approval panel, opus C6). `--base` replaces the
+   set with the one ref it names. One definition, in one file.
+2. **`_unintegrated_md(root, prefix, bases)`** — review artifacts touched by commits reachable from HEAD and from no
+   integration ref — each ref in the set plus, for a local branch in it (`refs/heads/<ref>` verifies — `mobasak/<repo>`
+   included), `origin/<ref>`:
+   `git log -z --cc --name-only --format= --diff-filter=d HEAD --not <refs…> -- <prefix>`.
+   `--cc` lists, for a MERGE commit, only the paths that differ from EVERY parent — so a clean catch-up merge
+   contributes nothing (ledger rcs-3) while a review hand-added inside a merge commit (`merge --no-commit`, then `git
+   add` the receipt, then commit) is listed; `--no-merges` would drop that commit entirely, a cheaper dodge than
+   converging the review (approval panel, both seats; executed: `--no-merges` lists nothing, `--cc` lists the
+   receipt). A conflicted catch-up merge whose RESOLUTION edits a review lists it too — the resolver touched it.
+   `--not origin/<branch>` excludes commits a worktree merged in from a remote ahead of its local integration branch; `--diff-filter=d` drops deletions (rcs-5);
    `-z` returns names unquoted (rcs-6/rcs-7). Same exclusions as `_changed_md`. A git failure (rc ≠ 0 — an unresolvable
    ref: rc 128) returns empty plus one NOTE printed after the ⚠ block; never a traceback. A shallow clone is skipped the
    same way before the log runs: its grafted root lists files that are already integrated. An orphan branch is not a
@@ -74,7 +84,9 @@ commit-then-gate passes green. Measured 2026-10-08: 45 committed artifacts flagg
 3. **`main()` no-path scan:** unintegrated artifacts join the BLOCKING set (deduplicated on the resolved path). They
    join the committed scan's skip set unless they are `Status: IN-PROGRESS` — so a committed IN-PROGRESS receipt keeps
    its advisory and nothing is reported twice. A failure from this set prints `NOTE: <path> entered history in <sha>
-   (<Agent-Name trailer or author>)`, so a merge owner sees whose commit it was.
+   (<Agent-Name trailer or author>) — mail its author or revert it; never push to clear it`, so a merge owner sees
+   whose commit it was, and the cheapest clearing move (pushing, which integrates the unconverged review) is named as
+   the wrong one (approval panel, opus C5).
 4. **Mega reports in the unintegrated set are graded with `live=False`** — a committed report is not re-hashed against
    epics that legitimately moved after it (matches `_committed_nonquiet`).
 5. **`_changed_md` reads `git status --porcelain -z`** — the non-ASCII skip closes for the working-tree scan too
@@ -100,6 +112,9 @@ Graders (a real git repo with a bare `origin`, a linked worktree, and a local in
   failing review;
 - a catch-up merge of a remote integration branch that is ahead of the local one adds none of its commits' reviews;
 - a sibling's unpushed commit on the main checkout's branch does not enter a linked worktree's range;
+- a review hand-added inside a merge commit reds; a clean catch-up merge adds nothing;
+- a linked worktree whose main checkout sits on a feature branch with no remote counterpart is not reddened for
+  reviews already on `origin/master`;
 - an unresolvable base → exit 0 with the NOTE, no traceback; a shallow clone → exit 0 with its NOTE, never a red for an
   integrated review;
 - an unintegrated IN-PROGRESS receipt → exit 0 and still advised, printed once;
@@ -107,15 +122,23 @@ Graders (a real git repo with a bare `origin`, a linked worktree, and a local in
   raises;
 - a committed mega report is graded `live=False`;
 - `final_gate.py` is unchanged and passes no new flag, so no old/new pairing of the two files can fail on one.
-Each grader is seen red first (`.windsurf/rules/core/45-testing-strategy.md:22`).
+Each grader is seen red first (`.windsurf/rules/core/45-testing-strategy.md:22`). Not a grader, a stated semantic: a
+worktree branch cut from, or merged with, a SIBLING worktree's unmerged branch carries that sibling's commits in its
+range, attributed by the NOTE — measured 2026-10-08 in the hub, 0 such cross-agent rows across 24 branches (approval
+panel, fable C3).
 
 ## Decisions taken
 
-- **Chosen: (B) integration-base range, non-merge commits.** A three-seat judge panel (Sonnet ×3, handed the
+- **Chosen: (B) integration-ref range, merges read by combined diff.** A three-seat judge panel (Sonnet ×3, handed the
   approaches without a recommendation) ranked (B) first unanimously: the only option that closes the bypass through the
   gate every repo already runs, with one base definition.
 - **The main-checkout window is ACCEPTED and attributed, not excluded:** its unintegrated commits are the merge owner's
   and the pipeline's; the merge owner owns merged content, and the NOTE names the commit's author.
+- **The cheapest remaining exits are NAMED, not closed here (approval panel, both seats; the cobra rule, D-253):** (1)
+  push-then-gate in a MAIN checkout — the close chain's own order today (R4); (2) `Status: IN-PROGRESS` on the receipt,
+  a one-line edit that keeps exit 0 (`_in_progress` short-circuits `check_file`) but carries the standing advisory on
+  every run — pre-existing for uncommitted files, so this delta neither opens nor widens it; blocking an unintegrated
+  IN-PROGRESS receipt at merge-request time is a backlog item.
 - **Item (a) of the mail is by design:** a cert report carrying a Coverage Checklist is also graded by `check_file`
   (`commands/_fragments/term-coverage.md:20`); routing has keyed on the checklist heading since round 27.
 
@@ -141,7 +164,9 @@ Each grader is seen red first (`.windsurf/rules/core/45-testing-strategy.md:22`)
 
 Adoption: on merge the governance sync distributes the checker; the next gate run in each repo
 grades its unintegrated reviews. Growth: the range grows with unmerged commits; a worktree with hundreds of unmerged
-commits costs one `git log` call. Degradation: no base, a git failure or a shallow clone → today's porcelain-only scope plus a NOTE.
+commits costs one `git log` call. A sweep commit that touches an old unconverged review (a link rewrite, a rename) puts
+it in the sweeper's range, exactly as the working-tree scan does today — the 45 advisory-flagged committed artifacts are
+latent reds for whoever next touches them, cleared by whoever sweeps (approval panel, fable C6). Degradation: no base, a git failure or a shallow clone → today's porcelain-only scope plus a NOTE.
 Retirement: superseded if the commit-time hook ever becomes part of the synced surface. Sibling: `check_convergence.py`
 carries the same porcelain-only hole — W-699a271a.
 
@@ -181,13 +206,18 @@ The checker's module docstring (its `--help`); `INDEX.md`'s check_review_coverag
 
 ## Residual unknowns
 
-- **R1** `@{u}` with no upstream is not stated in gitrevisions (rcs-12) — irrelevant to the chosen base, which never
-  reads the upstream.
+- **R1** `@{u}` with no upstream is not stated in gitrevisions (rcs-12) — the resolver tests every ref with
+  `rev-parse --verify` and treats a non-zero rc as "absent", so the unstated case reads as no upstream.
 - **R2** The main-checkout window grades merged-but-unpushed reviews against the merge owner, not their author — accepted
   (Decisions taken); measured blast radius today 0.
 - **R3** RESOLVED (plan 2026-10-08-plan-3, I6): 5 of the 13 reviews-bearing /opt repos integrate on a branch that is
   neither master nor main; the main checkout's upstream leg resolves all 13. A repo with no remote at all (16 of 45,
   none carrying reviews today) stays porcelain-only.
+- **R4** Push-then-gate in a MAIN checkout passes: the push integrates, and the documented close chain pushes before it
+  gates (`commands/_fragments/close-chain.md:7`). The leg bites in linked worktrees — 10 of the 13 reviews-bearing
+  repos have them — and not for any merge owner; 3 of 13 (job-agent, session-recall, transdoc) are main-checkout-only
+  (approval panel, fable C1). Resolution: a gate-before-push reorder of the close chain is a command-wording change,
+  filed to kaizen; until then this window stays as open as today.
 
 ## Intake Inventory
 

@@ -9,7 +9,7 @@ Spec: `docs/superpowers/specs/2026-10-08-review-coverage-commit-scope-design.md`
 as b8170e73a; `Size: small`, `Profile: delta` — `/fabrik-plan-review` grades its sections together with this plan and
 flips both). Source: tryton-crm mail 01M3YD067C → W-23b86f9e's `/fabrik-task` UPGRADE (`tradeoffs`) → work item
 W-f847a317. Estimated diff: ≈155 code lines in ONE code file, tests excluded — in `check_review_coverage.py`:
-`integration_base` ≈30, `_unintegrated_md` with its shallow guard, attribution and NOTE ≈55, the `-z` byte-safe rewrite
+`integration_refs` ≈30, `_unintegrated_md` with its shallow guard, attribution and NOTE ≈55, the `-z` byte-safe rewrite
 of `_changed_md` ≈22, `_grade`'s `live` parameter ≈3, `--base` and the `main()` wiring ≈35, docstring ≈10 (sum 155).
 `scripts/final_gate.py` is untouched (I7). Tests ≈280 lines in one new file.
 
@@ -33,10 +33,11 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | I1 | spec § Intake Inventory I1–I11 (8 IN, 3 OUT-OF-SCOPE) | IN as dispositioned there | Phases A and B, per the spec rows |
 | I2 | *"Plan it as Profile: small"* (this run's brief) | IN | this header |
 | I3 | *"(1) check_review_coverage.py gains --base … (2) _changed_md via porcelain -z … (3) final_gate.py passes --base"* (the brief's three pieces) | IN for (1) and (2); (3) REPLACED by I7 | A: (1), (2) |
-| I4 | *"graders per the spec's Validation list"* | IN | Phase A steps 1 and 3 (G1–G9, G11, G12) |
+| I4 | *"graders per the spec's Validation list"* | IN | Phase A steps 1 and 3 (G1–G9, G11–G14) |
 | I5 | *"The plan-review flips spec+plan to CONVERGED and holds the approval gate (answered by the Opus + Fable panel, D-613)"* | IN | the `/fabrik-plan-review` run that `/fabrik-plan-after-chat` invokes as its final step; its design-gate panel |
-| I6 | Grounding finding (this run, Evidence Phase A): in 5 of the 13 /opt repos that carry a reviews dir — tryton-crm, the reporter, among them — the main checkout's branch is `mobasak/<repo>` with no `origin/master` or `origin/main`, so the spec's first base order (linked-worktree base → origin/master → origin/main) resolves NOTHING in their main checkouts and the bypass stays open exactly where it was reported | IN — a LINKED worktree uses the main checkout's branch, else origin/master, else origin/main, never its own upstream (the push-first cobra stays closed); the MAIN checkout uses its branch's upstream, else origin/master, else origin/main (pushing the main checkout's branch IS integration) | Phase A `integration_base`; spec § The delta 1, § Rejected alternatives, R3 (amended in this review) |
+| I6 | Grounding finding (this run, Evidence Phase A): in 5 of the 13 /opt repos that carry a reviews dir — tryton-crm, the reporter, among them — the main checkout's branch is `mobasak/<repo>` with no `origin/master` or `origin/main`, so the spec's first base order (linked-worktree base → origin/master → origin/main) resolves NOTHING in their main checkouts and the bypass stays open exactly where it was reported | IN — a LINKED worktree uses the main checkout's branch, else origin/master, else origin/main, never its own upstream (the push-first cobra stays closed); the MAIN checkout uses its branch's upstream, else origin/master, else origin/main (pushing the main checkout's branch IS integration) | Phase A `integration_refs`; spec § The delta 1, § Rejected alternatives, R3 (amended in this review) |
 | I7 | Review finding (pass 1): sync-EXCLUDED repos pull the hub's files rather than receive pushes (`scripts/final_gate.py:1741-1744`), so a `final_gate.py` that passes `--base` can meet a checker that predates the flag and fail the row with `unrecognized arguments`; and a second resolver in `final_gate.py` is a second definition to keep in parity | IN — `final_gate.py` is unchanged; the checker resolves the base itself on every no-path run, `--base` is an explicit override only | Phase A `main()`; spec § The delta 1, § Validation, § Cost (amended in this review) |
+| I8 | Design-approval panel (opus + fable, both `approve-with-changes`): a review hand-added inside a merge commit escapes `--no-merges`; the main-checkout push-then-gate window and the IN-PROGRESS exit are unnamed; the census sees one instant, not the accepted window; a linked worktree whose main checkout sits on a feature branch inherits master commits | IN — `--cc` replaces `--no-merges` (G13); the base becomes a SET of integration refs (G14); R4 and the IN-PROGRESS exit named in the spec; the NOTE names the right remedy; Phase C replays recent merges and asserts a resolved base | Phase A interfaces and G13/G14; Phase C step 1; spec § Goal, § The delta 1-3, § Decisions taken, § Lifecycle, R1, R4 |
 
 ## What we already agreed (citations, not restatement)
 
@@ -58,13 +59,14 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
   `scripts/enforcement/check_review_coverage.py:29-38`); no dependency file is touched (`core/10-python.md:30`).
 - **Never a traceback from git**: every new `git` call is `subprocess.run(..., capture_output=True)` reading BYTES,
   decoded with `os.fsdecode` (a non-UTF-8 name that `-z` now passes through raw must never raise
-  `UnicodeDecodeError`), and every path the checker PRINTS — failure lines, the untracked NOTE, the attribution NOTE,
-  the advisory — is rendered through one helper, `_shown(p) = os.fsencode(str(p)).decode("utf-8", "backslashreplace")`,
+  `UnicodeDecodeError`), and every path the checker PRINTS, on whatever line carries it (failure lines, the untracked, attribution and
+  intent-to-add NOTEs, the advisory, the explicit-path branch), is rendered through one helper, `_shown(p) = os.fsencode(str(p)).decode("utf-8", "backslashreplace")`,
   so a surrogate-escaped name never raises `UnicodeEncodeError` at `print`; `FileNotFoundError`, a non-zero rc and a shallow repository all degrade to today's
   porcelain-only scope plus one NOTE printed AFTER the ⚠ block (`check_review_coverage.py:3247-3251` — the emitter
   protocol: the ⚠ header must speak first).
-- **The explicit-path mode is untouched**: `main()`'s `args.paths` branch (`:3201-3222`), which the hub's pre-commit hook
-  `review-coverage-staged` uses (`.pre-commit-config.yaml:144`), never reads `--base` and never scans the range.
+- **The explicit-path mode keeps its selection and grading**: `main()`'s `args.paths` branch (`:3201-3222`), which the
+  hub's pre-commit hook `review-coverage-staged` uses (`.pre-commit-config.yaml:144`), never reads `--base` and never
+  scans the range; only its printed lines change, through `_shown` (an argv path holding `\xff` raises at `print` today).
 - **No double reporting**: a path in the blocking set is in the advisory scan's skip set unless it is
   `Status: IN-PROGRESS` (`_in_progress`, `:465`), so an unintegrated IN-PROGRESS receipt keeps its standing advisory and
   every other file is reported by exactly one of the two.
@@ -112,38 +114,43 @@ Appetite: 150
 
 **Interfaces — Produces** (all in `scripts/enforcement/check_review_coverage.py`; `spec § The delta` 1-6, amended by I6
 and I7):
-- `integration_base(root: Path) -> str` — the REF NAME the range excludes (never a SHA: each candidate is tested with
-  `git rev-parse --verify --quiet <ref>` for its rc only, and the name itself is returned), "" when none resolves.
-  Linked worktree (the absolute `git rev-parse --git-dir` differs from `--git-common-dir`): the main checkout's branch
-  (`git --git-dir <common> symbolic-ref --quiet --short HEAD`) when it differs from HEAD's branch, else
-  `origin/master`, else `origin/main` — never this branch's own upstream. Main checkout: `@{upstream}`
-  (`git rev-parse --abbrev-ref --symbolic-full-name @{upstream}`), else `origin/master`, else `origin/main`. Any git
-  error answers "".
-- `_unintegrated_md(root: Path, prefix: str, base: str) -> tuple[list[Path], dict[Path, str], list[str]]` — returns
-  (paths, attribution, notes). `base == ""` → `([], {}, [])`. `git rev-parse --is-shallow-repository` printing `true` →
+- `integration_refs(root: Path) -> list[str]` — the REF NAMES the range excludes (never SHAs: each candidate is tested
+  with `git rev-parse --verify --quiet <ref>` for its rc only, and the name itself is kept), deduplicated, in order; `[]`
+  when none resolves. Linked worktree (the absolute `git rev-parse --git-dir` differs from `--git-common-dir`): the main
+  checkout's branch (`git --git-dir <common> symbolic-ref --quiet --short HEAD`) when it differs from HEAD's branch,
+  that branch's upstream (`git rev-parse --abbrev-ref --symbolic-full-name <branch>@{upstream}`), `origin/master`,
+  `origin/main` — never THIS branch's own upstream. Main checkout: `@{upstream}`, `origin/master`, `origin/main`. Then,
+  for each local branch in the set (`refs/heads/<ref>` verifies — a slash in its name decides nothing), `origin/<ref>`
+  when it verifies. Every member only shrinks the range, so adding one can never red a session; the cobra guard is the
+  one ref never added. Any git error drops that candidate.
+- `_unintegrated_md(root: Path, prefix: str, bases: list[str]) -> tuple[list[Path], dict[Path, str], list[str]]` —
+  returns (paths, attribution, notes). `bases == []` → `([], {}, [])`. `git rev-parse --is-shallow-repository` printing `true` →
   `([], {}, ["NOTE: unintegrated review scan skipped — shallow clone (its grafted root lists already-integrated files); porcelain scope only"])`.
-  Otherwise runs `git log -z --no-merges --name-only --format= --diff-filter=d HEAD --not <base> [origin/<base>] --
-  <prefix>`, the `origin/<base>` term added only when `refs/heads/<base>` verifies (a LOCAL branch, whatever its name —
-  `mobasak/<repo>` included) and `refs/remotes/origin/<base>` verifies; it excludes commits a worktree merged from a
-  remote that is ahead of the local integration branch. Splits the bytes on NUL, `os.fsdecode`s each name,
+  Otherwise runs `git log -z --cc --name-only --format= --diff-filter=d HEAD --not <bases…> -- <prefix>`: `--cc`
+  lists a merge commit's paths only where they differ from EVERY parent, so a clean catch-up merge adds nothing and a
+  review hand-added inside a merge commit is listed (spec § The delta 2); the `origin/<ref>` members exclude commits a
+  worktree merged from a remote that is ahead of the local integration branch. Splits the bytes on NUL, `os.fsdecode`s each name,
   deduplicates, applies `_changed_md`'s filter (`.md`, not `-archive.md`, not under `archived/`, a file on disk).
   Attribution per path: `git log -1 --format=%h%x00%(trailers:key=Agent-Name,valueonly)%x00%an HEAD --not <same refs> --
   <path>`, each NUL field stripped of whitespace → `"<sha> (<Agent-Name, else author>)"`. rc ≠ 0 or
-  `FileNotFoundError` → `([], {}, ["NOTE: unintegrated review scan skipped — git log rc <n> against <base> (porcelain scope only)"])`.
+  `FileNotFoundError` → `([], {}, ["NOTE: unintegrated review scan skipped — git log rc <n> against <bases> (porcelain scope only)"])`.
 - `_changed_md(root, prefix)` keeps its signature and return; it reads `git status --porcelain -z
   --untracked-files=all -- <prefix>` as bytes, splits on NUL, `os.fsdecode`s each entry, takes the path from
   `entry[3:]`, and for an `R` or `C` status in either column consumes the NEXT field as the rename source and discards it
   (under `-z` the destination comes first — Evidence, Phase A). No quote stripping remains. The docstring's stale
-  "Returns (paths, notes)" becomes the three-tuple.
+  "Returns (paths, notes)" becomes the three-tuple. `_intent_to_add(root, prefix)` (`:139-162`) reads the same
+  bytes-and-`os.fsdecode` `-z` porcelain, so its set matches the paths the scan now grades and the intent-to-add NOTE
+  still names a non-ASCII peer receipt.
 - `_grade(p, root, live: bool = True)` — passes `live` to `check_mega_validation` (`:3163`); every existing caller is
   unchanged.
 - `main()`: `ap.add_argument("--base", default=None, help=…)` — an explicit override; `final_gate.py` never passes it.
-  No-path branch only: `base = args.base if args.base is not None else integration_base(root)`; `unint, who,
-  unint_notes = _unintegrated_md(root, REVIEWS_DIR, base)`. The blocking set is `changed` (plus the running-record
+  No-path branch only: `bases = [args.base] if args.base is not None else integration_refs(root)`; `unint, who,
+  unint_notes = _unintegrated_md(root, REVIEWS_DIR, bases)`. The blocking set is `changed` (plus the running-record
   receipts, `:3226-3228`) followed by every `unint` path not already in it, compared on `.resolve()`. The advisory skip
   set becomes `set(changed) | set(untracked) | {p for p in unint if not _in_progress(<its text>)}`. Grading: a path that
   came ONLY from `unint` is graded `_grade(p, root, live=False)`; on a failure from it, `NOTE: <rel> entered history in
-  <who[p]>` is printed after the failure lines. `unint_notes` print with `skip_notes`, after the ⚠ block. The OK line
+  <who[p]> — mail its author or revert it; never push to clear it` is printed after the failure lines (pushing would
+  integrate the unconverged review — spec § The delta 3). `unint_notes` print with `skip_notes`, after the ⚠ block. The OK line
   reads `check_review_coverage: OK — 0 unproven coverage claims across <N> changed + <M> unintegrated review
   artifact(s)` where M counts the unint-only paths.
 - The module docstring's scope sentence (`:6-7`, "Inspects only changed/untracked files") names both sources, the base
@@ -158,15 +165,15 @@ Steps:
    failing receipt in `main` without pushing → the no-arg run exits 1 and names the path; push it → exits 0 and no
    failure line names it (it is integrated). Run `.venv/bin/python -m pytest
    tests/enforcement/test_review_coverage_unintegrated.py -q` → G1 red (exit 0 on the unpushed commit).
-2. Implement `integration_base`, `_unintegrated_md`, the byte-safe `_changed_md`, `_grade(live=…)` and the `main()`
+2. Implement `integration_refs`, `_unintegrated_md`, the byte-safe `_changed_md`, `_grade(live=…)` and the `main()`
    wiring. Re-run → G1 green.
-3. Write G2–G12:
+3. Write G2–G14:
    - G2 (push-first cobra): a linked worktree (`git worktree add -b feat <wt>` from `main`) commits the failing receipt
      and pushes with `git push -u origin feat` (so the branch HAS an upstream the mutant could read) → its no-arg run
      still exits 1.
    - G3 (catch-up merge, remote ahead): a second clone pushes a commit adding a failing receipt to `origin/master`; the
      worktree runs `git fetch` and merges `origin/master` while the local `master` stays behind → the worktree's run
-     does not name that receipt (the `origin/<base>` term excludes it).
+     does not name that receipt (the `origin/master` member excludes it, and `--cc` lists nothing for the clean merge).
    - G4 (sibling isolation): `main` commits a failing receipt WITHOUT pushing; THEN the worktree branch is created from
      `main`'s HEAD → the worktree's run exits 0 and does not name the path (its base is the local `master`, which holds
      the sibling's commit).
@@ -177,7 +184,9 @@ Steps:
      exactly once in stdout (the advisory line).
    - G7 (non-ASCII): a failing receipt named `2026-10-08-ü-review.md` reds BOTH as an uncommitted staged file and as an
      unpushed commit; a staged rename `a.md → b.md` grades `b.md` only; a staged failing receipt whose name holds the
-     byte `\xff` → exit 1, its name printed with `\xff` backslash-escaped, no `Traceback` in stderr.
+     byte `\xff` → exit 1, its name printed with `\xff` backslash-escaped, no `Traceback` in stderr — in the no-path
+     scan and when passed as an explicit path; a failing `git add -N` receipt named `…-ü-review.md` still prints the
+     intent-to-add NOTE, and one named with `\xff` prints it escaped, with no `Traceback`.
    - G8 (mega live=False): an unpushed committed mega validation report whose recorded epic-set hash no longer matches
      the epics on disk → exit 0 (the textual contract passes; `live=True` would red it); the same report uncommitted →
      exit 1 (today's live grading, unchanged).
@@ -186,6 +195,12 @@ Steps:
      parentheses; a run whose only unintegrated artifact is an IN-PROGRESS receipt prints `0 changed + 1 unintegrated`.
    - G11 (I6, a non-master integration branch): a main checkout on branch `mobasak/x` tracking `origin/mobasak/x`, with
      no `master` or `main` anywhere, commits the failing receipt without pushing → exit 1 naming it; pushed → exit 0.
+   - G13 (a review inside a merge commit): the worktree runs `git merge --no-ff --no-commit master`, `git add`s a failing
+     receipt, and commits → exit 1 naming it; a clean `git merge master` of a branch carrying no review → the merge adds
+     nothing to the range.
+   - G14 (main checkout on a feature branch): the main checkout checks out a local branch `side` with no remote
+     counterpart, cut before `origin/master` gained an integrated failing review; a linked worktree branched from
+     `origin/master` → exit 0, that review not named (`origin/master` is in the set).
    - G12 (shallow clone): a `--depth 1 --no-single-branch` clone on a DETACHED HEAD at a feature commit whose tree
      carries an already-integrated failing review (detached, so no upstream: the base falls back to `origin/master`,
      the CI shape) → exit 0 with the shallow NOTE (with the guard removed the grafted root lists the review and reds).
@@ -199,8 +214,9 @@ Steps:
    `python3 scripts/sysadmin/liveness_audit.py --proof vacuity --json` → the `check_review_coverage` row is ALIVE (it
    still fires on its no-remote fixture, `scripts/sysadmin/liveness_audit.py:1436-1442`).
 5. **Phase gate**: red-on-revert in a throwaway worktree, one mutant per grader that today's code does not already red —
-   G2 (the linked branch reads `@{upstream}` first), G3 (the `origin/<base>` term dropped), G4 (`--not` drops the
-   base), G6 (the skip set takes IN-PROGRESS paths), G7 (bytes decoded strictly; `_shown` bypassed), G8 (unint-only paths graded
+   G2 (the linked branch reads `@{upstream}` first), G3 (the `origin/<ref>` members dropped), G13 (`--cc` replaced by `--no-merges`), G14 (`origin/master` dropped from the
+   linked set), G4 (`--not` drops the
+   base), G6 (the skip set takes IN-PROGRESS paths), G7 (bytes decoded strictly; `_shown` bypassed; `_intent_to_add` left on quoted porcelain), G8 (unint-only paths graded
    `live=True`), G9 (fields not stripped), G11 (the main-checkout `@{upstream}` leg removed), G12 (the shallow guard
    removed) → each named test red, then the worktree removed. (G1, G5 and G7's non-ASCII rows are red on today's code.)
    `.venv/bin/python -m mypy scripts/enforcement/check_review_coverage.py --ignore-missing-imports` → no new error
@@ -249,8 +265,14 @@ Steps:
    the Phase-A checker (`<worktree>/scripts/enforcement/check_review_coverage.py --root <tree>`) read-only over every
    `/opt` repo carrying `docs/development/reviews/` — its main checkout and every registered linked worktree whose
    directory exists and that `git worktree list --porcelain` does not mark `prunable` (13 repos, 246 registered trees,
-   21 of them prunable and missing on disk, at authoring) — and tabulates per tree: base resolved, M unintegrated, exit
-   code, and the paths a NEW red names, with the examined and skipped denominators. Any new red is dispositioned before
+   21 of them prunable and missing on disk, at authoring) — and tabulates per tree: the integration refs resolved, M
+   unintegrated, exit code, and the paths a NEW red names, with the examined and skipped denominators. Every tree whose
+   repo has a remote must resolve a non-empty set — an empty one there is a resolver defect (its "any git error drops
+   the candidate" would otherwise turn a wrong `cwd` into a silent porcelain-only green), fixed before merge. Because a
+   snapshot cannot see the window the spec accepts (R2 — the merge owner's merged-but-unpushed state reads 0 almost
+   always), the script also replays, per main checkout, its last 20 first-parent merges into the integration branch,
+   scanning each as HEAD=`<merge>` against base=`<merge>^1`, and counts how often a merge owner would have been
+   reddened for a merged branch's review. Any new red is dispositioned before
    merge: a genuinely unconverged unintegrated review is mailed to that repo's agent (it is the bypass this plan closes,
    now visible); a false red is a defect fixed here. The table goes into the receipt.
 2. **Finish — the heavy `/fabrik-review`** over the whole-plan diff: the D7 floor — file partition, a Sonnet and a Haiku
@@ -330,13 +352,15 @@ unchanged — I7), `.pre-commit-config.yaml:144` (explicit-path mode, untouched)
 - Findings that changed the design: I6 — the main checkout reads its upstream, a linked worktree never does; I7 —
   `final_gate.py` is unchanged and the checker owns the one base definition; pass 1 — bytes + `os.fsdecode`, the
   `refs/heads/<base>` test, the shallow guard.
-- (a) Coverage: the delta 1 → `integration_base`, G2, G4, G5, G11; delta 2 → `_unintegrated_md`, G1, G3, G5, G12; delta
+- (a) Coverage: the delta 1 → `integration_refs`, G2, G4, G5, G11, G14; delta 2 → `_unintegrated_md`, G1, G3, G5, G12,
+  G13; delta
   3 → the `main()` wiring, G1, G6, G9; delta 4 → `_grade(live=…)`, G8; delta 5 → the byte-safe `_changed_md`, G7; delta
   6 → the OK line, G9; every spec Validation row → G1–G9, G11, G12, and its final row (no unknown flag) → I7 and the
   Global Constraint; documentation landing sites → Phase A (docstring), Phase B (FINAL_GATE_WORKFLOW, INDEX), each
   phase's commit (CHANGELOG), the approval D-row at the plan review; the spec's blast-radius sentence → Phase C step 1.
   No gap.
-- (b) Signatures: `integration_base(root: Path) -> str` returns a ref name and is called only by `main()`;
+- (b) Signatures: `integration_refs(root: Path) -> list[str]` returns ref names and is called only by `main()`, which
+  passes the list (or `[args.base]`) to `_unintegrated_md(..., bases)`;
   `_unintegrated_md` returns the three-tuple `main()` unpacks; `_grade`'s new keyword defaults to today's `True`, so the
   explicit-path caller (`:3207`) and the pre-commit hook keep live grading.
 - Fixed point: not yet — `/fabrik-plan-review` grades it.
@@ -360,6 +384,9 @@ Joint loop over this plan and its `Size: small` spec (md5 pairs: plan · spec).
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (plan § Global Constraints, Phase A, Phase B; spec § The delta, § Validation, § Constraints Digest) + sonnet×1 (every other section of both) · all axes | found: 17, new: 17, confirmed: 16, fixed: 16, unexecuted: 0, edits: 31 | method: citation — full pass over pins at 0422ddb26; every confirmed candidate re-executed by the orchestrator (the seat fixtures re-run: G1's integrated receipt is unnamed by the advisory, a `mobasak/x` local base drops the remote-ahead term, a branch made before the sibling commit never reaches it, a shallow clone lists an integrated review, a `\xff` name raises under `-z` `text=True`, trailer values carry a newline; `final_gate.py:71`/`:318` freeze the cwd, `rev-parse --verify` prints a SHA, `:1741-1744` sync-excluded repos pull); confirmed: G1 assertion, the `/` test, G4 unreachable, G10 cwd, shallow/orphan, G2 upstream, G3/G8 never red, `-z` decode, trailer strip, AFTER-EDIT list, four spans, the resolver's return, the G9 fixture, the I5 phase reference, the unbounded worktree census, the spec size; I7 drops the `final_gate.py` change; B-3 refuted | plan 7d7f53e5 · spec 3fcec7f8 → plan 2d219deb · spec a85622f0 |
 | Pass 2 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-1 rewrite + one hop | found: 3, new: 3, confirmed: 2, fixed: 2, unexecuted: 0, edits: 5 | method: re-derivation — A 13/13 findings NOW_FALSE and 22/23 claims re-verified (A-C19 retired with G10), B 4/4 NOW_FALSE and 13/13 claims re-verified (census re-run: 13 repos, same 21 prunable missing; rubric diff 0 bytes; the Pass 1 end hash re-derived by deleting its row); confirmed by orchestrator execution, both inside round-1 hunks (own-fix: round 1): a surrogate-decoded name raises `UnicodeEncodeError` at `print` (A2-1, `_shown`), G12 on a checked-out branch gets an upstream and never reproduces the shallow false red (A2-2, detached HEAD); A2-3 recorded | plan aeb312b4 · spec a85622f0 → plan d42885c6 · spec a85622f0 |
+| Pass 3 | opus×1 (slice A owner); slice B restated at its Pass 2 13/13 · remainder round — the round-2 fixed set only | found: 2, new: 2, confirmed: 1, fixed: 1, unexecuted: 0, edits: 4 | method: re-derivation — A2-1 and A2-2 NOW_FALSE, executed (`_shown` escapes `\xff`, round-trips `ü`, a piped child prints at rc 0; the detached shallow fixture falls back to origin/master and reds with the guard removed, passes with it); confirmed (own-fix: round 1, one hop from the `-z` hunk): `_intent_to_add` keeps quoted porcelain, so the intent-to-add NOTE misses a non-ASCII peer receipt (A3-1, read at `check_review_coverage.py:139-162`); A3-2 recorded and applied — the explicit-path branch's pre-existing `print` traceback on a `\xff` argv path; standing clean since Pass 2: slice B | plan 52cb3e78 · spec a85622f0 → plan 0eb94cbd · spec a85622f0 |
+| Pass 4 | opus×1 (slice A owner); slice B restated at its Pass 2 13/13 · scope-growth stop remainder — the round-3 fixed set only | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 11 | method: re-derivation — A3-1 and A3-2 NOW_FALSE, executed (`-z --untracked-files=no` keeps ` A` for `add -N` entries, so the ü and `\xff` peer receipts match and a staged file does not); confirmed (own-fix: round 3, inside the A3-1 hunk): the intent-to-add NOTE becomes a new print site the enumerated `_shown` list missed (A4-1, a piped child raised `UnicodeEncodeError`) — the rule now covers every print site and G7 adds a `\xff` `add -N` row; residue before the next pin: the Coverage Checklist adjudicated (9 rows) | plan a7d6372b · spec a85622f0 → plan 67f93be1 · spec a85622f0 |
+| Pass 5 | opus×1 + fable×1 (the D-613 design-approval panel, same brief, author-blind; pinned plan 23085818 · spec a85622f0) · approval axes: bypass closed, cross-session reds, cheapest dodge, blast radius | found: 13, new: 13, confirmed: 8, fixed: 6, unexecuted: 0, edits: 22 | method: citation — both seats `approve-with-changes`; confirmed by orchestrator execution or read: a review hand-added inside a merge commit escapes `--no-merges` (re-run: range empty, file tracked; `--cc` lists it) → `--cc` + G13; a linked worktree on a feature-branch main checkout inherits master commits → integration-ref SET + G14; the close chain pushes before it gates (`close-chain.md:7`, read) → spec R4, Goal narrowed, kaizen mail 01M4EJTSCY (recorded); IN-PROGRESS cheapest exit → named, backlog W-73f60b35 (recorded); the census sees one instant → merge replay + non-empty-set assertion; the NOTE invited pushing → remedy named; sweep commits and sibling-cut branches → Lifecycle and Validation sentences; refuted: the trailer newline (already stripped), the fleet-alloy reviews (0 errors, graded) | plan 0f3fac17 · spec a85622f0 → plan 1a1ab97a · spec 1c4f6993 |
 
 ## Residual
 
@@ -367,20 +394,23 @@ Joint loop over this plan and its `Size: small` spec (md5 pairs: plan · spec).
 |---|---|
 | B-3 | REFUTED (a plan's own Status flip is orchestrator bookkeeping outside File Scope — the precedent plan `docs/development/plans/2026-10-08-plan-2-payments-fulfilment-role.md` omits its own path the same way, and `/fabrik-execute-plan` mints its lock from File Scope for the code it guards) |
 | A2-3 | RECORDED — measured (one hop out: `scripts/enforcement/check_review_hygiene.py:947-976` `_changed_receipts` hand-copies the old porcelain selection, so its parity docstring goes stale and it keeps both holes; outside File Scope — backlog W-1a3b3e85, sibling of W-699a271a) |
+| A3-2 | RECORDED — measured (pre-existing, not introduced by any round's hunk: the explicit-path branch prints an argv path raw, so a `ÿ` name raises at `print` today while still failing closed; destination: applied in this plan — Phase A routes those lines through `_shown`) |
+| P-R4 | RECORDED — measured (panel, both seats: the close chain pushes before it gates, `commands/_fragments/close-chain.md:7`, so a MAIN checkout's push-then-gate passes; spec R4; destination: kaizen, mail 01M4EJTSCY, command wording) |
+| P-IP | RECORDED — measured (panel, both seats: `Status: IN-PROGRESS` stays the cheapest exit, pre-existing and advisory-nagged; spec § Decisions taken; destination: backlog W-73f60b35, refuse at merge-request time) |
 
 ## Coverage Checklist
 
 | Class | Status |
 |---|---|
-| Hunt: `scripts/enforcement/check_review_coverage.py` — every changed function, its callers | UNCHECKED |
-| Hunt: `tests/enforcement/test_review_coverage_unintegrated.py` — every grader can go red | UNCHECKED |
-| Hunt: `docs/workflows/FINAL_GATE_WORKFLOW.md` — every changed claim against the code | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `scripts/enforcement/check_review_coverage.py` — every changed function, its callers | FIXED r1 (the `/`-keyed origin term became `refs/heads/<base>`; bytes + `os.fsdecode`; the shallow guard; the resolver returns a ref name — `_changed_md` :94, `main()` :3188, `_grade` :3145 re-read) · FIXED r2 (`_shown` on every print site, the advisory included) · FIXED r3 (`_intent_to_add` :139-162 on the same `-z` read; the explicit-path branch :3201-3222 prints through `_shown`) · FIXED panel (`--cc` replaces `--no-merges` so a review inside a merge commit is listed; the base is a SET of integration refs; the NOTE names the remedy) |
+| Hunt: `tests/enforcement/test_review_coverage_unintegrated.py` — every grader can go red | FIXED r1 (G1's integrated assertion, G2 `push -u`, G3 remote-ahead, G4 branched after the sibling, G8 and G3 mutants named — each executed in seat fixtures) · FIXED r2 (G12 on a detached HEAD reds with the guard removed, executed) · FIXED r3 (G7's intent-to-add and explicit-path rows) · FIXED panel (G13 merge-commit receipt, G14 main checkout on a feature branch, each with a named mutant) |
+| Hunt: `docs/workflows/FINAL_GATE_WORKFLOW.md` — every changed claim against the code | CLEAN (docs/workflows/FINAL_GATE_WORKFLOW.md:168, :294 and :483 re-read by both seats; Phase B names all three and keeps :483's ADVISORY wording for the committed scan) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (a shallow clone and an unresolvable base degrade to porcelain scope with a NOTE, never a silent zero; `final_gate.py` unchanged so no unknown-flag red, I7) · FIXED r2 (a non-UTF-8 name can no longer crash the gate at `print`) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (a slash in a branch name no longer decides local-vs-remote; four off-by-one spans corrected; trailer fields stripped) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (G3 and G8 were green on today's code — each now has a named step-5 mutant; G4's mutant was unkillable until the branch order changed) · FIXED r2 (G12's mutant killed only through the NOTE text until the fixture went detached) |
+| Recurrence: denominator on every count — bounded searches state their bound | FIXED r1 (Phase C's census bounded to existing non-prunable trees with 13 repos / 246 trees / 21 prunable stated; R3 13 of 13 re-derived by seat B twice) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (docs/development/plans/2026-10-08-plan-3-review-coverage-commit-scope.md § Phase C — the census runs in the background with Appetite 90; one `git log` per gate run, no new network call; seats stamped per round: 2, 2, 1, 1) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (docs/development/plans/2026-10-08-plan-3-review-coverage-commit-scope.md § Evidence — every confirmed candidate re-executed by the orchestrator in scratch git fixtures; the anti-cheat hash re-derived by seat B) |
 
 Rubric invocation (verbatim output — the gate reads the generated header):
 
