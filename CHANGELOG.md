@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — command_feedback_report --queue names the held subjects; --reject warns on a re-hold (2026-10-08)
+- `scripts/command_feedback_report.py --queue <command>` adds one header line, `held (all time): <k> subject(s) on <m> of <n> rejected row(s) — …`, listing the `HELD:<subject>` tags in that command's rejected reasons (each once per row, count first), so the improve run can see a new verdict on a held subject; it prints nothing for a command with no tags. `--reject` now warns when its reason names a subject already held — a second verdict is edited, never re-rejected (D-711). kaizen 01M4E88KDV.
+
 ### Changed — a running cert report is told the IN-PROGRESS marker and how it closes (2026-10-08)
 - `commands/_fragments/term-coverage.md` (rendered into the review and certification commands): a cert report carrying a Coverage Checklist is graded by `check_file`, but no cert text named the header-zone `Status: IN-PROGRESS` marker that exempts a gauntlet still running, nor how it closes, so tryton-crm learned both from a red gate (intel 01M4ECCQ2T). The paragraph now names a line-initial marker in the first 10 lines and the close order: the gate run while IN-PROGRESS, the flip to `Status: CONVERGED` (which arms `check_convergence.py`'s embedded green gate and a per-phase verdict under a `## Phase`/`## Step` heading), then the re-run embedded. Grader: `tests/enforcement/test_review_exit_contract.py::test_a_running_cert_ledger_is_told_the_in_progress_marker_check_file_honours`, which drives `check_file` with the marker at line 3, line 10 and line 11.
 
