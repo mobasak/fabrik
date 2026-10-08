@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-08T18:53:56.657359Z",
+  "created": "2026-10-08T20:30:21.890741Z",
   "creator": "infra",
   "evidence": "",
-  "id": "W-332d4381",
+  "id": "W-99c4dcd0",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M4EDB9TCQAFCMV983HJZB3ND",
+    "mail": "01M4EKAZZFTZNK931NH2M0E63Y",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "infra",
   "priority": 2,
   "status": "done",
-  "title": "command_run.py handoff stores only the --resume PATH, so an UPGRADE seed in scratch dies with the session"
+  "title": "/fabrik-spec-review feedback queue — 6 verdict(s) that need CODE in your beat (kaizen D-711 triage)"
 }

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:30:41.492203Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f0b31440",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "command_run round: print BREAKER FIRED when the last three confirmed counts are non-decreasing and nonzero (fabrik-spec-review verdict 1789147615.2726274, kaizen 01M4EKAZZF)"
+}

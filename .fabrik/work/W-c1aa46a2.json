@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:40:30.368175Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-c1aa46a2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EJTSCY0EA2RMQ8WPGHN9MZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "close-chain pushes BEFORE it gates — a review committed in a main checkout escapes the review-coverage gate"
+}

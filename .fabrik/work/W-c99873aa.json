@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:30:38.618885Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c99873aa",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "command_run start: print the command file's md5 so a re-invocation shows the text changed since last read (fabrik-spec verdict 1790917301.6574302, kaizen 01M4EJQEEG)"
+}
