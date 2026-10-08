@@ -23,6 +23,17 @@ subset check that would stay green if an audited metric were silently dropped (O
 row-4 consumer checks only asserted the new phrase was present, never that no "Promtail is
 the running shipper" phrasing survived (O8).
 
+Round-2 fixups folded in: the cold-start check piped a potentially large `/metrics` body
+into `grep -q`, which exits at the first match while the pipe's writer (`echo`) may still be
+writing — under `set -uo pipefail`, a body over a pipe buffer (~64 KiB) makes `echo` take
+SIGPIPE, `pipefail` reports 141, and `! ...` misreads that as "no match", printing a false
+WARNING on a perfectly healthy Alloy (O12; fixed with here-strings, no pipe to break). And
+the row-4 "no Promtail as the running shipper" checks were an ad-hoc blacklist
+('receives from Promtail', 'promtail ships') rather than a ratchet against what the base
+commit (ad790046b, before this ticket) actually said — replaced with the exact base-era
+phrases themselves, checked case-insensitively, with comment line-wraps flattened so a
+phrase split across a wrapped `#` continuation is still caught (O8).
+
 Metric-name measurement (recorded 2026-10-08; re-run live by
 test_live_alloy_exposes_every_audited_metric_name below, skipped when docker is absent)::
 

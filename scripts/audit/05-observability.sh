@@ -85,12 +85,18 @@ echo "========== ALLOY =========="
 # Fail-closed (O1): an unreachable Alloy / missing container prints nothing from
 # a bare curl|grep, and a cold start (no push yet) silently drops the loki_write_*
 # line out of the grep -E output — both read as a clean audit unless said aloud.
+#
+# Here-strings, not pipes (O12): under `set -uo pipefail`, `echo "$x" | grep -q ...`
+# has grep exit at the first match while echo is still writing — on a body over
+# ~64 KiB (a pipe buffer) echo gets SIGPIPE, pipefail reports 141, and `! ...`
+# reads that as "grep found nothing", printing a false WARNING on a healthy Alloy.
+# A here-string feeds grep directly with no pipe to break.
 _alloy_metrics=$(fabrik_curl "http://alloy:12345/metrics")
 if [ -z "$_alloy_metrics" ]; then
   echo "FAILED: alloy metrics unreachable on alloy:12345"
 else
-  echo "$_alloy_metrics" | grep -E "loki_write_sent_entries_total|loki_write_dropped_entries_total|loki_source_file_files_active_total"
-  if ! echo "$_alloy_metrics" | grep -q "^loki_write_sent_entries_total"; then
+  grep -E "loki_write_sent_entries_total|loki_write_dropped_entries_total|loki_source_file_files_active_total" <<<"$_alloy_metrics"
+  if ! grep -q "^loki_write_sent_entries_total" <<<"$_alloy_metrics"; then
     echo "WARNING: alloy has not pushed to Loki yet (no loki_write_* series)"
   fi
 fi
