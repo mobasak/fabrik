@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the docusaurus pack's nginx block answers every missing path with 404 and no-cache (2026-10-08)
+- `.windsurf/rules/core/42-docusaurus.md`: an `/assets/` directory answered 403, GET `/404` served the 404 page as a 200, and every 404 carried no Cache-Control (`add_header` skips 4xx). The block now adds `try_files $uri =404;` in `/assets/`, `location = /404 { internal; }`, and `add_header Cache-Control "no-cache" always;` on the 404 page. Executed in nginx:mainline-trixie: every missing path answers 404 with the build's 404.html and no-cache, while hashed assets keep the immutable cache. The prose is corrected sentence by sentence (403 claims, the `trailingSlash: false` shape, security headers in all three locations, i18n 404 pages).
+- Graders in `tests/test_docusaurus_pack.py`. Fleet mail 01M4D7K84A; review `docs/development/reviews/2026-10-08-docusaurus-nginx-404-review.md`.
+
 ### Fixed — review wording for the required pin manifest and the by-design owner shape (2026-10-08)
 - `term-edit.md`'s verdict grammar advertised `RECORDED — by design (I#, round k)`, an owner `check_review_coverage.py` refuses; it now names `(F#, round k)` (the owning row's F-id or its review-loop id, e.g. `A-S1`). `/fabrik-execute-plan`'s per-phase review launch now passes the args fragment `review_loop_ledger.py pin` printed, as printed, and the launcher test reads it. The `subagents-core` PIN paragraph and `/fabrik-review-scoped` step 5 say a file `pin` refuses is not a slice file and is reviewed through its callers. Reported by intel (01M4D7C2Z9, 01M4D8FAK2) as `pin_manifest` becomes mandatory.
 
