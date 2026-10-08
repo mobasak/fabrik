@@ -783,7 +783,9 @@ def _round_report(rec: dict[str, Any]) -> str:
             "⛔ NOT TERMINAL — slice ledger missing this round for ("
             + ", ".join(vanished)
             + "), stated by an earlier round; every later pass re-states `--slices` for every "
-            "slice an earlier round stated — an omitted slice is open, never clean (D-335)"
+            "slice an earlier round stated — an omitted slice is open, never clean (D-335). A slice "
+            "with no open claim needs no seat and no extra round: re-state it at its last "
+            "`<verified>/<claims>` in THIS round's `--slices` (W-c8069437)"
         )
     if quiet and len(rounds) >= 2 and failing:
         lines.append(
@@ -1679,6 +1681,10 @@ def _change_axis_verdict(value: str) -> str | None:
 # the short noun phrases below are ordinary English a genuine verdict ABOUT the close-out grammar
 # uses in its own sentence, and this loop's verdicts are exactly about that grammar. A paste
 # reproduces a whole clause; a verdict borrows three words and then says something.
+# the `filed:` template in every spelling it has had or will have — a beat LIST (`a|b|c`), bracketed or not, or the
+# contract's `a beat`, its brackets PAIRED — ending at the template's own ` | none` or the value's end, so a FILLED value in the
+# template's form (`mail id(s) to infra|fleet | 01M4…`) is a verdict, not a paste (D-627 regression; review A-H1)
+_FILED_TEMPLATE = re.compile(r"mail id\(s\) to (?:<(?:a beat|[a-z]+(?:\|[a-z]+)+)>|(?:a beat|[a-z]+(?:\|[a-z]+)+))\s*(?:\|\s*none\b|$)")
 _GRAMMAR_PHRASES = (
     "the one concrete edit to this command or a rule",
     "what in the command text was ambiguous or misleading",
@@ -1855,7 +1861,9 @@ def _parse_usage_feedback(
             _cv = _att[1] if _att else " ".join(_raw.strip().lower().split())
         else:
             _cv = " ".join(_raw.strip().lower().split())
-        if any(_cv.lstrip("> -*\"'`(").startswith(_ph) for _ph in _GRAMMAR_PHRASES):
+        if any(_cv.lstrip("> -*\"'`(").startswith(_ph) for _ph in _GRAMMAR_PHRASES) or _FILED_TEMPLATE.match(
+            _cv.lstrip("> -*\"'`(")
+        ):
             placeholders.append(_f)
     missing += [f"{f} (placeholder)" for f in placeholders]
     # THE AXIS GATE — `change:` only, and only on a value that is not already the grammar's own
@@ -5061,7 +5069,8 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                         for s in _fail
                     ]
                     + [
-                        f"slice {n}, stated by an earlier round, is missing from the last round's ledger"
+                        f"slice {n}, stated by an earlier round, is missing from the last round's ledger "
+                        "(re-state it at its last `<verified>/<claims>` in the round's `--slices` — no extra round)"
                         for n in _gone
                     ]
                 )

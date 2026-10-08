@@ -683,6 +683,8 @@ AXES: tuple[str, ...] = ("lean", "fast", "accurate", "waste", "infra", "rules", 
 # ordinary English that a genuine verdict ABOUT the close-out grammar uses in its own sentence —
 # and the close-out grammar is exactly what this loop's verdicts are about. A paste reproduces the
 # template's whole clause; a verdict borrows three words of it and then says something.
+# mirrors `command_run.py::_FILED_TEMPLATE` (pinned equal by a drift grader)
+_FILED_TEMPLATE = re.compile(r"mail id\(s\) to (?:<(?:a beat|[a-z]+(?:\|[a-z]+)+)>|(?:a beat|[a-z]+(?:\|[a-z]+)+))\s*(?:\|\s*none\b|$)")
 _GRAMMAR_PHRASES: tuple[str, ...] = (
     "the one concrete edit to this command or a rule",
     "what in the command text was ambiguous or misleading",
@@ -735,7 +737,7 @@ def _axis_of(value: str) -> str:
     # because the fragment prints the template inside a `> ` blockquote and that marker is the
     # likeliest copy artifact (the close's own `_is_placeholder` strips decoration the same way).
     bare = body.lstrip("> -*\"'`(")
-    if bare.startswith("<") or any(bare.startswith(phrase) for phrase in _GRAMMAR_PHRASES):
+    if bare.startswith("<") or any(bare.startswith(phrase) for phrase in _GRAMMAR_PHRASES) or _FILED_TEMPLATE.match(bare):
         return "placeholder"
     if not attempt:
         return "unkeyed"

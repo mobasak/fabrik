@@ -6105,6 +6105,37 @@ def test_the_paste_guard_covers_every_field_not_just_change() -> None:
     )
     for field in ("confusion", "waste", "filed"):
         assert f"{field} (placeholder)" in missing, missing
+    # every spelling the `filed:` template has had is a placeholder (the D-627 regression: the three-beat paste)
+    for spelling in (
+        "mail id(s) to infra|fleet|intel | none",
+        "mail id(s) to infra|fleet|intel|kaizen | none",
+        "mail id(s) to <infra|fleet|intel|kaizen> | none",
+        "mail id(s) to a beat | none",
+    ):
+        _, missing = cr._parse_usage_feedback("confusion: none · waste: none · change: none · filed: " + spelling)
+        assert "filed (placeholder)" in missing, (spelling, missing)
+    # a real verdict that MENTIONS the phrase and then says something is never a placeholder (Opus critique)
+    _, missing = cr._parse_usage_feedback(
+        "confusion: mail id(s) to a beat — which beat is kaizen? · waste: mail id(s) to kaizen were filed twice · "
+        "change: lean: mail id(s) to infra should name the hub beat first · filed: none — surfaces exercised: x"
+    )
+    assert missing == [], missing
+    # a FILLED value written in the template's form is a verdict, not a paste (review A-H1/A-H2)
+    _, missing = cr._parse_usage_feedback(
+        "confusion: none · waste: none · change: none · filed: mail id(s) to infra|fleet | 01M4C5VRQE, 01M4C64EDN"
+    )
+    assert missing == [], missing
+    # ... bracketed too: the brackets PAIR, so the regex cannot back off `>` and stop at the prefix (review A-S3)
+    _, missing = cr._parse_usage_feedback(
+        "confusion: none · waste: none · change: none · filed: mail id(s) to <infra|fleet> | 01M4C5VRQE"
+    )
+    assert missing == [], missing
+    assert not cr._FILED_TEMPLATE.match("mail id(s) to a beat > sent"), "an unpaired `>` is not the template"
+    # BEHAVIOUR, not only text: the report buckets the same way (review A-S2)
+    report = _load("cfr_axis", _SCRIPT.parent / "command_feedback_report.py")
+    assert report._axis_of("mail id(s) to infra|fleet|intel | none") == "placeholder"
+    assert report._axis_of("lean: mail id(s) to infra should name the hub beat first") == "lean"
+    assert cr._FILED_TEMPLATE.pattern == _load("cfr_tmpl", _SCRIPT.parent / "command_feedback_report.py")._FILED_TEMPLATE.pattern
 
 
 def test_the_grammar_phrases_cover_both_spellings_the_system_prints() -> None:
@@ -6711,7 +6742,10 @@ def test_a_slice_omitted_for_several_rounds_stays_vanished_until_restated(run_di
     _cr(run_dir, "round", *quiet, "--slices", "A:2/2")
     out = _cr(run_dir, "round", *quiet, "--slices", "A:2/2").stdout
     assert "NOT TERMINAL" in out and "(B, C)" in out and "TERMINAL VERDICT" not in out, out
+    # W-c8069437: the banner tells the lead HOW — an idle slice is re-stated at its last count in this round
+    assert "needs no seat and no extra round: re-state it at its last" in out, out
     refused = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
+    assert "no extra round" in refused.stderr, refused.stderr
     assert refused.returncode == 1 and "missing from the last round's ledger" in refused.stderr, (
         refused.returncode,
         refused.stderr,
