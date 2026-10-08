@@ -58,7 +58,7 @@ implements and restates nothing that section settles.
 | T05b | The VPS inventory and the sysadmin doc name Alloy | T02, T03, T04a, T04b | ⚡ | ✅ | merged (wave 3) |
 | T05c | The VPS status and the deployment architecture name Alloy | T02, T03, T04a, T04b | ⚡ | ✅ | merged (wave 3) |
 | T05d | The operations docs and the scaffold resilience template name Alloy | T02, T03, T04a, T04b | ⚡ | ✅ | merged (wave 3) |
-| T05e | The rebuild guides and the reference docs name Alloy | T02, T03, T04a, T04b | ⚡ | ⬜ | |
+| T05e | The rebuild guides and the reference docs name Alloy | T02, T03, T04a, T04b | ⚡ | ✅ | merged (wave 3) |
 | T06 | The operator's window runbook: switch, battery, rollback, Gate S, the infra mail | T02, T03, T04a, T04b | ⚡ | ⬜ | |
 | T07 | Integration: rehearsals, the last doc, gates and the receipt | T01, T02, T03, T04a, T04b, T05a, T05b, T05c, T05d, T05e, T06 | ⛓️ | ⬜ | |
 

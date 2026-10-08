@@ -16,16 +16,16 @@
 | **Prometheus** | Metrics collector & storage | Scrapes metrics from node-exporter, cAdvisor, and apps/services and stores them as time-series data. Doesn't visualize — just collects and stores. |
 | **Grafana** | Visualization layer | Connects to Prometheus and builds custom dashboards, alerts, and graphs. Best for "show me trends over the last 30 days." |
 | **Loki** | Log aggregator | Collects logs from all containers/services into one searchable place. Prometheus but for logs instead of metrics. |
-| **Promtail** | Log shipper | Reads Docker container logs and sends them to Loki. |
+| **Alloy** | Log shipper | Reads Docker container logs and sends them to Loki (replaced Promtail; Promtail stays defined under `profiles: [rollback]`, stopped, until Gate S — spec D6). |
 | **Gatus** | Uptime monitoring | External availability checks, status page, alerting. |
 
 ### Current Stack (Single VPS)
 
-The full observability stack is deployed and operational. node-exporter + cAdvisor export host/container metrics to Prometheus (these replaced Netdata, removed 2026-05-30); Prometheus + Grafana handle alerting, dashboards, and long-term trend analysis; Loki + Promtail aggregate container logs.
+The full observability stack is deployed and operational. node-exporter + cAdvisor export host/container metrics to Prometheus (these replaced Netdata, removed 2026-05-30); Prometheus + Grafana handle alerting, dashboards, and long-term trend analysis; Loki + Alloy aggregate container logs.
 
 **Live coverage (verified 2026-07-20, 3-host fleet):** Gatus = ~34 endpoints across 18 config files · Prometheus = 17 `job_name`s configured / 21 targets, 21 up (16 job_names carry real targets + the `pushgateway` job restored 2026-07-19; `fabrik-services` is a null placeholder with zero targets; the `aro-wake` job covers all 3 hosts) · 13 alert rules in 5 groups · Grafana 5 custom dashboards · Authelia 8 access-control rules.
 
-> **Spoke coverage:** the two spoke hosts run `node-exporter` / `cadvisor` / `promtail` from `/opt/monitoring-agent/`, scraped by dedicated `node-spokes` / `cadvisor-spokes` / `promtail-spokes` jobs in `prometheus.yml` (targets `10.99.0.2/3` over the mesh), plus the `aro-wake` job (all 3 hosts) and push-based Loki log shipping.
+> **Spoke coverage:** the two spoke hosts run `node-exporter` / `cadvisor` / `alloy` from `/opt/monitoring-agent/`, scraped by dedicated `node-spokes` / `cadvisor-spokes` jobs (metrics) and the single `alloy` job — which also covers vps1 — in `prometheus.yml` (spoke targets `10.99.0.2/3` over the mesh), plus the `aro-wake` job (all 3 hosts) and push-based Loki log shipping. Promtail stays defined under `profiles: [rollback]` on each spoke (and on vps1) until Gate S (spec D6).
 
 **Pushgateway scrape (gap found + closed 2026-07-19):** `audit_all_registrars.py` pushes drift metrics to the `pushgateway` container hourly; the `pushgateway` scrape job (`honor_labels: true`) had drifted out of the live `prometheus.yml` — silently disabling `FabrikRegistrarDrift` — and is now restored in BOTH the repo mirror (`configs/prometheus/prometheus.yml`) and live vps1 (applied + SIGHUP 2026-07-19; verified: pushgateway target `up`, `fabrik_audit_drift_total` = 710 series in Prometheus).
 
@@ -38,9 +38,11 @@ The full observability stack is deployed and operational. node-exporter + cAdvis
 | Prometheus | (internal :9090) | ✅ Running |
 | Alertmanager | (internal :9093) | ✅ Running |
 | Loki | (internal :3100) | ✅ Running |
-| Promtail | (internal) | ✅ Running |
+| Alloy | (internal :12345) | ✅ Running |
 | cAdvisor | (internal :8080) | ✅ Running |
 | node-exporter | (internal :9100) | ✅ Running |
+
+Promtail is still defined in the compose file, under `profiles: [rollback]` — stopped, not in this list, until Gate S (spec D6) removes it.
 
 **Compose file:** `/opt/monitoring/compose.yaml` (standalone Compose stack on vps1). Start/stop via `cd /opt/monitoring && sudo docker compose up -d` / `down`. (2026-04-17 → 2026-05-30 these services were Coolify-managed; reverted to standalone Compose on the 2026-05-30 SSH+Compose migration.)
 **Repo mirror:** `infra/vps1/monitoring/compose.yaml` + `configs/` in Fabrik (repo-of-record; nothing deploys from it — production state lives in `/opt/monitoring/` on vps1)
@@ -61,7 +63,7 @@ Prometheus (rules) → Alertmanager → Telegram (native telegram_configs)
 
 ### Prometheus Alert Rules (15 total, 5 groups)
 
-Source of truth: `configs/prometheus/rules/alerts.yml` (12 rules, 4 groups) + `configs/prometheus/rules/fabrik-drift.yml` (3 rules, group `fabrik-registrar-drift`; rules 14-15 reach vps1 at plan-2 rollout R0 — until then vps1 runs 13). There are no Promtail/log-based alert rules.
+Source of truth: `configs/prometheus/rules/alerts.yml` (12 rules, 4 groups) + `configs/prometheus/rules/fabrik-drift.yml` (3 rules, group `fabrik-registrar-drift`; rules 14-15 reach vps1 at plan-2 rollout R0 — until then vps1 runs 13). There are no Alloy/log-based alert rules.
 
 | # | Alert | Group | Severity | Threshold | For |
 | --- | --- | --- | --- | --- | --- |

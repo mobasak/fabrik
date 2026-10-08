@@ -166,7 +166,7 @@ A spoke container reaches vps1's shared infra over the Wireguard mesh — bind a
 | `redis://10.99.0.1:6379/<db>` | redis-main | ✓ |
 | `http://10.99.0.1:8000/<project_id>` | GlitchTip ingest | ✓ |
 | `http://10.99.0.1:9091/api/verify` | Authelia forward-auth (spoke Traefik uses this) | ✓ |
-| `http://10.99.0.1:3100/loki/api/v1/push` | Loki ingest (spoke promtail uses this) | ✓ |
+| `http://10.99.0.1:3100/loki/api/v1/push` | Loki ingest (spoke alloy uses this) | ✓ |
 | `http://10.99.0.1:8201/wake` | aro-wake peer-protocol consult / Alertmanager webhook on vps1 (trio Phase 3+4 LIVE 2026-06-05) | ✓ |
 | `http://10.99.0.1:8201/metrics` | aro-wake Prometheus exposition on vps1 (8 SLI metrics, scraped 15s) — LIVE 2026-06-06 | ✓ |
 | `http://10.99.0.2:8201/wake` | aro-wake peer-protocol consult on vps2 — LIVE 2026-06-06 (real cross-host vps2→vps1 verified) | ✓ |
@@ -191,7 +191,7 @@ aro-wake binds the host's `0.0.0.0:8201`, but containers on the `fabrik` network
 
 ## Prometheus scrape targets (17 `job_name`s configured / 16 active (`fabrik-services` null-target; `pushgateway` restored `b8071f40` 2026-07-19; repo re-verified 2026-07-20; prior live probe 2026-07-12: 20/20 targets up))
 
-vps1's Prometheus runs **17 configured jobs**; `fabrik-services` currently has null targets (spec-driven, populated by the prometheus registrar), leaving **16 active jobs** (`pushgateway` restored 2026-07-19; prior 2026-07-12 live probe: 20/20 targets up). This includes the spoke federation (`node-spokes` / `cadvisor-spokes` / `promtail-spokes`, 2 targets each, live since `8342ef1`). The live `prometheus.yml` job set:
+vps1's Prometheus runs **17 configured jobs**; `fabrik-services` currently has null targets (spec-driven, populated by the prometheus registrar), leaving **16 active jobs** (`pushgateway` restored 2026-07-19; prior 2026-07-12 live probe: 20/20 targets up). This includes the spoke federation (`node-spokes` / `cadvisor-spokes`, 2 targets each, live since `8342ef1`) plus the `alloy` job (3 targets — vps1 + both spokes, `promtail-spokes` renamed and widened to cover the hub too, `a3b7479d3`). The live `prometheus.yml` job set:
 
 | Job | Target(s) | Notes |
 | :--- | :--- | :--- |
@@ -209,7 +209,7 @@ vps1's Prometheus runs **17 configured jobs**; `fabrik-services` currently has n
 | `aro-wake` | `10.0.1.1:8201` (vps1, hub), `10.99.0.2:8201` (vps2, spoke), `10.99.0.3:8201` (vps3, spoke) | 3 targets; SLI metrics over docker-bridge (vps1) + wg0 (spokes) |
 | `fabrik-services` | (null today) | spec-driven, `shape.exposes_metrics: true`; 30 s scrape; HTTPS |
 
-The repo `configs/prometheus/prometheus.yml` (re-verified 2026-07-20) HAS `pushgateway` (`:126`, restored 2026-07-19), `node-spokes` (`:46`), `cadvisor-spokes` (`:58`) and `promtail-spokes` (`:70`) scrape jobs — 17 `job_name`s total (16 active; `fabrik-services` is a null-target placeholder). Spoke node/container/log metrics ARE federated over the mesh; there is still no `traefik` or `glitchtip` scrape job.
+The repo `configs/prometheus/prometheus.yml` (re-verified 2026-07-20) HAS `pushgateway` (`:126`, restored 2026-07-19), `node-spokes` (`:46`), `cadvisor-spokes` (`:58`) and `alloy` (`:70`, formerly `promtail-spokes`) scrape jobs — 17 `job_name`s total (16 active; `fabrik-services` is a null-target placeholder). Spoke node/container/log metrics ARE federated over the mesh; there is still no `traefik` or `glitchtip` scrape job.
 
 Every series carries a `host` label (`vps1`, `vps2`, or `vps3`). Grafana dashboards all have a `$host` template variable (regex `/^vps/`).
 
@@ -305,9 +305,9 @@ const resp = await fetch('https://translator.vps1.ocoron.com/api/translate', { h
 | 51820/udp | `0.0.0.0:51820` | ALLOW | Wireguard mesh (spoke listener) |
 | 9100/tcp | `10.99.0.<N>:9100` | (mesh-only) | node-exporter — scraped by vps1's Prometheus |
 | 8080/tcp | `10.99.0.<N>:8080` | (mesh-only) | cadvisor |
-| 9080/tcp | `10.99.0.<N>:9080` | (mesh-only) | promtail |
+| 12345/tcp | `10.99.0.<N>:12345` | (mesh-only) | alloy — `/metrics` + `/-/ready`, scraped by vps1's Prometheus (promtail stays defined under `profiles: [rollback]`, stopped, no port open, until Gate S — spec D6) |
 
-DOCKER-USER iptables chain on every host blocks the mesh-only port list (`5432,6379,9090,9091,9100,8080,3100,7700,8000`) on the public interface.
+DOCKER-USER iptables chain on every host blocks the mesh-only port list (`5432,6379,9090,9091,9100,8080,3100,12345,7700,8000`) on the public interface.
 
 ---
 
