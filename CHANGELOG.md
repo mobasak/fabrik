@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `shape.is_admin_dashboard`'s contract text says it gates the whole domain (2026-10-08)
+
+The field description in `src/fabrik/spec_loader.py` said only "hosts an admin UI", and youtube read it as an `/admin` gate and locked its customers out (mail 01M1HJ0S4F, W-61360b89). It now says the registrar's two_factor rule and the python-api/node-api router middleware gate every path except the health/metrics bypasses and the bearer prefix, and that an admin surface of a customer-facing app goes on its own hostname (D-366). D-690 records why no new router, refusal or consistency check was added, with the measured counts, and leaves whatsapp-agent's flag as an open case put to its owner.
+
 ### Fixed — the scaffolded audit-log fold no longer tells the operator to apply `libs/audit_log/schema.sql` on its own (2026-10-08)
 
 `_audit_log_schema_block` (src/fabrik/scaffold.py) dropped the module's own apply hint by matching its exact
