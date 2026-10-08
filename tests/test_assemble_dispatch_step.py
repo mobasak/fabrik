@@ -1253,3 +1253,24 @@ def test_the_partition_floors_no_longer_name_an_opus_finder_and_the_judgement_fl
     # the section partition (D-212/D-218) keeps its Opus seats on the rule/grammar sections — untouched
     for kind in ("section partition", "grounding", "adjudication"):
         assert "on Opus as the authoritative pass" in ac._floor(kind, "`fabrik-reviewer`"), kind
+
+
+def test_docs_review_citations_carry_a_quoted_anchor() -> None:
+    """W-8efe3357 (intel): reconciler seats cited doc lines by bare number, the numbers drifted
+    after earlier fixes, and every fix of a docs review had to be re-anchored by hand."""
+    text = " ".join((REPO / "commands" / "_sources" / "fabrik-docs-review.md").read_text().split())
+    for needle in (
+        "A seat's return cites every `path:line`",
+        "with a short fragment of that line, unique in its file",
+        "in a code span — path:line — `<fragment>`",
+        "for `path:a-b`, a fragment of line a; never a blank, rule or fence line",
+        "the fragment carries no `|`, no backtick and no ledger counter such as `confirmed:`",
+        "a fix is re-anchored by the fragment, never by the number",
+        "moves every later number in the file, and only the fragment finds its line again",
+        "Every reconciler brief carries this form.",
+        "Pass Ledger rows, receipts (the claim ledger included) and the reviewed docs themselves keep a plain `path:line`",
+        "graders parse the first two",
+        "a quote written into a doc goes stale with the code",
+        "an earlier fix that adds or removes a line",
+    ):
+        assert needle in text, needle

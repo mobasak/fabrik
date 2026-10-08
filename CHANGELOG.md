@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — check_plan_tickets lets a Gate run a file a Depends ancestor creates (2026-10-08)
 - `scripts/enforcement/check_plan_tickets.py`'s Gate-path rule named a path only when it was on disk or in the same ticket's Touches, so a shared guard an earlier ticket builds could never gate its dependants. A Depends ancestor's Touches (direct or transitive) now name it too — the executor dispatches a ticket only once every Depends row is ✅. A descendant's or an unrelated ticket's Touches still do not; the refusal keeps "exists nowhere" and names the Depends remedy. Graders in `tests/enforcement/test_check_plan_tickets.py`. web-ecommerce-factory 01M4DHVXWA.
 
+### Changed — `/fabrik-docs-review` citations carry a quoted anchor (2026-10-08)
+- Reconciler seats cited doc lines by bare number; after an earlier fix inserted or deleted a line, every later number pointed at the wrong text and each fix was re-anchored by hand (intel W-8efe3357). A seat's return now cites every `path:line` with a short, unique fragment of the line in a code span, and fixes re-anchor by the fragment; Pass Ledger rows, receipts and the docs keep a plain `path:line`, because graders parse the first two. Grader: `tests/test_assemble_dispatch_step.py::test_docs_review_citations_carry_a_quoted_anchor`.
+
 ### Changed — 42-docusaurus Done When names the D-676 nginx rules (2026-10-08)
 - `.windsurf/rules/core/42-docusaurus.md`'s checklist now lists `try_files $uri =404;` in `/assets/`, `location = /404 { internal; }` and `always` on the 404 page's `no-cache`, as behaviours an agent can tick. Fleet 01M4DFJDA4; the default-run test gap is filed to fleet.
 

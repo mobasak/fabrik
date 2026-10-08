@@ -118,6 +118,14 @@ Classify every claim with one of:
 | **DEAD** | Documented but not actually used — audit by real usage, not mere code-match | Delete, don't polish |
 | **UNVERIFIABLE** | Can't be checked mechanically | State why; list as residual |
 
+A seat's return cites every `path:line` with a short fragment of that line, unique in its
+file, in a code span — path:line — `<fragment>` (for `path:a-b`, a fragment of line a; never a blank, rule or
+fence line; the fragment carries no `|`, no backtick and no ledger counter such as `confirmed:`) — and a fix is
+re-anchored by the fragment, never by the number: an earlier fix that adds or removes a line moves every later
+number in the file, and only the fragment finds its line again. Every reconciler brief carries this form. Pass
+Ledger rows, receipts (the claim ledger included) and the reviewed docs themselves keep a plain `path:line`: graders parse the first two, and
+a quote written into a doc goes stale with the code.
+
 Hunt the drift classes: changed signatures/return shapes; renamed/removed symbols;
 added/removed config keys, env vars, ports, flags; outdated counts/tables; schema docs
 vs the latest migration; dead links/cross-references; stale versions/dates/"as of"; and
