@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the slice banner says how to re-state an idle slice; the feedback paste guard covers every `filed:` spelling (2026-10-08)
+- `command_run.py`'s NOT TERMINAL banner and `done` refusal tell the lead to re-state an idle verified slice at its last count in the same round — no extra round (wef3 01M3YDPRKJ, W-c8069437). The close-feedback paste guard matches the `filed:` template's shape, so the three-beat and `a beat` placeholders are refused again while a real verdict that mentions it is kept (D-658).
+
 ### Fixed — a window named by `whoami_agent.py --as` gets its role charter (2026-10-08)
 - kaizen 01M4C0VN6A: the SessionStart charter hook `.claude/hooks/agent_role.py` read only `CLAUDE_AGENT`, so a window bound with `whoami_agent.py --as <name>` (the route the ORIENT block offers) got its items and mail but never its charter. It now falls back to `whoami_agent.resolve_agent_name()`, loaded by file path so a project-local module cannot shadow what the resolver imports; a project without the script, or an older copy, stays a silent no-op. Helps resumed and compacted sessions; a brand-new session still binds after SessionStart. `scripts/mail.py`'s `--to-agent` and `route` help strings now name kaizen.
 
