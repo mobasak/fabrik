@@ -282,13 +282,15 @@ def _nginx_rows(text: str) -> None:
     assert text.rstrip("\n") == blocks[0].rstrip("\n")
     # The behaviours the block exists for, named so a pack edit that drops one fails here too.
     lookups = [ln.strip() for ln in text.splitlines() if ln.strip().startswith("try_files")]
-    assert lookups == ["try_files $uri $uri.html $uri/index.html =404;"], lookups
+    # Pages look up their three shapes; hashed assets look up only themselves (D-676), each ending =404.
+    assert lookups == ["try_files $uri $uri.html $uri/index.html =404;", "try_files $uri =404;"], (
+        lookups
+    )
     assert "=200" not in text and "rewrite" not in text, "no SPA fallback by another spelling"
     # A 404 may only be answered by the build's 404 page: no other error_page, no `return`.
     errors = [ln.strip() for ln in text.splitlines() if ln.strip().startswith("error_page")]
     assert errors == ["error_page 404 /404.html;"], errors
     assert "return " not in text
-    assert "error_page 404 /404.html;" in text
     assert "absolute_redirect off;" in text
     assert "gzip on;" in text and "gzip_vary on;" in text
     gzip_types = next(ln for ln in text.splitlines() if "gzip_types" in ln).split()
@@ -300,11 +302,27 @@ def _nginx_rows(text: str) -> None:
         "application/wasm",
         "text/xml;",
     }
-    page = text[text.index("location / {") : text.index("location /assets/")]
-    assert 'add_header Cache-Control "no-cache";' in page
-    assets = text[text.index("location /assets/") : text.index("error_page")]
+
+    def location(head: str) -> list[str]:
+        """One location block's directive lines, head to its closing brace, comments dropped,
+        so a commented-out directive never satisfies a membership check. The block must be
+        flat: a nested block (an `if (...) {`) would make a wrapped directive conditional, so
+        its opening line fails here instead of letting the membership check pass."""
+        start = text.index(head)
+        body = text[start : text.index("}", start)].splitlines()[1:]
+        lines = [ln.strip() for ln in body if ln.strip() and not ln.strip().startswith("#")]
+        assert not any("{" in ln.split("#")[0] for ln in lines), (head, lines)
+        return lines
+
+    assert 'add_header Cache-Control "no-cache";' in location("location / {")
+    assets = location("location /assets/ {")
     assert 'add_header Cache-Control "public, max-age=31536000, immutable";' in assets
+    assert "try_files $uri =404;" in assets
     assert text.count("immutable") == 1, "the immutable header must live in /assets/ only"
+    # D-676: the bare /404 route is internal, and the 404 page revalidates on every status.
+    assert "internal;" in location("location = /404 {")
+    page404 = location("location = /404.html {")
+    assert "internal;" in page404 and 'add_header Cache-Control "no-cache" always;' in page404
 
 
 def _nested_rows(files: dict[str, str]) -> None:
@@ -672,9 +690,14 @@ def test_real_build_serves_the_static_site(tmp_path: Path) -> None:
             assert tree not in sitemap, tree
 
         # A missing page answers 404 with the build's own 404.html, never the landing page.
-        status, _, body404 = _get(f"{base}/no/such/page")
+        status, headers404, body404 = _get(f"{base}/no/such/page")
         assert status == 404 and b"Page Not Found" in body404, (status, body404[:300])
         assert b"nginx" not in body404, "nginx's stock 404 page, not the build's 404.html"
+        # D-676: a 404 revalidates too; the bare /404 route and an /assets/ directory are 404s.
+        assert headers404.get("cache-control") == "no-cache", headers404
+        for path in ("/404", "/assets/js/"):
+            status, _, body = _get(f"{base}{path}")
+            assert status == 404 and b"Page Not Found" in body, (path, status, body[:200])
 
         asset = next(m for m in re.findall(r'src="(/assets/js/[^"]+\.js)"', html))
         status, headers, _ = _get(f"{base}{asset}", {"Accept-Encoding": "gzip"})

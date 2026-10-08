@@ -21,7 +21,8 @@ The doc templates and hub docs name the registry key instead of a codename. Grad
 up as `$uri`, `$uri.html` or `$uri/index.html` and a missing one answers 404 with the build's `404.html` (it answered 200 with
 the landing page), pages carry `Cache-Control: no-cache`, gzip adds `gzip_vary` and `text/xml`. The test now asserts the
 scaffold ships the pack's block verbatim, and the opt-in real-image test (`test_real_build_serves_the_static_site`) expects
-the build's 404 page and no redirect, and passed against a real build. W-3860ebf6 part 1.
+the build's 404 page and no redirect, and passed against a real build. W-3860ebf6 part 1. Re-copied after D-676: an `/assets/`
+directory and GET `/404` answer 404, every 404 carries `Cache-Control: no-cache`, and the graders name those rules.
 
 ### Fixed — the docusaurus pack's nginx block answers every missing path with 404 and no-cache (2026-10-08)
 - `.windsurf/rules/core/42-docusaurus.md`: an `/assets/` directory answered 403, GET `/404` served the 404 page as a 200, and every 404 carried no Cache-Control (`add_header` skips 4xx). The block now adds `try_files $uri =404;` in `/assets/`, `location = /404 { internal; }`, and `add_header Cache-Control "no-cache" always;` on the 404 page. Executed in nginx:mainline-trixie: every missing path answers 404 with the build's 404.html and no-cache, while hashed assets keep the immutable cache. The prose is corrected sentence by sentence (403 claims, the `trailingSlash: false` shape, security headers in all three locations, i18n 404 pages).
