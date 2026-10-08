@@ -437,3 +437,60 @@ def test_fabrik_plan_after_chat_tells_the_gates_truth() -> None:
     assert ("A behavioural claim the plan rests on (a render, a state transition, a suite count after the core "
             "edit) is EXECUTED once against a copy, never inferred from anchors.") in text
     assert "captured in Phase 1, pasted from that run's captured output, never typed" in text
+
+
+def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch) -> None:
+    """/fabrik-spec queue, recurring HELD subjects (D-711: a recurrence is edited): execute local claims (10 rows),
+    vendor-doc coverage (3), the judge-panel brief and dissent (8), the repo duplicate check (2), self-check of
+    path:line anchors (2), delta as invariants + touchpoints (2), and the handoff's kept seed (2 rows, D-716)."""
+    import json
+    import subprocess
+    import sys
+
+    def norm(t: str) -> str:
+        return " ".join(t.split())
+
+    text = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
+    panel = norm((REPO / "commands" / "_fragments" / "judge-panel.md").read_text(encoding="utf-8"))
+    assert ("every premise the brief states about the codebase, every mechanism the design relies on (\"X fires\", "
+            "\"Y catches this\"), every design rule (an algebra, a classifier) and every runtime-state claim is EXECUTED "
+            "this session, its command and output cited in the spec, and Phase 3 waits on it as on the BLOCKING bullet "
+            "below. An executed in-repo measurement outranks a web answer about the repo's own code; a vendored or "
+            "installed third-party package's behaviour stays an external claim under this gate.") in text
+    assert ("the machine-readable schema when one exists (an OpenAPI endpoint names the parameters), the error-code page "
+            "beside the endpoint page when the design retries or re-sends, and a design that survives both readings when "
+            "two vendor pages contradict each other.") in text
+    assert ("The brief carries only the approaches that survive 1b-bis's hard constraints and the Phase 3 cuts (fewer "
+            "than two: say so and return to 1c for another), any precedent quoted in its exact lines beside every "
+            "approach it bears on, every count from an executed probe; each seat prices each approach's mechanism "
+            "against Fabrik's hard constraints and the stack it runs on.") in panel
+    assert ("verify every factual claim a dissent rests on first, fold a confirmed dissent's gap into the design (a fold "
+            "that changes the ranked approach's mechanism re-dispatches the panel)") in panel
+    assert "what stays split is carried to the operator's approval as an open question" in panel
+    assert "the brief never names it" in panel, "the cobra counter stays"
+    assert ("grep `docs/superpowers/specs` and `docs/development/plans` for the module and the brief's work-item ids") in text
+    assert "does every backticked `path:line` resolve (grep it)?" in text
+    assert ("· The delta (invariants + touchpoints, one `path:line` per existing touchpoint and a new file by path "
+            "alone — never \"as today\") ·") in text
+    assert ("handoff keeps a byte copy under `<state dir>/seeds/` and prints its path, also `resume_copy` on the "
+            "run_close event, D-716 — carry that path into the restart, since the next `start` overwrites the record") in text
+    # the behaviour the D-716 sentence relies on: handoff keeps the seed's bytes under resume_copy
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "cr"))
+    monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(tmp_path / "ev"))
+    cr = [sys.executable, str(REPO / "scripts" / "command_run.py")]
+    subprocess.run([*cr, "start", "--command", "fabrik-spec", "--phases", "6", "--terminal", "t"], check=True,
+                   capture_output=True)
+    seed = tmp_path / "seed.md"
+    seed.write_text("## RESUME\nrestart: /fabrik-task --from-downgrade R1\n", encoding="utf-8")
+    fb = "confusion: none · waste: none · change: none · filed: none — surfaces exercised: probe"
+    p = subprocess.run([*cr, "handoff", "--command", "fabrik-spec", "--resume", str(seed), "--reason",
+                        "DOWNGRADE: R1 — x", "--feedback", fb], check=True, capture_output=True, text=True)
+    seed.unlink()
+    assert "handoff: the resume artifact is kept at " in p.stdout, p.stdout
+    recs = [json.loads(q.read_text()) for q in (tmp_path / "cr").glob("*.json")]
+    kept = [r.get("resume_copy") for r in recs if r.get("resume_copy")]
+    assert kept and Path(kept[0]).read_text(encoding="utf-8").startswith("## RESUME"), recs
+    closes = [json.loads(ln) for f in (tmp_path / "ev").glob("*.jsonl") for ln in f.read_text().splitlines()
+              if '"run_close"' in ln]
+    assert f"kept at {kept[0]}" in p.stdout, p.stdout
+    assert any(kept[0] in (c.get("resume_copy"), (c.get("fields") or {}).get("resume_copy")) for c in closes), closes

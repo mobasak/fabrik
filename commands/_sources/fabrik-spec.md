@@ -30,7 +30,9 @@ gate answered, or — when Phase 5 writes Size: small — the DRAFT handed to /f
   (`command_run.py`'s `handoff` branch — grep `## RESUME`) — so the file must exist BEFORE the command below runs, never named as a
   placeholder for the command to fill in. Only THEN close this run with
   `python3 scripts/command_run.py handoff --command fabrik-spec --resume <that seed path> --reason "DOWNGRADE: <refusal id> — <why no design is needed>" --feedback …`
-  naming that same seed, and hand the operator to the `/fabrik-task --from-downgrade <refusal id>` restart
+  naming that same seed (handoff keeps a byte copy under `<state dir>/seeds/` and prints its path, also
+  `resume_copy` on the run_close event, D-716 — carry that path into the restart, since the next `start`
+  overwrites the record), and hand the operator to the `/fabrik-task --from-downgrade <refusal id>` restart
   instead of writing a spec. No matching refusal, or one that no longer holds (the brief DOES carry a
   one-way decision or an open trade-off) → proceed to the rest of Phase 0 unchanged.
 - Explore project context first: files, recent commits, existing `specs/`/`docs/`, `AFCL.md`.
@@ -93,7 +95,8 @@ gate answered, or — when Phase 5 writes Size: small — the DRAFT handed to /f
     the conversation exactly as the chat-intake block above states.
 - **Decompose:** if the idea is really several *independently buildable* products, spec the first and note the rest for their own spec→plan→build cycle — don't fold them into one spec.
 - **Scale up-route (BLOCKING — mirror of `/fabrik-vision`'s Scale Assessment down-route):** this command is the **feature-scale front door** (one plan an operator session can carry: spec → data-contract → *(GUI)* ui-design → plan → execute), and it carries a single **epic** too — the plan set `/fabrik-plan-after-chat` emits (spine + tickets, dispatched under plan-locks) is the ticket store, and an already-decomposed file under `docs/development/epics/` enters through the epic-file intake above instead of being routed away. Only a **multi-epic vision** leaves: STOP and route to `/fabrik-vision` (its Scale Assessment down-routes back here when the idea is really one feature; `/fabrik-epics` cuts the epics, each returning through that intake). State the routing verdict either way.
-- **Duplicate check (BLOCKING):** read `docs/BUSINESS_MODEL.md` § Project Portfolio + `agents-fabrik.md` § Fabrik Microservices. If an existing project or a deployed service already solves this, **STOP and say so** — do not design a second one. State the finding either way.
+- **Duplicate check (BLOCKING):** read `docs/BUSINESS_MODEL.md` § Project Portfolio + `agents-fabrik.md` § Fabrik Microservices. If an existing project or a deployed service already solves this, **STOP and say so** — do not design a second one. Then search the repo's own specs and plans: grep `docs/superpowers/specs` and
+  `docs/development/plans` for the module and the brief's work-item ids. State the finding either way.
 - **Have we solved this BEFORE? (episodic memory — search, don't reinvent.)** The portfolio docs list what *shipped*, not what we **tried, rejected, or learned the hard way**. **Ledger FIRST:** grep `docs/DECISIONS.md` (+ `python3 /opt/fabrik/scripts/decisions.py <term>` fleet-wide) — a prior ruling, adoption, or rejected option is a structured row there, and structured beats lexical. THEN search past conversations with the **session-recall** MCP (`search_chats` for keywords, `recent_chats` for recency, `get_chat` to read one) for the capability, the vendor, and the failure mode. Report what you found, or state plainly that you searched and found nothing. ⚠️ **A hit is a LEAD, not a citation:** any external fact inside it (pricing, limits, versions, endpoints) is stale by construction and MUST be re-grounded live in Phase 1a. What history *is* authoritative for: a decision the owner already made, an approach already rejected **and why**, and a wall we already hit.
 - **EXISTING project? INHERIT, don't re-decide.** If the project already has code / users / data, its tech choices (auth, DB, frontend, billing) are **Locked Decisions** — locked *because* data exists, users are paying, or tokens are issued. Read them from the codebase (+ `docs/data-contract.md` / `docs/ui-design.md` if frozen) and design the **delta** against them. A spec that "improves" the auth of a live app with paying users is a **defect**, however good the new option is. Only genuinely NEW components get new decisions.
 
@@ -117,7 +120,14 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
   claim needs verifying against the real repo (authenticated, zero idle processes — D-014 retired the github MCP).
 - Capture the **real** endpoint / signature / auth model / limits / pricing from a RAW fetch (`firecrawl_scrape`
   as markdown with `maxAge: 0`, the raw `gh api` call above, the raw file — a `WebFetch` reply summarises, below) and **cite the source URL + the date you fetched
-  it** in the spec.
+  it** in the spec — the machine-readable schema when one exists (an OpenAPI endpoint names the parameters), the
+  error-code page beside the endpoint page when the design retries or re-sends, and a design that survives both
+  readings when two vendor pages contradict each other.
+- **Local claims are executed, not cited:** every premise the brief states about the codebase, every mechanism
+  the design relies on ("X fires", "Y catches this"), every design rule (an algebra, a classifier) and every
+  runtime-state claim is EXECUTED this session, its command and output cited in the spec, and Phase 3 waits on it
+  as on the BLOCKING bullet below. An executed in-repo measurement outranks a web answer about the repo's own
+  code; a vendored or installed third-party package's behaviour stays an external claim under this gate.
 - **Freshness (CLAUDE.md):** the research must be run in THIS session. An external claim with no fresh cited
   source is a defect.
 - **BLOCKING:** you may NOT present approaches (Phase 3) until every external dependency is either
@@ -353,7 +363,8 @@ spec's plan is drafted before it and approved with it).
   *"brief profile is needed"*).** Trigger, countable: EVERY item of the Intake Inventory maps to code that
   exists today — the brief is a change to an EXISTING engine (the § Phase 0 INHERIT bullet's case), not a
   new component. Under the profile the required sections are **Goal · What exists today (grounded —
-  `path:line`) · The delta · Contract deltas (data-contract / ui-design version bumps) · Cost · Validation ·
+  `path:line`) · The delta (invariants + touchpoints, one `path:line` per existing touchpoint and a new file by path alone —
+  never "as today") · Contract deltas (data-contract / ui-design version bumps) · Cost · Validation ·
   Decisions taken**, and `## Personas` (still first, still the step budget), the adoption forces, `##
   Rejected alternatives`, the constraints digest, the fabrik-lib verdict and `## Lifecycle` **collapse to
   ONE line each** unless the delta introduces a new persona, a new consumer, or a pack-relevant surface —
@@ -421,7 +432,8 @@ spec's plan is drafted before it and approved with it).
 - **Spec self-review (fresh eyes, fix inline):** placeholder scan (no `TBD`/`TODO`/vague requirement);
   internal consistency (architecture matches features); scope (single buildable spec or decompose);
   ambiguity (pick one interpretation, make it explicit); and — Fabrik-specific — did any capability skip the
-  vendor ladder? is any external claim ungrounded or from memory? Fix all before proceeding.
+  vendor ladder? is any external claim ungrounded or from memory? does every backticked `path:line` resolve
+  (grep it)? Fix all before proceeding.
 - After the self-review, go straight to Phase 6 — for a full-profile spec, the independent
   `/fabrik-spec-review` convergence runs BEFORE the user approves, so the user approves a hardened
   (CONVERGED) spec, never an unverified DRAFT. **Exception — a `Size: small` spec (above):** Phase 6 skips
