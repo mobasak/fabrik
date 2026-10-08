@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review stamps the seat count dispatch_headroom printed (2026-10-08)
+- `/fabrik-review` Phase 1 said to stamp with `command_run.py dispatch --seats <n>` without saying what `<n>` is, and reviewers stamped their planned partition before reading the budget. It now says `<n>` is the `SEATS:` value `dispatch_headroom.py` just printed plus one refuter per slice, never a planned count, matching `/fabrik-review-scoped`. Answers 4 /fabrik-review feedback verdicts (kaizen).
+
 ### Changed — /fabrik-review-scoped says what proves a behaviour fix (2026-10-08)
 - `/fabrik-review-scoped` renders neither termination fragment, so it lacked `/fabrik-review`'s "a grader is proven by its red" rule, and its step 3 said only "watched-fail-first". Seats reported fixes whose test stayed green with the fix undone, or went red on its own setup rather than the defect. Step 3 now says a behaviour fix is proven by its test going red on the defect, either written first and watched fail or red-on-revert on a copy. A red the defect does not cause proves nothing. The test and its red are named in the report and the close's `--evidence`, and a docs or config fix owes none. Answers 6 /fabrik-review-scoped feedback verdicts (kaizen).
 
