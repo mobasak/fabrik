@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-07T18:44:24.047448Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "78ebd349c92a578df1166011af011ce21446f414",
   "id": "W-65969e35",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "tags": [
     "mcp-d638-residue"
   ],

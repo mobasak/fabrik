@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T19:47:01.033777Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-9b0c0733",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "size each ask against scripts/review_loop_ledger.py and .claude/workflows/fabrik-review-loop.js; one /fabrik-task per coupled group; mark rows answered with command_feedback_report.py --mark-answered fabrik-plan-review",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Review-loop machinery: 9 /fabrik-plan-review feedback asks in code (mail 01M4EG5F43, kaizen D-711): ledger reader refuses a journal with no final result; workflow refuses a seat return omitting ledger ids; carry forward an n/n-verified slice; count shell reads of pinned paths toward files_read; accept pass 4+; seat-brief path rule; check_rule_grounding --all; sync fabrik-review-loop.js to worktrees (infra beat)"
+}
