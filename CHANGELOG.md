@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — term-edit's pin-time citation check grades the pin itself with `--doc` (2026-10-08)
+- `commands/_fragments/term-edit.md` said `check_citations_resolve.py` examines nothing for an artifact outside its source globs and called a `--pin` root a backlog item. Intel's `--doc` flag is on master, so the fragment now names `check_citations_resolve.py --doc <pin> --root <repo>`, whose `--doc examined` line is the examined-set proof (intel W-191404c0). Grader: `tests/test_assemble_dispatch_step.py::test_term_edit_grades_a_pin_outside_the_citation_globs_with_doc`.
+
 ### Changed — `/fabrik-docs-review` citations carry a quoted anchor (2026-10-08)
 - Reconciler seats cited doc lines by bare number; after an earlier fix inserted or deleted a line, every later number pointed at the wrong text and each fix was re-anchored by hand (intel W-8efe3357). A seat's return now cites every `path:line` with a short, unique fragment of the line in a code span, and fixes re-anchor by the fragment; Pass Ledger rows, receipts and the docs keep a plain `path:line`, because graders parse the first two. Grader: `tests/test_assemble_dispatch_step.py::test_docs_review_citations_carry_a_quoted_anchor`.
 
