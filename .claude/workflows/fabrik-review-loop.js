@@ -51,8 +51,8 @@
 //   tree `pin --base` wrote; seats copy it instead of running git archive)
 // RETURNS one ledger: { pass, closable, pinned, slices: [{ name, files, seats: [{ model, files_read, raised, failed (null, or no
 //   slice file in files_read) }],
-//   gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..], closable, open: [..] }],
-//   dropped_seats }
+//   gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..], refuter: { retried, failed,
+//   unanswered, reason }, closable, open: [..] }], dropped_seats (failed finders), failed_refuters }
 
 export const meta = {
   name: 'fabrik-review-loop',
@@ -233,12 +233,12 @@ ${args.brief}
 RETURN the structured output: files_read MUST list every file you opened (repo-relative) — a slice file you did not open is a coverage gap the script logs and the slice is then unverified; a file you grepped, ran or tested counts as opened; a files_read that names none of your slice files fails your seat and keeps the slice open; candidates each with id "${slice.name}-${model[0].toUpperCase()}<n>", file, line, failure_class, claim, scenario, check, confidence; notes: coverage statement, then MACHINERY last. HARD TIME BOX ${box} minutes. FINISH by calling the StructuredOutput tool — a report in prose is a failed seat.`
 }
 
-function refutePrompt(slice, cands) {
+function refutePrompt(slice, cands, suffix = '') {
   const list = cands
     .map((c) => `CANDIDATE ${c.id} · ${c.file}:${c.line} · class ${c.failure_class}\n  CLAIM: ${c.claim}\n  SCENARIO: ${c.scenario}\n  CHECK TO EXECUTE: ${c.check}`)
     .join('\n\n')
   const refuteBox = Math.max(box, 3 * cands.length)
-  return `${BRIEF_IS_TASK} REFUTER SEAT — fresh context: you did not find these, and you owe the finders nothing. Execute EVERY candidate from slice ${slice.name} below and return one verdict per candidate id with the command you ran and its output. Never fix, never edit. ${slice.agentType === 'fabrik-researcher' ? 'You have no shell: read the PINNED copies' : `git READ-ONLY, every probe on a COPY under ${args.scratch_dir}/refute-${slice.name}/ (SCRATCH; create it first with \`mkdir -p SCRATCH\` — its parent exists and nothing creates it for you) — never write, copy, mkdir or cd-and-create anything outside SCRATCH, your working directory is the LIVE repo;${SEAT_ISOLATION} wrap every command that can block in \`timeout 120\`, a search as \`timeout 120 /usr/bin/grep\` (timeout cannot run a shell builtin), nothing times a seat out but you; read the PINNED copies`} under ${args.pins_dir}/<repo-relative path> (base ${args.base_sha}, digest ${args.digest}).${slice.agentType === 'fabrik-researcher' ? '' : ` ${PIN_IMPORT}${PYTEST_PINS}`}
+  return `${BRIEF_IS_TASK} REFUTER SEAT — fresh context: you did not find these, and you owe the finders nothing. Execute EVERY candidate from slice ${slice.name} below and return one verdict per candidate id with the command you ran and its output. Never fix, never edit. ${slice.agentType === 'fabrik-researcher' ? 'You have no shell: read the PINNED copies' : `git READ-ONLY, every probe on a COPY under ${args.scratch_dir}/refute-${slice.name}${suffix}/ (SCRATCH; create it first with \`mkdir -p SCRATCH\` — its parent exists and nothing creates it for you) — never write, copy, mkdir or cd-and-create anything outside SCRATCH, your working directory is the LIVE repo;${SEAT_ISOLATION} wrap every command that can block in \`timeout 120\`, a search as \`timeout 120 /usr/bin/grep\` (timeout cannot run a shell builtin), nothing times a seat out but you; read the PINNED copies`} under ${args.pins_dir}/<repo-relative path> (base ${args.base_sha}, digest ${args.digest}).${slice.agentType === 'fabrik-researcher' ? '' : ` ${PIN_IMPORT}${PYTEST_PINS}`}
 
 ${list}
 
@@ -322,13 +322,34 @@ function evidence(x) {
   const s = String(x || '').trim()
   return s !== '' && !PLACEHOLDER.test(s)
 }
-function verdictFor(c, out) {
-  const rows = ((out && out.verdicts) || []).filter((x) => x && x.id === c.id)
-  if (!rows.length) return { id: c.id, verdict: 'unverified', command: '', output: '', mechanism: out ? 'the refuter returned no verdict for this id' : 'refuter seat failed (null result)' }
+// One matcher for a refuter's rows, shared by the verdicts and the retry test: an exact id wins; a case- or
+// space-slipped id counts only when its fold names exactly ONE candidate id (A-S7's one-to-one rule), so a slip is
+// matched, never re-dispatched (fleet 01M4DP81PE design critiques). A non-array `verdicts` matches nothing.
+const foldId = (id) => String(id || '').trim().toLowerCase()
+function matchRows(out, id, ids) {
+  const all = out && Array.isArray(out.verdicts) ? out.verdicts.filter((x) => x && typeof x === 'object') : []
+  const exact = all.filter((x) => x.id === id)
+  if (exact.length || ids.filter((k) => foldId(k) === foldId(id)).length !== 1) return exact
+  return all.filter((x) => foldId(x.id) === foldId(id))
+}
+function verdictFor(c, out, ids) {
+  const rows = matchRows(out, c.id, ids)
+  if (!rows.length) {
+    // a row that folds onto this id while another candidate shares the fold was returned, but cannot be assigned
+    const folded = out && Array.isArray(out.verdicts) && out.verdicts.some((x) => x && x.id !== c.id && foldId(x.id) === foldId(c.id))
+    const mechanism = !out
+      ? 'refuter seat failed (null result)'
+      : folded
+        ? 'a verdict matched this id only by case or spacing, and another candidate shares that spelling — ambiguous, not assigned'
+        : 'the refuter returned no verdict for this id'
+    return { id: c.id, verdict: 'unverified', command: '', output: '', mechanism }
+  }
   if (new Set(rows.map((x) => x.verdict)).size > 1) {
     return { id: c.id, verdict: 'unverified', command: '', output: '', mechanism: `conflicting verdicts for one id: ${rows.map((x) => x.verdict).join(', ')}` }
   }
-  const v = rows[0]
+  // among same-verdict rows the one carrying evidence speaks for the id — never the row the seat happened to list
+  // first (review pass 1, A-S1)
+  const v = rows.find((x) => evidence(x.command) && String(x.output || '').trim()) || rows[0]
   // the COMMAND is the counter-evidence locator: a placeholder there means nothing ran; the output only has to
   // exist — a real command may genuinely print `None` or `-` (review pass 2, A-S8)
   if (v.verdict === 'refuted' && !(evidence(v.command) && String(v.output || '').trim())) {
@@ -343,10 +364,11 @@ function closeCheck(r) {
   const open = []
   if (r.gaps.length) open.push(`unread: ${r.gaps.join(', ')}`)
   for (const s of r.seats) if (s.failed) open.push(`seat failed: ${s.model}`)
+  if (r.refuter.failed) open.push('refuter failed')
   for (const v of r.verdicts) if (v.verdict === 'confirmed' || v.verdict === 'unverified') open.push(`${v.verdict}: ${v.id}`)
   // an exact id wins; a case- or space-slipped id counts only when it folds onto exactly ONE claim, so a slip is
   // forgiven but one report never closes two claims (review pass 2, A-S7)
-  const fold = (id) => String(id || '').trim().toLowerCase()
+  const fold = foldId
   const ids = r.slice.ledger.map((c) => c.id)
   // a seat that echoes `S-L1 · S-O27` re-verified S-L1: a report whose id-shaped tokens (cut at every character an
   // id cannot hold, so `S-L10` never reads as `S-L1`) name EXACTLY ONE of this slice's ledger ids counts for that id;
@@ -363,6 +385,39 @@ function closeCheck(r) {
   for (const c of r.slice.ledger) if (!hit(c.id)) open.push(`ledger claim ${c.id} not re-verified by any seat`)
   if (open.length) log(`slice ${r.slice.name} NOT closable: ${open.join(' · ')}`)
   return { ...r, closable: open.length === 0, open }
+}
+
+// A refuter that leaves candidates unanswered (a null result, foreign ids, a box that ran out before it reported)
+// gets ONE retry over just those, under its own label and scratch dir; what the retry still leaves unanswered
+// marks the slice's refuter failed — `open`, `failed_refuters` — never a quiet `unverified` (fleet 01M4DP81PE:
+// two refuters died over 11 candidates and nothing said so). A deliberate `unverified` row IS an answer. The
+// retry starts after its first refuter ends, so it never exceeds the dispatch stamp's one refuter per slice.
+function refuteCall(slice, cands, suffix) {
+  return agent(refutePrompt(slice, cands, suffix), {
+    label: `refute:${slice.name}${suffix ? ':retry' : ''}`,
+    phase: 'Verify',
+    schema: REFUTATION,
+    model: 'sonnet',
+    effort: 'high',
+    agentType: slice.agentType,
+  }).catch(() => null)
+}
+async function refuteSlice(r) {
+  const quiet = { retried: false, failed: false, unanswered: 0, reason: '' }
+  if (!r.candidates.length) return { ...r, verdicts: [], refuter: quiet }
+  const ids = r.candidates.map((c) => c.id)
+  const first = await refuteCall(r.slice, r.candidates, '')
+  const missing = r.candidates.filter((c) => !matchRows(first, c.id, ids).length)
+  if (!missing.length) return { ...r, verdicts: r.candidates.map((c) => verdictFor(c, first, ids)), refuter: quiet }
+  const reason = first ? `no verdict for ${missing.length} of ${ids.length} ids` : 'null result'
+  const retry = await refuteCall(r.slice, missing, '-retry')
+  const still = missing.filter((c) => !matchRows(retry, c.id, ids).length)
+  log(`refute:${r.slice.name} ${reason} — retried ${missing.length}: ${still.length ? `${still.length} STILL UNANSWERED (refuter failed)` : 'recovered'}`)
+  return {
+    ...r,
+    verdicts: r.candidates.map((c) => verdictFor(c, missing.includes(c) ? retry : first, ids)),
+    refuter: { retried: true, failed: still.length > 0, unanswered: still.length, reason },
+  }
 }
 
 const results = await pipeline(
@@ -399,18 +454,7 @@ const results = await pipeline(
       }),
     })),
   (r) => unionSlice(r),
-  (r) =>
-    (r.candidates.length
-      ? agent(refutePrompt(r.slice, r.candidates), {
-          label: `refute:${r.slice.name}`,
-          phase: 'Verify',
-          schema: REFUTATION,
-          model: 'sonnet',
-          effort: 'high',
-          agentType: r.slice.agentType,
-        })
-      : Promise.resolve({ verdicts: [] })
-    ).then((out) => ({ ...r, verdicts: r.candidates.map((c) => verdictFor(c, out)) })),
+  (r) => refuteSlice(r),
   (r) => closeCheck(r)
 )
 
@@ -419,8 +463,10 @@ const droppedSlices = args.slices.length - slices.length
 if (droppedSlices) log(`DROPPED ${droppedSlices} of ${args.slices.length} slices (a stage threw) — those slices are UNVERIFIED`)
 const droppedSeats = slices.reduce((n, r) => n + r.seats.filter((s) => s.failed).length, 0)
 const unverified = slices.reduce((n, r) => n + r.verdicts.filter((v) => v.verdict === 'unverified').length, 0)
+const failedRefuters = slices.filter((r) => r.refuter.failed).length
+const retriedRefuters = slices.filter((r) => r.refuter.retried).length
 const closable = droppedSlices === 0 && slices.every((r) => r.closable)
-log(`pass ${args.pass}: ${closable ? 'CLOSABLE' : 'NOT closable'} · ${slices.length} slices · ${slices.reduce((n, r) => n + r.distinct, 0)} distinct candidates · confirmed ${slices.reduce((n, r) => n + r.verdicts.filter((v) => v.verdict === 'confirmed').length, 0)} · dropped seats ${droppedSeats} · unverified ${unverified}`)
+log(`pass ${args.pass}: ${closable ? 'CLOSABLE' : 'NOT closable'} · ${slices.length} slices · ${slices.reduce((n, r) => n + r.distinct, 0)} distinct candidates · confirmed ${slices.reduce((n, r) => n + r.verdicts.filter((v) => v.verdict === 'confirmed').length, 0)} · dropped seats ${droppedSeats} · refuters retried ${retriedRefuters}, failed ${failedRefuters} · unverified ${unverified}`)
 
 return {
   pass: args.pass,
@@ -428,6 +474,7 @@ return {
   pinned,
   dropped_slices: droppedSlices,
   dropped_seats: droppedSeats,
+  failed_refuters: failedRefuters,
   slices: slices.map((r) => ({
     name: r.slice.name,
     files: r.slice.files,
@@ -448,6 +495,7 @@ return {
     estimate_unseen: r.estimate_unseen,
     candidates: r.candidates,
     verdicts: r.verdicts,
+    refuter: r.refuter,
     closable: r.closable,
     open: r.open,
   })),

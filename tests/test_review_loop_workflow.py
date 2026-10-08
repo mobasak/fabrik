@@ -828,11 +828,10 @@ def test_the_reviewer_agent_frontmatter_is_valid_yaml_carrying_the_cache_ttl() -
 
 def test_a_stage_that_throws_drops_its_slice_and_the_pass_is_not_closable() -> None:
     """A-S4: the Workflow runtime resolves a throwing parallel() thunk to null and drops a pipeline item whose
-    stage throws; the harness must do the same, and a dropped slice must never read as closable."""
-    ledger, log, _ = _harness(
-        _ARGS,
-        {**_two_finders([_cand("S-S1", 3)]), "refute:S": {"verdicts": 5}},
-    )
+    stage throws; the harness must do the same, and a dropped slice must never read as closable. The trigger is a
+    null candidate in the union stage: a non-array `verdicts` no longer throws, it is a refuter that answered
+    nothing (fleet 01M4DP81PE)."""
+    ledger, log, _ = _harness(_ARGS, _two_finders([None]))
     assert ledger["dropped_slices"] == 1 and ledger["closable"] is False, ledger
     assert "DROPPED" in log, log
 
@@ -1741,3 +1740,127 @@ def test_a_matched_slice_file_is_handed_to_the_seats_as_pin_named_it() -> None:
             "/p/a/b.py" in prompts["find:S:sonnet"]
             and f"/p/{typed}" not in prompts["find:S:sonnet"]
         ), typed
+
+
+def _verdict(cid: str, verdict: str = "refuted") -> dict:
+    return {
+        "id": cid,
+        "verdict": verdict,
+        "command": "grep x a.py",
+        "output": "0 matches",
+        "mechanism": "m",
+    }
+
+
+def test_a_refuter_that_returns_nothing_is_retried_once() -> None:
+    """fleet 01M4DP81PE: a refuter that returns null (or a non-array `verdicts`) is re-dispatched ONCE over its
+    candidates; a retry that answers is used and the slice can close."""
+    for first in (None, {"verdicts": 5}):
+        seats = {**_two_finders([_cand("S-S1", 3), _cand("S-S2", 30)])}
+        if first is not None:
+            seats["refute:S"] = first
+        seats["refute:S:retry"] = {"verdicts": [_verdict("S-S1"), _verdict("S-S2")]}
+        ledger, log, prompts = _harness(_ARGS, seats)
+        s = ledger["slices"][0]
+        assert [k for k in prompts if k.startswith("refute:")] == ["refute:S", "refute:S:retry"], (
+            prompts.keys()
+        )
+        assert {v["id"]: v["verdict"] for v in s["verdicts"]} == {
+            "S-S1": "refuted",
+            "S-S2": "refuted",
+        }, s
+        assert s["refuter"]["retried"] is True and s["refuter"]["failed"] is False, s["refuter"]
+        assert ledger["closable"] is True and ledger["failed_refuters"] == 0, ledger
+        assert "recovered" in log, log
+
+
+def test_a_partial_refuter_is_retried_over_the_unanswered_ids_only() -> None:
+    """A refuter that answers some ids is retried over the rest only — in its own scratch dir, so a dead seat's
+    leftover `arch/` never poisons the retry's copy — and the first answers stand."""
+    seats = {
+        **_two_finders([_cand("S-S1", 3), _cand("S-S2", 30), _cand("S-S3", 60)]),
+        "refute:S": {"verdicts": [_verdict("S-S1", "confirmed")]},
+        "refute:S:retry": {"verdicts": [_verdict("S-S2"), _verdict("S-S3")]},
+    }
+    ledger, _, prompts = _harness(_ARGS, seats)
+    retry = prompts["refute:S:retry"]
+    assert (
+        "CANDIDATE S-S2" in retry and "CANDIDATE S-S3" in retry and "CANDIDATE S-S1" not in retry
+    ), retry[:400]
+    assert "/s/refute-S-retry/" in retry and "/s/refute-S/" not in retry, (
+        "the retry needs its own scratch dir"
+    )
+    v = {x["id"]: x["verdict"] for x in ledger["slices"][0]["verdicts"]}
+    assert v == {"S-S1": "confirmed", "S-S2": "refuted", "S-S3": "refuted"}, v
+
+
+def test_a_refuter_that_fails_twice_keeps_the_slice_open() -> None:
+    """A retry that still leaves ids unanswered marks the refuter failed: `refuter failed` in `open`, counted in
+    `failed_refuters` — and NOT in `dropped_seats`, which stays the failed-finder count."""
+    seats = {
+        **_two_finders([_cand("S-S1", 3), _cand("S-S2", 30)]),
+        "refute:S": {"verdicts": [_verdict("S-S1")]},
+        "refute:S:retry": None,
+    }
+    ledger, log, _ = _harness(_ARGS, seats)
+    s = ledger["slices"][0]
+    assert s["refuter"] == {
+        "retried": True,
+        "failed": True,
+        "unanswered": 1,
+        "reason": "no verdict for 1 of 2 ids",
+    }, s
+    assert "refuter failed" in s["open"] and ledger["closable"] is False, s["open"]
+    assert ledger["failed_refuters"] == 1 and ledger["dropped_seats"] == 0, ledger
+    assert "STILL UNANSWERED" in log, log
+
+
+def test_a_slipped_refuter_id_is_matched_not_retried() -> None:
+    """A refuter that echoed `s-s1` or ` S-S1 ` for candidate S-S1 executed it: the slip is matched to its ONE
+    candidate and never re-dispatched; two ids differing only by case are never both matched by one row."""
+    for slipped in ("s-s1", " S-S1 "):
+        seats = {**_two_finders([_cand("S-S1", 3)]), "refute:S": {"verdicts": [_verdict(slipped)]}}
+        ledger, _, prompts = _harness(_ARGS, seats)
+        s = ledger["slices"][0]
+        assert "refute:S:retry" not in prompts and s["refuter"]["retried"] is False, s["refuter"]
+        assert s["verdicts"][0]["verdict"] == "refuted" and ledger["closable"] is True, s
+    ambiguous = _cand("s-s1", 30)
+    seats = {
+        **_two_finders([_cand("S-S1", 3), ambiguous]),
+        "refute:S": {"verdicts": [_verdict("S-S1"), _verdict(" s-s1 ")]},
+        "refute:S:retry": {"verdicts": [_verdict("s-s1")]},
+    }
+    ledger, _, prompts = _harness(_ARGS, seats)
+    retry = prompts.get("refute:S:retry", "")
+    assert "CANDIDATE s-s1" in retry and "CANDIDATE S-S1" not in retry, retry[:300]
+
+
+def test_a_duplicate_row_with_evidence_wins_over_a_placeholder_in_either_order() -> None:
+    """Review pass 1, A-S1: two same-verdict rows for one id — a placeholder and real counter-evidence — read as
+    `refuted` whichever the seat listed first."""
+    real, empty = _verdict("S-S1"), {**_verdict("S-S1"), "command": "n/a", "output": "n/a"}
+    for rows in ([empty, real], [real, empty]):
+        seats = {**_two_finders([_cand("S-S1", 3)]), "refute:S": {"verdicts": rows}}
+        ledger, _, _ = _harness(_ARGS, seats)
+        assert ledger["slices"][0]["verdicts"][0]["verdict"] == "refuted", (
+            rows,
+            ledger["slices"][0]["verdicts"],
+        )
+
+
+def test_an_ambiguous_fold_says_so_instead_of_no_verdict() -> None:
+    """Review pass 1, A-S2: with candidates `S-S1` and `s-s1`, a row ` s-s1 ` folds onto both, so it is assigned to
+    neither — and the mechanism says it was ambiguous, not that the refuter was silent."""
+    seats = {
+        **_two_finders([_cand("S-S1", 3), _cand("s-s1", 30)]),
+        "refute:S": {"verdicts": [_verdict("S-S1"), _verdict(" s-s1 ")]},
+        "refute:S:retry": {"verdicts": [_verdict(" s-s1 ")]},
+    }
+    ledger, _, prompts = _harness(_ARGS, seats)
+    assert "CANDIDATE s-s1" in prompts["refute:S:retry"], (
+        "an unassignable answer is retried like silence"
+    )
+    assert ledger["slices"][0]["refuter"]["failed"] is True, ledger["slices"][0]["refuter"]
+    v = {x["id"]: x for x in ledger["slices"][0]["verdicts"]}
+    assert v["S-S1"]["verdict"] == "refuted", v
+    assert v["s-s1"]["verdict"] == "unverified" and "ambiguous" in v["s-s1"]["mechanism"], v["s-s1"]

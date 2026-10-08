@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the review loop retries a refuter that left candidates unanswered, and says when one failed (2026-10-08)
+- `.claude/workflows/fabrik-review-loop.js`: a refuter that returned nothing, or no verdict for some candidates, left them silently `unverified` with nothing re-dispatched and no seat marked failed. The unanswered candidates now get ONE retry (`refute:<slice>:retry`, its own scratch dir, a box sized to the subset); whatever the retry still leaves unanswered sets the slice's `refuter.failed`, adds `refuter failed` to `open` and counts in a new `failed_refuters`. A case- or space-slipped id is matched to its one candidate instead of being retried. `dropped_seats` stays the failed-finder count. Doc: `docs/reference/review-loop-workflow.md`; `/fabrik-review-scoped` names `refuter.failed` beside `seats[].failed`. fleet 01M4DP81PE.
+
 ### Changed — term-edit's pin-time citation check grades the pin itself with `--doc` (2026-10-08)
 - `commands/_fragments/term-edit.md` said `check_citations_resolve.py` examines nothing for an artifact outside its source globs and called a `--pin` root a backlog item. Intel's `--doc` flag is on master, so the fragment now names `check_citations_resolve.py --doc <pin> --root <repo>`, whose `--doc examined` line is the examined-set proof (intel W-191404c0). Grader: `tests/test_assemble_dispatch_step.py::test_term_edit_grades_a_pin_outside_the_citation_globs_with_doc`.
 
