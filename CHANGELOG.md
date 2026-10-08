@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a running cert report is told the IN-PROGRESS marker and how it closes (2026-10-08)
+- `commands/_fragments/term-coverage.md` (rendered into the review and certification commands): a cert report carrying a Coverage Checklist is graded by `check_file`, but no cert text named the header-zone `Status: IN-PROGRESS` marker that exempts a gauntlet still running, nor how it closes, so tryton-crm learned both from a red gate (intel 01M4ECCQ2T). The paragraph now names a line-initial marker in the first 10 lines and the close order: the gate run while IN-PROGRESS, the flip to `Status: CONVERGED` (which arms `check_convergence.py`'s embedded green gate and a per-phase verdict under a `## Phase`/`## Step` heading), then the re-run embedded. Grader: `tests/enforcement/test_review_exit_contract.py::test_a_running_cert_ledger_is_told_the_in_progress_marker_check_file_honours`, which drives `check_file` with the marker at line 3, line 10 and line 11.
+
 ### Changed — /fabrik-spec's close runs the spec check on its own spec (2026-10-08)
 - The /fabrik-spec close chain (`commands/assemble_commands.py` `ARTIFACT_CHECK`) ran `check_spec_convergence.py` repo-wide, whose output truncates (10 of 14 repos hid 93 findings on 2026-10-08), so a closing author could not read their own spec's verdict. With D-708's named-path mode merged, the close now runs it on `<spec path>`: on a CONVERGED spec its census reads `1 CONVERGED spec(s) examined of 1 named`, every finding printed in full below it (intel 01M4EAXVXW). Grader: `tests/test_producing_command_fragments.py::test_the_spec_close_names_its_own_spec_and_the_census_it_prints`, which runs the real check on a CONVERGED spec, a missing path and a spec with findings.
 

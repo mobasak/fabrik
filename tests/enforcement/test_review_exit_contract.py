@@ -456,3 +456,33 @@ def test_round_zero_probes_a_guard_on_five_legitimate_spellings_and_its_mutant_m
     assert row, "the cited row left § Banned Patterns — re-point the probe's citation"
     assert "anything under 5/5 is a finding" in " ".join(row.split())
 
+
+
+def test_a_running_cert_ledger_is_told_the_in_progress_marker_check_file_honours(tmp_path) -> None:
+    """intel 01M4ECCQ2T (tryton-crm 01M3YD067C): a cert report carrying a Coverage Checklist is graded by
+    check_file, but no cert text named the header-zone `Status: IN-PROGRESS` marker that exempts a gauntlet still
+    running, nor how it closes, so authors learned both from a red gate. The fragment now names the marker and
+    the close order, and check_file is driven to show it skips exactly the report so marked in lines 1-10."""
+    text = " ".join((REPO / "commands" / "_fragments" / "term-coverage.md").read_text().split())
+    assert (
+        "While the gauntlet runs, the cert report carries a line-initial `Status: IN-PROGRESS` in its first 10 "
+        "lines (`check_file` skips a report marked so), and it closes in `/fabrik-review`'s order: the gate run "
+        "while it still reads IN-PROGRESS, the flip to `Status: CONVERGED` — which also arms "
+        "`check_convergence.py`'s embedded green `final_gate` and a per-phase verdict under a `## Phase`/`## Step` "
+        "heading — then the gate re-run and "
+        "embedded." in text
+    )
+    body = (
+        "## Coverage Checklist\n\n| Row | Status |\n|---|---|\n| auth | UNCHECKED |\n\n## Ledger\n\n"
+        "| Pass 1 | opus×1 | found: 3, new: 3, confirmed: 2, fixed: 0, unexecuted: 0 | method: gate |\n"
+    )
+
+    def errs(head: str) -> list[str]:
+        p = tmp_path / "2026-10-08-fabrik-user-test-cert.md"
+        p.write_text(head + body, encoding="utf-8")
+        return crc.check_file(p)
+
+    assert errs("# Cert ledger\n\n") != [], "the fixture must be red without the marker"
+    assert errs("# Cert ledger\n\nStatus: IN-PROGRESS\n\n") == []
+    assert errs("# Cert ledger\n" + "\n" * 8 + "Status: IN-PROGRESS\n") == [], "line 10 is inside the zone"
+    assert errs("# Cert ledger\n" + "\n" * 9 + "Status: IN-PROGRESS\n") != [], "line 11 is outside it"
