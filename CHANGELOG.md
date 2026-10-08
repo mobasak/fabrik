@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the review-loop pin recipe archives whole roots and names what an archive cannot hold (2026-10-08)
+- Review seats archive the whole source root plus repo-root modules and the whole `tests/` directory, set `FABRIK_ROOT` in-process for a pytest run, and are told that a later fix outside their slice and the gitignored synced rule packs are not in the archive (iie1 01M3WS3EJ0, iie 01M3ZR3AND, kaizen 01M4BY4SFQ, fleet 01M3WMGRQ7). The design-critique brief names a cited synced file by hub path and md5; a seat with no Bash states the pinned path and line count instead of a hash (web-ecommerce-factory 01M42WP1S0); `/fabrik-review`'s description has headroom under the 1024 cap (D-660).
+
 ### Fixed — the slice banner says how to re-state an idle slice; the feedback paste guard covers every `filed:` spelling (2026-10-08)
 - `command_run.py`'s NOT TERMINAL banner and `done` refusal tell the lead to re-state an idle verified slice at its last count in the same round — no extra round (wef3 01M3YDPRKJ, W-c8069437). The close-feedback paste guard matches the `filed:` template's shape, so the three-beat and `a beat` placeholders are refused again while a real verdict that mentions it is kept (D-658).
 
