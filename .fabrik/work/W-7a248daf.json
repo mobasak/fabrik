@@ -1,0 +1,26 @@
+{
+  "block_digest": "25874a7b985382da0db8b726acce0e03455459b43d85096f765129db6531f52b",
+  "blocked_by": [],
+  "created": "2026-10-08T05:56:36.841349Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-7a248daf",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "25874a7b985382da0db8b726acce0e03455459b43d85096f765129db6531f52b"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May the operator run scripts/sync-vps-sysadmin.sh from the main checkout to bring vps1, vps2 and vps3 back to the hub's committed sysadmin scripts (15 DRIFT, 8 MISSING and 1 MODE rows in mail 01M4BXBJ9A)?",
+  "status": "awaiting-operator",
+  "title": "May the operator run scripts/sync-vps-sysadmin.sh from the main checkout to bring vps1, vps2 and vps3 back to the hub's committed sysadmin scripts (15 DRIFT, 8 MISSING and 1 MODE rows in mail 01M4BXBJ9A)?"
+}

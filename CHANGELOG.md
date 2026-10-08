@@ -9,6 +9,15 @@ All notable changes to this project will be documented in this file.
 - Newly visible stale pins: tryton-crm `docs/ui-design.md` (data-contract v43, at v44) and brand-identiy-creator `docs/ui-design.md` (data-contract at v33).
 - Graders in `tests/enforcement/test_check_frozen_chain.py`. Site-provisioner mail 01M4CXK4KB; review `docs/development/reviews/2026-10-08-frozen-chain-split-header-review.md`.
 
+### Fixed — the /opt project catalog: a null category, a scalar project.yaml, pipes and non-link URLs (2026-10-08)
+
+`scripts/sync_projects.py` now auto-categorizes a project whose `category:` is empty, no longer aborts the whole scan on a
+scalar `project.yaml` or a list category, escapes `|` in table cells, and renders a `url` that is not a link as `-`
+(proxy and youtube carried descriptions there). `docs/PROJECT_CATALOG.md` is regenerated, which also corrects
+brand-identiy-creator's URL (mail 01M49YA501). The workflow doc names the catalog's real path, and the 35 projects
+still holding a frozen pre-2026-07-11 copy in `docs/BUSINESS_MODEL.md` were asked to delete it. Graders:
+`tests/test_sync_projects_catalog.py` (5 tests, each red on the pre-fix generator). W-34d48ecb.
+
 ### Fixed — the D-252 scope-growth stop no longer closes a review on a non-quiet row (D-355) (2026-10-08)
 - `scripts/enforcement/check_review_coverage.py`: `check_file` and the committed advisory both consult `_legacy_scope_growth_exit`, which keeps the D-252 exemption only for a receipt first committed before 2026-09-23 (the D-355 ruling). A receipt written now that declares the stop must still close on a `confirmed: 0 · fixed: 0 · unexecuted: 0` row. An edit to one of the 14 pre-ruling receipts is not refused. The committed advisory newly names the 2 post-ruling receipts that relied on the stop.
 - `_first_commit_date` is the one first-commit reader (check_convergence's D-497 cut-over delegates to it). It runs `git -c log.follow=false` because a user's `log.follow=true` follows copies and would give a new receipt an old template's date. It also removes git's location environment, because a leaked `GIT_DIR` dated a receipt from another repo.
