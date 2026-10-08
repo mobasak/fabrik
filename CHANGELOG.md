@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a receipt row whose overflow cells carry text now fails the gate (2026-10-08)
+
+- `scripts/enforcement/check_review_hygiene.py --strict`, registered by `final_gate.py`, blocks a staged or tracked-modified receipt row whose cells past the header's width carry text (GFM drops them); every other hygiene hit stays advisory and now reaches `--json` warnings (W-205934fb, D-677). `check_mcp_scope` gets its liveness canary and its Tier-2 count. Receipt: `docs/development/reviews/2026-10-08-review-hygiene-strict-review.md`.
+
 ### Changed — the review-loop workflow refuses a launch without a pin manifest (2026-10-08)
 
 - `.claude/workflows/fabrik-review-loop.js` now requires `pin_manifest` (D-663's switch, made once every launcher passed it): an absent or null manifest is refused before any seat runs with the `pin` command named, slice files are normalised as `pin` keys them and handed to the seats in that form (D-673). Receipt: `docs/development/reviews/2026-10-08-review-loop-mandatory-pin-manifest-review.md`.

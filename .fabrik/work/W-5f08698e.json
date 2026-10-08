@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T09:30:40.070074Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-5f08698e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Read the seat transcript for its archive command; make the BASE_PIN clause and SEAT_ISOLATION refuse any relative output path, or have the pass reader delete a SEAT ARCHIVE it detects — then a grader",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "review-loop"
+  ],
+  "title": "Review-loop seat wrote an 85 MB git archive into the live worktree despite base_pin_dir (wf_2ec6f253-867, 2026-10-08)"
+}
