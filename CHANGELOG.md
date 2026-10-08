@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-plan-after-chat tells its plan gates the truth (2026-10-09)
+- `commands/_sources/fabrik-plan-after-chat.md`: a ticket's `Appetite:` sits before its first `##` heading (the only zone `plan_appetite.header_zone` reads) and the worked skeleton carries it; the Coverage Checklist is a table of CLEAN/FIXED/REFUTED rows holding the pasted `review_rubric.py` OUTPUT (an invocation does not match `RUBRIC_RUN`); the byte recipe counts each path once; a G/W/T row stays on one physical line; Phase 5's stops add an unconverged cited spec and close by `handoff`; and Phase 1 greps the tests pinning a moved function, executes a load-bearing behavioural claim once, and pastes Evidence from captured output. Answers 12 text-defect and 8 recurring /fabrik-plan-after-chat verdicts (D-711). Grader: `tests/test_spec_plan_lane_text.py::test_fabrik_plan_after_chat_tells_the_gates_truth`, which drives `header_zone` and `RUBRIC_RUN`.
+
 ### Fixed — the close chain gates before it pushes (2026-10-09)
 - `commands/_fragments/close-chain.md` (rendered into 37 commands): the chain pushed at (2) and gated at (3), so in a main checkout the push integrated the branch before the gate ran and a check scoped to work not yet integrated (intel's check_review_coverage leg, W-f847a317) could never fire (intel 01M4EJTSCY). Now (2) commits, (3) gates and then pushes; a red gate's fix is committed before (3) re-runs, and a run that wrote nothing gates but pushes nothing. `commands/_sources/fabrik-execute-plan.md` step 7 gates its step 5-6 commits before its own push. Grader: `tests/test_producing_command_fragments.py::test_the_close_chain_gates_before_it_pushes`.
 
