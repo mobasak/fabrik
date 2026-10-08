@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-08T17:23:02.683811Z",
+  "created": "2026-10-08T19:03:50.179387Z",
   "creator": "infra",
   "evidence": "",
-  "id": "W-1634d071",
+  "id": "W-24cf22f4",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M4E88KDVAQVXT97DFVK2XX2M",
+    "mail": "01M4EEAA8X8J523W61H5M7BQJW",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "infra",
   "priority": 2,
   "status": "done",
-  "title": "command_feedback_report.py --queue hides rejected rows' reasons, so a repeat of a held one-off verdict cannot be seen"
+  "title": "branch: worktree-kaizen"
 }

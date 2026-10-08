@@ -464,7 +464,10 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   rules at once (`foo: <…>` is both a bad key and a template) and must be counted once.
 - **Two flags read the queue.** `--queue <command>` prints one command's `change:` rows,
   TAB-separated and newest first (`<ts> <bucket> <value>`) — the input `/fabrik-command-improve`
-  consumes; the `ts` is the row's only handle, since the ledger has no id. `--observer-rank` prints
+  consumes; the `ts` is the row's only handle, since the ledger has no id. When that command's rejected rows carry
+  `HELD:<subject>` tags (D-711), the header adds `held (all time): <k> subject(s) on <m> of <n> rejected
+  row(s) — …`, each subject once per row, and `--reject` warns when its reason names a subject already
+  held. `--observer-rank` prints
   the commands whose closes are expensive enough to pay for a writer seat — the top four by MEAN
   `tok_in+tok_out` per close, cache excluded.
 - **`tok/round` is silent behind a MASS RULE, in two ordered clauses:** a command whose total token
