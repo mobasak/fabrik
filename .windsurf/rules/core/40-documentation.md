@@ -227,8 +227,8 @@ Decide on the reader you actually have:
   gets read when something points at it: reference it from the docs index or README.
 - **Keep it an INDEX** — what this is, plus links to the pages that matter; not a dump.
 - ⚠️ **In the hub (`/opt/fabrik`) `llms.txt` is GENERATED** (`scripts/generate_capability_index.py`,
-  refreshed daily) — never hand-edit it there; change the generator. A project has neither file
-  unless it writes its own `llms.txt` by hand, and then owns it.
+  refreshed daily) — never hand-edit it there; change the generator. A project has no such
+  generator; an `llms.txt` it ships, hand-written or built by its own code, is its own.
 - Status: a community convention, no standards body, no frontier-lab commitment on the record
   either way. Cheap and reversible — never at the expense of `OPERATIONS.md`/`DEPLOYMENT.md`, which
   are the load-bearing agent interfaces (D-065).
