@@ -398,7 +398,7 @@ PER_UNIT_ROUND_COMMANDS = frozenset(
 
 
 def convergence_warning(
-    series: list[int],
+    series: list[int | None],
     command: str = "",
     label: str = "findings",
 ) -> str:
@@ -412,11 +412,15 @@ def convergence_warning(
         return ""  # per-unit rounds: consecutive counts describe different surfaces
     if len(series) < NON_CONVERGENCE_MIN_ROUNDS or len(series) < CONVERGENCE_WINDOW:
         return ""
-    window = series[-CONVERGENCE_WINDOW:]
+    window = [n for n in series[-CONVERGENCE_WINDOW:] if n is not None]
+    if len(window) < CONVERGENCE_WINDOW:
+        # a corrupt round (a None slot) sits in the window: the trend cannot be read, so it is never
+        # diagnosed — for at most CONVERGENCE_WINDOW rounds, after which the window is clean again
+        return ""
     if all(a >= b for a, b in zip(window, window[1:], strict=False)):
         return ""  # still non-increasing — converging, say nothing
     arrow = " → ".join(str(n) for n in window)
-    full = " → ".join(str(n) for n in series)
+    full = " → ".join("?" if n is None else str(n) for n in series)
     return (
         f"\n⚠️  NON-CONVERGENCE — {label} are OSCILLATING: {arrow} "
         f"(round {len(series)}; full series: {full}).\n"
@@ -526,14 +530,15 @@ def scope_growth_warning(rows: list[Any], command: str = "", *, lane: bool = Fal
     if str(command or "").strip().lower() in PER_UNIT_ROUND_COMMANDS:
         # per-unit rounds describe DIFFERENT surfaces (round 4 is T11's review, round 5 is
         # T08's), so two tickets each closing out their own residue is healthy, and this
-        # advisory's exit sentence — "close on the last round that swept the ORIGINAL surface" —
-        # has no referent when the rounds share no surface. Same stand-down, same reason, as the oscillation
+        # advisory's exit sentence — "re-verify the fixed set, then close on a confirmed-zero
+        # round" — has no single fixed set when the rounds share no surface. Same stand-down, same reason, as the oscillation
         # advisory above (review round 1, C4).
         return ""
-    # NO filtering: `_count` returns None for a non-dict, which BREAKS the run exactly as a
-    # missing counter does. Filtering them out closed the window ACROSS them and re-opened the
-    # very hole round 1 fixed (review round 2, C-1); `_trend_series` applies the same rule over
-    # the unfiltered list.
+    # NO filtering: `_count` returns None for a non-dict, which OCCUPIES its slot and never
+    # qualifies, exactly as a missing counter does. Filtering them out closed the window ACROSS
+    # them and re-opened the very hole round 1 fixed (review round 2, C-1); `_trend_series`
+    # keeps the slot the same way (as None, on both of its branches — W-1bba6b75), though the
+    # oscillation advisory goes silent over a window holding one where this rules UNCOMPUTABLE.
     if lane and len(rows) >= 2:
         # D8 (`task_lane.scope_growth_rounds`): a review nested directly under a running
         # `/fabrik-task` stops hunting at its FIRST own-fix-only round after the full pass. Only
@@ -548,9 +553,10 @@ def scope_growth_warning(rows: list[Any], command: str = "", *, lane: bool = Fal
                 f"text this review itself added (confirmed/own-fix: {c}/{o}) under a running "
                 "/fabrik-task.\n"
                 "    Exit (term-edit / term-coverage § Scope-growth stop, lane variant): STOP the "
-                "loop — route the remaining own-fix work to a backlog row with a named destination, "
-                "and close on the last round that swept the ORIGINAL surface; the receipt carries "
-                "`**Lane:** fabrik-task`.\n"
+                "hunt — fix the window's open defects, route the remaining own-fix work to "
+                "/fabrik-spec or a backlog row with a named destination, re-verify the fixed set "
+                "alone, and close on a `confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355); "
+                "the receipt carries `**Lane:** fabrik-task`.\n"
                 "    (Advisory only — nothing is blocked.)"
             )
     if len(rows) < SCOPE_GROWTH_ROUNDS:
@@ -596,10 +602,11 @@ def scope_growth_warning(rows: list[Any], command: str = "", *, lane: bool = Fal
             # the pointer names BOTH fragments: a term-coverage loop (`/fabrik-review`,
             # `/fabrik-repo-review`) never reads term-edit, and naming one sends the reader to a
             # section its command does not carry — the `_trend_label` incident's shape (round 1, S1)
-            "    Exit (term-edit / term-coverage § Scope-growth stop): STOP the loop — route the "
-            "remaining own-fix "
-            "work to a backlog row with a named destination, and close on the last round that "
-            "swept the ORIGINAL surface — its state is the one that matters.\n"
+            "    Exit (term-edit / term-coverage § Scope-growth stop): STOP the hunt — fix the "
+            "window's open defects, route the remaining own-fix work to /fabrik-spec or a backlog "
+            "row with a named destination, re-verify the fixed set alone, and close on a "
+            "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355) — a review never closes on "
+            "a round that confirmed something.\n"
             "    (Advisory only — nothing is blocked.)"
         )
 
@@ -706,7 +713,7 @@ def _int0(v: Any) -> int:
     return 0
 
 
-def _trend_series(rounds: list[Any]) -> list[int]:
+def _trend_series(rounds: list[Any]) -> list[int | None]:
     """The `confirmed` series when EVERY round states it, the `findings` series otherwise.
 
     EVERY round or none: a partial confirmed series is not a trend — it splices two different
@@ -714,20 +721,28 @@ def _trend_series(rounds: list[Any]) -> list[int]:
     oscillation advisory and the ``FEEDBACK:`` trend so the two can never disagree; the TERMINAL
     rule is deliberately NOT a caller — that one is a LAST-round-only test.
     """
-    if rounds and all(_confirmed(r) is not None for r in rounds):
-        return [_confirmed(r) or 0 for r in rounds]
-    return [_int0(r.get("findings", 0)) for r in rounds if isinstance(r, dict)]
+    # NO filtering, on either branch (W-1bba6b75): a non-dict round keeps its slot as None. Dropping it
+    # made the series shorter than the rounds and let a window read across it as if adjacent (9, 5, 0,
+    # corrupt, 5, 0 read as the oscillation 0 → 5 → 0 at "round 5"), the hole the scope-growth stop
+    # closed for its own window (`scope_growth_warning`); and letting it veto adoption sent a confirmed
+    # record down the findings series for the rest of its life.
+    if _confirmed_adopted(rounds):
+        return [(_confirmed(r) or 0) if isinstance(r, dict) else None for r in rounds]
+    return [_int0(r.get("findings", 0)) if isinstance(r, dict) else None for r in rounds]
+
+
+def _confirmed_adopted(rounds: list[Any]) -> bool:
+    """Every READABLE round states `confirmed` (at least one does) — a corrupt round takes a None slot
+    in the series instead of deciding which series it is."""
+    readable = [r for r in rounds if isinstance(r, dict)]
+    return bool(readable) and all(_confirmed(r) is not None for r in readable)
 
 
 def _trend_label(rounds: list[Any]) -> str:
     """Which series `_trend_series` just returned — the advisory must NAME it (review round 1):
     printing "findings are OSCILLATING: 4 → 1 → 3" over the CONFIRMED series sent the reader to a
     findings column that was strictly converging (50 → 10)."""
-    return (
-        "confirmed counts"
-        if rounds and all(_confirmed(r) is not None for r in rounds)
-        else "findings"
-    )
+    return "confirmed counts" if _confirmed_adopted(rounds) else "findings"
 
 
 def _round_report(rec: dict[str, Any]) -> str:
@@ -783,7 +798,9 @@ def _round_report(rec: dict[str, Any]) -> str:
             "⛔ NOT TERMINAL — slice ledger missing this round for ("
             + ", ".join(vanished)
             + "), stated by an earlier round; every later pass re-states `--slices` for every "
-            "slice an earlier round stated — an omitted slice is open, never clean (D-335)"
+            "slice an earlier round stated — an omitted slice is open, never clean (D-335). A slice "
+            "with no open claim needs no seat and no extra round: re-state it at its last "
+            "`<verified>/<claims>` in THIS round's `--slices` (W-c8069437)"
         )
     if quiet and len(rounds) >= 2 and failing:
         lines.append(
@@ -1679,6 +1696,12 @@ def _change_axis_verdict(value: str) -> str | None:
 # the short noun phrases below are ordinary English a genuine verdict ABOUT the close-out grammar
 # uses in its own sentence, and this loop's verdicts are exactly about that grammar. A paste
 # reproduces a whole clause; a verdict borrows three words and then says something.
+# the `filed:` template in every spelling it has had or will have — a beat LIST (`a|b|c`), bracketed or not, or the
+# contract's `a beat`, its brackets PAIRED — ending at the template's own ` | none` or the value's end, so a FILLED value in the
+# template's form (`mail id(s) to infra|fleet | 01M4…`) is a verdict, not a paste (D-627 regression; review A-H1)
+_FILED_TEMPLATE = re.compile(
+    r"mail id\(s\) to (?:<(?:a beat|[a-z]+(?:\|[a-z]+)+)>|(?:a beat|[a-z]+(?:\|[a-z]+)+))\s*(?:\|\s*none\b|$)"
+)
 _GRAMMAR_PHRASES = (
     "the one concrete edit to this command or a rule",
     "what in the command text was ambiguous or misleading",
@@ -1855,7 +1878,9 @@ def _parse_usage_feedback(
             _cv = _att[1] if _att else " ".join(_raw.strip().lower().split())
         else:
             _cv = " ".join(_raw.strip().lower().split())
-        if any(_cv.lstrip("> -*\"'`(").startswith(_ph) for _ph in _GRAMMAR_PHRASES):
+        if any(
+            _cv.lstrip("> -*\"'`(").startswith(_ph) for _ph in _GRAMMAR_PHRASES
+        ) or _FILED_TEMPLATE.match(_cv.lstrip("> -*\"'`(")):
             placeholders.append(_f)
     missing += [f"{f} (placeholder)" for f in placeholders]
     # THE AXIS GATE — `change:` only, and only on a value that is not already the grammar's own
@@ -2576,7 +2601,7 @@ def _feedback_line(rec: dict[str, Any], fields: dict[str, str], wall_s: float) -
     rounds = rec.get("rounds") or []
     # the CONFIRMED trend when every round states it, the raw one otherwise (§ Close-out USAGE
     # feedback) — this string is the chat-visible 7th line of every close, fleet-wide
-    trend = "→".join(str(n) for n in _trend_series(rounds))
+    trend = "→".join("?" if n is None else str(n) for n in _trend_series(rounds))
     mins = f"{wall_s / 60:.0f} min" if wall_s >= 90 else f"{wall_s:.0f} s"
     head = f"FEEDBACK: /{rec.get('command')} · {mins} · rounds {len(rounds)}"
     if trend:
@@ -5061,7 +5086,8 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                         for s in _fail
                     ]
                     + [
-                        f"slice {n}, stated by an earlier round, is missing from the last round's ledger"
+                        f"slice {n}, stated by an earlier round, is missing from the last round's ledger "
+                        "(re-state it at its last `<verified>/<claims>` in the round's `--slices` — no extra round)"
                         for n in _gone
                     ]
                 )
@@ -5646,7 +5672,13 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "state": args.cmd,
             "wall_s": round(_wall_s, 1),
             "rounds": len(rec.get("rounds") or []),
-            "findings": [_int0(r.get("findings", 0)) for r in rec.get("rounds") or []],
+            # a non-dict round keeps its slot as null, like `confirmed` below and `_trend_series`
+            # (W-1bba6b75): a raise here was swallowed by main()'s fail-soft and left the record
+            # `running` for good, the Stop hook blocking every turn
+            "findings": [
+                _int0(r.get("findings", 0)) if isinstance(r, dict) else None
+                for r in rec.get("rounds") or []
+            ],
             # the durable exit-counter series beside the raw one; `null` for a round that never
             # stated it, never a fabricated 0 (no reader exists yet — this is the record)
             "confirmed": [_confirmed(r) for r in rec.get("rounds") or []],

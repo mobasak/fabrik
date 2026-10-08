@@ -2160,20 +2160,34 @@ def _crc():
     return mod
 
 
-def test_a_review_closed_on_the_scope_growth_stop_satisfies_the_executed_citation(
+def _cite_scope_growth_review(repo: Path, committed_on: str) -> int:
+    """Commit the scope-growth review on `committed_on`, then stage the EXECUTED plan citing it."""
+    review = _scope_growth_review([5, 4, 5])
+    path = repo / "docs/development/reviews/2026-08-03-plan-x-review.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(review, encoding="utf-8")
+    _commit_at(repo, committed_on, "review")
+    return _run_files(repo, {"docs/development/plans/2026-08-03-plan-x.md": EXECUTED_PLAN_CITES})
+
+
+def test_a_pre_d355_review_closed_on_the_scope_growth_stop_satisfies_the_executed_citation(
     repo: Path,
 ) -> None:
-    """W-5b541aab: check_review_coverage accepts a receipt that closed on the D-252 scope-growth
-    stop (`_scope_growth_exit`), while this gate demanded a quiet row from the SAME receipt — the
-    two gates disagreed about one artifact. The predicate is imported, never copied."""
+    """W-5b541aab: the D-252 stop was a sanctioned close, and check_review_coverage still honours
+    it for a receipt first committed before D-355 (2026-09-23) — so must this gate, one law. The
+    predicate is imported, never copied."""
     review = _scope_growth_review([5, 4, 5])
     crc = _crc()
     assert crc._scope_growth_exit(review, crc._ledger_shapes(review)[2])
-    files = {
-        "docs/development/plans/2026-08-03-plan-x.md": EXECUTED_PLAN_CITES,
-        "docs/development/reviews/2026-08-03-plan-x-review.md": review,
-    }
-    assert _run_files(repo, files) == 0
+    assert _cite_scope_growth_review(repo, "2026-09-20") == 0
+
+
+def test_a_post_d355_review_closed_on_the_scope_growth_stop_does_not_satisfy_the_citation(
+    repo: Path,
+) -> None:
+    """D-355 (kaizen 01M4CPWDK0): after 2026-09-23 a review closes only on a confirmed-zero round,
+    so a receipt first committed later that closed on the stop certifies no EXECUTED plan."""
+    assert _cite_scope_growth_review(repo, "2026-10-02") == 1
 
 
 def test_the_scope_growth_phrase_alone_never_satisfies_the_executed_citation(repo: Path) -> None:
@@ -2478,3 +2492,115 @@ def test_a_missing_project_root_is_not_a_traceback(tmp_path, kind):
         timeout=60,
     )
     assert proc.returncode == 0 and "Traceback" not in proc.stderr, proc.stderr
+
+
+# --- a terminal header Status is itself a review claim (W-41f20130, kaizen 01M4C57A55): the
+# gate keyed on claim WORDS only, so a receipt flipped to CLOSED / DONE / CLEAN / APPLIED with no
+# embedded gate and no claim word passed. Anything outside the in-flight set plus BLOCKED claims.
+
+_TERMINAL_REVIEW = "docs/development/reviews/2026-10-08-terminal-status-review.md"
+_TERMINAL_GATE = '```json\n{"status": "success", "passed": 20, "failed": 0}\n```\n'
+
+
+def _terminal_receipt(status: str, *, gate: bool) -> str:
+    body = f"# Receipt for X\n\n**Status:** {status}\n\n### Phase 1 — wiring: CLEAN\n\n"
+    return body + (_TERMINAL_GATE if gate else "")
+
+
+def test_terminal_status_without_gate_fails(repo: Path) -> None:
+    for status in ("CLOSED", "DONE", "CLEAN", "APPLIED", "COMPLETE"):
+        assert _run(repo, _TERMINAL_REVIEW, _terminal_receipt(status, gate=False)) == 1, status
+
+
+def test_terminal_status_with_gate_passes(repo: Path) -> None:
+    for status in ("CLOSED", "DONE", "CLEAN", "APPLIED", "COMPLETE", "UNANIMOUSLY APPROVED"):
+        assert _run(repo, _TERMINAL_REVIEW, _terminal_receipt(status, gate=True)) == 0, status
+
+
+def test_non_claim_status_is_not_graded(repo: Path) -> None:
+    for status in ("DRAFT", "OPEN", "IN-PROGRESS", "DRAFT - pass 1 pending", "NOT CONVERGED", "ABANDONED"):
+        assert _run(repo, _TERMINAL_REVIEW, _terminal_receipt(status, gate=False)) == 0, status
+    no_status = "# Receipt for X\n\nNotes only.\n\n### Phase 1 — wiring\n"
+    assert _run(repo, _TERMINAL_REVIEW, no_status) == 0
+    empty_slot = "# Receipt for X\n\n**Status:**\nReviewer notes follow\n\n### Phase 1\n"
+    assert _run(repo, _TERMINAL_REVIEW, empty_slot) == 0
+
+
+def test_blocked_exempts_only_an_evidenced_escalation(repo: Path) -> None:
+    """A bare `Status: BLOCKED` is not a way out of the gate; an evidenced escalation is."""
+    bare = _terminal_receipt("BLOCKED on finding F3", gate=False)
+    assert _run(repo, _TERMINAL_REVIEW, bare) == 1
+    evidenced = bare + "\n## BLOCKED: F3\n\nThe fix failed after 3 attempts; the probe output is above.\n"
+    assert _run(repo, _TERMINAL_REVIEW, evidenced) == 0
+
+
+def test_every_status_spelling_is_read(repo: Path) -> None:
+    """Re-spelling the Status line is no cheaper than dropping it: each shape is a claim."""
+    for line in (
+        "- **Status:** DONE",
+        "> **Status:** DONE",
+        "STATUS: DONE",
+        "status: done",
+        "**Status:** `DONE`",
+        "**Status:** \u2705 DONE",
+        "**Status:** 2026-10-08 DONE",
+        "**Status** \u2014 DONE",
+        "| Status | DONE |",
+        "Status: **DONE**",
+        "**Status:** UNANIMOUSLY APPROVED",
+        "| Field | Value |\n|---|---|\n| Status | DONE |",
+    ):
+        doc = f"# Receipt for X\n\n{line}\n\n### Phase 1 — wiring: CLEAN\n"
+        assert _run(repo, _TERMINAL_REVIEW, doc) == 1, line
+
+
+def test_status_outside_header_or_fenced_is_not_read(repo: Path) -> None:
+    for doc in (
+        "# Receipt for X\n\n```text\n**Status:** CLOSED\n```\n\n### Phase 1 — notes\n",
+        "# Receipt for X\n\n~~~\n**Status:** CLOSED\n~~~\n\n### Phase 1 — notes\n",
+        "# Receipt for X\n\n    Status: CLOSED\n\n### Phase 1 — notes\n",
+        # a fence OPENED in the header zone and closed past line 10: the zone slice holds an
+        # unterminated fence, and _strip_fences drops its body — the quoted Status is not read
+        "# Receipt for X\n```\nStatus: CLOSED\n" + "x\n" * 12 + "```\n\n### Phase 1\n",
+        "# Receipt for X\n" + "\nfiller line" * 12 + "\n\n**Status:** CLOSED\n\n### Phase 1\n",
+    ):
+        assert _run(repo, _TERMINAL_REVIEW, doc) == 0, doc[:60]
+
+
+def test_invisible_characters_do_not_hide_the_status(repo: Path) -> None:
+    """The header zone is normalized like `_in_progress`'s: U+2028 and zero-width chars."""
+    for doc in (
+        "# Receipt" + "\u2028" * 12 + "\n**Status:** DONE\n\n### Phase 1\n",
+        "# Receipt\n**Sta\u200btus:** DONE\n\n### Phase 1\n",
+    ):
+        assert _run(repo, _TERMINAL_REVIEW, doc) == 1, repr(doc[:40])
+
+
+def test_a_header_triggered_red_names_the_header(repo: Path) -> None:
+    _run(repo, _TERMINAL_REVIEW, _terminal_receipt("CLOSED", gate=False))
+    rc, out = _check_out(repo)
+    assert rc == 1 and "header Status claims a finished review" in out
+
+
+def test_a_hyphenated_word_after_status_is_not_a_label(repo: Path) -> None:
+    doc = "# Receipt for X\n\nStatus-quo analysis: notes on the old flow.\n\n### Phase 1\n"
+    assert _run(repo, _TERMINAL_REVIEW, doc) == 0
+    assert _run(repo, _TERMINAL_REVIEW, "# R\n\nStatus - DONE\n\n### Phase 1\n") == 1
+
+
+def test_a_one_row_status_table_over_a_separator_claims(repo: Path) -> None:
+    """`| Status | DONE |` directly over `|---|` is a finished claim; a table row is never skipped."""
+    doc = "# Receipt for X\n\n| Status | DONE |\n| --- | --- |\n\n### Phase 1\n"
+    assert _run(repo, _TERMINAL_REVIEW, doc) == 1
+
+
+def test_a_rule_under_the_status_does_not_hide_it(repo: Path) -> None:
+    """A `---` thematic break directly under `**Status:** DONE` leaves the claim standing."""
+    doc = "# Receipt for X\n\n**Status:** DONE\n---\n\n### Phase 1 — wiring: CLEAN\n"
+    assert _run(repo, _TERMINAL_REVIEW, doc) == 1
+
+
+def test_the_first_status_line_is_the_receipts_own(repo: Path) -> None:
+    """A finished sub-phase's `Status: DONE` below the receipt's own `Status: DRAFT` claims nothing."""
+    doc = "# Receipt for X\n\n**Status:** DRAFT\n**Status:** DONE — sub-phase A\n\n### Phase 1 — wiring\n"
+    assert _run(repo, _TERMINAL_REVIEW, doc) == 0

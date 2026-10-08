@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "# /fabrik-ui-design-review calls the mobile component pack a house identity's \"RN variant\" — stale since D-473"
 }

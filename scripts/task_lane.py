@@ -825,7 +825,8 @@ def _status_refusals(crc: Any, zone: str) -> list[str]:
             continue
         out.append(
             f"is **Status:** {value!r} — only {_CLOSED_STATUS} (or the D-252 scope-growth-stop "
-            "declaration) closes a review; an unfinished review is not a review"
+            "declaration, whose last row check_file still requires to confirm zero — D-355) closes "
+            "a review; an unfinished review is not a review"
         )
     return out
 

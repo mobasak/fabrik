@@ -1348,7 +1348,12 @@ def _caller_agent() -> str:
     binding). "" when unknown — never raises; the merge-request guard refuses "" (fail closed)."""
     try:
         mod = _whoami()
-        name = mod.resolve_agent_name() if mod is not None else ""
+        if mod is None:
+            # A repo that does not vendor whoami_agent.py names the caller with CLAUDE_AGENT
+            # alone, as the merge-request contract tells it (01M3TTTCTW, 01M3TW5MF2).
+            env = os.environ.get("CLAUDE_AGENT", "").strip()
+            return env if _AGENT_NAME_RE.fullmatch(env) else ""
+        name = mod.resolve_agent_name()
         return name if isinstance(name, str) else ""
     except (Exception, SystemExit):
         return ""

@@ -206,17 +206,20 @@ def test_a_lane_receipt_with_a_stop_at_round_two_then_a_quiet_close_passes(repo)
     at_stop = _with_ledger(_receipt(repo, "r", lane=True), _STOP_ROWS)
     rows = crc._ledger_shapes(at_stop)[2]
     assert crc._scope_growth_exit(at_stop, rows)
-    assert _grade(repo, at_stop) == []
     plain = at_stop.replace(LANE_LINE + "\n", "", 1)
     assert not crc._scope_growth_exit(plain, crc._ledger_shapes(plain)[2])
+    # D-355 (kaizen 01M4CPWDK0): the stop routes own-fix work; neither receipt may CLOSE at it
+    assert any(QUIET_ERR in e for e in _grade(repo, at_stop))
     assert any(QUIET_ERR in e for e in _grade(repo, plain))
 
 
-def test_a_lane_receipt_declaring_the_stop_at_round_two_passes(repo):
+def test_a_lane_receipt_declaring_the_stop_at_round_two_does_not_close(repo):
+    """The marker still makes the predicate fire at round 2 (D8), but since D-355 a receipt
+    closes only on a confirmed-zero row — the stop is where hunting ends, not the close."""
     text = _with_ledger(_receipt(repo, "r", lane=True), _STOP_ROWS)
-    assert _grade(repo, text) == []
     crc = _crc()
     assert crc._scope_growth_exit(text, crc._ledger_shapes(text)[2])
+    assert any(QUIET_ERR in e for e in _grade(repo, text))
 
 
 def test_the_same_receipt_without_the_lane_line_keeps_the_two_round_rule(repo):

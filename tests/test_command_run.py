@@ -6105,6 +6105,44 @@ def test_the_paste_guard_covers_every_field_not_just_change() -> None:
     )
     for field in ("confusion", "waste", "filed"):
         assert f"{field} (placeholder)" in missing, missing
+    # every spelling the `filed:` template has had is a placeholder (the D-627 regression: the three-beat paste)
+    for spelling in (
+        "mail id(s) to infra|fleet|intel | none",
+        "mail id(s) to infra|fleet|intel|kaizen | none",
+        "mail id(s) to <infra|fleet|intel|kaizen> | none",
+        "mail id(s) to a beat | none",
+    ):
+        _, missing = cr._parse_usage_feedback(
+            "confusion: none · waste: none · change: none · filed: " + spelling
+        )
+        assert "filed (placeholder)" in missing, (spelling, missing)
+    # a real verdict that MENTIONS the phrase and then says something is never a placeholder (Opus critique)
+    _, missing = cr._parse_usage_feedback(
+        "confusion: mail id(s) to a beat — which beat is kaizen? · waste: mail id(s) to kaizen were filed twice · "
+        "change: lean: mail id(s) to infra should name the hub beat first · filed: none — surfaces exercised: x"
+    )
+    assert missing == [], missing
+    # a FILLED value written in the template's form is a verdict, not a paste (review A-H1/A-H2)
+    _, missing = cr._parse_usage_feedback(
+        "confusion: none · waste: none · change: none · filed: mail id(s) to infra|fleet | 01M4C5VRQE, 01M4C64EDN"
+    )
+    assert missing == [], missing
+    # ... bracketed too: the brackets PAIR, so the regex cannot back off `>` and stop at the prefix (review A-S3)
+    _, missing = cr._parse_usage_feedback(
+        "confusion: none · waste: none · change: none · filed: mail id(s) to <infra|fleet> | 01M4C5VRQE"
+    )
+    assert missing == [], missing
+    assert not cr._FILED_TEMPLATE.match("mail id(s) to a beat > sent"), (
+        "an unpaired `>` is not the template"
+    )
+    # BEHAVIOUR, not only text: the report buckets the same way (review A-S2)
+    report = _load("cfr_axis", _SCRIPT.parent / "command_feedback_report.py")
+    assert report._axis_of("mail id(s) to infra|fleet|intel | none") == "placeholder"
+    assert report._axis_of("lean: mail id(s) to infra should name the hub beat first") == "lean"
+    assert (
+        cr._FILED_TEMPLATE.pattern
+        == _load("cfr_tmpl", _SCRIPT.parent / "command_feedback_report.py")._FILED_TEMPLATE.pattern
+    )
 
 
 def test_the_grammar_phrases_cover_both_spellings_the_system_prints() -> None:
@@ -6711,13 +6749,66 @@ def test_a_slice_omitted_for_several_rounds_stays_vanished_until_restated(run_di
     _cr(run_dir, "round", *quiet, "--slices", "A:2/2")
     out = _cr(run_dir, "round", *quiet, "--slices", "A:2/2").stdout
     assert "NOT TERMINAL" in out and "(B, C)" in out and "TERMINAL VERDICT" not in out, out
+    # W-c8069437: the banner tells the lead HOW — an idle slice is re-stated at its last count in this round
+    assert "needs no seat and no extra round: re-state it at its last" in out, out
     refused = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
+    assert "no extra round" in refused.stderr, refused.stderr
     assert refused.returncode == 1 and "missing from the last round's ledger" in refused.stderr, (
         refused.returncode,
         refused.stderr,
     )
     back = _cr(run_dir, "round", *quiet, "--slices", "A:2/2,B:3/3,C:1/1").stdout
     assert "TERMINAL VERDICT" in back and "NOT TERMINAL" not in back, back
+
+
+def test_a_corrupt_round_keeps_its_slot_in_the_trend_series() -> None:
+    """W-1bba6b75: the findings branch of `_trend_series` FILTERED a non-dict round out, so the series was
+    shorter than the rounds and the oscillation window reached across the corrupt round as if it were
+    adjacent — the hole the scope-growth stop closed for its own window (D-252 review round 2, C-1). The
+    slot stays, as None; the advisory never diagnoses a window holding one; the trend prints `?` there."""
+    cr = _load("cr_trend", _SCRIPT)
+    rounds = [
+        {"findings": 9},
+        {"findings": 5},
+        {"findings": 0},
+        "corrupt",
+        {"findings": 5},
+        {"findings": 0},
+    ]
+    series = cr._trend_series(rounds)
+    assert series == [9, 5, 0, None, 5, 0], series
+    # the filtered series [9, 5, 0, 5, 0] DID misfire ("0 → 5 → 0", at "round 5"); the kept slot is silent
+    assert "OSCILLATING" in cr.convergence_warning([9, 5, 0, 5, 0]), "the old misfire this guards"
+    assert cr.convergence_warning(series) == "", cr.convergence_warning(series)
+    assert "OSCILLATING" in cr.convergence_warning([5, 0, 5, 0, 5]), (
+        "the advisory still fires on a clean window"
+    )
+    # the FEEDBACK trend prints `?` in the slot, never `None` and never a shorter arrow
+    line = cr._feedback_line({"command": "fabrik-review", "rounds": rounds}, {}, 10)
+    assert "(9→5→0→?→5→0)" in line, line
+    # the confirmed branch keeps the slot too: a corrupt round no longer vetoes the adopted series
+    adopted = [{"findings": 9, "confirmed": 5}, "corrupt", {"findings": 7, "confirmed": 0}]
+    assert cr._trend_series(adopted) == [5, None, 0], cr._trend_series(adopted)
+    assert cr._trend_label(adopted) == "confirmed counts"
+    assert cr._trend_series(["corrupt"]) == [None] and cr._trend_label(["corrupt"]) == "findings"
+
+
+def test_done_closes_a_record_holding_a_corrupt_round(tmp_path: Path) -> None:
+    """W-1bba6b75 (Fable critique F1): the `done` ledger row read `r.get("findings")` over every
+    round unguarded, so a non-dict round raised, main()'s fail-soft swallowed it at rc 0, and the
+    record stayed `running` for good — the Stop hook blocking every turn, the `?` trend unreachable."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "5")
+    _cr(run_dir, "round", "--findings", "0")
+    f = run_dir / "s1.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["rounds"].insert(1, "corrupt")
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "x")
+    assert "(5→?→0)" in out.stdout, (out.stdout, out.stderr)
+    assert json.loads(f.read_text(encoding="utf-8"))["state"] == "done", out.stderr
 
 
 def test_an_unrestatable_stored_slice_name_is_never_owed() -> None:
@@ -6847,3 +6938,24 @@ def test_a_malformed_counter_on_the_record_never_crashes_a_round(
     r = _cr(run_dir, "round", "--findings", "1", "--classes-new", "a")
     assert r.returncode == 0 and "Traceback" not in r.stderr, r.stderr
     assert "ROUND" in r.stdout, r.stdout
+
+
+
+def test_the_scope_growth_verdicts_close_on_a_confirmed_zero_round():
+    """D-355: neither SCOPE GROWTH verdict tells the agent to close on a round that confirmed
+    something (kaizen 01M4CPWDK0); both name the confirmed-zero close over the fixed set."""
+    cr = _load("command_run_d355", _SCRIPT)
+    ordinary = cr.scope_growth_warning(
+        [
+            {"n": 1, "confirmed": 9, "own_fix": 0},
+            {"n": 2, "confirmed": 7, "own_fix": 7},
+            {"n": 3, "confirmed": 4, "own_fix": 4},
+        ]
+    )
+    lane = cr.scope_growth_warning(
+        [{"n": 1, "confirmed": 9, "own_fix": 0}, {"n": 2, "confirmed": 3, "own_fix": 3}], lane=True
+    )
+    for warn in (ordinary, lane):
+        assert "SCOPE GROWTH" in warn, warn
+        assert "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355)" in warn, warn
+        assert "ORIGINAL surface" not in warn, warn

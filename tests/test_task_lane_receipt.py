@@ -406,9 +406,12 @@ def test_a_status_below_the_header_zone_does_not_count(repo: Repo) -> None:
 
 
 def test_the_d252_scope_growth_wording_is_a_closed_status(repo: Repo) -> None:
-    """``CONVERGED … on the D-252 scope-growth stop`` is the third sanctioned exit; the checker's
-    own ledger half (two rounds that each confirmed something) is built here so (b)'s subprocess
-    passes too."""
+    """``CONVERGED … on the D-252 scope-growth stop`` is a closed Status. Since D-355 the receipt
+    still closes on a confirmed-zero row, so the ledger stays quiet and only the wording is under
+    test (kaizen 01M4CPWDK0)."""
+    _status(repo, "**Status:** CONVERGED (2026-10-02) on the D-252 scope-growth stop")
+    assert _check(repo, REL, [repo.last]) == []
+    # the MIRROR: the same wording over a non-quiet last row no longer closes (D-355)
     text = repo.text().replace(
         "found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |",
         "found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation |",
@@ -416,8 +419,7 @@ def test_the_d252_scope_growth_wording_is_a_closed_status(repo: Repo) -> None:
     )
     assert text != repo.text()
     repo.write(text)
-    _status(repo, "**Status:** CONVERGED (2026-10-02) on the D-252 scope-growth stop")
-    assert _check(repo, REL, [repo.last]) == []
+    _only(_check(repo, REL, [repo.last]), "b")
 
 
 def test_an_unloadable_status_reader_is_a_refusal(repo: Repo, monkeypatch, tmp_path: Path) -> None:
@@ -472,14 +474,7 @@ def test_a_suffixed_converged_with_d252_wording_is_refused(repo: Repo, value: st
     """``CONVERGED-ish`` / ``**CONVERGED**-ish`` / ``CONVERGED/partial`` ``… on the D-252
     scope-growth stop`` are not CONVERGED: a ``\\b`` match admits the hyphen, an end-only bold
     strip leaves ``CONVERGED**-ish``, and a negative look-ahead admits ``*`` and ``/`` (O7).
-    The ledger shows the stop's two confirming rounds, so ONLY the Status half can refuse."""
-    text = repo.text().replace(
-        "found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |",
-        "found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation |",
-        1,
-    )
-    assert text != repo.text()
-    repo.write(text)
+    The ledger stays quiet (D-355), so ONLY the Status half can refuse."""
     _status(repo, f"**Status:** {value} (2026-10-02) on the D-252 scope-growth stop")
     reasons = _check(repo, REL, [repo.last])
     _only(reasons, "b")

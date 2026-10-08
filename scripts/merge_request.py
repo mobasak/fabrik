@@ -156,7 +156,8 @@ def _one_line(value: str) -> bool:
 
 
 def _caller_agent() -> str:
-    """``whoami_agent.resolve_agent_name()`` via the guarded sibling import mail.py uses; ""."""
+    """``whoami_agent.resolve_agent_name()`` via a guarded sibling import; without the module, a
+    ``CLAUDE_AGENT`` in the agent-name grammar; else ""."""
     try:
         if str(HERE) not in sys.path:
             sys.path.insert(0, str(HERE))
@@ -164,8 +165,16 @@ def _caller_agent() -> str:
 
         name = whoami_agent.resolve_agent_name()
         return name if isinstance(name, str) else ""
+    except ImportError:
+        # A repo that does not vendor whoami_agent.py names the caller with CLAUDE_AGENT alone,
+        # as the merge-request contract tells it (01M3TTTCTW); only a valid agent name counts.
+        env = os.environ.get("CLAUDE_AGENT", "").strip()
+        return env if _AGENT_NAME_RE.fullmatch(env) else ""
     except (Exception, SystemExit):
         return ""
+
+
+_AGENT_NAME_RE = re.compile(r"[a-z0-9-]{1,32}")
 
 
 def _main_checkout(cwd: Path) -> Path:
@@ -881,8 +890,13 @@ def _throwaway(ctx: _Ctx, rec: dict, commit: str) -> Iterator[Path]:
             ctx.main, "worktree", "add", "--detach", "-q", str(wt), commit, timeout=TOOL_TIMEOUT_S
         )
         lib = ctx.main.parent / "fabrik-lib"
-        if lib.is_dir():
-            (parent / "fabrik-lib").symlink_to(lib)
+        link = parent / "fabrik-lib"
+        # In the repo NAMED fabrik-lib the worktree already IS `<tmp>/fabrik-lib`, so its tests'
+        # `../fabrik-lib` resolves to the commit under test and no link is made (01M3TW5MF2).
+        if lib.is_dir() and link != wt:
+            # a `fabrik-lib` sibling that IS this checkout (an alias of its realpath) points the
+            # throwaway's `../fabrik-lib` at the commit under test, never the live checkout
+            link.symlink_to(wt if lib.resolve() == ctx.main.resolve() else lib)
         yield wt
     finally:
         _remove_throwaway(ctx, wt)

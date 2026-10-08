@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T02:17:58.008722Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-9285fdaf",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4CG5Z53AN35S91QFGH2N85W",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: on a ONE-phase `Profile: small` plan, /fabrik-execute-plan runs /fabrik-review-scoped on the phase and then the full /fabrik-review at Finish over the same diff."
+}
