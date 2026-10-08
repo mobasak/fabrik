@@ -13,7 +13,7 @@ D-569 (the plan's converged revision). Plan:
 | `session-archive.timer` | `~/.config/systemd/user/` (source: `scripts/sysadmin/systemd/`) | daily, `Persistent=true` — a run missed while the machine was off fires when the user manager next starts; linger keeps that manager up without a login |
 | `session-archive.service` | same | `ExecStartPre=-` the growth sampler (its failure never skips the backup), then the archiver; a failed run (e.g. no network at boot) is retried every 15 min, at most 4 times in 2 h |
 | `scripts/sysadmin/sample_transcript_growth.sh` | main checkout | one row a day into `~/.claude/state/transcript-growth.tsv` (date, MAIN bytes, files, largest) |
-| `scripts/sysadmin/archive_transcripts.py` | main checkout | zstd each MAIN transcript idle > 1 day into `~/.claude/archive/<slug>/<session>.jsonl.zst`, append `manifest.jsonl`, `rclone copy` to the bucket, then upload the manifest |
+| `scripts/sysadmin/archive_transcripts.py` | main checkout | zstd each MAIN transcript (`ARCHIVE_AFTER_DAYS`, default 0 — an open window ships a daily snapshot, compressed from a frozen copy) into `~/.claude/archive/<slug>/<session>.jsonl.zst`, append `manifest.jsonl`, `rclone copy` to the bucket, then upload the manifest |
 
 Install (from the main checkout, once the archiver change is merged):
 
@@ -48,6 +48,9 @@ copies them and enables the timer.
 - **A manifest row is written only after its bytes landed**; the manifest itself ships after.
 - **One run at a time** (`~/.claude/archive/.archive.lock`); a second run exits 0 and does
   nothing.
+- **An open window is archived from a frozen copy** (`~/.claude/archive/.snapshot-*/`, never
+  uploaded): the copy is hashed and compressed, so a row always describes the uploaded bytes even
+  while the session appends. A run killed mid-copy leaves that folder behind; the next run removes it.
 - **Hard links** (D-467 links worktree transcripts into their repo's lane) are archived once; the
   row's `also_slugs` names the other folders.
 
@@ -58,9 +61,21 @@ The archiver carries the two verbs a restore needs, using the same key handling:
 ```bash
 cd /opt/fabrik
 .venv/bin/python scripts/sysadmin/archive_transcripts.py --remote-count          # objects + manifest hash
-.venv/bin/python scripts/sysadmin/archive_transcripts.py --fetch '<slug>/<session>.jsonl.zst' /tmp/r.zst
+.venv/bin/python scripts/sysadmin/archive_transcripts.py --fetch '/<slug>/<session>.jsonl.zst' /tmp/r.zst
 zstd -d /tmp/r.zst -o /tmp/r.jsonl                                                # then compare / put back
 ```
+
+- **The leading `/` is required:** every slug starts with `-` (`-opt-fabrik`), which argparse would
+  read as an option. `--fetch` writes to a path that must NOT exist yet, and exits 1 unless exactly
+  one regular file arrived — a prefix (a folder of objects) is refused.
+- `--remote-count` prints `remote_manifest_sha256 absent` when no manifest could be fetched.
+- ⚠️ **Downloads need B2's download host (`f004.backblazeb2.com` for this bucket); uploads do not.**
+  On 2026-10-08 this machine's network cut the TLS handshake to that hostname (an SNI filter: the
+  name is refused even at another host's IP, while the upload API host works). From such a network
+  the archive still uploads daily, but `--fetch` exits 1 ("was not downloaded … unreachable") and
+  `--remote-count` reads the manifest as `absent`: rclone resolves a single object through the
+  download host and, failing that, sees an empty folder. Run a restore from a network that reaches
+  `https://f004.backblazeb2.com` (check with `curl -sI https://f004.backblazeb2.com/`).
 
 - An OLDER version of a transcript (the object is overwritten each time the transcript changes):
   add `--version-at <RFC3339 instant>` — an instant after the run that uploaded the version you

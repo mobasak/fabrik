@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Session archive covers open windows and survives a blocked B2 download host (2026-10-09, D-720)
+
+- `scripts/sysadmin/archive_transcripts.py`: `ARCHIVE_AFTER_DAYS` defaults to 0, so a named window open for days (infra, fleet, intel, kaizen) ships a daily snapshot instead of waiting a day of idleness it never reaches. Each transcript is hashed and compressed from a frozen `.snapshot-*` copy, so its row describes exactly the uploaded bytes while the session appends. The skip state is taken from a post-copy stat, so a file that grew mid-copy settles. A killed run's leftover snapshot is reaped under the lock. A transcript that vanishes mid-run is skipped, and any other `OSError` is a clean exit 1.
+- The manifest upload passes `--no-check-dest`. `copyto` otherwise HEADs through B2's download host, which an SNI filter on this machine's network blocks (the first live run hung 42 min there while all 7,981 objects uploaded).
+- `--remote-count` reports `absent` when no manifest arrived. `--fetch` refuses an existing target, a prefix copied as a tree, and a download that wrote nothing, because `rclone copyto` exits 0 in all three cases.
+
 ### Fixed — /fabrik-plan-review's set hash is path-independent and its spec-gate claim is true (2026-10-08)
 - `commands/_sources/fabrik-plan-review.md`: the combined set hash hashed md5sum's path column as typed, so the same plan set hashed differently in the tree and in a seat's `cp -r` copy; it now runs from inside the set (`cd "<plan-dir>"`, `LC_ALL=C sort`) and names the empty-input hash `d41d8cd9…` as a failed `cd`, never recorded. The dropped-requirement row said `check_stage_artifacts.py` only checks the cited spec HAS a status; it now states the Tier-2 refusal of a new CONVERGED flip on a missing or non-CONVERGED designated spec (archived exempt) and that it compares no requirements. Answers 4 /fabrik-plan-review verdicts confirmed as text defects by the D-711 Opus audit. Grader: `tests/test_plan_review_small_gate.py::test_the_set_hash_recipe_is_path_independent_and_the_spec_gate_is_stated_truly`, which runs the recipe on two copies at different paths and under two locales, and drives `_check_plan_spec_freshness`.
 

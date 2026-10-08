@@ -5,7 +5,8 @@
 Compresses MAIN Claude transcripts to zstd, records them in a manifest, and ships the archive
 straight to the Backblaze B2 bucket with rclone (D-565). Nothing lands on a VPS.
 
-⚠️ THIS SCRIPT NEVER DELETES ANYTHING — locally or in the bucket. Pruning is Phase C, which
+⚠️ THIS SCRIPT NEVER DELETES A TRANSCRIPT OR AN ARCHIVED OBJECT — locally or in the bucket (it
+removes only its own temporary `.snapshot-*` copy). Pruning is Phase C, which
 is DEFERRED (D-565). The `.bak` incident that started this work happened because a
 "provably lossless" deletion was argued from a size comparison instead of from bytes.
 
@@ -30,7 +31,8 @@ Hard links (D-467 links worktree transcripts into their repo's lane) are archive
 
 Env (12-Factor III):
   ARCHIVE_ROOT                local archive dir                       (default ~/.claude/archive)
-  ARCHIVE_AFTER_DAYS          only files idle longer than this        (default 1)
+  ARCHIVE_AFTER_DAYS          only files idle longer than this        (default 0: every MAIN
+                              transcript, so a window open for days ships a daily snapshot)
   ARCHIVE_MAX_FILE_MB         per-file ceiling; larger files are REPORTED, never archived
   CLAUDE_PROJECTS_DIR         source tree                             (default ~/.claude/projects)
   SESSION_ARCHIVE_B2_BUCKET   the bucket                              (default wsl-ozgur)
@@ -61,6 +63,7 @@ from pathlib import Path
 
 MANIFEST_NAME = "manifest.jsonl"
 LOCK_NAME = ".archive.lock"
+SNAPSHOT_PREFIX = ".snapshot-"  # the frozen copy of a transcript being archived; never shipped
 REMOTE = "sessionb2"
 RCLONE_VERBS = frozenset({"copy", "copyto", "lsf"})
 KEY_VARS = ("SESSION_ARCHIVE_B2_KEY_ID", "SESSION_ARCHIVE_B2_APPLICATION_KEY")
@@ -241,21 +244,34 @@ def archive_one(
     archived = bool(prev) and (archive_root / prev["project_slug"] / dest.name).exists()
     if archived and prev.get("bytes") == st.st_size and prev.get("mtime_ns") == st.st_mtime_ns:
         return None  # A.1a: unchanged since the last archive — no hash, no compression
-    digest = _sha256(src)
-    if archived and prev.get("sha256") == digest:
-        return None
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(  # noqa: S603
-        ["zstd", "-12", "-q", "-f", str(src), "-o", str(dest)], check=True, timeout=1800
-    )
+    # An open window appends while we read, so hash and compress ONE frozen copy: the row must
+    # describe exactly the bytes that are uploaded (a JSONL copy is a prefix; its last line may
+    # be cut mid-write, and the next day's snapshot supersedes it).
+    with tempfile.TemporaryDirectory(prefix=SNAPSHOT_PREFIX, dir=archive_root) as tmp:
+        snap = Path(tmp) / src.name
+        shutil.copyfile(src, snap)
+        digest = _sha256(snap)
+        if archived and prev.get("sha256") == digest:
+            return None
+        size = snap.stat().st_size
+        # The skip state (A.1a) must describe THESE bytes: a turn written between the stat above
+        # and the copy is in the snapshot but not in `st`. JSONL only appends, so a live size
+        # equal to the snapshot's means its mtime is this content's; otherwise it grew again and
+        # the next run archives the new bytes anyway.
+        after = src.stat()
+        mtime_ns = after.st_mtime_ns if after.st_size == size else st.st_mtime_ns
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(  # noqa: S603
+            ["zstd", "-12", "-q", "-f", str(snap), "-o", str(dest)], check=True, timeout=1800
+        )
     # A manifest row is a PROMISE that the bytes exist and are readable.
     subprocess.run(["zstd", "-t", "-q", str(dest)], check=True, timeout=600)  # noqa: S603
     return {
         "project_slug": slug,
         "session_id": session_id,
         "sha256": digest,
-        "bytes": st.st_size,
-        "mtime_ns": st.st_mtime_ns,
+        "bytes": size,
+        "mtime_ns": mtime_ns,
         "also_slugs": also_slugs,
         "archived_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
@@ -274,13 +290,23 @@ def ship(archive_root: Path, env: dict[str, str]) -> None:
         f"/{MANIFEST_NAME}",
         "--exclude",
         f"/{LOCK_NAME}",
+        "--exclude",
+        f"/{SNAPSHOT_PREFIX}*/**",
         env=env,
     )
 
 
 def ship_manifest(archive_root: Path, env: dict[str, str]) -> None:
+    # --no-check-dest: copyto otherwise HEADs the object through B2's DOWNLOAD host first, and a
+    # network that blocks that host (an SNI filter did on 2026-10-08, while uploads worked) hangs
+    # the upload. Cost: a run that appended no row uploads an identical manifest, one more kept
+    # version (~2 MB); with open windows changing daily, nearly every run appends rows anyway.
     _rclone(
-        "copyto", str(archive_root / MANIFEST_NAME), f"{_remote_base()}/{MANIFEST_NAME}", env=env
+        "copyto",
+        "--no-check-dest",
+        str(archive_root / MANIFEST_NAME),
+        f"{_remote_base()}/{MANIFEST_NAME}",
+        env=env,
     )
 
 
@@ -293,12 +319,27 @@ def remote_count(env: dict[str, str]) -> tuple[int, str]:
     with tempfile.TemporaryDirectory() as tmp:
         local = Path(tmp) / MANIFEST_NAME
         _rclone("copyto", f"{_remote_base()}/{MANIFEST_NAME}", str(local), env=env)
-        return count, _sha256(local)
+        # rclone copyto exits 0 for an absent source and writes nothing: no file = no manifest yet
+        return count, _sha256(local) if local.exists() else "absent"
 
 
 def fetch(path_under_prefix: str, local: str, version_at: str | None, env: dict[str, str]) -> None:
+    # rclone copyto exits 0 having written NOTHING when it cannot find the source as one object
+    # (absent, or the download host unreachable), and copies a PREFIX as a directory tree: only
+    # a regular file that did not exist before the call is a restored object.
+    if Path(local).exists():
+        raise ArchiveError(f"{local} already exists — fetch writes to a fresh path")
     extra = ["--b2-version-at", version_at] if version_at else []
     _rclone("copyto", *extra, f"{_remote_base()}/{path_under_prefix.lstrip('/')}", local, env=env)
+    if Path(local).is_dir():
+        raise ArchiveError(
+            f"{path_under_prefix} is a prefix, not a single object ({local} is a tree)"
+        )
+    if not Path(local).is_file():
+        raise ArchiveError(
+            f"{path_under_prefix} was not downloaded: absent from the bucket, or B2's download "
+            "host is unreachable from this network"
+        )
 
 
 # ── the run ─────────────────────────────────────────────────────────────────────────────────
@@ -348,7 +389,7 @@ def _archive(args: argparse.Namespace) -> int:
     projects = _env_path("CLAUDE_PROJECTS_DIR", "~/.claude/projects")
     archive_root = _env_path("ARCHIVE_ROOT", "~/.claude/archive")
     try:
-        after_days = float(os.environ.get("ARCHIVE_AFTER_DAYS", "1"))
+        after_days = float(os.environ.get("ARCHIVE_AFTER_DAYS", "0"))
         max_mb = os.environ.get("ARCHIVE_MAX_FILE_MB")
         max_bytes = int(float(max_mb) * 1024 * 1024) if max_mb else None
     except ValueError as exc:
@@ -373,14 +414,26 @@ def _archive(args: argparse.Namespace) -> int:
         if not held:
             print("archive_transcripts: another run holds the archive lock — nothing to do")
             return 0
+        # A killed run (SIGKILL, power loss) never unwinds its snapshot's with-block; holding the
+        # lock, no live run owns one, so every leftover is an orphan.
+        for orphan in archive_root.glob(f"{SNAPSHOT_PREFIX}*"):
+            if orphan.is_dir() and not orphan.is_symlink():  # ours are real dirs, never links
+                shutil.rmtree(orphan)
         manifest = archive_root / MANIFEST_NAME
         latest = _latest_rows(manifest)
         rows = []
         for src, also in _group_by_inode(todo):
             try:
                 row = archive_one(src, archive_root, max_bytes, latest, also)
+            except FileNotFoundError as exc:
+                if src.exists():  # a missing zstd or archive dir, not a vanished transcript
+                    raise ArchiveError(f"could not archive {src}: {exc}") from exc
+                print(f"  vanished {src} (removed since the scan) — skipped")
+                continue
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
                 raise ArchiveError(f"zstd failed on {src}: {exc}") from exc
+            except OSError as exc:
+                raise ArchiveError(f"could not archive {src}: {exc}") from exc
             if row:
                 rows.append(row)
 
@@ -418,7 +471,11 @@ def run(argv: list[str] | None = None) -> int:
         help="count remote .zst objects + hash the remote manifest",
     )
     ap.add_argument(
-        "--fetch", nargs=2, metavar=("PATH_UNDER_PREFIX", "LOCAL"), help="download one object"
+        "--fetch",
+        nargs=2,
+        metavar=("PATH_UNDER_PREFIX", "LOCAL"),
+        help="download one object; write a slug that starts with '-' with a leading '/' "
+        "(/-opt-x/<sid>.jsonl.zst), or argparse reads it as an option",
     )
     ap.add_argument(
         "--version-at", help="with --fetch: the object as it was at this RFC3339 instant"
@@ -437,7 +494,7 @@ def run(argv: list[str] | None = None) -> int:
                 print(f"fetched {args.fetch[0]} -> {args.fetch[1]}")
             return 0
         return _archive(args)
-    except ArchiveError as exc:
+    except (ArchiveError, OSError) as exc:  # OSError: a full disk outside the loop, too
         print(f"archive_transcripts: {exc}", file=sys.stderr)
         return 1
 

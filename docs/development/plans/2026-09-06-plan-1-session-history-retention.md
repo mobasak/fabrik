@@ -94,8 +94,11 @@ produces. (The first draft said "A and B proceed in parallel", which was false.)
   second run (a hand run overlapping the timer) prints that the lock is held and exits 0 without
   touching the archive — the holder ships.
 - **A.2 — the transport: `rclone copy` straight to B2, through ONE helper.**
-  `rclone copy <ARCHIVE_ROOT>/ sessionb2:<bucket>/<prefix>/ --fast-list --transfers 4 --exclude /manifest.jsonl --exclude /.archive.lock`,
-  then, after the rows are appended, `rclone copyto <ARCHIVE_ROOT>/manifest.jsonl sessionb2:<bucket>/<prefix>/manifest.jsonl`.
+  `rclone copy <ARCHIVE_ROOT>/ sessionb2:<bucket>/<prefix>/ --fast-list --transfers 4 --exclude /manifest.jsonl --exclude /.archive.lock --exclude /.snapshot-*/**`,
+  then, after the rows are appended, `rclone copyto --no-check-dest <ARCHIVE_ROOT>/manifest.jsonl sessionb2:<bucket>/<prefix>/manifest.jsonl`
+  (amended 2026-10-08: the snapshot exclude keeps A.4's frozen copies off the bucket, and
+  `--no-check-dest` stops the manifest upload from depending on B2's download host, which copyto
+  otherwise HEADs first — that HEAD hung 42 min on Gate A's first run behind an SNI filter).
   `<prefix>` is `SESSION_ARCHIVE_B2_PREFIX` (default `archive`).
   - **Every rclone call goes through `_rclone(verb, *args)`, and the verb is an ALLOW-list:**
     `copy`, `copyto`, `lsf`. Any other verb, and any argument whose option NAME (the text
@@ -130,7 +133,10 @@ produces. (The first draft said "A and B proceed in parallel", which was false.)
   objects under the prefix and the sha256 of the remote `manifest.jsonl` (fetched by `copyto` to a
   temp file); `--fetch <path-under-prefix> <local-path> [--version-at <RFC3339>]` downloads one
   object, optionally as it was at that instant (`--b2-version-at`). Both exit non-zero when rclone
-  does.
+  does. Amended 2026-10-08, because `rclone copyto` exits 0 having written NOTHING when it cannot
+  resolve the source as one object (absent, or the download host unreachable): `--remote-count`
+  prints `remote_manifest_sha256 absent` when no manifest arrived, and `--fetch` refuses a target
+  that already exists and exits 1 unless exactly one regular file arrived (a prefix is refused).
 - **A.3 — the bucket, recorded rather than configured.** Bucket `wsl-ozgur` (id
   `d46ef77ceab3068aa018061b`, Private, SSE enabled, lifecycle **Keep all versions**, Object Lock
   **disabled**), created by the operator 2026-10-04. Its settings live in `/opt/fabrik/.env` as
@@ -139,13 +145,19 @@ produces. (The first draft said "A and B proceed in parallel", which was false.)
   write; no existing key can reach this bucket (the youtube key is restricted to
   `youtube-pipeline`, fabrik's to `vps1-ocoron-backups`, both verified by `b2_authorize_account`
   2026-10-05). Revision 1's Backrest plan is withdrawn: nothing lands on vps1.
-- **A.4 — env, not literals.** `ARCHIVE_ROOT`, `ARCHIVE_AFTER_DAYS` (default **1** — a session
-  idle less than a day is still being written, and every upload of a growing file is one more kept
-  version), `ARCHIVE_MAX_FILE_MB`, `SESSION_ARCHIVE_B2_BUCKET`, `SESSION_ARCHIVE_B2_PREFIX`,
+- **A.4 — env, not literals.** `ARCHIVE_ROOT`, `ARCHIVE_AFTER_DAYS` (default **0** since the
+  2026-10-08 amendment, D-row of that date: the hub's named windows — infra, fleet, intel, kaizen —
+  each run ONE session for days and never go idle for a day, so the first default of 1 would never
+  have backed them up while open; each changed transcript now ships one snapshot per daily run,
+  hashed and compressed from a frozen copy so its row describes exactly the uploaded bytes),
+  `ARCHIVE_MAX_FILE_MB`, `SESSION_ARCHIVE_B2_BUCKET`, `SESSION_ARCHIVE_B2_PREFIX`,
   `SESSION_ARCHIVE_ENV_FILE`. The vps1 `ARCHIVE_REMOTE` is removed.
 - **A.5 — failure is loud and non-destructive.** rclone non-zero on the `copy` (no network, bad
   key, quota) ⇒ exit 1 and no rows; on the manifest `copyto` ⇒ exit 1, rows kept (A.2). Nothing in
-  Phase A can delete a local file or a remote object.
+  Phase A can delete a transcript, an archived object or a remote object; the only thing it
+  removes is its own `.snapshot-*` frozen copy (A.4), and a run holding the lock reaps one a killed
+  run left behind. A transcript that vanishes between the scan and its copy is skipped; any other
+  `OSError` (a full disk) is a clean exit 1.
 - **A.6 — the marker.** A `README` in `~/.claude/projects/` stating the tree is data, not cache —
   aimed at the failure that actually happened: a human freeing disk space.
 - **A.7 — the schedule: a systemd USER timer, catch-up friendly.** `session-archive.timer`
@@ -168,8 +180,11 @@ produces. (The first draft said "A and B proceed in parallel", which was false.)
 **Gate A (runnable, from this worktree, before the merge):**
 the archiver's first live run exits 0 · `.venv/bin/python scripts/sysadmin/archive_transcripts.py --remote-count`
 prints a count **≥ 1** that equals `find ~/.claude/archive -name '*.jsonl.zst' | wc -l`, and a
-manifest sha256 equal to `sha256sum ~/.claude/archive/manifest.jsonl` · a SECOND run immediately
-after appends 0 rows and uploads nothing new · `systemd-analyze --user verify
+manifest sha256 equal to `sha256sum ~/.claude/archive/manifest.jsonl` (amended 2026-10-08: on a
+network that blocks B2's download host the fetch reads `absent`, so the remote manifest's SIZE from
+an API `lsf` stands in, equal to the local file's) · a SECOND run immediately after appends rows
+only for transcripts written since the first (amended 2026-10-08: with the window at 0 the open
+windows always change, so "0 rows" cannot hold; every unchanged transcript is skipped) · `systemd-analyze --user verify
 scripts/sysadmin/systemd/session-archive.service scripts/sysadmin/systemd/session-archive.timer`
 prints nothing · `test -s ~/.claude/projects/README` · the Phase-A test file green. **Zero
 deletions.** `/fabrik-review-scoped` at the boundary.
@@ -184,7 +199,7 @@ session-archive.timer` shows a next run · `systemctl --user start session-archi
 The local round trip is measured. **The leg back from B2 is not, and it is the one that matters.**
 
 - **B.1** Pick an archived transcript whose live file still hashes to its latest manifest row and
-  download its object **from the bucket** — `archive_transcripts.py --fetch <slug>/<sid>.jsonl.zst
+  download its object **from the bucket** — `archive_transcripts.py --fetch /<slug>/<sid>.jsonl.zst
   <scratch>/r.zst` — never the local `~/.claude/archive` copy, which would prove the wrong hop.
 - **B.2** `zstd -d <scratch>/r.zst -o <scratch>/r.jsonl`, then `cmp <scratch>/r.jsonl <live original>`
   and `sha256sum <scratch>/r.jsonl` against the row's `sha256`.
@@ -192,7 +207,7 @@ The local round trip is measured. **The leg back from B2 is not, and it is the o
 - **B.4** Prove the archive stands alone — a prior version, restored without its live file. In an
   ISOLATED prefix (`SESSION_ARCHIVE_B2_PREFIX=restore-proof`, a scratch `CLAUDE_PROJECTS_DIR` and
   `ARCHIVE_ROOT`, `ARCHIVE_AFTER_DAYS=0`): archive a synthetic transcript (run 1), append a line to
-  it, archive again (run 2), delete the scratch source, then `--fetch <slug>/<sid>.jsonl.zst out.zst
+  it, archive again (run 2), delete the scratch source, then `--fetch /<slug>/<sid>.jsonl.zst out.zst
   --version-at <T>` — `T` captured with `date -u +%Y-%m-%dT%H:%M:%SZ` after run 1 returns, with at
   least 2 s before run 2 starts (`archived_at` is the compression time, not the upload, § A.1a) —
   and match its decompressed sha256 to the RUN-1 row —
@@ -289,7 +304,7 @@ default of 1 would make every revision-1 test vacuous), plus fake `SESSION_ARCHI
 | A-B8 | A failed `copy` writes no rows | with fake keys set, `copy` returning non-zero → rc 1, zero rows, and the recorder shows `copy` WAS called (the failure is the transport's, not the key check's) |
 | A-B9 | A failed manifest `copyto` exits 1 and keeps the rows; the next run re-ships the manifest | rc 1, rows present; a second run with `copyto` succeeding calls it again |
 | A-B10 | A held lock makes a second run exit 0 without touching the archive | with the lock held by the test, rc 0, a "lock held" line, no recorded call, no new row |
-| A-B11 | `ARCHIVE_AFTER_DAYS` defaults to 1 | with the variable unset, a transcript modified now is not eligible and one aged two days is |
+| A-B11 | `ARCHIVE_AFTER_DAYS` defaults to 0 (amended 2026-10-08) | with the variable unset, a transcript modified now and one aged two days are both eligible; a transcript that grows mid-archive gets a row whose sha256 and bytes match its decompressed object |
 | A-B12 | A missing `zstd` or `rclone` exits 1 naming it | with `shutil.which` returning None for each in turn, rc 1 and the binary named |
 | A-B13 | The unit files carry no `EnvironmentFile=`, run the MAIN checkout's script, and the timer is `Persistent=true` | parse both files under `scripts/sysadmin/systemd/` |
 
@@ -544,6 +559,42 @@ $ wc -l ~/.claude/state/transcript-growth.tsv
   bucket id, endpoint — and no key). Resume: the operator adds the key; the run resumes at Gate A
   (first live run, `--remote-count`), then Phase B, Finish, Gate S. The plan lock stays `active`.
 
+**2026-10-08/09 — Gate A GREEN; the archive covers the open named windows (resume, W-08eeaee1).**
+- The operator created the key (keyName `wsl`, restricted to `wsl-ozgur`) and asked for it to be saved
+  into `/opt/fabrik/.env` (backup `/opt/fabrik/backups/.env.backup.20261008-225609`).
+- Run 1 (the merged Phase A code, window 1 day): 8,040 eligible, 7,981 rows; every object landed, then
+  the manifest `copyto` hung 42 min on a HEAD to B2's download host. Diagnosis by execution: this
+  machine's network cuts the TLS handshake to `f004.backblazeb2.com` by SNI (the name fails even at
+  another host's IP, while `f000` passes at f004's IP), while the upload API host works. Stopped by
+  hand; the run exited 1 with rows kept, as A.5 designs.
+- The operator then asked whether the named windows (infra, fleet, intel, kaizen) are kept. They were
+  not: each runs one session for days and never idles a day. Amended A.2/A.2b/A.4/A.5 (D-row of
+  2026-10-09), with `/fabrik-review-scoped` confirmed 9 → 5 → 0 (3 seats + refuter per round,
+  independent readers returned every round).
+- Run 2 (amended code): 8,994 eligible, 947 rows, exit 0; manifest shipped with `--no-check-dest`.
+- Run 3, immediately after: 8,998 eligible, **13 rows** (the sessions being written right now), exit 0.
+
+```
+$ .venv/bin/python scripts/sysadmin/archive_transcripts.py --remote-count
+remote_objects 8928
+remote_manifest_sha256 absent        # the blocked download host, not a missing manifest
+$ find ~/.claude/archive -name '*.jsonl.zst' | wc -l
+8928
+$ rclone lsf --files-only --format sp sessionb2:wsl-ozgur/archive/   (via the archiver's _rclone)
+2439117;manifest.jsonl               # local manifest.jsonl: 2439117 bytes
+$ systemd-analyze --user verify scripts/sysadmin/systemd/session-archive.service scripts/sysadmin/systemd/session-archive.timer; echo rc=$?
+rc=0
+$ test -s ~/.claude/projects/README && echo present
+present
+$ .venv/bin/python -m pytest -q tests/test_archive_transcripts.py
+61 passed
+```
+
+The four named windows' current sessions are in the manifest: fleet `1970a0ff` 785.3 MB, intel
+`4e90716e` 1,148.7 MB, kaizen `5fa5812d` 62.3 MB, infra `dd3c06d1` 1,519.6 MB (run 2; run 3
+re-archived each). **Phase B is blocked from this network:** `--fetch` needs the download host the
+SNI filter cuts (`docs/workstation/session-history-retention.md` § Restore).
+
 ## Evidence
 
 **Revision 2026-10-05 — the measurements the B2-direct route is built on** (this machine):
@@ -671,13 +722,14 @@ file · `CHANGELOG.md` per phase · `.env.example` + `docs/CONFIGURATION.md` for
    rests on it only inspecting in-flight sessions. Operator-accepted (Phase C, deferred).
 3. **The off-site copy is only as current as this machine is on.** A missed run catches up when the
    user manager next starts (`Persistent=true`, linger asserted by the installer); a dead disk loses
-   at most the sessions newer than the last run plus `ARCHIVE_AFTER_DAYS`.
+   at most what was written since the last run (a day, at the default window of 0).
 4. **`--full` remains live upstream** until session-recall acts; it matters only once something
    prunes, which this revision does not.
 5. **B2 storage cost is small but not zero.** About 1.6 GB compressed today (9.82 GB of unique MAIN
    at the measured 6.08x); B2 bills $6.95/TB-month after the first 10 GB free
    (https://www.backblaze.com/cloud-storage/pricing, WebSearch, 2026-10-05). "Keep all versions"
-   stores every re-upload of a changed transcript; `ARCHIVE_AFTER_DAYS=1` bounds that churn.
+   stores every re-upload of a changed transcript; the daily timer bounds that to one version per
+   changed transcript per day (the open named windows: roughly 100-150 MB compressed each per day).
 6. **Object Lock is disabled and the key may carry delete rights.** The transport refuses every
    deleting verb and flag (A.2, graded by A-B7) and the bucket keeps all versions, so a stray
    overwrite is recoverable; a key leaked WITH `deleteFiles` could still remove versions. Enabling
