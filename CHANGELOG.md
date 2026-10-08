@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the Prometheus `alloy` job and the Gatus `alloy` endpoint replace the Promtail watchers (2026-10-08)
+
+Prometheus job `promtail-spokes` becomes `alloy`, scraping the hub `alloy:12345` and both spokes on 12345 with their labels
+kept; the Gatus `promtail` endpoint becomes `alloy` (`/-/ready`) with its interval and alerting unchanged. The configs reach
+vps1 only in the operator's window (plan 2026-10-08-plan-1, T04a).
+
 ### Added — the Alloy configs are the promtail→alloy converter's output (2026-10-08)
 
 `configs/alloy/config.alloy` (hub) and `scripts/bootstrap/templates/alloy.alloy.template` (spoke) are committed as the exact

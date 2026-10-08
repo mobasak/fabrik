@@ -67,16 +67,21 @@ scrape_configs:
     labels:
       host: vps3
       role: spoke
-- job_name: promtail-spokes
+- job_name: alloy
   metrics_path: /metrics
   static_configs:
   - targets:
-    - 10.99.0.2:9080
+    - alloy:12345
+    labels:
+      host: vps1
+      role: hub
+  - targets:
+    - 10.99.0.2:12345
     labels:
       host: vps2
       role: spoke
   - targets:
-    - 10.99.0.3:9080
+    - 10.99.0.3:12345
     labels:
       host: vps3
       role: spoke

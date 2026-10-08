@@ -5,7 +5,7 @@ This tree mirrors `/opt/monitoring/configs/gatus/` on vps1. The Gatus container
 `/config` read-only, so what's here is the runtime source-of-truth — once
 synced. Pulled into source control 2026-06-13 closing the audit asymmetry
 flagged in `STRATEGIC_BACKLOG.md` (every other monitoring config — prometheus,
-alertmanager, loki, grafana, promtail — was already in `configs/`; gatus was
+alertmanager, loki, grafana, alloy — was already in `configs/`; gatus was
 the outlier).
 
 ## Layout
