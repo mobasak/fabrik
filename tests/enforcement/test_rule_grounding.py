@@ -345,3 +345,89 @@ def test_an_unreadable_repo_relative_path_is_a_finding_not_a_crash(tmp_path):
     assert [f.label for f in findings if "locked/pack.md" in f.detail] == ["QUOTE-NOT-FOUND"], (
         findings
     )
+
+
+# ── W-31f488d9 (wef 01M3WRE0TS, infra W-fd0cd273): the digest's columns are read as a TABLE ──
+UNREAD = "integrity: the digest's source column holds no file path"
+
+
+def _write_digest(root: Path, table: str) -> None:
+    p = root / "docs" / "development" / "plans" / "2026-08-30-plan-9-fixture.md"
+    p.write_text(
+        "# Plan fixture\n\nStatus: CONVERGED\n\n## Constraints Digest\n\n"
+        + table
+        + "\n## File Scope (owned paths)\n\n- scripts/x.py\n",
+        encoding="utf-8",
+    )
+
+
+def _ungraded(root: Path) -> list[str]:
+    _, _, ungraded = chk._audit_full(root)
+    return [why for _plan, why in ungraded]
+
+
+def test_a_pack_first_digest_is_ungraded_once_never_a_row_of_missing_files(tmp_path):
+    """wef's shape: no exact Quote/Source header, so column 0 (the pack) read as the quote and the
+    quote's first word as the cited file — one 'digest cites Use which does not exist' per row, the
+    noise that hid that nothing was graded. Quotes opening with a dotted token (`8.`, `.venv`) used to
+    leak through a per-row test (350 of 3790 hub mandates start that way); the TABLE is classified."""
+    root = _root(tmp_path)
+    _write_digest(
+        root,
+        "| Pack | Rule (verbatim) | file:line | Binds |\n|---|---|---|---|\n"
+        f"| core/10-python.md | Use explicit extensions on local imports | {PACK_REL}:2 | T02 |\n"
+        f"| core/10-python.md | 8. Robotics is out of scope | {PACK_REL}:3 | T03 |\n"
+        f"| core/10-python.md | .venv is the only interpreter | {PACK_REL}:4 | T04 |\n",
+    )
+    assert "QUOTE-NOT-FOUND" not in _labels(root), _labels(root)
+    assert any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
+
+
+def test_a_prose_source_in_a_named_table_is_ungraded_not_a_missing_file(tmp_path):
+    root = _root(tmp_path)
+    _write_digest(
+        root,
+        f'| Quote | Source |\n|---|---|\n| "{WRAPPED_QUOTE}" | spec § Constraints |\n',
+    )
+    assert "QUOTE-NOT-FOUND" not in _labels(root), _labels(root)
+    assert any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
+
+
+def test_an_existing_extensionless_root_file_still_grades(tmp_path):
+    """`Makefile` has no `/` and no `.` — the path-like test alone would call it unread."""
+    root = _root(tmp_path)
+    (root / "Makefile").write_text(
+        "# build\nlint: run the linter on every push\n", encoding="utf-8"
+    )
+    _write_digest(
+        root, "| Quote | Source |\n|---|---|\n| lint: run the linter on every push | Makefile:2 |\n"
+    )
+    assert "QUOTE-NOT-FOUND" not in _labels(root), _labels(root)
+    assert not any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
+
+
+def test_an_escaped_pipe_is_one_cell_and_matches_on_both_sides(tmp_path):
+    """A pack table carries `\\|` (core/12-node.md:297 has `process.env.X \\|\\| 'default'`); a digest
+    quoting it must escape it to stay one cell, and `_norm` compares both sides un-escaped."""
+    root = _root(tmp_path)
+    pack = root / PACK_REL
+    pack.write_text(
+        PACK_TEXT + "| `process.env.X \\|\\| 'default'` for secrets | never |\n"
+        "- Prefer a || b for defaults in shell only.\n",
+        encoding="utf-8",
+    )
+    _write_digest(
+        root,
+        "| Quote | Source |\n|---|---|\n"
+        f"| process.env.X \\|\\| 'default' for secrets | {PACK_REL}:5 |\n"
+        f"| Prefer a \\|\\| b for defaults in shell only. | {PACK_REL}:6 |\n",
+    )
+    assert "QUOTE-NOT-FOUND" not in _labels(root), _labels(root)
+    assert not any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
+    # the rows were GRADED whole, not skipped: a split on every `|` left a quote fragment that is a
+    # substring of the pack line and a source cell with no path — a vacuous pass on the old code
+    section = (
+        "| Quote | Source |\n|---|---|\n"
+        f"| process.env.X \\|\\| 'default' for secrets | {PACK_REL}:5 |\n"
+    )
+    assert chk._digest_rows(section) == [("process.env.X || 'default' for secrets", PACK_REL)]
