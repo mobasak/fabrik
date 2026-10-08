@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T19:43:20.499567Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-178f07a3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "command_run round: refuse --findings 0 / --confirmed 0 after a dispatched workflow whose ledger holds confirmed verdicts (plan-review verdict 1791337661.4608235, kaizen 01M4EG5F6D)"
+}

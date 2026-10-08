@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T19:43:21.909595Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-29208d49",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "check_convergence: print a summary line naming how many plans it graded (plan-review verdict 1790923404.542468, kaizen 01M4EG5F6D)"
+}

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: scripts/work.py `_drift_report` gives a BLOCKED plan status no check at all, so any plan led with \"BLOCKED\" passes `sync --check`, with any reason or none."
 }
