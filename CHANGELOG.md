@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — two synced reference docs name the base image by the registry key, not bookworm (2026-10-08)
+- `docs/reference/technology-stack-decision-guide.md` and `docs/reference/prebuilt-app-containers.md` named `bookworm` literally. The fleet pin is `debian_codename: trixie` in `.windsurf/rules/versions.yaml`, so both now name the variant through that key. They scope the Debian `-slim` and no-Alpine rule to images we build, as `core/30-ops.md` does, and credit `check_docker.py`. The job-queue example uses `redis:7-alpine`, matching the doc's own table and the live redis-main. Fleet mail 01M4DA453Y.
+
 ### Changed — a dead mutant is defined once, in the coverage terms (2026-10-08)
 - Queue verdicts reported a `FileNotFoundError` read as a kill, a vitest `-t` filter that selected no test read as green, an equal-size mutant running a stale `.pyc`, and a grep count standing in for proof the mutant was applied. `commands/_fragments/term-coverage.md` rule (4) now says a mutant is dead only when the named test fails on its own assertion or on an exception raised in the mutated code, quoted, after the same command on the unmutated copy selected tests and passed, with `__pycache__` purged, `PYTHONDONTWRITEBYTECODE=1` set, the mutated module's `__file__` printed with output capture off and the mutant shown applied by a diff against the pin. `/fabrik-review`'s finder lessons and Phase 2 point at that rule. Grader: `tests/test_review_loop_workflow.py::test_a_dead_mutant_is_defined_once_and_the_finder_lessons_point_at_it`.
 

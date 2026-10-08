@@ -6,7 +6,7 @@
 > compose template uses pinned, architecture-compatible images, and
 > `fabrik redeploy <name>` reverts via `git reset --hard` on health-check
 > failure (git-sourced) or stays at the last good image (template-sourced)."
-> The container selection criteria (pinned tags, slim-bookworm bases,
+> The container selection criteria (pinned tags, Debian `-slim` bases on `debian_codename` from `.windsurf/rules/versions.yaml` for images we build,
 > registry choice GHCR/JFrog) are unchanged.
 
 How Fabrik selects and uses prebuilt container images for self-hosted services.
@@ -775,7 +775,7 @@ Comprehensive analysis of Docker images that accelerate Fabrik development by re
 | Image | Purpose | Impact |
 |-------|---------|--------|
 | `ghcr.io/browserless/chromium` ✅ | Headless browser farm | Scale Playwright automation |
-| `redis:7-bookworm` ✅ | Job queue | Replace DB polling with proper queue |
+| `redis:7-alpine` ✅ | Job queue | Replace DB polling with proper queue |
 
 ---
 
