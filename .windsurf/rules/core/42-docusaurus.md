@@ -49,7 +49,7 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
 EXPOSE 80
 ```
 
-The stock nginx image already installs `curl` (its own Dockerfile does), so the `HEALTHCHECK` needs no extra layer. Point the health check at a page the build is sure to contain: `/` only when the site has a root page (`src/pages/index`), otherwise a docs page such as `/docs/intro/` — a directory with no `index.html` answers 403, never healthy.
+The stock nginx image already installs `curl` (its own Dockerfile does), so the `HEALTHCHECK` needs no extra layer. Point the health check at a page the build is sure to contain: `/` only when the site has a root page (`src/pages/index`), otherwise a docs page such as `/docs/intro/` — a path with no page answers 404, never healthy.
 
 Docusaurus pre-renders every route to its own HTML file and emits a real `404.html`, so the server looks a path up and answers 404 when nothing matches — never the SPA fallback `try_files … /index.html`, which answers 200 with the landing page for every mistyped URL and, on a site with no root page, loops to a 500. `nginx.conf`:
 
@@ -70,18 +70,24 @@ server {
 
     location /assets/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    location = /404 {
+        internal;
     }
 
     error_page 404 /404.html;
     location = /404.html {
         internal;
+        add_header Cache-Control "no-cache" always;
     }
 }
 ```
 
-The lookup serves every shape Docusaurus writes with no redirect: `docs.html` for `trailingSlash: false`, `docs/intro/index.html` for the default, whether or not the request ends in `/`. It never tests a bare directory, so a directory with no `index.html` answers 404, not 403. `absolute_redirect off` keeps any redirect nginx still issues relative, so it stays on Traefik's https instead of naming `http://`. `gzip_vary` marks compressed responses for any cache placed in front later.
+The lookup serves every shape Docusaurus writes with no redirect: `docs/intro/index.html` for the default, whether or not the request ends in `/`; `docs/intro.html` for `trailingSlash: false`, at its slash-less URL only (Docusaurus's own links never add the `/`). Neither lookup tests a bare directory (`/assets/` looks up `$uri` alone), so a directory with no `index.html` answers 404, not 403, and `location = /404` (internal, like `/404.html`) keeps `/404` from serving `404.html` as a 200. An i18n build's `/<locale>/404.html` is outside these exact matches. `absolute_redirect off` keeps any redirect nginx still issues relative, so it stays on Traefik's https instead of naming `http://`. `gzip_vary` marks compressed responses for any cache placed in front later.
 
-Only `/assets/` is content-hashed by the Docusaurus build, so only `/assets/` gets the year-long immutable cache. Everything else answers `Cache-Control: no-cache`, so the browser revalidates on `ETag`/`Last-Modified`: with no header at all a browser may reuse stale HTML that names chunk hashes the next deploy removed. Each `location` that sets `add_header` replaces every server-level `add_header`, so a security header added later goes in both locations. Compression is on in nginx (it ships `gzip off`), not in Traefik.
+Only `/assets/` is content-hashed by the Docusaurus build, so only `/assets/` gets the year-long immutable cache. Every page answers `Cache-Control: no-cache` — the 404 page too, through `always`, because `add_header` alone skips 4xx responses — so the browser revalidates on `ETag`/`Last-Modified`: with no header at all a browser may reuse stale HTML that names chunk hashes the next deploy removed. Each `location` that sets `add_header` replaces every server-level `add_header`, so a security header added later goes in all three locations, with `always` in `location = /404.html`. Compression is on in nginx (it ships `gzip off`), not in Traefik.
 
 **compose.yaml:**
 

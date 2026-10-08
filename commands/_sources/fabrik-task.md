@@ -88,7 +88,12 @@ nothing; of receipts, only a `--review` one is exempt): *(v2)* a committed path 
 REFUSES `done` at close (v1 measures `--file` instead and only RECORDS); the remedy is
 `step --phase 2 --design-amend <path>` *(v2)*, append-only — it never overwrites a recorded field —
 and counted on the close as `design_amends`.
-MIRROR is mandatory (`CLAUDE.md` § Behavior). The fields
+MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what changes — callers,
+each branch of a changed function, every resolver of the same identity, consumers of a moved or
+deleted file, other surfaces stating a changed claim, the gates that grade it — each found by an
+executed search, with the shape it now fails on and its cost measured, never estimated. A reader
+the build leaves untouched is named without backticks: every backticked MIRROR path counts as
+declared at a *(v2)* close. The fields
 are the D-row's draft: APPROACH+DECISION+MIRROR → *what*, PROBLEM → *why*, the declared files →
 *where*; OUT and TERMINAL stay in the record. ⚠️ A literal `|` is written `&#124;` — a backslash
 escape makes `check_decisions_unique.py` read a 7-cell row.

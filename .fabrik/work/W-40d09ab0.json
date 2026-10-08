@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T04:05:32.424597Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-40d09ab0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4CSZWF03BTZ7NASPWRHY2SV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "dispatch_headroom never sizes or caps the review loop's refuters or its extra class seat (stamp-O1/O2/O4)"
+}

@@ -28,6 +28,7 @@ SOURCES = [
     ROOT / "commands" / "_sources" / "fabrik-plan-review.md",
     ROOT / "commands" / "_sources" / "fabrik-review-scoped.md",
     ROOT / "commands" / "_sources" / "fabrik-deploy-plan-review.md",
+    ROOT / "commands" / "_sources" / "fabrik-execute-plan.md",
     ROOT / "commands" / "_fragments" / "subagents-core.md",
 ]
 BRIEF = ROOT / "commands" / "_agents" / "fabrik-reviewer.md"
@@ -237,12 +238,31 @@ def _run_ledger(args: dict, seat_results: dict) -> tuple[dict, str]:
 
 
 def _harness(
-    args: dict, seat_results: dict, *, expect_fail: bool = False, with_opts: bool = False
+    args: dict,
+    seat_results: dict,
+    *,
+    expect_fail: bool = False,
+    with_opts: bool = False,
+    unpinned: bool = False,
 ) -> tuple:
     """Execute the script's own pipeline under node with the Workflow globals stubbed: `agent` records the
     prompt it was sent and returns the canned result keyed by the call's label (`None` → a null seat),
     `parallel`/`pipeline` run the stages, `log` goes to stderr. Returns the ledger, the log text and the
-    prompts by label."""
+    prompts by label. The script refuses a launch without `pin_manifest`, so one covering the CALL's slice
+    files is injected when the key is absent — tolerating the malformed slices the refusal tests send — and
+    `unpinned=True` deletes the key instead."""
+    if unpinned:
+        args = {k: v for k, v in args.items() if k != "pin_manifest"}
+    elif "pin_manifest" not in args:
+        slices = args.get("slices")
+        files = [
+            f
+            for s in (slices if isinstance(slices, list) else [])
+            if isinstance(s, dict)
+            for f in (s.get("files") if isinstance(s.get("files"), list) else [])
+            if isinstance(f, str)
+        ]
+        args = {**args, "pin_manifest": dict.fromkeys(files, "0" * 32)}
     src = _script().replace("export const meta", "const meta", 1)
     harness = f"""
 globalThis.args = {json.dumps(args)};
@@ -1521,14 +1541,33 @@ def test_workflow_refuses_an_unpinned_slice_before_dispatch() -> None:
     assert "AGENT CALLED" not in err, "a seat ran before the refusal"
 
 
-def test_workflow_labels_an_unpinned_launch() -> None:
-    """COBRA (D-253) on an optional manifest: the cheapest launch skips it, so the omission is SAID — in the log
-    and on the ledger (the pass reader says it on the lead's own path too) — and a pinned launch says nothing."""
+def test_workflow_refuses_a_launch_without_a_pin_manifest() -> None:
+    """D-663's switch, made once every launcher passed the manifest (kaizen e29ffb101): a launch with no
+    `pin_manifest` — absent or null — is refused before any seat runs, naming the verb that writes it; it used to
+    log UNPINNED LAUNCH and run. A pinned launch still returns `pinned: true`."""
+    for args, opt_out in ((_ARGS, True), ({**_ARGS, "pin_manifest": None}, False)):
+        _, err, _ = _harness(args, _QUIET, expect_fail=True, unpinned=opt_out)
+        assert "pin_manifest" in err and "review_loop_ledger.py pin" in err, err[-800:]
+        assert "AGENT CALLED" not in err, "a seat ran before the refusal"
     out, log, _ = _harness(_ARGS, _QUIET)
-    assert out["pinned"] is False and "UNPINNED LAUNCH" in log, (out.get("pinned"), log[-600:])
-    pinned = {**_ARGS, "pin_manifest": {"a.py": "0" * 32, "b.py": "1" * 32}}
-    out, log, _ = _harness(pinned, _QUIET)
     assert out["pinned"] is True and "UNPINNED LAUNCH" not in log, (out.get("pinned"), log[-600:])
+
+
+def test_a_slice_without_a_file_list_is_refused_by_index() -> None:
+    """The manifest check reads every slice's `files` on every launch now, so a slice with no list (or a list of
+    non-strings) is refused by its index before anything runs — never a raw TypeError (Opus critique 6)."""
+    for bad in (
+        {"name": "S"},
+        {"name": "S", "files": "a.py"},
+        {"name": "S", "files": []},
+        {"name": "S", "files": [1]},
+    ):
+        _, err, _ = _harness({**_ARGS, "slices": [bad]}, {}, expect_fail=True, unpinned=True)
+        assert "slices[0].files must be a non-empty list" in err and "TypeError" not in err, (
+            bad,
+            err[-400:],
+        )
+        assert "AGENT CALLED" not in err
 
 
 def test_workflow_base_pin_clause_replaces_git_archive() -> None:
@@ -1546,16 +1585,14 @@ def test_workflow_base_pin_clause_replaces_git_archive() -> None:
     assert "/bp/base" not in plain["find:S:sonnet"] and "chmod -R u+w" not in plain["find:S:sonnet"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="kaizen wires `review_loop_ledger.py pin` into the launchers (01M4CGJZAX); when this passes, make "
-    "pin_manifest mandatory in fabrik-review-loop.js and drop this mark",
-)
 def test_every_launcher_passes_a_pin_manifest() -> None:
-    """The counter-measure on an OPTIONAL manifest (D-253): it stays optional only while the launchers build their
-    pins by hand. The day every launcher names `pin_manifest`, this strict xfail turns red and forces the switch."""
-    missing = [s.name for s in SOURCES if "pin_manifest" not in s.read_text(encoding="utf-8")]
-    assert not missing, f"launchers that do not pass pin_manifest: {missing}"
+    """Every launcher names `pin_manifest` beside `pins_dir` where it lists the args (kaizen, answering intel
+    01M4CS09BB). A text check proves the two names sit together, not that a launch passes the manifest: the
+    launch-time refusal in fabrik-review-loop.js is that guard, intel's half. This was a strict xfail until every
+    launcher named it."""
+    beside = re.compile(r"pins_dir`?,\s*`?pin_manifest")
+    missing = [s.name for s in SOURCES if not beside.search(s.read_text(encoding="utf-8"))]
+    assert not missing, f"launchers whose args do not pass pin_manifest beside pins_dir: {missing}"
 
 
 def test_an_empty_slice_list_is_refused_before_it_can_read_as_closable() -> None:
@@ -1569,3 +1606,53 @@ def test_an_empty_slice_list_is_refused_before_it_can_read_as_closable() -> None
     for bad in ([None], [42], [["a.py"]]):
         _, err, _ = _harness({**_ARGS, "slices": bad}, {}, expect_fail=True)
         assert "slices[0] must be an object" in err and "TypeError" not in err, (bad, err[-400:])
+
+
+def test_a_slice_file_matches_its_pin_under_the_normalisation_pin_uses() -> None:
+    """Review A-S1: `pin` keys each path by os.path.normpath, while the script stripped only a leading `./`, so a
+    slice file typed `a/./b.py` was refused although pinned as `a/b.py` — a hard stop once the manifest became
+    required. The script normalises both sides the same way."""
+    for typed in ("a/./b.py", "a//b.py", "x/../a/b.py", "./a/b.py"):
+        args = {
+            **_ARGS,
+            "slices": [{"name": "S", "files": [typed]}],
+            "pin_manifest": {"a/b.py": "0" * 32},
+        }
+        out, _, _ = _harness(args, {})
+        assert out["pinned"] is True, typed
+    args = {
+        **_ARGS,
+        "slices": [{"name": "S", "files": ["a/../../b.py"]}],
+        "pin_manifest": {"b.py": "0" * 32},
+    }
+    _, err, _ = _harness(args, {}, expect_fail=True)
+    assert "holds no pin for S:a/../../b.py" in err, err[-400:]
+
+
+def test_every_manifest_refusal_names_the_pin_command() -> None:
+    """Review A-S2: a falsy non-null manifest (`false`, `0`, `""`) took the shape refusal, which did not say how to
+    build one; every manifest refusal now carries the same how-to as the absent case."""
+    for bad in (False, 0, "", [], {"a.py": "nope"}):
+        _, err, _ = _harness({**_ARGS, "pin_manifest": bad}, _QUIET, expect_fail=True)
+        assert "review_loop_ledger.py pin --pins-dir" in err and "AGENT CALLED" not in err, (
+            bad,
+            err[-400:],
+        )
+
+
+def test_a_matched_slice_file_is_handed_to_the_seats_as_pin_named_it() -> None:
+    """Review A-S4: a spelling that matches its pin only after normalisation (`//a/b.py`, `/a/b.py`, `x/../a/b.py`)
+    was still handed to the seats raw, so a seat read `<pins_dir>/x/../a/b.py` — a path that needs `x` to exist —
+    instead of the pin. A matched slice file is rewritten to the manifest's form before any prompt is built."""
+    for typed in ("//a/b.py", "/a/b.py", "x/../a/b.py"):
+        args = {
+            **_ARGS,
+            "slices": [{"name": "S", "files": [typed]}],
+            "pin_manifest": {"a/b.py": "0" * 32},
+        }
+        out, _, prompts = _harness(args, {})
+        assert out["slices"][0]["files"] == ["a/b.py"], (typed, out["slices"][0]["files"])
+        assert (
+            "/p/a/b.py" in prompts["find:S:sonnet"]
+            and f"/p/{typed}" not in prompts["find:S:sonnet"]
+        ), typed

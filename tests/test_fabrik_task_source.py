@@ -7,7 +7,8 @@ ticket T03 Behavior Contract), plus (T07, plan 2026-10-02-plan-1) the Revision-2
 1. SIZE + INCLUDES — the source is at most `SIZE_CAP` bytes (D-296 raised it to 8980 above C2's
    original 8,847; T07 raises it again to 11672 for D3/D6/D7/D8's required prose plus the v1/v2
    scope tags and the O7 fix review round 1 found missing — D-501; D-657 raises it to 11974 for
-   phase 2's path-naming rule, see the comment above `SIZE_CAP`) and its only `{{include:}}` is
+   phase 2's path-naming rule; D-675 to 12439 for its MIRROR rule, see the comments above `SIZE_CAP`)
+   and its only `{{include:}}` is
    `run-record`. The include half
    is C2's cobra counter (cobra 8): the cheapest way to satisfy a source-byte cap is to move the
    prose into a fragment, so a second include is refused whatever the byte count says.
@@ -62,7 +63,10 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # bare repo-relative path per backtick pair, a field ends at a field-word or `#` line, tests/deletions/renames
 # included, only the --review receipt exempt — ~15 feedback rows), after retiring phase 5's
 # restatement of the same rule.
-SIZE_CAP = 11974
+# D-675 (kaizen, 2026-10-08): 11974 -> 12439 for phase 2's MIRROR rule (every reader of what changes,
+# found by an executed search, its failing shape and measured cost; untouched readers unbackticked —
+# 7 feedback rows).
+SIZE_CAP = 12439
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -454,9 +458,22 @@ def test_design_note_names_behaviours_cap_and_the_design_amend_remedy() -> None:
         "the remedy is `step --phase 2 --design-amend <path>` *(v2)*, append-only — it never "
         "overwrites a recorded field — and counted on the close as `design_amends`."
     )
+    mirror = (
+        "MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what changes — "
+        "callers, each branch of a changed function, every resolver of the same identity, "
+        "consumers of a moved or deleted file, other surfaces stating a changed claim, the gates "
+        "that grade it — each found by an executed search, with the shape it now fails on and its "
+        "cost measured, never estimated."
+    )
+    untouched = (
+        "A reader the build leaves untouched is named without backticks: every backticked MIRROR "
+        "path counts as declared at a *(v2)* close."
+    )
     for sentence, why in (
         (cap_refuse, "the Behaviours cap / v2 REFUSAL"),
         (amend, "the --design-amend remedy"),
+        (mirror, "the MIRROR reader rule (D-675)"),
+        (untouched, "the unbackticked-reader rule (D-675)"),
     ):
         _assert_governs(text, sentence, why)
 

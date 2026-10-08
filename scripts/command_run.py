@@ -2128,7 +2128,8 @@ _ASSISTANT_RE = re.compile(rb'"type"\s*:\s*"assistant"')
 # seat's LAST turn only (`toolUseResult.usage` == one message; 251 of 251 checked against the seat's
 # own file, median 10x under), a background seat's completion notice repeats that number, and a
 # background LAUNCH carries no usage at all (630 of 631 seat lines since 2026-09-01). The whole seat
-# lives in its own transcript — `<transcript dir>/<sid>/subagents/agent-<id>.jsonl`, assistant lines
+# lives in its own transcript — `<transcript dir>/<sid>/subagents/agent-<id>.jsonl` (a Workflow seat one
+# level down, `subagents/workflows/wf_<id>/`), assistant lines
 # in the parent's per-message shape — so that is what is summed (review 2026-09-08, the Opus seat:
 # the parent-line sum saw 0 of the 40 seats run that day).
 _TOKEN_KEYS = (
@@ -2220,10 +2221,17 @@ def _seat_last_epoch(q: Path) -> float | str:
 
 def _seat_transcripts(path: Path, lo: float) -> list[Path]:
     """The per-seat transcripts under the parent's `<sid>/subagents/`, touched since the window
-    opened (an mtime prefilter — the window itself is applied per line)."""
+    opened (an mtime prefilter — the window itself is applied per line). RECURSIVE: an Agent-tool
+    seat writes `subagents/agent-<id>.jsonl`, a Workflow-tool seat one level down in
+    `subagents/workflows/wf_<id>/` — a top-level glob read every review-loop close as seen 0
+    (kaizen 01M4D35GZ9). Every file is a seat: no dedupe — a seat written at two paths would count
+    twice, measured 0 duplicate seat names in 5,479 transcripts, and a name or content key cost
+    more than it guarded (review rounds 1-2: a name key dropped distinct seats, a byte compare
+    double-counted on a read error). A subdirectory rglob cannot read is skipped silently, which
+    loses only that directory's seats, never the others."""
     d = path.parent / path.stem / "subagents"
     try:
-        found = list(d.glob("agent-*.jsonl"))
+        found = list(d.rglob("agent-*.jsonl"))
     except OSError:
         return []
     out: list[Path] = []

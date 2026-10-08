@@ -260,7 +260,9 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    review) and the full round below runs ONCE at Finish over the whole-plan diff — the rest of this item
    binds unchanged.** Otherwise, at each phase boundary, run the full `/fabrik-review` on the changed surface
    *plus everything it calls / is called by* — ITS loop, never a restatement of it: partitioned by
-   file, two cheap finders per slice and one refuter per slice in ONE `Workflow` call per pass
+   file, two cheap finders per slice and one refuter per slice in ONE `Workflow` call per pass, its args
+   carrying the fragment `review_loop_ledger.py pin` printed, as printed (`pins_dir`, `pin_manifest`, `digest`,
+   and `base_pin_dir` with `--base`)
    (`<repo root>/.claude/workflows/fabrik-review-loop.js` — `<repo root>` is the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached) the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) notes `shape: agent-tool`), every later pass the round-1 seats over their own slice ledgers
    (D-335, D-344); a phase diff touching auth / schema / migrations / secrets / concurrency names it as its
    slice's hunt priority and that slice adds a native Opus finder (`models: ["sonnet", "haiku", "opus"]`). You adjudicate and **prove-before-fix** each confirmed finding with a kept regression

@@ -23,6 +23,32 @@ the landing page), pages carry `Cache-Control: no-cache`, gzip adds `gzip_vary` 
 scaffold ships the pack's block verbatim, and the opt-in real-image test (`test_real_build_serves_the_static_site`) expects
 the build's 404 page and no redirect, and passed against a real build. W-3860ebf6 part 1.
 
+### Fixed — the docusaurus pack's nginx block answers every missing path with 404 and no-cache (2026-10-08)
+- `.windsurf/rules/core/42-docusaurus.md`: an `/assets/` directory answered 403, GET `/404` served the 404 page as a 200, and every 404 carried no Cache-Control (`add_header` skips 4xx). The block now adds `try_files $uri =404;` in `/assets/`, `location = /404 { internal; }`, and `add_header Cache-Control "no-cache" always;` on the 404 page. Executed in nginx:mainline-trixie: every missing path answers 404 with the build's 404.html and no-cache, while hashed assets keep the immutable cache. The prose is corrected sentence by sentence (403 claims, the `trailingSlash: false` shape, security headers in all three locations, i18n 404 pages).
+- Graders in `tests/test_docusaurus_pack.py`. Fleet mail 01M4D7K84A; review `docs/development/reviews/2026-10-08-docusaurus-nginx-404-review.md`.
+
+### Changed — `/fabrik-task` phase 2 says what MIRROR must list (2026-10-08)
+- Phase 2 said only "MIRROR is mandatory"; seven queue verdicts asked for a reader kind their run missed, a claim executed rather than inferred, or a cost measured rather than estimated. MIRROR now names every reader of what changes, each found by an executed search with its failing shape and measured cost, and readers the build leaves untouched go unbackticked, since at v2 a backticked MIRROR path counts as declared at close. The source size cap rises 11974 → 12439 B (D-675).
+
+### Changed — design critiques run before the build and are adjudicated once both are in (2026-10-08)
+- The `design-critique` fragment (included by `/fabrik-task` and four design-review commands) said to dispatch the two critiques before `step --design` records the design, and `/fabrik-task` queue verdicts reported test files written before the critiques reshaped the design and dispositions folded before the second seat returned. It now says the critiques go out before phase 3 builds anything, and that every concern is adjudicated once both critiques are in hand (the stand-in Opus seat's when Fable failed, the re-dispatched seat's when one came back empty).
+
+### Fixed — review wording for the required pin manifest and the by-design owner shape (2026-10-08)
+- `term-edit.md`'s verdict grammar advertised `RECORDED — by design (I#, round k)`, an owner `check_review_coverage.py` refuses; it now names `(F#, round k)` (the owning row's F-id or its review-loop id, e.g. `A-S1`). `/fabrik-execute-plan`'s per-phase review launch now passes the args fragment `review_loop_ledger.py pin` printed, as printed, and the launcher test reads it. The `subagents-core` PIN paragraph and `/fabrik-review-scoped` step 5 say a file `pin` refuses is not a slice file and is reviewed through its callers. Reported by intel (01M4D7C2Z9, 01M4D8FAK2) as `pin_manifest` becomes mandatory.
+
+### Fixed — command_run counts Workflow-launched seats (2026-10-08)
+- `scripts/command_run.py::_seat_transcripts` reads `<sid>/subagents/` recursively. A Workflow-tool seat writes `subagents/workflows/wf_<id>/agent-<id>.jsonl`, which the top-level glob never saw. As a result, every review-loop close printed "seats declared N vs seen 0", recorded seats_seen 0 and dropped those seats' tokens from its FEEDBACK line, and the no-round nudge missed them too. 35% of one session's seat transcripts sat at that depth. Every file is a seat: no dedupe (0 duplicate seat names measured).
+- `docs/reference/command-run-protocol.md` and `.windsurf/rules/core/62-using-subagents.md` name the Workflow depth. Grader in `tests/test_command_feedback.py`. Kaizen mail 01M4D35GZ9; review `docs/development/reviews/2026-10-08-seats-seen-rglob-review.md`.
+
+### Changed — the review-loop workflow refuses a launch without a pin manifest (2026-10-08)
+
+- `.claude/workflows/fabrik-review-loop.js` now requires `pin_manifest` (D-663's switch, made once every launcher passed it): an absent or null manifest is refused before any seat runs with the `pin` command named, slice files are normalised as `pin` keys them and handed to the seats in that form (D-673). Receipt: `docs/development/reviews/2026-10-08-review-loop-mandatory-pin-manifest-review.md`.
+
+### Fixed — check_frozen_chain reads a split Status/Version header (2026-10-08)
+- `scripts/enforcement/check_frozen_chain.py`: a contract whose `Status:` and `Version:` sit on separate header lines (bold or plain labels, `v` optional) now registers its version. Before, every pin against it was skipped and a stale one passed silently. 10 of 36 chain docs on the box split them; 9 now register, 0 change value. The version token refuses `v5a`, `v6.12` and `2026-10-05`. On the Status line, the Version must be a field, never a mention in prose. The body-prose sweep matches filenames by equality, not substring.
+- Newly visible stale pins: tryton-crm `docs/ui-design.md` (data-contract v43, at v44) and brand-identiy-creator `docs/ui-design.md` (data-contract at v33).
+- Graders in `tests/enforcement/test_check_frozen_chain.py`. Site-provisioner mail 01M4CXK4KB; review `docs/development/reviews/2026-10-08-frozen-chain-split-header-review.md`.
+
 ### Fixed — the /opt project catalog: a null category, a scalar project.yaml, pipes and non-link URLs (2026-10-08)
 
 `scripts/sync_projects.py` now auto-categorizes a project whose `category:` is empty, no longer aborts the whole scan on a
@@ -38,6 +64,18 @@ still holding a frozen pre-2026-07-11 copy in `docs/BUSINESS_MODEL.md` were aske
 - `scripts/enforcement/check_convergence.py`: a cited scope-growth close is credited only for a pre-ruling receipt.
 - `scripts/command_run.py`: both SCOPE GROWTH verdicts now say to close on a confirmed-zero round. `scripts/task_lane.py`'s Status refusal text matches.
 - Graders in `tests/test_check_review_coverage_scope_growth.py`, `tests/test_check_convergence.py`, `tests/test_command_run.py`, `tests/test_task_lane_receipt.py` and `tests/test_task_lane_review_stop.py`. Kaizen mail 01M4CPWDK0; review `docs/development/reviews/2026-10-08-d355-scope-growth-close-review.md`.
+
+### Changed — /fabrik-review-scoped: a seat that is still out, failed, or left candidates unverified (2026-10-08)
+- Step 5 said nothing about a seat that had not returned, and queue verdicts reported rounds recorded over one, a dead seat's slice counted as read, and no rule for a refuter that returned nothing. It now says a seat still out is open (`read` prints `NO RESULT` for it too): wait or re-dispatch, never close over it; a finder the `Workflow` call's own ledger marks failed (`seats[].failed`), or an Agent-tool seat that errored or brought no report, is re-dispatched or its slice read by the lead, and a round recorded that way is never the closing round (term-coverage.md); and every candidate a refuter left `unverified` or never reached is the lead's to execute, or to record `RECORDED — unexecuted (<why>)` for the next round, before the round is recorded.
+
+### Changed — /fabrik-review-scoped: an own-fix count is evidenced, never asserted (2026-10-08)
+- Step 4's `--own-fix` count decides the scope-growth stop, and calling an original-surface defect own-fix both trips that stop sooner and buys the backlog exit. The term fragments bound this ("own-fix is EVIDENCED, never asserted"); `/fabrik-review-scoped`, which keeps no receipt, did not. Step 4 now says each counted defect names the round whose fix hunk holds its line or created the contradiction it reports (`own-fix: round k`), shown by diffing that round's pin against the next pass's pin, in the report and the close's `--evidence`, and that any other defect is never own-fix.
+
+### Changed — /fabrik-review-scoped: a remainder-round own-fix defect stays out of `--confirmed` (2026-10-08)
+- Step 5 said a further own-fix defect a remainder round raises is RECORDED onto the routed backlog row, and queue verdicts asked what that does to the round's counter. It now says the defect stays out of that round's `--confirmed`, as the term fragments rule for every RECORDED candidate, so a remainder round that only records reads confirmed zero.
+
+### Changed — the review launchers pin through `review_loop_ledger.py pin` (2026-10-08)
+- The `subagents-core` PIN paragraph, `/fabrik-review-scoped` step 5 and the launch text of `/fabrik-review`, `-spec-review`, `-plan-review`, `-repo-review` and `-deploy-plan-review` built their pins by hand (`md5sum` then `cp --parents`, with two different manifest paths). They now run `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir> <files>` (D-663), pass the `pins_dir`, `pin_manifest` and `digest` it prints into the `Workflow` args, and read each pass with `review_loop_ledger.py read … --pins <pins_dir>` (or check `<pins_dir>/MANIFEST.md5` from the repo root for the live files and from inside the pins dir for the copies). `/fabrik-review` also says that when `dispatch_headroom.py` prints TRIMMED the slices' `models` together use exactly the seats its COST line funds. `test_every_launcher_passes_a_pin_manifest` is no longer a strict xfail and now requires `pin_manifest` beside `pins_dir`. Asked for by intel (01M4CS09BB, 01M4CV19C3).
 
 ### Fixed — the review fragments state the D-355 close for the scope-growth stop (2026-10-08)
 - Six sentences in `commands/_fragments/term-edit.md`, `scope-growth-exit.md`, `term-coverage.md` and `commands/_sources/fabrik-review-scoped.md` still described the scope-growth stop as a non-quiet exit ("converge on the ORIGINAL delta", "close on the ORIGINAL delta's state", counted among "exactly THREE" non-quiet stops). D-355 closes every review only on a confirmed-zero round, so each now says the stop ends the HUNT and the close stays a `confirmed: 0 · fixed: 0 · unexecuted: 0` round; term-edit's stop count is TWO. Reported by infra (01M4CXVZ1F, 01M4CY4B50).
@@ -65,6 +103,10 @@ still holding a frozen pre-2026-07-11 copy in `docs/BUSINESS_MODEL.md` were aske
 
 ### Changed — the review family's Persist step names the receipt skeleton (2026-10-08)
 - `commands/_fragments/term-coverage.md` obligation 3 (rendered into /fabrik-review, /fabrik-repo-review, /fabrik-conformance-review, /fabrik-service-test, /fabrik-user-test) told reviewers to create the receipt "with the Coverage Checklist skeleton" but named no tool, so they hand-built standing rows, grouped Hunt rows and missed the `## Phase` heading the gate keys on. It now says that in `/fabrik-review`, the one diff-surface consumer, `review_receipt.py --init --changed … --scope …` writes it, with `--range <base>..HEAD` for committed work. The skeleton pastes the rubric and carries per-path Hunt rows, the standing rows, the ledger and the Phase and Gate sections, and the reviewer adds the rubric's class rows. That skeleton has existed since 2026-09-06, but the command named it only in § Reporting, far below. Answers 10 /fabrik-review feedback verdicts (kaizen).
+
+### Fixed — a review-loop finding id can own a by-design verdict, and no row licenses itself (2026-10-08)
+
+- `scripts/enforcement/check_review_coverage.py` refused every review-loop id (`A-S1`, `T09R-O15`, `rule-grammar-S1`) as a `RECORDED — by design` owner; the shape is now admitted, the citing row is excluded from the owner lookup, and the lookup reads each line once (W-528f123e, D-670). Receipt: `docs/development/reviews/2026-10-08-review-coverage-loop-owner-ids-review.md`.
 
 ### Added — read --pins names a seat's stray write into the live tree (2026-10-08)
 

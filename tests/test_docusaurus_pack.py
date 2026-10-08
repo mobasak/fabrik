@@ -95,7 +95,9 @@ def test_command_sources_name_no_codename_the_registry_left() -> None:
     for src in (SPEC_CMD, SPEC_CMD.with_name("fabrik-vision.md")):
         for stale in debian.findall(src.read_text(encoding="utf-8")):
             assert stale.lower() == codename, f"{src.name}: {stale}"
-    spec_line = next(ln for ln in SPEC_CMD.read_text(encoding="utf-8").splitlines() if "No Alpine" in ln)
+    spec_line = next(
+        ln for ln in SPEC_CMD.read_text(encoding="utf-8").splitlines() if "No Alpine" in ln
+    )
     assert "debian_codename" in spec_line, spec_line
 
 
@@ -103,3 +105,32 @@ def test_check_docker_carries_no_dead_base_list_or_stale_codename() -> None:
     text = CHECK_DOCKER.read_text(encoding="utf-8")
     assert "APPROVED_BASES" not in text
     assert "bookworm" not in text
+
+
+def _nginx_block() -> str:
+    text = _pack()
+    start = text.index("server {\n")
+    return text[start : text.index("\n}\n", start) + 2]
+
+
+def _location(block: str, head: str) -> str:
+    i = block.index(head)
+    return block[i : block.index("}", i)]
+
+
+def test_every_404_shape_answers_404_with_no_cache() -> None:
+    """Executed in nginx:mainline-trixie (fleet 01M4D7K84A): an /assets/ directory answered 403,
+    GET /404 served 404.html as a 200, and every 404 carried no Cache-Control — `add_header`
+    alone skips 4xx. Each closing directive is pinned in its own location."""
+    block = _nginx_block()
+    assert "try_files $uri =404;" in _location(block, "location /assets/ {")
+    assert "internal;" in _location(block, "location = /404 {")
+    assert "return " not in block  # a 404 is answered only by the build's 404 page
+    page = _location(block, "location = /404.html {")
+    assert "internal;" in page and 'add_header Cache-Control "no-cache" always;' in page
+
+
+def test_the_prose_names_no_403_for_a_missing_page() -> None:
+    """Under this block a path with no page answers 404 everywhere; the prose said 403 twice."""
+    for line in _pack().splitlines():
+        assert not re.search(r"answers 403(?!,? never)", line), line

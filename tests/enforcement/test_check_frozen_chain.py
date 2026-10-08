@@ -416,3 +416,104 @@ def test_a_word_containing_a_stem_does_not_stop_the_scan() -> None:
     assert _pin_of("> Built on `docs/data-contract.md` across workflows v6 total") == {
         "data-contract.md": 6
     }
+
+
+# site-provisioner 01M4CXK4KB: a header that puts **Status:** and **Version:** on separate lines
+# registered NO version, so every pin against that file was skipped and a stale one passed.
+def _write_split(root: Path, rel: str, status: str, version: str) -> None:
+    p = root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(
+        f"# Contract\n\n**Status:** {status}\n**Version:** {version}\n**Date:** 2026-10-08\n"
+        "\n## Body\n",
+        encoding="utf-8",
+    )
+
+
+def test_a_split_status_version_header_registers_its_version(tmp_path: Path) -> None:
+    _write_split(tmp_path, "docs/data-contract.md", "FROZEN", "v2")
+    assert c._self_version((tmp_path / "docs/data-contract.md").read_text()) == ("FROZEN", 2)
+    _write(
+        tmp_path,
+        "docs/ui-design.md",
+        "FROZEN",
+        3,
+        "> Binding inputs: the FROZEN `data-contract.md` **v1**",
+    )
+    findings = c.check_chain(tmp_path)
+    assert len(findings) == 1, findings
+    assert "pins data-contract.md@v1" in findings[0]
+
+
+def test_a_bare_number_version_registers(tmp_path: Path) -> None:
+    _write_split(tmp_path, "docs/flows.md", "FROZEN", "1")
+    assert c._self_version((tmp_path / "docs/flows.md").read_text()) == ("FROZEN", 1)
+
+
+def test_an_unpaired_header_still_registers_nothing() -> None:
+    version_first = "# T\n**Version:** v3\n**Status:** FROZEN\n\n## Body\n"
+    no_version = "# T\n**Status:** FROZEN\n**Date:** 2026-10-08\n\n## Body\n"
+    beyond_five = "# T\n\n**Status:** FROZEN\n\n\n\n**Version:** v4\n## Body\n"
+    across_heading = "**Status:** FROZEN\n\n## History\n**Version:** v9\n"
+    for text in (version_first, no_version, beyond_five, across_heading):
+        assert c._self_version(text) is None, text
+
+
+def test_a_plain_label_split_header_registers_its_version(tmp_path: Path) -> None:
+    """`Status: FROZEN` / `Version: v33` — the unbolded form the freeze commands prescribe."""
+    text = "# Contract\n\nStatus: FROZEN\nVersion: v33 (2026-10-07)\n\n## Body\n"
+    assert c._self_version(text) == ("FROZEN", 33)
+
+
+def test_a_mentioned_version_is_never_read_as_the_docs_own() -> None:
+    """Only a line that OPENS with the Version label pairs with a Version-less Status line; a pin
+    or history note that mentions one is not the doc's own version (design critiques, Opus 1)."""
+    pin_first = (
+        "**Status:** FROZEN\n**Design system:** see **Version:** v3 of data-contract\n"
+        "**Version:** v7\n\n## Body\n"
+    )
+    assert c._self_version(pin_first) == ("FROZEN", 7)
+
+
+def test_a_dated_or_dotted_version_reads_nothing() -> None:
+    """`2026-10-05` and `v6.12` are not integer versions; reading them as 2026 or 6 would warn
+    every consumer pin falsely."""
+    for token in ("2026-10-05", "v6.12"):
+        text = f"**Status:** FROZEN\n**Version:** {token}\n\n## Body\n"
+        assert c._self_version(text) is None, token
+        assert c._self_version(f"**Status:** FROZEN · **Version:** {token}\n") is None, token
+    # punctuation that does not continue the number keeps the integer version
+    for token in ("v5.", "v5,", "v5)", "v5-final", "v5 —"):
+        assert c._self_version(f"**Status:** FROZEN · **Version:** {token}\n") == ("FROZEN", 5), (
+            token
+        )
+
+
+def test_a_mention_on_the_status_line_is_not_the_version_field() -> None:
+    """On the Status line the Version is a FIELD — right after the Status or after a `·`/`|`
+    separator — never a mention mid-prose (review A-S1)."""
+    line = (
+        "**Status:** FROZEN · see data-contract.md **Version:** v3 for details · **Version:** v8\n"
+    )
+    assert c._self_version(line) == ("FROZEN", 8)
+    assert c._self_version("**Status:** FROZEN **Version:** v4\n") == ("FROZEN", 4)
+    assert c._self_version("**Status:** FROZEN | **Version:** v6 | x\n") == ("FROZEN", 6)
+
+
+def test_a_letter_suffixed_version_reads_nothing() -> None:
+    """`v5a` is not version 5 (review A-S3)."""
+    assert c._self_version("**Status:** FROZEN · **Version:** v5a (hotfix)\n") is None
+
+
+def test_body_prose_naming_a_shorter_filename_is_not_a_chain_pin(tmp_path: Path) -> None:
+    """`contract.md` is a substring of `data-contract.md`, not the same file — the body sweep
+    compares names by equality (review A-S2)."""
+    _write(tmp_path, "docs/data-contract.md", "FROZEN", 6)
+    p = tmp_path / "docs" / "ui-design.md"
+    p.write_text(
+        "> **Status:** FROZEN  ·  **Version:** v2\n"
+        "> Binding inputs: the FROZEN `data-contract.md` **v6**\n"
+        "\n## Rules\n\nBanned: any field not named in contract.md **v4**.\n",
+        encoding="utf-8",
+    )
+    assert c.check_chain(tmp_path) == []
