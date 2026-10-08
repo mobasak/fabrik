@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "review-loop workflow: two refute:AUDIT seats ran 3 and 9 min and returned NO RESULT; the pass still reported closable:false with 0 verdicts and nothing re-dispatched them"
 }

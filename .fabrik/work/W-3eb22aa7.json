@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:04:59.272551Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-3eb22aa7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DST0Z8CYFEYVK7BANBKEBS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "'the round-1 seat' in term-edit/term-coverage needs its dispatch shape named — a resumed agent cannot hand back twice (W-11b76a87, tryton-crm 01M40S44MC)"
+}
