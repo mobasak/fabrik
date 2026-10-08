@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — check_doc_index flags a doc indexed only by a shared basename (advisory until the flip) (2026-10-08)
+
+- `scripts/enforcement/check_doc_index.py` no longer lets a basename shared with another Markdown file index a doc silently: the doc gets an advisory line naming the namesakes (27 docs in 19 repos on 2026-10-08), blocking after the fleet indexes (W-84088533, D-686). The hub's 5 such docs are indexed by path. Receipt: `docs/development/reviews/2026-10-08-doc-index-shared-basename-review.md`.
+
 ### Changed — the citations check grades resolvable bare filenames and a named doc (2026-10-08)
 
 - `scripts/enforcement/check_citations_resolve.py` grades a bare `tool.py:43` when it names one tracked file outside the root, templates/ and the command sources; `--doc <path>` grades a pinned or out-of-glob artifact and lists it; a run that graded none never ticks green, quiet or not (W-191404c0, D-682). Receipt: `docs/development/reviews/2026-10-08-citations-bare-basenames-review.md`.
