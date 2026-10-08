@@ -1546,16 +1546,14 @@ def test_workflow_base_pin_clause_replaces_git_archive() -> None:
     assert "/bp/base" not in plain["find:S:sonnet"] and "chmod -R u+w" not in plain["find:S:sonnet"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="kaizen wires `review_loop_ledger.py pin` into the launchers (01M4CGJZAX); when this passes, make "
-    "pin_manifest mandatory in fabrik-review-loop.js and drop this mark",
-)
 def test_every_launcher_passes_a_pin_manifest() -> None:
-    """The counter-measure on an OPTIONAL manifest (D-253): it stays optional only while the launchers build their
-    pins by hand. The day every launcher names `pin_manifest`, this strict xfail turns red and forces the switch."""
-    missing = [s.name for s in SOURCES if "pin_manifest" not in s.read_text(encoding="utf-8")]
-    assert not missing, f"launchers that do not pass pin_manifest: {missing}"
+    """Every launcher names `pin_manifest` beside `pins_dir` where it lists the args (kaizen, answering intel
+    01M4CS09BB). A text check proves the two names sit together, not that a launch passes the manifest: the
+    launch-time refusal in fabrik-review-loop.js is that guard, intel's half. This was a strict xfail until every
+    launcher named it."""
+    beside = re.compile(r"pins_dir`?,\s*`?pin_manifest")
+    missing = [s.name for s in SOURCES if not beside.search(s.read_text(encoding="utf-8"))]
+    assert not missing, f"launchers whose args do not pass pin_manifest beside pins_dir: {missing}"
 
 
 def test_an_empty_slice_list_is_refused_before_it_can_read_as_closable() -> None:
