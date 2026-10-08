@@ -1474,6 +1474,11 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
     # base for imports — the remedy names TMPDIR and says that line only reads
     assert "set HOME, TMPDIR and the module's path constants to SCRATCH first" in iso
     assert "only READS the real user base" in iso
+    # review A-S3 (pass 2, own-fix: round 1): the rule names TMPDIR, so both recipes it sits beside set it
+    for name in ("const PIN_IMPORT = ", "const PYTEST_PINS = "):
+        start = src.index(name)
+        body = src[start : src.index("\n", start)]
+        assert 'os.environ["TMPDIR"]="SCRATCH/tmp"' in body, name
 
 
 def test_fabrik_review_lessons_carry_the_leak_check() -> None:
