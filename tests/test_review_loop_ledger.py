@@ -524,3 +524,25 @@ def test_read_says_when_pins_were_not_checked(tmp_path: Path) -> None:
     unp = _tool_in(tmp_path, "read", str(run), "--out", str(out), "--pins", str(empty))
     assert unp.returncode == 0 and "UNPINNED" in unp.stdout, unp.stdout
     assert json.loads(out.read_text())["pins"]["status"] == "unpinned"
+
+
+def test_pin_base_skips_an_absolute_link_and_names_it(tmp_path: Path) -> None:
+    """The hub itself tracks an absolute symlink (`vault`): the safe extract refuses it, and the first dogfood run
+    of `pin --base` on the hub died with a traceback and a half-extracted 94 MB base. Such a member is SKIPPED and
+    named; the rest of the base lands."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    (repo / "vault").symlink_to("/etc/hostname")
+    subprocess.run(["git", "add", "vault"], cwd=repo, check=True, env=_VCS_ENV, capture_output=True)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "link"],
+        cwd=repo,
+        check=True,
+        env=_VCS_ENV,
+        capture_output=True,
+    )
+    got = _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py")
+    assert got.returncode == 0, got.stderr
+    frag = json.loads(got.stdout.splitlines()[-1])
+    assert frag["base_skipped"] == ["vault"] and "SKIPPED vault" in got.stdout, (frag, got.stdout)
+    assert (Path(frag["base_pin_dir"]) / "a.py").is_file()
+    assert not (Path(frag["base_pin_dir"]) / "vault").exists()

@@ -378,13 +378,32 @@ def pin(
     _lock_tree(pins_dir)
     if base:
         base_dir.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory() as tmp:
-            tar = Path(tmp) / "base.tar"
-            _vcs(root, "archive", "-o", str(tar), base)  # the COMMITTED bytes, never the working tree's
-            with tarfile.open(tar) as t:
-                t.extractall(base_dir, filter="data")
+        # a member the "data" filter refuses — an absolute or escaping symlink, a device: the hub itself tracks
+        # `vault -> /…` — is SKIPPED and named, never fatal (dogfooding this verb on the hub died on it with a
+        # traceback and a half-extracted 94 MB base)
+        skipped: list[str] = []
+
+        def _keep(member: tarfile.TarInfo, path: str) -> tarfile.TarInfo | None:
+            try:
+                return tarfile.data_filter(member, path)
+            except tarfile.FilterError:
+                skipped.append(member.name)
+                return None
+
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                tar = Path(tmp) / "base.tar"
+                _vcs(root, "archive", "-o", str(tar), base)  # the COMMITTED bytes, never the working tree's
+                with tarfile.open(tar) as t:
+                    t.extractall(base_dir, filter=_keep)
+        except (OSError, tarfile.TarError, subprocess.CalledProcessError) as exc:
+            # never leave a half-extracted base, or the pins written beside it, for the lead to hand to a seat
+            _unlock_and_remove(base_dir)
+            _unlock_and_remove(pins_dir)
+            raise PinError(f"cannot extract base {base} into {base_dir}: {exc}") from exc
         _lock_tree(base_dir)
         frag["base_pin_dir"] = str(base_dir)
+        frag["base_skipped"] = skipped
     return frag, dirty
 
 
@@ -473,6 +492,8 @@ def main(argv: list[str] | None = None) -> int:
             frag, dirty = pin(a.files, pins, Path.cwd(), ref=a.ref, base=a.base, replace=a.replace)
             for f in dirty:
                 print(f"DIRTY {f} — the pin is the working tree's bytes, not HEAD's (pass --from <sha> for a commit)")
+            for f in frag.get("base_skipped", []):
+                print(f"SKIPPED {f} — the base tree leaves out a member the safe extract refuses (an absolute link)")
             print(json.dumps(frag, ensure_ascii=False))
         elif a.cmd == "read":
             doc = read_run(a.run, a.box)
