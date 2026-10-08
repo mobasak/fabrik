@@ -1,14 +1,14 @@
 {
   "blocked_by": [],
-  "created": "2026-10-08T03:32:03.749995Z",
+  "created": "2026-10-08T04:05:32.273032Z",
   "creator": "intel",
   "evidence": "",
-  "id": "W-bc065702",
+  "id": "W-c24959e3",
   "kind": "mail",
   "legacy": false,
   "links": {
     "decision": "",
-    "mail": "01M4CJKZRH4S0K584FSH2PZR7T",
+    "mail": "01M4CS3SDTWAZZH2TTWH486PMP",
     "plan": "",
     "spec": ""
   },
@@ -17,5 +17,5 @@
   "owner": "intel",
   "priority": 2,
   "status": "done",
-  "title": "four more /fabrik-review-scoped verdicts for fabrik-review-loop.js (same class as 01M4CGJZAX)"
+  "title": "request: 01M4CRZG4FNMWR54RP5W0QF42Z"
 }

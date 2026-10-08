@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T07:27:43.341974Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9eb1dd39",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4D0B5V34MB5G3EB7SPZD62B",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: Review seats still write whole-repo archives into /opt/fabrik's root (01M4CV040F) — landed as D-667, in merge request 01M4D0AAPB (tip 8fcc01023)"
+}
