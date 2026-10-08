@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T16:38:46.395220Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d0a5658a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4E3M1JJT4CYPJDRM521KXFF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "scratch_sweep --apply fails with EACCES on a seat's copied read-only pin, so stale seat dirs survive"
+}
