@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — bootstrap step 11 fails a crash-looping Alloy; the switch runbook covers a retry after rollback (2026-10-08)
+
+The D7 whole-plan validation of plan 2026-10-08-plan-1 found that step 11's liveness check passed a crash-looping Alloy.
+It now reads `State.Status` and `RestartCount` twice, 15 s apart, and needs `running` with an unchanged count; a slower loop
+is backlog W-0913992c. `docs/operations/promtail-to-alloy-runbook.md` now names the `alloy-data` volumes a rollback keeps,
+which the operator removes before a later roll-forward, and its canary start clears a stale canary. Eight docs, cites and
+comments were corrected. Receipt: `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-review.md`.
+
 ### Changed — the fleet docs name Grafana Alloy as the log shipper, and the switch window has its runbook (2026-10-08)
 
 Thirty-two current-state docs (audit prompts, setup guides, the VPS inventory, status, architecture, operations and rebuild

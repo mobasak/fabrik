@@ -1,6 +1,19 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A container in its restart backoff reads as running, and a liveness check is only as long as its gap (2026-10-08)
+
+The D7 review of the Promtail → Alloy plan (receipt `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-review.md`)
+took four fixes to make bootstrap step 11 fail a crash-looping Alloy.
+- **One `docker ps` read is a coin toss.** A crash loop reads `Up Less than a second` between restarts.
+- **`State.Running` is true during a restart backoff.** Docker keeps it true while the container waits to restart; only
+  `State.Status` says `restarting`. Seen live: `true restarting 9` on successive reads, with the count holding still.
+- **Two reads catch only loops shorter than the gap between them.** Docker resets the backoff after 10 s of uptime, so a
+  loop that stays up 8 s passed a 6 s gap. A bounded check has a bound. Name it, and route the rest to a backlog row
+  (W-0913992c) rather than promise a later check that does not exist.
+- **Each fix was reproduced on a throwaway container before it was written.** Reasoning about Docker's state machine got
+  it wrong twice.
+
 ## A merge request ships the whole branch, including work staged to merge later (2026-10-07)
 
 The PostgreSQL 18 plan kept its hub changes on the fleet worktree branch, to merge only after the operator's hub window, and its DR-chain hunk on its own branch to merge inside it. Then an unrelated GlitchTip fix on the same branch went out as a merge request for the whole branch, and the PG18 waves rode along to master a day before any window (D-647). Nothing applied them to a host, but master's DR list now named a volume no snapshot held: a hub rebuild would have stopped at compose-up, before its pg_dump fallback. Two habits follow. A branch that holds work staged for a later merge carries nothing else; an unrelated fix goes on its own branch. And before sending a merge request, read the commits between master and the branch tip for any that are not yours to ship yet. When it happens anyway, measure what the early merge can break and close that mechanically; the fix here was listing both volumes until release, not a revert across shared trees.

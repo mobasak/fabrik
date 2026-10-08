@@ -70,7 +70,7 @@
   ],
   "branch": "fleet-alloy",
   "started_at": "2026-10-07T23:43:14Z",
-  "status": "paused",
+  "status": "released",
   "baseline_commit": "1b534a5feb05f5b11098fbfa686edcbf60d394bf",
   "tickets": {
     "T01": {
@@ -107,10 +107,9 @@
       "state": "merged"
     },
     "T07": {
-      "state": "in-work",
-      "done": "rehearsals V3/V4a/V5a PASS, EXTERNAL_SYSTEMS rewritten, Gate S boarded W-a7ee59fd",
-      "remaining": "D7 whole-plan validation + receipt + window gate"
+      "state": "merged"
     }
   },
-  "paused_reason": "quota drain band (ob 85%, reset 07:40 local); D7 whole-plan validation needs >=4 seats, headroom granted 3 \u2014 paused, never thinned (execute-plan D2 quota-pause)"
+  "completed_at": "2026-10-08T05:43:19Z",
+  "final_commit": "3424eb737"
 }
