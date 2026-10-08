@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T14:04:48.839922Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-43eb1e48",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "claude_rotate.py _rearm_wall_stamp (~:7084) computes cutoff = now - 3600.0 from its caller's clock; a now ahead of real time would sweep a live sibling's fresh temp. The same class D-699's review fixed in _replace_stamp (A-S1, f99781ab6): switch to time.time() - 3600.0 in both twins, with a grader that runs the re-arm two hours ahead and keeps a fresh sibling .rearm temp. Found by the pass-2 Sonnet seat of the W-06733560 review.",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "_rearm_wall_stamp's .rearm/.raise orphan sweep keys its cutoff on the caller's now, not wall time"
+}
