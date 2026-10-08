@@ -2098,7 +2098,7 @@
     {
       "name": "scripts/enforcement/check_review_hygiene.py",
       "kind": "script",
-      "summary": "Review hygiene \u2014 the grep-shaped classes every review re-sweeps. ADVISORY, ALWAYS exits 0.",
+      "summary": "Review hygiene \u2014 the grep-shaped classes every review re-sweeps; advisory, and --strict blocks a text-losing receipt overflow.",
       "invoke": "python scripts/enforcement/check_review_hygiene.py",
       "status": "ok",
       "owner": "infra",

@@ -1240,6 +1240,21 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {"compose.yaml": "services:\n  app:\n    image: python:3.12\n"},
         "expect": "a composed service with no watchdog script",
     },
+    # 1c22b3de1 (D-634) registered check_mcp_scope with no canary, which the accounting test reds;
+    # the ruling comes from the hub (this checkout), the fake root holds one ruled repo
+    "check_mcp_scope": {
+        "form": "root",
+        "clean": {
+            "demo/project.yaml": "type: python-api\n",
+            "demo/.mcp.json": '{"mcpServers": {"serena": {}}}\n',
+        },
+        "files": {
+            "demo/project.yaml": "type: python-api\n",
+            "demo/.mcp.json": '{"mcpServers": {"serena": {}, "maestro": {}}}\n',
+        },
+        "speaks": "FAIL demo",
+        "expect": "a repo whose .mcp.json carries a server outside its ruling (maestro on a python-api)",
+    },
     "check_health": {
         "form": "root",
         "strict": True,
@@ -1690,7 +1705,10 @@ CANARIES: dict[str, dict[str, Any]] = {
     },
     "check_review_hygiene": {
         "form": "gitcwd",
-        "warn_only": "check_review_hygiene.main() returns 0 and its __main__ wrapper turns any exception into sys.exit(0) ('NO failing exit path')",
+        # W-205934fb: registered `--strict`, so the canary runs it so; the receipt is STAGED because
+        # an untracked draft never blocks (a sibling's in-flight file)
+        "strict": True,
+        "git": "add",
         "clean": {
             "docs/development/reviews/r-canary.md": "# Review -- canary\n\n| Class | Status |\n| --- | --- |\n| fail-open | CLEAN |\n"
         },

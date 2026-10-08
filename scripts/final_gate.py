@@ -1755,13 +1755,17 @@ def run_consistency_checks(
     # disposition cell carrying two verdicts. Passed NO arguments on purpose (the comment block at
     # the Coverage Checklist registration above says why): it self-selects the CHANGED receipts
     # from `git status` and is silent when none changed, so it is inert on every unrelated commit.
-    # ADVISORY by contract until infra measures its false-positive rate below 5 % over 20 receipts
-    # (DD6) — it never blocks, and its script has no failing exit path.
+    # `--strict` BLOCKS one shape (W-205934fb, DD6 met 2026-10-08): a staged or tracked-modified
+    # receipt row whose cells past the header's width carry text, which GFM discards — 63 of 64
+    # hand-read excess rows lose text, the one exception (an empty overflow) is exempt. Every other
+    # class stays advisory; `advisory=True` keeps their stdout on a green row (the script opens it
+    # with `⚠`, so --json lists it too).
     results.append(
         run_optional_check(
             "scripts/enforcement/check_review_hygiene.py",
-            "Review hygiene (advisory)",
-            warn_only=True,
+            "Review hygiene",
+            "--strict",
+            advisory=True,
         )
     )
 
