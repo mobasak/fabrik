@@ -224,3 +224,58 @@ def test_a_fresh_posture_publishes_the_fleet_band_and_the_accounts_own_band_dist
     q = mod.quota()
     assert q["ok"] is True
     assert q["band"] == "GREEN" and q["band_account"] == "RED", q
+
+
+@pytest.mark.parametrize(
+    ("hold", "walls"),
+    [
+        (None, False),
+        ({"tier": "urgent-90"}, False),
+        ({"tier": "walled"}, True),
+        ({}, True),  # a pre-tier hold fails closed, like `_stamp_tier`
+        ({"tier": "nonsense"}, True),
+        ("unreadable", True),  # a hold this reader cannot read fails closed (D-699 item 7)
+    ],
+)
+def test_dispatch_headroom_urgent_tier_is_not_a_wall(monkeypatch, hold, walls):
+    """W-37003fa1 — only the `walled` tier holds tools (D-306). At `urgent-90` quota_stop.py denies
+    nothing and the posture hook allows Agent with a live run, so a seat budget of 0 there made the
+    three readers of one stamp disagree; the band decides the cap instead. `_hold_is_wall`'s
+    semantics (claude_rotate.py), mirrored."""
+    mod = _load()
+    doc = json.loads(_payload(posture_ts=None))
+    doc["picture"]["hold"] = hold
+    _pin(mod, monkeypatch, json.dumps(doc))
+    q = mod.quota()
+    assert q["ok"] is True, q
+    assert q["hold"] is walls, (hold, q["hold"])
+
+
+def test_dispatch_headroom_hold_predicate_matches_the_tick(monkeypatch):
+    """The seat budget's `_hold_is_wall` is a hand MIRROR of `claude_rotate.py::_hold_is_wall` —
+    this script shells out to the tick and imports none of it. Grade both against one corpus, so
+    a third tier added to the tick cannot silently desync the seat budget (review B-S3)."""
+    import importlib.util as _iu
+
+    mod = _load()
+    spec = _iu.spec_from_file_location(
+        "rotate_hold_probe",
+        Path(__file__).resolve().parents[1] / "scripts/sysadmin/claude_rotate.py",
+    )
+    tick = _iu.module_from_spec(spec)
+    spec.loader.exec_module(tick)
+    corpus = (
+        None,
+        {},
+        {"tier": None},
+        {"tier": "walled"},
+        {"tier": "urgent-90"},
+        {"tier": "URGENT-90"},
+        {"tier": "x"},
+        "s",
+        0,
+        [],
+        [{"tier": "urgent-90"}],
+    )
+    for hold in corpus:
+        assert mod._hold_is_wall(hold) is tick._hold_is_wall(hold), hold

@@ -304,7 +304,7 @@ zero-sum partition (`opus=0,sonnet=0`) is not refused — it prints `SEATS: 0` w
 bare number with nothing for "see the reasons above" to point at.
 Both modes trim cheapest angle first when a cap binds (Haiku first, then the extra Opus seats, then Sonnet — coverage over cost; D-192); `--mechanical <M>` is the number of
 grep-able classes the surface has (units-sized mode only; default one per unit, 0 for a grounding/adjudication surface — a judgement has no mechanical angle; a
-negative count is refused), a trimmed Haiku seat sweeps one class across every unit; never below the applicable floor unless a hard cap binds or the fleet HOLD is on (then 0); `--units 0` with no `--slices` is
+negative count is refused), a trimmed Haiku seat sweeps one class across every unit; never below the applicable floor unless a hard cap binds or the fleet HOLD is on at its WALL tier (then 0; at `urgent-90` the band decides — D-706); `--units 0` with no `--slices` is
 nothing to partition and prints 0 with the reason. `--json` also carries `box_caps` (read-only + heavy from the one box probe) for callers like the board, plus `slices` (the parsed partition, or `null`) and `mix_by_slice` (the partition TRIMMED to the seat budget, independent of a `--mix` price override — `null` when `--slices` is not given). `quota_cap` drops to the
 floor when the active account's hottest window is ≥85% or no standby account is eligible (`eligible` counts standbys; the active account is `state=active`) —
 the same bands `core/62` § Dispatch economics names. `--heavy` is for seats whose TOOLS load the box

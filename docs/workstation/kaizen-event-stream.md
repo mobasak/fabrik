@@ -116,10 +116,10 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 | `run_close` | `verdict` (`done`\|`blocked`\|`handoff`), `resume` (handoff only — the artifact carrying the open rows), `evidence_hash`, `closed_by`, `rounds`, `resumed`, `resumed_phase`, `resumed_rounds`, **`feedback`** (`filed`\|`none`\|`unstated`), **`feedback_to`** (subset of `infra`/`fleet`/`intel`), **`feedback_hash`** | `scripts/command_run.py done`/`blocked` |
 | `gate_run` | `tier`, `mode`, `status`, `checks: [{name, outcome}]` (every EXECUTED check, advisory rows labelled) | `scripts/final_gate.py` |
 | `rule_activation` | `kind` (`select_rules`\|`rubric_injection`), `label` (*invocation-time*), `packs` — `[{pack, globs_fired}]` from `select_rules.py`, `[{pack}]` plus `packs_missing` from `review_rubric.py` | `scripts/select_rules.py`, `scripts/review_rubric.py` (`rubric_injection`) |
-| `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`deferral`\|`run-record`\|`unreviewed-spontaneous`), `outcome` (`blocked`\|`warned_through`\|`stood_down`); `deferral` additionally carries `shape` (`D1`-`D4`, or `block` for a DECISION block that failed its own checks) | `.claude/hooks/final_gate_stop.py` |
+| `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`deferral`\|`run-record`\|`unreviewed-spontaneous`\|`merge-request`\|`coordinator`\|`urgent-checkpoint`), `outcome` (`blocked`\|`warned_through`\|`stood_down`); `deferral` additionally carries `shape` (`D1`-`D4`, or `block` for a DECISION block that failed its own checks); at the quota's `urgent-90` tier every event carries `tier`, and the one `urgent-checkpoint` block carries `items` (the causes it listed) | `.claude/hooks/final_gate_stop.py` |
 | `decision_block` | `ground` (`gate`\|`underivable`\|`owned`) | `.claude/hooks/final_gate_stop.py` — the turn ended on a well-formed `DECISION NEEDED (ground: …)` block (spec 2026-09-23-stop-and-compaction-enforcement-design § C2); emitted from the same non-blocking exit as `final_block_emitted`, for the same retry reason |
 | `anchor_harvest` | `tp` (bool — a transcript path arrived), `chars` (length of the harvested turn text), `lam` (bool — the payload carried `last_assistant_message`) | `.claude/hooks/final_gate_stop.py` — every Stop that reaches the thread-anchor harvest (`scripts/thread_anchor.py harvest`, plain — never `--decision-ok`, which runs only at an allowed exit); the trace that says whether WHERE YOU ARE had text to rebuild from |
-| `stop_allowed_quota_hold` | — | `.claude/hooks/final_gate_stop.py` — the fleet quota hold (`fleet-exhausted` stamp in force, fresh tick) let the turn end before any cause was read; the DECISION block, if any, is stored on this exit too |
+| `stop_allowed_quota_hold` | — | `.claude/hooks/final_gate_stop.py` — the fleet quota hold at its WALL tier (`fleet-exhausted` stamp in force, fresh tick, and a tier that is not plainly `urgent-90`) let the turn end before any cause was read; the DECISION block, if any, is stored on this exit too |
 | `final_block_emitted` | — | `.claude/hooks/final_gate_stop.py` — emitted on the NON-BLOCKING exit only |
 | `death` | `class`, `key`, `died_at`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` (post-hoc; hooks go silent exactly when things get interesting) |
 | `revival` | `class`, `revived_at`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` |
@@ -152,6 +152,10 @@ collector counts it in the derived `stop_stood_down` map (facts v4) and every pr
 subtracts it — from the numerator, and from premature_stop_rate's verdict denominator; the cause
 histogram `stop_block_causes` shows its volume as its own `stood_down` bucket (01M4BYXKWR). The set of
 such outcomes is `NON_VERDICT_OUTCOMES` in `kaizen_collect_v2.py`, rendered into each formula.
+At the quota's `urgent-90` tier (W-37003fa1) a stop the hook lets through emits one `stood_down`
+with `tier: urgent-90` for EACH cause still true — the checkpoint items after their one block,
+and the heavy causes the tier stands down — so that debt is counted, never silent; the gate and
+the coordinator are not evaluated there and emit nothing.
 
 **`operator_override` requires a cause that was actually WAIVED**, not merely a message containing
 the marker vocabulary. The promise-guard records `(kind, marker)` whenever a stall MATCHES and is

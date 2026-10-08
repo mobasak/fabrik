@@ -213,7 +213,8 @@ def _load_posture(now: float) -> tuple[dict | None, str]:
 
 
 # COPIED from `claude_rotate.py` (which WRITES it) and mirrored in `.claude/hooks/quota_stop.py`
-# (which acts on it). Three copies, one three-way parity grader
+# (which acts on it) and `.claude/hooks/final_gate_stop.py` (whose quota yield reads it,
+# W-37003fa1). Four copies, one four-way parity grader
 # (`test_the_posture_hooks_tier_reader_agrees_with_the_tick_and_the_stop_hook`) — this hook
 # imports neither: one is fleet-synced and standalone, the other is a 6,000-line CLI.
 _STAMP_TIER_WALLED = "walled"

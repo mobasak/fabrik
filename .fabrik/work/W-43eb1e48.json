@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-08T14:04:48.839922Z",
   "creator": "intel",
-  "evidence": "",
+  "evidence": "79cec0288bcc023d2b1f4c4cb24fa34b260d9373",
   "id": "W-43eb1e48",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "title": "_rearm_wall_stamp's .rearm/.raise orphan sweep keys its cutoff on the caller's now, not wall time"
 }
