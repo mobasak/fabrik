@@ -884,7 +884,7 @@ def test_every_seat_is_told_how_to_import_a_pinned_module_and_to_prove_it() -> N
         ), label
         assert "never write a .gitconfig into SCRATCH/home" in p and "runpy.run_path" in p, label
         assert "(SCRATCH/arch/src for `import fabrik`;" in p, label  # the hub's own case (NEW-2)
-        assert "with `FABRIK_ROOT=SCRATCH/arch` in front of it when PKG is src/fabrik" in p, (
+        assert 'when ROOTS holds src/fabrik, `os.environ["FABRIK_ROOT"]="SCRATCH/arch"` in the program\'s leading line' in p, (
             label
         )  # hub only (C4)
         assert "check each overlaid file with `cmp` against its pin" in p, label
@@ -1033,6 +1033,47 @@ def test_a_leading_id_token_never_closes_a_shorter_id_it_merely_starts_with() ->
     assert s["open"] == ["ledger claim S-L1 not re-verified by any seat"], s["open"]
 
 
+def test_the_pin_recipe_archives_whole_roots_and_names_what_the_archive_cannot_hold() -> None:
+    """W-525d712a (iie1 01M3WS3EJ0): archiving one package (src/media_edit) failed on a sibling-package and a
+    root-module import. W-e354a3a9 (iie 01M3ZR3AND): a partial tests/ tree aborts a whole-tree conftest
+    self-check, and a synced rule pack is untracked in a project. W-02aa9153 (kaizen 01M4BY4SFQ): a later fix to a
+    file outside the slice is invisible to the archive. W-debee876 (fleet 01M3WMGRQ7): an archive is not a linked
+    worktree, so a hub pytest run resolved FABRIK_ROOT to the live hub. Each lands in every shell seat's prompt."""
+    _, _, prompts = _harness(
+        _ARGS, {"find:S:sonnet": {"files_read": ["a.py", "b.py"], "notes": "", "candidates": [_cand("S-S1", 3)]}}
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        for needed in (
+            "with ROOTS every top-level directory and root module file the code imports",
+            "and when unsure, the whole commit",
+            "over-inclusion is safe",
+            "a package that imports a sibling package or a root module fails with ModuleNotFoundError in a one-package archive",
+            "a file outside your slice is at its",
+            "a later fix to it is invisible to you",
+            "the fleet-synced scripts and rule packs (`scripts/enforcement/`, `.windsurf/rules/`) are gitignored",
+            "Archive ALSO the WHOLE test tree",
+            'os.chdir("SCRATCH/arch")',
+            "one plain command per call forbids",
+            "still reads the live hub, so a result resting on one is UNPINNED",
+            "every root module file they import",
+            'os.environ["FABRIK_ROOT"]=os.getcwd()',
+            "an archive is not a linked worktree",
+        ):
+            assert needed in p, (label, needed)
+        assert "PKG" not in p, (label, "the one-package placeholder is gone")
+
+
+def test_the_critique_and_seat_briefs_name_what_a_pin_cannot_hold() -> None:
+    """W-e354a3a9 (1): a cited synced rule pack has no commit in a project, so the design-critique brief names it by
+    hub path and md5. web-ecommerce-factory 01M42WP1S0 item 3: a seat with no Bash cannot hash what it read."""
+    crit = (ROOT / "commands" / "_fragments" / "design-critique.md").read_text(encoding="utf-8")
+    assert "copy the project's own file to the scratchpad and name it by that" in crit
+    assert "the md5 standing in for a commit wherever line" in crit
+    core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
+    assert "a seat with no Bash (`fabrik-researcher`) cannot hash, so carry the pin's line count beside its md5" in core
+
+
 def test_every_seat_is_told_how_to_run_pytest_against_the_pins() -> None:
     """01M469D3 (brand-identiy-creator): the probe recipe does not hold for a PYTEST run from the
     live repo — pytest prepends the live rootdir's ini `pythonpath` at sys.path[0], so an Opus
@@ -1050,7 +1091,7 @@ def test_every_seat_is_told_how_to_run_pytest_against_the_pins() -> None:
     )
     for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
         p = prompts[label]
-        assert "PYTEST" in p and "cd INTO SCRATCH/arch" in p, label
+        assert "PYTEST" in p and "changing directory INSIDE the program" in p and 'os.chdir("SCRATCH/arch")' in p, label
         # in-process launch keeps the site-packages insert: without it an editable .pth wins
         assert "pytest.main(sys.argv[1:])" in p and "site-packages" in p, label
         # the real base sha, never a literal BASE no seat can run (review A-H1)

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T00:19:15.771565Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-41850ac5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4C5PZMSD1ETFRFD6CPPM2EC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Fixed as e9837723f (pushed, governance-synced), D-654. (1) agent_role.py falls back to whoami_agent.resolve_agent_name() when CLAUDE_AGENT is unset, so a window you bound with `whoami_agent.py --as kaizen` gets its charter on its next SessionStart (resume, compact). The resolver loads by file path:"
+}

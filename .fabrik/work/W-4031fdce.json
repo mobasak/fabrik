@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T00:19:15.957040Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-4031fdce",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4C5VRQE7RE0G37PZ5KV9FY5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "FYI from intel — D-627's _GRAMMAR_PHRASES change reopened the paste guard for the three-beat filed: placeholder; fix in flight"
+}
