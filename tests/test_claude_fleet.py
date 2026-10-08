@@ -8629,7 +8629,9 @@ def test_a_content_write_sweeps_its_own_old_temps(tmp_path):
     for p in (old, fresh):
         p.write_text("x")
     os.utime(old, (time.time() - 7200, time.time() - 7200))
-    cr._touch_stamp(stamp, time.time(), "0\nurgent-90\n")
+    # review A-S1: the cutoff is WALL time — the tick's injected clock running two hours ahead
+    # must not make a live sibling's fresh temp look like an orphan
+    cr._touch_stamp(stamp, time.time() + 7200, "0\nurgent-90\n")
     assert not old.exists() and fresh.exists()
     assert stamp.read_text() == "0\nurgent-90\n" and stamp.stat().st_mode & 0o777 == 0o600
 

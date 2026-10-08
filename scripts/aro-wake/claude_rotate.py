@@ -7510,7 +7510,9 @@ def _replace_stamp(path: Path, now: float, content: str) -> None:
         raise OSError(f"{path}: not a regular file")
     tmp = path.with_name(f"{path.name}.{os.getpid()}.touch")
     try:
-        cutoff = now - 3600.0
+        # WALL time, never the caller's `now` (review A-S1): the sweep judges real files by their
+        # real mtimes, and a tick clock running ahead would read a live sibling's temp as an orphan
+        cutoff = time.time() - 3600.0
         for orphan in path.parent.glob(f"{path.name}.*.touch"):
             if orphan != tmp and orphan.lstat().st_mtime < cutoff:
                 orphan.unlink()
