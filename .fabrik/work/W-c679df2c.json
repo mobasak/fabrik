@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T07:29:19.648753Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-c679df2c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-command-improve fabrik-review-scoped: point step 5's scope-growth paragraph at the evidenced own-fix rule (own-fix: round k) and 'only genuinely OWN-FIX work takes the backlog exit'",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "/fabrik-review-scoped step 5 lacks the 'own-fix is EVIDENCED' bound the term fragments carry (term-edit.md:19, term-coverage.md:34), so a remainder round could label a broken fix own-fix and record it"
+}
