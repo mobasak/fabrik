@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `/fabrik-task` phase 1 lists what MEASURE executes before the design (2026-10-08)
+- Twenty-five queue verdicts reported a design drafted before a sibling's landed fix, a pre-existing red, a writer, a host or a vendor list was looked at. Phase 1 now replays a reported command as reported, then writes each command and its output to `measure.md` beside `design.md`: the declared files' own tests, a fetch and diff against the remote branch the work merges into, the prior record, the measured population with its n, and a live probe of each external contract. Size cap 12439 → 13610 B (D-679).
+
 ### Changed — a dead mutant is defined once, in the coverage terms (2026-10-08)
 - Queue verdicts reported a `FileNotFoundError` read as a kill, a vitest `-t` filter that selected no test read as green, an equal-size mutant running a stale `.pyc`, and a grep count standing in for proof the mutant was applied. `commands/_fragments/term-coverage.md` rule (4) now says a mutant is dead only when the named test fails on its own assertion or on an exception raised in the mutated code, quoted, after the same command on the unmutated copy selected tests and passed, with `__pycache__` purged, `PYTHONDONTWRITEBYTECODE=1` set, the mutated module's `__file__` printed with output capture off and the mutant shown applied by a diff against the pin. `/fabrik-review`'s finder lessons and Phase 2 point at that rule. Grader: `tests/test_review_loop_workflow.py::test_a_dead_mutant_is_defined_once_and_the_finder_lessons_point_at_it`.
 
