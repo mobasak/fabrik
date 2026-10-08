@@ -467,3 +467,44 @@ def test_a_misread_table_stays_ungraded_when_a_few_quotes_open_with_a_dotted_wor
     )
     assert "QUOTE-NOT-FOUND" not in _labels(root), _labels(root)
     assert any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
+
+
+def test_the_digest_row_the_commands_teach_is_one_the_checker_grades(tmp_path):
+    """Plan queues (~20 verdicts) and intel 01M4E26N: the digest contract lived only in this checker.
+    `grounding-rules` now states the heading, the header + separator, a literal row and the matching rule,
+    and /fabrik-plan-review step 3 sends the reviewer to it. Each stated rule is driven through `_audit`."""
+    frag = " ".join((REPO / "commands" / "_fragments" / "grounding-rules.md").read_text().split())
+    review = " ".join((REPO / "commands" / "_sources" / "fabrik-plan-review.md").read_text().split())
+    for phrase in (
+        "Put it under a `## Constraints Digest` heading, and give the table its `| Quote | Source |` header and "
+        "`|---|---|` separator, because the checker takes the first two table lines as those.",
+        "``| <the pack's words> | `.windsurf/rules/<pack>.md:<line>` |``, with more columns after it if you like.",
+        "The quote is matched as one case-exact substring of the whole cited file, with whitespace collapsed and "
+        "backticks and `*` dropped. So no `…` elision, and a literal `|` in it is written `\\|`.",
+    ):
+        assert phrase in frag, phrase
+    for phrase in (
+        "columns `Quote` (or `Verbatim`) then `Source`, a Source `path:line` alone in its cell) — a table the "
+        "checker cannot read leaves its quotes ungraded.",
+        "so each spot-check also confirms the cited `:line` holds the quote.",
+    ):
+        assert phrase in review, phrase
+
+    def graded(quote: str, pack_extra: str = "") -> list[str]:
+        root = _root(tmp_path / str(abs(hash((quote, pack_extra)))))
+        if pack_extra:
+            (root / PACK_REL).write_text(PACK_TEXT + pack_extra, encoding="utf-8")
+        _write_digest(
+            root, f"| Quote | Source | Rule | Why |\n|---|---|---|---|\n| {quote} | `{PACK_REL}:2` | r | w |\n"
+        )
+        assert not _ungraded(root), _ungraded(root)
+        return _labels(root)
+
+    assert "QUOTE-NOT-FOUND" not in graded(WRAPPED_QUOTE), "the taught row, wrapped in the pack, extra columns"
+    assert "QUOTE-NOT-FOUND" in graded(WRAPPED_QUOTE.lower()), "case-exact"
+    assert "QUOTE-NOT-FOUND" in graded("Use Pydantic BaseSettings … app setting."), "no elision"
+    assert "QUOTE-NOT-FOUND" not in graded("Never use a \\| b here", "- **Never** use `a | b` here.\n"), (
+        "backticks and * dropped, an escaped pipe matches a literal one"
+    )
+    headerless = f"| {WRAPPED_QUOTE} | {PACK_REL}:2 |\n" * 3
+    assert len(chk._digest_rows(headerless)) == 1, "the first two table lines are read as header + separator"

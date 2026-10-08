@@ -13,6 +13,11 @@ Before the first architecture, tool, or dependency selection:
   `file:line`**: you cannot quote a line from a pack you did not open, which is the whole proof.
   Head the columns `Quote` (or `Verbatim`) and `Source` (a repo-relative `path:line` alone in its
   cell); without those headers the checker reads the first column as the quote and the next as the source.
+  Put it under a `## Constraints Digest` heading, and give the table its `| Quote | Source |` header and
+  `|---|---|` separator, because the checker takes the first two table lines as those. Each row then reads
+  ``| <the pack's words> | `.windsurf/rules/<pack>.md:<line>` |``, with more columns after it if you like.
+  The quote is matched as one case-exact substring of the whole cited file, with whitespace collapsed and
+  backticks and `*` dropped. So no `…` elision, and a literal `|` in it is written `\|`.
   `scripts/enforcement/check_rule_grounding.py` grades the countable subset on CONVERGED plans
   (quote-integrity + MATCHED-pack completeness, advisory); reading QUALITY stays with
   `/fabrik-plan-review`'s audit — the check never claims otherwise.
