@@ -18,7 +18,8 @@ First capture the **source of truth** — do NOT invent scope:
   **read it FIRST — it IS the grounded source of truth**: goal, chosen approach, rejected alternatives,
   external dependencies (already grounded with cited URLs), the **fabrik-lib vendor→enhance→build verdict**,
   and the `shape:`/infra implications. A spec-fed plan is `RICH` by definition — do not re-brainstorm what
-  the spec already settled.
+  the spec already settled. Read its `Status:` too: a spec neither CONVERGED nor `Size: small` stops the run
+  here, by Phase 5's `handoff` close, for `/fabrik-spec-review`.
 - **A spec-fed plan CITES the spec, never re-narrates it (review-family adoption, D-212 — spec D8):** every
   ticket's `## Scope` and `## Behavior Contract` rows (a monolith: every phase's) CITE the spec section they
   implement — `spec § <heading>` or `<spec path>:<line>` — and restate nothing that section already says; the
@@ -58,7 +59,8 @@ First capture the **source of truth** — do NOT invent scope:
   row-absent branch above does NOT apply.** Its approval never minted at `/fabrik-spec-review` time (that
   review never ran on it) and does not mint HERE either — mint NO approval row in this phase for it.
   `/fabrik-plan-review` mints it at its own approval gate, once this plan's spec and ticket sections have
-  converged together (this plan's `Profile: small` emit rule, Phase 2 below). Proceed straight to planning.
+  converged together (`/fabrik-plan-review`'s Small-spec exception, which flips the spec first or in the same
+  commit). Proceed straight to planning.
 - Then branch, and **state which branch you took and why**:
   - **RICH** (the chat/args already pin the goal AND the approach) → skip brainstorming, go to Phase 1.
   - **THIN** (goal or approach is vague/ambiguous/empty) → **spec FIRST** (invoke **`/fabrik-spec`** — the
@@ -175,6 +177,8 @@ Treat every intended step as unproven until verified against the real code/schem
 
 - For each file/function/symbol the plan will touch, **OPEN it and read the actual lines** — capture the
   real `path:line`. A path that looks right is not grounding; a column name is not its values (read them).
+  For each function the plan moves or re-signs, grep `tests/` for the tests that call, stub or patch it; each
+  lands in that ticket's File Scope, since a test pinning the old shape is fallout the anchors never show.
   **Symbol-level questions go through the `serena` MCP first** — `find_symbol` (the definition body
   without reading the whole file), `find_referencing_symbols` (every real call-site, where a grep of a
   common name drowns in false hits) — with `Grep` as the fallback and the tool for prose/config/cross-file
@@ -203,7 +207,8 @@ Treat every intended step as unproven until verified against the real code/schem
   a local `--local`/`expo run:android` build does), or (c) record it as a **named BLOCKING unknown with a
   resolution step**. Never a step that will discover the gap at runtime and ask the user — that is the exact mid-execution stall this preflight exists to prevent.
 - Hunt, before they reach the plan: unstated assumptions, missing edge cases/failure modes, and any step
-  whose validation would be vague or unrunnable.
+  whose validation would be vague or unrunnable. A behavioural claim the plan rests on (a render, a state
+  transition, a suite count after the core edit) is EXECUTED once against a copy, never inferred from anchors.
 
 **Parallelism — UNCONDITIONAL, every run.** Dispatch one INDEPENDENT native `fabrik-researcher` grounder per unit (the pool is OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents -->), an Opus
 `fabrik-researcher` for the authoritative verify-sample — run them **in parallel**, then merge + dedupe —
@@ -227,8 +232,9 @@ code diff in test lines, and seam tests are written ONCE, in the last phase, nev
 The profile's floor is about an hour of execution; larger than that ⇒ the shape decision.
 
 **Every phase or ticket declares `Appetite: <minutes>` (spec § The delta D11) — every profile, both
-shapes.** Write `Appetite: <minutes>` on its own header line for every phase (monolith) or ticket
-(spine+ticket set) — state a number you actually expect THAT phase/ticket to take, never a placeholder.
+shapes.** Write `Appetite: <minutes>` on its own line for every ticket (spine+ticket set), before its first
+`##`–`######` heading (the only zone the gate reads in a ticket), or for every phase (monolith), inside its
+own `## Phase <id>` section — state a number you actually expect THAT phase/ticket to take, never a placeholder.
 `scripts/enforcement/check_plan_tickets.py` and `check_plan_quality.py` refuse a plan carrying none, for
 plans dated on or after the rollout (older plans are not re-graded). `/fabrik-execute-plan` passes it at
 `step --phase N --appetite <m>` and prints `elapsed <m>/<appetite>` at the phase marker; past 2×
@@ -239,7 +245,9 @@ a recorded verdict, never a forced cancel.
 **⚠️ SHAPE DECISION FIRST — monolith or spine+tickets.** Emit the **spine+ticket plan SET** when ANY
 of: the work decomposes into **>3 phases** · the projected monolith would exceed **~300 lines** · any
 single phase's computed READ set (its files + Context Files:
-`find <paths> -type f -exec cat {} + | wc -c` — one exact number, but CHECK STDERR: a typo'd or
+`find <paths> -type f -exec cat {} + | wc -c` — one exact number for paths each listed ONCE (the gate drops
+exact repeats, rules packs, the exempt shared reads and generated artifacts, but a file beside its own
+directory, or `dir` beside `dir/`, counts twice there too), but CHECK STDERR: a typo'd or
 not-yet-created path under-counts silently, and `find` reports it only there; `xargs wc -c` batches
 into multiple misleading `total` lines and plain `wc -c` errors on `dir/` entries) exceeds
 `READ_BUDGET_BYTES` (262144 — the gate's PER-TICKET budget in
@@ -314,7 +322,8 @@ test**, owned by the CONSUMER ticket — the file in the consumer's Touches, the
 Contract in the consumer's Context Files) · `## Behavior Contract` (the ROLL-UP: every ticket's G/W/T
 rows **verbatim — NO ticket-ID prefix, no rewording** (a `T01 — ` prefix produces two mismatch
 ERRORs per row with no hint at the cause; normalization forgives bold, bullet chars, case,
-whitespace runs, a trailing `(N)` and a trailing period — nothing else), **one bulleted
+whitespace runs, a trailing `(N)` and a trailing period — nothing else; each row on ONE physical line, since
+the gate reads only the first line of a wrapped row), **one bulleted
 `- **Given** … **When** … **Then** …` row per behavior — the gate
 reads ONLY bulleted Given rows**: a numbered spine roll-up against bulleted tickets ERRORs loudly as
 a roll-up mismatch, but a contract numbered on BOTH sides passes silently with set-equality disabled
@@ -438,6 +447,8 @@ shape, don't invent):
 
 ```markdown
 # T01 — <title>
+Appetite: <minutes>
+
 ## Scope
 <one paragraph of the WHAT — spec-fed: `implements spec § <heading>` (or `<spec path>:<line>`), restating nothing that section already says>. DO-NOT: <the adjacent surface this ticket must not touch>.
 
@@ -625,9 +636,10 @@ carries none of the three is a defective plan, not a shape difference:
 
 **⚠️ The CONVERGED flip's gate reads TWO things Phase 4's section list used to omit — author them
 NOW, not at gate time** (the rule lives in `_checklist_section` + `RUBRIC_RUN` in `check_convergence.py` — grep the symbols, line anchors drift): a
-MONOLITH plan flipping CONVERGED must ALSO carry **`## Coverage Checklist`** (rubric-derived rows
-plus the four standing recurrence classes) **with an embedded `review_rubric.py` invocation**
-(fenced) — `_checklist_section` and `RUBRIC_RUN` enforce both mechanically (both live in
+MONOLITH plan flipping CONVERGED must ALSO carry **`## Coverage Checklist`** (a TABLE of rubric-derived
+rows plus the four standing recurrence classes, each row CLEAN/FIXED/REFUTED by the flip) **with the
+pasted OUTPUT of `review_rubric.py`** (fenced, its generated `REVIEW RUBRIC … generated by review_rubric.py`
+header — the bare invocation does not match) — `_checklist_section` and `RUBRIC_RUN` enforce both mechanically (both live in
 `check_review_coverage.py` and are imported by `check_convergence.py`'s flip gate — grep the
 symbols, never a line anchor).
 `/fabrik-plan-review` asserts the same two before its flip.
@@ -661,7 +673,7 @@ Append, so the downstream converge/execute commands have what they need:
   path), while `src/a/b/deep.py` is NOT inside `src/a/*`; a `dir/` entry is inside a glob when the
   directory's whole SUBTREE is (`docs/x/` lies inside `docs/**`, not inside `docs/*`).
 - **`## Evidence`** — per phase, ≥1 real `path:line` you read AND ≥1 fenced command-output block you
-  captured in Phase 1 (including the **external-research URLs** that grounded any 3rd-party dependency).
+  captured in Phase 1, pasted from that run's captured output, never typed (including the **external-research URLs** that grounded any 3rd-party dependency).
   This grounded design rationale is what makes the plan self-contained, so `/fabrik-execute-plan`'s
   "design spec" need is met by the plan itself.
 - **`## Self-audit`** — the grounding passes you ran and what each found, PLUS two completeness checks run
@@ -734,7 +746,12 @@ is stronger: ERROR at the emit gate and the flip, advisory only on the shared pa
   (grounders → refute/merge → runnable gates → `check_convergence.py`). Do **not** end the turn on
   an unconverged DRAFT — context is never the reason (the harness auto-compacts and the run
   continues). The only reasons to stop before convergence are an unanswered **Phase-0 THIN**
-  question or a **Phase-1 BLOCKING** unknown — surface those and stop; otherwise converge.
+  question, a **Phase-1 BLOCKING** unknown, or a cited spec that is not CONVERGED and carries no `Size: small`
+(`check_stage_artifacts.py` refuses a plan flip over ANY non-CONVERGED spec; a `Size: small` one converges
+spec-first in `/fabrik-plan-review`'s joint loop, any other goes to `/fabrik-spec-review` first) — surface those and
+close with `python3 scripts/command_run.py handoff --command fabrik-plan-after-chat --resume <scratch file>
+--reason "<the open item>" --feedback …`, the file's `## RESUME` block naming it and the restart, never by
+stopping on a `running` record; otherwise converge.
 - After convergence, hand off: **`/fabrik-execute-plan <file>`** (for a plan set: the DIRECTORY,
   same rule as the review hand-off above) is the next step and is left to the **user** —
   it mutates code, so it stays user-triggered/approved. State it, plus any residual open items from the

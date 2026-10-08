@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-plan-after-chat tells its plan gates the truth (2026-10-09)
+- `commands/_sources/fabrik-plan-after-chat.md`: a ticket's `Appetite:` sits before its first `##` heading (the only zone `plan_appetite.header_zone` reads) and the worked skeleton carries it; the Coverage Checklist is a table of CLEAN/FIXED/REFUTED rows holding the pasted `review_rubric.py` OUTPUT (an invocation does not match `RUBRIC_RUN`); the byte recipe counts each path once; a G/W/T row stays on one physical line; Phase 5's stops add an unconverged cited spec and close by `handoff`; and Phase 1 greps the tests pinning a moved function, executes a load-bearing behavioural claim once, and pastes Evidence from captured output. Answers 12 text-defect and 8 recurring /fabrik-plan-after-chat verdicts (D-711). Grader: `tests/test_spec_plan_lane_text.py::test_fabrik_plan_after_chat_tells_the_gates_truth`, which drives `header_zone` and `RUBRIC_RUN`.
+
 ### Fixed — command_run's round report no longer demands a closing pass from commands that have none (2026-10-09)
 - `scripts/command_run.py`: a quiet round 1 printed "⛔ NOT TERMINAL — round 1 is the full pass, never the closing round; run the closing pass — the round-1 seats over their own slices" on every command, including /fabrik-spec, which has no closing pass, no slices and no receipt (tryton-crm verdict 1790969786.235392). The new `NO_CLOSING_PASS` set holds the 13 commands whose own source orders no loop `round` and includes no termination fragment. For them a quiet round 1 is TERMINAL, and neither the TERMINAL verdict nor the BUDGET advisory mentions a closing pass. Every other command keeps the two-round rule. `tests/test_command_run.py` pins the set to `commands/_sources` both ways. `docs/reference/command-run-protocol.md` names the exception. W-29e3424f, D-719.
 
