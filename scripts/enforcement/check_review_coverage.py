@@ -232,7 +232,7 @@ def _unintegrated_md(
             {},
             [
                 "NOTE: unintegrated review scan skipped — shallow clone (its grafted root lists "
-                "already-integrated files); porcelain scope only"
+                "already-integrated files); working tree and running receipts only"
             ],
         )
     rc, out = _git_bytes(
@@ -255,7 +255,7 @@ def _unintegrated_md(
             {},
             [
                 f"NOTE: unintegrated review scan skipped — git log rc {rc} against "
-                f"{' '.join(bases)} (porcelain scope only)"
+                f"{' '.join(bases)} (working tree and running receipts only)"
             ],
         )
     paths: list[Path] = []
