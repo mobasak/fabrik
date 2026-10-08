@@ -2210,9 +2210,10 @@ _CLOSING_PASS = re.compile(r"^\s*" + _LIST_MARK + r"\s*\|?\s*\**Pass\s*(\d+)", r
 # `the orchestrator (opus×1) re-read its own fix diff — no seat dispatched`, or `same seats as pass 1:
 # opus×1 + sonnet×2, re-prompted`, satisfies this search while describing the state the rule forbids.
 # The artifact that could falsify it is the `command_run.py dispatch --seats` stamp, which this gate
-# does not read; a counter-measure is D-262's change to own. The rule's wording ("Finders cell") names
-# the TABLE grammar; a prose closing row is graded on the text before its counters (0 of the 42 graded
-# closing rows were prose when measured, 2026-09-19).
+# does not read; a counter-measure is /fabrik-spec work (D-262 ruled this grammar needs a spec, not a
+# patch). The rule's wording ("Finders cell") names the TABLE grammar; a prose closing row is graded on
+# the text before its counters (0 of the 42 graded closing rows were prose across 324 receipts, measured
+# 2026-09-19 for W-b61f25cb).
 _MODEL_TOK = re.compile(r"(?<![\w-])(?:opus|sonnet|haiku)\s*[×x]\s*\d+", re.I)
 
 
