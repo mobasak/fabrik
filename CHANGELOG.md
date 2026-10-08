@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a corrupt round keeps its slot in the trend series, and `done` closes such a record (2026-10-08)
+
+- `scripts/command_run.py`: `_trend_series` keeps a non-dict round as None on both branches (filtering it let the oscillation advisory read across it); `_confirmed_adopted` decides the series for `_trend_series` and `_trend_label`; `convergence_warning` never diagnoses a window holding a None; the FEEDBACK trend prints `?`; the `done` ledger row's `findings` list keeps a null slot instead of raising, which had left such a record `running` for good (W-1bba6b75, D-661). Receipt: `docs/development/reviews/2026-10-08-trend-series-corrupt-slot-review.md`.
+
 ### Fixed — the review-loop pin recipe archives whole roots and names what an archive cannot hold (2026-10-08)
 - Review seats archive the whole source root plus repo-root modules and the whole `tests/` directory, set `FABRIK_ROOT` in-process for a pytest run, and are told that a later fix outside their slice and the gitignored synced rule packs are not in the archive (iie1 01M3WS3EJ0, iie 01M3ZR3AND, kaizen 01M4BY4SFQ, fleet 01M3WMGRQ7). The design-critique brief names a cited synced file by hub path and md5; a seat with no Bash states the pinned path and line count instead of a hash (web-ecommerce-factory 01M42WP1S0); `/fabrik-review`'s description has headroom under the 1024 cap (D-660).
 
