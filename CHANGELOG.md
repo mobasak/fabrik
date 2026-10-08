@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — every scaffold type takes its Debian base-image variant from the version registry (2026-10-08)
+
+Eleven of the twelve scaffold types wrote a hard-coded `bookworm` base image (`python:3.12-slim-bookworm`,
+`node:22-bookworm-slim`) while the registry pins `debian_codename: trixie`. The templates now carry
+`{{ versions.debian_codename }}`: the Jinja Dockerfiles render it, `scaffold.py` fills it in every plain template it copies,
+the two inline Dockerfiles and the reference `templates/saas-skeleton/Dockerfile` every project receives. `create_project`
+and `fix_project` read the registry before writing anything, so an unusable registry no longer leaves a half-built
+project. `fabrik fix` also substitutes the package name in a re-created Dockerfile (it wrote `<package_name>.main:app`).
+The doc templates and hub docs name the registry key instead of a codename. Graders:
+`tests/test_scaffold_base_image_codename.py`, which scaffolds every type with a sentinel codename. W-3860ebf6 part 2.
+
 ### Fixed — the docusaurus scaffold serves nginx the way the D-664 pack says (2026-10-08)
 
 `templates/docusaurus/nginx.conf.j2` is now the fenced nginx block of `.windsurf/rules/core/42-docusaurus.md`: a page is looked

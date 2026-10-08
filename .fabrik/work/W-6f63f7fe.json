@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T08:29:52.349659Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-6f63f7fe",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide per runtime whether the scaffold reads node_lts / python_stable from the registry like debian_codename, and what each template's lockfile/requirements need for the bump",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Scaffold base-image MAJORS lag the pack: every type emits python:3.12 and node:22 while 30-ops names python 3.14 (python_stable) and node 24 (node_lts); docusaurus already emits node_lts. Moving a major changes dependency compatibility for every new project (found in the W-3860ebf6 design, D-664 follow-up)"
+}
