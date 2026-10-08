@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the commands state the Constraints Digest contract check_rule_grounding grades (2026-10-08)
+- The digest's grammar lived only in `scripts/enforcement/check_rule_grounding.py`, so plan authors kept writing tables it could not grade (intel 01M4E26N, ~14 queue verdicts). `commands/_fragments/grounding-rules.md` now names the `## Constraints Digest` heading, the `| Quote | Source |` header and separator the checker takes from the first two table lines, a literal row, and the matching rule (case-exact substring of the whole cited file, whitespace collapsed, backticks and `*` dropped, no `…` elision, `\|` for a literal pipe). `/fabrik-plan-review` step 3 checks that grammar and has each spot-check confirm the cited `:line`, which the checker does not grade. Grader: `tests/enforcement/test_rule_grounding.py::test_the_digest_row_the_commands_teach_is_one_the_checker_grades`, which drives `_audit` for each stated rule.
+
 ### Changed — /fabrik-task phase 2 says how to restate the terminal after the critiques (2026-10-08)
 - `commands/_sources/fabrik-task.md` phase 2 now names `step --terminal-amend "<one line>"` beside `--design`: when MEASURE or the critiques narrowed the work, the run's terminal is restated on any step up to that call, refused once the design is recorded (D-705; infra built the verb, D-702). The source's byte cap moves to 13941. Grader: `tests/test_fabrik_task_source.py::test_phase_two_restates_the_terminal_with_the_design`, which also parses the line through the real argparse.
 
