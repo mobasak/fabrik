@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — 42-docusaurus Done When names the D-676 nginx rules (2026-10-08)
+- `.windsurf/rules/core/42-docusaurus.md`'s checklist now lists `try_files $uri =404;` in `/assets/`, `location = /404 { internal; }` and `always` on the 404 page's `no-cache`, as behaviours an agent can tick. Fleet 01M4DFJDA4; the default-run test gap is filed to fleet.
+
 ### Fixed — docs_updater grades a plan status by its own first word (2026-10-08)
 - `scripts/docs_updater.py::parse_plan_status` graded only six status words by the value. Any other value, and any value led by ✅/⛔/emphasis, was graded by whatever word came later in the line: `BUILT … Earlier: CONVERGED` showed CONVERGED. Every status word the fleet writes is now graded as itself: the first word is read with any leading decoration and any punctuation after it set aside (`✓ EXECUTED, converged` is EXECUTED). `<word> IN PART` grades PARTIAL, and done/completed grade COMPLETE.
 - One `PLAN_DONE` set (RESOLVED deliberately absent, as in `check_plan_lock_release`) drives owner adoption, the unowned count and `work.py`'s open-plan view. The PLANS block's Phase note no longer cites the hub-only `scripts/epic_order.py`.
