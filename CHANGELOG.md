@@ -9,6 +9,9 @@ All notable changes to this project will be documented in this file.
 - One `PLAN_DONE` set (RESOLVED deliberately absent, as in `check_plan_lock_release`) drives owner adoption, the unowned count and `work.py`'s open-plan view. The PLANS block's Phase note no longer cites the hub-only `scripts/epic_order.py`.
 - Over 712 plans on the box, 43 change grade (8 live done-ness flips, each read). Graders in `tests/test_docs_updater.py`. Site-provisioner mail 01M4DBKECA.
 
+### Changed — round zero enumerates a fix's input space before the pin (2026-10-08)
+- Eleven `/fabrik-review` queue verdicts reported an input class a later round's seat found instead of the author's own probe — an overlapping replace value, a shell `||` form, a guard's error path, a regex edge, a window at one record's length, a recursive helper's depth. The round-zero probe in `commands/_fragments/term-coverage.md` and its twin in `term-edit.md` now enumerate and run the fix's input space before the pin, and draft a regex fix against every confirmed shape at once. Grader: `tests/test_review_loop_workflow.py::test_round_zero_enumerates_the_fixs_input_space_before_the_pin`.
+
 ### Changed — `/fabrik-task` phase 1 lists what MEASURE executes before the design (2026-10-08)
 - Twenty-five queue verdicts reported a design drafted before a sibling's landed fix, a pre-existing red, a writer, a host or a vendor list was looked at. Phase 1 now replays a reported command as reported, then writes each command and its output to `measure.md` beside `design.md`: the declared files' own tests, a fetch and diff against the remote branch the work merges into, the prior record, the measured population with its n, and a live probe of each external contract. Size cap 12439 → 13610 B (D-679).
 

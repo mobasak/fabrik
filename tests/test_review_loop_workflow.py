@@ -1028,6 +1028,29 @@ def test_a_dead_mutant_is_defined_once_and_the_finder_lessons_point_at_it() -> N
         assert needle in rule4, needle
 
 
+def test_round_zero_enumerates_the_fixs_input_space_before_the_pin() -> None:
+    """/fabrik-review queue verdicts: an overlapping replace value, a shell `||` form, a guard's error
+    path and a regex edge were each found by a later round's seat instead of the author's own probe.
+    Both round-zero paragraphs carry the clause: term-coverage's and term-edit's."""
+    for name in ("term-coverage.md", "term-edit.md"):
+        text = " ".join(
+            (ROOT / "commands" / "_fragments" / name).read_text(encoding="utf-8").split()
+        )
+        for needle in (
+            "the fix's own INPUT space is enumerated and executed before the pin, so no seat is the first to meet it"
+            " — for example a matcher or replacer",
+            "a matcher or replacer against boundary, sentinel, prefix, overlapping, escaped and alternate-notation inputs",
+            "and against its live population before it widens or narrows",
+            "a parser against every form its grammar admits",
+            "a guard against an input that shows the condition, one that does not, and every error path",
+            "a recursive or fallback helper against cycles, depth and each container type",
+            "a trim or window at exactly one record's length",
+            "any other fix against the input classes its own shape implies, listed before the probe runs",
+            "a regex fix is drafted against every confirmed shape at once, never one patch per shape",
+        ):
+            assert needle in text, (name, needle)
+
+
 def test_the_finder_lessons_tell_a_seat_to_import_the_pin_and_state_the_ledger_high_water_mark() -> (
     None
 ):
