@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `command_run.py step --terminal-amend` restates a /fabrik-task terminal before its design lands (2026-10-08)
+- A run's terminal was fixed by `start --terminal`, so when the design critiques narrowed the work the close had to explain a superseded goal (five /fabrik-task verdicts). `step --terminal-amend "<text>"` (fabrik-task only) replaces it, keeping `{from, to, at}` in `terminal_amends`; it is accepted only before or with the run's `--design` — never after, a re-entered phase 2 included — so the goal cannot be moved to fit the build. Blank or multi-line text is refused, a same-text amend is a no-op, and every close row of an amended run counts `terminal_amends`. Doc: `docs/reference/command-run-protocol.md`. kaizen 01M4DB7C7V.
+
 ### Changed — /fabrik-execute-plan names the whole-plan receipt by the plan's own stem (2026-10-08)
 - `commands/_sources/fabrik-execute-plan.md` started the whole-plan receipt with `review_receipt.py --init --scope <plan-slug>`, which dates the file the day it is made; `check_convergence.py` then failed to match a later-dated receipt whose plan slug has one distinctive token. D7 and Finish step 1 now start it with `--init --out docs/development/reviews/<plan>-review.md` (the plan's own dated stem), Finish step 1 names both gate runs of the close, and `/fabrik-review` § Reporting points a plan's receipt at that naming. Grader: `tests/test_execute_plan_d7.py::test_the_whole_plan_receipt_is_named_by_the_plan_stem_so_check_convergence_matches_it`, which also drives `_cite_matches_plan`.
 
