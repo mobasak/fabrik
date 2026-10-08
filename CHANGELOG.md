@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_spec_convergence lists every finding on request, grades one spec alone, and fits its own budget (2026-10-08)
+
+- `scripts/enforcement/check_spec_convergence.py`: the truncation marker said "run the check directly", which was the same truncated run with no flag to get past it (iterative_image_editor 01M40T050B; 10 of 14 repos truncated, 93 findings hidden). `--all` now prints every finding; naming spec files or directories grades only those, unbudgeted, with an "of N named" census and a line for every named path not fully graded (NOT-FOUND, UNREADABLE, NOT-CONVERGED, UNDATED, IGNORED). The default run's budget is now counted on the escaped line and cuts its first line to fit (it printed up to 506 of 500 chars), and the marker names `--all` (D-708, W-7cdad5d5).
+
 ### Fixed — at the quota's urgent-90 tier the Stop hook enforces the checkpoint once, and the seat budget no longer reads the warning as the wall (2026-10-08)
 
 - `.claude/hooks/final_gate_stop.py`: the quota yield read only the stamp's existence, so at `urgent-90` — where `quota_stop.py` denies nothing and orders commit, push and a current run record — a session could end its turn with all three undone. It now reads the tier (a fourth `_stamp_tier` copy): the wall and every unreadable stamp keep the full yield; `urgent-90` blocks ONCE per session per episode, listing every true checkpoint item and the debt it stands down, and records each still-true cause as a kaizen `stood_down` with `tier` (D-706, W-37003fa1).
