@@ -16,16 +16,44 @@ file, not its scrollback. So:
     review_loop_ledger.py next FILE --ids A-S1,B-S2
         The next pass's `slices[].ledger` for exactly those confirmed ids, as objects grouped by slice (the id
         prefix). An id the pass never raised is refused by name.
+    review_loop_ledger.py pin --pins-dir DIR [--from REF] [--base SHA] [--replace] FILE…
+        Run from the repo root before a pass (kaizen 01M4CGJZAX): writes each FILE to DIR/<FILE> — from the
+        working tree, or with --from from that commit (a committed range) — and makes every pin AND directory
+        read-only (with the directory writable, `sed -i` renames over a 0444 pin). Writes DIR/MANIFEST.md5
+        (md5sum format) and DIR/MANIFEST.json, and with --base extracts that whole commit read-only into
+        DIR.base. Prints `DIRTY <file>` for a working-tree pin that is not HEAD's bytes, then the Workflow args
+        fragment — `pins_dir`, `pin_manifest`, `digest` (the md5 of MANIFEST.md5) and `base_pin_dir` — and the
+        workflow refuses a slice file the manifest lacks before any seat runs. A used DIR is refused: each pass
+        gets a NEW one (`--replace` re-pins on purpose). A workflow script has no filesystem, so the pins are
+        the lead's verb, never the script's.
+    review_loop_ledger.py read RUN_DIR --pins DIR …
+        After the pass, BEFORE any fix, re-hashes every manifest entry into the pass file's `pins`: a pin whose
+        bytes changed is `PIN MOVED` — the pass is void for the slices that read it, the read exits 3, and it
+        names every seat whose transcript span covers the pin's mtime (attribution without an agent step per
+        seat); a working-tree pin whose live file no longer matches is `LIVE MOVED`, informational — the lead's
+        own fix or a sibling's commit moves it, so its candidates are re-verified against the current tree. A
+        DIR with no manifest reads `UNPINNED`, and a read without --pins says `pins: NOT CHECKED`.
 
 COBRA (D-253): the cheapest way to a clean-looking file is a pass whose seats returned nothing — a seat with
-no result is printed `NO RESULT` and kept in `seats` with `returned: false`, never dropped.
+no result is printed `NO RESULT` and kept in `seats` with `returned: false`, never dropped. For the pins, the
+cheapest launch skips `pin` altogether, and the workflow's own `UNPINNED LAUNCH` / `pinned: false` sit in a
+tool result the lead is told not to read — so the omission is said HERE, on the path the lead does read
+(`pins: NOT CHECKED`, `UNPINNED`). The cheapest way past `read --pins` is to drop the flag: that is the
+NOT CHECKED line, which the receipt's Pass row must then carry.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import shutil
+import stat
+import subprocess
 import sys
+import tarfile
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -254,6 +282,165 @@ def next_ledger(doc: dict, ids: list[str]) -> list[dict]:
     return [{"name": n, "ledger": rows} for n, rows in slices.items()]
 
 
+class PinError(Exception):
+    """`pin` cannot pin a named file — absent, a directory, a symlink, outside the repo root — or its pins dir
+    is already in use (each pass gets a NEW dir; `--replace` re-pins one on purpose)."""
+
+
+def _md5(p: Path) -> str:
+    return hashlib.md5(p.read_bytes()).hexdigest()
+
+
+def _lock_tree(top: Path) -> None:
+    """Every file AND directory under `top` (itself included) read-only: with the directory writable, `sed -i`
+    (write a new file, rename it over the pin) mutates a 0444 pin at rc 0 — both design critiques executed it."""
+    for d, _, names in os.walk(top, topdown=False):
+        for n in names:
+            p = Path(d) / n
+            if not p.is_symlink():
+                p.chmod(stat.S_IMODE(p.stat().st_mode) & ~0o222)
+        Path(d).chmod(stat.S_IMODE(Path(d).stat().st_mode) & ~0o222)
+
+
+def _unlock_and_remove(top: Path) -> None:
+    for d, _, names in os.walk(top):
+        Path(d).chmod(stat.S_IMODE(Path(d).stat().st_mode) | stat.S_IWUSR)
+        for n in names:
+            p = Path(d) / n
+            if not p.is_symlink():
+                p.chmod(stat.S_IMODE(p.stat().st_mode) | stat.S_IWUSR)
+    shutil.rmtree(top)
+
+
+def _vcs(root: Path, *argv: str) -> bytes:
+    # read-only repository verbs only (show, archive into a temp path): the live repo is never written
+    return subprocess.run(["git", *argv], cwd=root, check=True, capture_output=True).stdout
+
+
+def _fresh(top: Path, replace: bool) -> None:
+    if top.exists() and any(top.iterdir()):
+        if not replace:
+            raise PinError(
+                f"{top} is already in use — each pass gets a NEW pins dir (a straggling seat may still be "
+                "reading the old one); pass --replace to re-pin it on purpose"
+            )
+        _unlock_and_remove(top)
+
+
+def pin(
+    files: list[str], pins_dir: Path, root: Path, ref: str | None = None, base: str | None = None, replace: bool = False
+) -> tuple[dict, list[str]]:
+    """Write the pass's pins; return the Workflow args fragment and the DIRTY paths (working-tree mode)."""
+    root = root.resolve()
+    rels: list[str] = []
+    # every file is checked before ANYTHING is written, so a refusal leaves no half-built pins dir behind
+    for f in files:
+        rel = os.path.normpath(f)
+        cand = root / rel
+        if cand.is_symlink():
+            raise PinError(f"cannot pin {f}: a symlink (its bytes may live outside the repo)")
+        if not cand.resolve().is_relative_to(root) or rel.startswith(".."):
+            raise PinError(f"cannot pin {f}: it resolves outside the repo root {root}")
+        if ref is None and not cand.is_file():
+            raise PinError(f"cannot pin {f}: {'not a regular file' if cand.exists() else 'no such file'}")
+        rels.append(Path(rel).as_posix())
+    blobs: dict[str, bytes] = {}
+    for f in rels:
+        if ref is not None:
+            try:
+                blobs[f] = _vcs(root, "show", f"{ref}:{f}")
+            except subprocess.CalledProcessError as exc:
+                raise PinError(f"cannot pin {f} from {ref}: {exc.stderr.decode(errors='replace').strip()}") from exc
+        else:
+            blobs[f] = (root / f).read_bytes()
+    _fresh(pins_dir, replace)
+    base_dir = Path(f"{pins_dir}.base")
+    if base:
+        _fresh(base_dir, replace)
+    dirty: list[str] = []
+    if ref is None:
+        for f in rels:
+            try:
+                head = _vcs(root, "show", f"HEAD:{f}")
+            except subprocess.CalledProcessError:
+                head = None  # untracked: not the commit's bytes either
+            if head != blobs[f]:
+                dirty.append(f)
+    manifest = {f: hashlib.md5(b).hexdigest() for f, b in blobs.items()}
+    for f, b in blobs.items():
+        (pins_dir / f).parent.mkdir(parents=True, exist_ok=True)
+        (pins_dir / f).write_bytes(b)
+    (pins_dir / "MANIFEST.md5").write_text("".join(f"{m}  {f}\n" for f, m in manifest.items()))
+    (pins_dir / "MANIFEST.json").write_text(
+        json.dumps({"root": str(root), "source": ref or "working-tree", "files": manifest}, indent=1)
+    )
+    frag: dict = {"pins_dir": str(pins_dir), "pin_manifest": manifest, "digest": _md5(pins_dir / "MANIFEST.md5")}
+    _lock_tree(pins_dir)
+    if base:
+        base_dir.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            tar = Path(tmp) / "base.tar"
+            _vcs(root, "archive", "-o", str(tar), base)  # the COMMITTED bytes, never the working tree's
+            with tarfile.open(tar) as t:
+                t.extractall(base_dir, filter="data")
+        _lock_tree(base_dir)
+        frag["base_pin_dir"] = str(base_dir)
+    return frag, dirty
+
+
+def _span(transcript: Path) -> tuple[float, float] | None:
+    stamps = []
+    try:
+        for line in transcript.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                t = json.loads(line).get("timestamp")
+            except (ValueError, AttributeError):
+                continue
+            if t:
+                stamps.append(datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp())
+    except OSError:
+        return None
+    return (min(stamps), max(stamps)) if stamps else None
+
+
+def check_pins(pins_dir: Path, run: Path) -> dict:
+    """Re-hash every manifest entry after the pass (the post-pass half of `pin`). A moved PIN voids the pass for
+    the slices that read it and names every seat whose transcript span covers the pin's mtime — attribution
+    without an agent step per seat; a moved LIVE file (working-tree pins only) is informational."""
+    if not (pins_dir / "MANIFEST.json").is_file():
+        return {"status": "unpinned", "checked": 0, "pin_moved": [], "live_moved": [], "live_at_move": {}}
+    doc = json.loads((pins_dir / "MANIFEST.json").read_text())
+    root, files = Path(doc["root"]), doc["files"]
+    pin_moved = [f for f, m in files.items() if not (pins_dir / f).is_file() or _md5(pins_dir / f) != m]
+    live_moved = (
+        [f for f, m in files.items() if not (root / f).is_file() or _md5(root / f) != m]
+        if doc.get("source") == "working-tree"
+        else []
+    )
+    spans: dict[str, tuple[float, float]] = {}
+    for line in (run / "journal.jsonl").read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict) and row.get("type") == "started" and row.get("agentId"):
+            span = _span(run / f"agent-{row['agentId']}.jsonl")
+            if span:
+                spans[str(row.get("label") or row["agentId"])] = span
+    at_move: dict[str, list[str]] = {}
+    for f in pin_moved:
+        when = (pins_dir / f).stat().st_mtime if (pins_dir / f).exists() else None
+        at_move[f] = sorted(s for s, (a, b) in spans.items() if when is not None and a <= when <= b)
+    return {
+        "status": "checked",
+        "source": doc.get("source"),
+        "checked": len(files),
+        "pin_moved": pin_moved,
+        "live_moved": live_moved,
+        "live_at_move": at_move,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -265,16 +452,56 @@ def main(argv: list[str] | None = None) -> int:
         type=float,
         help="the seats' time box in minutes; a longer seat is flagged OVER BOX",
     )
+    r.add_argument(
+        "--pins",
+        type=Path,
+        help="the pins dir `pin` wrote: re-hash its manifest against the pins and the live files",
+    )
     n = sub.add_parser("next")
     n.add_argument("ledger", type=Path)
     n.add_argument("--ids", required=True, help="comma-separated confirmed candidate ids")
+    p = sub.add_parser("pin")
+    p.add_argument("--pins-dir", type=Path, required=True)
+    p.add_argument("--from", dest="ref", help="pin each file's bytes from this commit, not the working tree")
+    p.add_argument("--base", help="also extract this commit, whole and read-only, into <pins-dir>.base")
+    p.add_argument("--replace", action="store_true", help="re-pin a pins dir that is already in use")
+    p.add_argument("files", nargs="+", help="repo-relative slice files, from the repo root")
     a = ap.parse_args(argv)
     try:
-        if a.cmd == "read":
+        if a.cmd == "pin":
+            pins = Path(os.path.abspath(a.pins_dir))
+            frag, dirty = pin(a.files, pins, Path.cwd(), ref=a.ref, base=a.base, replace=a.replace)
+            for f in dirty:
+                print(f"DIRTY {f} — the pin is the working tree's bytes, not HEAD's (pass --from <sha> for a commit)")
+            print(json.dumps(frag, ensure_ascii=False))
+        elif a.cmd == "read":
             doc = read_run(a.run, a.box)
+            if a.pins:
+                doc["pins"] = check_pins(a.pins, a.run)
             if a.out:
                 a.out.write_text(json.dumps(doc, indent=1, ensure_ascii=False))
             _print(doc)
+            chk = doc.get("pins")
+            if chk is None:
+                print("pins: NOT CHECKED — pass --pins <pins_dir> to re-hash the pins `pin` wrote")
+            elif chk["status"] == "unpinned":
+                print(f"pins: UNPINNED — {a.pins} holds no MANIFEST.json, so these pins were not written by `pin`")
+            else:
+                for f in chk["pin_moved"]:
+                    who = ", ".join(chk["live_at_move"].get(f) or []) or "no seat's span covers its mtime"
+                    print(f"PIN MOVED {f} — its bytes no longer match the manifest; seats live then: {who}")
+                for f in chk["live_moved"]:
+                    print(
+                        f"LIVE MOVED {f} — the live file no longer matches its pin: "
+                        "re-verify its candidates against the current tree"
+                    )
+                print(
+                    f"pins: {chk['checked']} checked · {len(chk['pin_moved'])} pin moved · "
+                    f"{len(chk['live_moved'])} live moved"
+                )
+                if chk["pin_moved"]:
+                    # the pass is void for the slices that read a moved pin: re-pin into a NEW dir and re-launch
+                    return 3
         else:
             doc = json.loads(a.ledger.read_text())
             print(
@@ -286,8 +513,11 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError as exc:
         print(f"review_loop_ledger: {exc}", file=sys.stderr)
         return 2
-    except LedgerError as exc:
+    except (LedgerError, PinError) as exc:
         print(f"review_loop_ledger: {exc}", file=sys.stderr)
+        return 2
+    except subprocess.CalledProcessError as exc:
+        print(f"review_loop_ledger: {exc} — {exc.stderr.decode(errors='replace').strip()}", file=sys.stderr)
         return 2
     return 0
 

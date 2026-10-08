@@ -22,7 +22,9 @@ Workflow({ scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js", ar
 |---|---|
 | `pass` | 1 on the partitioned round; 2, 3 on the passes over the slice ledgers |
 | `surface`, `base_sha`, `digest` | the Phase-0 surface, the pinned commit, the pin's identity printed to every seat — `git diff HEAD \| md5sum` at Phase 0 in `/fabrik-review`; in `/fabrik-review-scoped`, the md5 of the pass's `md5sum` manifest of the surface files, taken just before they are copied (its step 5) |
-| `pins_dir`, `scratch_dir` | the pinned copies every seat reads, each at `<pins_dir>/<repo-relative path>` (`cp --parents <file> <pins_dir>/` from the repo root); the per-seat scratch root |
+| `pins_dir`, `scratch_dir` | the pinned copies every seat reads, each at `<pins_dir>/<repo-relative path>`; the per-seat scratch root. Build the pins with `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir per pass> [--from <tip sha>] [--base <base_sha>] <every slice file>` from the repo root (kaizen 01M4CGJZAX): it writes each file from the working tree, or from the commit with `--from` (a committed range — the working tree may carry WIP; working-tree mode prints `DIRTY <file>` for a pin that is not HEAD's bytes); makes every pin and directory read-only (a writable directory lets `sed -i` rename over a read-only pin); writes `MANIFEST.md5` and `MANIFEST.json`; refuses an absent file, a directory, a symlink, a path outside the repo and a used dir (`--replace` re-pins one on purpose); and prints the `pins_dir` / `pin_manifest` / `digest` / `base_pin_dir` args fragment — pass its `digest` as the launch's `digest` |
+| `pin_manifest` | optional — the `{ path: md5 }` map `pin` printed. A slice file it lacks stops the script before a seat runs; without it the launch logs `UNPINNED LAUNCH` and the ledger reads `pinned: false` |
+| `base_pin_dir` | optional — the read-only base tree `pin --base` wrote; the seats' recipe copies it (`cp -r`, then `chmod -R u+w` as its own command — the copy keeps the read-only bits, and an overlay that fails leaves the seat on the base bytes) in place of `git archive`, so a seat runs no git against the live repo |
 | `brief` | the dispatcher's shared text: the 16 failure classes, the D8 lessons, the house rules, the referents |
 | `slices` | `[{ name, files: [repo-relative…], priority, scope?, models?, agent?, ledger?: [{ id, file, line, claim } \| "<claim>"] }]` — `models` is one to three distinct of `opus`/`sonnet`/`haiku` (default `["sonnet", "haiku"]`, D-344's file-slice pair; a section slice names one seat — `["opus"]` on the rule/grammar sections, `["sonnet"]` on the rest, D-212/D-218; `/fabrik-execute-plan` adds its per-round Opus finder as the riskiest slice's third); `agent` is `fabrik-reviewer` (default) or `fabrik-researcher` for a cited-fact slice, and seats that slice's refuter too; `scope` names the sections of `files` the slice owns; an unknown model or agent, or a repeated or fourth finder, stops the script before a seat runs. `ledger` on pass ≥ 2 (a string row gets the id `<slice>-L<n>`; any other row shape stops the script before a seat runs); each `claim` states the DEFECT as raised — `STILL_TRUE` the defect persists · `NOW_FALSE` it is gone (the fix holds) · `NEW` a defect the fix introduced |
 | `box_minutes` | the seats' hard time box (default 15) |
@@ -34,7 +36,7 @@ The tool returns `async_launched`; the ledger arrives as one result — the lead
 ## What comes back
 
 ```text
-{ pass, closable, dropped_slices, dropped_seats,
+{ pass, closable, pinned, dropped_slices, dropped_seats,
   slices: [{ name, files, seats: [{ model, files_read, raised, confirmed, failed, ledger_status, notes }],
              gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..], closable, open: [..] }] }
 ```
@@ -56,7 +58,7 @@ The tool returns `async_launched`; the ledger arrives as one result — the lead
 ## What the lead still does (Phase 2 of `/fabrik-review`)
 
 Read the pass into a file — `python3 scripts/review_loop_ledger.py read <run transcript dir> --out
-<scratch>/pass-<n>.json --box <box_minutes>` — which prints every seat's minutes and tokens — from the seat's own transcript, counted once per message id — (`OVER BOX`: nothing in the Workflow
+<scratch>/pass-<n>.json --box <box_minutes> --pins <pins_dir>` — BEFORE any fix (`--pins` re-hashes the manifest into the pass file's `pins`: a changed pin is `PIN MOVED` — the pass is void for the slices that read it, the read exits 3 and names every seat whose transcript span covers the pin's mtime; re-pin into a NEW dir and re-launch those slices; a working-tree pin whose live file no longer matches is `LIVE MOVED`, informational — re-verify its candidates against the current tree, as `/fabrik-review-scoped` step 5 does; a dir with no manifest reads `UNPINNED`, and a read without `--pins` prints `pins: NOT CHECKED`) — which prints every seat's minutes and tokens — from the seat's own transcript, counted once per message id — (`OVER BOX`: nothing in the Workflow
 API times a seat out; one refuter ran 59 minutes against a 12-minute box) and `NO RESULT` for a seat that returned
 nothing. Re-run the command of every `confirmed` verdict on the pinned copy before writing a fix; treat `unverified`
 and every `gaps` entry as open; fix; record the round (`command_run.py round --slices …`) and name its stop and fix
@@ -75,7 +77,7 @@ same loop; the workflow is the one that keeps the lead's turns flat.
 
 Written beside the script's header; the two that matter most: `files_read` is the finder's own claim, so the
 verify stage and the lead's Phase-2 execution are what catch a phantom read; the capture-recapture number is
-advice and nothing in the record keys on it.
+advice and nothing in the record keys on it. The pin manifest is optional while the launchers build their pins by hand, so the cheapest launch skips `pin`: the workflow logs `UNPINNED LAUNCH` and returns `pinned: false`, and the pass reader — the path the lead actually reads — prints `pins: NOT CHECKED` or `UNPINNED`; a strict-xfail grader (`test_every_launcher_passes_a_pin_manifest`) turns red the day every launcher passes the manifest, which forces making it mandatory. The pins are checked at the two points the lead's tools can see, before dispatch and after the pass; a per-seat hash would need an agent after every seat and is not built — PIN MOVED attributes by mtime and seat span instead. The `/fabrik-review` Leak check (git status and the stash list before and after each pass) stays the authority for the live tree outside the slice files.
 
 ## Measurement
 
