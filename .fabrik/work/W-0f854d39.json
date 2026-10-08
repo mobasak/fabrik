@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:01:06.992126Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-0f854d39",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "at the next site-provisioner deploy (held by the operator: 'no do not redeploy it yet. i did not finish it.'), add this step to its deploy plan ahead of the pull (the copy readable by uid 1000, the image's appuser; a missing file fails startup since site-provisioner 7964567); mail 01M4DKWM; spec comment specs/services/site-provisioner.yaml:46",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "deploy-prereq",
+    "site-provisioner"
+  ],
+  "title": "site-provisioner's next deploy: copy the VPS checkout's dns-manager-gsc-*.json to <checkout>/secrets/service-account.json BEFORE the git pull (else the pull deletes it and the container refuses to start: create_host_path: false since site-provisioner 7964567)"
+}
