@@ -8570,3 +8570,93 @@ def test_a_fallback_whose_chmod_fails_leaks_no_descriptor(tmp_path, monkeypatch)
     for _ in range(20):
         cr._ledger_append({"event": "flip", "to": "mob"})
     assert len(os.listdir("/proc/self/fd")) - before < 5, "the fallback leaked descriptors"
+
+
+# ── W-06733560 items 3/6/7: the stamp writer and its promise/hold readers follow the file's rules ──
+
+
+def test_a_failed_content_write_leaves_the_previous_stamp_intact(tmp_path, monkeypatch):
+    """Item 3: the advisory wrote the fleet-exhausted stamp in place (O_TRUNC, then write), so a
+    write that failed part-way left a TORN stamp — `_promised_resume` then reads no promise and
+    the promise-came-due re-arm never fires. A content write now builds beside and replaces, so
+    a failure leaves the previous bytes, the previous mtime and no temp."""
+    box = tmp_path / "box"  # the autouse isolation fixtures own tmp_path's top level
+    box.mkdir()
+    stamp = box / "fleet-exhausted"
+    cr._touch_stamp(stamp, 1000.0, "1700000000\nurgent-90\n")
+    real_write = os.write
+
+    def failing_write(fd, buf):
+        real_write(fd, buf[:3])
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(cr.os, "write", failing_write)
+    with pytest.raises(OSError):
+        cr._touch_stamp(stamp, 2000.0, "1800000000\nwalled\n")
+    monkeypatch.setattr(cr.os, "write", real_write)
+    assert stamp.read_text() == "1700000000\nurgent-90\n"
+    assert stamp.stat().st_mtime == 1000.0
+    assert sorted(p.name for p in box.iterdir()) == ["fleet-exhausted"], "a temp was left behind"
+
+
+def test_a_content_write_refuses_anything_but_a_regular_file(tmp_path):
+    """Item 3, the refusal contract both critics held it to: a FIFO or a directory at the stamp
+    path is refused loudly, never replaced (a symlink is graded in test_rotate_stamp_symlinks)."""
+    box = tmp_path / "box"
+    box.mkdir()
+    fifo = box / "fifo-stamp"
+    os.mkfifo(fifo)
+    with pytest.raises(OSError):
+        cr._touch_stamp(fifo, 1000.0, "0\nwalled\n")
+    assert fifo.is_fifo()
+    d = box / "dir-stamp"
+    d.mkdir()
+    with pytest.raises(OSError):
+        cr._touch_stamp(d, 1000.0, "0\nwalled\n")
+    assert d.is_dir()
+    assert sorted(p.name for p in box.iterdir()) == ["dir-stamp", "fifo-stamp"]
+
+
+def test_a_content_write_sweeps_its_own_old_temps(tmp_path):
+    """Item 3: a SIGKILL between the temp and the replace leaves `<name>.<pid>.touch` under a pid
+    that never returns — the re-arm's litter rule, applied to this writer: older than an hour goes,
+    a fresh one (a live sibling's) stays."""
+    box = tmp_path / "box"
+    box.mkdir()
+    stamp = box / "fleet-exhausted"
+    old = box / "fleet-exhausted.99991.touch"
+    fresh = box / "fleet-exhausted.99992.touch"
+    for p in (old, fresh):
+        p.write_text("x")
+    os.utime(old, (time.time() - 7200, time.time() - 7200))
+    cr._touch_stamp(stamp, time.time(), "0\nurgent-90\n")
+    assert not old.exists() and fresh.exists()
+    assert stamp.read_text() == "0\nurgent-90\n" and stamp.stat().st_mode & 0o777 == 0o600
+
+
+def test_an_undateable_promised_resume_is_no_promise(tmp_path):
+    """Item 6: line 1 went through a bare float(), so `inf`/`1e400` read as a promise that never
+    comes due and a finite `1e20` passed and then crashed `--status` in `_fmt_when`. It now goes
+    through `_dateable_ts`, the validator for an epoch that will be promised."""
+    stamp = tmp_path / "fleet-exhausted"
+    for first in ("inf", "1e400", "1e20", "-inf", "nan"):
+        stamp.write_text(f"{first}\nurgent-90\n")
+        os.utime(stamp, (1000.0, 1000.0))
+        assert cr._promised_resume(stamp) is None, first
+    stamp.write_text("5000\nurgent-90\n")
+    os.utime(stamp, (1000.0, 1000.0))
+    assert cr._promised_resume(stamp) == 5000.0, "a finite future promise still reads"
+
+
+def test_a_hold_that_is_not_a_dict_is_a_wall(capsys):
+    """Item 7: `_hold_is_wall` failed OPEN on a non-dict, the opposite of the fail-closed rule its
+    docstring states; `--status` must not print `none` for a hold it cannot read."""
+    assert cr._hold_is_wall(None) is False
+    for odd in ("walled", ["walled"], 1, True):
+        assert cr._hold_is_wall(odd) is True, odd
+    assert cr._hold_is_wall({"tier": "urgent-90"}) is False
+    assert cr._hold_is_wall({}) is True
+    pic = {"accounts": [], "queue": [], "next_relief": None, "last_flip": None, "hold": ["walled"]}
+    cr._print_picture(pic)
+    out = capsys.readouterr().out
+    assert "picture: hold none" not in out and "unreadable" in out, out

@@ -5672,17 +5672,25 @@ def _print_picture(pic: dict) -> None:
     by = {r["email"]: r for r in pic["accounts"]}
     hold = pic.get("hold")
     if hold is not None and not isinstance(hold, dict):
-        hold = None  # `_hold_is_wall` is dict-guarded; the `.get` calls below are not
-    print(
-        "picture: hold "
-        + (
-            f"{'HELD' if _hold_is_wall(hold) else 'WARNING (urgent-90 — warning only, the wall-tier hold is not armed)'} since "
-            f"{_fmt_when(hold.get('since'))}, resume promised "
-            + (_fmt_when(hold["resume_promised"]) if hold.get("resume_promised") else "none named")
-            if hold
-            else "none"
+        # W-06733560 item 7: `_hold_is_wall` fails closed on a non-dict, so the display says the
+        # hold is unreadable and read as the wall instead of printing `none` (its `.get` calls
+        # below need a dict, so it never reaches them)
+        print(f"picture: hold unreadable ({type(hold).__name__}) — read as the WALL")
+    else:
+        print(
+            "picture: hold "
+            + (
+                f"{'HELD' if _hold_is_wall(hold) else 'WARNING (urgent-90 — warning only, the wall-tier hold is not armed)'} since "
+                f"{_fmt_when(hold.get('since'))}, resume promised "
+                + (
+                    _fmt_when(hold["resume_promised"])
+                    if hold.get("resume_promised")
+                    else "none named"
+                )
+                if hold
+                else "none"
+            )
         )
-    )
     parts = []
     for i, email in enumerate(pic["queue"], 1):
         r = by.get(email) or {}
@@ -5911,9 +5919,12 @@ def _hold_is_wall(hold: dict | None) -> bool:
     """Is the live hold the one that actually HOLDS? The WALL band asserts that
     `quota_stop.py` is default-denying every world-changing tool, and since D-306 only the
     `walled` tier does. A hold dict with no tier is a pre-tier stamp — fails closed, like
-    :func:`_stamp_tier`; no hold at all is no wall."""
-    if not isinstance(hold, dict):
+    :func:`_stamp_tier`; no hold at all is no wall, and a hold that is not a dict is one this
+    reader cannot read, so it fails closed too (W-06733560 item 7)."""
+    if hold is None:
         return False
+    if not isinstance(hold, dict):
+        return True
     return hold.get("tier", _STAMP_TIER_WALLED) != _STAMP_TIER_URGENT
 
 
@@ -6544,11 +6555,15 @@ def _promised_resume(stamp: Path) -> float | None:
         # treats as a single token, and a bogus future promise suppresses the promise-came-due
         # re-arm until the week timer.
         with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
-            promised = float(fh.read().split("\n", 1)[0].strip())
+            raw = float(fh.read().split("\n", 1)[0].strip())
         written = stamp.stat().st_mtime
     except (OSError, ValueError, IndexError):
         return None
-    return promised if promised > written else None
+    # W-06733560 item 6: through the validator for an epoch that will be PROMISED — a bare
+    # float() let `inf` stand as a promise that never comes due, and a finite `1e20` passed and
+    # then killed `--status` in `_fmt_when` (OverflowError)
+    promised = _dateable_ts(raw)
+    return promised if promised is not None and promised > written else None
 
 
 def _urgent_drain_pct() -> float:
@@ -7459,24 +7474,73 @@ def _touch_stamp(path: Path, now: float, content: str | None = None) -> None:
     without following a symlink or blocking on a FIFO, write *content* when given (truncating
     first) or leave the stored bytes alone when not (a touch), then set its mtime to *now* on the
     open descriptor. These stamps fall back to the shared temp dir, where a planted link would
-    otherwise have the tick write — and date — the link's target. Raises OSError on any refusal."""
-    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+    otherwise have the tick write — and date — the link's target. Raises OSError on any refusal.
+
+    A content write never truncates the live file (W-06733560 item 3): an in-place O_TRUNC + write
+    that failed part-way left a TORN fleet-exhausted stamp, and `_promised_resume` then read no
+    promise. It builds `<name>.<pid>.touch` beside the path and replaces — the rule
+    `_rearm_wall_stamp` and the tier raise already follow — after refusing anything at the path
+    that is not a regular file, so a planted link or FIFO stays a loud refusal (never replaced)
+    and `_drop_planted_stamp` stays the one place that removes and reports a link."""
     if content is not None:
-        flags |= os.O_TRUNC
+        _replace_stamp(path, now, content)
+        return
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
     fd = os.open(path, flags, 0o600)
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise OSError(f"{path}: not a regular file")
         os.fchmod(fd, 0o600)
-        buf = (content or "").encode()
-        while buf:
-            n = os.write(fd, buf)
-            if n <= 0:
-                raise OSError(f"{path}: zero-length write")
-            buf = buf[n:]
         os.utime(fd, (now, now))
     finally:
         os.close(fd)
+
+
+def _replace_stamp(path: Path, now: float, content: str) -> None:
+    """`_touch_stamp`'s content arm: refuse a non-regular file at *path*, write a 0600 per-pid
+    temp beside it, date it *now*, then `os.replace` it in. A live pid owns its temp's name, so
+    a stale same-pid temp (pid reuse after a SIGKILL) is truncated and reused, never an EEXIST;
+    an orphan older than an hour is swept first, the re-arm's litter rule. Our temp is unlinked
+    on any failure, so the live stamp is either the old bytes or the new ones."""
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        st = None
+    if st is not None and not stat.S_ISREG(st.st_mode):
+        raise OSError(f"{path}: not a regular file")
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.touch")
+    try:
+        cutoff = now - 3600.0
+        for orphan in path.parent.glob(f"{path.name}.*.touch"):
+            if orphan != tmp and orphan.lstat().st_mtime < cutoff:
+                orphan.unlink()
+    except OSError:
+        pass  # housekeeping never costs the write
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW | os.O_CLOEXEC
+    pending = True
+    try:
+        fd = os.open(tmp, flags, 0o600)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise OSError(f"{tmp}: not a regular file")
+            os.fchmod(fd, 0o600)
+            buf = content.encode()
+            while buf:
+                n = os.write(fd, buf)
+                if n <= 0:
+                    raise OSError(f"{tmp}: zero-length write")
+                buf = buf[n:]
+            os.utime(fd, (now, now))
+        finally:
+            os.close(fd)
+        os.replace(tmp, path)
+        pending = False
+    finally:
+        if pending:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass  # never ours to leave, never worth masking the write's own error
 
 
 def _regular_stamp_mtime(path: Path) -> float | None:
