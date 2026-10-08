@@ -9,6 +9,9 @@ All notable changes to this project will be documented in this file.
 - One `PLAN_DONE` set (RESOLVED deliberately absent, as in `check_plan_lock_release`) drives owner adoption, the unowned count and `work.py`'s open-plan view. The PLANS block's Phase note no longer cites the hub-only `scripts/epic_order.py`.
 - Over 712 plans on the box, 43 change grade (8 live done-ness flips, each read). Graders in `tests/test_docs_updater.py`. Site-provisioner mail 01M4DBKECA.
 
+### Fixed — an Agent-tool seat brief carries the seat write scope (2026-10-08)
+- `commands/_fragments/subagents-core.md`'s seat rule banned mutating git verbs but never said a seat writes nothing outside its own scratch dir; only the `Workflow` seats got that rule (`SEAT_ISOLATION`, after a seat's rmtree deleted every session's skills, 01M4DE0R2H). The fragment now states it for the read-only seats a lead briefs by hand, with the in-program recipe (`PYTHONUSERBASE` before `HOME`, or a child process loses the `--user` packages); a writer seat writes only the paths its brief names. Grader: `tests/test_review_loop_workflow.py::test_an_agent_tool_seat_brief_carries_the_write_scope`.
+
 ### Changed — round zero enumerates a fix's input space before the pin (2026-10-08)
 - Eleven `/fabrik-review` queue verdicts reported an input class a later round's seat found instead of the author's own probe — an overlapping replace value, a shell `||` form, a guard's error path, a regex edge, a window at one record's length, a recursive helper's depth. The round-zero probe in `commands/_fragments/term-coverage.md` and its twin in `term-edit.md` now enumerate and run the fix's input space before the pin, and draft a regex fix against every confirmed shape at once. Grader: `tests/test_review_loop_workflow.py::test_round_zero_enumerates_the_fixs_input_space_before_the_pin`.
 
