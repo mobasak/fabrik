@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the spoke stack and bootstrap step 11 ship Alloy (2026-10-08)
+
+The spoke monitoring-agent template runs Alloy on the mesh IP (128M, cpus 0.25) with Promtail under the rollback profile;
+step 11 renders and installs `alloy.alloy`, removes a still-running Promtail before `up -d`, and fails closed unless Alloy
+is Up (a warning under --skip-mesh); the vps2/vps3 mirrors and the spoke restore inventory follow (plan 2026-10-08-plan-1,
+T03; wave-2 review receipt `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-T02-review.md`).
+
 ### Changed — the hub monitoring compose runs Alloy, Promtail kept under the rollback profile (2026-10-08)
 
 `infra/vps1/monitoring/compose.yaml` gains the `alloy` service (grafana/alloy:v1.20.1, 256M, Promtail's positions read-only,

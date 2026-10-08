@@ -401,7 +401,7 @@ step_02_install_firewall_fail2ban() {
     done
     # Allow ANY port inbound from the WG mesh subnet (10.99.0.0/24).
     # Without this, vps1's Prometheus cannot scrape spoke node-exporter:9100 /
-    # cadvisor:8080 / promtail:9080 — UFW default-deny silently breaks spoke
+    # cadvisor:8080 / alloy:12345 — UFW default-deny silently breaks spoke
     # observability. Single-operator threat model: mesh is trusted; no per-port
     # filtering needed for cross-host traffic. (W8 finding 2026-06-01: this gap
     # silently broke spoke scrape targets for ~24h after W1 enabled UFW.)
@@ -697,12 +697,15 @@ EOF
 step_11_install_monitoring_agents() {
     log "step 11: install monitoring agents shipping to vps1 over mesh"
     if $DRY_RUN; then
-        dim "    [dry-run] would scp 2 templates to /opt/monitoring-agent/ and docker compose up -d"
+        dim "    [dry-run] would scp 3 templates to /opt/monitoring-agent/ and docker compose up -d"
         return 0
     fi
 
-    # Render the compose + promtail config locally with the spoke's mesh IP,
+    # Render the compose + alloy + promtail config locally with the spoke's mesh IP,
     # spoke name, hub mesh IP. Push via /tmp then sudo mv to /opt/monitoring-agent/.
+    # promtail.yaml is still rendered and shipped — the rollback-profile promtail
+    # service (spec D6) mounts it, even though `up -d --remove-orphans` below never
+    # starts it.
     local tmpdir
     tmpdir=$(mktemp -d -t fabrik-monitoring-agent-XXXX)
     trap "rm -rf '$tmpdir'" RETURN
@@ -720,22 +723,53 @@ step_11_install_monitoring_agents() {
         -e "s|{{HUB_MESH_IP}}|${FABRIK_WG_HUB_IP}|g" \
         "${SCRIPT_DIR}/templates/promtail.yaml.template" \
         > "${tmpdir}/promtail.yaml"
+    sed \
+        -e "s|{{SPOKE_NAME}}|${SPOKE_NAME}|g" \
+        -e "s|{{SPOKE_MESH_IP}}|${SPOKE_MESH_IP}|g" \
+        -e "s|{{HUB_MESH_IP}}|${FABRIK_WG_HUB_IP}|g" \
+        "${SCRIPT_DIR}/templates/alloy.alloy.template" \
+        > "${tmpdir}/alloy.alloy"
 
     # scp to /tmp on the spoke, then sudo mv into place
-    scp -q "${tmpdir}/compose.yaml" "${tmpdir}/promtail.yaml" \
+    scp -q "${tmpdir}/compose.yaml" "${tmpdir}/promtail.yaml" "${tmpdir}/alloy.alloy" \
         "${EFFECTIVE_REMOTE}:/tmp/"
     remote "sudo mkdir -p /opt/monitoring-agent && \
         sudo mv /tmp/compose.yaml /opt/monitoring-agent/compose.yaml && \
         sudo mv /tmp/promtail.yaml /opt/monitoring-agent/promtail.yaml && \
+        sudo mv /tmp/alloy.alloy /opt/monitoring-agent/alloy.alloy && \
         sudo chown -R root:root /opt/monitoring-agent && \
-        sudo chmod 644 /opt/monitoring-agent/*.yaml"
+        sudo chmod 644 /opt/monitoring-agent/*.yaml /opt/monitoring-agent/alloy.alloy"
 
-    # Bring up the stack
+    # Stop and remove any still-RUNNING promtail BEFORE bringing the stack up.
+    # profiles: [rollback] (D6) only keeps a STOPPED promtail out of the
+    # `--remove-orphans` reach below (ms-03) — a promtail container already
+    # running from a prior compose file is not an orphan either, so a rerun of
+    # this step on an un-switched spoke would otherwise start alloy beside a
+    # still-running promtail, the parallel run D2 forbids. `rm -sf` without `-v`
+    # leaves the promtail-positions volume in place.
+    remote "cd /opt/monitoring-agent && sudo docker compose rm -sf promtail"
+
+    # Bring up the stack (promtail stays under profiles: [rollback] — not started)
     remote "cd /opt/monitoring-agent && sudo docker compose up -d --remove-orphans"
 
-    # Verify all 3 containers up
+    # Verify alloy is actually up — a missing or crash-looping container must
+    # fail this step, not just print a status line and claim success. BUT under
+    # --skip-mesh there is no wg0, so alloy cannot bind
+    # --server.http.listen-addr=<mesh IP>:12345 and crash-loops — expected on a
+    # drill, not a real failure, and this step must not abort the rest of
+    # bootstrap (steps 12-16 never run otherwise, under `set -euo pipefail`).
     sleep 4
-    remote 'sudo docker ps --filter name=node-exporter --filter name=cadvisor --filter name=promtail --format "{{.Names}} {{.Status}}"'
+    local agent_status
+    agent_status=$(remote 'sudo docker ps --filter name=node-exporter --filter name=cadvisor --filter name=alloy --format "{{.Names}} {{.Status}}"')
+    echo "${agent_status}"
+    if echo "${agent_status}" | grep -q '^alloy Up'; then
+        :
+    elif $SKIP_MESH; then
+        warn "step 11: alloy is not Up — expected under --skip-mesh (no wg0 to bind the mesh IP). Re-run step 11 once the mesh is up."
+    else
+        err "step 11: alloy container is not Up — monitoring agents failed to start"
+        return 1
+    fi
 
     ok "step 11 done — monitoring agents shipping to vps1's Loki + ready to be scraped"
 }

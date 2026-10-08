@@ -40,7 +40,7 @@ Same list as the hub minus the hub-only bits (no `claude-code`, no `gh` if the s
 | `/etc/wireguard/wg0.conf` (560 B) | endpoint config pointing at hub |
 | `/etc/iptables/rules.v4` (~3 KB) | in the host-state plan, but belt-and-braces only: post-G5 the DOCKER-USER chain is regenerated from config by `iptables-docker-user.service` (restore step_07), and the drill does NOT assert this file |
 | `/etc/iptables/rules.v6` (~2 KB) | IPv6 mirror — same G5 caveat as above |
-| `/etc/ufw/user.rules` (~2 KB post-W8) | UFW IPv4 state (W1 baseline + W8 added `allow from 10.99.0.0/24` for mesh trust). Without the W8 rule, vps1's Prometheus cannot scrape spoke node-exporter / cadvisor / promtail — silent observability defect. |
+| `/etc/ufw/user.rules` (~2 KB post-W8) | UFW IPv4 state (W1 baseline + W8 added `allow from 10.99.0.0/24` for mesh trust). Without the W8 rule, vps1's Prometheus cannot scrape spoke node-exporter / cadvisor / alloy — silent observability defect. |
 | `/etc/ufw/user6.rules` (1669 B) | UFW IPv6 mirror |
 | `/etc/docker/daemon.json` (~120 B) | log rotation; smaller than vps1's (no promtail tag yet — W4 pre-step) |
 | `/etc/sysctl.d/99-cloudimg-ipv6.conf` | cloud-init injected — keep to preserve IPv6 posture |
@@ -56,7 +56,7 @@ Same list as the hub minus the hub-only bits (no `claude-code`, no `gh` if the s
 | Dir | What | Action |
 |---|---|---|
 | `containerd` | Docker daemon state | exclude |
-| `monitoring-agent` | node-exporter + cadvisor + promtail compose stack | restore |
+| `monitoring-agent` | node-exporter + cadvisor + alloy compose stack (promtail stays defined, `profiles: [rollback]` only, until Gate S) | restore |
 | `traefik` | spoke Traefik compose stack + dynamic config | restore |
 
 Future tenant directories land here too — automatic inclusion via `/opt/**` glob.
@@ -65,7 +65,8 @@ Future tenant directories land here too — automatic inclusion via `/opt/**` gl
 
 | Volume | Restore-critical? |
 |---|---|
-| `monitoring-agent_promtail-positions` | NO — tail offsets regenerate from container restart |
+| `monitoring-agent_promtail-positions` | NO — tail offsets regenerate from container restart (rollback profile only, kept until Gate S) |
+| `monitoring-agent_alloy-data` | NO — recomputable; `monitoring-agent_promtail-positions` is itself not restored (row above), so on a rebuilt spoke there is nothing to hand over at `/run/promtail` — Alloy starts with no stored position and tails each container log from its beginning (`tail_from_end` defaults to false, spec D4/cv-12), not from where Promtail left off |
 
 **No `docker-volumes` Backrest plan needed today** — the only volume is regenerable. When tenants land with stateful volumes, add the plan then.
 

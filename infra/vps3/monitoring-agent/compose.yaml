@@ -3,9 +3,14 @@
 # Wireguard mesh. NOT a tenant of fabrik apply — owned by bootstrap-vps.sh.
 #
 # Variables (envsubst):
-#   vps3      e.g. vps2 (used as a label in promtail)
-#   10.99.0.3   e.g. 10.99.0.2 (where exporters bind their listeners)
-#   10.99.0.1     10.99.0.1 (where promtail pushes logs to loki)
+#   vps3      e.g. vps2 (used as a label in alloy.alloy / promtail.yaml,
+#                        the rollback-profile config)
+#   10.99.0.3   e.g. 10.99.0.2 (where exporters + alloy bind their listeners)
+#   10.99.0.1     10.99.0.1 (where alloy / promtail push logs to loki)
+#
+# These three are substituted into alloy.alloy.template and promtail.yaml.template
+# too (bootstrap-vps.sh step 11, same sed set) — not just this compose file, which
+# only consumes 10.99.0.3 itself.
 #
 # Image versions match vps1's /opt/monitoring/compose.yaml so spoke metrics
 # share format/version assumptions with the central stack.
@@ -65,12 +70,42 @@ services:
           memory: 256M
           cpus: '0.5'
 
+  alloy:
+    image: grafana/alloy:v1.20.1
+    container_name: alloy
+    restart: unless-stopped
+    platform: linux/amd64
+    network_mode: host
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /opt/monitoring-agent/alloy.alloy:/etc/alloy/config.alloy:ro
+      - promtail-positions:/run/promtail:ro
+      - alloy-data:/var/lib/alloy/data
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      # Bind Alloy's HTTP server (/metrics, /-/ready) to the mesh IP only —
+      # vps1's Prometheus scrapes via wg0 (spec D3).
+      - --server.http.listen-addr=10.99.0.3:12345
+      - --storage.path=/var/lib/alloy/data
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+
+  # Rollback-only: kept defined (profiles: [rollback]) so `docker compose up -d
+  # --remove-orphans` never starts or removes it, but a rollback can restore
+  # the previous compose.yaml.pre-alloy and bring it back (spec D6). Removed
+  # at Gate S along with the promtail-positions volume.
   promtail:
     image: grafana/promtail:3.4.2
     container_name: promtail
     restart: unless-stopped
     platform: linux/amd64
     network_mode: host
+    profiles: [rollback]
     volumes:
       - /var/log:/var/log:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
@@ -86,3 +121,4 @@ services:
 
 volumes:
   promtail-positions:
+  alloy-data:

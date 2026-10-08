@@ -890,11 +890,15 @@ step_09c_start_core_services_drill() {
     fi
 
     # Verify monitoring-agent CONTAINERS exist (compose up created them).
-    # Don't require "running" state — promtail depends on vps1's Loki over
-    # the WG mesh, and --skip-mesh means it can't reach it → restart loop.
+    # Don't require "running" state — alloy depends on vps1's Loki over the WG
+    # mesh to ship logs, but that is NOT why it restart-loops under --skip-mesh:
+    # alloy's loki.write retries indefinitely on an unreachable push endpoint,
+    # it does not exit on that. The real cause is wg0 never coming up, so the
+    # mesh IP alloy's --server.http.listen-addr binds to does not exist on any
+    # interface, and the container crash-loops on that bind failure instead.
     # That's a mesh dependency, not a DR bug. What we ARE checking: the
-    # restored compose.yaml is valid enough to create containers from
-    # (catches port conflicts, missing images, bad volume mounts).
+    # restored compose.yaml is valid enough to create containers from (catches
+    # port conflicts, missing images, bad volume mounts).
     sleep 5
     local svc_created
     svc_created=$(remote 'sudo docker ps -a --filter "label=com.docker.compose.project=monitoring-agent" --format "{{.Names}}" | wc -l') || svc_created=0
