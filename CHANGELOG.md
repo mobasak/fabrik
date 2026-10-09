@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-data-contract: an approved spec naming the delta confirms a re-freeze (2026-10-09)
+- Phase 0: a FROZEN contract's re-freeze STOP is satisfied by a spec whose approval row (the panel's `→ both-approve` or the operator's approving answer) is in `docs/DECISIONS.md` and whose § Contract deltas (a `Profile: delta` spec's section) names the change; anything else still stops. Phase 3 gains check 5, which re-checks the deltas before the Phase-4 flip (D-730, decided by the Opus + Fable panel).
+
 ### Changed — /fabrik-data-contract states where the Pass Ledger lives (2026-10-09)
 - `commands/_sources/fabrik-data-contract.md`: the Pass Ledger lives in the contract's Pass Ledger section when it carries one, else in the closing report; a re-freeze adds its own version entry after the closing round, so its absence is never a finding in any round; a paused run carries its rows in `blocked --reason` (the `--feedback` line is the capped usage grammar). Phase 2's exact template shape keeps an existing ledger section, and Phase 4 and the Guardrails name the entry as an exempt post-convergence write. Answers the recurring pass-ledger-placement verdicts (D-711). Grader: `tests/test_data_contract_recurring_rules.py`. Of the 34-row queue: 27 rejected (7 landed, 20 one-off advice), 3 code rows routed to infra and fleet, 2 re-freeze-STOP rows held for an operator decision.
 
