@@ -30,7 +30,7 @@ one came back empty), you adjudicate every concern by executing its claim**, the
 - `ACCEPTED` — the change is applied, and reviewed before anyone approves it: in spec-review and plan-review
   it re-opens the loop for ONE delta round by the round-1 seats over the fix, and `Status: CONVERGED` stands only
   if that round confirms 0 (else the loop continues — that round is a delta round of the same loop, so its
-  own-fix defects count in the same scope-growth window and, once that stop has fired, route to its backlog row); in `/fabrik-task` you edit `design.md` before `step
+  own-fix defects count in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row); in `/fabrik-task` you edit `design.md` before `step
   --design` records it, which works on both lane versions;
 - `REJECTED` — with the counter-evidence;
 - `OPEN` — the operator rules on it (at a design-approval gate, an OPEN concern makes the panel split).

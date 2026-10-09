@@ -10,11 +10,6 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 FRAG = REPO / "commands" / "_fragments"
-CALLEE = (
-    "listed before the probe runs; a fix that names an interface (a function, flag, field or verb) cites the "
-    "callee's signature and line range read at the pinned SHA, and is re-read against that range before the pin; "
-    "a regex fix"
-)
 
 
 def _norm(p: Path) -> str:
@@ -51,16 +46,26 @@ def test_the_panel_delta_round_shares_the_scope_growth_window() -> None:
     accepted = _between(_norm(FRAG / "design-critique.md"), "- `ACCEPTED`", "- `REJECTED`")
     assert (
         "(else the loop continues — that round is a delta round of the same loop, so its own-fix defects count "
-        "in the same scope-growth window and, once that stop has fired, route to its backlog row); in "
+        "in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row); in "
         "`/fabrik-task`"
     ) in accepted
 
 
 def test_round_zero_cites_the_callee_in_both_review_contracts() -> None:
-    """fix-cites-callee-source (2 rows): term-edit and term-coverage round zero, before the regex rule."""
-    for frag in ("term-edit.md", "term-coverage.md"):
+    """fix-cites-callee-source (2 rows): term-edit and term-coverage round zero, before the regex rule; each names
+    the commit it reads the callee at in its own vocabulary (term-edit pins by SHA, term-coverage by the briefs)."""
+    pin = {
+        "term-edit.md": "at the pinned SHA",
+        "term-coverage.md": "at the commit the round's briefs pin (`git show <sha>:<path>`)",
+    }
+    for frag, at in pin.items():
         zero = _between(_norm(FRAG / frag), "**Round zero", "bind the probe:")
-        assert CALLEE in zero, frag
+        want = (
+            "listed before the probe runs; a fix that names an interface (a function, flag, field or verb) cites the "
+            f"callee's signature and line range read {at}, and is re-read against that range before the pin; "
+            "a regex fix"
+        )
+        assert want in zero, frag
 
 
 def test_the_flip_copy_recipe_is_the_matrix_rows_method() -> None:
