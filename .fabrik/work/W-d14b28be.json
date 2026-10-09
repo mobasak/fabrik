@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-09T00:30:36.836965Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d14b28be",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EP8A40RH5B8AC4WSMB91GM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop hook's unpushed remedy says `git push` with no gate — now contradicts close-chain's gate-before-push"
+}
