@@ -3401,8 +3401,20 @@ def test_access_token_round_trip() -> None:
 _TOML_TABLE_HEADER = re.compile(r"^\[\[?[\w.\-\"]+\]\]?\s*(#.*)?$")
 
 
+_SERVER_LINT_HEADER = (
+    "# Lint, type and test config for the server/ backend — the root template's [tool.ruff],\n"
+    "# [tool.mypy] and [tool.pytest] tables, with the vendored trees excluded. Run mypy from here.\n\n"
+)
+
+
 def _write_server_lint_config(
-    server_dir: Path, package_name: str, first_party: tuple[str, ...] = ()
+    server_dir: Path,
+    package_name: str,
+    first_party: tuple[str, ...] = (),
+    *,
+    pythonpath: str = "src",
+    header: str = _SERVER_LINT_HEADER,
+    mypy_files: tuple[str, ...] = (),
 ) -> None:
     """Give a ``server/`` backend the root project's ruff, mypy and pytest config (W-1c722f35).
 
@@ -3421,7 +3433,13 @@ def _write_server_lint_config(
     than one (mobile-app: ``app`` and ``mobile_config``); it defaults to ``package_name``.
 
     Every type that ships a ``server/src`` backend calls this: the saas family through
-    ``_scaffold_saas_backend``, chrome-extension and mobile-app directly (01M47Z0D)."""
+    ``_scaffold_saas_backend``, chrome-extension and mobile-app directly (01M47Z0D). file-worker calls
+    it for its ROOT ``pyproject.toml`` (W-0859fd4b, tool tables only — requirements.txt stays the one
+    dependency list) with ``pythonpath="."`` (worker/ sits at the root, no src/) and
+    ``mypy_files=("worker",)``: that writes ``files`` + ``explicit_package_bases`` into [tool.mypy], so
+    the completion gate's target-less mypy types worker/ instead of walking the root, where it stops on
+    a module found twice (``worker/logger.py`` as ``logger`` and ``worker.logger``). The defaults
+    leave every server/ caller's output byte-identical."""
     template = (TEMPLATE_DIR / "python" / "pyproject.toml.template").read_text()
     keep: list[str] = []
     take = False
@@ -3448,15 +3466,22 @@ def _write_server_lint_config(
         + ", ".join(f'"{n}"' for n in first_party or (package_name,))
         + ']\nknown-third-party = ["fastapi_user_auth", "audit_log"]',
     )
+    if pythonpath != "src":  # the whole line: its trailing comment speaks of a src layout
+        line = re.search(r'^pythonpath = \["src"\].*$', body, re.M)
+        if line is None:
+            raise RuntimeError("pyproject template changed; root config cannot patch pythonpath")
+        body = body.replace(line.group(0), f'pythonpath = ["{pythonpath}"]')
+    if mypy_files:
+        files = ", ".join(f'"{f}"' for f in mypy_files)
+        _swap(
+            'python_version = "3.12"\n',
+            f'python_version = "3.12"\nfiles = [{files}]\nexplicit_package_bases = true\n',
+        )
     body += (
         "\n# Vendored fastapi_user_auth and libs/audit_log (see extend-exclude): their typing is upstream's.\n"
         '[[tool.mypy.overrides]]\nmodule = ["fastapi_user_auth.*", "audit_log.*"]\nignore_errors = true\n'
     )
-    (server_dir / "pyproject.toml").write_text(
-        "# Lint, type and test config for the server/ backend — the root template's [tool.ruff],\n"
-        "# [tool.mypy] and [tool.pytest] tables, with the vendored trees excluded. Run mypy from here.\n\n"
-        + body
-    )
+    (server_dir / "pyproject.toml").write_text(header + body)
 
 
 def _scaffold_saas_backend(project_dir: Path, name: str, package_name: str) -> None:
@@ -4835,6 +4860,22 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
     src_main = FILE_WORKER_TEMPLATE_DIR / "worker" / "main.py"
     if src_main.exists():
         shutil.copy2(src_main, project_dir / "worker" / "main.py")
+
+    # c1) Root pyproject.toml: the template's ruff/mypy/pytest tables only (W-0859fd4b). The pack
+    # mandates its ruff families "configured in pyproject.toml, emitted by the scaffolder"; deps stay
+    # in requirements.txt (no [project] table, as for the server/ backends).
+    _write_server_lint_config(
+        project_dir,
+        "worker",
+        pythonpath=".",
+        mypy_files=("worker",),
+        header=(
+            "# Lint, type and test config for this worker — the scaffold template's [tool.ruff],\n"
+            "# [tool.mypy] and [tool.pytest] tables (dependencies stay in requirements.txt). mypy's\n"
+            '# `files = ["worker"]` lets the gate run it with no target; the src/ and glitchtip\n'
+            "# entries come from the shared template and match nothing here.\n\n"
+        ),
+    )
 
     # c2) Copy pause_state.py — pause-flag primitives for worker resilience
     pause_src = TEMPLATE_DIR / "python" / "pause_state.py"

@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "## [fleet] `monitoring_grafana-data` carries no compose labels — it is the one monitoring volume Docker Compose did not create (2026-09-05, owner: fleet)\n\nSurfaced by `docker compose up -d --dry-run` during Part B: *\"volume monitoring_grafana-data already exists\nbut was not created by Docker Compose.\"* Confirmed by inspection — its four siblings\n(`alertmanager-data`, `loki-data`, `prometheus-data`, `promtail-positions`) each carry\n`com.docker.compose.project`/`.volume` labels; `grafana-data` has `map[]`. It holds 31 MB: the dashboards,\nusers and Grafana's SQLite DB. **No action was taken and none is urgent** — Compose reuses a same-named\nvolume and never deletes one on `up -d` (only `down -v` does, which is a standing HARD STOP), so the\nrecreate Part B enables is safe. It is filed because an unlabelled volume is invisible to any\nownership-based tooling we might later write, and because \"dangling ≠ disposable\" makes mislabelled data\nworth knowing about BEFORE someone runs a cleanup. Candidate: declare it `external: true`, or recreate the\nlabel — neither without an operator decision, since both touch a live data volume.",
-  "note": "migrated-digest:65d76679530e",
+  "note": "accepted as-is, no action (fleet 2026-10-09): Compose reuses the same-named volume and only warns; down -v is a HARD STOP; the volume is protected by name in scripts/bootstrap/bootstrap-config.sh:204, docs/operations/hub-restore-inventory.md:102 and disaster-recovery.md:81,270, so ownership-based tooling cannot orphan it. external:true or a relabel would change a live data volume's deploy semantics for no measured harm; CLAUDE.md HARD STOPS (volumes are DATA) and the most-reversible default rule it out without an operator instruction.",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "`monitoring_grafana-data` carries no compose labels — it is the one monitoring volume Docker Compose did not create (2026-09-05, owner: fleet)"
 }
