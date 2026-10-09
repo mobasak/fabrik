@@ -74,10 +74,9 @@ python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lo
   overwrites it anyway. Wasted review budget at best, a Tier-1 violation at worst.
 - **A synced file appearing IN THE DIFF is ITSELF a CONFIRMED finding:** *"synced file modified —
   `git checkout -- <path>`, then propose the change upstream in `/opt/fabrik` (it is correct for ALL projects
-  or it is not correct)."* Do **NOT** silently exclude it — excluding **hides** the violation. The
-  exception is a sync or re-vendor commit, whose synced files ARE the intended change: review it as an
-  adoption — the repo's own code, hooks and in-flight records still pair with the new copies — and never
-  revert it.
+  or it is not correct)."* Do **NOT** silently exclude it — excluding **hides** the violation. A synced
+  path that matches the project's `.fabrik/synced.lock` (`check_synced_unmodified.py` passes) is a
+  sync's own write, not an edit: never revert it, and review only the repo's own files against it.
 - **The `SEEDED_NOT_ENFORCED` set is the exception** (read the live set in `fabrik_synced_manifest.py` —
   today `PORTS.md` + `docs/DECISIONS.md`; a hand-copied list here goes stale, this one did): projects MAY
   edit these → review them normally — NEVER `git checkout --` a project's `docs/DECISIONS.md` (its rows
@@ -359,13 +358,14 @@ Every finding that survived Phase 2 — **CONFIRMED and PLAUSIBLE alike** — mu
 terminal states: FIXED, REFUTED, or one of Phase 2's four `RECORDED — <kind> (…)` forms, which are a
 NARROW, grammar-bound disposition the gate reads, not a bucket. **There is no "noted / probably fine /
 to-watch / deferred" state, and the user does NOT accept an unfixed CONFIRMED finding** — a candidate you
-reproduced is FIXED in the round that confirmed it, or it is `RECORDED — by design` with its owning row named.
+reproduced is FIXED in the round that confirmed it, or it is `RECORDED — by design` with its owning row named,
+or — outside the round's bounded hop — `RECORDED — measured` with its destination.
 
 - **FIXED** — reproduce it with a runnable test/execution FIRST, fix it, keep the test as a regression guard
   (verify red→green). A deliberate design decision that resolves it (e.g. choosing fail-open with a logged
   warning) counts as FIXED **only if you actually made the change and recorded why** — and that disposition
   is decision-shaped: **mint its `docs/DECISIONS.md` row in the same change as the fix, classified at mint, its id reserved
-  (`decisions.py --reserve-id`) in the shell that commits the row after the code (the close's private-index step) —
+  (`decisions.py --reserve-id`) before the close and the row committed after the code (close-chain's private-index step) —
   a deliberate fail-open on a guard is the row that most needs a TRIPWIRE (ONE-WAY § Binding block when
   the guard protects shared or production data)** (CLAUDE.md § the
   decision ledger; a mechanical bug-fix stays row-less — the carve-out class).
@@ -523,7 +523,7 @@ a pass that finds nothing must still enumerate that coverage — an empty pass w
 
 ⚠️ **A long review's artifact outgrows the Read tool (256 KB) — rotate, never truncate.** When the artifact passes **200 KB**, move the per-round FINDING tables (dispositions, refutations, mirror measurements) older than the last three passes into a sibling `…-review-archive.md` in the same directory and leave one pointer line where they were; the Coverage Checklist, the Pass Ledger, the per-phase verdicts, the Gate and the declared residuals STAY in the head — the exit checks read them there, and a finder's brief points at the head. The archive is not a review artifact: it carries no checklist, and `check_review_coverage.py` skips `*-archive.md`. A long review's receipt otherwise grows until every finder is reduced to `sed`/`grep` over the document whose central rule is that a bounded search is not a read; short reviews never hit it.
 
-⚠️ **Concurrent lanes: when the repo gate reds on ANOTHER lane's work, do NOT stamp `IN-PROGRESS` on a loop that actually closed.** `final_gate` takes no surface argument — its static checks read only what this session will push (unpushed commits plus the working tree, so code pushed before the review is never linted: run those checks on its paths by hand) and its repo checks read the whole tree — so on a shared tree "my work is clean" and "the repo is clean" are the same assertion, and a converged surface-scoped review could not honestly embed a success block through no property of the surface reviewed (wef1, `01M1KVAZGNJAXXSB4XFMKPQG0Z` — that repo accumulated four records stuck IN-PROGRESS for this reason, which then read as abandoned loops to `check_review_coverage`). Embed the FAILING gate verbatim and declare the attribution beside it, with its denominator, **on ONE line**: `GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>` — `<N>` is the failing check's TOTAL findings and must be ≥ 1 (a failing gate with zero findings is a contradiction, and `0 of 0` is refused); the `measured by:` value stays on that line (plain text, a backtick span, or an inline fence; a block fence on the following lines is NOT read as the value, and a hard-wrapped declaration is not a declaration). `check_convergence.py` accepts that pair. A non-zero count is YOUR debt, not another lane's — fix it and re-run.
+⚠️ **Concurrent lanes: when the repo gate reds on ANOTHER lane's work, do NOT stamp `IN-PROGRESS` on a loop that actually closed.** `final_gate` takes no surface argument — its fixers and ruff read only the unpushed commits plus the working tree's tracked changes (code pushed before the review is never linted by them: run ruff on its paths by hand) and every other check reads whole directories or the whole tree — so on a shared tree "my work is clean" and "the repo is clean" are the same assertion, and a converged surface-scoped review could not honestly embed a success block through no property of the surface reviewed (wef1, `01M1KVAZGNJAXXSB4XFMKPQG0Z` — that repo accumulated four records stuck IN-PROGRESS for this reason, which then read as abandoned loops to `check_review_coverage`). Embed the FAILING gate verbatim and declare the attribution beside it, with its denominator, **on ONE line**: `GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>` — `<N>` is the failing check's TOTAL findings and must be ≥ 1 (a failing gate with zero findings is a contradiction, and `0 of 0` is refused); the `measured by:` value stays on that line (plain text, a backtick span, or an inline fence; a block fence on the following lines is NOT read as the value, and a hard-wrapped declaration is not a declaration). `check_convergence.py` accepts that pair. A non-zero count is YOUR debt, not another lane's — fix it and re-run.
 
 ⚠️ **The fence below is THIS PAGE's presentation — the ledger in the RECEIPT is never fenced.**
 `check_review_coverage.py` blanks every fenced block before it grades (`_strip_fences`), so a ledger
