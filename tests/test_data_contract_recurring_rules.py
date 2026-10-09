@@ -52,3 +52,15 @@ def test_the_version_entry_is_an_exempt_post_convergence_write_and_phase_2_keeps
     assert (
         "which **is the canonical shape** (plus an existing Pass Ledger section, which is kept — Phase 3)."
     ) in phase2
+
+
+def test_an_approved_spec_naming_the_delta_is_the_refreeze_confirmation() -> None:
+    """Rows 1791335722 and 1791305447 (refreeze-stop-confirmation), decided by the Opus + Fable panel (D-730): the
+    approval row plus a delta named from the current Version is the confirmation; anything else still stops."""
+    phase0 = _between(_norm(SRC), "## Phase 0", "## Phase 1")
+    assert (
+        "An approved spec is that confirmation (D-730) when its approval row exists in `docs/DECISIONS.md` and its "
+        "§ Contract deltas names this exact change from the contract's current `Version`: cite that row and the spec "
+        "in the re-freeze's D-row and proceed. Anything else still stops — no approval row or a split panel, a base "
+        "`Version` the contract has moved past, or a field, rename, drop or enum value the deltas do not name."
+    ) in phase0
