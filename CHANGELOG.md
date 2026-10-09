@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Stop hook names the gate before every push it orders (2026-10-09)
+- `.claude/hooks/final_gate_stop.py` told an agent with unpushed commits to run a bare `git push`. On a clean tree the hook never runs the gate, so it ordered a red-gated commit to be published, contradicting close-chain's commit → gate → push. A new constant `_GATE_BEFORE_PUSH` now comes before the push order in both unpushed block reasons and in block_commit's "Then PUSH it". It reads "gate green on your change first (`final_gate.py --check --json` from the repo root; an inherited or sibling red is the repo's — report it, it does not hold the push)". The urgent-90 checkpoint item stays push-only (D-306). `tests/test_stop_hook_worktree_push.py` drives both reasons and AST-checks every push order's source order. `docs/workstation/hooks-index.md` quotes the constant. kaizen 01M4EP8A40.
+
 ### Fixed — Scaffold ruff selects the ASYNC family core/10-python.md mandates (2026-10-09, W-37b23d2d)
 
 - `templates/scaffold/python/pyproject.toml.template`: `select` gains `ASYNC` (blocking IO in async code), so new projects carry the pack's mandated `ASYNC`, `B` and `S` families. The one hit across 19 template .py files, the leak probe's blocking `httpx.get` inside an async handler, now uses `httpx.AsyncClient` (sentry-sdk instruments it the same way; the emitted probe's vacuity guard still sees the outbound span). New grader `tests/test_scaffold_ruff_mandate.py`. File-worker projects still get no ruff config at all; that gap is W-0859fd4b.
