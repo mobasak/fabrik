@@ -91,7 +91,8 @@ def _raise_with_secrets_in_play() -> None:
         logging.getLogger("leak-guard").error("connecting to " + SECRETS["dsn_no_at"])  # noqa: G003 — the eager shape under test
         # the outbound URL, key and all, travels in the transaction's http span data
         with contextlib.suppress(httpx.HTTPError):
-            httpx.get(f"http://127.0.0.1:1/probe?apikey={SECRETS['apikey']}", timeout=0.05)
+            async with httpx.AsyncClient(timeout=0.05) as outbound:
+                await outbound.get(f"http://127.0.0.1:1/probe?apikey={SECRETS['apikey']}")
         raise RuntimeError("boom")
 
     with TestClient(app, raise_server_exceptions=False) as client:
