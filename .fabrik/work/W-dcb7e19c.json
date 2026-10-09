@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-09T02:25:43.799143Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-dcb7e19c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "per spec, read the live DB state on postgres-main (a read-only probe — production data: needs the operator's go or the panel) and either set shape.needs_database: true (the next apply then creates/claims the DB and injects DATABASE_URL — verify the name matches what the app already uses) or drop depends.postgres; proxy's 'main' is the shared legacy DB (D-410) and must never be flipped. The runtime now warns on each (W-81524f52).",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "5 hub specs name a database in depends.postgres that the registrar never creates (needs_database false or no shape: block): job-agent (jobagent), proposal-creator (proposals), trading-core (trading), triggered-content-orchestration (tco), proxy (main) — correct each against its live database"
+}

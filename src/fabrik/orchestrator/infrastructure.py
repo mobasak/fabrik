@@ -213,6 +213,51 @@ def _finite_budget(watchdog_cfg: dict[str, Any], key: str, default: float) -> fl
     return value
 
 
+# The ``depends:`` fields that name a store each registrar would create. The registrar keys
+# only on the shape flag, so a named store beside a false flag is provisioned by nobody.
+_DEPENDS_FIELDS: dict[str, tuple[str, ...]] = {
+    "postgres": ("postgres", "postgres_seed"),
+    "redis": ("redis",),
+}
+_DEPENDS_FLAG = {"postgres": "needs_database", "redis": "needs_cache"}
+
+
+def depends_contradiction(spec: dict[str, Any], registrar: str) -> str | None:
+    """The diagnostic clause when ``spec``'s ``depends:`` names a store ``registrar`` will skip.
+
+    Returns ``None`` when the shape flag is true or ``depends`` names nothing (absent, None, a
+    non-mapping, or values that are empty once whitespace is collapsed — the raw-YAML apply dict
+    and the model dump both reach here). A value is shown with its whitespace collapsed, so a
+    newline cannot split the one-line summary or the log record. The flag may be false or simply
+    ABSENT: the apply path reads raw YAML, so a spec with no ``shape:`` block has no flag at all
+    (W-989653a7). Diagnostic only, never a prescription: flipping the flag on
+    ``depends.postgres: main`` would point the registrar at the shared legacy database (D-410),
+    so the clause names the live store as the thing to check (W-81524f52).
+    """
+    shape = spec.get("shape") or {}
+    flag = _DEPENDS_FLAG[registrar]
+    if not isinstance(shape, dict) or shape.get(flag, False):
+        return None
+    depends = spec.get("depends")
+    if not isinstance(depends, dict):
+        return None
+    named = []
+    for field in _DEPENDS_FIELDS[registrar]:
+        value = " ".join(str(depends.get(field) or "").split())
+        if value:
+            named.append(f"depends.{field}={value}")
+    if not named:
+        return None
+    return (
+        f"{', '.join(named)} names a store this registrar will NOT create, because "
+        f"shape.{flag} is false or absent; check the live store before changing either"
+    )
+
+
+def _clause_suffix(clause: str | None) -> str:
+    return f" — {clause}" if clause else ""
+
+
 def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
     """Resolve which registrars should run for ``spec`` and why.
 
@@ -245,7 +290,11 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
             + ("" if _enabled(infra, "postgres") else " (infra.postgres=false override)"),
         )
     else:
-        out["postgres"] = (False, "not applicable: shape.needs_database=false")
+        out["postgres"] = (
+            False,
+            "not applicable: shape.needs_database=false"
+            + _clause_suffix(depends_contradiction(spec, "postgres")),
+        )
 
     # payments-ingest role (scoped non-BYPASSRLS cross-tenant role for fabrik-lib
     # payments webhook ingest; provisioned inside the postgres block, so it needs the DB)
@@ -336,7 +385,11 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
             + ("" if _enabled(infra, "redis") else " (infra.redis=false override)"),
         )
     else:
-        out["redis"] = (False, "not applicable: shape.needs_cache=false")
+        out["redis"] = (
+            False,
+            "not applicable: shape.needs_cache=false"
+            + _clause_suffix(depends_contradiction(spec, "redis")),
+        )
 
     # prometheus (G5 — DEPLOYMENT.md §9.9)
     # Requires both the metrics flag AND a domain (we scrape over public HTTPS
@@ -624,6 +677,13 @@ class InfrastructureProvisioner:
         logger.info("Infrastructure provisioning for %s", name)
         for line in format_resolved_summary(resolved).splitlines():
             logger.info("%s", line)
+        # The summary is INFO, which no `fabrik apply` handler shows; a skipped store the spec
+        # names is the one line the operator must see (W-81524f52). A clause exists only when
+        # the flag is falsy, which is exactly when resolve_applicability skips the registrar.
+        for registrar in _DEPENDS_FIELDS:
+            clause = depends_contradiction(spec, registrar)
+            if clause:
+                logger.warning("%s registrar skipped for %s: %s", registrar, name, clause)
 
         should_run = {k: v[0] for k, v in resolved.items()}
 
