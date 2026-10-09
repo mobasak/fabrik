@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-09T04:11:43.034078Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-22c2d125",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add cf.env to the Third-party-issued class with its recreate recipe (archived 2026-08-31 tryton-crm plan :92-95: from CLOUDFLARE_API_TOKEN, single key CF_DNS_API_TOKEN, 600 root) and to the reissue step; source: W-d9ccd618 Fable critique F1",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "docs/operations/credential-recovery.md does not know /opt/traefik/cf.env — a third copy of the Cloudflare token (as CF_DNS_API_TOKEN, root 600) outside the env mirror; a token reissue (credential-recovery.md:119) would leave traefik's DNS-01 resolver on the revoked token"
+}

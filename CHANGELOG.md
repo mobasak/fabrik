@@ -31,6 +31,13 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the Stop hook names the gate before every push it orders (2026-10-09)
 - `.claude/hooks/final_gate_stop.py` told an agent with unpushed commits to run a bare `git push`. On a clean tree the hook never runs the gate, so it ordered a red-gated commit to be published, contradicting close-chain's commit → gate → push. A new constant `_GATE_BEFORE_PUSH` now comes before the push order in both unpushed block reasons and in block_commit's "Then PUSH it". It reads "gate green on your change first (`final_gate.py --check --json` from the repo root; an inherited or sibling red is the repo's — report it, it does not hold the push)". The urgent-90 checkpoint item stays push-only (D-306). `tests/test_stop_hook_worktree_push.py` drives both reasons and AST-checks every push order's source order. `docs/workstation/hooks-index.md` quotes the constant. kaizen 01M4EP8A40.
 
+### Fixed — The hub traefik compose carries the box's Cloudflare DNS-01 references (2026-10-09, D-731)
+
+- `infra/vps1/traefik/compose.yaml`: `env_file: ./cf.env` and the `./acme-cloudflare.json` bind, so a redeploy or restore from the hub copy keeps the `*.tojlo.com` DNS-01 resolver; the files stay box-side.
+- `.gitignore`: `infra/**/cf.env`, `infra/**/acme*.json`, `infra/**/htpasswd` — a pull from the box can no longer stage them.
+- `docs/operations/hub-restore-inventory.md`, `infra/README.md`: traefik's box-side secret file and DNS-01 store named.
+- `tests/test_vps_apply_limits.py`: two tests (seen red before the change).
+
 ### Fixed — A spec naming a store its shape flag skips is warned at apply (2026-10-09, D-728)
 
 - `src/fabrik/orchestrator/infrastructure.py`: `depends_contradiction()` returns a diagnostic clause when `depends.postgres`, `depends.postgres_seed` or `depends.redis` names a store while `needs_database` / `needs_cache` is false or absent; `resolve_applicability` appends it to the not-applicable reason (`fabrik plan`, `fabrik audit --json`, dev_tools) and `provision()` logs it at WARNING so `fabrik apply` shows it. Five live hub specs carry it today (follow-up W-dcb7e19c; the spec producers, W-5ea0389b).

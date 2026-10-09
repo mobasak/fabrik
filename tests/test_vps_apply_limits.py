@@ -446,3 +446,70 @@ def test_the_compose_files_declare_the_same_ceilings_the_applier_asserts():
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash required")
 def test_the_script_is_syntactically_valid():
     assert subprocess.run(["bash", "-n", str(SCRIPT)]).returncode == 0
+
+
+def test_the_hub_traefik_compose_carries_the_cloudflare_dns01_references():
+    """W-d9ccd618. The box's /opt/traefik/compose.yaml gained `env_file: ./cf.env` (the scoped
+    CF_DNS_API_TOKEN) and the `acme-cloudflare.json` DNS-01 storage bind at the tenant-wildcard
+    activation; a redeploy from a hub copy without them drops the Cloudflare resolver and the
+    `*.tojlo.com` certificates stop renewing. The references live here, the files stay box-side.
+    The line FORM is provisional until the gated diff against the box, so either env_file form is
+    accepted — but never `required: false` (traefik would start silently without DNS-01), and the
+    storage bind must stay WRITABLE (traefik writes ACME state).
+    """
+    import yaml
+
+    path = REPO / "infra/vps1/traefik/compose.yaml"
+    svc = yaml.safe_load(path.read_text())["services"]["traefik"]
+    raw = svc.get("env_file")
+    entries = [raw] if isinstance(raw, (str, dict)) else list(raw or [])
+    paths = [e if isinstance(e, str) else e.get("path") for e in entries]
+    # Compose resolves a relative env_file against the compose file's directory (/opt/traefik on
+    # the box), so `cf.env`, `./cf.env` and `/opt/traefik/cf.env` name the same file.
+    resolved = {os.path.normpath(os.path.join("/opt/traefik", p)) for p in paths if p}
+    assert "/opt/traefik/cf.env" in resolved, (
+        f"traefik env_file is {raw!r}; the DNS-01 token never loads"
+    )
+    assert not any(isinstance(e, dict) and e.get("required") is False for e in entries), (
+        "cf.env is marked required: false — a missing token would start traefik without DNS-01"
+    )
+    binds = [v for v in svc.get("volumes", []) if isinstance(v, str)]
+    storage = [v for v in binds if v.split(":")[0] == "./acme-cloudflare.json"]
+    assert len(storage) == 1, f"acme-cloudflare.json binds: {storage!r}"
+    parts = storage[0].split(":")
+    assert parts[1] == "/acme-cloudflare.json" and parts[2:] in ([], ["rw"]), (
+        f"{storage[0]!r} must target /acme-cloudflare.json and be writable"
+    )
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git required")
+def test_box_side_traefik_secrets_can_never_be_staged_from_infra():
+    """W-d9ccd618: infra/ is a mirror PULLED from the box (infra/README.md), and a whole-dir pull
+    would bring traefik's Cloudflare token (cf.env), ACME private keys (acme*.json) and htpasswd.
+
+    The REPO's own .gitignore must be the rule that matches (`-v` names the source): a developer's
+    global excludes file would otherwise keep this green with the repo's lines deleted."""
+    names = [
+        "infra/vps1/traefik/cf.env",
+        "infra/vps1/traefik/acme.json",
+        "infra/vps1/traefik/acme-cloudflare.json",
+        "infra/vps1/traefik/htpasswd",
+    ]
+    proc = subprocess.run(
+        ["git", "check-ignore", "-v", "--no-index", *names],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode not in (0, 1):  # 128: not a git checkout (an archive) — nothing to grade
+        pytest.skip(f"git check-ignore unusable here: {proc.stderr.strip()}")
+    sources: dict[str, str] = {}
+    for line in proc.stdout.splitlines():
+        match, _, path = line.partition("\t")
+        source, _lineno, pattern = match.split(":", 2)
+        # `-v` also prints a NEGATING match (`!infra/**/cf.env` UN-ignores the file): not protected.
+        sources[path] = f"NEGATED by {source}" if pattern.startswith("!") else source
+    unprotected = sorted(n for n in names if sources.get(n) != ".gitignore")
+    assert not unprotected, (
+        f"not ignored by the repo's .gitignore: {unprotected} (sources: {sources})"
+    )
