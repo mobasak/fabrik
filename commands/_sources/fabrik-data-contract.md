@@ -54,10 +54,12 @@ already exists as an unfrozen skeleton. **A DRAFT stub is meant to be edited thr
 STOP** (the explicit exception to CLAUDE.md's "file exists = STOP" — that rule guards against clobbering *real* content, and a
 placeholder stub has none). Modes A/B rewrite its body from the design/schema; Mode C fills it. **Only if the
 file is already `FROZEN`** do you STOP and ask; on the user's confirmation, proceed as a **re-freeze** — bump
-`Version`, never a silent overwrite. An approved spec is that confirmation (D-730) when its approval row exists in
-`docs/DECISIONS.md` and its § Contract deltas names this exact change from the contract's current `Version`: cite
-that row and the spec in the re-freeze's D-row and proceed. Anything else still stops — no approval row or a split
-panel, a base `Version` the contract has moved past, or a field, rename, drop or enum value the deltas do not name.
+`Version`, never a silent overwrite. An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds its approval — a row naming the
+spec's path that records the panel's `→ both-approve` or the operator's answer (a DRAFT or CONVERGED-flip row is
+not one) — and its § Contract deltas names the change: cite that row and the spec in the re-freeze's D-row and
+proceed. Anything else still stops: no approval row, or any field, column, type, validation, PII, reference or enum
+change the deltas do not name, which Phase 3's closing round re-checks before the Phase-4 flip. A `Version` that
+moved since the spec renumbers only when the spec says it does and the interim versions touch none of its deltas.
 
 ## Phase 1 — Build the field inventory (dual-source, grounded, adversarial)
 

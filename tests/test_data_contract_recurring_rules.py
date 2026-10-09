@@ -59,8 +59,11 @@ def test_an_approved_spec_naming_the_delta_is_the_refreeze_confirmation() -> Non
     approval row plus a delta named from the current Version is the confirmation; anything else still stops."""
     phase0 = _between(_norm(SRC), "## Phase 0", "## Phase 1")
     assert (
-        "An approved spec is that confirmation (D-730) when its approval row exists in `docs/DECISIONS.md` and its "
-        "§ Contract deltas names this exact change from the contract's current `Version`: cite that row and the spec "
-        "in the re-freeze's D-row and proceed. Anything else still stops — no approval row or a split panel, a base "
-        "`Version` the contract has moved past, or a field, rename, drop or enum value the deltas do not name."
+        "An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds its approval — a row "
+        "naming the spec's path that records the panel's `→ both-approve` or the operator's answer (a DRAFT or "
+        "CONVERGED-flip row is not one) — and its § Contract deltas names the change: cite that row and the spec "
+        "in the re-freeze's D-row and proceed. Anything else still stops: no approval row, or any field, column, "
+        "type, validation, PII, reference or enum change the deltas do not name, which Phase 3's closing round "
+        "re-checks before the Phase-4 flip. A `Version` that moved since the spec renumbers only when the spec "
+        "says it does and the interim versions touch none of its deltas."
     ) in phase0
