@@ -28,7 +28,8 @@ def test_phase_3_names_the_ledger_home_and_when_the_version_entry_is_written() -
         "The Pass Ledger lives in the contract's Pass Ledger section when it carries one, else in the closing report; "
         "a re-freeze adds its own dated version entry there after that closing round, so its absence is never a "
         "finding in any round of the run. A run paused before that round (the Termination contract's no-seat pause) "
-        "carries its rows so far in its `blocked --feedback` note, and the resumed run copies them into the entry."
+        "carries its rows so far in its `blocked --reason` (free text; `--feedback` is the capped usage line), and the "
+        "resumed run copies them into the entry, or into the closing report when the contract has no ledger section."
     ) in phase3
 
 
