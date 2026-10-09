@@ -52,3 +52,21 @@ def test_the_version_entry_is_an_exempt_post_convergence_write_and_phase_2_keeps
     assert (
         "which **is the canonical shape** (plus an existing Pass Ledger section, which is kept — Phase 3)."
     ) in phase2
+
+
+def test_an_approved_spec_naming_the_delta_is_the_refreeze_confirmation() -> None:
+    """Rows 1791335722 and 1791305447 (refreeze-stop-confirmation), decided by the Opus + Fable panel (D-730): the
+    approving row plus a named delta is the confirmation; anything else still stops, re-checked in Phase 3."""
+    phase0 = _between(_norm(SRC), "## Phase 0", "## Phase 1")
+    assert (
+        "An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds its approval — a row "
+        "naming the spec's path that records the panel's `→ both-approve` or the operator's approving answer (a DRAFT or "
+        "CONVERGED-flip row is not one) — and its § Contract deltas (the section a `Profile: delta` spec carries; a "
+        "spec without one still stops) names the change: cite that row and the spec "
+        "in the re-freeze's D-row and proceed. Anything else still stops: no approval row, or any field, column, "
+        "type, validation, PII, reference or enum change the deltas do not name, which Phase 3's closing round "
+        "re-checks before the Phase-4 flip. A `Version` that moved since the spec renumbers only when the spec "
+        "says it does and the interim versions touch none of its deltas."
+    ) in phase0
+    phase3 = _between(_norm(SRC), "## Phase 3", "## Phase 4")
+    assert "5. **Re-freeze deltas (D-730)** — on a re-freeze confirmed by an approved spec, every change in " in phase3

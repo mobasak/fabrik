@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-data-contract: an approved spec naming the delta confirms a re-freeze (2026-10-09)
+- Phase 0: a FROZEN contract's re-freeze STOP is satisfied by a spec whose approval row (the panel's `→ both-approve` or the operator's approving answer) is in `docs/DECISIONS.md` and whose § Contract deltas (a `Profile: delta` spec's section) names the change; anything else still stops. Phase 3 gains check 5, which re-checks the deltas before the Phase-4 flip (D-730, decided by the Opus + Fable panel).
+
 ### Fixed — the settings.json worktree-block test no longer reds on every sanctioned hook edit (2026-10-09)
 - `tests/test_sync_worktree_adoption.py::test_hub_settings_json_worktree_block_is_present_and_well_formed` pinned the live file's `hooks`/`permissions` to their value at 5fd58526, so the seat-guard hook (61ebee4cd) turned it red and nothing saw it (the hub pytest leg is off). The contract it guards — adding the worktree block changed nothing else — is now asserted on the commit that added it: 18065037f against its parent, parsed equal minus `worktree`, no deleted line, no duplicate key. The live worktree value and indentation checks stay. Reported by intel (01M4F1E8PX).
 
