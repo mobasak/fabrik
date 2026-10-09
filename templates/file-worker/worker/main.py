@@ -13,6 +13,7 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any, cast
 
 import boto3
 from supabase import Client, create_client
@@ -51,7 +52,7 @@ R2_BUCKET = os.environ["R2_BUCKET"]
 shutdown_requested = False
 
 
-def signal_handler(signum, frame):
+def signal_handler(signum, _frame):
     global shutdown_requested
     log.info("shutdown_requested", signal=signum)
     shutdown_requested = True
@@ -80,13 +81,15 @@ def claim_job() -> dict | None:
     ).execute()
 
     if result.data:
-        return result.data
+        return cast("dict[str, Any] | None", result.data)
     return None
 
 
-def complete_job(job_id: str, success: bool, result_data: dict = None, error_message: str = None):
+def complete_job(
+    job_id: str, success: bool, result_data: dict | None = None, error_message: str | None = None
+):
     """Mark job as completed or failed."""
-    update = {
+    update: dict[str, Any] = {
         "status": "completed" if success else "failed",
         "completed_at": "now()",
     }
@@ -102,7 +105,7 @@ def complete_job(job_id: str, success: bool, result_data: dict = None, error_mes
 def get_file_info(file_id: str) -> dict | None:
     """Get file metadata."""
     result = supabase.table("files").select("*").eq("id", file_id).single().execute()
-    return result.data
+    return cast("dict[str, Any] | None", result.data)
 
 
 def create_derivative(
@@ -111,7 +114,7 @@ def create_derivative(
     r2_key: str,
     content_type: str,
     size_bytes: int,
-    metadata: dict = None,
+    metadata: dict | None = None,
 ):
     """Create derivative record."""
     supabase.table("file_derivatives").insert(
@@ -126,7 +129,7 @@ def create_derivative(
     ).execute()
 
 
-def process_extract_text(job: dict, file_info: dict) -> dict:
+def process_extract_text(_job: dict, file_info: dict) -> dict:
     """Extract text from PDF."""
     from pypdf import PdfReader
 
@@ -167,7 +170,7 @@ def process_extract_text(job: dict, file_info: dict) -> dict:
         }
 
 
-def process_ocr(job: dict, file_info: dict) -> dict:
+def process_ocr(_job: dict, file_info: dict) -> dict:
     """OCR text extraction from images or PDFs."""
     import pytesseract
     from pdf2image import convert_from_path
@@ -213,7 +216,7 @@ def process_ocr(job: dict, file_info: dict) -> dict:
         return {"char_count": len(full_text), "derivative_key": derivative_key}
 
 
-def process_transcribe(job: dict, file_info: dict) -> dict:
+def process_transcribe(_job: dict, file_info: dict) -> dict:
     """Audio transcription (placeholder - integrate with Soniox/Whisper)."""
     # TODO: Integrate with actual transcription service
     # For now, create a placeholder
