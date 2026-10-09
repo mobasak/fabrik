@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-08T23:17:56.063020Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "d3d16f5ebb5ec219ecc314c168c32ce968aea35c",
   "id": "W-37b23d2d",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Scaffold ruff select lacks the ASYNC family core/10-python.md mandates (MUST include ASYNC, B, S)"
 }

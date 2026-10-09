@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Scaffold ruff selects the ASYNC family core/10-python.md mandates (2026-10-09, W-37b23d2d)
+
+- `templates/scaffold/python/pyproject.toml.template`: `select` gains `ASYNC` (blocking IO in async code), so new projects carry the pack's mandated `ASYNC`, `B` and `S` families. The one hit across 19 template .py files, the leak probe's blocking `httpx.get` inside an async handler, now uses `httpx.AsyncClient` (sentry-sdk instruments it the same way; the emitted probe's vacuity guard still sees the outbound span). New grader `tests/test_scaffold_ruff_mandate.py`. File-worker projects still get no ruff config at all; that gap is W-0859fd4b.
+
 ### Changed — /fabrik-spec carries its recurring feedback rules (2026-10-09)
 - `commands/_sources/fabrik-spec.md`: every local claim (a codebase premise, a mechanism, a design rule, a runtime-state claim) is EXECUTED and cited, and Phase 3 waits on it; vendor grounding uses the machine-readable schema, the error-code page and survives two contradicting pages; the duplicate check greps the repo's own specs and plans; the self-review resolves every `path:line`; a delta is invariants + touchpoints; the DOWNGRADE seed's kept copy (D-716) is carried into the restart. `commands/_fragments/judge-panel.md` (fabrik-spec only): the brief carries only surviving approaches, quoted precedents and executed counts; a dissent's facts are verified and a confirmed gap folded in. Answers 27 recurring /fabrik-spec verdicts (D-711: a recurrence is edited) and the two handoff-seed rows. Grader: `tests/test_spec_plan_lane_text.py::test_fabrik_spec_carries_its_recurring_feedback_rules`, which also drives `handoff` and reads the kept seed.
 
