@@ -505,8 +505,10 @@ def test_box_side_traefik_secrets_can_never_be_staged_from_infra():
         pytest.skip(f"git check-ignore unusable here: {proc.stderr.strip()}")
     sources: dict[str, str] = {}
     for line in proc.stdout.splitlines():
-        source, _, path = line.partition("\t")
-        sources[path] = source.split(":", 1)[0]
+        match, _, path = line.partition("\t")
+        source, _lineno, pattern = match.split(":", 2)
+        # `-v` also prints a NEGATING match (`!infra/**/cf.env` UN-ignores the file): not protected.
+        sources[path] = f"NEGATED by {source}" if pattern.startswith("!") else source
     unprotected = sorted(n for n in names if sources.get(n) != ".gitignore")
     assert not unprotected, (
         f"not ignored by the repo's .gitignore: {unprotected} (sources: {sources})"
