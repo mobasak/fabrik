@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A spec naming a store its shape flag skips is warned at apply (2026-10-09, D-728)
+
+- `src/fabrik/orchestrator/infrastructure.py`: `depends_contradiction()` returns a diagnostic clause when `depends.postgres`, `depends.postgres_seed` or `depends.redis` names a store while `needs_database` / `needs_cache` is false or absent; `resolve_applicability` appends it to the not-applicable reason (`fabrik plan`, `fabrik audit --json`, dev_tools) and `provision()` logs it at WARNING so `fabrik apply` shows it. Five live hub specs carry it today (follow-up W-dcb7e19c; the spec producers, W-5ea0389b).
+- `tests/test_registrar_depends_contradiction.py`: 14 tests (seen red on the unchanged code, on the pre-review pin and on a prefix-dropping mutant).
+
 ### Fixed — Scaffolded file-worker carries the template's ruff/mypy config (2026-10-09, D-726)
 
 - `src/fabrik/scaffold.py`: `_scaffold_file_worker` writes a tool-only root `pyproject.toml` through `_write_server_lint_config` (new keyword-only `pythonpath`, `header`, `mypy_files`; server/ output byte-identical), with mypy `files = ["worker"]` so the completion gate's target-less mypy types worker/. `templates/file-worker/worker/main.py` passes it (unused args, implicit Optional, two annotated JSON returns). `tests/test_scaffold_output_passes_gate.py` now lints and types a scaffolded file-worker (db and no-db). `tests/test_scaffold_logging.py`'s fixture keeps the real pyproject template, which also fixes 8 long-red TestChromeExtensionLogging tests.
