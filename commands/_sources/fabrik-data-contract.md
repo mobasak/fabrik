@@ -145,6 +145,9 @@ project-level and light). Per section:
 ## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)
 
 Run repeated reconciliation passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged — is reached.
+The Pass Ledger lives in the run report unless the contract already carries one (a re-freeze never adds that
+section), and the entry for the version being frozen is written after that closing round, so its absence is never
+a round-1 finding.
 Each pass checks ALL of:
 
 1. **Coverage** — every entity from the spec (Mode A) / schema (Mode B) is present; every GUI/form field maps to
