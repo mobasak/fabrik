@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-09T02:41:06.928511Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-e3dabbc7",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-data-contract",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by 502fd60a",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-data-contract"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T19:36:58.892450Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-43e58d9a",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-spec",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by f7c9737c",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-spec"
+}
