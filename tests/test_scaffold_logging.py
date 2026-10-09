@@ -73,7 +73,9 @@ def mock_fabrik_root(temp_dir: Path) -> Path:
     shutil.copytree(
         Path(__file__).resolve().parents[1] / "templates" / "scaffold" / "python", python_dir
     )
-    (python_dir / "pyproject.toml.template").write_text('[project]\nname = "project-name"\n')
+    # The REAL pyproject template stays: _write_server_lint_config copies its [tool.*] tables into
+    # chrome-extension's server/ and file-worker's root config, and a stub without them made those
+    # scaffolds raise (the TestChromeExtensionLogging reds, then file-worker's, W-0859fd4b).
 
     # Create .windsurfrules and .windsurf/rules/ and .windsurf/workflows/
     (fabrik_root / ".windsurfrules").write_text("# rules\n")

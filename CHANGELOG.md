@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Scaffolded file-worker carries the template's ruff/mypy config (2026-10-09, D-726)
+
+- `src/fabrik/scaffold.py`: `_scaffold_file_worker` writes a tool-only root `pyproject.toml` through `_write_server_lint_config` (new keyword-only `pythonpath`, `header`, `mypy_files`; server/ output byte-identical), with mypy `files = ["worker"]` so the completion gate's target-less mypy types worker/. `templates/file-worker/worker/main.py` passes it (unused args, implicit Optional, two annotated JSON returns). `tests/test_scaffold_output_passes_gate.py` now lints and types a scaffolded file-worker (db and no-db). `tests/test_scaffold_logging.py`'s fixture keeps the real pyproject template, which also fixes 8 long-red TestChromeExtensionLogging tests.
+
 ### Fixed — Scaffold ruff selects the ASYNC family core/10-python.md mandates (2026-10-09, W-37b23d2d)
 
 - `templates/scaffold/python/pyproject.toml.template`: `select` gains `ASYNC` (blocking IO in async code), so new projects carry the pack's mandated `ASYNC`, `B` and `S` families. The one hit across 19 template .py files, the leak probe's blocking `httpx.get` inside an async handler, now uses `httpx.AsyncClient` (sentry-sdk instruments it the same way; the emitted probe's vacuity guard still sees the outbound span). New grader `tests/test_scaffold_ruff_mandate.py`. File-worker projects still get no ruff config at all; that gap is W-0859fd4b.
