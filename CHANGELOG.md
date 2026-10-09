@@ -96,6 +96,10 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-execute-plan names the whole-plan receipt by the plan's own stem (2026-10-08)
 - `commands/_sources/fabrik-execute-plan.md` started the whole-plan receipt with `review_receipt.py --init --scope <plan-slug>`, which dates the file the day it is made; `check_convergence.py` then failed to match a later-dated receipt whose plan slug has one distinctive token. D7 and Finish step 1 now start it with `--init --out docs/development/reviews/<plan>-review.md` (the plan's own dated stem), Finish step 1 names both gate runs of the close, and `/fabrik-review` § Reporting points a plan's receipt at that naming. Grader: `tests/test_execute_plan_d7.py::test_the_whole_plan_receipt_is_named_by_the_plan_stem_so_check_convergence_matches_it`, which also drives `_cite_matches_plan`.
 
+### Fixed — the review receipt's Gate section states /fabrik-review's close order (2026-10-09)
+
+- `scripts/review_receipt.py --init` said paste the gate "at the CONVERGED flip", so an agent ran it once, after the flip. The skeleton now names the order the command mandates (gate at `Status: IN-PROGRESS`, paste, flip, re-run, replace) and points at `/fabrik-review` § Reporting instead of paraphrasing it (kaizen 01M4F1KHBB). Graded by `tests/test_review_receipt.py::test_the_gate_section_states_the_commands_close_order`.
+
 ### Fixed — the Phase E review's routed findings that still held (2026-10-09)
 
 - `check_structure.py`: in the hub, an unimportable `_doc_registry` no longer returns `[]` (read as ALL_TYPES parity); it says the check was NOT run, and a failed import leaves the name bound instead of crashing the check on a NameError (W-fe6e0ed3).

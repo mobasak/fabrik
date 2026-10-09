@@ -237,11 +237,12 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 
 ## Gate
 
-`final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
-`"status": "success"`):
+`final_gate.py --check --json`, pasted verbatim (check_convergence reads the fenced
+`"status": "success"`). Close order per `/fabrik-review` § Reporting: run it while this receipt reads
+`Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — paste the gate output here at the CONVERGED flip
+UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
 ```
 """
 
