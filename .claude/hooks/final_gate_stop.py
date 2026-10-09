@@ -1012,12 +1012,28 @@ def _unpushed_log(root: Path, fmt: str, timeout: float = 30) -> str | None:
 
 
 def _has_upstream(root: Path, timeout: float = 30) -> bool:
-    """Does HEAD's branch have an upstream? Picks the UNPUSHED block's remedy; an error or a tree
-    with no worktree base keeps the wording the push law always carried."""
+    """Would a plain `git push` publish HEAD's branch under its own name? Picks the push remedy:
+    True → `git push`, False → `git push -u origin HEAD`. When an upstream resolves, the NAME
+    decides (W-43ccb000): a branch tracking a differently named one — `git worktree add -b x path
+    origin/master` sets `branch.x.merge` to refs/heads/master — is refused a plain push under
+    push.default=simple, so it is False unless there is no `origin` remote (then `-u origin HEAD`
+    cannot run either, and the old wording stays). Only when no upstream resolves does the
+    worktree-base rule apply: no worktree base keeps the wording the push law always carried.
+    An error is True, the pre-existing default."""
     deadline = time.monotonic() + timeout
     try:
         r = _git_by(root, deadline, "rev-parse", "--verify", "--quiet", "@{upstream}")
-        return r.returncode == 0 or _worktree_base(root, deadline) is None
+        if r.returncode != 0:
+            return _worktree_base(root, deadline) is None
+        head = _git_by(root, deadline, "symbolic-ref", "--quiet", "HEAD").stdout.strip()
+        if not head.startswith("refs/heads/"):
+            # defensive: `@{upstream}` resolving implies a branch, but HEAD can move between calls
+            return True
+        merge = _git_by(root, deadline, "config", "--get", f"branch.{head[11:]}.merge")
+        if merge.returncode == 0 and merge.stdout.strip() == head:
+            return True
+        origin = _git_by(root, deadline, "config", "--get", "remote.origin.url")
+        return origin.returncode != 0 or not origin.stdout.strip()
     except Exception:
         return True
 
@@ -4465,11 +4481,12 @@ def main(argv: list[str]) -> int:
                         "`git rebase --abort` + report · NEVER --force."
                     )
                 else:
-                    # a worktree branch with no upstream: plain `git push` and a pull both fail
+                    # a branch a plain `git push` cannot publish under its own name: a worktree
+                    # branch with no upstream, or one tracking a differently named upstream
                     reason = (
                         f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
-                        "this worktree branch are not on the main checkout's branch and the "
-                        "branch has no upstream — an unpushed task is an OFF-BOX-UNPROTECTED "
+                        "this branch are not on origin under this branch's own name — its "
+                        "upstream is missing or named differently — an unpushed task is an OFF-BOX-UNPROTECTED "
                         "task (CLAUDE.md § EXIT): "
                         + _GATE_BEFORE_PUSH
                         + "then publish it (`git push -u origin HEAD`), "
