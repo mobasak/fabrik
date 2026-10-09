@@ -146,6 +146,7 @@ try:
     DOCS_ALLOWLIST = _doc_registry.docs_allowlist() | _doc_registry.LEGACY_TOLERATED
 except Exception:  # noqa: BLE001 — a registry glitch must never crash the structure gate
     DOCS_ALLOWLIST = _FALLBACK_DOCS_ALLOWLIST
+    _doc_registry = None  # type: ignore[assignment]  # bound, so the parity check can say NOT checked
 
 
 def _gitignored_files(root: Path) -> set[str]:

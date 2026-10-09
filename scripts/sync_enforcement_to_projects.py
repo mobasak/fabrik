@@ -2498,7 +2498,7 @@ def _unreachable_vendored_copies(projects: list[Path]) -> list[str]:
 
 def _file_lines(files: list[SyncResult], *, verbose: bool, dry_run: bool) -> list[str]:
     """The per-file lines a project's sync prints. Safety decisions (SKIP/WARN) always print with
-    their canonical phrases; a DRY RUN also names every file it WOULD write, because it exists to
+    their canonical phrases; a DRY RUN also names every file it WOULD write or delete, because it exists to
     answer "what would ship?" (it named none of them without --verbose — W-fe6e0ed3); the rest
     print only under --verbose."""
     lines: list[str] = []
@@ -2507,8 +2507,10 @@ def _file_lines(files: list[SyncResult], *, verbose: bool, dry_run: bool) -> lis
             lines.append(f"  WARN (destination newer): {fr.destination.name}")
         elif fr.action == "SKIP":
             lines.append(f"  SKIP (identical): {fr.destination.name}")
-        elif verbose or (dry_run and fr.action in ("COPY", "BACKUP")):
-            icon = {"COPY": "  →", "BACKUP": "  ↻", "ERROR": "  ✗"}.get(fr.action, "  ?")
+        elif verbose or (dry_run and fr.action in ("COPY", "BACKUP", "DELETE")):
+            icon = {"COPY": "  →", "BACKUP": "  ↻", "DELETE": "  −", "ERROR": "  ✗"}.get(
+                fr.action, "  ?"
+            )
             lines.append(f"{icon} {fr.destination.name}: {fr.reason}")
     return lines
 

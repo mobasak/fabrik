@@ -2021,7 +2021,10 @@ def _worktree_chain(
     if p in held or str(path.resolve()) in held:
         return "wt-held", "a live process is working in it", held.get(p, "")
     rc, entries = _status_z(path)
-    if rc == 0 and entries:
+    if rc != 0:
+        # an unreadable status is not a clean one: the verdict this feeds is destructive-adjacent
+        return "wt-dirty", f"its status is unreadable (git status rc {rc})", ""
+    if entries:
         all_names = [n for _, n in entries]
         untracked = {n for xy, n in entries if xy == "??"}
         # T12.23 (01M23JK2R, reported by wef3): the governance sync MATERIALISES manifest-owned

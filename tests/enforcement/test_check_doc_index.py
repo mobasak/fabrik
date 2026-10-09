@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-REPO = Path("/opt/fabrik")
+REPO = Path(__file__).resolve().parents[2]  # the tree under test, never the live main checkout
 sys.path.insert(0, str(REPO / "scripts" / "enforcement"))
 
 import check_doc_index as cdi  # noqa: E402

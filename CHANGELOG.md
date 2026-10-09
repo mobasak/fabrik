@@ -6,9 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the Phase E review's routed findings that still held (2026-10-09)
 
-- `check_structure.py`: in the hub, an unimportable `_doc_registry` no longer returns `[]` (read as ALL_TYPES parity); it says the check was NOT run (W-fe6e0ed3).
-- `sync_enforcement_to_projects.py --dry-run` names every file it WOULD copy or back up, not only the SKIP and WARN lines; `_atomic_copy`'s docstring no longer claims a plain-copy fallback it does not have.
-- `scratch_sweep.py` reads porcelain and ls-files output NUL-separated (`-z`): a path the line form quotes (tab, newline, quote, non-ASCII) resolves to the real file instead of a quote-stripped wrong one, and a rename's source is consumed, never read as an entry.
+- `check_structure.py`: in the hub, an unimportable `_doc_registry` no longer returns `[]` (read as ALL_TYPES parity); it says the check was NOT run, and a failed import leaves the name bound instead of crashing the check on a NameError (W-fe6e0ed3).
+- `sync_enforcement_to_projects.py --dry-run` names every file it WOULD copy, back up or delete, not only the SKIP and WARN lines; `_atomic_copy`'s docstring no longer claims a plain-copy fallback it does not have.
+- `scratch_sweep.py` reads porcelain and ls-files output NUL-separated (`-z`): a path the line form quotes (tab, newline, quote, non-ASCII) resolves to the real file instead of a quote-stripped wrong one, and a rename's source is consumed, never read as an entry; a worktree whose `git status` fails is kept (`wt-dirty`, status unreadable) instead of being classified as clean. `tests/enforcement/test_check_doc_index.py` grades the tree under test instead of the live `/opt/fabrik` checkout.
 
 ### Changed — check_review_coverage blocks on reviews committed but not yet integrated (2026-10-09)
 
