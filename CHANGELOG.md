@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the settings.json worktree-block test no longer reds on every sanctioned hook edit (2026-10-09)
+- `tests/test_sync_worktree_adoption.py::test_hub_settings_json_worktree_block_is_present_and_well_formed` pinned the live file's `hooks`/`permissions` to their value at 5fd58526, so the seat-guard hook (61ebee4cd) turned it red and nothing saw it (the hub pytest leg is off). The contract it guards — adding the worktree block changed nothing else — is now asserted on the commit that added it: 18065037f against its parent, parsed equal minus `worktree`, no deleted line, no duplicate key. The live worktree value and indentation checks stay. Reported by intel (01M4F1E8PX).
+
 ### Fixed — the Stop hook tells a branch tracking a differently named upstream to push under its own name (2026-10-09)
 - `.claude/hooks/final_gate_stop.py` `_has_upstream` (the only chooser of the push remedy) answered "is there an upstream". A worktree created from `origin/master` (`git worktree add -b x path origin/master`) does track one, so it was told a bare `git push`, which push.default=simple refuses because the names differ. When an upstream resolves, the hook now checks the name, `branch.<b>.merge == refs/heads/<b>`, and a mismatched branch is told `git push -u origin HEAD`. That push publishes the branch under its own name and never onto master. The hook keeps the old wording when there is no `origin` remote. The block reason no longer claims such a branch "has no upstream". `tests/test_stop_hook_push_attribution.py`'s call-site guard, red since 707abee81 added a third call site, now walks real call nodes. W-43ccb000, D-727.
 
