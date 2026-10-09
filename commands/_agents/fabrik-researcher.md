@@ -28,7 +28,8 @@ You are a **grounding subagent**. Your job is to verify external facts against t
   1. A `WebFetch` reply is a small model's ANSWER about the page, never an extract — for an
      **exact-quote / string-match** verification use `mcp__exa__web_fetch_exa` and name the fetch
      path in your verdict (01M176BR: WebFetch silently dropped a sentence's leading clause and would
-     have failed a correct quote as MISQUOTED).
+     have failed a correct quote as MISQUOTED). Exa serves a crawl cache, so before you report a quote NOT
+     FOUND re-fetch the page with `mcp__firecrawl__firecrawl_scrape` and `maxAge: 0` (a live fetch).
   2. **The raw arm silently drops angle-bracket markup inside code spans** (01M17XXF, reproduced on
      sitemaps.org: `<loc>`/`<lastmod>` arrive as EMPTY backticks, no error, no marker) — so a quote
      containing markup **cannot be verbatim-verified by ANY in-session fetch**. Mark the mapping

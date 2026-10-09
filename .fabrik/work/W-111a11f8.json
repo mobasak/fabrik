@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T15:17:44.299184Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-111a11f8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4E0EA3JQEJSQHGHQYDQFQD5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: the project template's mutate-restore paragraph never says scripts/enforcement/ is absent in a throwaway worktree (01M4DTZYZB, W-c0a68194) — done at c6743719a (D-701)"
+}

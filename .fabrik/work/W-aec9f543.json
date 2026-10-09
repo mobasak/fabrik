@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:20:47.821411Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-aec9f543",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DTGVJ3RZ2GRSF2MTD794A8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: review-loop refute seats returning NO RESULT (01M4DP81PE) — fixed at 7d34e27de (D-696), synced"
+}

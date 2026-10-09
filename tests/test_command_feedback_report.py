@@ -1764,6 +1764,160 @@ def test_the_queue_states_how_many_it_excluded(tmp_path: Path, monkeypatch) -> N
     assert "1 already answered and excluded" in head, head
 
 
+def test_queue_lists_the_held_subjects_of_that_command_once_per_row(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """kaizen 01M4E88KDV: a one-off verdict is rejected with a `HELD:<subject>` tag, and a SECOND
+    verdict on a held subject is edited, never re-rejected — so the queue header names the held
+    subjects. Once per row (a tag repeated inside one reason counts once), this command's rejected
+    rows only, count first; a command with no tags keeps its header byte-identical."""
+    m = _cfr()
+    rows = [_row("fabrik-review", 10, 2, f"lean: v{i}") for i in range(4)]
+    index = tmp_path / "answered.jsonl"
+    lines = [
+        {
+            "ts": str(rows[0]["ts"]),
+            "command": "fabrik-review",
+            "commit": "rejected",
+            "reason": "x.md:12 HELD:pin-recipe, one-off; HELD:pin-recipe again",
+        },
+        {
+            "ts": str(rows[1]["ts"]),
+            "command": "fabrik-review",
+            "commit": "rejected",
+            "reason": "y.md:3 HELD:pin-recipe (seen twice now)",
+        },
+        {
+            "ts": str(rows[2]["ts"]),
+            "command": "fabrik-review",
+            "commit": "rejected",
+            "reason": "z.py:9 HELD:fabrik-review/phase-4; then prose",
+        },
+        {
+            "ts": "1.0",
+            "command": "fabrik-task",
+            "commit": "rejected",
+            "reason": "HELD:other-command-subject",
+        },
+        {
+            "ts": "2.0",
+            "command": "fabrik-review",
+            "commit": "abc123",
+            "reason": "HELD:an-answered-edit-is-not-held",
+        },
+    ]
+    index.write_text("".join(json.dumps(r) + "\n" for r in lines), encoding="utf-8")
+    monkeypatch.setattr(m, "_answered_path", lambda ledger=None: index)
+    out = m.queue(rows, "fabrik-review").splitlines()
+    held = [ln for ln in out if ln.startswith("held (all time):")]
+    assert held == [
+        "held (all time): 2 subject(s) on 3 of 3 rejected row(s) — "
+        "pin-recipe (2) · fabrik-review/phase-4"
+    ], out
+    assert out.index(held[0]) == 1, "the held line sits right under the head line"
+    assert all("\t" in ln for ln in out[2:]), "every line after the header is still a row"
+    assert "other-command-subject" not in "\n".join(out)
+    assert "an-answered-edit-is-not-held" not in "\n".join(out)
+    other = [
+        ln for ln in m.queue(rows, "fabrik-task").splitlines() if ln.startswith("held (all time):")
+    ]
+    assert other == [
+        "held (all time): 1 subject(s) on 1 of 1 rejected row(s) — other-command-subject"
+    ], other
+
+
+def test_untagged_rejects_print_no_held_line_and_series_stays_first(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """No tag, no line — rejected rows WITHOUT a tag (and another command's tagged rows) leave the
+    header exactly as it was; and for fabrik-task the `series:` line keeps `lines[1]`, the held line
+    following it (a trailing `.` is punctuation, never part of the subject)."""
+    m = _cfr()
+    rows = [_row("fabrik-review", 10, 2, "lean: a"), _row("fabrik-review", 10, 2, "lean: b")]
+    index = tmp_path / "answered.jsonl"
+    index.write_text(
+        json.dumps(
+            {
+                "ts": "5.0",
+                "command": "fabrik-review",
+                "commit": "rejected",
+                "reason": "already landed in abc123; nothing to change",
+            }
+        )
+        + "\n"
+        + json.dumps(
+            {
+                "ts": "6.0",
+                "command": "fabrik-task",
+                "commit": "rejected",
+                "reason": "a.md:1 HELD:task-subject.",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(m, "_answered_path", lambda ledger=None: index)
+    review = m.queue(rows, "fabrik-review")
+    assert "held" not in review.splitlines()[1] and "\t" in review.splitlines()[1], review
+    task_rows = [_row("fabrik-task", 10, 2, "lean: c")]
+    task = m.queue(task_rows, "fabrik-task").splitlines()
+    assert task[1].startswith("series:"), task
+    assert task[2] == "held (all time): 1 subject(s) on 1 of 1 rejected row(s) — task-subject", task
+
+
+def test_rejecting_again_under_a_held_subject_warns(tmp_path: Path) -> None:
+    """D-711's writer half: a second verdict on a held subject is edited, never re-rejected — the
+    reject still lands (a warning, not a refusal) but says so, naming the subject and its rows."""
+    m = _cfr()
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [_row("fabrik-review", 10, 2, "lean: a"), _row("fabrik-review", 10, 2, "lean: b")]
+    _write(ledger, rows)
+    index = tmp_path / "command-feedback-answered.jsonl"
+    handles = [
+        line.split("\t")[0]
+        for line in m.queue(rows, "fabrik-review", ledger=ledger).splitlines()[1:]
+    ]
+    reason = "x.md:3 HELD:pin-recipe — valid as advice, held below the edit bar"
+    first, msg = m.reject("fabrik-review", [handles[0]], reason, tmp_path, index, ledger=ledger)
+    assert first == 1 and "already holds" not in msg, msg
+    second, msg = m.reject("fabrik-review", [handles[1]], reason, tmp_path, index, ledger=ledger)
+    assert second == 1, msg
+    assert "HELD:pin-recipe already holds 1 row(s)" in msg and "never re-rejected" in msg, msg
+
+
+def test_held_tags_split_glued_tags_and_skip_prefixed_words() -> None:
+    """Scoped review A-S1/A-O4: two tags glued without a space are two subjects, a word that merely
+    ENDS in `HELD:` is no tag, and sentence punctuation never joins the subject."""
+    m = _cfr()
+    assert m._held_tags("x.md:1 HELD:phase-4.HELD:phase-5 y") == {"phase-4", "phase-5"}
+    assert m._held_tags("UNHELD:foo WITHHELD:bar HELD:ok") == {"ok"}
+    assert m._held_tags("HELD:foo. end; HELD:a/b/, done") == {"foo", "a/b"}
+    for glued in ("HELD:aHELD:b", "HELD:a_HELD:b", "HELD:a-HELD:b", "HELD:a.HELD:b"):
+        assert m._held_tags(glued) == {"a", "b"}, glued
+
+
+def test_a_multi_row_reject_never_warns_about_itself_and_a_partial_write_keeps_the_warning(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The held set is read BEFORE the write: a first reject over several rows is no re-hold; a
+    later reject under that subject warns even when its write fails partway (review A-S2)."""
+    m = _cfr()
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [_row("fabrik-review", 10, 2, f"lean: {c}") for c in "abc"]
+    _write(ledger, rows)
+    index = tmp_path / "command-feedback-answered.jsonl"
+    handles = [
+        line.split("\t")[0]
+        for line in m.queue(rows, "fabrik-review", ledger=ledger).splitlines()[1:]
+    ]
+    reason = "x.md:3 HELD:pin-recipe — valid as advice, held below the edit bar"
+    first, msg = m.reject("fabrik-review", handles[:2], reason, tmp_path, index, ledger=ledger)
+    assert first == 2 and "already holds" not in msg, msg
+    monkeypatch.setattr(m, "_append_answered", lambda path, recs: (0, "disk full"))
+    _, msg = m.reject("fabrik-review", handles[2:], reason, tmp_path, index, ledger=ledger)
+    assert msg.startswith("PARTIAL") and "HELD:pin-recipe already holds 2 row(s)" in msg, msg
+
+
 def test_an_absent_index_hides_nothing(tmp_path: Path, monkeypatch) -> None:
     """The safe direction: no index means every row shows. Over-reporting work beats hiding a
     verdict nobody acted on."""

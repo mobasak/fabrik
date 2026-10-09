@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T22:15:37.677730Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f75bad3c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make all four mirrors strip('/') in one change; parity tests test_quota_posture.py:893 and test_stop_hook_spontaneous_review.py:927 already pin them to each other",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "command-name normaliser keeps a TRAILING slash: _norm_command('/fabrik-spec/') -> 'fabrik-spec/', so every set membership (REVIEW_FAMILY, NO_CLOSING_PASS, CONFIRMED_REQUIRED_COMMANDS) misses; four mirrors must move together (command_run._norm_command, quota_posture_hook :549, final_gate_stop :1422, command_feedback_report) — review W-29e3424f A-H1"
+}

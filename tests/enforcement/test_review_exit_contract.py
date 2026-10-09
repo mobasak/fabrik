@@ -429,3 +429,60 @@ def test_rule_three_fires_per_site_and_stands_down_at_the_stop() -> None:
     assert "ONLY-residue pass" not in te and "rule 3 ever triggers" not in te
     assert "(patch, patch, rewrite)" not in te and "(patch, patch, rewrite)" not in tc
     assert "function or top-level statement" in rule3(tc) and "function or top-level statement" not in te
+
+
+def test_round_zero_probes_a_guard_on_five_legitimate_spellings_and_its_mutant_mirrors() -> None:
+    """/fabrik-review queue (5 verdicts over five days): a guard a fix added was proven on the one spelling the
+    fix answered, so the next round's seat met the bolded, slash or reordered form; and a re-cut was proven on
+    the new finding alone. The round-zero probe now points at the testing-strategy pack row that owns the
+    five-spellings floor and defines the re-cut's mirrors. The citation is graded against the pack itself: the row
+    must sit in the section the probe names and still say what the probe quotes."""
+    text = " ".join((REPO / "commands" / "_fragments" / "term-coverage.md").read_text().split())
+    assert (
+        "a guard against an input that shows the condition, one that does not, every error path and five "
+        "LEGITIMATE spellings of its subject (`45-testing-strategy` § Banned Patterns, the row *A GUARD proven only "
+        "by the ONE spelling*: under 5/5 is a finding), a re-cut guard against the mutant of the finding it answers "
+        "AND, for a phrase guard, that mutant's mirrors (its negation in the same word order and a reordered "
+        "rewording)," in text
+    )
+    assert "routed to the backlog rather than widened into its regex" not in text, (
+        "the pack makes a missed spelling a finding; a backlog route for it contradicts rule (3) and the row"
+    )
+    pack = (REPO / ".windsurf" / "rules" / "core" / "45-testing-strategy.md").read_text()
+    section = pack.split("\n## Banned Patterns\n", 1)
+    assert len(section) == 2, "the § Banned Patterns heading the probe cites is gone"
+    body = section[1].split("\n## ", 1)[0]
+    row = next((ln for ln in body.splitlines() if ln.startswith("| A GUARD proven only by the ONE spelling")), "")
+    assert row, "the cited row left § Banned Patterns — re-point the probe's citation"
+    assert "anything under 5/5 is a finding" in " ".join(row.split())
+
+
+
+def test_a_running_cert_ledger_is_told_the_in_progress_marker_check_file_honours(tmp_path) -> None:
+    """intel 01M4ECCQ2T (tryton-crm 01M3YD067C): a cert report carrying a Coverage Checklist is graded by
+    check_file, but no cert text named the header-zone `Status: IN-PROGRESS` marker that exempts a gauntlet still
+    running, nor how it closes, so authors learned both from a red gate. The fragment now names the marker and
+    the close order, and check_file is driven to show it skips exactly the report so marked in lines 1-10."""
+    text = " ".join((REPO / "commands" / "_fragments" / "term-coverage.md").read_text().split())
+    assert (
+        "While the gauntlet runs, the cert report carries a line-initial `Status: IN-PROGRESS` in its first 10 "
+        "lines (`check_file` skips a report marked so), and it closes in `/fabrik-review`'s order: the gate run "
+        "while it still reads IN-PROGRESS, the flip to `Status: CONVERGED` — which also arms "
+        "`check_convergence.py`'s embedded green `final_gate` and a per-phase verdict under a `## Phase`/`## Step` "
+        "heading — then the gate re-run and "
+        "embedded." in text
+    )
+    body = (
+        "## Coverage Checklist\n\n| Row | Status |\n|---|---|\n| auth | UNCHECKED |\n\n## Ledger\n\n"
+        "| Pass 1 | opus×1 | found: 3, new: 3, confirmed: 2, fixed: 0, unexecuted: 0 | method: gate |\n"
+    )
+
+    def errs(head: str) -> list[str]:
+        p = tmp_path / "2026-10-08-fabrik-user-test-cert.md"
+        p.write_text(head + body, encoding="utf-8")
+        return crc.check_file(p)
+
+    assert errs("# Cert ledger\n\n") != [], "the fixture must be red without the marker"
+    assert errs("# Cert ledger\n\nStatus: IN-PROGRESS\n\n") == []
+    assert errs("# Cert ledger\n" + "\n" * 8 + "Status: IN-PROGRESS\n") == [], "line 10 is inside the zone"
+    assert errs("# Cert ledger\n" + "\n" * 9 + "Status: IN-PROGRESS\n") != [], "line 11 is outside it"

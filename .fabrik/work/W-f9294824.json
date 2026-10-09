@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T23:48:58.749919Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-f9294824",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make the codes group case-sensitive: (?-i:[A-Z]+[0-9]+(?:[\\s,]+[A-Z]+[0-9]+)*) in _NOQA (tests/test_scaffold_logging_lint.py:21); add the 'step2' case to the grader",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "tests/test_scaffold_logging_lint.py: _NOQA's re.I reads a lowercase prose word ending in digits (step2) after '# noqa: G003' as a code — fails closed (rejects a valid line)"
+}

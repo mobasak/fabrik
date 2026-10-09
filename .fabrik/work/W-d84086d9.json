@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T14:35:09.446449Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-d84086d9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DY738WA6JHAWCAEH7E8AT2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: two wording items for kaizen (01M4DSCHTM, W-68f8f358) — both done at bf5943f38"
+}

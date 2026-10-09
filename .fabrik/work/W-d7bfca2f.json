@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-09T00:49:21.480252Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-d7bfca2f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4F1KHBBZJYH4DRBCAP7NHS9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "review_receipt.py --init's Gate skeleton says paste the gate \"at the CONVERGED flip\" — /fabrik-review's close order runs it at IN-PROGRESS first, then again after the flip"
+}

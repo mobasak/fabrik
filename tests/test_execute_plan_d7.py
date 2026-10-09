@@ -192,3 +192,80 @@ def test_pin_rejects_a_gutted_requirement():
     assert not _pins_live_request(gutted), (
         "pin accepts an OPTIONAL live request — it checks presence, not force"
     )
+
+
+def test_the_whole_plan_receipt_is_named_by_the_plan_stem_so_check_convergence_matches_it():
+    """/fabrik-execute-plan queue: Finish rediscovered how to name and close the whole-plan receipt.
+    An undated `--init --scope <plan-slug>` dates the file TODAY, and check_convergence's fuzzy match needs
+    two distinctive slug tokens, so a `plan-3-mail` reviewed after its plan's date was not counted;
+    `--out <plan>-review.md` keeps the plan's own dated stem and matches by the exact rule."""
+    import importlib.util
+
+    text = " ".join(_D7_SOURCE.read_text(encoding="utf-8").split())
+    review = " ".join((_D7_SOURCE.parent / "fabrik-review.md").read_text(encoding="utf-8").split())
+    start = "review_receipt.py --init --out docs/development/reviews/<plan>-review.md"
+    assert text.count(start) == 2, "D7 and Finish step 1 both start the receipt by the plan's stem"
+    assert "--init --scope <plan-slug>" not in text
+    for phrase in (
+        "`<plan>` is the plan file's (a set's spine's) own dated stem",
+        "an undated `--scope <plan-slug>` is dated the day it is made, and a later date with one distinctive slug "
+        "token (`plan-3-mail`) matches nothing",
+        "--range <baseline>..HEAD --plan <the plan file>",
+        "two gate runs, one embedded while the receipt reads `IN-PROGRESS`, one after the `CONVERGED` flip "
+        "embedded in its place; it is the file step 5 cites",
+    ):
+        assert phrase in text, phrase
+    assert (
+        "a plan's whole-plan receipt takes `--out docs/development/reviews/<plan>-review.md` instead" in review
+    ), "/fabrik-review § Reporting points a plan's receipt at D7's naming"
+    spec = importlib.util.spec_from_file_location(
+        "cc_d7", _D7_SOURCE.parents[2] / "scripts" / "enforcement" / "check_convergence.py"
+    )
+    cc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cc)
+    plan = "2026-10-01-plan-3-mail"
+    assert cc._cite_matches_plan(f"{plan}-review.md", plan)
+    assert not cc._cite_matches_plan("2026-10-08-plan-3-mail-review.md", plan), (
+        "the later-dated --scope form is the failure the text names; if this flips, re-word the reason"
+    )
+
+
+def test_the_archive_step_never_edits_a_ledger_row_and_leaves_a_ledger_cited_plan_to_the_merge_owner():
+    """/fabrik-execute-plan queue: Finish step 6 ordered a repoint of existing `docs/DECISIONS.md` rows, which
+    the ledger merge refuses when either side edits a line beside an insertion (LESSONS 2026-10-01). The step
+    now lists referrers BEFORE any move, never edits an existing row, and leaves a plan such a row cites to
+    the merge owner (D-484, a90b35a3b)."""
+    import importlib.util
+
+    text = " ".join(_D7_SOURCE.read_text(encoding="utf-8").split())
+    step6 = text[text.index("6. **Archive the plan") : text.index("7. **Gate, push, then name")]
+    grep_at = step6.index("BEFORE any move, list the REFERRERS:")
+    assert grep_at < step6.index("git mv docs/development/plans/<plan>.md"), "the referrer list precedes the move"
+    for phrase in (
+        "A `docs/DECISIONS.md` row already on `BASE` that cites a file of the plan by its pre-archive path "
+        "decides WHO archives",
+        "Never repoint that row: the ledger merge refuses any conflict where EITHER side edits an existing line",
+        "it stays where it is with `Status: EXECUTED`, your Finish row cites it at that path and says the archive "
+        "is owed, and the hand-over names it — the merge request from an agent window, the OWED report, or, from "
+        "the main checkout, a work item or mail addressed to the repo's merge owner",
+        "`BASE` here is the branch your work finally merges into",
+        "The archive is the merge owner's, with every referrer in one commit, timed so no open request inserts "
+        "beside the rows it repoints",
+        "No such row → archive now",
+    ):
+        assert phrase in step6, phrase
+    assert "flip the plan and archive it as step 6 allows" in text, "step 4's OWED path defers to step 6"
+    assert "a plan an existing DECISIONS row cites stays EXECUTED for the merge owner to archive" in text
+    spec = importlib.util.spec_from_file_location(
+        "cdl_d7", _D7_SOURCE.parents[2] / "scripts" / "enforcement" / "check_doc_links.py"
+    )
+    cdl = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cdl)
+    ledger = cdl.REPO / "docs" / "DECISIONS.md"
+    moved = "docs/development/plans/2026-01-01-plan-0-moved-away.md"
+    assert ledger in cdl._tracked_md_sources(), "the link check reads the ledger"
+    row = f"| D-1 | 2026-01-01 | infra | executed | measured | `{moved}` |"
+    assert moved in [target for target, _kind in cdl._iter_refs(row)], "a ledger row's plan path is extracted"
+    assert not cdl._resolves(moved, ledger), (
+        "a ledger row citing a moved plan no longer breaks the gate — the stay-in-place clause is unneeded"
+    )

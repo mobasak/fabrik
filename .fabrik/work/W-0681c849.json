@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:30:40.034654Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0681c849",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "rotation/dispatch: exclude an account whose org disabled Claude Code subscription access (fabrik-spec-review verdict 1791303273.2769608, kaizen 01M4EKAZZF)"
+}

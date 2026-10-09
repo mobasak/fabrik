@@ -162,7 +162,9 @@ python3 /opt/fabrik/scripts/scratch_sweep.py --dead --apply  # what the cron lin
 ```
 
 Every row carries a class, a reason and its evidence; `--apply` is opt-in and prints the refusal set
-before it removes anything. The operator's two constraints are the whole design: *"we should not
+before it removes anything. A stale directory with read-only parts — a review seat's copied pin — is made
+owner-writable inside itself (never its parent, never through a symlink) and removed; a tree that
+still refuses ends on its row's `FAILED` line. The operator's two constraints are the whole design: *"we should not
 cause data loss"* and *"agents must know what will this script do while using it."*
 
 **Its relation to § D is the point.** § D's DO-NOT-SWEEP list exists because a rule globbing

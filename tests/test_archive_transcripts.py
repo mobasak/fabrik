@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import fcntl
+import hashlib
 import importlib.util
 import json
 import os
@@ -47,7 +48,7 @@ def tree(tmp_path, monkeypatch):
         monkeypatch.delenv(k)
     monkeypatch.setenv("CLAUDE_PROJECTS_DIR", str(projects))
     monkeypatch.setenv("ARCHIVE_ROOT", str(archive))
-    # the files above are written NOW, and the default window is 1 day — pin it to 0
+    # pinned to 0 (also the default since 2026-10-08) so a test never depends on the default
     monkeypatch.setenv("ARCHIVE_AFTER_DAYS", "0")
     monkeypatch.setenv("SESSION_ARCHIVE_ENV_FILE", str(tmp_path / "no-such.env"))
     monkeypatch.setenv("SESSION_ARCHIVE_B2_KEY_ID", "kid-test")
@@ -67,8 +68,9 @@ def rec(monkeypatch):
 
         def __call__(self, argv, env):
             rows = 0
-            if argv[1] == "copyto" and argv[2].endswith(at.MANIFEST_NAME):
-                p = Path(argv[2])
+            local = [a for a in argv[2:] if a.endswith(at.MANIFEST_NAME) and ":" not in a]
+            if argv[1] == "copyto" and local:
+                p = Path(local[0])
                 rows = len(p.read_text().splitlines()) if p.exists() else 0
             self.calls.append((list(argv), dict(env), rows))
             return subprocess.CompletedProcess(argv, self.results.get(argv[1], 0), "", "boom")
@@ -414,7 +416,8 @@ def test_ab10_held_lock_makes_a_second_run_a_no_op(tree, rec, capsys):
     assert rec.calls == [] and _rows(archive) == []
 
 
-def test_ab11_window_defaults_to_one_day(tree, rec, monkeypatch, capsys):
+def test_ab11_window_defaults_to_zero_days(tree, rec, monkeypatch, capsys):
+    """Default 0 (D-row of 2026-10-08): every MAIN transcript, idle or still open, is eligible."""
     projects, _archive = tree
     monkeypatch.delenv("ARCHIVE_AFTER_DAYS")
     old = projects / "-opt-beta" / "shared-id.jsonl"
@@ -422,7 +425,7 @@ def test_ab11_window_defaults_to_one_day(tree, rec, monkeypatch, capsys):
     os.utime(old, (two_days, two_days))
     assert at.run(["--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "1 MAIN transcript(s) eligible (idle > 1.0d)" in out, out
+    assert "2 MAIN transcript(s) eligible (idle > 0.0d)" in out, out
     assert f"would archive {old}" in out
 
 
@@ -453,3 +456,209 @@ def test_ab13_units_load_no_env_file_run_main_checkout_and_catch_up():
     assert "ExecStartPre=-/opt/fabrik/scripts/sysadmin/sample_transcript_growth.sh" in service
     assert "Persistent=true" in timer and "Unit=session-archive.service" in timer
     assert "Restart=on-failure" in service, "a boot-time run without network must be retried"
+
+
+# ── rclone copyto exits 0 when the SOURCE object is absent and writes nothing ───────────────
+# (measured live 2026-10-08: `--remote-count` against the empty `wsl-ozgur` bucket passed the rc
+# check, then crashed opening a manifest that never arrived). The recorder models that: rc 0, no file.
+
+
+def test_remote_count_on_an_empty_bucket_reports_the_manifest_absent(tree, rec, capsys):
+    """`--remote-count` before the first upload answers `absent`, never a traceback."""
+    assert at.run(["--remote-count"]) == 0
+    out = capsys.readouterr().out
+    assert "remote_objects 0" in out
+    assert "remote_manifest_sha256 absent" in out
+
+
+def test_fetch_of_an_object_the_bucket_does_not_hold_fails_loudly(tree, rec, tmp_path, capsys):
+    """A restore must never print `fetched` for bytes that never arrived (Phase B relies on it)."""
+    dest = tmp_path / "out.zst"
+    assert at.run(["--fetch", "/-opt-alpha/missing.jsonl.zst", str(dest)]) == 1
+    assert "was not downloaded" in capsys.readouterr().err
+    assert not dest.exists()
+
+
+# ── the named windows: a session open for days is still backed up, as a daily snapshot ──────
+# (operator 2026-10-08: "will we keep all chat histories of all active windows … infra, kaizen,
+# intel, fleet"; those windows never go idle for a day, so a 1-day idle window never took them)
+
+
+def test_an_active_transcript_is_archived_by_default(tree, rec, monkeypatch, capsys):
+    """A transcript written seconds ago is eligible with no ARCHIVE_AFTER_DAYS set."""
+    projects, _archive = tree
+    monkeypatch.delenv("ARCHIVE_AFTER_DAYS")
+    live = projects / "-opt-alpha" / "shared-id.jsonl"  # mtime: now
+    assert at.run(["--dry-run"]) == 0
+    assert f"would archive {live}" in capsys.readouterr().out
+
+
+def test_a_transcript_growing_during_the_archive_gets_a_row_matching_its_object(
+    tree, rec, monkeypatch
+):
+    """The row's sha256 and bytes describe the uploaded object even while the session appends."""
+    projects, archive = tree
+    live = projects / "-opt-beta" / "shared-id.jsonl"
+    real = at._sha256
+
+    def hash_then_the_session_appends(path):
+        digest = real(path)
+        with live.open("ab") as fh:  # the open window writes its next turn mid-archive
+            fh.write(b'{"turn":"next"}\n')
+        return digest
+
+    monkeypatch.setattr(at, "_sha256", hash_then_the_session_appends)
+    assert at.run([]) == 0
+    row = next(r for r in _rows(archive) if r["project_slug"] == "-opt-beta")
+    got = subprocess.run(
+        ["zstd", "-d", "-c", str(archive / "-opt-beta" / "shared-id.jsonl.zst")],
+        capture_output=True,
+        check=True,
+    ).stdout
+    assert row["sha256"] == hashlib.sha256(got).hexdigest(), "the row vouches for other bytes"
+    assert row["bytes"] == len(got)
+
+
+# ── review round 1 (fabrik-review-scoped of the 2026-10-08 change) ──────────────────────────
+
+
+def test_an_orphaned_snapshot_from_a_killed_run_is_reaped(tree, rec):
+    """A SIGKILL skips the with-block's cleanup; the next run, holding the lock, removes it."""
+    _projects, archive = tree
+    orphan = archive / f"{at.SNAPSHOT_PREFIX}killed" / "big.jsonl"
+    orphan.parent.mkdir(parents=True)
+    orphan.write_bytes(b"x" * 1000)
+    assert at.run([]) == 0
+    assert not orphan.parent.exists()
+    assert not list(archive.glob(f"{at.SNAPSHOT_PREFIX}*"))
+
+
+def test_the_ship_copy_never_uploads_a_snapshot(tree, rec):
+    assert at.run([]) == 0
+    copy = next(c[0] for c in rec.calls if c[0][1] == "copy")
+    assert ("--exclude", f"/{at.SNAPSHOT_PREFIX}*/**") in list(zip(copy, copy[1:], strict=False))
+
+
+def test_the_manifest_upload_skips_the_destination_check(tree, rec):
+    """B2's download host is the one copyto HEADs first; an upload must not depend on it
+    (2026-10-08: the HEAD hung 42 min behind an SNI filter while every upload worked)."""
+    assert at.run([]) == 0
+    manifest_call = next(c[0] for c in rec.calls if c[0][1] == "copyto")
+    assert "--no-check-dest" in manifest_call
+
+
+def test_fetch_refuses_a_local_path_that_already_exists(tree, rec, tmp_path, capsys):
+    """An old file at the target would read as a successful restore of a missing object."""
+    dest = tmp_path / "out.zst"
+    dest.write_bytes(b"stale")
+    assert at.run(["--fetch", "/-opt-alpha/missing.jsonl.zst", str(dest)]) == 1
+    assert "already exists" in capsys.readouterr().err
+    assert dest.read_bytes() == b"stale"
+    assert rec.calls == []
+
+
+def test_fetch_of_a_prefix_is_not_a_restore(tree, monkeypatch, tmp_path, capsys):
+    """copyto copies a PREFIX as a directory tree; only a regular file is a restored object."""
+
+    def copies_a_tree(argv, env):
+        (Path(argv[-1]) / "sid.jsonl.zst").parent.mkdir(parents=True)
+        (Path(argv[-1]) / "sid.jsonl.zst").write_bytes(b"z")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(at, "_run_rclone", copies_a_tree)
+    assert at.run(["--fetch", "/-opt-alpha", str(tmp_path / "out")]) == 1
+    assert "not a single object" in capsys.readouterr().err
+
+
+def test_a_transcript_that_vanishes_mid_run_is_skipped(tree, rec, monkeypatch, capsys):
+    _projects, archive = tree
+    real = shutil.copyfile
+
+    def gone_for_beta(src, dst):
+        if "-opt-beta" in str(src):
+            Path(src).unlink()  # the session's file really is gone by the time the copy opens it
+        return real(src, dst)
+
+    monkeypatch.setattr(at.shutil, "copyfile", gone_for_beta)
+    assert at.run([]) == 0
+    assert {r["project_slug"] for r in _rows(archive)} == {"-opt-alpha"}
+    assert "vanished" in capsys.readouterr().out
+
+
+def test_a_full_disk_is_a_clean_exit_1(tree, rec, monkeypatch, capsys):
+    def no_space(src, dst):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(at.shutil, "copyfile", no_space)
+    assert at.run([]) == 1
+    err = capsys.readouterr().err
+    assert "No space left on device" in err
+    assert "Traceback" not in err
+
+
+def test_a_transcript_that_grew_during_the_copy_settles_on_the_next_run(tree, rec, monkeypatch):
+    """The skip state must describe the snapshot's bytes, or a stable file re-hashes forever."""
+    projects, _archive = tree
+    live = projects / "-opt-beta" / "shared-id.jsonl"
+    real = shutil.copyfile
+
+    def window_writes_then_copy(src, dst):
+        if Path(src) == live:
+            with live.open("ab") as fh:  # the turn lands after the stat, before the copy reads
+                fh.write(b'{"turn":"mid-copy"}\n')
+        return real(src, dst)
+
+    monkeypatch.setattr(at.shutil, "copyfile", window_writes_then_copy)
+    assert at.run([]) == 0
+    monkeypatch.setattr(at.shutil, "copyfile", real)
+    assert at.run([]) == 0  # the file is now stable
+    hashed = []
+    real_sha = at._sha256
+    monkeypatch.setattr(at, "_sha256", lambda p: (hashed.append(p), real_sha(p))[1])
+    assert at.run([]) == 0
+    assert hashed == [], "a stable, already-archived transcript was re-hashed"
+
+
+# ── review round 2 ──────────────────────────────────────────────────────────────────────────
+
+
+def test_a_missing_zstd_mid_run_is_loud_not_a_vanished_skip(tree, rec, monkeypatch, capsys):
+    """FileNotFoundError from a removed zstd binary is NOT a vanished transcript."""
+    real_run = subprocess.run
+
+    def zstd_gone(argv, *a, **kw):
+        if argv and argv[0] == "zstd":
+            raise FileNotFoundError(2, "No such file or directory", "zstd")
+        return real_run(argv, *a, **kw)
+
+    monkeypatch.setattr(at.subprocess, "run", zstd_gone)
+    assert at.run([]) == 1
+    captured = capsys.readouterr()
+    assert "vanished" not in captured.out
+    assert "zstd" in captured.err
+
+
+def test_an_oserror_outside_the_archive_loop_is_a_clean_exit_1(tree, rec, monkeypatch, capsys):
+    """A full disk on the marker or the manifest append exits 1 with a message, no traceback."""
+
+    def no_space(_projects):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(at, "_ensure_marker", no_space)
+    assert at.run([]) == 1
+    err = capsys.readouterr().err
+    assert "No space left on device" in err
+    assert "Traceback" not in err
+
+
+def test_a_snapshot_named_symlink_is_left_alone_and_does_not_crash(tree, rec, tmp_path):
+    _projects, archive = tree
+    archive.mkdir(parents=True)
+    target = tmp_path / "elsewhere"
+    target.mkdir()
+    (target / "keep.txt").write_text("not ours")
+    link = archive / f"{at.SNAPSHOT_PREFIX}link"
+    link.symlink_to(target, target_is_directory=True)
+    assert at.run([]) == 0
+    assert link.is_symlink()
+    assert (target / "keep.txt").exists()

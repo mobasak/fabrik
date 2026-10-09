@@ -85,13 +85,13 @@ OVERLAYS: dict[str, list[str]] = {
 }
 
 HUB_REPOS = {"fabrik"}  # hub-class (D-015); fabrik-lib is hub-class too but lands via its own agent
-# The hub-class set is the full defs set MINUS the per-session heavy servers no hub task needs
+# The HUB's set is the full defs set MINUS the per-session heavy servers no hub task needs
 # (operator ruling 2026-10-07, mail 01M4AR32MY): every hub window spawned a Maestro JVM and two
 # browser servers; the JVMs outlived their sessions (48 orphans, ~11 GB swap after a hibernate
 # resume). The hub keeps every light server (research, grafana, media-engine, shadcn/magicui,
 # pubchem, the citation verifier) — a mobile or browser task runs in the owning repo.
 HUB_EXCLUDE = {"maestro", "mobile-mcp", "playwright", "chrome-devtools"}  # the HUB only
-HUB_CLASS = HUB_REPOS | {"fabrik-lib"}  # derivation only — never in the default sweep
+HUB_CLASS = HUB_REPOS | {"fabrik-lib"}  # derivation; only HUB_REPOS is in the default sweep
 # fabrik-lib KEEPS the full roster, maestro included (operator ruling 2026-10-07: "only mobile
 # projects and fabrik-lib" need maestro — it vendors and tests the mobile modules); HUB_EXCLUDE
 # applies to HUB_REPOS alone.

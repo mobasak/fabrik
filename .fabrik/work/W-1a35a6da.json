@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:30:38.891096Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1a35a6da",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "an operator-sanctioned route for a privilege-escalation spec's measurement step (fabrik-spec verdict 1790707345.6833036, kaizen 01M4EJQEEG)"
+}

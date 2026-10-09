@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T19:41:26.289396Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5cdc6a91",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "work.py drift: a DRAFT plan with an open non-backlog item linked to it claims work without evidence — the relabel the BLOCKED check moves the cobra to (W-fbdd17c8 critiques)"
+}

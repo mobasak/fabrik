@@ -876,3 +876,138 @@ def test_a_stamped_task_keeps_its_v2_row_fields_after_the_switch_is_removed(
     r = _close(run_dir, repo, "blocked", "--reason", "missing infra")
     assert r.returncode == 0, r.stdout + r.stderr
     assert _rows(run_dir)[-1].get("phase_marks") == "1"
+
+
+# ---------------------------------------------------------------- `step --terminal-amend` (kaizen 01M4DB7C7V)
+
+_START_TERMINAL = "the change ships with its grader"
+
+
+def _amend(run_dir: Path, repo: Path, text: str, *extra: str) -> subprocess.CompletedProcess[str]:
+    return _cr(run_dir, "step", "--phase", "2", *extra, "--terminal-amend", text, cwd=repo)
+
+
+def test_v2_a_terminal_amend_before_the_design_restates_the_run_and_keeps_its_history(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """The critiques narrow the work before the design lands: the terminal is restated, the pinned
+    RUN: line shows it, and the history keeps the original. A same-text amend changes nothing."""
+    repo = _started_v2(run_dir, tmp_path)
+    r = _amend(run_dir, repo, "only the parser ships")
+    assert r.returncode == 0, r.stdout + r.stderr
+    rec = _rec(run_dir)
+    assert rec["terminal"] == "only the parser ships"
+    (h,) = rec["terminal_amends"]
+    assert (h["from"], h["to"]) == (_START_TERMINAL, "only the parser ships") and h["at"], h
+    line = _cr(run_dir, "line", cwd=repo)
+    assert "terminal: only the parser ships" in line.stdout, line.stdout
+    r = _amend(run_dir, repo, "only the parser ships")
+    assert r.returncode == 0 and "NOTE" in (r.stdout + r.stderr), r.stdout + r.stderr
+    assert len(_rec(run_dir)["terminal_amends"]) == 1, "a same-text amend is a no-op"
+    d = repo.parent / "design.md"
+    d.write_text(
+        "PROBLEM: x\nAPPROACH: edit `src/a.py`\nDECISION: reversible\nMIRROR: none\nOUT: none\n"
+        "TERMINAL: green\n\n## Behaviours\n- one — `tests/test_x.py::test_one`\n",
+        encoding="utf-8",
+    )
+    r = _amend(run_dir, repo, "the parser and its grader ship", "--design", str(d))
+    assert r.returncode == 0, r.stdout + r.stderr
+    rec = _rec(run_dir)
+    assert rec["terminal"] == "the parser and its grader ship" and "design" in rec, rec
+    assert [x["to"] for x in rec["terminal_amends"]] == [
+        "only the parser ships",
+        "the parser and its grader ship",
+    ]
+
+
+def test_v2_a_terminal_amend_after_the_design_or_off_fabrik_task_is_refused(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Restating after the design lands would move the goal to fit the build — even on a re-entered
+    phase 2; another command, blank text and a newline are refused too, the record unchanged."""
+    repo = _started_v2(run_dir, tmp_path)
+    for bad in ("", "   ", "two\nlines"):
+        r = _amend(run_dir, repo, bad)
+        assert r.returncode == 1 and "REFUSED" in r.stdout, (bad, r.stdout + r.stderr)
+    _design(run_dir, repo, "edit `src/a.py`")
+    _edit_commit(repo, "src/a.py", "x = 2\n")
+    assert _cr(run_dir, "step", "--phase", "4", cwd=repo).returncode == 0
+    before = _rec(run_dir)
+    r = _amend(run_dir, repo, "whatever got built")
+    assert r.returncode == 1 and "REFUSED" in r.stdout and "design" in r.stdout, r.stdout + r.stderr
+    after = _rec(run_dir)
+    assert after["terminal"] == _START_TERMINAL and "terminal_amends" not in after
+    assert after["phase"] == before["phase"] == 4, "a refused step moves nothing"
+    other = _repo(tmp_path / "other", lane=2)
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review",
+        "--phases",
+        "3",
+        "--terminal",
+        "quiet",
+        sid="s2",
+        cwd=other,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = _cr(run_dir, "step", "--phase", "2", "--terminal-amend", "x", sid="s2", cwd=other)
+    assert r.returncode == 1 and "fabrik-task" in r.stdout, r.stdout + r.stderr
+
+
+def test_v2_the_close_row_counts_terminal_amends(run_dir: Path, tmp_path: Path) -> None:
+    """Every close of an amended run counts the restatements — a `blocked` close with no commit
+    included — and a run that never amends keeps its row shape (no field)."""
+    repo = _started_v2(run_dir, tmp_path)
+    assert _amend(run_dir, repo, "narrower").returncode == 0
+    assert _amend(run_dir, repo, "narrower still").returncode == 0
+    r = _close(run_dir, repo, "blocked", "--reason", "missing infra — searched: x — missing: y")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rows(run_dir)[-1]["terminal_amends"] == "2"
+    plain = _started_v2(run_dir, tmp_path / "plain")
+    r = _close(run_dir, plain, "blocked", "--reason", "missing infra — searched: x — missing: y")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "terminal_amends" not in _rows(run_dir)[-1]
+
+
+def test_v2_an_unreadable_design_beside_a_terminal_amend_refuses_the_whole_step(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Review A-S2: `--design <unreadable>` and `--terminal-amend` in one call refuse together — the
+    terminal is not restated by a step whose design never landed."""
+    repo = _started_v2(run_dir, tmp_path)
+    r = _amend(run_dir, repo, "narrower", "--design", str(repo.parent / "no-such-design.md"))
+    assert r.returncode == 1 and "cannot be read" in r.stdout, r.stdout + r.stderr
+    rec = _rec(run_dir)
+    assert (
+        rec["terminal"] == _START_TERMINAL and "terminal_amends" not in rec and "design" not in rec
+    )
+
+
+def test_v2_the_loop_notice_reads_the_terminal_a_same_step_amend_leaves(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Review A-S1: the zero-rounds NOTICE fires on a loop-shaped terminal; computed before the amend,
+    it judged the terminal being replaced. A run started loop-shaped and amended in the same step
+    to a linear terminal gets no notice."""
+    repo = _repo(tmp_path, lane=2)
+    argv = _start("--file", "src/a.py", "--declare", _V2)
+    argv[argv.index("--terminal") + 1] = "confirmed: 0 closing round"
+    assert _cr(run_dir, *argv, cwd=repo).returncode == 0
+    r = _cr(run_dir, "step", "--phase", "3", "--terminal-amend", "the parser ships", cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "ZERO rounds" not in r.stderr, r.stderr
+
+
+def test_v2_a_refused_terminal_amend_raises_no_loop_notice(run_dir: Path, tmp_path: Path) -> None:
+    """Review A-S4: the notice runs after every refusal, so a loop-shaped amend that is refused (the
+    design is already recorded) neither restates the terminal nor raises a notice about it."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    r = _cr(
+        run_dir, "step", "--phase", "3", "--terminal-amend", "confirmed: 0 closing round", cwd=repo
+    )
+    assert r.returncode == 1 and "REFUSED" in r.stdout, r.stdout + r.stderr
+    assert "ZERO rounds" not in r.stderr, r.stderr
+    assert _rec(run_dir)["terminal"] == _START_TERMINAL

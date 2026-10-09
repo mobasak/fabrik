@@ -12,7 +12,12 @@ part that closes a channel nobody enumerated. Registered as **both** `before_sen
 (`client.py`: `event.get("type") != "transaction"`), so a scrubber on one hook leaves every sampled
 transaction unscrubbed. Alongside it: `include_local_variables=False`, `max_request_body_size="never"`,
 `include_source_context=False`, `max_breadcrumbs=0`, and the fleet logging default
-`LoggingIntegration(event_level=logging.ERROR, level=None)` (D-126).
+`LoggingIntegration(event_level=logging.ERROR, level=None)` (D-126). That default lets an
+eagerly built ERROR message (f-string, `.format`, `+`, `%`) ship its text — a URL-shaped
+credential in it is still redacted, a bare token is not — so the scaffold's ruff selects G001-G004,
+which refuse those inline shapes on a logger-shaped receiver (`logger`, `log`, `logging.getLogger(…)`).
+A message built into a variable first, `logger.error(str(e))`, a receiver ruff does not read as a
+logger, and a bare token inside a caught exception stay unseen by the lint (D-722).
 
 **It replaces a two-flag mandate that measurably was not enough.** Pointing the guard at the init the
 scaffold shipped under the old mandate produces

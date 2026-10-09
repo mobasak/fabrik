@@ -249,11 +249,12 @@ def test_fabrik_spec_phase5_closing_sentence_never_claims_review_runs_unconditio
 def test_fabrik_spec_phase0_downgrade_instructs_writing_seed_file_before_handoff():
     """T05b-S2 (CONFIRMED): `command_run.py`'s real `handoff` implementation REFUSES (rc 1) a
     `--resume` path that does not already exist as a regular file carrying a `## RESUME` heading
-    (`command_run.py:4746-4756`) — the bullet must instruct WRITING that file (path, `## RESUME`
+    (`command_run.py`'s handoff branch) — the bullet must instruct WRITING that file (path, `## RESUME`
     heading, refusal id, the brief) before the handoff command, not just name the command."""
     phase0 = _spec_phase0()
     assert "WRITE the seed file to disk FIRST" in phase0
-    assert "command_run.py:4746-4756" in phase0
+    assert "(`command_run.py`'s `handoff` branch — grep `## RESUME`)" in " ".join(phase0.split())
+    assert "command_run.py:4746-4756" not in phase0, "a line range into command_run.py drifts"
     write_idx = phase0.index("WRITE the seed file to disk FIRST")
     handoff_idx = phase0.index("python3 scripts/command_run.py handoff")
     assert write_idx < handoff_idx, "the write instruction must precede the handoff command"
@@ -269,3 +270,227 @@ def test_fabrik_spec_phase0_downgrade_write_instruction_names_resume_heading_and
     assert "## RESUME" in write_sentence
     assert "/fabrik-task --from-downgrade <refusal id>" in write_sentence
     assert "refusal id" in write_sentence
+
+
+def test_fabrik_spec_names_both_endings_and_a_sanctioned_close(tmp_path, monkeypatch) -> None:
+    """/fabrik-spec queue (kaizen D-711 audit, 9 rows): `--terminal` is fixed at start, the
+    `Size: small` verdict that decides where the run ends lands in Phase 5, and command_run.py
+    refuses `--terminal-amend` outside /fabrik-task -- so the text names both endings, right after
+    the run-record `start` block. Also: Phase 4 no longer stops per section, Phase 6's "stop" has a
+    sanctioned close, the NEXT map names the Size: small branch, and a hard seat cap is honoured."""
+    import importlib.util
+    import subprocess
+    import sys
+
+    def norm(t: str) -> str:
+        return " ".join(t.split())
+
+    both = ("**`--terminal` names both endings:** the `Size:` verdict lands in Phase 5 and `--terminal-amend` "
+            "belongs to `/fabrik-task` alone, so start with `--terminal \"the spec CONVERGED by /fabrik-spec-review "
+            "and its approval gate answered, or — when Phase 5 writes Size: small — the DRAFT handed to "
+            "/fabrik-plan-after-chat\"`.")
+    spec = importlib.util.spec_from_file_location("asm_spec_probe", REPO / "commands" / "assemble_commands.py")
+    asm = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(asm)
+    asm.render(tmp_path / "r", tmp_path / "r" / "_skills", agents_dest=tmp_path / "r" / "_agents")
+    rendered = norm((tmp_path / "r" / "fabrik-spec.md").read_text(encoding="utf-8"))
+    start = rendered.index("python3 scripts/command_run.py start --command fabrik-spec")
+    at = rendered.index(both)
+    assert at < start, "the both-endings rule must come before the start block it governs"
+    assert ("Close it EXACTLY ONE of these ways — never by simply stopping (a third, ``handoff --resume <a file "
+            "with a `## RESUME` block>``, only where this command's own text names that close):") in rendered
+    assert asm.NEXT["fabrik-spec"].endswith("a `Size: small` spec goes to /fabrik-plan-after-chat <spec path> instead.")
+
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "command-runs"))
+    cr = [sys.executable, str(REPO / "scripts" / "command_run.py")]
+    subprocess.run([*cr, "start", "--command", "fabrik-spec", "--phases", "6", "--terminal", "t"],
+                   check=True, capture_output=True)
+    amend = subprocess.run([*cr, "step", "--phase", "2", "--title", "t", "--terminal-amend", "u"],
+                           capture_output=True, text=True)
+    assert "--terminal-amend belongs to --command fabrik-task" in amend.stdout + amend.stderr
+
+    src = (REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8")
+    p4 = norm(_section(src, r"^## Phase 4 —", r"^## Phase 5 —"))
+    assert ("Present in sections scaled to complexity; an operator present may redirect any section, but the run "
+            "does not stop for a per-section yes — the approval gate is the one Phase 6 names.") in p4
+    import re
+
+    for sec in (p4, norm(_section(src, r"^## Phase 3 —", r"^## Phase 4 —"))):
+        assert re.search(r"(?i)\b(yes|approv\w*)\b[^.]*\bafter each\b", sec) is None, "a per-section stop is back"
+    assert ("**HARD GATE:** no implementation or scaffold until the design is approved at that gate (a `Size: small` "
+            "spec's plan is drafted before it and approved with it).") in p4
+    assert "no code or scaffold — and no plan except a `Size: small` spec's" in norm(src)
+    assert "- Write code or a scaffold, or a plan outside the `Size: small` path, before the design is approved" in norm(src)
+    p6 = norm(_spec_phase6())
+    text = norm(src)
+    assert ("surface those and close with `python3 scripts/command_run.py handoff --command fabrik-spec --resume "
+            "<scratch file> --reason \"<the open question>\" --feedback …`, the file's `## RESUME` block naming the "
+            "question and the restart `/fabrik-spec <spec path>` — never by stopping on a `running` record.") in p6
+    assert "surface those and stop" not in text
+    assert ("A hard cap outranks the floor (D-189): when `dispatch_headroom.py` prints fewer `SEATS:`, dispatch that "
+            "many, name the dependencies no seat grounded, and dispatch them when headroom returns.") in text
+    assert ("`firecrawl_scrape` on the library's OFFICIAL docs site for framework/API detail (`WebFetch` only to "
+            "locate the page) → the **`gh` CLI** (`gh search code` / `gh api -H 'Accept: application/vnd.github.raw' "
+            "repos/<o>/<r>/contents/<path>`") in text
+    assert ("from a RAW fetch (`firecrawl_scrape` as markdown with `maxAge: 0`, the raw `gh api` call above, the raw file — a "
+            "`WebFetch` reply summarises, below)") in text
+
+
+def test_fabrik_spec_review_fetches_live_and_keeps_mechanism_in_the_plan() -> None:
+    """/fabrik-spec-review queue (kaizen D-711): the re-verify ladder sent official-docs reads to a
+    summarising WebFetch; a quote was called NOT FOUND on a cached copy (firecrawl and exa both reuse
+    cached content -- firecrawl's own schema: `maxAge: 0` forces a live fetch; 2 rows); and delta rounds
+    re-fixed mechanism prose a spec should not carry (6 rows). The author command, the review and the
+    grounder agent say the same thing."""
+    import re
+
+    def norm(t: str) -> str:
+        return " ".join(t.split())
+
+    src = (REPO / "commands" / "_sources" / "fabrik-spec-review.md").read_text(encoding="utf-8")
+    text = norm(src)
+    assert "→ `WebFetch` on the official library docs →" not in text
+    assert ("`mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` (on the official library docs; `WebFetch` only to "
+            "locate a page) → the `gh` CLI") in text
+    assert ("`firecrawl_scrape` with `maxAge: 0` — firecrawl reuses recently indexed content unless `maxAge: 0` forces a "
+            "live fetch (its tool schema) and `mcp__exa__web_fetch_exa` serves a crawl cache (below), so a quote — yours or "
+            "a grounder's — is called NOT FOUND only after that live re-fetch)") in text
+    a = norm(_section(src, r"^\*\*A\) External facts", r"^\*\*B\) fabrik-lib"))
+    assert "A cached/mirroring fetch tool is NOT a liveness oracle" in a and "`mcp__exa__web_fetch_exa` serves crawl cache" in a
+    sanctioned = ("`mcp__exa__web_fetch_exa` serves a crawl cache (below), so a quote — yours or a grounder's — is "
+                  "called NOT FOUND only after that live re-fetch")
+    rest = a.replace(sanctioned, "")
+    exa = r"(web_fetch_exa|\bexa\b)"
+    assert re.search(rf"NOT FOUND.{{0,160}}{exa}|{exa}.{{0,160}}NOT FOUND", rest, re.I) is None, "NOT FOUND on the exa cache"
+    quote_rule = text[text.index("to quote, pull the RAW document"):text.index("and match the string")]
+    assert "WebFetch" not in quote_rule, "a WebFetch reply is not a raw source"
+    d = norm(_section(src, r"^\*\*D\) Completeness", r"^\*\*E\) Fabrik"))
+    assert ("A section describing a code FLOW states its invariants and touchpoints (what must hold, which paths it "
+            "touches); the executable sequence belongs to the plan, so when the edit loop's TWO CONSECUTIVE RESIDUE "
+            "PASSES rule forces a rewrite inside such a section, the rewrite re-shapes it to invariants + touchpoints "
+            "rather than re-wording the sequence.") in d
+    te = (REPO / "commands" / "_fragments" / "term-edit.md").read_text(encoding="utf-8")
+    assert "(3) **TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE**" in te, "the rule the review names moved"
+    spec = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
+    assert "`firecrawl_scrape` with `maxAge: 0`, a live fetch) and match" in spec
+    assert "data flow (as invariants + touchpoints — the step sequence is the plan's)" in spec
+    agent = norm((REPO / "commands" / "_agents" / "fabrik-researcher.md").read_text(encoding="utf-8"))
+    assert ("have failed a correct quote as MISQUOTED). Exa serves a crawl cache, so before you report a quote NOT "
+            "FOUND re-fetch the page with `mcp__firecrawl__firecrawl_scrape` and `maxAge: 0` (a live fetch).") in agent
+    assert "from a RAW fetch (`firecrawl_scrape` as markdown with `maxAge: 0`," in spec
+
+
+def test_fabrik_plan_after_chat_tells_the_gates_truth() -> None:
+    """/fabrik-plan-after-chat queue (kaizen D-711 audit, 12 rows): the ticket skeleton put no Appetite above the
+    first `##` (the only zone plan_appetite.header_zone reads); the Coverage Checklist asked for an rubric
+    INVOCATION where RUBRIC_RUN matches only the pasted output header, and never said table + verdict; the
+    byte recipe double-counts a repeated path; a wrapped G/W/T row loses its Then; Phase 5's stop had no close
+    and missed the unconverged-spec refusal."""
+    import importlib.util
+    import re
+
+    def load(name, rel):
+        spec = importlib.util.spec_from_file_location(name, REPO / rel)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+        return mod
+
+    src = (REPO / "commands" / "_sources" / "fabrik-plan-after-chat.md").read_text(encoding="utf-8")
+    text = " ".join(src.split())
+    skeleton = src[src.index("```markdown\n# T01 — <title>") :]
+    skeleton = skeleton[len("```markdown\n") : skeleton.index("\n```", 12)]
+    pa = load("plan_appetite_probe", "scripts/enforcement/plan_appetite.py")
+    assert re.search(r"(?m)^Appetite:", pa.header_zone(skeleton)), "the skeleton's Appetite must sit in the header zone"
+    assert ("for every ticket (spine+ticket set), before its first `##`–`######` heading (the only zone the gate "
+            "reads in a ticket), or for every phase (monolith), inside its own `## Phase <id>` section") in text
+    mono = "# Plan\nAppetite: 30\n\n## Phase 1 — a\nx\n\n## Phase 2 — b\ny\n"
+    inside = "# Plan\n\n## Phase 1 — a\nAppetite: 30\nx\n\n## Phase 2 — b\nAppetite: 20\ny\n"
+    assert pa.appetite_findings(mono, "2026-10-09") and not pa.appetite_findings(inside, "2026-10-09"), (
+        "a monolith's Appetite lives in each phase section, not the header zone")
+    crc = load("crc_probe", "scripts/enforcement/check_review_coverage.py")
+    assert not crc.RUBRIC_RUN.search("```bash\npython3 scripts/review_rubric.py --changed a.py\n```")
+    assert crc.RUBRIC_RUN.search("# REVIEW RUBRIC — generated by review_rubric.py")
+    assert "**with an embedded `review_rubric.py` invocation**" not in text
+    assert "header — the bare invocation does not match)" in text
+    assert ("(a TABLE of rubric-derived rows plus the four standing recurrence classes, each row CLEAN/FIXED/REFUTED by "
+            "the flip) **with the pasted OUTPUT of `review_rubric.py`**") in text
+    assert ("one exact number for paths each listed ONCE (the gate drops exact repeats, rules packs, the exempt "
+            "shared reads and generated artifacts, but a file beside its own directory, or `dir` beside `dir/`, "
+            "counts twice there too)") in text
+    assert "each row on ONE physical line, since the gate reads only the first line of a wrapped row" in text
+    assert "surface those and stop" not in text
+    assert "(`/fabrik-plan-review`'s Small-spec exception, which flips the spec first or in the same commit)" in text
+    assert ("or a cited spec that is not CONVERGED and carries no `Size: small` (`check_stage_artifacts.py` refuses "
+            "a plan flip over ANY") in text
+    assert ("any other goes to `/fabrik-spec-review` first) — surface those and close with `python3 "
+            "scripts/command_run.py handoff --command fabrik-plan-after-chat --resume") in text
+    assert ("refuses a plan flip over ANY non-CONVERGED spec; a `Size: small` one converges spec-first in "
+            "`/fabrik-plan-review`'s joint loop") in text
+    assert ("--reason \"<the open item>\" --feedback …`, the file's `## RESUME` block naming it and the restart, never "
+            "by stopping on a `running` record") in text
+    assert ("Read its `Status:` too: a spec neither CONVERGED nor `Size: small` stops the run here, by Phase 5's "
+            "`handoff` close, for `/fabrik-spec-review`.") in text
+    assert ("For each function the plan moves or re-signs, grep `tests/` for the tests that call, stub or patch "
+            "it; each lands in that ticket's File Scope") in text
+    assert ("A behavioural claim the plan rests on (a render, a state transition, a suite count after the core "
+            "edit) is EXECUTED once against a copy, never inferred from anchors.") in text
+    assert "captured in Phase 1, pasted from that run's captured output, never typed" in text
+
+
+def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch) -> None:
+    """/fabrik-spec queue, recurring HELD subjects (D-711: a recurrence is edited): execute local claims (10 rows),
+    vendor-doc coverage (3), the judge-panel brief and dissent (8), the repo duplicate check (2), self-check of
+    path:line anchors (2), delta as invariants + touchpoints (2), and the handoff's kept seed (2 rows, D-716)."""
+    import json
+    import subprocess
+    import sys
+
+    def norm(t: str) -> str:
+        return " ".join(t.split())
+
+    text = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
+    panel = norm((REPO / "commands" / "_fragments" / "judge-panel.md").read_text(encoding="utf-8"))
+    assert ("every premise the brief states about the codebase, every mechanism the design relies on (\"X fires\", "
+            "\"Y catches this\"), every design rule (an algebra, a classifier) and every runtime-state claim is EXECUTED "
+            "this session, its command and output cited in the spec, and Phase 3 waits on it as on the BLOCKING bullet "
+            "below. An executed in-repo measurement outranks a web answer about the repo's own code; a vendored or "
+            "installed third-party package's behaviour stays an external claim under this gate.") in text
+    assert ("the machine-readable schema when one exists (an OpenAPI endpoint names the parameters), the error-code page "
+            "beside the endpoint page when the design retries or re-sends, and a design that survives both readings when "
+            "two vendor pages contradict each other.") in text
+    assert ("The brief carries only the approaches that survive 1b-bis's hard constraints and the Phase 3 cuts (fewer "
+            "than two: say so and return to 1c for another), any precedent quoted in its exact lines beside every "
+            "approach it bears on, every count from an executed probe; each seat prices each approach's mechanism "
+            "against Fabrik's hard constraints and the stack it runs on.") in panel
+    assert ("verify every factual claim a dissent rests on first, fold a confirmed dissent's gap into the design (a fold "
+            "that changes the ranked approach's mechanism re-dispatches the panel)") in panel
+    assert "what stays split is carried to the operator's approval as an open question" in panel
+    assert "the brief never names it" in panel, "the cobra counter stays"
+    assert ("grep `docs/superpowers/specs` and `docs/development/plans` for the module and the brief's work-item ids") in text
+    assert "does every backticked `path:line` resolve (grep it)?" in text
+    assert ("· The delta (invariants + touchpoints, one `path:line` per existing touchpoint and a new file by path "
+            "alone — never \"as today\") ·") in text
+    assert ("handoff keeps a byte copy under `<state dir>/seeds/` and prints its path, also `resume_copy` on the "
+            "run_close event, D-716 — carry that path into the restart, since the next `start` overwrites the record") in text
+    # the behaviour the D-716 sentence relies on: handoff keeps the seed's bytes under resume_copy
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "cr"))
+    monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(tmp_path / "ev"))
+    cr = [sys.executable, str(REPO / "scripts" / "command_run.py")]
+    subprocess.run([*cr, "start", "--command", "fabrik-spec", "--phases", "6", "--terminal", "t"], check=True,
+                   capture_output=True)
+    seed = tmp_path / "seed.md"
+    seed.write_text("## RESUME\nrestart: /fabrik-task --from-downgrade R1\n", encoding="utf-8")
+    fb = "confusion: none · waste: none · change: none · filed: none — surfaces exercised: probe"
+    p = subprocess.run([*cr, "handoff", "--command", "fabrik-spec", "--resume", str(seed), "--reason",
+                        "DOWNGRADE: R1 — x", "--feedback", fb], check=True, capture_output=True, text=True)
+    seed.unlink()
+    assert "handoff: the resume artifact is kept at " in p.stdout, p.stdout
+    recs = [json.loads(q.read_text()) for q in (tmp_path / "cr").glob("*.json")]
+    kept = [r.get("resume_copy") for r in recs if r.get("resume_copy")]
+    assert kept and Path(kept[0]).read_text(encoding="utf-8").startswith("## RESUME"), recs
+    closes = [json.loads(ln) for f in (tmp_path / "ev").glob("*.jsonl") for ln in f.read_text().splitlines()
+              if '"run_close"' in ln]
+    assert f"kept at {kept[0]}" in p.stdout, p.stdout
+    assert any(kept[0] in (c.get("resume_copy"), (c.get("fields") or {}).get("resume_copy")) for c in closes), closes

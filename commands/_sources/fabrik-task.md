@@ -87,6 +87,11 @@ python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \
   --design <scratchpad>/fabrik-task/<sid>/<started_at>/design.md
 ```
 
+If MEASURE or the critiques changed what ends the run, restate it with
+`--terminal-amend "<one line>"` on any step up to that call — refused once the design is recorded,
+so no run moves its goal to fit the result; `terminal_amends` keeps the old one. There is no
+DECISION amend: the design is recorded after the critiques fold.
+
 `--design` stores that file's TEXT whole (no cap — D-314), so the
 design outlives the scratch. A refusal discards the `step`: fix the file and
 re-run, or the record stays at phase 1. It lands ONCE — a second `--design` is ignored with a NOTE

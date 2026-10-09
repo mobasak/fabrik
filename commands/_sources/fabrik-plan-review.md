@@ -67,8 +67,11 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
 (or only one ticket) reviewed nothing. Set-wide adaptations, binding for the rest of this command:
 
 - **"The plan" in the termination contract = the SET.** The anti-cheat hash is the COMBINED hash —
-  `find <plan-dir> -name '*.md' -print0 | sort -z | xargs -0 md5sum | md5sum` — recorded per pass. A
-  mid-loop artifact change (a ticket added, split, or renamed) changes the combined hash and is simply
+  `(cd "<plan-dir>" && find . -name '*.md' -print0 | LC_ALL=C sort -z | xargs -0 md5sum) | md5sum` —
+  recorded per pass, run from inside the set so md5sum's path column reads the same relative `./…` for a
+  seat re-deriving it on its `cp -r` copy of the set (a typed `<plan-dir>` puts its own spelling into every
+  line, and the hashes differ); `d41d8cd98f00b204e9800998ecf8427e` is the empty input — the `cd` failed, never
+  record it. A mid-loop artifact change (a ticket added, split, or renamed) changes the combined hash and is simply
   the next pass, standard ledger semantics — never a reason to restart the ledger.
 - **The partition per ticket** (the **Parallelism — the partition** paragraph in Phase 1 below): every ticket sits in exactly one slice and each slice is read by one fresh seat —
   Opus for a ticket touching fleet-synced grammars or gates, Sonnet for the rest, `fabrik-researcher` seats only
@@ -131,10 +134,13 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
 3. **Constraints-Digest audit (the rule-grounding floor, 2026-08-30).** The rubric run from step 1
    IS the plan's computed MUST-READ set — now audit the plan's `## Constraints Digest` against it:
    every MATCHED pack must be named in the digest, and you spot-verify **≥2 digest quotes verbatim
-   in their cited files yourself** (whitespace-normalised — source lines wrap). A MATCHED pack the
+   in their cited files yourself** (normalised as `grounding-rules` states — source lines wrap). A MATCHED pack the
    digest never names, or a quote you cannot find, is a FINDING: the author selected against packs
    that were never open. `check_rule_grounding.py` grades the countable subset at the flip; YOUR
-   audit owns whether the quotes are load-bearing rather than decorative.
+   audit owns whether the quotes are load-bearing rather than decorative. Check the digest's grammar too
+   (`grounding-rules`: columns `Quote` (or `Verbatim`) then `Source`, a Source `path:line` alone in its
+   cell) — a table the checker cannot read leaves its quotes ungraded. The checker matches a quote
+   against the whole cited file, so each spot-check also confirms the cited `:line` holds the quote.
 
 **Why this command specifically.** `/fabrik-plan-after-chat` says it itself: *"12-Factor (all twelve) —
 BINDING on what the plan is allowed to STEP. The plan is exactly where a 12-Factor violation gets WRITTEN
@@ -202,9 +208,12 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   and a deferral is only legitimate if the plan SAYS SO in `## Open / blocking unknowns` or a
   `## Deferred` section naming what and why. Silence is the defect.
   ⚠️ **Nothing else in the pipeline asks this question at a useful time.** `check_spec_convergence.py`
-  grades the SPEC's own convergence claim; `check_stage_artifacts.py` only checks that the plan's cited
-  spec HAS a status; `/fabrik-conformance-review` does compare spec↔implementation but runs at the
-  `gate` stage — after the code exists. Plan review is the last point where a dropped requirement costs
+  grades the SPEC's own convergence claim; `check_stage_artifacts.py` (Tier-2 gate) refuses a new CONVERGED
+  flip while the spec the plan designates (its `Spec:` field, else its first 40 non-table lines) is missing
+  or not CONVERGED — a spec under, or moved to, `docs/superpowers/specs/archived/` is exempt — and compares
+  no requirements, so read that spec's Status before round 1 rather than meet it at the flip (a joint
+  `Size: small` loop flips the spec first or in the same commit); `/fabrik-conformance-review` does compare spec↔implementation but runs
+  at the `gate` stage — after the code exists. Plan review is the last point where a dropped requirement costs
   a paragraph instead of a rebuild. You grade this by READING both artifacts; there is no mechanical
   check for it and this row does not pretend otherwise.
 - **`## Context Ledger`** — every ACTIVE `.windsurf/rules` pack, every vendored `fabrik-lib` module (with its real

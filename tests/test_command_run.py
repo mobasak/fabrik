@@ -2689,6 +2689,101 @@ def test_handoff_closes_a_not_quiet_run_with_its_resume_artifact(run_dir: Path) 
     assert row["closed_by"] == "agent", row
 
 
+def test_handoff_keeps_a_durable_copy_of_the_resume_seed(run_dir: Path) -> None:
+    """intel 01M4EDB9TC: `handoff --resume` stored only the PATH, and a /fabrik-task UPGRADE seed is
+    written to the session's scratch — which dies with the session — while the next `start` in the
+    same session (the /fabrik-spec the UPGRADE opens) overwrites the record itself. The close keeps
+    the seed's text under the state dir's `seeds/`, names it in the record, the run_close event and
+    its output, and the copy outlives both the original and the record."""
+    _start(run_dir)
+    seed = Path(_resume_artifact(run_dir))
+    text = seed.read_text(encoding="utf-8")
+    out = _cr(
+        run_dir,
+        "handoff",
+        "--command",
+        "fabrik-probe",
+        "--resume",
+        str(seed),
+        "--reason",
+        "UPGRADE: tradeoffs — seed in design.md",
+    )
+    assert out.returncode == 0, out.stderr
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    copy = Path(rec["resume_copy"])
+    assert copy.parent == run_dir.resolve() / "seeds", rec
+    assert copy.read_text(encoding="utf-8") == text, rec
+    assert str(copy) in out.stdout, out.stdout
+    assert _events(run_dir, "s1")[-1]["resume_copy"] == str(copy)
+    seed.unlink()
+    _start(run_dir)  # the UPGRADE's /fabrik-spec opens a new record in the same session
+    assert copy.read_text(encoding="utf-8") == text, "the seed outlives its scratch and its record"
+
+
+def test_handoff_keeps_the_bytes_it_validated_when_the_seed_moves_after(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Review pass 1 (A-S1, A-S2): the close checked the seed's size with an unguarded `stat()`
+    and the copier re-read the file unbounded, so a seed deleted after validation crashed into
+    `main`'s fail-soft rc 0 with the record still `running`, and one grown past the cap was copied
+    whole. The close reads the bytes ONCE, bounded, and keeps exactly those."""
+    cr = _in_process(tmp_path, monkeypatch, "cr_seed_once")
+    seed = tmp_path / "design.md"
+    text = "# x\n\n## RESUME\n- the validated seed\n"
+    seed.write_text(text, encoding="utf-8")
+    real = cr._task_close_fields
+
+    def _moves(rec, args):
+        seed.write_text("x" * (cr._RESUME_READ_CAP + 10), encoding="utf-8")
+        seed.unlink()
+        return real(rec, args)
+
+    monkeypatch.setattr(cr, "_task_close_fields", _moves)
+    assert cr.main(["start", "--command", _PROBE, "--phases", "1"]) == 0
+    fb = "confusion: none · waste: none · change: none · filed: none — harness setup"
+    rc = cr.main(
+        ["handoff", "--command", _PROBE, "--resume", str(seed), "--reason", "r", "--feedback", fb]
+    )
+    assert rc == 0
+    rec = json.loads((tmp_path / "runs" / "s1.json").read_text(encoding="utf-8"))
+    assert rec["state"] != "running", rec
+    assert Path(rec["resume_copy"]).read_text(encoding="utf-8") == text, rec
+
+
+def test_handoff_seed_copies_never_collide_or_escape_and_never_truncate(run_dir: Path) -> None:
+    """The design critiques' executed defects: two seeds from one session in one second (a nested
+    run) overwrote each other; a session id carrying `/` or `..` wrote outside `seeds/` (or could
+    never close); a seed over the 1 MB read cap was copied cut, silently. The copy is keyed by the
+    record's own `_safe_sid` plus the content hash, and an over-cap seed is refused."""
+    sid = "../a/b"
+    seeds = run_dir.resolve() / "seeds"
+    kept = []
+    for body in ("CHILD", "PARENT"):
+        _start(run_dir, sid=sid)
+        art = run_dir.parent / f"{body}.md"
+        art.write_text(f"# x\n\n## RESUME\n- {body}\n", encoding="utf-8")
+        out = _cr(
+            run_dir, "handoff", "--command", _PROBE, "--resume", str(art), "--reason", "r", sid=sid
+        )
+        assert out.returncode == 0, out.stdout + out.stderr
+        kept.append(
+            Path(
+                json.loads(next(run_dir.glob("*.json")).read_text(encoding="utf-8"))["resume_copy"]
+            )
+        )
+    assert len(set(kept)) == 2 and all(k.parent == seeds for k in kept), kept
+    assert [k.read_text(encoding="utf-8").split("- ")[1].strip() for k in kept] == [
+        "CHILD",
+        "PARENT",
+    ]
+    _start(run_dir)
+    big = run_dir.parent / "big.md"
+    big.write_text("## RESUME\n" + "x" * 1_000_100, encoding="utf-8")
+    out = _cr(run_dir, "handoff", "--command", _PROBE, "--resume", str(big), "--reason", "r")
+    assert out.returncode == 1 and "cap" in out.stdout, out.stdout
+    assert json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))["state"] == "running"
+
+
 def test_handoff_refuses_without_the_resume_artifact(run_dir: Path) -> None:
     """The whole point: it must be harder to fake than the BLOCKED cause it replaces. Omitting the
     flag is argparse's refusal (rc 2); NAMING an artifact that is not there must refuse at the close
@@ -4437,6 +4532,60 @@ def test_a_delta_round_may_confirm_more_than_it_raised(run_dir: Path) -> None:
 # closing delta round: a banner that closes it sends the agent to write a one-`Pass`-row receipt
 # the coverage gate hard-refuses, so the two halves of the same redesign disagreed about whether
 # one clean pass can end a loop. ──────────────────────────────────────────────────────────────
+
+
+def test_a_command_with_no_closing_pass_closes_at_round_one(run_dir: Path) -> None:
+    """fabrik-spec verdict 1790969786.235392 (W-29e3424f): a /fabrik-spec run recorded one quiet
+    round and was told "round 1 is the full pass, never the closing round; run the closing pass —
+    the round-1 seats over their own slices". /fabrik-spec has no closing pass, no slices and no
+    receipt — its convergence is /fabrik-spec-review's. A command in `NO_CLOSING_PASS` closes at a
+    quiet round 1 and no line of its report demands a closing pass; a loop command keeps both."""
+    _cr(run_dir, "start", "--command", "fabrik-spec", "--phases", "7", "--terminal", "spec handed to review")
+    one = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "grounding,panel")
+    assert "TERMINAL VERDICT" in one.stdout, one.stdout
+    assert "NOT TERMINAL" not in one.stdout, one.stdout
+    assert "run the closing pass" not in one.stdout and "round-1 seats" not in one.stdout, one.stdout
+    rec = _rec(run_dir)
+    rec["budget_min"], rec["started_epoch"] = 1, time.time() - 3600
+    (run_dir / "s1.json").write_text(json.dumps(rec), encoding="utf-8")
+    over = _cr(run_dir, "round", "--findings", "2", "--classes-new", "grounding")
+    assert "BUDGET" in over.stdout, over.stdout
+    assert "run the closing pass" not in over.stdout, over.stdout
+    loop = run_dir.parent / "loop"
+    loop.mkdir()
+    _cr(loop, "start", "--command", "fabrik-command-improve", "--phases", "5", "--terminal", "x")
+    first = _cr(loop, "round", "--confirmed", "0", "--classes-swept", "logic")
+    assert "round 1 is the full pass" in first.stdout, first.stdout
+    assert "TERMINAL VERDICT" not in first.stdout, first.stdout
+
+
+def test_no_closing_pass_set_matches_the_command_sources() -> None:
+    """`NO_CLOSING_PASS` is DERIVED, never hand-picked, and pinned both ways: a command is in it
+    exactly when its OWN source neither orders a `round` carrying `--classes-swept`, `--confirmed`
+    or `--own-fix` on its own record nor includes `term-coverage`/`term-edit`. A wording test
+    (`closing pass`) put /fabrik-command-improve in ("Round 1, then the round-1 seat re-verifies its
+    own ledger … a quiet round 2") and left /fabrik-plan-after-chat out on a line about the PLAN it
+    emits (both design critiques, W-29e3424f)."""
+    import re as _re
+
+    command_run = _load("cr_no_closing", _SCRIPT)
+    src_dir = Path(__file__).resolve().parents[1] / "commands" / "_sources"
+    derived = set()
+    for p in src_dir.glob("*.md"):  # every source, `design-review.md` included
+        text = p.read_text(encoding="utf-8")
+        own_round = any(
+            _re.search(r"--(?:classes-swept|confirmed|own-fix)\b", ln) and _re.search(r"\bround\b", ln)
+            for ln in text.splitlines()
+        )
+        loop_fragment = _re.search(r"\{\{include:term-(?:coverage|edit)\}\}", text)
+        if not own_round and not loop_fragment:
+            derived.add(p.stem)
+    assert "fabrik-spec" in derived and "fabrik-plan-review" not in derived, derived
+    assert set(command_run.NO_CLOSING_PASS) == derived, (
+        sorted(set(command_run.NO_CLOSING_PASS) - derived),
+        sorted(derived - set(command_run.NO_CLOSING_PASS)),
+    )
+    assert not command_run.NO_CLOSING_PASS & command_run.CONFIRMED_REQUIRED_COMMANDS
 
 
 def test_a_clean_round_one_is_not_terminal_but_round_two_is(run_dir: Path) -> None:
@@ -6558,9 +6707,10 @@ def test_a_malformed_stored_slice_row_never_turns_done_into_a_silent_success(run
     rec["rounds"][-1]["slices"] = [{"name": "A"}]
     (run_dir / "s1.json").write_text(json.dumps(rec))
     bare = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
-    assert bare.returncode == 1 and "slice A has no claims in its ledger" in bare.stderr, (
-        bare.stderr
-    )
+    assert (
+        bare.returncode == 1
+        and "slice A has an unreadable claim count in its ledger" in bare.stderr
+    ), bare.stderr
 
 
 def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_ledger_is_refused(
@@ -6568,8 +6718,8 @@ def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_led
 ) -> None:
     """A2 (the cobra of the slice gate): the cheapest way to satisfy "every slice verified" is to
     stop passing `--slices`, or to pass `A:0/0`. A round that omits the ledger after an earlier
-    round stated it is NOT TERMINAL and names the vanished slices; a slice with zero claims is
-    refused."""
+    round stated it is NOT TERMINAL and names the vanished slices; a slice an earlier round stated with claims may never shrink to `0/0`
+    (W-65fb308e)."""
     _start(run_dir)
     _cr(
         run_dir,
@@ -6627,6 +6777,147 @@ def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_led
         "A:1/1,A:0/2",
     )
     assert dup.returncode == 2 and "duplicate" in dup.stderr.lower(), dup.stderr
+
+
+def test_a_slice_with_no_claims_restates_as_zero_of_zero_and_reads_clean(run_dir: Path) -> None:
+    """W-65fb308e (site-provisioner 01M4DR9PAB): the review commands restate EVERY round-1 slice
+    each pass, but a slice whose round-1 candidates were all refuted holds no claim — `B:0/0` was
+    refused, the agent dropped B, and a dropped slice reads VANISHED. A never-claimed slice is a
+    clean `0/0`: the round is recorded, B reads verified, and `done` closes on it."""
+    _start(run_dir)
+    first = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "4",
+        "--confirmed",
+        "2",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:0/2,B:0/0",
+    )
+    assert first.returncode == 0, first.stderr
+    quiet = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:2/2,B:0/0",
+    )
+    assert quiet.returncode == 0, quiet.stderr
+    assert "B 0/0 ✓" in quiet.stdout and "TERMINAL VERDICT" in quiet.stdout, quiet.stdout
+    out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "round 2 confirmed: 0")
+    assert out.returncode == 0, out.stderr
+    assert _rec(run_dir)["state"] != "running"
+
+
+def test_a_slice_that_held_claims_in_any_earlier_round_may_not_return_as_zero(
+    run_dir: Path,
+) -> None:
+    """The `0/0` refusal scans EVERY earlier round, never only the previous one (W-aa53dfc6's
+    lesson): a slice stated with claims in round 1 and omitted in round 2 still cannot come back
+    as `0/0` in round 3."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "5",
+        "--confirmed",
+        "5",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:1/5,B:0/0",
+    )
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "B:0/0",
+    )
+    back = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:0/0,B:0/0",
+    )
+    assert back.returncode == 2 and "--slices" in back.stderr and "A" in back.stderr, back.stderr
+    assert len(_rec(run_dir)["rounds"]) == 2, "the refused round must not be recorded"
+
+
+def test_an_unreadable_earlier_claim_count_never_admits_a_zero_slice(run_dir: Path) -> None:
+    """Review pass 1 (A-S1): a slice whose earlier stored count was hand-edited to null read as
+    never-claimed, so a later `0/0` closed it TERMINAL. An unreadable earlier count is HELD."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "5",
+        "--confirmed",
+        "5",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:1/5",
+    )
+    rec_path = next(p for p in run_dir.glob("*.json") if p.is_file())
+    rec = json.loads(rec_path.read_text(encoding="utf-8"))
+    rec["rounds"][0]["slices"][0]["claims"] = None
+    rec_path.write_text(json.dumps(rec), encoding="utf-8")
+    out = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:0/0",
+    )
+    assert out.returncode == 2 and "--slices" in out.stderr, out.stdout + out.stderr
+    assert "TERMINAL VERDICT" not in out.stdout
+
+
+def test_confirmed_defects_with_an_all_zero_slice_ledger_are_refused(run_dir: Path) -> None:
+    """The cobra `0/0` reopens: a round that CONFIRMS defects yet names every slice `0/0` holds
+    confirmed claims in no ledger — refused, and nothing is recorded."""
+    _start(run_dir)
+    out = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "3",
+        "--confirmed",
+        "2",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:0/0,B:0/0",
+    )
+    assert out.returncode == 2 and "REFUSED" in out.stderr and "0/0" in out.stderr, out.stderr
+    assert not _rec(run_dir).get("rounds"), "the refused round must not be recorded"
 
 
 def test_a_non_positive_budget_is_refused_not_coerced(run_dir: Path) -> None:
@@ -6938,7 +7229,6 @@ def test_a_malformed_counter_on_the_record_never_crashes_a_round(
     r = _cr(run_dir, "round", "--findings", "1", "--classes-new", "a")
     assert r.returncode == 0 and "Traceback" not in r.stderr, r.stderr
     assert "ROUND" in r.stdout, r.stdout
-
 
 
 def test_the_scope_growth_verdicts_close_on_a_confirmed_zero_round():

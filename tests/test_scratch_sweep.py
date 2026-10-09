@@ -26,6 +26,7 @@ EXECUTION rather than by reading (plan 2026-09-08-plan-1-scratch-sweep, Pass Led
 from __future__ import annotations
 
 import fcntl
+import importlib.util
 import json
 import os
 import re
@@ -370,6 +371,82 @@ def test_apply_removes_only_stale(scratch: Path) -> None:
         (pad / "fresh-dir").exists() and (pad / "kept-dir").exists() and (pad / "held-dir").exists()
     )
     assert (scratch / SLUG / SID / "tasks" / "a.output").exists(), "tasks/ is never the sweeper's"
+
+
+def test_apply_removes_a_stale_dir_holding_a_read_only_pin(scratch: Path, tmp_path: Path) -> None:
+    """intel 01M4E3M1JJ: a review seat's copied pin is a READ-ONLY tree (`dr-xr-xr-x`, files 0444,
+    dirs 0555); rmtree hit EACCES inside it, so `--apply` printed FAILED and the stale dir
+    stayed. Our own stale scratch is removed whatever its bits — and nothing outside it changes:
+    not the scratchpad above it, not a directory a symlink inside it points at."""
+    pad = scratch / SLUG / SID / "scratchpad"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    os.chmod(outside, 0o555)
+    stale = pad / "stale-dir"
+    pin = stale / "pin1" / "scripts"
+    sealed = stale / "pin1" / "sealed"
+    pin.mkdir(parents=True)
+    sealed.mkdir()
+    (pin / "x.py").write_text("x = 1\n", encoding="utf-8")
+    (sealed / "y.py").write_text("y = 1\n", encoding="utf-8")
+    (pin / "out").symlink_to(outside)
+    for p in (pin / "x.py", sealed / "y.py", pin, sealed, pin.parent, stale):
+        _age(p, 9 * HOUR)
+    os.utime(
+        pin / "out", (NOW - 9 * HOUR,) * 2, follow_symlinks=False
+    )  # the link, never its target
+    os.chmod(pin / "x.py", 0o444)
+    os.chmod(pin, 0o555)
+    os.chmod(sealed, 0o555)
+    os.chmod(pin.parent, 0o555)
+    pad_mode, outside_mode = pad.stat().st_mode, outside.stat().st_mode
+    try:
+        proc = _run("--session", SID, "--apply", env=_env(scratch))
+        outside_after = outside.stat().st_mode  # read BEFORE the cleanup below restores it
+    finally:
+        for p in (pin.parent, pin, sealed, outside):
+            if p.exists() and not p.is_symlink():
+                os.chmod(p, 0o755)
+    assert proc.returncode == 0, proc.stderr
+    assert "FAILED" not in proc.stdout and "Traceback" not in proc.stderr, proc.stdout + proc.stderr
+    assert not stale.exists(), proc.stdout
+    assert pad.stat().st_mode == pad_mode, "the scratchpad above the target is never chmodded"
+    assert outside_after == outside_mode == 0o40555, "a symlink's target is never touched"
+
+
+def test_apply_rows_removes_a_tree_holding_an_unreadable_dir(tmp_path: Path) -> None:
+    """A mode-000 directory inside the target sends rmtree's callback through `os.open`; a retry
+    that re-called it by path raised TypeError past the per-row handler (scoped review, pass 1).
+    The tree is owned in-place first, so the row is simply REMOVED."""
+    target = tmp_path / "stale"
+    sealed = target / "pin" / "sealed"
+    sealed.mkdir(parents=True)
+    (sealed / "f").write_text("f\n", encoding="utf-8")
+    os.chmod(sealed, 0o000)
+    os.chmod(target / "pin", 0o555)
+    spec = importlib.util.spec_from_file_location("scratch_sweep_unreadable_probe", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    out: list[str] = []
+
+    class _Sink:
+        def write(self, s: str) -> None:
+            out.append(s)
+
+        def flush(self) -> None:
+            pass
+
+    try:
+        removed = mod.apply_rows(
+            [mod.Row(str(target), "entry", "stale", "a seat's sealed pin")], {"stale"}, out=_Sink()
+        )
+    finally:
+        for p in (target / "pin", sealed):
+            if p.exists():
+                os.chmod(p, 0o755)
+    assert removed == 1, "".join(out)
+    assert not target.exists()
 
 
 def test_apply_continues_past_a_row_that_vanished(scratch: Path) -> None:

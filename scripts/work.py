@@ -162,6 +162,14 @@ _PLAN_STATUS_ALIASES = {
     "DONE": "EXECUTED",
     "SHIPPED": "EXECUTED",
     "PLANNED": "DRAFT",
+    # a BLOCKED synonym must not be the cheaper label once BLOCKED is checked (W-fbdd17c8 critiques;
+    # 0 live plans fleet-wide carried one, 2026-10-08)
+    "ON-HOLD": "BLOCKED",
+    "ON_HOLD": "BLOCKED",
+    "HOLD": "BLOCKED",
+    "PAUSED": "BLOCKED",
+    "WAITING": "BLOCKED",
+    "STALLED": "BLOCKED",
 }
 _PLAN_STATUSES = frozenset({"DRAFT", "IN-PROGRESS", "CONVERGED", "EXECUTED", "BLOCKED"})
 DECISIONS_PY = Path("/opt/fabrik/scripts/decisions.py")  # hub-only, by absolute path
@@ -1703,6 +1711,38 @@ def _stale_marker_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
     return out
 
 
+def _blocked_plan_has_its_block(
+    rel: str, status_line: str, linked: list[dict], items: list[dict], closed: set[str]
+) -> bool:
+    """A plan led with BLOCKED names what it waits on — one of, against OPEN items (never one
+    closed in another tree): (a) an item linking it that is `awaiting-operator`, or `blocked` with
+    an unresolved `blocked_by` id; (b) an item its Status line names by id (`W-…`) that is
+    `awaiting-operator`; (c) an `awaiting-operator` item — a Stop-hook DECISION item, minted with no
+    links — whose question or title names the plan's dated stem as a whole word (`plan-1` never
+    matches `plan-10`). Anything else is class 3 (web-ecommerce-factory 01M4EB8AX1: the BLOCKED
+    label passed every check, hid agent-owned work, and no question had been put to the operator).
+    COBRA (D-253): an `awaiting-operator` item minted to silence this sits on the operator's board,
+    which is the outcome; a hand-edited `blocked` status alone no longer passes, but a `blocked_by`
+    pointing at any open item still does — the cheapest remaining pass, recorded in the D-row."""
+    live = [it for it in items if it.get("id") not in closed]
+    open_ids = {it.get("id") for it in live if it.get("status") not in RESOLVED}
+    for li in linked:
+        if li.get("id") in closed:
+            continue
+        if li.get("status") == "awaiting-operator":
+            return True
+        if li.get("status") == "blocked" and any(d in open_ids for d in li.get("blocked_by") or []):
+            return True
+    awaiting = [it for it in live if it.get("status") == "awaiting-operator"]
+    named = set(_ITEM_REF_RE.findall(status_line))
+    if any(it.get("id") in named for it in awaiting):
+        return True
+    stem = re.compile(rf"(?<![0-9A-Za-z_-]){re.escape(Path(rel).stem)}(?![0-9A-Za-z_-])")
+    return any(
+        stem.search(f"{it.get('question') or ''} {it.get('title') or ''}") for it in awaiting
+    )
+
+
 def _drift_report(repo: Path) -> dict[int, list[str]]:
     """The eight drift classes of spec § Spec and plan state is derived, never copied, each a
     sorted list of the relpaths (item files for 5-6, the backlog doc for 7) that trip it."""
@@ -1756,6 +1796,7 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
             report[1].append(rel)
 
     active_locks = _active_plan_locks(repo)
+    closed_ids: set[str] | None = None
     for rel, text in plan_texts.items():
         norm = _normalize_plan_status(_status_value(repo, text))
         if norm not in _PLAN_STATUSES:
@@ -1782,6 +1823,13 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
         elif norm == "EXECUTED":
             if any(li.get("status") not in RESOLVED for li in linked_plans.get(rel, [])):
                 report[4].append(rel)
+        elif norm == "BLOCKED":
+            if closed_ids is None:  # read lazily: only a BLOCKED plan needs the markers
+                closed_ids = _closed_ids(repo)
+            if not _blocked_plan_has_its_block(
+                rel, _status_line_raw(repo, text), linked_plans.get(rel, []), items, closed_ids
+            ):
+                report[3].append(rel)
     for rel, text in archived_texts.items():
         if _normalize_plan_status(_status_value(repo, text)) == "EXECUTED" and any(
             li.get("status") not in RESOLVED for li in linked_plans.get(rel, [])

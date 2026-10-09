@@ -32,7 +32,9 @@ verdicts across six commands, 842 of them from the last four days, 31 ever answe
    (`commands/_sources/<cmd>.md`) or the script it names and reproduce what the row claims. A row
    describing something already fixed, or something the text never said, is REJECTED with the reason:
    `python3 scripts/command_feedback_report.py --reject <cmd> --rows <ts> --reason "<why, ≥20 chars>"`.
-   A reject is final (a new verdict re-raises it), so the reason must stand on its own.
+   A reject is final (a new verdict re-raises it), so the reason must stand on its own. Valid one-off
+   advice is rejected with `HELD:<subject>` first (D-711); a subject the `--queue` header's `held (all
+   time):` line already names is a recurrence, and is edited instead.
 2. **Group** — most queues repeat one complaint in many words. Read the whole queue for a command
    before editing anything; one edit answers every row that asked for it.
 3. **Fix with ONE reviewed edit per group** — `/fabrik-command-improve <cmd>` is the lane; it renders

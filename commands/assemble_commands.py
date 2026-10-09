@@ -53,7 +53,7 @@ NEXT = {
     "fabrik-vision": "/fabrik-epics — decompose the confirmed Vision into typed epic files.",
     "fabrik-epics": "/fabrik-epics-review — prove integrity, assign owners, re-cut shared owned_paths.",
     "fabrik-epics-review": "per window: /fabrik-spec docs/development/epics/<its epic>.md — the corpus chain to /fabrik-execute-plan; agent-1 in the main checkout, agents 2..N via `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>`.",
-    "fabrik-spec": "/fabrik-spec-review — adversarially converge the DRAFT design before it is trusted.",
+    "fabrik-spec": "/fabrik-spec-review — adversarially converge the DRAFT design before it is trusted; a `Size: small` spec goes to /fabrik-plan-after-chat <spec path> instead.",
     "fabrik-spec-review": "on approval (panel, or the user on a split): /fabrik-features EARLY (pin the planned features) → /fabrik-flows (walk the journeys — every scaffold type) → /fabrik-data-contract · /fabrik-ui-design (GUI) · else /fabrik-plan-after-chat.",
     "fabrik-flows": "/fabrik-flows-review — independently harden the frozen journey contract. On a version BUMP with downstream impact: the consumer's re-freeze (per the close-out's impact list) follows the review.",
     "fabrik-flows-review": "on the panel's approval (a split: the user's): /fabrik-data-contract — freeze the fields the journeys surfaced.",
@@ -843,7 +843,7 @@ PARAMS = {
     "fabrik-spec": {
         "close-chain": {
             "COMMAND": "fabrik-spec",
-            "ARTIFACT_CHECK": "`python3 scripts/enforcement/check_spec_convergence.py` (repo-wide; the spec is CONVERGED by then)",
+            "ARTIFACT_CHECK": "`python3 scripts/enforcement/check_spec_convergence.py <spec path>` (scoped to this spec: on a CONVERGED spec its census reads `1 CONVERGED spec(s) examined of 1 named`, every finding printed in full below it)",
         },
         "subagents-core": {
             "HEADLINE": "`fanout` the grounding, `set_quality` the verdict",

@@ -698,6 +698,60 @@ def test_enforcement_import_failure_warns_at_most_once_per_process(tmp_path, mon
     assert len(hits) == 1, f"expected exactly one warning, got {len(hits)}: {hits}"
 
 
+def test_a_blocked_plan_needs_an_operator_question_or_a_blocked_item(tmp_path):
+    """web-ecommerce-factory 01M4EB8AX1: a plan led with BLOCKED passed `sync --check` with any
+    reason or none, so the label hid agent-owned work and a block nobody had asked about. It is
+    class 3 unless an item it is blocked on exists: an open `awaiting-operator` or `blocked` item
+    that links the plan, or an awaiting operator question (a DECISION item, minted with no links)
+    whose question names the plan's dated stem. An open AGENT item linking it is not that."""
+    env = _env(tmp_path)
+    repo = _store(tmp_path, env)
+    bare = _plan_dir(repo, "2026-09-24-plan-5-blocked-bare", "BLOCKED")
+    agent = _plan_dir(repo, "2026-09-24-plan-6-blocked-agent-work", "BLOCKED")
+    linked = _plan_dir(repo, "2026-09-24-plan-7-blocked-linked", "BLOCKED")
+    asked = _plan_file(repo, "2026-09-24-plan-9-blocked-asked", "BLOCKED")
+    _add(repo, env, title="mine to do", kind="task", link=f"plan={agent}")
+    vendor = _add(repo, env, title="the vendor's reply", kind="task")
+    held = _add(repo, env, title="waits on the vendor", kind="task", link=f"plan={linked}")
+    it = _item(repo, held)
+    it.update(status="blocked", blocked_by=[vendor])
+    _write_item(repo, held, it)
+    # a hand-set `blocked` with nothing it is blocked by is the agent's own work: still drift
+    selfblock = _plan_dir(repo, "2026-09-24-plan-8-blocked-on-nothing", "BLOCKED")
+    own = _add(repo, env, title="my own task", kind="task", link=f"plan={selfblock}")
+    it = _item(repo, own)
+    it.update(status="blocked")
+    _write_item(repo, own, it)
+    # a question naming plan-10 never clears plan-1 (whole-word stem), and a synonym is BLOCKED
+    one = _plan_file(repo, "2026-09-24-plan-1", "BLOCKED")
+    _plan_file(repo, "2026-09-24-plan-10", "DRAFT")
+    hold = _plan_file(repo, "2026-09-24-plan-11-on-hold", "ON-HOLD")
+    # `add --kind decision` is refused (decisions come only from the Stop-hook harvest), so the
+    # fixture writes the harvest's shape: a decision item, awaiting, no links, a question
+    q = _add(repo, env, title="May the operator approve plan-9?", kind="task")
+    it = _item(repo, q)
+    it.update(
+        kind="decision",
+        status="awaiting-operator",
+        question="May the operator approve 2026-09-24-plan-9-blocked-asked's vendor contract?",
+    )
+    _write_item(repo, q, it)
+    q10 = _add(repo, env, title="May the operator approve 2026-09-24-plan-10?", kind="task")
+    it = _item(repo, q10)
+    it.update(kind="decision", status="awaiting-operator", question=it["title"])
+    _write_item(repo, q10, it)
+    # the exact route: the plan's Status line names the awaiting item by id
+    byid = _plan_file(repo, "2026-09-24-plan-12-names-its-item", f"BLOCKED on {q10}")
+    _commit_store(repo, env, "seed store + fixtures")
+
+    out = _ok(["status"], env, repo)
+
+    assert sorted(_drift_lines(out, 3)) == sorted(
+        f"DRIFT 3 (blocking)  {p}" for p in (bare, agent, selfblock, one, hold)
+    ), out
+    assert byid not in out and linked not in out and asked not in out, out
+
+
 def test_active_lock_naming_the_plan_directory_clears_class_3(tmp_path):
     """A-O1/A-O2: a plan-locks entry may name the plan-SET DIRECTORY (no .md), not the spine."""
     env = _env(tmp_path)

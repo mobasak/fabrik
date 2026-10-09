@@ -95,7 +95,8 @@ def test_an_unruled_repo_and_the_own_agent_hub_class_repo_only_warn(check, tmp_p
     )
     rep = check.audit(tmp_path, HUB, DEFS)
     assert rep["failures"] == []
-    assert [w["repo"] for w in rep["warnings"] if w["repo"] == "fabrik-lib"] == ["fabrik-lib"]
+    lib_warns = [w for w in rep["warnings"] if w["repo"] == "fabrik-lib"]
+    assert [w["extra"] for w in lib_warns] == [["github"]], lib_warns
 
 
 def test_cli_exit_codes(tmp_path):

@@ -424,6 +424,15 @@ def reject(
     fresh = [t for t in wanted if t not in already]
     if not fresh:
         return 0, f"nothing to do — all {len(wanted)} row(s) were already handled for /{command}."
+    # D-711's writer half, read BEFORE this reject lands: a subject already held means this is a
+    # second verdict on it, which is edited, never re-rejected — warned, not refused (kaizen
+    # 01M4E88KDV). Built before the write so a PARTIAL write still carries it (review A-S2).
+    prior = dict(_held_subjects(command, path)[0])
+    rehold = "".join(
+        f" ⚠️ HELD:{subject} already holds {prior[subject]} row(s) of /{command} — a second "
+        "verdict on a held subject is edited, never re-rejected (D-711)"
+        for subject in sorted(t for t in _held_tags(reason) if t in prior)
+    )
     now = time.time()
     by = by or (os.environ.get("CLAUDE_AGENT") or "").strip() or "?"
     written, err = _append_answered(
@@ -443,7 +452,7 @@ def reject(
     if err:
         return written, (
             f"PARTIAL — {written} of {len(fresh)} row(s) rejected for /{command} before the write "
-            f"failed: {err}. Re-run `--queue {command}` before rejecting again."
+            f"failed: {err}. Re-run `--queue {command}` before rejecting again.{rehold}"
         )
     if queue_depths(ledger, answered_path=path).get(command, 0) == 0:
         _drop_feedback_work_item(repo, command, reason)
@@ -454,6 +463,7 @@ def reject(
             f" ⚠️ {len(shared)} handle(s) are carried by more than one ledger row and silence "
             f"every row sharing them: {', '.join(f'{t}x{n}' for t, n in list(shared.items())[:5])}"
         )
+    tail += rehold
     return written, f"rejected {written} row(s) of /{command}{tail} — reason recorded"
 
 
@@ -684,7 +694,9 @@ AXES: tuple[str, ...] = ("lean", "fast", "accurate", "waste", "infra", "rules", 
 # and the close-out grammar is exactly what this loop's verdicts are about. A paste reproduces the
 # template's whole clause; a verdict borrows three words of it and then says something.
 # mirrors `command_run.py::_FILED_TEMPLATE` (pinned equal by a drift grader)
-_FILED_TEMPLATE = re.compile(r"mail id\(s\) to (?:<(?:a beat|[a-z]+(?:\|[a-z]+)+)>|(?:a beat|[a-z]+(?:\|[a-z]+)+))\s*(?:\|\s*none\b|$)")
+_FILED_TEMPLATE = re.compile(
+    r"mail id\(s\) to (?:<(?:a beat|[a-z]+(?:\|[a-z]+)+)>|(?:a beat|[a-z]+(?:\|[a-z]+)+))\s*(?:\|\s*none\b|$)"
+)
 _GRAMMAR_PHRASES: tuple[str, ...] = (
     "the one concrete edit to this command or a rule",
     "what in the command text was ambiguous or misleading",
@@ -737,7 +749,11 @@ def _axis_of(value: str) -> str:
     # because the fragment prints the template inside a `> ` blockquote and that marker is the
     # likeliest copy artifact (the close's own `_is_placeholder` strips decoration the same way).
     bare = body.lstrip("> -*\"'`(")
-    if bare.startswith("<") or any(bare.startswith(phrase) for phrase in _GRAMMAR_PHRASES) or _FILED_TEMPLATE.match(bare):
+    if (
+        bare.startswith("<")
+        or any(bare.startswith(phrase) for phrase in _GRAMMAR_PHRASES)
+        or _FILED_TEMPLATE.match(bare)
+    ):
         return "placeholder"
     if not attempt:
         return "unkeyed"
@@ -1512,6 +1528,79 @@ def _task_series(for_it: list[dict], rows: list[dict]) -> str:
     )
 
 
+# kaizen's panel ruling (2026-10-08, D-711): a one-off verdict is rejected with a `HELD:<subject>`
+# tag right after its cited path:line, and a SECOND verdict on a held subject is edited, never
+# re-rejected. The subject is one run of `_HELD_SUBJECT` characters — no spaces; whitespace and any
+# other character (`;`, `,`, `)`, `—`, a backtick) end it.
+_HELD_MARK = "HELD:"
+_HELD_SUBJECT = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_./:-")
+_WORD_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_")
+
+
+def _held_subjects(
+    command: str, path: Path | None = None
+) -> tuple[list[tuple[str, int]], int, int]:
+    """``([(subject, rows)], tagged_rows, rejected_rows)`` for one command's REJECTED rows: each
+    subject counted once per ROW (n rows, not n reject calls — one `--reject` over two rows counts
+    2), sorted by count then name — what `--queue`'s `held` line prints (kaizen 01M4E88KDV). ALL
+    TIME, never windowed: a hold is permanent, unlike the `--since` rows. A trailing `.`, `:` or `/`
+    is sentence punctuation, never part of a subject. Same fail-open read as `_rejected_ts`.
+    COBRA: a reject that writes no tag, or a fresh slug for a held subject, stays invisible here —
+    the line prints the tagged-of-rejected denominator so the untagged share is seen, and
+    `reject()` warns when a new reason names a subject already held."""
+    path = path if path is not None else _answered_path()
+    if path is None:
+        return [], 0, 0
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return [], 0, 0
+    counts: dict[str, int] = {}
+    tagged = rejected = 0
+    for ln in text.splitlines():
+        try:
+            row = json.loads(ln)
+        except ValueError:
+            continue
+        if not isinstance(row, dict) or str(row.get("command") or "") != command:
+            continue
+        if str(row.get("commit") or "") != "rejected":
+            continue
+        rejected += 1
+        subjects = _held_tags(str(row.get("reason") or ""))
+        tagged += bool(subjects)
+        for subject in subjects:
+            counts[subject] = counts.get(subject, 0) + 1
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])), tagged, rejected
+
+
+def _held_tags(reason: str) -> set[str]:
+    """The distinct `HELD:<subject>` tags in one reason, a trailing `.` `:` `/` `-` `_` stripped
+    (sentence punctuation, or the separator of a glued tag — a kebab subject never ends in one). A scanner, not a regex: a mark preceded by a word character is NOT a tag (`UNHELD:x`),
+    unless it starts exactly where the previous tag's subject ended — two tags glued with no
+    separator (`HELD:aHELD:b`, `HELD:a.HELD:b`) are two subjects, and a subject never runs into the
+    next mark (scoped review A-S1, A-O4, A-S6 — the regex form failed one shape per round)."""
+    out: set[str] = set()
+    pos = last_end = 0
+    while (start := reason.find(_HELD_MARK, pos)) >= 0:
+        glued = start == last_end and start > 0
+        if start and reason[start - 1] in _WORD_CHARS and not glued:
+            pos = start + len(_HELD_MARK)
+            continue
+        end = start + len(_HELD_MARK)
+        while (
+            end < len(reason)
+            and reason[end] in _HELD_SUBJECT
+            and not reason.startswith(_HELD_MARK, end)
+        ):
+            end += 1
+        subject = reason[start + len(_HELD_MARK) : end].rstrip(".:/-_")
+        if subject:
+            out.add(subject)
+        pos = last_end = end
+    return out
+
+
 def queue(rows: list[dict], command: str, ledger: Path | None = None) -> str:
     """One command's `change:` queue — the whole input `/fabrik-command-improve` reads.
 
@@ -1556,6 +1645,14 @@ def queue(rows: list[dict], command: str, ledger: Path | None = None) -> str:
     )
     if command == "fabrik-task":
         head += "\n" + _task_series(for_it, rows)
+    # AFTER `series:` — fabrik-task readers pin `lines[1]` to it — and BEFORE the empty-queue
+    # return, so a fully-held queue still names what it holds
+    held, tagged, n_rej = _held_subjects(command, _answered_path(ledger))
+    if held:
+        head += (
+            f"\nheld (all time): {len(held)} subject(s) on {tagged} of {n_rej} rejected row(s) — "
+            + " · ".join(f"{subject} ({n})" if n > 1 else subject for subject, n in held)
+        )
     if not mine:
         return head + "\n(nothing to improve from — pick another command)"
     mine.sort(key=lambda r: _num(r.get("ts")) or 0, reverse=True)

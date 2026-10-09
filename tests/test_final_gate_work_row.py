@@ -128,7 +128,11 @@ def _rows(mod: Any, tier: int = 2) -> list[tuple[str, bool, str]]:
 
 
 def _row(rows: list[tuple[str, bool, str]]) -> tuple[str, bool, str]:
-    found = [r for r in rows if r[0] == ROW or r[0].startswith(f"{ROW} (NOT RUN")]
+    found = [
+        r
+        for r in rows
+        if r[0] == ROW or r[0].startswith((f"{ROW} (NOT RUN", f"{ROW} (NOT PRESENT"))
+    ]
     assert len(found) == 1, f"expected one {ROW!r} row, got {[r[0] for r in rows]}"
     return found[0]
 
@@ -290,9 +294,10 @@ def test_a_repo_without_work_py_passes_with_the_not_present_row(tmp_path, env):
     repo = _repo(tmp_path, env, with_work=False)
     mod = _gate(repo)
 
-    _name, ok, out = _row(_rows(mod))
+    name, ok, out = _row(_rows(mod))
 
     assert ok
+    assert name == f"{ROW} (NOT PRESENT)", "a named skip, never a bare green"
     assert out == "⚠ check not present, skipping: scripts/work.py"
 
 

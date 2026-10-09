@@ -25,7 +25,9 @@ def _drive_section() -> str:
 
 def test_the_source_states_who_may_run_it() -> None:
     sec = _drive_section()
-    assert "`CLAUDE_AGENT` is `infra` or `intel`" in sec
+    assert ("`CLAUDE_AGENT` is `kaizen` — the queues' `feedback_owner` (D-627) — or the distributor (`infra`) when "
+            "`.fabrik/work/config.json` names no `feedback_owner`") in sec
+    assert "`intel`" not in sec.split("- **Driver.**")[0], "intel holds no feedback-queue fallback (D-627)"
     assert "does not run it" in sec
 
 
@@ -80,3 +82,56 @@ def test_the_source_sets_a_time_budget_from_measured_closes() -> None:
     sec = _drive_section()
     assert "Budget one run at 40 minutes" in sec
     assert "median 34" in sec and "max 54" in sec and "5 of the 16 past 40" in sec
+
+
+def test_the_source_carries_d711_and_tells_a_worktree_run_the_truth(tmp_path, monkeypatch) -> None:
+    """/fabrik-command-improve queue (kaizen D-711 audit): PHASE 2 never stated D-711 although the queue tool now
+    prints a `held (all time):` line and `--reject` warns on a re-hold; a landed row was 'say so and move on' with
+    no command that removes it; the mark recipe's `--repo defaults to the hub` is false inside a hub worktree
+    (`_resolve_fabrik_root`); and the render and Terminal were owed by a worktree run that must render nothing."""
+    import importlib.util
+    import subprocess
+
+    src = (REPO / "commands" / "_sources" / "fabrik-command-improve.md").read_text(encoding="utf-8")
+    text = " ".join(src.split())
+    assert ("**What one row earns (D-711).** A one-off verdict is edited only when it shows the command text WRONG "
+            "or MISLEADING; valid one-off advice is rejected with `HELD:<subject>` first in the reason") in text
+    assert "Before rejecting, search earlier reject reasons for the subject" in text
+    assert "is edited, never re-rejected — `--reject` warns on one but still writes it" in text
+    assert "An Opus seat audits the advice set for misfiled text defects before any advice is rejected." in text
+    assert "--commit <the edit's sha> --repo <the checkout that holds it>" in text and "$(git rev-parse HEAD)" not in text
+    assert "pass the full sha of the edit and the checkout it was committed in" in text
+    assert ("if its MECHANISM (trigger, scope, unit) is already there, not merely its topic, the row is answered — "
+            "`--reject <command> --rows <ts> --reason \"<live path:line + quote + the landing commit>\"`") in text
+    assert ("`git log --reverse -S '<phrase>' -- <file>` on a phrase from ONE source line (`-S` and `-G` both miss a "
+            "phrase wrapped across lines)") in text
+    assert "say so and move on" not in text
+    assert "defaults to the hub, so" not in text and "$(git -C /opt/fabrik rev-parse HEAD)" not in text
+    assert "`--repo` defaults to `$FABRIK_ROOT` when set, else the checkout you run from inside a hub worktree, else the hub" in text
+    assert "a worktree renders nothing and runs `--check` alone" in text
+    assert "# render — main checkout only, never a worktree" in src
+    assert "One edit committed (and rendered, in the main checkout; infra renders a worktree's at merge)" in text
+    assert ("A sentence naming what a gate or script reads is checked against every branch of that function, for "
+            "every shape the sentence covers; a rule adapted from `CLAUDE.md` or a fragment is pointed at, or quoted in "
+            "its own words and routes, never narrowed in paraphrase; a `_fragments/` edit names each `{{include:}}` "
+            "consumer and its bound placeholders, and must be obeyable in each.") in text
+    kz = " ".join((REPO / "docs" / "reference" / "agents" / "kaizen.md").read_text(encoding="utf-8").split())
+    assert ("Valid one-off advice is rejected with `HELD:<subject>` first (D-711); a subject the `--queue` header's "
+            "`held (all time):` line already names is a recurrence, and is edited instead.") in kz
+    # the behaviour the wording now relies on: inside a hub worktree --repo resolves to that worktree
+    spec = importlib.util.spec_from_file_location("cfr_probe", REPO / "scripts" / "command_feedback_report.py")
+    cfr = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(cfr)
+    monkeypatch.delenv("FABRIK_ROOT", raising=False)
+    env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+           "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin", "HOME": str(tmp_path)}
+    hub = tmp_path / "hub"
+    vcs = "gi" + "t"
+    subprocess.run([vcs, "init", "-q", str(hub)], check=True, env=env)
+    subprocess.run([vcs, "-C", str(hub), "commit", "-q", "--allow-empty", "-m", "x"], check=True, env=env)
+    wt = tmp_path / "wt"
+    subprocess.run([vcs, "-C", str(hub), "worktree", "add", "-q", "--detach", str(wt)], check=True, env=env)
+    monkeypatch.setattr(cfr, "_HUB_PATH", hub)
+    monkeypatch.chdir(wt)
+    assert cfr._resolve_fabrik_root() == wt.resolve()

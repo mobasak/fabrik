@@ -330,7 +330,7 @@ Eight drift classes (`status`/`sync` print `DRIFT <n> (blocking|advisory)  <path
 |---|---|---|
 | 1 | A CONVERGED spec no plan names and no item links (SUPERSEDED/IMPLEMENTED excluded; a plan under `plans/archived/` still names its spec) | advisory |
 | 2 | A plan CONVERGED more than 7 days with no plan lock and no item linking it | blocking\* |
-| 3 | A plan IN-PROGRESS with no plan lock | blocking\* |
+| 3 | A plan IN-PROGRESS with no plan lock (a lock clears it); or BLOCKED (`ON-HOLD`, `PAUSED`, `WAITING` alike) with nothing it waits on — clear it with a linked item that is `awaiting-operator` (or `blocked` by an open item), an awaiting item its Status line names by id, or an awaiting operator question naming the plan's dated stem; a plan lock does not clear it | blocking\* |
 | 4 | A plan EXECUTED while an item linking it is still open (archived plans included — a plan is archived at EXECUTED) | blocking\* |
 | 5 | An item file that doesn't parse, or a status outside the vocabulary | blocking\* |
 | 6 | A `done` item within the last 14 days whose evidence SHA doesn't exist or doesn't name it (or its `resolved_by` root); or a closed marker over 14 days old whose item is still open in the base branch (never merged) | blocking\* |

@@ -177,3 +177,69 @@ def test_the_close_chain_follows_every_section_of_the_command_and_yields_to_its_
     assert "It runs BEFORE the response's closing seven-line block" in body, (
         "a chain placed after an Output section must still run before it (review pass 2)"
     )
+
+
+def test_the_spec_close_names_its_own_spec_and_the_census_it_prints() -> None:
+    """intel 01M4EAXVXW (W-15c24778): /fabrik-spec's close ran the repo-wide spec check, whose output truncates
+    (10 of 14 repos hid 93 findings on 2026-10-08), so a closing author could not read their own spec's verdict.
+    D-708 lets the check take spec paths; the close now names its spec, and the census line it quotes is the one
+    the scoped run prints for a CONVERGED spec."""
+    import importlib.util
+    import subprocess
+    import sys
+
+    spec = importlib.util.spec_from_file_location("assemble_probe3", REPO / "commands" / "assemble_commands.py")
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    text = mod.PARAMS["fabrik-spec"]["close-chain"]["ARTIFACT_CHECK"]
+    assert "`python3 scripts/enforcement/check_spec_convergence.py <spec path>`" in text
+    census = "1 CONVERGED spec(s) examined of 1 named"
+    assert f"on a CONVERGED spec its census reads `{census}`" in text
+    assert "every finding printed in full below it" in text
+    checker = REPO / "scripts" / "enforcement" / "check_spec_convergence.py"
+    specs = sorted((REPO / "docs" / "superpowers" / "specs").glob("2026-*-design.md"), reverse=True)
+    converged = [p for p in specs if re.search(r"^Status:\s*CONVERGED", p.read_text(), re.M)]
+    assert converged, "no dated CONVERGED design spec to drive the scoped run"
+
+    def run(path: str) -> str:
+        return subprocess.run(
+            [sys.executable, str(checker), path],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            stdin=subprocess.DEVNULL,
+            check=False,
+            cwd=REPO,
+        ).stdout
+
+    out = run(str(converged[0].relative_to(REPO)))
+    assert census in out, out[-400:]
+    missing = run("docs/superpowers/specs/2000-01-01-no-such-design.md")
+    assert "0 CONVERGED spec(s) examined of 1 named" in missing and "NOT-FOUND" in missing, missing[-400:]
+    # "every finding printed in full": a scoped run over a spec WITH findings is never budgeted or cut
+    with_findings = next(
+        (out for out in (run(str(p.relative_to(REPO))) for p in converged) if " 0 with findings" not in out),
+        None,
+    )
+    assert with_findings is not None, "no CONVERGED spec with findings to prove the scoped run prints them whole"
+    assert "more finding(s)" not in with_findings, with_findings[-400:]
+    assert not any(line.rstrip().endswith("...") for line in with_findings.splitlines()), with_findings[-400:]
+
+
+def test_the_close_chain_gates_before_it_pushes() -> None:
+    """intel 01M4EJTSCY: the chain pushed at (2) and gated at (3), so in a main checkout the push integrated the
+    branch first and a check scoped to work not yet integrated (check_review_coverage, W-f847a317) never fired."""
+    body = " ".join((FRAGS / "close-chain.md").read_text().split())
+    marks = [body.index(m) for m in ("(1)", "(2)", "(3)", "(4)")]
+    two, three = body[marks[1] : marks[2]], body[marks[2] : marks[3]]
+    assert "git push" not in two, "the commit step pushes nothing"
+    assert "then `git push`" in three, "the push follows the gate inside (3)"
+    assert three.index("final_gate.py --check --json") < three.index("then `git push`"), "gate first, then push"
+    assert "the gate runs BEFORE the push, so a check scoped to work not yet integrated still sees it" in three
+    assert "its fix is committed as at (2) before (3) re-runs, so the push carries it" in three
+    assert ("A run that wrote nothing tracked commits nothing at (2), runs (3)'s gate but pushes nothing, and runs "
+            "(4).") in body
+    ep = " ".join((REPO / "commands" / "_sources" / "fabrik-execute-plan.md").read_text().split())
+    seven = ep[ep.index("7. **Gate, push, then name the one decision left.**") :]
+    assert seven.index("final_gate.py --check --json") < seven.index("**PUSH them now**"), "execute-plan gates first"

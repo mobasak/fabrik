@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T18:07:21.429288Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-15c24778",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EAXVXWZV90K4Y30GQ93MFV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-spec's close chain prescribes the truncated repo-wide check_spec_convergence run — switch ARTIFACT_CHECK to the scoped form once D-708 merges"
+}

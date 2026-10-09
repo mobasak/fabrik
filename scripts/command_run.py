@@ -300,6 +300,30 @@ def pinned_line(rec: dict[str, Any]) -> str:
 # report, never past its first megabyte, and an unbounded read of a device never returns.
 _RESUME_READ_CAP = 1_000_000
 
+# The commands with NO closing pass: their own source orders no loop `round` (one carrying
+# `--classes-swept`/`--confirmed`/`--own-fix`) on its own record and includes no termination
+# fragment, so the round report's two-round rule and its "run the closing pass" prose do not apply
+# — a quiet round 1 is TERMINAL there (fabrik-spec verdict 1790969786.235392, W-29e3424f). DERIVED
+# from the corpus and pinned both ways by `tests/test_command_run.py`; a wording test put
+# /fabrik-command-improve in and left /fabrik-plan-after-chat out (both design critiques).
+NO_CLOSING_PASS = frozenset(
+    {
+        "fabrik-catchup",
+        "fabrik-decommission",
+        "fabrik-deploy",
+        "fabrik-deploy-plan",
+        "fabrik-deploy-verify",
+        "fabrik-epics",
+        "fabrik-generate-tests",
+        "fabrik-plan-after-chat",
+        "fabrik-release",
+        "fabrik-spec",
+        "fabrik-task",
+        "fabrik-upstream",
+        "fabrik-vision",
+    }
+)
+
 CONFIRMED_REQUIRED_COMMANDS = frozenset(
     {
         "fabrik-review",
@@ -328,10 +352,16 @@ _SLICE_NAME = r"([A-Za-z0-9_.\-]{1,40})"
 def _parse_slices(raw: str) -> list[dict[str, Any]] | None:
     """`A:12/12,B:5/6` → [{"name", "verified", "claims"}] — None when malformed (D-335 § 5 item 4).
 
-    COBRA (D-253): the cheapest way to satisfy "every slice verified" without verifying anything
-    is a ledger with nothing in it — `A:0/0` — or a later round that simply stops passing
-    `--slices`. So a slice carries at least one claim, a name appears once, and `_vanished_slices`
-    treats a slice ANY earlier round stated and the last round omits as OPEN, never as clean.
+    `A:0/0` is a slice whose candidates were all refuted or recorded — no claim to verify — so the
+    review commands' "restate every round-1 slice" can be obeyed (W-65fb308e). COBRA (D-253): the
+    cheapest way to satisfy "every slice verified" without verifying anything is a ledger with
+    nothing in it, or a later round that stops passing `--slices`. So a name appears once, the
+    `round` handler refuses a `0/0` for a slice an earlier round stated WITH claims and a round that
+    confirms defects while every slice it names is `0/0` (`_zero_slice_refusal`), and
+    `_vanished_slices` treats a slice ANY earlier round stated and the last round omits as OPEN.
+    What stays open, by measurement: a ledger that shrinks to a smaller non-zero count, and a first
+    round whose claims undercount `--confirmed` — both occur in real records (2 and 1 of 26 sliced
+    rounds, 2026-10-08), so neither is refused.
     """
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -341,7 +371,7 @@ def _parse_slices(raw: str) -> list[dict[str, Any]] | None:
         if not m:
             return None
         verified, claims = int(m.group(2)), int(m.group(3))
-        if claims < 1 or verified > claims or m.group(1) in seen:
+        if verified > claims or m.group(1) in seen:
             return None
         seen.add(m.group(1))
         out.append({"name": m.group(1), "verified": verified, "claims": claims})
@@ -358,7 +388,11 @@ def _slice_rows(row: Any) -> list[dict[str, Any]]:
         {
             "name": str(s.get("name", "?")),
             "verified": _int0(s.get("verified")),
-            "claims": _int0(s.get("claims")),
+            # a missing, null or non-integer count is -1, never 0: `0/0` is a CLEAN slice, so
+            # a hand-edited row that lost its count must not read as one (it stays OPEN)
+            "claims": c
+            if isinstance(c := s.get("claims"), int) and not isinstance(c, bool)
+            else -1,
         }
         for s in row["slices"]
         if isinstance(s, dict)
@@ -367,9 +401,42 @@ def _slice_rows(row: Any) -> list[dict[str, Any]]:
 
 def _failing_slices(row: Any) -> list[dict[str, Any]]:
     """The slices of a round row whose ledger still holds an open claim (verified < claims)."""
-    # a row with no claims at all (a hand-edited record — the CLI refuses `A:0/0`) is OPEN,
-    # never clean: fail-closed, and escapable by re-stating the ledger
-    return [s for s in _slice_rows(row) if s["verified"] < s["claims"] or s["claims"] < 1]
+    # `0/0` is clean (a slice with no claim to verify); a row whose count is missing or broken
+    # (`_slice_rows` reads it as -1 — a hand-edited record) is OPEN, never clean: fail-closed,
+    # and escapable by re-stating the ledger
+    return [s for s in _slice_rows(row) if s["verified"] < s["claims"] or s["claims"] < 0]
+
+
+def _zero_slice_refusal(
+    slices: list[dict[str, Any]], confirmed: int | None, rounds: list[Any]
+) -> str | None:
+    """Why a `round --slices` holding a `0/0` slice is refused, or None (W-65fb308e).
+
+    A `0/0` is admitted only for a slice that never held a claim: one an earlier round stated with
+    claims ≥ 1 would close its open claims by restating them as nothing. And a round confirming
+    defects while EVERY slice it names is `0/0` holds those defects in no ledger — the all-zero
+    typo guard (omitting `--slices` altogether remains possible and is what `_vanished_slices`
+    and the receipt's coverage gate answer, not this)."""
+    zero = [s["name"] for s in slices if s["claims"] == 0]
+    if not zero:
+        return None
+    # an earlier count that no longer reads (`_slice_rows`' -1 — a hand-edited row) counts as
+    # HELD, fail-closed: an unreadable ledger can never be the reason a 0/0 is admitted
+    earlier = {
+        s["name"] for row in rounds for s in _slice_rows(row) if s["claims"] >= 1 or s["claims"] < 0
+    }
+    held = [n for n in zero if n in earlier]
+    if held:
+        return (
+            f"slice(s) {', '.join(held)} held claims in an earlier round and cannot be restated "
+            "as 0/0 — restate the ledger at its <verified>/<claims>"
+        )
+    if confirmed and len(zero) == len(slices):
+        return (
+            f"--confirmed {confirmed} with every slice 0/0 — assign each confirmed defect to the "
+            "slice whose files hold it: `<name>:0/<n>`"
+        )
+    return None
 
 
 def _vanished_slices(rounds: list[Any]) -> list[str]:
@@ -780,6 +847,8 @@ def _round_report(rec: dict[str, Any]) -> str:
     # one-`Pass`-row receipt the coverage gate hard-refuses — the two halves of the same redesign
     # disagreeing about whether one clean pass can end a loop (D7 seam #1).
     quiet = swept_all and not lapsed and counter == 0
+    has_closing = _norm_command(rec.get("command")) not in NO_CLOSING_PASS
+    min_rounds = 2 if has_closing else 1
     slices = _slice_rows(last)
     failing = _failing_slices(last)
     vanished = _vanished_slices(rounds)
@@ -788,12 +857,12 @@ def _round_report(rec: dict[str, Any]) -> str:
             "  slices: "
             + " · ".join(
                 f"{s['name']} {s['verified']}/{s['claims']} "
-                + ("✓" if s["claims"] >= 1 and s["verified"] >= s["claims"] else "✗")
+                + ("✓" if s["claims"] >= 0 and s["verified"] >= s["claims"] else "✗")
                 for s in slices
             )
         )
-    terminal = quiet and len(rounds) >= 2 and not failing and not vanished
-    if quiet and len(rounds) >= 2 and vanished:
+    terminal = quiet and len(rounds) >= min_rounds and not failing and not vanished
+    if quiet and len(rounds) >= min_rounds and vanished:
         lines.append(
             "⛔ NOT TERMINAL — slice ledger missing this round for ("
             + ", ".join(vanished)
@@ -802,7 +871,7 @@ def _round_report(rec: dict[str, Any]) -> str:
             "with no open claim needs no seat and no extra round: re-state it at its last "
             "`<verified>/<claims>` in THIS round's `--slices` (W-c8069437)"
         )
-    if quiet and len(rounds) >= 2 and failing:
+    if quiet and len(rounds) >= min_rounds and failing:
         lines.append(
             "⛔ NOT TERMINAL — "
             + "; ".join(
@@ -825,9 +894,11 @@ def _round_report(rec: dict[str, Any]) -> str:
                 "close with `handoff`, the failing slices and their claims named (D-335)"
                 if failing or vanished
                 else "run the closing pass now, or close with `handoff` naming what is unverified (D-335)"
+                if has_closing
+                else "close with `done`, or `handoff` naming what is unverified"
             )
         )
-    if quiet and len(rounds) < 2:
+    if quiet and len(rounds) < min_rounds:
         lines.append(
             "⛔ NOT TERMINAL — round 1 is the full pass, never the closing round; run the closing "
             "pass — the round-1 seats over their own slices (the receipt gate demands a confirming "
@@ -869,9 +940,13 @@ def _round_report(rec: dict[str, Any]) -> str:
                 "`round --confirmed 0`)"
             )
             + (" — every slice verified" if slices else "")
-            + ". The closing pass is the round-1 seats confirming their own slices' ledgers, its "
-            "receipt citing the standing-clean classes from the last full pass (D-206, D-335). "
-            "Close the run: "
+            + (
+                ". The closing pass is the round-1 seats confirming their own slices' ledgers, its "
+                "receipt citing the standing-clean classes from the last full pass (D-206, D-335). "
+                if has_closing
+                else ". This command has no closing pass. "
+            )
+            + "Close the run: "
             f"python3 scripts/command_run.py done --command {rec.get('command') or '<name>'} "
             '--evidence "<proof>" --feedback "<what you filed, to whom | none — surfaces swept>"'
         )
@@ -2741,6 +2816,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="/fabrik-task only: record that file's TEXT as the run's design — once, whole (no cap — D-314)",
     )
     p.add_argument(
+        "--terminal-amend",
+        default=None,
+        metavar="TEXT",
+        help="/fabrik-task only: restate the run's terminal BEFORE or WITH its --design (the "
+        "critiques narrowed the work) — the old one is kept in terminal_amends, counted on the close row",
+    )
+    p.add_argument(
         "--design-amend",
         action="append",
         metavar="PATH",
@@ -4225,6 +4307,39 @@ def _task_close_v2(
     return 0, fields
 
 
+def _keep_resume_seed(sid: str, data: bytes) -> str:
+    """Write a handoff's `--resume` artifact — the bytes the close validated — to `<state dir>/seeds/`
+    and return the copy's absolute path, or a `REFUSED — …` line (intel 01M4EDB9TC). The successor must outlive
+    what wrote it: a /fabrik-task UPGRADE seed sits in the session's scratch, which dies with the
+    session, and the run record is overwritten by the session's NEXT `start`, which is the
+    /fabrik-spec the UPGRADE opens at once. The name is the record's own `_safe_sid` plus the
+    content hash, so a nested run's seed never overwrites its parent's and a retry of the same seed
+    lands on the same file; the caller read the bytes once, bounded, and refused one over the cap.
+    A copy that cannot be written refuses the close: a lost seed is the defect this exists to prevent, and
+    `blocked` stays the exit. Nothing prunes `seeds/` (one small file per handoff); a process
+    killed between the write and the rename leaves its pid-named `.tmp` there, which no reader globs."""
+    seeds = _state_dir().resolve() / "seeds"
+    tmp: Path | None = None
+    try:
+        copy = seeds / f"{_safe_sid(sid)}-{hashlib.sha256(data).hexdigest()[:16]}.md"
+        seeds.mkdir(parents=True, exist_ok=True)
+        tmp = copy.with_name(f"{copy.name}.{os.getpid()}.tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, copy)
+        return str(copy)
+    except (OSError, ValueError) as exc:
+        if tmp is not None:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return (
+            f"REFUSED — handoff could not keep a copy of the --resume seed under {seeds} "
+            f"({type(exc).__name__}); the seed would die with the session — fix the state dir, "
+            "or close with `blocked`"
+        )
+
+
 def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[int, dict[str, str]]:
     """The lane's TWO row fields for this close: ``(rc, fields)``. rc 1 = refused, already
     printed, and the record must stay `running`.
@@ -4603,20 +4718,9 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # legitimately steps through phases with zero rounds — firing there is noise that trains
         # scroll-past (youtube 01M153H14, hit on a 5-phase linear plan run). The terminal string
         # the run DECLARED at start is the honest signal for whether a loop was ever promised.
-        _terminal = str(rec.get("terminal") or "").lower()
-        # `confirmed:` is the D-206 exit vocabulary — a nudge keyed only to the retired words
-        # would go silent on exactly the review loops it was built for
-        _loop_shaped = any(
-            k in _terminal for k in ("round", "no-op", "noop", "found:", "new:", "confirmed:")
-        )
-        if target >= 3 and _loop_shaped and not (rec.get("rounds") or []):
-            sys.stderr.write(
-                f"[command_run] NOTICE — /{rec.get('command') or '?'} is at phase {target} with "
-                "ZERO rounds recorded. If this command has a convergence loop, every round "
-                "advisory (oscillation, terminal verdict) has been silent because it never ran, "
-                "not because the loop is healthy. Record them: `round --findings <n> "
-                "--confirmed <n> --classes-swept <…> --classes-new <…>`.\n"
-            )
+        # The check runs just before the `phase` event below, after every refusal: it then judges
+        # the terminal this step LEAVES (a same-step `--terminal-amend` included) and never a step
+        # that is about to be refused (review A-S1, A-S4).
         rec["phase"] = target
         rec["phase_title"] = args.title
         # STRICTLY before the `phase` event is queued below — never merely "before `save`":
@@ -4645,6 +4749,36 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 return _refuse("REFUSED — fabrik-task: --design-amend needs a path")
             _prev = rec.get("design_amends")
             rec["design_amends"] = (_prev if isinstance(_prev, list) else []) + _amends
+        _ta = getattr(args, "terminal_amend", None)
+        if _ta is not None:
+            # kaizen 01M4DB7C7V (five /fabrik-task verdicts): the critiques narrow the work after
+            # `start --terminal` fixed it. Restated only BEFORE or WITH the design: `--design`
+            # lands once, after the critiques, while the phase number can be re-entered after the
+            # build — a phase gate would let a run move its goal to fit the result.
+            if str(rec.get("command") or "").lstrip("/") != _TASK_COMMAND:
+                return _refuse("REFUSED — --terminal-amend belongs to --command fabrik-task")
+            if "design" in rec:
+                return _refuse(
+                    "REFUSED — fabrik-task: the terminal is restated only before or with the design "
+                    '(`step --phase 2 --design <path> --terminal-amend "<t>"`); this run\'s design '
+                    "is already recorded"
+                )
+            _new_t = str(_ta).strip()
+            if not _new_t or "\n" in str(_ta) or "\r" in str(_ta):
+                return _refuse("REFUSED — fabrik-task: --terminal-amend needs one non-blank line")
+            _old_t = str(rec.get("terminal") or "")
+            if _new_t == _old_t.strip():
+                # a same-text amend would count a restatement that restated nothing
+                sys.stderr.write(
+                    "[command_run] NOTE — fabrik-task: --terminal-amend equals the current "
+                    "terminal; nothing recorded\n"
+                )
+            else:
+                _prev_t = rec.get("terminal_amends")
+                rec["terminal_amends"] = (_prev_t if isinstance(_prev_t, list) else []) + [
+                    {"from": _old_t, "to": _new_t, "at": _now()}
+                ]
+                rec["terminal"] = _new_t
         if _design:
             # PRESENCE, not truth. An EMPTY design file sets `design = ''`, which is falsy, so a
             # truthiness guard let the next `--design` overwrite it with no NOTE — defeating the
@@ -4691,6 +4825,20 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             _marks.append({"phase": target, "appetite": _ap, "started": time.time()})
         if _marks:
             rec["phase_marks"] = _marks
+        _terminal = str(rec.get("terminal") or "").lower()
+        # `confirmed:` is the D-206 exit vocabulary — a nudge keyed only to the retired words
+        # would go silent on exactly the review loops it was built for
+        _loop_shaped = any(
+            k in _terminal for k in ("round", "no-op", "noop", "found:", "new:", "confirmed:")
+        )
+        if target >= 3 and _loop_shaped and not (rec.get("rounds") or []):
+            sys.stderr.write(
+                f"[command_run] NOTICE — /{rec.get('command') or '?'} is at phase {target} with "
+                "ZERO rounds recorded. If this command has a convergence loop, every round "
+                "advisory (oscillation, terminal verdict) has been silent because it never ran, "
+                "not because the loop is healthy. Record them: `round --findings <n> "
+                "--confirmed <n> --classes-swept <…> --classes-new <…>`.\n"
+            )
         fields = _queue(rec, outbox, "phase", {"n": rec["phase"], "title": rec["phase_title"]})
         _touch(rec)
         fields["persisted"] = save(sid, rec)
@@ -4752,10 +4900,14 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             if slices is None:
                 print(
                     f"[command_run] REFUSED — round --slices {args.slices!r} must be "
-                    "`<name>:<verified>/<claims>[,…]` with 0 <= verified <= claims, claims >= 1 "
+                    "`<name>:<verified>/<claims>[,…]` with 0 <= verified <= claims "
                     "and no duplicate name (D-335)",
                     file=sys.stderr,
                 )
+                return 2
+            why = _zero_slice_refusal(slices, args.confirmed, rec.get("rounds") or [])
+            if why:
+                print(f"[command_run] REFUSED — round --slices: {why}", file=sys.stderr)
                 return 2
         if args.confirmed is None and (rec.get("command") or "") in CONFIRMED_REQUIRED_COMMANDS:
             print(
@@ -5085,9 +5237,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                 + "; ".join(
                     [
                         (
-                            f"slice {s['name']} has no claims in its ledger "
+                            f"slice {s['name']} has an unreadable claim count in its ledger "
                             f"({s['verified']}/{s['claims']}) on the last round"
-                            if s["claims"] < 1
+                            if s["claims"] < 0
                             else f"slice {s['name']} has {s['claims'] - s['verified']} open claim(s) "
                             f"({s['verified']}/{s['claims']} verified) on the last round"
                         )
@@ -5469,17 +5621,23 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # A REGULAR file only, read BOUNDED, and ANY failure is the refusal: a FIFO with no writer
         # blocked the close forever, and `/dev/zero` under a memory cap raised MemoryError, which
         # `main`'s fail-soft catch-all turned into rc 0 — the very defect this check closes.
+        # ONE bounded read, and the copy kept below is these bytes: a second read (or a `stat`)
+        # outside this guard re-opened the window a vanished or growing file slips through.
         resume_path = Path(args.resume)
-        resume_text = ""
+        resume_bytes = b""
         why = ""
         try:
             if not resume_path.is_file():
                 why = "is not a regular file"
             else:
-                with resume_path.open(encoding="utf-8", errors="replace") as fh:
-                    resume_text = fh.read(_RESUME_READ_CAP)
+                with resume_path.open("rb") as fh:
+                    resume_bytes = fh.read(_RESUME_READ_CAP + 1)
         except Exception as exc:  # noqa: BLE001 — every failure refuses; none may reach main's rc 0
             why = f"cannot be read ({type(exc).__name__})"
+        if not why and len(resume_bytes) > _RESUME_READ_CAP:
+            # the copy kept below must be the WHOLE seed, never a silently cut one
+            why = f"exceeds the {_RESUME_READ_CAP:,}-byte handoff cap"
+        resume_text = resume_bytes.decode("utf-8", errors="replace")
         if not why and not re.search(r"(?m)^##\s+RESUME\b", resume_text):
             why = "has no `## RESUME` block naming the open rows and the next act"
         if why:
@@ -5499,6 +5657,14 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     _task_rc, _task_fields = _task_close_fields(rec, args)
     if _task_rc:
         return _task_rc
+    if args.cmd == "handoff":
+        _kept = _keep_resume_seed(sid, resume_bytes)
+        if not _kept.startswith("/"):
+            sys.stderr.write(f"[command_run] {_kept}\n")
+            print(_kept)
+            return 1
+        rec["resume_copy"] = _kept
+        print(f"handoff: the resume artifact is kept at {_kept}")
     _touch(rec)
     _se = _finite_ts(rec.get("started_epoch"))
     if _se is not None and _se > 0:
@@ -5599,6 +5765,11 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             if _dg:
                 _lane_extra["from_downgrade"] = _dg.group(1)
         _task_fields = {**_task_fields, **_lane_extra}
+    # Lane-independent and only when present, so a run that never restated its terminal keeps its
+    # row shape: every close of an amended run says how often its goal was restated (kaizen 01M4DB7C7V).
+    _t_amends = rec.get("terminal_amends")
+    if isinstance(_t_amends, list) and _t_amends:
+        _task_fields = {**_task_fields, "terminal_amends": str(len(_t_amends))}
     _fb_verdict, _fb_beats = _feedback_verdict(
         _filed_text if getattr(args, "feedback", None) is not None else None
     )
@@ -5619,6 +5790,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "closed_by": "agent",
             "evidence_hash": _evidence_hash(args.evidence if args.cmd == "done" else args.reason),
             "resume": getattr(args, "resume", "") or "",
+            "resume_copy": rec.get("resume_copy", "") if args.cmd == "handoff" else "",
             # Kaizen's `Filed (spec/mail)` column has read "-" on every row since the 2026-08-12
             # baseline because nothing ever measured it. These three fields make it countable: the
             # verdict, which beats were routed to, and a HASH of the line (never the prose - the

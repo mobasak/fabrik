@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-09T00:51:06.101987Z",
+  "creator": "fleet",
+  "evidence": "c62b323daa1a87b797e80e1b4749d61ffddb74ef",
+  "id": "W-0859fd4b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "emit the template's [tool.ruff*] tables for file-worker (as _write_server_lint_config does for server/ types, src/fabrik/scaffold.py:3425) and add file-worker to tests/test_scaffold_output_passes_gate.py; measure the fire rate first",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "title": "Scaffolded file-worker projects get no pyproject.toml, so no ruff config at all (ASYNC/B/S/G mandated by core/10-python.md never reach worker/*.py)"
+}
