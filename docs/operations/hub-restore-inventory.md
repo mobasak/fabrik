@@ -81,7 +81,7 @@ Verified live: 19 dirs under `/opt/`, classified:
 |---|---|---|
 | **Standard** (has `compose.yaml` + `.env`) | `apprise`, `backrest`, `browserless`, `glitchtip`, `gotenberg`, `meilisearch`, `monitoring`, `n8n`, `postgres`, `site-provisioner` | back up whole dir |
 | **Compose-only** (has `compose.yaml`, no `.env` because container takes its config from `/config` bind mount) | `authelia`, `gatus`, `ocoron-com`, `redis` | back up whole dir |
-| **Compose + box-side secret file** | `traefik` — `cf.env` (root 600, single key `CF_DNS_API_TOKEN`, the scoped Cloudflare token the `cloudflare` DNS-01 resolver reads; its compose REQUIRES it, so a restore without it refuses to start traefik at all and `step_12b`'s `docker compose config -q` fails first) and `acme-cloudflare.json` (600, the DNS-01 certificate store beside `acme.json`) | back up whole dir |
+| **Compose + box-side secret file** | `traefik` — `cf.env` (root 600, single key `CF_DNS_API_TOKEN`, the scoped Cloudflare token the `cloudflare` DNS-01 resolver reads; its compose REQUIRES it, so a restore without it refuses to start traefik at all — every hub HTTPS route — at its `docker compose up` (`step_13`, DR Step 9); only a drill run's `step_12b` `docker compose config -q` sees it earlier) and `acme-cloudflare.json` (600, the DNS-01 certificate store beside `acme.json`) | back up whole dir |
 | **Special-shape** | `authelia-config-sync` (script + sync.sh, no compose), `backups` (script + pg_dumps + log), `fabrik` (orchestrator's own repo — `.git` excluded; covered separately by W9 for `.env`), `monitoring` (extra `gatus-compose.yaml`) | back up whole dir, except `fabrik/.git/**` |
 | **Skip** | `containerd` (Docker daemon state, not ours), `manually_installed.txt` (text marker) | exclude |
 

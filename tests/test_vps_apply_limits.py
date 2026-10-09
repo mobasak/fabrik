@@ -464,7 +464,12 @@ def test_the_hub_traefik_compose_carries_the_cloudflare_dns01_references():
     raw = svc.get("env_file")
     entries = [raw] if isinstance(raw, (str, dict)) else list(raw or [])
     paths = [e if isinstance(e, str) else e.get("path") for e in entries]
-    assert "./cf.env" in paths, f"traefik env_file is {raw!r}; the DNS-01 token never loads"
+    # Compose resolves a relative env_file against the compose file's directory (/opt/traefik on
+    # the box), so `cf.env`, `./cf.env` and `/opt/traefik/cf.env` name the same file.
+    resolved = {os.path.normpath(os.path.join("/opt/traefik", p)) for p in paths if p}
+    assert "/opt/traefik/cf.env" in resolved, (
+        f"traefik env_file is {raw!r}; the DNS-01 token never loads"
+    )
     assert not any(isinstance(e, dict) and e.get("required") is False for e in entries), (
         "cf.env is marked required: false — a missing token would start traefik without DNS-01"
     )
@@ -477,9 +482,13 @@ def test_the_hub_traefik_compose_carries_the_cloudflare_dns01_references():
     )
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git required")
 def test_box_side_traefik_secrets_can_never_be_staged_from_infra():
     """W-d9ccd618: infra/ is a mirror PULLED from the box (infra/README.md), and a whole-dir pull
-    would bring the Cloudflare token (cf.env), ACME private keys (acme*.json) and htpasswd with it."""
+    would bring traefik's Cloudflare token (cf.env), ACME private keys (acme*.json) and htpasswd.
+
+    The REPO's own .gitignore must be the rule that matches (`-v` names the source): a developer's
+    global excludes file would otherwise keep this green with the repo's lines deleted."""
     names = [
         "infra/vps1/traefik/cf.env",
         "infra/vps1/traefik/acme.json",
@@ -487,7 +496,18 @@ def test_box_side_traefik_secrets_can_never_be_staged_from_infra():
         "infra/vps1/traefik/htpasswd",
     ]
     proc = subprocess.run(
-        ["git", "check-ignore", "--no-index", *names], cwd=REPO, capture_output=True, text=True
+        ["git", "check-ignore", "-v", "--no-index", *names],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
     )
-    ignored = set(proc.stdout.split())
-    assert ignored == set(names), f"not ignored: {sorted(set(names) - ignored)}"
+    if proc.returncode not in (0, 1):  # 128: not a git checkout (an archive) — nothing to grade
+        pytest.skip(f"git check-ignore unusable here: {proc.stderr.strip()}")
+    sources: dict[str, str] = {}
+    for line in proc.stdout.splitlines():
+        source, _, path = line.partition("\t")
+        sources[path] = source.split(":", 1)[0]
+    unprotected = sorted(n for n in names if sources.get(n) != ".gitignore")
+    assert not unprotected, (
+        f"not ignored by the repo's .gitignore: {unprotected} (sources: {sources})"
+    )
