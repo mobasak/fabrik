@@ -142,3 +142,34 @@ def test_the_gate_scope_sentence_states_the_ruff_scope_and_points_at_the_referen
             "review is linted by running ruff on its paths by hand. On a shared tree a check that reads beyond your "
             "change can red on another lane's work, and") in t
     assert "every other check reads whole directories" not in t
+
+
+def test_the_gate_writes_and_lints_only_staged_and_unpushed_work(tmp_path: Path) -> None:
+    """W-b63ffe1a: CLAUDE.md (hub and template) and fabrik-review.md say the fixers and ruff take only STAGED
+    changes plus unpushed commits. Drive get_writable_files on a scratch repo: a staged file is in it, an
+    unstaged edit to a tracked file is not."""
+    for rel in ("CLAUDE.md", "templates/governance/CLAUDE.md"):
+        assert ("the gate scopes every fixer + `ruff` to your STAGED changes plus your committed-but-unpushed "
+                "commits — an unstaged edit is left alone until you stage it)") in _norm(REPO / rel), rel
+    g = ["git", "-C", str(tmp_path), "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run([*g, "init", "-q"], check=True)
+    (tmp_path / "tracked.py").write_text("a = 1\n", encoding="utf-8")
+    subprocess.run([*g, "add", "tracked.py"], check=True)
+    subprocess.run([*g, "commit", "-q", "-m", "base"], check=True)
+    (tmp_path / "tracked.py").write_text("a = 2\n", encoding="utf-8")  # unstaged edit to a tracked file
+    (tmp_path / "staged.py").write_text("b = 1\n", encoding="utf-8")
+    subprocess.run([*g, "add", "staged.py"], check=True)
+    probe = (f"import sys; sys.path.insert(0, {str(REPO / 'scripts')!r}); import final_gate as fg; "
+             "print(sorted(fg.get_writable_files())); print(sorted(fg.get_changed_files()))")
+    p = subprocess.run([sys.executable, "-c", probe], cwd=tmp_path, capture_output=True, text=True, check=True)
+    writable, changed = p.stdout.splitlines()[-2:]
+    assert writable == "['staged.py']", p.stdout
+    assert "tracked.py" in changed, "the READ scope still sees the unstaged edit"
+
+
+def test_the_subagents_pack_closing_pass_confirms_zero_defects_present() -> None:
+    """W-b63ffe1a: 62-using-subagents.md mirrored the retired 'confirming every claim executed true'."""
+    t = _norm(REPO / ".windsurf" / "rules" / "core" / "62-using-subagents.md")
+    assert ("The closing pass is those same seats re-executing every claim of their slice ledgers and confirming "
+            "zero code or doc defects present** —") in t
+    assert "confirming every claim executed true" not in t
