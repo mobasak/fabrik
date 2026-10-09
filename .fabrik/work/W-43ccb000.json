@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-29T20:13:54.776077Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "1997d7aa24c3f661dd21458005357e4652c7f7b3",
   "id": "W-43ccb000",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "The Stop hook's UPSTREAM-path block tells a worktree branch that tracks origin/master (git worktree add -b x path origin/master, autoSetupMerge) to 'git push', which fails under push.default=simple because the upstream name differs"
 }

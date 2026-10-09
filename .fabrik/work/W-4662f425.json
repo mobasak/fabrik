@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "dispatch_headroom.py's TRIMMED-partition line still says \"re-sweep them next round\"; the corpus now says a full-pass wave before any delta pass (and a trim that drops Haiku seats leaves slices single-read)"
 }
