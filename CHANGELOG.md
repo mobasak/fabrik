@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-data-contract states where the Pass Ledger lives (2026-10-09)
+- `commands/_sources/fabrik-data-contract.md`: the Pass Ledger lives in the contract's Pass Ledger section when it carries one, else in the closing report; a re-freeze adds its own version entry after the closing round, so its absence is never a finding in any round; a paused run carries its rows in `blocked --reason` (the `--feedback` line is the capped usage grammar). Phase 2's exact template shape keeps an existing ledger section, and Phase 4 and the Guardrails name the entry as an exempt post-convergence write. Answers the recurring pass-ledger-placement verdicts (D-711). Grader: `tests/test_data_contract_recurring_rules.py`. Of the 34-row queue: 27 rejected (7 landed, 20 one-off advice), 3 code rows routed to infra and fleet, 2 re-freeze-STOP rows held for an operator decision.
+
 ### Changed — /fabrik-plan-review carries its recurring held rules (2026-10-09)
 - `commands/_sources/fabrik-plan-review.md`: checklist rows are adjudicated in the round whose evidence settles them (no later than the last delta round), and every new module, stub or algorithm the plan specifies is run on a scratch copy before the first pin. `commands/_fragments/design-critique.md` (5 consumers): the panel's delta round shares the loop's scope-growth window, its own-fix defects routing to the backlog once that stop has fired. `commands/_fragments/term-edit.md` (17 consumers) and `term-coverage.md` (5): a round-zero fix that names an interface cites the callee's signature and line range at the pinned commit; term-edit's flipped scratch copy is a checkout where the flip shows as a change, with `scripts/` and `.windsurf/` linked in (the flip-gate MATRIX row's method). Answers 13 recurring /fabrik-plan-review verdicts (D-711). Grader: `tests/test_plan_review_recurring_rules.py` (paragraph-anchored).
 
