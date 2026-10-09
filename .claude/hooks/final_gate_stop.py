@@ -46,6 +46,15 @@ from collections.abc import Callable
 from pathlib import Path
 
 CAP = 3  # consecutive blocked stops before letting it stop anyway (anti-trap)
+# Every ORDINARY push order names the gate first (kaizen 01M4EP8A40): close-chain runs commit → gate →
+# push, and on a clean tree this hook never runs the gate, so a bare "push" published a red-gated
+# commit. The urgent-90 checkpoint item stays push-only on purpose (D-306; `_urgent_checkpoint`).
+# ⚠️ COBRA (D-253): the cheapest pass is to report every red as "inherited" and push anyway — the
+# clause names the way out so an unfixable red never traps the push, and the report is the counter.
+_GATE_BEFORE_PUSH = (
+    "gate green on your change first (`final_gate.py --check --json` from the repo root; an "
+    "inherited or sibling red is the repo's — report it, it does not hold the push), "
+)
 
 # --- Kaizen M1 event stream (additive sensor, fail-open at the IMPORT layer) ---
 # The emitter lives at ONE place per box, so both candidates are tried: this repo's own
@@ -4449,8 +4458,9 @@ def main(argv: list[str]) -> int:
                     reason = (
                         f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
                         "this branch are not on origin — an unpushed task is an "
-                        "OFF-BOX-UNPROTECTED task (CLAUDE.md § EXIT): push YOUR work now "
-                        "(`git push`). Rejected? dirty tree → defer (wip-net protects) · clean "
+                        "OFF-BOX-UNPROTECTED task (CLAUDE.md § EXIT): "
+                        + _GATE_BEFORE_PUSH
+                        + "then push YOUR work now (`git push`). Rejected? dirty tree → defer (wip-net protects) · clean "
                         "tree → `git pull --rebase=merges` then push · conflict → "
                         "`git rebase --abort` + report · NEVER --force."
                     )
@@ -4460,7 +4470,9 @@ def main(argv: list[str]) -> int:
                         f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
                         "this worktree branch are not on the main checkout's branch and the "
                         "branch has no upstream — an unpushed task is an OFF-BOX-UNPROTECTED "
-                        "task (CLAUDE.md § EXIT): publish it now (`git push -u origin HEAD`), "
+                        "task (CLAUDE.md § EXIT): "
+                        + _GATE_BEFORE_PUSH
+                        + "then publish it (`git push -u origin HEAD`), "
                         "then report the branch to the merge owner · NEVER --force."
                     )
                 _kaizen(
@@ -4875,7 +4887,9 @@ def main(argv: list[str]) -> int:
                 f"{listed}{f' (+{more} more)' if more > 0 else ''}. Commit YOUR OWN work "
                 "now with explicit pathspecs + Agent Provenance Trailers "
                 "(git commit -m <msg> -- <your files>); never bundle files you didn't author. "
-                "Then PUSH it — commit-and-push is the task-end law (never --force)."
+                "Then "
+                + _GATE_BEFORE_PUSH
+                + "then PUSH it — commit, gate, push is the task-end law (never --force)."
             )
             _kaizen(
                 "stop_block",

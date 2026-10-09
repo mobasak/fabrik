@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-09T01:02:24.922928Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-4662f425",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4F2H157F92WTFJ6AB5RD2DT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "open",
+  "title": "dispatch_headroom.py's TRIMMED-partition line still says \"re-sweep them next round\"; the corpus now says a full-pass wave before any delta pass (and a trim that drops Haiku seats leaves slices single-read)"
+}

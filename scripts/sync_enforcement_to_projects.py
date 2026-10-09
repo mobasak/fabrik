@@ -1796,7 +1796,8 @@ def _atomic_copy(source: Path, destination: Path) -> None:
     sees EITHER the whole old file OR the whole new file — never a half-written one — and a process
     that already imported the module keeps the old inode alive until it exits (the rename only swaps
     the directory entry). This is what makes a mid-dispatch sync safe: no torn reads, no ImportError.
-    Falls back to a plain copy only if the atomic path can't be used (cross-device temp, etc.)."""
+    There is NO plain-copy fallback: any failure removes the temp file and re-raises, leaving the
+    destination untouched."""
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=str(destination.parent), prefix=".sync-tmp-")
     os.close(fd)
@@ -2495,6 +2496,25 @@ def _unreachable_vendored_copies(projects: list[Path]) -> list[str]:
     return sorted(found)
 
 
+def _file_lines(files: list[SyncResult], *, verbose: bool, dry_run: bool) -> list[str]:
+    """The per-file lines a project's sync prints. Safety decisions (SKIP/WARN) always print with
+    their canonical phrases; a DRY RUN also names every file it WOULD write or delete, because it exists to
+    answer "what would ship?" (it named none of them without --verbose — W-fe6e0ed3); the rest
+    print only under --verbose."""
+    lines: list[str] = []
+    for fr in files or []:
+        if fr.action == "WARN":
+            lines.append(f"  WARN (destination newer): {fr.destination.name}")
+        elif fr.action == "SKIP":
+            lines.append(f"  SKIP (identical): {fr.destination.name}")
+        elif verbose or (dry_run and fr.action in ("COPY", "BACKUP", "DELETE")):
+            icon = {"COPY": "  →", "BACKUP": "  ↻", "DELETE": "  −", "ERROR": "  ✗"}.get(
+                fr.action, "  ?"
+            )
+            lines.append(f"{icon} {fr.destination.name}: {fr.reason}")
+    return lines
+
+
 def main() -> int:
     # Reset the module-level tally. It is a mutable global; without this a second in-process call (a
     # future test, a wrapper, a dry-run-then-real flow) inherits the previous run's failures and returns
@@ -2578,21 +2598,8 @@ def main() -> int:
         status = "✓" if result.success else "✗"
         print(f"{status} {project_dir.name:40} {result.message}")
 
-        # Always show safety decisions (SKIP/WARN), show all details in verbose mode
-        if result.files:
-            for fr in result.files:
-                # Always print safety decisions with canonical phrases
-                if fr.action == "WARN":
-                    print(f"  WARN (destination newer): {fr.destination.name}")
-                elif fr.action == "SKIP":
-                    print(f"  SKIP (identical): {fr.destination.name}")
-                elif args.verbose:
-                    action_icon = {
-                        "COPY": "  →",
-                        "BACKUP": "  ↻",
-                        "ERROR": "  ✗",
-                    }.get(fr.action, "  ?")
-                    print(f"{action_icon} {fr.destination.name}: {fr.reason}")
+        for line in _file_lines(result.files, verbose=args.verbose, dry_run=args.dry_run):
+            print(line)
 
         if result.success:
             success_count += 1

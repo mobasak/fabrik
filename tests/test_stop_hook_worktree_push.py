@@ -313,3 +313,66 @@ def test_one_deadline_bounds_the_whole_worktree_path(monkeypatch, tmp_path: Path
     hook.session_unpushed(wt, {"notes.txt"}, timeout=1.0)
     elapsed = time.monotonic() - t0
     assert elapsed < 1.6, f"a 1.0 s budget took {elapsed:.2f} s"
+
+
+def test_every_push_remedy_names_the_gate_first(monkeypatch, tmp_path: Path) -> None:
+    """kaizen 01M4EP8A40: close-chain orders commit → gate → push, but the Stop hook ordered a bare
+    push — on a clean tree it never runs the gate, so a red-gated commit was told to publish. Every
+    ORDINARY push remedy now carries `_GATE_BEFORE_PUSH` before its push command (both unpushed
+    branches, driven; block_commit's "Then PUSH it", by its source); the urgent-90 checkpoint item
+    stays push-only (D-306: that tier runs no gate, and the wall holds the Bash one would need)."""
+    import ast
+
+    gate = hook._GATE_BEFORE_PUSH
+    assert "final_gate.py --check --json" in gate and "report it" in gate, gate
+    main, wt = _main_and_worktree(tmp_path)
+    for root, push in ((wt, "git push -u origin HEAD"), (main, "`git push`")):
+        if root is main:
+            (main / "notes.txt").write_text("a main note\n", encoding="utf-8")
+            _git(main, "add", "notes.txt")
+            _git(main, "commit", "-qm", "docs: main note")
+        reason = json.loads(_drive(monkeypatch, tmp_path, root))["reason"]
+        assert gate in reason and reason.index(gate) < reason.index(push), reason
+        after = reason[reason.index(gate) + len(gate) :]
+        assert after.startswith(("then push", "then publish")) and "push — then" not in reason, (
+            reason
+        )
+    tree = ast.parse(Path(hook.__file__).read_text(encoding="utf-8"))
+    urgent = next(
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.FunctionDef) and n.name == "_urgent_checkpoint"
+    )
+    in_urgent = {id(n) for n in ast.walk(urgent)}
+    orders = 0
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or id(node) in in_urgent:
+            continue
+        text = "".join(
+            c.value
+            for c in ast.walk(node.value)
+            if isinstance(c, ast.Constant) and isinstance(c.value, str)
+        )
+        if "git push" in text or "PUSH it" in text:
+            orders += 1
+            gate_at = [
+                (n.lineno, n.col_offset)
+                for n in ast.walk(node.value)
+                if isinstance(n, ast.Name) and n.id == "_GATE_BEFORE_PUSH"
+            ]
+            push_at = [
+                (c.lineno, c.col_offset)
+                for c in ast.walk(node.value)
+                if isinstance(c, ast.Constant)
+                and isinstance(c.value, str)
+                and ("git push" in c.value or "PUSH it" in c.value)
+            ]
+            # the gate clause comes BEFORE the push order in the source of the same expression
+            assert gate_at and min(gate_at) < min(push_at), ast.unparse(node)[:200]
+    assert orders >= 3, orders  # the two unpushed reasons and block_commit's
+    urgent_text = "".join(
+        c.value
+        for c in ast.walk(urgent)
+        if isinstance(c, ast.Constant) and isinstance(c.value, str)
+    )
+    assert "PUSH" in urgent_text and "--check --json" not in urgent_text

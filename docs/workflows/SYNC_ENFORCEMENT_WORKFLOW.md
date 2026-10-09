@@ -174,7 +174,7 @@ For each file:
 1. **Hash Comparison** — MD5 hash avoids unnecessary writes
 2. **Timestamp Check** — Won't overwrite if destination is newer
 3. **Backup Option** — Creates `.backup.YYYYMMDD-HHMMSS` before overwriting
-4. **Dry Run** — Preview changes without writing
+4. **Dry Run** — Preview changes without writing; names every file it WOULD copy or back up (`→`/`↻`) beside the SKIP and WARN lines, without needing `-v`
 5. **Permission Check** — Skips projects without write access
 6. **Symlink Replacement** — Replaces file and directory symlinks with real copies (workspace isolation)
 
