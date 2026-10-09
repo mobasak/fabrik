@@ -148,7 +148,8 @@ project-level and light). Per section:
 Run repeated reconciliation passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged — is reached.
 The Pass Ledger lives in the contract's Pass Ledger section when it carries one, else in the closing report; a
 re-freeze adds its own dated version entry there after that closing round, so its absence is never a finding in
-any round of the run.
+any round of the run. A run paused before that round (the Termination contract's no-seat pause) carries its rows
+so far in its `blocked --feedback` note, and the resumed run copies them into the entry.
 Each pass checks ALL of:
 
 1. **Coverage** — every entity from the spec (Mode A) / schema (Mode B) is present; every GUI/form field maps to

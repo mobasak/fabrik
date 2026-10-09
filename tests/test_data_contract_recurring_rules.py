@@ -1,7 +1,7 @@
 """/fabrik-data-contract queue — the recurring pass-ledger-placement subject (D-711: a recurrence is edited).
 
-Fleet practice (trade-intelligence, tryton-crm, transdoc): a contract that carries a Pass Ledger section gains one
-dated version entry per re-freeze, after the closing round. Each test asserts its sentence inside the paragraph
+Fleet practice (trade-intelligence, tryton-crm and transdoc carry a Pass Ledger section; the first two date their
+entries): a re-freeze adds one version entry there, after the closing round. Each test asserts its sentence inside the paragraph
 that owns it.
 """
 
@@ -27,7 +27,8 @@ def test_phase_3_names_the_ledger_home_and_when_the_version_entry_is_written() -
     assert (
         "The Pass Ledger lives in the contract's Pass Ledger section when it carries one, else in the closing report; "
         "a re-freeze adds its own dated version entry there after that closing round, so its absence is never a "
-        "finding in any round of the run."
+        "finding in any round of the run. A run paused before that round (the Termination contract's no-seat pause) "
+        "carries its rows so far in its `blocked --feedback` note, and the resumed run copies them into the entry."
     ) in phase3
 
 
