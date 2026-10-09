@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-29T19:32:56.964695Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "d3a364a37623f298b225c286e819cc4d11461a70",
   "id": "W-319a83d7",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Three hub scripts still write tracked files under the hard-coded /opt/fabrik root, so a worktree session's output lands in the main checkout: kaizen_digest.py, kaizen_shrink_audit.py, update_vps_docs.py"
 }
