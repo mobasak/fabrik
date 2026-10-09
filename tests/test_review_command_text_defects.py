@@ -145,25 +145,37 @@ def test_the_gate_scope_sentence_states_the_ruff_scope_and_points_at_the_referen
 
 
 def test_the_gate_writes_and_lints_only_staged_and_unpushed_work(tmp_path: Path) -> None:
-    """W-b63ffe1a: CLAUDE.md (hub and template) and fabrik-review.md say the fixers and ruff take only STAGED
-    changes plus unpushed commits. Drive get_writable_files on a scratch repo: a staged file is in it, an
-    unstaged edit to a tracked file is not."""
+    """W-b63ffe1a: CLAUDE.md (hub and template) say the fixers and ruff take only STAGED changes plus unpushed
+    commits, and that a bare run re-stages only what was staged at its start. Drive get_writable_files on a
+    scratch repo with an upstream: a staged file and an unpushed commit's file are in it; an unstaged edit to a
+    tracked file is not (it stays in the READ scope)."""
     for rel in ("CLAUDE.md", "templates/governance/CLAUDE.md"):
-        assert ("the gate scopes every fixer + `ruff` to your STAGED changes plus your committed-but-unpushed "
-                "commits — an unstaged edit is left alone until you stage it)") in _norm(REPO / rel), rel
-    g = ["git", "-C", str(tmp_path), "-c", "user.email=t@t", "-c", "user.name=t"]
-    subprocess.run([*g, "init", "-q"], check=True)
-    (tmp_path / "tracked.py").write_text("a = 1\n", encoding="utf-8")
+        assert ("a bare run auto-fixes **only the files your change touched** — every fixer + `ruff` is scoped to "
+                "your STAGED changes plus your committed-but-unpushed commits, and an unstaged edit is left alone "
+                "until you stage it — and re-stages only what was staged when it started, so a committed file it "
+                "fixes is left unstaged for you to commit.") in _norm(REPO / rel), rel
+    flow = _norm(REPO / "docs" / "workflows" / "FINAL_GATE_WORKFLOW.md")
+    assert ("its fixers and `ruff` to the narrower WRITE scope, staged + committed-but-unpushed") in flow
+    remote, work = tmp_path / "remote.git", tmp_path / "work"
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    g = ["git", "-C", str(work), "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run(["git", "init", "-q", str(work)], check=True)
+    (work / "tracked.py").write_text("a = 1\n", encoding="utf-8")
     subprocess.run([*g, "add", "tracked.py"], check=True)
     subprocess.run([*g, "commit", "-q", "-m", "base"], check=True)
-    (tmp_path / "tracked.py").write_text("a = 2\n", encoding="utf-8")  # unstaged edit to a tracked file
-    (tmp_path / "staged.py").write_text("b = 1\n", encoding="utf-8")
+    subprocess.run([*g, "remote", "add", "origin", str(remote)], check=True)
+    subprocess.run([*g, "push", "-q", "-u", "origin", "HEAD"], check=True, capture_output=True)
+    (work / "unpushed.py").write_text("c = 1\n", encoding="utf-8")
+    subprocess.run([*g, "add", "unpushed.py"], check=True)
+    subprocess.run([*g, "commit", "-q", "-m", "local"], check=True)
+    (work / "tracked.py").write_text("a = 2\n", encoding="utf-8")  # unstaged edit to a tracked file
+    (work / "staged.py").write_text("b = 1\n", encoding="utf-8")
     subprocess.run([*g, "add", "staged.py"], check=True)
     probe = (f"import sys; sys.path.insert(0, {str(REPO / 'scripts')!r}); import final_gate as fg; "
              "print(sorted(fg.get_writable_files())); print(sorted(fg.get_changed_files()))")
-    p = subprocess.run([sys.executable, "-c", probe], cwd=tmp_path, capture_output=True, text=True, check=True)
+    p = subprocess.run([sys.executable, "-c", probe], cwd=work, capture_output=True, text=True, check=True)
     writable, changed = p.stdout.splitlines()[-2:]
-    assert writable == "['staged.py']", p.stdout
+    assert writable == "['staged.py', 'unpushed.py']", p.stdout
     assert "tracked.py" in changed, "the READ scope still sees the unstaged edit"
 
 
