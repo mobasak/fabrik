@@ -80,7 +80,8 @@ Verified live: 19 dirs under `/opt/`, classified:
 | Category | Dirs | Pattern |
 |---|---|---|
 | **Standard** (has `compose.yaml` + `.env`) | `apprise`, `backrest`, `browserless`, `glitchtip`, `gotenberg`, `meilisearch`, `monitoring`, `n8n`, `postgres`, `site-provisioner` | back up whole dir |
-| **Compose-only** (has `compose.yaml`, no `.env` because container takes its config from `/config` bind mount) | `authelia`, `gatus`, `ocoron-com`, `redis`, `traefik` | back up whole dir |
+| **Compose-only** (has `compose.yaml`, no `.env` because container takes its config from `/config` bind mount) | `authelia`, `gatus`, `ocoron-com`, `redis` | back up whole dir |
+| **Compose + box-side secret file** | `traefik` — `cf.env` (root 600, single key `CF_DNS_API_TOKEN`, the scoped Cloudflare token the `cloudflare` DNS-01 resolver reads; its compose REQUIRES it, so a restore without it refuses to start traefik at all and `step_12b`'s `docker compose config -q` fails first) and `acme-cloudflare.json` (600, the DNS-01 certificate store beside `acme.json`) | back up whole dir |
 | **Special-shape** | `authelia-config-sync` (script + sync.sh, no compose), `backups` (script + pg_dumps + log), `fabrik` (orchestrator's own repo — `.git` excluded; covered separately by W9 for `.env`), `monitoring` (extra `gatus-compose.yaml`) | back up whole dir, except `fabrik/.git/**` |
 | **Skip** | `containerd` (Docker daemon state, not ours), `manually_installed.txt` (text marker) | exclude |
 
@@ -131,7 +132,7 @@ These two files are mirrored continuously to `mobasak/fabrik-dr-store`; recovery
 |---|---|
 | Docker `fabrik` external network | one `docker network create fabrik` line, no state to preserve |
 | `fabrik-compose-boot.service` + `/usr/local/bin/fabrik-compose-boot.sh` | installed fresh from the repo by `step_15b` (reboot-race safety net — reconciles every `/opt/*/compose.yaml` on boot); never restored from restic |
-| Let's Encrypt certs (`/opt/traefik/acme.json`) | re-issued on first request; ~5 min if not in scope, but **acme.json IS captured in `opt-configs`** so this is a fallback |
+| Let's Encrypt certs (`/opt/traefik/acme.json`) | re-issued on first request; ~5 min if not in scope, but **acme.json IS captured in `opt-configs`** so this is a fallback. The `*.tojlo.com` tenant wildcard (`acme-cloudflare.json`) re-issues over DNS-01 only, so only with `cf.env` restored (§C) |
 | Cron `@reboot` triggers | once cron file is in place, systemd cron re-fires them on boot |
 | Wireguard mesh peer handshakes | come up automatically once `wg-quick@wg0` starts with restored wg0.conf |
 

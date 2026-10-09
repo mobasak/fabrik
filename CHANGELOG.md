@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The hub traefik compose carries the box's Cloudflare DNS-01 references (2026-10-09, D-731)
+
+- `infra/vps1/traefik/compose.yaml`: `env_file: ./cf.env` and the `./acme-cloudflare.json` bind, so a redeploy or restore from the hub copy keeps the `*.tojlo.com` DNS-01 resolver; the files stay box-side.
+- `.gitignore`: `infra/**/cf.env`, `infra/**/acme*.json`, `infra/**/htpasswd` — a pull from the box can no longer stage them.
+- `docs/operations/hub-restore-inventory.md`, `infra/README.md`: traefik's box-side secret file and DNS-01 store named.
+- `tests/test_vps_apply_limits.py`: two tests (seen red before the change).
+
 ### Fixed — A spec naming a store its shape flag skips is warned at apply (2026-10-09, D-728)
 
 - `src/fabrik/orchestrator/infrastructure.py`: `depends_contradiction()` returns a diagnostic clause when `depends.postgres`, `depends.postgres_seed` or `depends.redis` names a store while `needs_database` / `needs_cache` is false or absent; `resolve_applicability` appends it to the not-applicable reason (`fabrik plan`, `fabrik audit --json`, dev_tools) and `provision()` logs it at WARNING so `fabrik apply` shows it. Five live hub specs carry it today (follow-up W-dcb7e19c; the spec producers, W-5ea0389b).
