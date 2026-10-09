@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — dispatch_headroom's TRIMMED-partition line names the fragment's remedy and the slices left short of finders (2026-10-09)
+
+- `scripts/sysadmin/dispatch_headroom.py`: a trimmed `--slices` partition said "re-sweep them next round", sending unread slices into a DELTA round after `commands/_fragments/subagents-core.md` moved them to further full-pass waves before any delta pass. The line now names that rule by its hub-absolute path, counts "slice seats" (it counted seats as "slices"), and says that a slice which lost a seat but kept another is read by fewer finders than its partition names — stated for every trim, because the cut is counted per model and the tool cannot know which slice lost which seat (kaizen 01M4F2H157).
+- `tests/sysadmin/test_dispatch_headroom.py`: three raw `claude_rotate --status` picture fixtures carried `"hold": False`, a value the picture never emits and `_hold_is_wall` reads as the wall — two tests were red at HEAD since W-37003fa1; they now carry `None`.
+
 ### Fixed — the review receipt's Gate section states /fabrik-review's close order (2026-10-09)
 
 - `scripts/review_receipt.py --init` said paste the gate "at the CONVERGED flip", so an agent ran it once, after the flip. The skeleton now names the order the command mandates (gate at `Status: IN-PROGRESS`, paste, flip, re-run, replace) and points at `/fabrik-review` § Reporting instead of paraphrasing it (kaizen 01M4F1KHBB). Graded by `tests/test_review_receipt.py::test_the_gate_section_states_the_commands_close_order`.
