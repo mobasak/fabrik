@@ -39,7 +39,7 @@ def test_a_fix_touched_slice_with_no_candidate_is_added_by_hand() -> None:
     tc = _norm(FRAG / "term-coverage.md")
     assert ("a slice a fix hunk touched holds one even when it raised no candidate, and "
             "`review_loop_ledger.py next` builds slices only from the `--ids` passed, so add that slice's ledger "
-            "by hand, one row per hunk — `{id: \"<slice>-F<n>\", file, line, claim: \"the fix hunk at <file:line> "
+            "by hand, one row per hunk — `{id: \"<slice>-X<n>\", file, line, claim: \"the fix hunk at <file:line> "
             "introduced a defect\"}`), or any claim") in tc
     sys.path.insert(0, str(REPO / "scripts"))
     try:
@@ -111,25 +111,34 @@ def test_the_decision_row_lands_after_the_code_with_its_id_reserved_before_the_c
     assert "staged in the fix commit" not in t
 
 
-def test_a_synced_path_matching_its_lock_is_a_sync_write_never_reverted() -> None:
-    """Row 1790455114: on a re-vendor diff every synced file is in the diff by design; the lock tells a sync's
-    write from a local edit (check_synced_unmodified compares against .fabrik/synced.lock)."""
+def test_a_synced_path_matching_its_lock_entry_is_a_sync_write_never_reverted(tmp_path: Path) -> None:
+    """Row 1790455114: on a re-vendor diff every synced file is in the diff by design. The lock entry tells a
+    sync's write from a local edit; the check also passes with NO lock, so the text never says 'passes'."""
+    import hashlib
+    import json
+
     t = _norm(SRC)
-    assert ("A synced path that matches the project's `.fabrik/synced.lock` (`check_synced_unmodified.py` passes) "
-            "is a sync's own write, not an edit: never revert it, and review only the repo's own files against "
-            "it.") in t
-    chk = (REPO / "scripts" / "enforcement" / "check_synced_unmodified.py").read_text(encoding="utf-8")
-    assert ".fabrik/synced.lock" in chk
+    assert ("A synced path whose md5 equals its entry in the project's `.fabrik/synced.lock` is a sync's own write, "
+            "not an edit: never revert it, and review only the repo's own files against it; with no lock, the rule "
+            "above applies.") in t
+    chk = [sys.executable, str(REPO / "scripts" / "enforcement" / "check_synced_unmodified.py"),
+           "--project-root", str(tmp_path)]
+    (tmp_path / "AGENTS.md").write_text("synced\n", encoding="utf-8")
+    assert subprocess.run(chk, capture_output=True, text=True, check=False).returncode == 0, "no lock: passes"
+    (tmp_path / ".fabrik").mkdir()
+    md5 = hashlib.md5(b"synced\n", usedforsecurity=False).hexdigest()
+    (tmp_path / ".fabrik" / "synced.lock").write_text(json.dumps({"AGENTS.md": md5}), encoding="utf-8")
+    assert subprocess.run(chk, capture_output=True, text=True, check=False).returncode == 0, "matches its entry"
+    (tmp_path / "AGENTS.md").write_text("edited\n", encoding="utf-8")
+    assert subprocess.run(chk, capture_output=True, text=True, check=False).returncode == 1, "a local edit reds"
 
 
-def test_the_gate_scope_sentence_names_what_the_fixers_and_ruff_read() -> None:
-    """Row 1790907152: only the fixers and ruff are scoped to the change set; every other check reads whole
-    directories or the tree."""
+def test_the_gate_scope_sentence_states_the_ruff_scope_and_points_at_the_reference() -> None:
+    """Row 1790907152: code pushed before the review is never linted by the ruff leg (staged + unpushed only);
+    the rest of the gate's scoping is CLAUDE.md's to state, so this sentence no longer restates it."""
     t = _norm(SRC)
-    assert ("`final_gate` takes no surface argument — its fixers and ruff read only the unpushed commits plus the "
-            "working tree's tracked changes (code pushed before the review is never linted by them: run ruff on "
-            "its paths by hand) and every other check reads whole directories or the whole tree — so on a shared "
-            "tree") in t
-    gate = (REPO / "scripts" / "final_gate.py").read_text(encoding="utf-8")
-    assert 'f"{base}...HEAD"' in gate and "ruff_py = _changed_python(" in gate
-    assert "mypy_target = detect_src_package()" in gate, "mypy reads the whole package, not the change set"
+    assert ("`final_gate` takes no surface argument and scopes each check its own way (CLAUDE.md § Completion "
+            "Contract 2); its ruff leg lints only staged changes and unpushed commits, so code pushed before the "
+            "review is linted by running ruff on its paths by hand. On a shared tree a check that reads beyond your "
+            "change can red on another lane's work, and") in t
+    assert "every other check reads whole directories" not in t
