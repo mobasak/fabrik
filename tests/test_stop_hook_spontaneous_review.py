@@ -925,3 +925,46 @@ def test_the_hooks_command_reading_matches_command_runs_normaliser():
     shapes = ("Fabrik-Review", "/fabrik-review-scoped", "//fabrik-review", "  /FABRIK-TASK ")
     for raw in (*shapes, "fabrik-spec", "/ x"):  # `//`: lstrip takes every leading slash
         assert fgs._command_name({"command": raw}) == cr._norm_command(raw), raw
+
+
+def test_a_running_review_widened_mid_run_exempts_a_pre_start_file_it_came_to_cover():
+    """W-24ae7ecf: a running review covers (start, inf), so its own post-start edits are covered
+    already; what it cannot cover is a file last edited BEFORE its start that its `--surface` did not
+    name. `command_run.py surface --add` records that path in `surface_adds`, which the exemption
+    reads as one whole token — red without the add, green with it, end to end through the reader the
+    sixth cause calls."""
+    t = float(int(time.time()))
+    rec = {
+        "command": "fabrik-review-scoped",
+        "state": "running",
+        "started_epoch": t - 60,
+        "surface": "scripts/a.py",
+    }
+    authored = {"scripts/pre.py": int(t - 600), "scripts/post.py": int(t - 30)}
+    floor = t - 7200
+    # the boundary the verb does not touch: a post-start edit is covered with no add at all
+    assert fgs._unreviewed_spontaneous_files(rec, authored, floor) == ["scripts/pre.py"]
+    widened = {**rec, "surface_adds": [{"path": "scripts/pre.py", "at": "2026-10-09T00:00:00Z"}]}
+    assert fgs._unreviewed_spontaneous_files(widened, authored, floor) == []
+    # a parked review's adds count exactly as its surface does
+    nested = {
+        "command": "fabrik-execute-plan",
+        "state": "running",
+        "started_epoch": t - 30,
+        "stack": [widened],
+    }
+    assert fgs._surface_reviewed(nested, authored) == {"scripts/pre.py"}
+    # never laundered by a record the exemption does not read
+    assert fgs._surface_reviewed({**widened, "state": "done"}, authored) == set()
+    assert fgs._surface_reviewed({**widened, "command": "fabrik-task"}, authored) == set()
+
+
+def test_malformed_surface_adds_are_inert_never_a_crash():
+    rec = {"command": "fabrik-review", "state": "running", "started_epoch": 1, "surface": "x.py"}
+    authored = {"scripts/pre.py": 1}
+    for bad in (None, 7, "scripts/pre.py", ["scripts/pre.py"], [{"path": 5}], [{}], [None]):
+        assert fgs._surface_reviewed({**rec, "surface_adds": bad}, authored) == set(), bad
+    # a hand-edited or older record's path is read the way the writer would have stored it
+    for spelled in ("./scripts/pre.py", "././scripts/pre.py", "scripts/pre.py."):
+        widened = {**rec, "surface_adds": [{"path": spelled, "at": "x"}]}
+        assert fgs._surface_reviewed(widened, authored) == {"scripts/pre.py"}, spelled

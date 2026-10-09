@@ -54,6 +54,7 @@ import hashlib
 import json
 import math
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -1274,6 +1275,103 @@ AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
 # The commands whose closed window reaches back to the previous covered window's close: a review
 # reviews the session's work SINCE the last run, so that span is covered by its contract.
 REVIEW_FAMILY = frozenset({"fabrik-review", "fabrik-review-scoped"})
+
+#: One repo path as the Stop hook's `_SURFACE_SPLIT` reads a token — the COMPLEMENT of that
+#: splitter's class, so a path `surface --add` accepts is exactly one token there. A second copy
+#: because the writer cannot import the hook; a parity grader binds the two (W-24ae7ecf).
+_SURFACE_PATH = re.compile(r"[A-Za-z0-9_./\\-]+")
+
+
+def _surface_token(t: str) -> str:
+    """A `surface` token EXACTLY as the hook reads one (`final_gate_stop._surface_reviewed`): ONE
+    leading `./` and every trailing `.` stripped. Used only to ask "does the surface already exempt
+    this path?" — a looser rule here would skip an add the hook then fails to match (`././x.py` reads
+    as `./x.py` there). Added paths never reach it: `posixpath.normpath` has already collapsed them."""
+    t = t[2:] if t.startswith("./") else t
+    return t.rstrip(".")
+
+
+def _surface_path(raw: str, root: str) -> tuple[str, str]:
+    """`(path, "")` for one repo FILE path as the hook will match it, or `("", why)`.
+
+    One normalisation, never a sequence of partial strips: an absolute path is resolved (symlinks
+    too) against the resolved repo root; a relative one is collapsed (`//`, `./`) by
+    `posixpath.normpath`; a `..` component, a backslash, a character outside the hook's token
+    alphabet, and anything that IS a directory in the repo are refused — a directory exempts
+    nothing, because the hook matches whole tokens against authored FILE paths."""
+    p = raw.strip()
+    if not p:
+        return "", "is empty"
+    if "\\" in p or not _SURFACE_PATH.fullmatch(p):
+        return "", "is not one repo path (letters, digits and `_./-` only — anything else splits)"
+    if p.startswith("/"):
+        real_root = os.path.realpath(root) if root else ""
+        real = os.path.realpath(p)
+        if not real_root or not real.startswith(real_root + "/"):
+            return "", f"is outside the repo ({root})"
+        p = real[len(real_root) + 1 :]
+    if ".." in p.split("/"):
+        return "", "has a `..` component"
+    p = _surface_token(posixpath.normpath(p))
+    # an empty `repo_root` (a record started outside git) is read relative to the cwd, never skipped
+    if not p or p == "." or os.path.isdir(os.path.join(root or ".", p)):
+        return "", "is a directory, not a file"
+    return p, ""
+
+
+def _surface_add(sid: str, rec: dict[str, Any], args: argparse.Namespace) -> int:
+    """`surface --add` (W-24ae7ecf): widen a RUNNING review's own sixth-cause exemption, mid-run.
+
+    A running review covers (start, inf), so its own edits are covered already; what it cannot
+    cover is a file last edited BEFORE its start that its `--surface` did not name. Each path goes
+    to `surface_adds` — never into `surface`, which stays the ledger's run dimension (see the
+    `--file` comment on `start`) — normalised as the hook reads a token. Every refusal is rc 1 with
+    nothing stored, including the no-record and closed-record cases `step` treats as warned no-ops.
+
+    COBRA (D-253): the cheapest misuse is to `--add` every file the sixth cause names and stop.
+    It buys nothing `start --surface` could not: the exemption lives only while the record runs
+    and is fresh, the running record keeps the fifth cause in force, `blocked`/`handoff` take it
+    back, and `done` covers the session anyway — and each add is kept with its time, so a widening
+    is countable, never invisible.
+    """
+    if not rec:
+        return _refuse("REFUSED — surface --add: no run record for this session")
+    if rec.get("state") != "running":
+        return _refuse(f"REFUSED — surface --add: this record is {rec.get('state')}, not running")
+    if _tokish(rec.get("command")).lstrip("/") not in REVIEW_FAMILY:
+        return _refuse(
+            "REFUSED — surface --add widens a running REVIEW only (fabrik-review, "
+            f"fabrik-review-scoped); this record is {rec.get('command')}"
+        )
+    root = str(rec.get("repo_root") or "").rstrip("/")
+    wanted: list[str] = []
+    for raw in args.add:
+        p, why = _surface_path(str(raw), root)
+        if why:
+            return _refuse(f"REFUSED — surface --add: {raw!r} {why}")
+        wanted.append(p)
+    named = {_surface_token(t) for t in _SURFACE_PATH.findall(str(rec.get("surface") or ""))}
+    prev = rec.get("surface_adds")
+    adds = [a for a in prev if isinstance(a, dict)] if isinstance(prev, list) else []
+    named |= {str(a.get("path")) for a in adds}
+    added: list[str] = []
+    for p in wanted:
+        if p in named:
+            continue
+        named.add(p)
+        adds.append({"path": p, "at": _now()})
+        added.append(p)
+    rec["surface_adds"] = adds
+    _touch(rec)
+    if not save(sid, rec):  # save() never raises: a False is an exemption that does not exist
+        return _refuse(
+            "REFUSED — surface --add: the run record could not be written; nothing added"
+        )
+    print(
+        f"SURFACE widened: {', '.join(added) if added else 'nothing new'} "
+        f"({len(adds)} path(s) added this run)"
+    )
+    return 0
 
 
 def _norm_command(value: object) -> str:
@@ -2800,6 +2898,20 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="ID",
         help="/fabrik-task only (lane v2): the lane-refusal id a /fabrik-spec DOWNGRADE handed back",
+    )
+
+    p = sub.add_parser(
+        "surface",
+        help="widen a RUNNING review's own exemption by path, mid-run (W-24ae7ecf)",
+        parents=[common],
+    )
+    p.add_argument(
+        "--add",
+        action="append",
+        required=True,
+        metavar="PATH",
+        help="one repo path per occurrence (repeatable): a file this review came to cover that its "
+        "`--surface` did not name — recorded in `surface_adds`, never in `surface`",
     )
 
     p = sub.add_parser("step", help="advance to a phase", parents=[common])
@@ -4442,6 +4554,9 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
     """
     rec = load(sid)
     outbox["started_at"] = rec.get("started_at") or ""
+
+    if args.cmd == "surface":  # before the closed-record no-op below: it refuses, rc 1
+        return _surface_add(sid, rec, args)
 
     if args.cmd in ("step", "round", "dispatch") and rec and rec.get("state") != "running":
         # A-F4 (review 2026-09-06): `_close` refuses to touch an already-closed record ("never

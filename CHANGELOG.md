@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `command_run.py surface --add`: a running review widens its own Stop-hook exemption (2026-10-09)
+
+- A running review covers `(start, ∞)`, so its own edits were never the gap; a file last edited BEFORE its `start` that its `--surface` did not name stayed flagged by the sixth cause until `done`. `surface --add <path>` records such a path in a new `surface_adds` field (never in `surface`, the ledger's run dimension), and `.claude/hooks/final_gate_stop.py` `_surface_reviewed` reads it as one whole token (W-24ae7ecf). Refuses every record but a running review and every value that is not one repo path, rc 1 with nothing stored. Graders in `tests/test_command_run.py` and `tests/test_stop_hook_spontaneous_review.py`, seven mutants red.
+
 ### Fixed — dispatch_headroom's TRIMMED-partition line names the fragment's remedy and the slices left short of finders (2026-10-09)
 
 - `scripts/sysadmin/dispatch_headroom.py`: a trimmed `--slices` partition said "re-sweep them next round", sending unread slices into a DELTA round after `commands/_fragments/subagents-core.md` moved them to further full-pass waves before any delta pass. The line now names that rule by its hub-absolute path, counts "slice seats" (it counted seats as "slices"), and says that a slice which lost a seat but kept another is read by fewer finders than its partition names — stated for every trim, because the cut is counted per model and the tool cannot know which slice lost which seat (kaizen 01M4F2H157).

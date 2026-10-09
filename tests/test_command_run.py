@@ -4540,11 +4540,22 @@ def test_a_command_with_no_closing_pass_closes_at_round_one(run_dir: Path) -> No
     the round-1 seats over their own slices". /fabrik-spec has no closing pass, no slices and no
     receipt — its convergence is /fabrik-spec-review's. A command in `NO_CLOSING_PASS` closes at a
     quiet round 1 and no line of its report demands a closing pass; a loop command keeps both."""
-    _cr(run_dir, "start", "--command", "fabrik-spec", "--phases", "7", "--terminal", "spec handed to review")
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-spec",
+        "--phases",
+        "7",
+        "--terminal",
+        "spec handed to review",
+    )
     one = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "grounding,panel")
     assert "TERMINAL VERDICT" in one.stdout, one.stdout
     assert "NOT TERMINAL" not in one.stdout, one.stdout
-    assert "run the closing pass" not in one.stdout and "round-1 seats" not in one.stdout, one.stdout
+    assert "run the closing pass" not in one.stdout and "round-1 seats" not in one.stdout, (
+        one.stdout
+    )
     rec = _rec(run_dir)
     rec["budget_min"], rec["started_epoch"] = 1, time.time() - 3600
     (run_dir / "s1.json").write_text(json.dumps(rec), encoding="utf-8")
@@ -4574,7 +4585,8 @@ def test_no_closing_pass_set_matches_the_command_sources() -> None:
     for p in src_dir.glob("*.md"):  # every source, `design-review.md` included
         text = p.read_text(encoding="utf-8")
         own_round = any(
-            _re.search(r"--(?:classes-swept|confirmed|own-fix)\b", ln) and _re.search(r"\bround\b", ln)
+            _re.search(r"--(?:classes-swept|confirmed|own-fix)\b", ln)
+            and _re.search(r"\bround\b", ln)
             for ln in text.splitlines()
         )
         loop_fragment = _re.search(r"\{\{include:term-(?:coverage|edit)\}\}", text)
@@ -7249,3 +7261,162 @@ def test_the_scope_growth_verdicts_close_on_a_confirmed_zero_round():
         assert "SCOPE GROWTH" in warn, warn
         assert "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355)" in warn, warn
         assert "ORIGINAL surface" not in warn, warn
+
+
+# --- W-24ae7ecf: `surface --add` widens a RUNNING review's own exemption mid-run -------------------
+
+
+def _rec_on_disk(run_dir: Path, sid: str = "s1") -> dict:
+    return json.loads((run_dir / f"{sid}.json").read_text(encoding="utf-8"))
+
+
+def _start_review(run_dir: Path, command: str = "fabrik-review-scoped") -> None:
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        command,
+        "--phases",
+        "1",
+        "--surface",
+        "scripts/a.py",
+        "--terminal",
+        "confirmed:0 closing pass",
+    )
+    assert r.returncode == 0, r.stderr
+
+
+def test_surface_add_refuses_every_record_but_a_running_review(run_dir: Path) -> None:
+    """No record, a closed record, a non-review record: rc 1 and the record unchanged — never the
+    warned rc-0 no-op `step` gives a closed record, which reads as success with nothing stored."""
+    r = _cr(run_dir, "surface", "--add", "tests/x.py")
+    assert r.returncode == 1 and "REFUSED" in r.stdout, (r.returncode, r.stdout, r.stderr)
+    _start(run_dir)  # fabrik-probe: not a review
+    before = _rec_on_disk(run_dir)
+    r = _cr(run_dir, "surface", "--add", "tests/x.py")
+    assert r.returncode == 1 and "REFUSED" in r.stdout, (r.returncode, r.stdout)
+    assert _rec_on_disk(run_dir) == before
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "x")
+    _start_review(run_dir)
+    _cr(run_dir, "blocked", "--command", "fabrik-review-scoped", "--reason", "x")
+    closed = _rec_on_disk(run_dir)
+    r = _cr(run_dir, "surface", "--add", "tests/x.py")
+    assert r.returncode == 1 and "REFUSED" in r.stdout, (r.returncode, r.stdout)
+    assert _rec_on_disk(run_dir) == closed
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["", "a b.py", "a.py,b.py", "scripts/", "scripts", ".", "a\\b.py", "../x.py", "/etc/passwd"],
+)
+def test_surface_add_refuses_a_value_that_is_not_one_repo_path(run_dir: Path, bad: str) -> None:
+    """A value the hook's splitter would cut into several tokens would exempt a fragment; a
+    directory exempts nothing (whole-token match); a path outside the repo is no repo file."""
+    _start_review(run_dir)
+    before = _rec_on_disk(run_dir)
+    r = _cr(run_dir, "surface", "--add", bad)
+    assert r.returncode == 1 and "REFUSED" in r.stdout, (bad, r.returncode, r.stdout, r.stderr)
+    assert _rec_on_disk(run_dir) == before, bad
+
+
+def test_surface_add_normalises_as_the_hook_reads_and_never_repeats(run_dir: Path) -> None:
+    _start_review(run_dir)
+    root = _rec_on_disk(run_dir)["repo_root"]
+    for value in (
+        "./tests/x.py",
+        "././tests/x.py",
+        "tests//x.py",
+        "tests/x.py..",
+        "tests/x.py.",
+        f"{root}/tests/x.py",
+        "tests/x.py",
+        "scripts/a.py",
+    ):
+        r = _cr(run_dir, "surface", "--add", value)
+        assert r.returncode == 0, (value, r.stdout, r.stderr)
+    adds = _rec_on_disk(run_dir)["surface_adds"]
+    # one entry: the four spellings of tests/x.py collapse; scripts/a.py is already the surface
+    assert [a["path"] for a in adds] == ["tests/x.py"], adds
+
+
+def test_surface_add_records_a_trace_and_never_writes_surface(run_dir: Path) -> None:
+    """The ledger's `surface` dimension keeps its meaning; the widening is its own field, with
+    the time of each add, so a close or an audit can count what a review widened mid-run."""
+    _start_review(run_dir)
+    r = _cr(run_dir, "surface", "--add", "tests/x.py", "--add", "docs/y.md")
+    assert r.returncode == 0, r.stderr
+    rec = _rec_on_disk(run_dir)
+    assert rec["surface"] == "scripts/a.py", rec["surface"]
+    assert [a["path"] for a in rec["surface_adds"]] == ["tests/x.py", "docs/y.md"]
+    assert all(isinstance(a.get("at"), str) and a["at"] for a in rec["surface_adds"])
+
+
+def test_surface_add_alphabet_is_the_hooks_token_alphabet() -> None:
+    """The writer refuses exactly what the hook's splitter would cut: the two are one alphabet,
+    kept as two copies because the writer cannot import the hook (the REVIEW_FAMILY twin rule)."""
+    cr = _load("command_run_surface_alpha", _SCRIPT)
+    hook = _load("final_gate_stop_surface_alpha", _HOOK)
+    assert hook._SURFACE_SPLIT.pattern == "[^" + cr._SURFACE_PATH.pattern[1:], (
+        hook._SURFACE_SPLIT.pattern,
+        cr._SURFACE_PATH.pattern,
+    )
+
+
+def test_surface_add_refuses_when_the_record_cannot_be_written(run_dir: Path) -> None:
+    """save() never raises; a False is an exemption that does not exist, so it is a refusal, never
+    a printed success (round 1: A-S1 / B-S4 / C-S1)."""
+    _start_review(run_dir)
+    before = _rec_on_disk(run_dir)
+    run_dir.chmod(0o555)
+    try:
+        r = _cr(run_dir, "surface", "--add", "tests/x.py")
+    finally:
+        run_dir.chmod(0o755)
+    assert r.returncode == 1 and "could not be written" in r.stdout, (
+        r.returncode,
+        r.stdout,
+        r.stderr,
+    )
+    assert _rec_on_disk(run_dir) == before
+
+
+def test_surface_add_resolves_an_absolute_path_through_a_symlinked_root(tmp_path: Path) -> None:
+    cr = _load("command_run_surface_symlink", _SCRIPT)
+    real = tmp_path / "real"
+    (real / "tests").mkdir(parents=True)
+    alias = tmp_path / "alias"
+    alias.symlink_to(real)
+    assert cr._surface_path(f"{alias}/tests/x.py", str(real)) == ("tests/x.py", "")
+    assert cr._surface_path(f"{real}/tests/x.py", str(alias)) == ("tests/x.py", "")
+
+
+def test_surface_add_skips_only_what_the_hook_already_exempts(run_dir: Path) -> None:
+    """The dedup asks "does the surface already exempt this path?" with the HOOK'S rule: a surface
+    token `././tests/x.py` reads as `./tests/x.py` there, which matches nothing, so the add is kept."""
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review-scoped",
+        "--phases",
+        "1",
+        "--surface",
+        "././tests/x.py",
+        "--terminal",
+        "confirmed:0 closing pass",
+    )
+    assert r.returncode == 0, r.stderr
+    assert _cr(run_dir, "surface", "--add", "tests/x.py").returncode == 0
+    assert [a["path"] for a in _rec_on_disk(run_dir)["surface_adds"]] == ["tests/x.py"]
+
+
+def test_surface_add_refuses_a_directory_even_with_no_repo_root(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Round 2: an empty repo_root (a record started outside a repository) short-circuited the
+    directory check, so a real directory was accepted as a file."""
+    cr = _load("command_run_surface_noroot", _SCRIPT)
+    (tmp_path / "scripts").mkdir()
+    monkeypatch.chdir(tmp_path)
+    assert cr._surface_path("scripts", "") == ("", "is a directory, not a file")
+    assert cr._surface_path("scripts/x.py", "") == ("scripts/x.py", "")

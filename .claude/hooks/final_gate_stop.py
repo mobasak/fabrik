@@ -1539,6 +1539,10 @@ def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = N
     # (round 2, seat finding 2 — 14 parity cells, 2 disagreed, both writer-reachable).
     live = rec.get("state") == "running"
     surfaces: list[str] = []
+    # W-24ae7ecf: `command_run.py surface --add` widens a RUNNING review by path, mid-run, in its
+    # own field — the surface stays the ledger's run dimension. The writer normalises each path to
+    # this splitter's alphabet, so a path is one whole token here; anything malformed is skipped.
+    tokens: set[str] = set()
     for holder in [rec, *(_seq(rec, "stack") if live else [])]:
         if not isinstance(holder, dict):
             continue
@@ -1547,9 +1551,19 @@ def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = N
         s = holder.get("surface")
         if isinstance(s, str) and s:
             surfaces.append(s)
-    if not surfaces:
+        adds = holder.get("surface_adds")
+        for a in adds if isinstance(adds, list) else []:
+            path = a.get("path") if isinstance(a, dict) else None
+            if isinstance(path, str) and path:
+                # the writer's own normalisation, repeated: a hand-edited or older record cannot
+                # carry a `./` or trailing `.` past it (round 1, B-S1)
+                while path.startswith("./"):
+                    path = path[2:]
+                path = path.rstrip(".")
+                if path:
+                    tokens.add(path)
+    if not surfaces and not tokens:
         return set()
-    tokens: set[str] = set()
     for s in surfaces:
         for raw in _SURFACE_SPLIT.split(s):
             if not raw:
