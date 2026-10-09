@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-09T02:44:36.359549Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5ea0389b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "spec-chain or a panel ruling first — a TRADE-OFF the build cannot settle: overlaying needs_cache=true moves a project off shared redis-main db0 onto its own index and, ungated, applies to static-site/docusaurus/file-worker too (review O1, executed on 11 of 11 types); dropping depends.redis instead removes REDIS_URL from compose.yaml.j2 (renders it only under depends.redis, O2). Decide kind gating + db0-vs-index, then fix both producers with a grader that fails on the ungated Depends line (O3); retire or align fabrik new (O6).",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Spec producers still emit depends.redis beside needs_cache false: spec_generator.py:525 (depends.redis='main' whenever the scanned compose env contains the substring 'redis') and the deprecated fabrik new --from-project (cli.py:243-253, depends.postgres/redis 'main' with no shape) — the runtime now warns (W-81524f52), the producers are unfixed"
+}

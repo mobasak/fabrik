@@ -2396,32 +2396,53 @@ def test_hub_settings_json_worktree_block_is_present_and_well_formed():
     round 12, class 3: "hooks/permissions present and non-empty" is a much weaker
     claim than the Behavior Contract row this test exists to satisfy — "byte-
     identical to before" — a hook silently ADDED alongside the worktree block would
-    still pass a bare non-empty check. `5fd58526` is the commit immediately before
-    T01a/T01b touched this file (confirmed: it has no `worktree` key at all), so its
-    `.claude/settings.json` is the real "before" — asserted via `git show`, not a
-    hand-copied literal, so a legitimate future edit to hooks/permissions updates
-    this test's baseline by moving the pinned commit forward, never by loosening the
-    assertion."""
+    still pass a bare non-empty check. That claim is about the commit that ADDED
+    the block, so it is asserted there: `18065037f` (T01b) against its own parent,
+    via `git show`. Pinning the whole file to a past commit instead reds on every
+    later sanctioned hook edit (61ebee4cd's seat guard did), and the cheapest way to
+    keep that pin green is never to touch settings.json (intel 01M4F1E8PX)."""
     raw = (REPO / ".claude" / "settings.json").read_text(encoding="utf-8")
     settings = json.loads(raw)  # raises if the file is not valid JSON
 
     assert settings["worktree"] == {"baseRef": "head", "symlinkDirectories": [".venv"]}
 
-    base_raw = subprocess.run(
-        ["git", "show", "5fd58526:.claude/settings.json"],
+    def _settings_at(rev: str) -> dict:
+        out = subprocess.run(
+            ["git", "show", f"{rev}:.claude/settings.json"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+
+        def _no_duplicate_keys(pairs: list) -> dict:
+            keys = [k for k, _ in pairs]
+            assert len(keys) == len(set(keys)), f"{rev}: duplicate key in settings.json {keys}"
+            return dict(pairs)
+
+        # json.loads keeps the LAST of two duplicate keys, so an inserted duplicate would hide
+        # behind the original and pass both checks below
+        return json.loads(out, object_pairs_hook=_no_duplicate_keys)
+
+    before, added = _settings_at("18065037f^"), _settings_at("18065037f")
+    assert "worktree" not in before, "guard: 18065037f must be the commit that added the block"
+    assert "worktree" in added, "guard: 18065037f must be the commit that added the block"
+    added.pop("worktree")
+    assert added == before, (
+        "the commit that added the worktree block changed another key of "
+        ".claude/settings.json — the block must be the ONLY change it made"
+    )
+    # parsed equality is blind to reordering and re-indentation; "byte-identical to before"
+    # also needs the commit to have DELETED no line of the file. Pure addition + no duplicate key
+    # + equality minus `worktree` leaves the inserted lines room for the block and whitespace only
+    numstat = subprocess.run(
+        ["git", "diff", "--numstat", "18065037f^", "18065037f", "--", ".claude/settings.json"],
         cwd=REPO,
         capture_output=True,
         text=True,
         check=True,
-    ).stdout
-    base_settings = json.loads(base_raw)
-    assert "worktree" not in base_settings, "guard: 5fd58526 must predate the worktree block"
-
-    for key in ("hooks", "permissions", "enableAllProjectMcpServers"):
-        assert settings[key] == base_settings[key], (
-            f"{key} must be byte-identical to its value at 5fd58526 — the worktree "
-            f"block is the ONLY sanctioned change to this file"
-        )
+    ).stdout.split()
+    assert numstat[1] == "0", f"18065037f deleted lines of .claude/settings.json: {numstat}"
 
     lines = raw.splitlines()
 

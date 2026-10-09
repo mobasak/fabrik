@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-data-contract: an approved spec naming the delta confirms a re-freeze (2026-10-09)
 - Phase 0: a FROZEN contract's re-freeze STOP is satisfied by a spec whose approval row (the panel's `→ both-approve` or the operator's approving answer) is in `docs/DECISIONS.md` and whose § Contract deltas (a `Profile: delta` spec's section) names the change; anything else still stops. Phase 3 gains check 5, which re-checks the deltas before the Phase-4 flip (D-730, decided by the Opus + Fable panel).
 
+### Fixed — the settings.json worktree-block test no longer reds on every sanctioned hook edit (2026-10-09)
+- `tests/test_sync_worktree_adoption.py::test_hub_settings_json_worktree_block_is_present_and_well_formed` pinned the live file's `hooks`/`permissions` to their value at 5fd58526, so the seat-guard hook (61ebee4cd) turned it red and nothing saw it (the hub pytest leg is off). The contract it guards — adding the worktree block changed nothing else — is now asserted on the commit that added it: 18065037f against its parent, parsed equal minus `worktree`, no deleted line, no duplicate key. The live worktree value and indentation checks stay. Reported by intel (01M4F1E8PX).
+
 ### Changed — /fabrik-data-contract states where the Pass Ledger lives (2026-10-09)
 - `commands/_sources/fabrik-data-contract.md`: the Pass Ledger lives in the contract's Pass Ledger section when it carries one, else in the closing report; a re-freeze adds its own version entry after the closing round, so its absence is never a finding in any round; a paused run carries its rows in `blocked --reason` (the `--feedback` line is the capped usage grammar). Phase 2's exact template shape keeps an existing ledger section, and Phase 4 and the Guardrails name the entry as an exempt post-convergence write. Answers the recurring pass-ledger-placement verdicts (D-711). Grader: `tests/test_data_contract_recurring_rules.py`. Of the 34-row queue: 27 rejected (7 landed, 20 one-off advice), 3 code rows routed to infra and fleet, 2 re-freeze-STOP rows held for an operator decision.
 
@@ -27,6 +30,11 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the Stop hook names the gate before every push it orders (2026-10-09)
 - `.claude/hooks/final_gate_stop.py` told an agent with unpushed commits to run a bare `git push`. On a clean tree the hook never runs the gate, so it ordered a red-gated commit to be published, contradicting close-chain's commit → gate → push. A new constant `_GATE_BEFORE_PUSH` now comes before the push order in both unpushed block reasons and in block_commit's "Then PUSH it". It reads "gate green on your change first (`final_gate.py --check --json` from the repo root; an inherited or sibling red is the repo's — report it, it does not hold the push)". The urgent-90 checkpoint item stays push-only (D-306). `tests/test_stop_hook_worktree_push.py` drives both reasons and AST-checks every push order's source order. `docs/workstation/hooks-index.md` quotes the constant. kaizen 01M4EP8A40.
+
+### Fixed — A spec naming a store its shape flag skips is warned at apply (2026-10-09, D-728)
+
+- `src/fabrik/orchestrator/infrastructure.py`: `depends_contradiction()` returns a diagnostic clause when `depends.postgres`, `depends.postgres_seed` or `depends.redis` names a store while `needs_database` / `needs_cache` is false or absent; `resolve_applicability` appends it to the not-applicable reason (`fabrik plan`, `fabrik audit --json`, dev_tools) and `provision()` logs it at WARNING so `fabrik apply` shows it. Five live hub specs carry it today (follow-up W-dcb7e19c; the spec producers, W-5ea0389b).
+- `tests/test_registrar_depends_contradiction.py`: 14 tests (seen red on the unchanged code, on the pre-review pin and on a prefix-dropping mutant).
 
 ### Fixed — Scaffolded file-worker carries the template's ruff/mypy config (2026-10-09, D-726)
 
