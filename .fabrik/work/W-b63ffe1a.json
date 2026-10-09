@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-09T01:13:29.875607Z",
   "creator": "kaizen",
-  "evidence": "",
+  "evidence": "02657dae4d21bea83a6292cbcc76ed3cceda40b6",
   "id": "W-b63ffe1a",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "kaizen"
   ],
