@@ -1,6 +1,6 @@
 # Plan — session-history retention: archive, prove, then prune
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** fleet
 Revision: 2026-10-11 — **Phase C REOPENS under the operator's ruling D-736**; CONVERGED the same day by `/fabrik-plan-review` after 16 passes (§ Pass Ledger, revision 2026-10-11) (supersedes D-470's
 3650-day local keep and D-565's Phase C deferral). Operator, 2026-10-11, verbatim: *"i want all my
@@ -231,7 +231,17 @@ The local round trip is measured. **The leg back from B2 is not, and it is the o
 sha256 equals the run-1 row's and differs from the run-2 row's; outputs embedded.
 ⚠️ A failed or skipped Gate B is a `BLOCKED:` escalation.
 
-## Phase C — ROTATE, TAG, PRUNE (reopened 2026-10-11, D-736)
+## Phase C — ROTATE, TAG, PRUNE (reopened 2026-10-11, D-736) — EXECUTED-pending-Gate-C 2026-10-11
+
+> **C.0–C.4 EXECUTED 2026-10-11** (D-742): the archive current (310 rows), the agent tag and the ROTATE advisory
+> (aa876c94b), the pruner and its subagent tier (09624683c) with the unit on `--dry-run`, the contract in the docs
+> and the four requests (1416db236); three full `/fabrik-review` loops, each closing at confirmed 0 (receipts
+> `…-phase-2-c1-review.md`, `…-phase-3-c2-c3-review.md`, `…-phase-5-c4-review.md`). **Nothing has been deleted:**
+> the live dry-run refuses every candidate (`not-indexed` 7,082 of 9,742). **Gate C is boarded, not passed** —
+> `W-c49a7adf` (0: infra's merge + `install_session_archive_timer.sh` from the main checkout), `W-18d6d1ae`
+> (1: the operator's Gate B download proof), `W-0fc6fe12` (1b: session-recall's nightly ingest + the DSN); steps
+> (2)–(6) follow them, each a pasted table, and the unit's `--dry-run` stays until (6). Status stays IN-PROGRESS
+> until Gate C.
 
 **What changed since the deferral.** The deferral's three tripwires were disk, a proven restore and
 searchability. Disk never fired; what fired instead was the VS Code extension host: it OOM'd four
@@ -269,8 +279,17 @@ duplicate rows from the `/compact` re-append bug (#92089) are 9.7%. Deduplicatio
 tenth; the rest is exactly the tool output session-recall indexes. Rotation makes the live file
 small by construction and leaves the content where search already is.
 
-### C.0 — Verify the archive is current for the hub windows (read-only, 10 min)
+### C.0 — Verify the archive is current for the hub windows (read-only, 10 min) — ✅ EXECUTED 2026-10-11 (the C.1 commit; read-only, no diff of its own)
 Appetite: 10
+
+> **Executed 2026-10-11 13:34–13:44 UTC:** rather than wait for the 00:00 timer, `systemctl --user start
+> session-archive.service` ran the installed unit by hand (9,769 MAIN transcripts eligible, **310 new
+> manifest rows**, `Finished` rc 0). The probe then showed every hub window with a fresh row —
+> infra `dd3c06d1` 1,530,478,917 B, intel `4e90716e` 1,158,228,129 B, fleet `1970a0ff` 803,835,706 B,
+> kaizen `5fa5812d` 79,177,890 B, all `archived_at` 2026-10-11T13:34/35Z — intel and kaizen unchanged
+> since (A.1a will skip them tonight), infra and fleet already grown (open windows, the daily snapshot
+> catches them). Not BLOCKED: the archive is current. Probe script: `scratchpad/c0_probe.py`
+> (identity rows → session ids → `stat` vs the latest manifest row; metadata only).
 
 The 2026-10-11 00:17 run failed on DNS (`lookup api.backblazeb2.com … read udp`), systemd's 15-min
 restart succeeded with 51 rows, and the hub windows had no new row that night. Not a defect: they
@@ -280,8 +299,16 @@ correctly (§ Evidence — Phase C, probe 1). C.0 just re-runs the probe after t
 records the four fresh rows; a hub window with NO row for two consecutive nights while its file
 changed is a `BLOCKED: missing infra — the archive is not current` before anything else in Phase C.
 
-### C.1 — Tag by agent, rotate the named windows (non-destructive)
+### C.1 — Tag by agent, rotate the named windows (non-destructive) — ✅ EXECUTED 2026-10-11 (aa876c94b; review fixes 14701439e · 4ea95fa87 · 6898b3244; receipt d2ab1d7fe)
 Appetite: 90
+
+> **Executed 2026-10-11:** `scripts/sysadmin/transcript_size_check.py` (new, the user-level UserPromptSubmit hook),
+> `archive_transcripts.py` (`agent` key via the identity row else the registry join on pid + procStart as integers;
+> the `--agent <name>` verb), `install_user_hooks.py` wiring, 20 new tests seen red first in a throwaway worktree
+> (94 pass over the three modules), docs rows (INDEX, hooks-index, session-history-retention, CONFIGURATION,
+> `.env.example`). The full `/fabrik-review` ran 4 rounds — 18 → 6 → 1 → 0 confirmed, 25 FIXED / 0 REFUTED — and its
+> receipt `docs/development/reviews/2026-09-06-plan-1-session-history-retention-phase-2-c1-review.md` is CONVERGED
+> with the post-flip `final_gate.py --check` embedded. Nothing deleted, nothing under `~/.claude/projects` touched.
 
 - **C.1.1 `agent` in the manifest row.** `archive_transcripts.py` reads
   `~/.claude/state/agent-identity.jsonl` (one JSON per line: `session_id`, `name`, `pid`,
@@ -318,8 +345,11 @@ Appetite: 90
   never per-prompt:** `~/.claude/state/rotate-advised/<session_id>` records the 100 MB step last
   advised; the line prints only when the size crosses a NEW step (200, 300, 400 …), so a window that
   does not rotate hears it once per 100 MB, not on every prompt — `install_user_hooks.py:37-42`
-  records why: the per-prompt shape was measured and rejected ("9 of 9 live sessions fired on EVERY
-  prompt … wallpaper is how enforcement dies", D-184/D-187).
+  records why: the bare per-prompt shape was measured and rejected for `scratch_sweep` ("9 of 9 live
+  sessions fired on EVERY prompt … wallpaper is how enforcement dies", D-184/D-187); the stamp is
+  this hook's counter-measure to that shape (its fire rate is bounded by steps, by construction),
+  not a repeat of that measurement. The read-compare-write runs under an `flock`, so two windows of
+  one session print a step once; an ambiguous registry join tags nothing (review 2026-10-11).
   Why 200: the extension crashed users at 467 MB (#23953) and loops past 2 GiB; a busy hub window
   grows ~25 MB/day (infra: 1,528 → 1,530 MB in a day of light use; the 2026-10-05 → 10-11 delta
   was ~170 MB), so 200 MB is roughly a week and keeps every window an order of magnitude under the
@@ -359,8 +389,22 @@ agent_verb` green after red (`--agent <name>` lists only that agent's rows, newe
 local-file flag); `python3 scripts/sysadmin/install_user_hooks.py --check` exit 0 with the new hook
 listed (`tests/test_install_user_hooks.py`).
 
-### C.2 — The pruner (the ONLY deleter of MAIN transcripts under `~/.claude/projects`)
+### C.2 — The pruner (the ONLY deleter of MAIN transcripts under `~/.claude/projects`) — ✅ EXECUTED 2026-10-11 (09624683c; review fix 6f79449f1; receipt e094b5bdd)
 Appetite: 150
+
+> **Executed 2026-10-11:** `scripts/sysadmin/prune_transcripts.py` (new) — the eight fail-closed clauses in this
+> section's order, the last look (stat + OPEN re-read before EACH unlink), the fsynced `pruned.jsonl` row before
+> every unlink, the cap and the `--expect` echo, the `prune-log.jsonl` summary row written in a `finally`,
+> `--restore` / `--verify-ledger` / `--status`, the archiver's lock; `_group_by_inode` skips (and names) a vanished
+> path; the unit's second `ExecStart=-… --dry-run`; `psycopg2-binary` declared, `uv.lock` regenerated; the
+> `.env.example` / CONFIGURATION rows. Graders: 49 in `tests/test_prune_transcripts.py` + 4 in
+> `tests/test_archive_transcripts.py`, every clause seen red (30/30 then 9/9 mutations red in throwaway worktrees).
+> **Gate C.2 dry-run over the live tree:** 9,742 inodes scanned · deletable 0 · not-indexed 7,082 ·
+> newest-of-slug 1,618 · in-window 1,040 · newest-of-agent 2 · 22 files over 200 MB reported · exit 0 — nothing
+> deleted (rule 8 refuses everything until session-recall's ingest and the DSN exist, as this section predicts).
+> The full `/fabrik-review` over C.2 + C.3: 16 raised / 15 confirmed / 1 refuted in round 1, all fixed in
+> 6f79449f1; round 2 confirmed 0 — receipt
+> `docs/development/reviews/2026-09-06-plan-1-session-history-retention-phase-3-c2-c3-review.md` CONVERGED.
 
 New `scripts/sysadmin/prune_transcripts.py` — `--dry-run` is the default and prints a table; `--apply`
 deletes. It runs after the archiver from the same unit as a second `ExecStart=` line in
@@ -556,8 +600,15 @@ of them until session-recall's ingest timer exists — that count is the evidenc
 the unit-file test asserts `Type=oneshot`, the archiver's `ExecStart` first and the pruner's
 `ExecStart=-` second; `ruff check` + `ruff format --check` clean. **No `--apply` in this gate.**
 
-### C.3 — Subagent transcripts, tasks, shell snapshots: a 3-day cliff, no archive
+### C.3 — Subagent transcripts, tasks, shell snapshots: a 3-day cliff, no archive — ✅ EXECUTED 2026-10-11 (09624683c, with C.2; receipt e094b5bdd)
 Appetite: 60
+
+> **Executed 2026-10-11:** `prune_transcripts.py --tier subagents` (included by `--nightly`): sidechains older than
+> the window whose parent is not OPEN and not in flight (the stop-decider's rule, `subagent_running` copied), plus
+> `~/.claude/tasks/` and `~/.claude/shell-snapshots/` entries by age — one `pruned.jsonl` row each, no cap, never
+> archived. Graders red-first (a young sidechain stays, an in-flight one stays, a live parent keeps all, tasks and
+> snapshots by age). Reviewed with C.2 (the one review this section's gate names); its one candidate (a parent-OPEN
+> test for tasks/snapshots) was refuted against the Behavior Contract row — age alone, as written.
 
 `prune_transcripts.py --tier subagents`: `~/.claude/projects/<slug>/<session>/subagents/agent-*.jsonl`
 older than 3 days whose parent session is not OPEN (C.2.1 rule 2) and which
@@ -572,8 +623,22 @@ window stays; an in-flight sidechain stays; a live parent keeps all its subagent
 shows the subagent tier's counts; `--apply` only at Gate C; the full `/fabrik-review` over C.2 + C.3
 runs here, after both tiers exist (review floor).
 
-### C.4 — Docs, the three governance files, session-recall
+### C.4 — Docs, the three governance files, session-recall — ✅ EXECUTED 2026-10-11 (1416db236; review fixes 9a42fca7e · a6730b30c; receipt 786645688)
 Appetite: 60
+
+> **Executed 2026-10-11:** hub `CLAUDE.md` § Pointers carries the session-history paragraph; the retention doc
+> gained the restore path after a prune (`--restore`), the morning check (`--status`, `--verify-ledger`,
+> `--agent`) and the named-windows section; the archiver's header and MARKER stopped saying nothing prunes
+> (in the C.2 review fix 6f79449f1); `.env.example` / CONFIGURATION rows landed in C.1/C.2. **The four
+> requests (D-441):** infra `01M4NVZGE9VTE3TK57ZVECD8FF` (the governance-template paragraph) and
+> `01M4NVZJTMSSBDTVPSR7M4X7GF` (`whoami_agent.py`: a `/clear` predecessor binds without `--force`); fabrik-lib
+> `01M4NVZMZ9THM7DFYMKSBCF82P` (its `CLAUDE.md` paragraph); session-recall `01M4NVZQ7NJR8F2GZMZKZPTB3E`
+> (keep archived sessions on `--full`, an `agent` column, a nightly ingest + the `recall_ro` DSN — rule 8
+> waits on it); replies `01M4NWR4HZD8K531SPP09JRQPT` / `01M4NWRF5VNEFB27AQT7A579A8` name the two deliberate
+> deviations the quoted paragraph carries. Gate C.4: `check_doc_links.py` OK (0 broken of 3,734 refs);
+> `docs_updater.py --check` reports only pre-existing items outside this surface (an old plan's broken links,
+> the PLANS block). The full `/fabrik-review`: 7 raised / 6 confirmed / 1 refuted → 1 own-fix → 0 — receipt
+> `docs/development/reviews/2026-09-06-plan-1-session-history-retention-phase-5-c4-review.md` CONVERGED.
 
 - `docs/workstation/session-history-retention.md`: "nothing prunes" becomes the C.2 contract, the
   restore path after a prune, the `--agent` verb and the ROTATE line; `archive_transcripts.py`'s header

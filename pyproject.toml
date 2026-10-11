@@ -29,6 +29,9 @@ dependencies = [
     "psutil>=6.0.0",
     "uvicorn[standard]>=0.30.0",
     "jsonschema>=4.17.0",
+    # scripts/sysadmin/prune_transcripts.py reads session-recall's index_state through the
+    # read-only role (D-736 C.2 rule 8) — the one dependency the retention plan authorises.
+    "psycopg2-binary>=2.9",
 ]
 
 [project.optional-dependencies]

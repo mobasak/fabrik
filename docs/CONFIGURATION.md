@@ -119,6 +119,10 @@ New projects never needed a Coolify API token.
 | `SESSION_ARCHIVE_B2_KEY_ID` / `SESSION_ARCHIVE_B2_APPLICATION_KEY` | an application key restricted to that bucket, read + write |
 | `SESSION_ARCHIVE_B2_PREFIX` | path under the bucket, default `archive` |
 | `SESSION_ARCHIVE_ENV_FILE` | where the archiver reads every `SESSION_ARCHIVE_*` setting (key, bucket, prefix) from when the process environment lacks it or holds an empty value, default `/opt/fabrik/.env` — only `SESSION_ARCHIVE_*` lines are read |
+| `ROTATE_ADVISE_MB` | the ROTATE advisory's threshold in MB (default 200; D-736 C.1.3) — `scripts/sysadmin/transcript_size_check.py` prints its one line when a session's transcript is at or past it and has crossed a new 100 MB step; read from the process env, else this file's line |
+| `PRUNE_AFTER_DAYS` | the pruner's window in days (default 3; D-736 C.2.1 r1) — `scripts/sysadmin/prune_transcripts.py` never offers a MAIN transcript whose `mtime` is inside it, nor a subagent sidechain, task or shell snapshot; read from the process env, else this file's line |
+| `PRUNE_MAX_PER_RUN` | the cap on MAIN deletions per pruner run (default 200; C.2.2) — every run takes the oldest cap-many deletable inodes and reports the rest `deferred`; a hand run's `--max M` replaces it |
+| `SESSION_RECALL_RO_DSN` | session-recall's EXISTING read-only role `recall_ro` (`/opt/session-recall/db/schema.sql`), copied here by the operator — the pruner reads `index_state` by inode through it (C.2.1 r8) and deletes nothing it has not indexed to the file's current size; absent ⇒ every file is refused `not-indexed`. Never printed |
 | `ARCHIVE_ROOT` / `ARCHIVE_AFTER_DAYS` / `ARCHIVE_MAX_FILE_MB` | local archive dir (`~/.claude/archive`), idle window in days (default 0 — every MAIN transcript, so an open window ships a daily snapshot), optional per-file ceiling |
 
 **How to get the key:** B2 console → Application Keys → Add a New Application Key, restricted to
@@ -1024,4 +1028,5 @@ means updating this page in the same change. This list is generated from those h
 
 - `scripts/enforcement/check_mutation.py`
 - `scripts/mail.py`
+- `scripts/sysadmin/prune_transcripts.py`
 <!-- END related-scripts -->
