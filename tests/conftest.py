@@ -206,6 +206,16 @@ def _isolated_opt_dir(tmp_path, _private_monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolated_decisions_resolver(tmp_path, _private_monkeypatch):
+    """`docs_updater.py --adopt` writes its MERGE OWNER row through the hub's `decisions.py --append`,
+    which reserves the id in the box-wide store under the REAL `~/.claude/state/decision-ids`
+    (W-e1b1052e). Pinned to a missing script for every test, so an adopt run in a test takes the
+    local fallback and never touches that store; a test that wants the real resolver sets
+    `FABRIK_DECISIONS_PY` (and `HOME`) itself after this — as the merge_request tests already do."""
+    _private_monkeypatch.setenv("FABRIK_DECISIONS_PY", str(tmp_path / "no-decisions-py-in-tests.py"))
+
+
+@pytest.fixture(autouse=True)
 def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
     """The convergence and coverage graders read the SESSION'S OWN run record (T4.1/T4.5 —
     `CLAUDE_SESSION_ID` or the harness's `CLAUDE_CODE_SESSION_ID`, under `COMMAND_RUN_DIR` or the

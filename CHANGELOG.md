@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `docs_updater.py --adopt` can no longer take a decision id a sibling has reserved (2026-10-11)
+- `--adopt` minted its MERGE OWNER row id as the ledger's max+1 and appended it outside `decisions.py`'s reservation lock, so it could issue an id a sibling worktree held via `--reserve-id`. The row is now written by the hub's `decisions.py --append` (`$FABRIK_DECISIONS_PY`, else `/opt/fabrik`), under the lock; a box without the hub, or a ledger with rows but no table separator, falls back to the local id with a NOTE, and any other failure writes no row and returns 3. `decisions.py`'s lock now tells "busy" from "store unreachable": an unreachable store (no state dir, or a read-only one) writes without reserving instead of refusing with the timeout's message (W-e1b1052e).
+
 ### Fixed — concurrent shells no longer break the pre-push gate (2026-10-11)
 - Every interactive shell ran a bare `pre-commit install -t pre-push`, which rewrites the hook in place; two shells starting together read each other's half-written file as foreign and left a `pre-push.legacy` copy, after which every push failed "installed in migration mode" (live on 2026-10-11; 16 of 20 trials with 8 concurrent installs). `scripts/install_pre_push_hook.sh` now installs it under one `flock` in the shared hooks dir, heals a self-copy or empty legacy (by pre-commit's own `# ID:` line), leaves a current hook untouched (an in-place rewrite briefly leaves an empty hook, which git runs as a pass), and reports a foreign legacy; `scripts/wsl_startup_hook.sh` calls it (W-cd77f476).
 
