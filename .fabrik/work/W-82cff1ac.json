@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-19T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "6a3169d585ba807be322552cb00aa7a7c6dd1893",
   "id": "W-82cff1ac",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:d14d0bba8b87",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "The parity contract: a scaffold template and two command sources written apart and never executed together (wef3 01M2SJT2ZVYP1SM573GDEJYG5Z / 01M2SJVGJQQ65YYBMFW0Q0CSCV / 01M2ST86PY4RZW89TG7NFC0D10..."
 }
