@@ -94,6 +94,48 @@ zstd -d /tmp/r.zst -o /tmp/r.jsonl                                              
 - Put a restored file back under `~/.claude/projects/<slug>/<session>.jsonl`; session-recall picks
   it up on its next incremental index.
 
+### After a prune — `prune_transcripts.py --restore`
+
+A session the pruner removed (Phase C, D-736) is listed in `~/.claude/archive/pruned.jsonl` — one row
+per deletion with the slug, the session id, the sha256, every path removed, the agent tag and the
+object's size and SHA1 — and that file ships to the bucket with the archive, so the list is off-box too.
+
+```bash
+cd /opt/fabrik
+.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore <session_id> [--slug <slug>]
+```
+
+- It re-creates EVERY path the row names as one inode: when a hard-linked twin survived with the row's
+  sha256, the missing names are linked to it and nothing is fetched; otherwise the object is fetched
+  (the download host above applies), verified against the row's sha256, written to the first missing
+  path (never over an existing file) and hard-linked to the rest. The inode's `mtime` is set to now, so
+  the next dry-run keeps it for 3 more days; `/resume` lists it again.
+- A surviving path with ANOTHER sha256 is live history: the restore refuses (exit 3) and names it.
+- A failed fetch is a refusal naming the three causes (object absent · download host unreachable ·
+  rclone itself failed) with `--fetch`'s own line; nothing is written.
+- Exit codes: 0 restored · 3 refused · 1 error · 2 usage.
+
+### The morning check
+
+```bash
+.venv/bin/python scripts/sysadmin/prune_transcripts.py --status          # the last run's row and the last APPLY row
+.venv/bin/python scripts/sysadmin/prune_transcripts.py --verify-ledger   # every pruned object still listed with its size + SHA1
+.venv/bin/python scripts/sysadmin/archive_transcripts.py --agent infra   # one named window's history, newest first
+```
+
+## Named hub windows — `agent`, `--agent`, and the ROTATE line
+
+Each manifest row carries `"agent": "<name>"` when the session is bound to a hub agent (D-736 C.1): the
+latest `~/.claude/state/agent-identity.jsonl` row for its session id, else the registry join
+(`~/.claude/sessions/<pid>.json` → `pid`+`procStart` ↔ the identity row's `pid`+`pid_start`, as integers),
+which is what tags a window after `/clear`. `archive_transcripts.py --agent <name>` lists that agent's
+rows newest first with whether the local file still exists — "infra's history" is that list plus
+session-recall. The pruner keeps each agent's NEWEST session as well as each project's. When a window's
+transcript passes `ROTATE_ADVISE_MB` (200 MB) the user-level hook prints one `ROTATE:` line per 100 MB
+step: run `/clear <agent>-<date>`, then `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent>
+--force` — the holder the line names is this window's own claude process, so the `--force` is informed;
+the previous session stays resumable and is archived that night.
+
 ## Checking it
 
 ```bash
