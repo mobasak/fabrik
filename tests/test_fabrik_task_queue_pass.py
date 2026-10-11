@@ -117,3 +117,8 @@ def test_second_pass_names_the_specific_steps_in_their_phases() -> None:
     assert "`--evidence` names the split; a terminal it changed was restated with `--terminal-amend`" in close
     upgrade = _norm(SRC)[_norm(SRC).index("## UPGRADE"):]
     assert "appended to that seed file before `/fabrik-spec` opens from it (never to the `resume_copy`)" in upgrade
+
+
+def test_size_declares_operator_named_work_as_heavy() -> None:
+    """Row 1791755899: operator-named work is lane row 1b's heavy surface, declared at SIZE, not found at phase 4."""
+    assert "`heavy=yes` includes operator-named work (lane row 1b)" in _section("## SIZE", "## Phase 1")

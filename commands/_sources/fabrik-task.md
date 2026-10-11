@@ -38,7 +38,8 @@ python3 scripts/command_run.py start --command fabrik-task --phases 5 \
   --declare decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no,consumers=internal
 ```
 
-*(v2)* `consumers=external` when another repo reads the change; v1 ignores the key.
+*(v2)* `consumers=external` when another repo reads the change; v1 ignores the key. `heavy=yes` includes
+operator-named work (lane row 1b), declared here rather than found at phase 4.
 
 `--file` is repeatable, ONE quoted repo path each. A path that does not exist yet is accepted on
 purpose: **declare the grader you are about to write**; `ls` and grep every other path for the rule first, since
