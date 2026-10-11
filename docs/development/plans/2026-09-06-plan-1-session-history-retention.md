@@ -218,7 +218,7 @@ The local round trip is measured. **The leg back from B2 is not, and it is the o
   ISOLATED prefix (`SESSION_ARCHIVE_B2_PREFIX=restore-proof`, a scratch `CLAUDE_PROJECTS_DIR` and
   `ARCHIVE_ROOT`, `ARCHIVE_AFTER_DAYS=0`): archive a synthetic transcript (run 1), append a line to
   it, archive again (run 2), delete the scratch source, then `--fetch /<slug>/<sid>.jsonl.zst out.zst
-  --version-at <T>` — `T` captured with `date -u +%Y-%m-%dT%H:%M:%SZ` after run 1 returns, with at
+  --version-at <T>` — `T` captured from the SERVER's clock after run 1 returns (`curl -sI https://api.backblazeb2.com/ | grep -i ^date:` — B2 stamps a version with its own upload time; this box ran 2 min 49 s behind it on 2026-10-12 and a `date -u` instant read "absent"), with at
   least 2 s before run 2 starts (`archived_at` is the compression time, not the upload, § A.1a) —
   and match its decompressed sha256 to the RUN-1 row —
   the bytes no file on disk holds any more. (One live run cannot do this: a bucket version exists
@@ -231,7 +231,7 @@ The local round trip is measured. **The leg back from B2 is not, and it is the o
 sha256 equals the run-1 row's and differs from the run-2 row's; outputs embedded.
 ⚠️ A failed or skipped Gate B is a `BLOCKED:` escalation.
 
-## Phase C — ROTATE, TAG, PRUNE (reopened 2026-10-11, D-736) — EXECUTED-pending-Gate-C 2026-10-11
+## Phase C — ROTATE, TAG, PRUNE (reopened 2026-10-11, D-736) — EXECUTED 2026-10-12 (Gate C passed)
 
 > **C.0–C.4 EXECUTED 2026-10-11** (D-742): the archive current (310 rows), the agent tag and the ROTATE advisory
 > (aa876c94b), the pruner and its subagent tier (09624683c) with the unit on `--dry-run`, the contract in the docs
@@ -904,6 +904,71 @@ allaboutcoding.ghinda.com/where-ai-coding-clis-store-session-logs. Code anchors 
 hook payload's `transcript_path`, the field the ROTATE hook reads too);
 `.pre-commit-config.yaml:158-164` (the governance-sync filter — `scripts/sysadmin/` and the user-level
 hook list are outside it; `templates/governance/` and `.claude/hooks/` are inside).
+
+### Gate C — execution log (2026-10-12, fleet; operator D-746 "proceed and do not stop again for the things you can handle yourself")
+
+**(0) infra's merge + timer re-install — DONE** (`c3ca37677` merged 2026-10-11; `systemctl --user cat session-archive.service` line 27
+`ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_transcripts.py --dry-run`; timer next 2026-10-12 00:14).
+
+**(1) Gate B's download proof — PASSED through a SOCKS tunnel to vps1** (`ssh -N -D 127.0.0.1:1080 ozgur@vps1.ocoron.com`,
+`HTTPS_PROXY=socks5://127.0.0.1:1080`, which reaches rclone through the archiver's child environment — it strips only `RCLONE_*`).
+This network's SNI filter still drops `f004.backblazeb2.com` directly (`curl --resolve f004.backblazeb2.com:443:149.137.128.16` times out);
+through the tunnel it answers `HTTP 301`. Verbatim (scratch `gateb-run.out`, `gateb-b4-probe.sh`):
+```
+== B.1 fetch /-opt-seo/8fe44dc5-a1ef-4f95-a79f-c5b19dfcee02.jsonl.zst from the bucket (through the tunnel)
+fetched … -> …/gateb/r.zst   fetch rc=0   object bytes 7918
+== B.2 decompress, cmp against the live original, sha256 against the row
+  cmp: IDENTICAL
+  sha256 fetched : 43fcd3a37c25d51cde6896bfc19d5dd0c9184731220459a64eae809c1dc5f891
+  sha256 row     : 43fcd3a37c25d51cde6896bfc19d5dd0c9184731220459a64eae809c1dc5f891   sha256: MATCH
+== B.4 two versions of a synthetic transcript in restore-proof/ (run 1 at 21:15:00Z, run 2 at 21:15:15Z, source deleted)
+2026-10-11T21:18:00Z -> version with 1 line(s), sha256 == run-1 source: B.4 MATCH
+2026-10-11T21:19:00Z -> version with 2 line(s) (sha 11fe4e48…)
+== B.5 remote-count (the manifest fetched from the bucket)
+remote_objects 9923   remote_manifest_sha256 2a9a7784834bf2b4b651460c1013f25884e6aa360889fe7abd5a61301b4faa74
+```
+B.4's recipe as written (`T` from the local clock, 3 s after run 1) returned NOTHING at every instant from 21:15:16Z to 21:17:40Z:
+this box's clock is 2 min 49 s BEHIND B2's (`date -u` 21:19:51Z while both B2 hosts answered `Date: … 21:22:40 GMT`), and
+`--b2-version-at` is keyed on the server's upload time. The proof holds; the lesson is in `docs/LESSONS_LEARNT.md`.
+
+**(1b) session-recall's side — LIVE.** The index is incremental within minutes (a turn of this session written 21:14 was returned by
+`search_chats` at 21:33; `recent_chats` for the worktree slug reports nothing because the hard-linked transcript is indexed under
+`-opt-fabrik`, D-467). `SESSION_RECALL_RO_DSN` is present in `/opt/fabrik/.env` (by name — copied by fleet under D-746 after the
+operator's ruling; `grep -c '^SESSION_RECALL_RO_DSN=' /opt/fabrik/.env` → 1; hub `.env` backed up to `backups/.env.backup.20261012-000806`).
+Session-recall's own request mail (01M4NVZQ7NJR8F2GZMZKZPTB3E) is still unread in their inbox; their reply is no longer a Gate C input.
+
+**The archive is current:** a manual `archive_transcripts.py` run at 23:12–00:32 shipped 230 new rows (9,739 → 9,969; the 217 same-day
+transcripts and the changed ones); 11 of the 230 carry an `agent` tag — `infra`, `fleet`, `intel`, `kaizen` among them (the first tagged
+rows: C.1 landed after the day's earlier run).
+
+**(2) dry-run with the index visible (through the tunnel; a direct `rclone lsf` took > 3 min per slug):**
+```
+prune_transcripts (dry-run): MAIN tier — 9959 transcript inode(s) scanned · deletable 7280 · this run 200 (cap 200) · deferred 7080
+  refusals: in-window 1059 · newest-of-agent 2 · newest-of-slug 1618
+  over-threshold (> 200 MB): 22 file(s)
+```
+`not-indexed` is 0 (the line is gone); this run's 200 come from 4 slugs (trade-intelligence 105 · youtube 48 · -tmp 36 · -home-ozgur 11).
+
+**(3) the canary — `--apply --max 10 --expect 10`:**
+```
+prune_transcripts: deleted 10 (MAIN 10 inode(s), subagent-tier 0); deferred 7272; ledger /home/ozgur/.claude/archive/pruned.jsonl
+```
+(3 `-home-ozgur` + 7 `-opt-youtube` sessions, the oldest; one fsynced `pruned.jsonl` row before each unlink.)
+
+**(4) two restored from the bucket alone, then the ledger verified:**
+```
+restore: 3b5d6a6e-77d3-4097-aeef-ac5aea8f905e — fetched; paths ['…/-opt-youtube/3b5d6a6e-….jsonl']; sha256 83c29f423de3… verified; mtime now   (69036 bytes back)
+restore: 247cfafc-0ca5-46b0-834c-f8b7c1ff18d6 — fetched; paths ['…/-opt-youtube/247cfafc-….jsonl']; sha256 b290a3928663… verified; mtime now   (70140 bytes back)
+verify-ledger: 10 row(s), 0 MISSING
+```
+
+**(5) `--status`:** `last apply: {"deleted": 10, "deletable": 7282, "deferred": 7272, "mode": "apply", …}`.
+
+**(6) the unit flipped and installed** (`scripts/sysadmin/systemd/session-archive.service` → `--apply --nightly`; installed from this
+worktree's `install_session_archive_timer.sh`, which copies the unit from its own tree): `systemctl --user cat session-archive.service`
+line 27 `ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_transcripts.py --apply --nightly`; next run
+Tue 2026-10-13 00:00. **Gate C PASSED 2026-10-12 00:50** — the first nightly apply deletes the oldest 200 of the deferred 7,272, and
+the morning check is `prune_transcripts.py --status` + `--verify-ledger`.
 
 ## Gate mechanics
 
