@@ -8,9 +8,9 @@ Gate B.4 of the retention plan (`archive_transcripts.py --fetch … --version-at
 2 min 49 s behind Backblaze (`date -u` 21:19:51Z against both B2 hosts' `Date: 21:22:40 GMT`), and B2 stamps a version with ITS upload
 time, so a locally captured instant lands before the first upload and reads "absent". Probing forward found the run-1 bytes at
 21:18:00Z and the proof passed.
-- **Capture `T` from the service, not the shell:** `curl -sI <server> | grep -i ^date:` after the first write, or sleep past any plausible skew.
-- **A restore tool that prints "absent from the bucket, or the download host is unreachable" for a clock miss misdirects the reader** — the
-  archiver's fetch cannot tell the three apart; the plan's B.4 text now says to take `T` from the server.
+- **Capture `T` from the service, not the shell:** `date -u -d "$(curl -sI <server> | sed -n 's/^[Dd]ate: //p')" +%Y-%m-%dT%H:%M:%SZ` after the first write, plus 2 s for the floored second. Never "sleep past the skew": that only helps when the box is BEHIND the server — ahead of it, a local `T` lands after the SECOND upload and returns the newer version silently, a wrong restore rather than an absent one.
+- **A restore tool that prints "absent from the bucket, or B2's download host is unreachable from this network" for a clock miss misdirects the reader** — the
+  archiver's fetch cannot tell a clock miss from those two causes; the plan's B.4 text now says to take `T` from the server.
 - **An SNI filter on the download host is routed around, not waited out:** a SOCKS tunnel through our own VPS (`ssh -N -D`) carries
   `HTTPS_PROXY` into rclone through the archiver's child environment; the keys never leave the box.
 
