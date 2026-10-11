@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a window's own `/clear` successor binds its agent name without `--force` (2026-10-12)
+- fleet's request (mail 01M4NVZJTM, D-736): `/clear` starts a new session id in the same `claude` process, and `whoami_agent.py --as <agent>` refused it because the window's own earlier row looked like a live holder. A row carrying this process's exact pid and start time (and agreeing with `CLAUDE_PID`) is now a predecessor, recorded on the new row with or without `--force`; a live foreign holder and a pre-start-time row still refuse (W-34cb1ef9, D-748). Stored pids are compared as ints, which also stops a start time stored as a string from reading a live holder as dead.
+
 ### Changed — /fabrik-task: the whole feedback queue answered in one pass (2026-10-11)
 - MEASURE executes the real path; MIRROR searches the whole tracked tree and names each new guard's fail direction; the lane's critique brief has seats execute claims and replay the incident; a pre-record checklist; graders execute their subject and every added guard is mutated; v1's single commit carries the ledgers; phase 4's third question excludes an equivalent implementation; the `--review` receipt's range tip is the last `--commit`. The design-critique fragment no longer re-critiques the version that folds its ACCEPTED concerns (D-734, D-735).
 
