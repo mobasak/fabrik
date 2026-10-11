@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: the whole feedback queue answered in one pass (2026-10-11)
+- MEASURE executes the real path; MIRROR searches the whole tracked tree and names each new guard's fail direction; the lane's critique brief has seats execute claims and replay the incident; a pre-record checklist; graders execute their subject and every added guard is mutated; v1's single commit carries the ledgers; phase 4's third question excludes an equivalent implementation; the `--review` receipt's range tip is the last `--commit`. The design-critique fragment no longer re-critiques the version that folds its ACCEPTED concerns (D-734, D-735).
+
 ### Added — the Repos tab filters by owner (2026-10-11)
 - Operator ask: "here i want to see assigned tasks for infa, kaizen, intel, fleet and unassigned". Each repo pane on the quota dashboard's Repos tab now opens with owner chips (All, infra, fleet, intel, kaizen, other owners, (unassigned), each with its count); every owner's items are a collapsible section, All shows them closed and a chip shows just that owner, and the choice (and the sections opened under All) is kept per repo in the browser (D-745).
 
