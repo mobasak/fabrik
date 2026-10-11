@@ -6,13 +6,13 @@ or name in the brief why the shape does not have it.
 
 ## Before the first pin (the lead executes)
 - Run the changed artifact end to end when it can run, and check the END STATE a recipe exists to produce, not only
-  each step; run a README snippet, usage text or rewritten docstring instruction as a caller would.
+  each step; run a README snippet, usage text or rewritten docstring instruction as a caller would, and probe its still-raises list.
 - Trace the entry path: the first caller that reaches the fixed function; enumerate every call shape through a new
   branch and every input path of a shared reader; trace each rationale sentence's mechanism to the code, and execute
   every "X only when Y" claim the fix adds.
 - Enumerate the fix's input class whole (boundary, empty, unset, mandated, non-dict/non-string, every Unicode
   whitespace class, the real committed files' shapes counted by an independent parser) and probe it again before
-  each delta; enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red — committing the
+  each delta; keep an adversarial input list for the fix's own new edges; enumerate each guard's ESCAPE VARIANTS in both directions — false green and false red — committing the
   positive/negative probe list beside it.
 - Name the defect's class and grep the whole class (every site, sibling guards, every scaffold type, recursively,
   vendored venvs and `.claude/worktrees` excluded) before patching one instance; diff sibling implementations side
@@ -105,8 +105,7 @@ or name in the brief why the shape does not have it.
   corrected fact stated at the original claim's scope; every clause on a count-fixed line, and every reworded README
   claim, checked against the code lines it names; a count cites the command (with its range — the brief hands the
   seat that exact command) and the line that holds it, a measured count names its population, a closing brief names
-  each figure's source and the record's own round trend, a live value is a timestamped snapshot; an unverified
-  hand-derived enumeration is deleted.
+  each figure's source and the record's own round trend, a live value is a timestamped snapshot; a code snippet in prose is a checkable claim; an unverified hand-derived enumeration is deleted.
 - A site a round re-opened, a bullet wrong two rounds running, or a mechanism the fix added and a round broke, is
   rewritten or deleted whole, never patched again.
 
@@ -114,15 +113,12 @@ or name in the brief why the shape does not have it.
 - Seats copy the pin to scratch and assert its md5s first; tests run against an archive of the pinned SHA by the
   seat prompt's `PIN_IMPORT`/`PYTEST_PINS` recipe — the whole test tree archived so collection succeeds, the live
   repo's `.venv` python (never `uv run`), no `.env` copied (a dummy on `.invalid` only for an import-failing
-  variable); the pins line follows the real layout and the digest is the pin authority. A SEAT never runs
-  `git worktree add` on the shared `.git` — the lead's mutate-restore cycle uses CLAUDE.md's throwaway worktree, with
-  upstream set and `.env` linked before its first gate. Ruff and mypy run from the repo root with the repo's own
+  variable); the pins line follows the real layout and the digest is the pin authority. A SEAT never runs `git worktree add` on the shared `.git` outside its scratch; red-on-revert runs in a throwaway worktree, never a `PYTHONPATH` copy, and the lead's mutate-restore cycle uses CLAUDE.md's throwaway worktree — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo root with the repo's own
   config; tests run by exact node id.
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
-  packs) is read at the pin; the brief names which shell guard a seat is under (it refuses a command whose text holds
-  `git` even as a substring, such as `isdigit`, so the seat writes such a probe to a file) and hands readers a ready
-  probe harness file; a claim only the home directory can settle is recorded up front for the lead.
+  packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word `git` inside a `-c` program or heredoc as a git call, so the seat writes such a probe to a file) and hands readers a ready
+  probe harness file, never promising a tool the seat does not have (the Write tool); a claim only the home directory can settle is recorded up front for the lead.
 - Every file a grader reads is pinned, the uncommitted module under test included; a "nothing changed for readers"
   claim is proven on a pinned input; a concurrent sibling run on a shared DB is a known false red; a seen-red on a
   DB-writing script names its sandbox.
@@ -130,26 +126,24 @@ or name in the brief why the shape does not have it.
 ## Loop bookkeeping
 - Run `dispatch_headroom.py` before the pin, then stamp `command_run.py dispatch --seats <SEATS + one refuter per
   unit>` before the dispatching message — the stamp is an upper bound, closed by the round's `--seats`; a SEATS 0 on a
-  box cap is an in-turn wait (re-run once a minute), and when the box is bound or the `Workflow` tool cannot load,
-  seats go out through the `Agent` tool; while seats are out, build the next fixes in a scratch copy, never the
+  box cap is an in-turn wait (re-run once a minute), and when the `Workflow` tool is absent or cannot load the script, seats go out through the `Agent` tool and the close's `--evidence` names `shape: agent-tool`; while seats are out, build the next fixes in a scratch copy, never the
   pinned files, and keep a timer running; write the Workflow args JSON to scratch, and relaunch an interrupted pass
   as a NEW `Workflow` invocation carrying the ledger in `args` — never `resumeFromRunId`.
 - A round is recorded only after every candidate is read, each classed as a defect of THIS change, pre-existing or
-  planned before it counts; `confirmed` counts DEFECTS, never checks passed, and a gate-caught defect counts; each
-  brief embeds its ledger text; a delta brief lists the exact mutant ids executed, reads a unified diff, and checks
+  planned before it counts; `confirmed` counts DEFECTS, never checks passed, and a gate-caught defect counts; each brief embeds its ledger text and the special-attention list generated from the seat packet; a delta brief lists the exact mutant ids executed, reads a unified diff, and checks
   ROUTED claims for routing only; a one-hop edit found mid-fix is named in the next brief; stale pre-existing text
-  in an edited file is in-hop; the slice ledger is round 1's claim count even at zero confirmed.
+  in an edited file is RECORDED with a destination (term-coverage D4), or fixed in the same hunk and named — never
+  counted; the slice ledger is round 1's claim count even at zero confirmed.
 - Lint or format findings are compared against HEAD — and against the committed diff, under every claimed toolchain
   version — before they are reported or refuted; tests re-run after the last lint fix; a refutation that a later
-  commit lands is checked against the completion gate; read the callee before confirming a wrong-method finding; a
-  refuter that needs a forbidden surface asks the lead to run the check rather than marking it unverified; run the
+  commit lands is checked against the completion gate; read the callee before confirming a wrong-method finding; a refuter that needs a forbidden surface marks it `unverified` naming the surface, and the lead executes it; run the
   files a reader names, not every grep hit.
 - Remainder rounds: a remainder round names the classes its fixed set re-sweeps; it never fixes a RECORDED candidate;
   a finding it raises is fixed when it is a defect of the fixed set and routed when it is not; a premise-refuted
   verdict is re-probed under the later reader's rule; a slice a trim left with one finder gets its second in the next
   wave.
 - Route-up and close: a fix that adds a file re-applies step 1's count; a critical finding on a published contract
-  routes up at once; a `Profile: small` phase's third confirming round hands off; artifacts the review itself
+  routes up at once;  artifacts the review itself
   created go to a follow-up loop; a RECORDED residue whose surface is another beat's is mailed at the close;
   shared-ledger hunks land before the closing pass; the completion gate runs before the terminal round is recorded,
   remembering that its unpushed scope includes base commits a fast-forward brought in and that staged-diff checks
