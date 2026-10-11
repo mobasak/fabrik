@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-11T16:17:11.863282Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "c8c741908dc2caf270ef2617973bb0bfe98d105f",
   "id": "W-c49a7adf",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "gate-c",
     "infra"
