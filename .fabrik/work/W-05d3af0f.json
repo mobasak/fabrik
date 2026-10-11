@@ -13,7 +13,7 @@
   },
   "next": "make the claim/continue cause stand down while the fleet band is AMBER/RED/WALL (read via quota_posture_hook's posture, as the coordinator spec D3 does for the ring cause) and say so in one line; test red on HEAD with a stubbed AMBER posture; full /fabrik-review (hook surface)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 1,
   "status": "open",
   "tags": [
