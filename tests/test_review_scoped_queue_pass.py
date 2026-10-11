@@ -42,7 +42,8 @@ def test_the_catalogue_sections_hold_their_probes() -> None:
     prose = _section(cat, "## Prose and docs fixes", "## Seat isolation")
     assert "re-read an inserted sentence with the one after it" in prose
     iso = _section(cat, "## Seat isolation", "## Loop bookkeeping")
-    assert "`git clone --local`, never `git worktree add` on the shared `.git`" in iso
+    assert "A SEAT never runs `git worktree add` on the shared `.git`" in iso
+    assert "never `resumeFromRunId`" in _section(cat, "## Loop bookkeeping", None)
     loop = _section(cat, "## Loop bookkeeping", None)
     assert "`confirmed` counts DEFECTS, never checks passed" in loop
 
