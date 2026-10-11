@@ -453,6 +453,17 @@ session-recall — structured rows beat lexical transcripts.
 - **fabrik-lib** (`/opt/fabrik-lib/`): reusable modules — vendor (copy), don't import. Check `fabrik-lib/README.md`
   for the module table before building from scratch. New module = `README.md` + `requirements.txt` + a row in
   that table.
+- **Session history (D-736):** every MAIN transcript ships to B2 nightly (`scripts/sysadmin/archive_transcripts.py`)
+  and its local copy is pruned after 3 days by the guarded pruner `scripts/sysadmin/prune_transcripts.py` — never an
+  open session, never a project's or an agent's newest, never a file the archive, the bucket and session-recall's index
+  cannot vouch for byte-for-byte. Subagent transcripts, `~/.claude/tasks` and shell snapshots are pruned after 3 days
+  too and are NEVER archived. Old history is searched through session-recall (§ Past sessions are searchable) or put
+  back with `.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore <session_id> [--slug <slug>]`
+  (`--status` and `--verify-ledger` are the morning check). When the transcript-size `ROTATE:` line appears, run
+  `/clear <agent>-<date>` now; a named hub window then re-binds with
+  `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force` (whoami's flag, not git's: the holder the line
+  names is this window's own claude process). The pruner's current mode and every rule:
+  `docs/workstation/session-history-retention.md`.
 - **Subagent fan-out** (detail: `.windsurf/rules/core/62-using-subagents.md`): **⚠️ THE OPENROUTER POOL IS OFF —
   D-181/D-182 — OFF BY POLICY:** the provider credentials stay provisioned, so a `fanout` would still dispatch and
   spend; this text and the gate are the control. Every fan-out a command names runs **NATIVE** — Claude Task

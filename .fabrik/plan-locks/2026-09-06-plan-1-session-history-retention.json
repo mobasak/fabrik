@@ -10,11 +10,26 @@
     "docs/development/plans/2026-09-06-plan-1-session-history-retention.md",
     "docs/superpowers/specs/2026-09-05-session-history-retention-design.md",
     ".env.example",
-    "docs/CONFIGURATION.md"
+    "docs/CONFIGURATION.md",
+    "scripts/sysadmin/prune_transcripts.py",
+    "tests/test_prune_transcripts.py",
+    "scripts/sysadmin/transcript_size_check.py",
+    "tests/test_transcript_size_check.py",
+    "scripts/sysadmin/install_user_hooks.py",
+    "tests/test_install_user_hooks.py",
+    "docs/workstation/hooks-index.md",
+    "CLAUDE.md",
+    "pyproject.toml",
+    "uv.lock"
   ],
   "branch": "worktree-fleet",
   "started_at": "2026-10-05T03:30:00Z",
   "status": "active",
   "baseline_commit": "5820b32fbb33cf879aa3691e7ce36537dd428a57",
-  "baseline_gate": {"status": "success", "red_checks": []}
+  "baseline_gate": {
+    "status": "success",
+    "red_checks": []
+  },
+  "phase_c_resumed_at": "2026-10-11T13:55:00Z",
+  "phase_c_baseline_commit": "34bd3f1ac"
 }

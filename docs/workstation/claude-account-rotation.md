@@ -364,10 +364,15 @@ own success artifact advanced (`claude-sound.sh mesh-notify` exits 0 on every ou
 is read from `<lockdir>/<key>.notified`, which it writes solely on a delivered send; both readings
 are judged against one clock value taken before the call, so a stale artifact after a backward
 clock step never confirms a send that did not happen, and a forward step past the tolerance in
-that instant only reads a delivered send as unconfirmed — re-attempted each tick, so it may be
-delivered once more when the notifier's window lapses), under the push's OWN
+that instant only reads a delivered send as unconfirmed — re-attempted at the first tick at or
+past the 30-minute attempt backoff, so it may be delivered once more when the notifier's window
+lapses), under the push's OWN
 per-account key (`quota-rotation-chain-<hash>`) so a rotation notification's 30-minute window can
-never eat it. An unconfirmed push is retried next tick and the line says what this side
+never eat it. An unconfirmed push is retried at the first tick at or past a 30-minute ATTEMPT
+backoff (`_CHAIN_PUSH_BACKOFF_S`, set equal to the notifier's window — the attempt's epoch is the
+mtime of a `.attempt` sibling of the push stamp, dated before the spawn; a state dir that refuses
+it leaves the per-tick retry, said in the line), so a dead notifier costs one spawn per account
+per backoff, never one per tick (W-e8fc8685); the line says what this side
 can know: the notifier is absent, or the send could not be confirmed (suppressed by the notifier's
 window, the send failed, no Telegram keys and no custom notifier so it was never attempted, the
 notifier did not finish, the notifier delivered but could not write its own artifact, or its

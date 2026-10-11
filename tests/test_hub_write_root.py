@@ -344,10 +344,12 @@ ALLOWLIST: dict[str, str] = {
     "scripts/sysadmin/detect_reversals.py": "untracked: writes logs/lessons-pending.jsonl + logs/sysadmin-actions.jsonl (gitignored `logs/`)",
     "scripts/sysadmin/emit_mcp_project_config.py": "untracked: writes /opt/fabrik/.mcp.json (not tracked — `git ls-files .mcp.json` is empty)",
     "scripts/sysadmin/install_user_hooks.py": "untracked: installs into the user's own ~/.claude hooks, outside the repo",
+    "scripts/sysadmin/prune_transcripts.py": "untracked: `/opt/fabrik/.env` is only the default SESSION_ARCHIVE_ENV_FILE it reads; its writes (prune ledger and logs under ~/.claude/archive, unlinks and rmtree under ~/.claude, `--restore` back into ~/.claude/projects) are all outside the repo",
     "scripts/sysadmin/quota_dashboard.py": "untracked: quota dashboard state under ~/.claude, outside the repo",
     "scripts/sysadmin/quota_posture_hook.py": "untracked: quota posture state under ~/.claude, outside the repo",
     "scripts/sysadmin/selfwatch_check.py": "untracked: self-watch arm marker under ~/.claude, outside the repo (invokes selfwatch_arm.sh by path)",
     "scripts/sysadmin/send-telegram.sh": "untracked: reads gitignored .env.sysadmin only; sends to the Telegram API, no local tracked-file write",
+    "scripts/sysadmin/transcript_size_check.py": "untracked: reads the default SESSION_ARCHIVE_ENV_FILE `/opt/fabrik/.env` and PRINTS a `/opt/fabrik/scripts/whoami_agent.py` command; its one write is the rotate-advised stamp under ~/.claude/state",
     "scripts/sysadmin/vps_script_drift.py": "untracked: reads the hub HEAD via git (honours $FABRIK_ROOT) and the VPS copies over ssh; its watermark lives under ~/.claude/state, no tracked-file write",
     "src/fabrik/drivers/modal_provider.py": "untracked: reads gitignored .env.sysadmin + a fixed template dir; its Modal deployment output is written into the TARGET project, not a hub-hardcoded tracked path",
     # ── other-repo: the write target is a DIFFERENT store/repo than the hub's own tree ──
@@ -387,6 +389,7 @@ ALLOWLIST: dict[str, str] = {
     # ── no-write: comment, read-only reference, test fixture, or already __file__-derived ──
     "docs/reference/research/2026-09-23-stop-compaction/mine.py": "no-write: dated one-off research artifact, loads final_gate_stop.py by absolute path to inspect it, does not write a tracked hub file",
     "scripts/.scratch/test_env_consolidation.py": "no-write: dead scratch test (last touched 2026-05-25), force-tracked despite scripts/.scratch/ being gitignored",
+    "scripts/docs_updater.py": "no-write: the literal `/opt/fabrik/scripts/decisions.py` is the hub id allocator it RUNS (`$FABRIK_DECISIONS_PY` overrides it); the ledger that run appends is the cwd repo's (`PROJECT_ROOT = Path.cwd()`), never the literal",
     "scripts/enforcement/check_doc_links.py": "no-write: `/opt/fabrik/` is a READ-side prefix check classifying a doc link, not a write target",
     "scripts/enforcement/check_structure.py": "no-write: the matched lines are a COMMENT describing the pattern, no FABRIK_ROOT usage of its own",
     "scripts/enforcement/check_sync_trigger_coverage.py": "no-write: already resolves via its own `hub_root()` helper (falls back to DEFAULT_HUB); reads to verify sync-trigger regex coverage, writes no tracked hub file",

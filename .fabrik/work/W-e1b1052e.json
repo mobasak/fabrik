@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-29T22:05:13.565394Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "e74935c730d1d13b0ec4a77fce90074cf06afea1",
   "id": "W-e1b1052e",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "docs_updater.py --adopt mints its MERGE OWNER row id with its own max+1 and ignores decisions.py reservations, so the adopt row can take an id a sibling worktree holds via --reserve-id"
 }

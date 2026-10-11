@@ -6,8 +6,10 @@ Compresses MAIN Claude transcripts to zstd, records them in a manifest, and ship
 straight to the Backblaze B2 bucket with rclone (D-565). Nothing lands on a VPS.
 
 ⚠️ THIS SCRIPT NEVER DELETES A TRANSCRIPT OR AN ARCHIVED OBJECT — locally or in the bucket (it
-removes only its own temporary `.snapshot-*` copy). Pruning is Phase C, which
-is DEFERRED (D-565). The `.bak` incident that started this work happened because a
+removes only its own temporary `.snapshot-*` copy). Pruning is Phase C's
+`prune_transcripts.py` — the ONLY deleter, eight fail-closed guards, a 3-day window (D-736) — which
+runs AFTER this script in the same unit; this script still never deletes. The `.bak` incident
+that started this work happened because a
 "provably lossless" deletion was argued from a size comparison instead of from bytes.
 
 ⚠️ EVERY rclone CALL GOES THROUGH `_rclone`, AND ITS VERB IS AN ALLOW-LIST: copy, copyto,
@@ -29,6 +31,14 @@ older row's bytes live on as a prior version in the bucket (it keeps all version
 Hard links (D-467 links worktree transcripts into their repo's lane) are archived ONCE per
 (st_dev, st_ino), under the first slug in sorted order; the others go in `also_slugs`.
 
+THE `agent` KEY (Phase C.1, D-736): a row carries `"agent": "<name>"` when the session is bound to
+a hub agent — the latest `agent-identity.jsonl` row for its session id (what `whoami_agent.py`
+writes), else the REGISTRY JOIN: the `~/.claude/sessions/<pid>.json` entry carrying this session
+id, joined on `pid`+`procStart` to an identity row's `pid`+`pid_start` (both as integers; the
+registry stores `procStart` as a string). The join is what tags a window after `/clear`, which
+mints a new session id but keeps the claude process. An unbound session's row has no `agent`
+key. `--agent <name>` lists that agent's rows, newest first — "infra's history" is this list.
+
 Env (12-Factor III):
   ARCHIVE_ROOT                local archive dir                       (default ~/.claude/archive)
   ARCHIVE_AFTER_DAYS          only files idle longer than this        (default 0: every MAIN
@@ -41,6 +51,10 @@ Env (12-Factor III):
   SESSION_ARCHIVE_ENV_FILE    where the two key variables are read from when the process
                               environment lacks them; only `SESSION_ARCHIVE_*` lines are read
                               (default /opt/fabrik/.env)
+  AGENT_IDENTITY_FILE         the agent↔session binding store, read-only here
+                              (default ~/.claude/state/agent-identity.jsonl)
+  CLAUDE_SESSIONS_DIR         Claude Code's own peer registry, read-only here
+                              (default ~/.claude/sessions)
 SESSION_ARCHIVE_B2_ENDPOINT is recorded in .env for humans and is NEVER passed to rclone: it is
 B2's S3 endpoint, and rclone's native b2 backend wants its endpoint left blank.
 """
@@ -201,7 +215,11 @@ def _group_by_inode(paths: list[Path]) -> list[tuple[Path, list[str]]]:
     """One (primary path, other slugs) per file; the primary is the first path in sorted order."""
     groups: dict[tuple[int, int], list[Path]] = {}
     for p in sorted(paths):
-        st = p.stat()
+        try:
+            st = p.stat()
+        except FileNotFoundError:  # vanished between the scan and this stat (C.2): say so, go on
+            print(f"  vanished {p} (removed since the scan) — skipped")
+            continue
         groups.setdefault((st.st_dev, st.st_ino), []).append(p)
     return [(ps[0], sorted({q.parent.name for q in ps[1:]})) for ps in groups.values()]
 
@@ -222,12 +240,134 @@ def _latest_rows(manifest: Path) -> dict[tuple[str, str], dict]:
     return latest
 
 
+# ── the agent tag (C.1.1) ───────────────────────────────────────────────────────────────────
+
+_NAME_RE = re.compile(r"[a-z0-9-]{1,32}")  # whoami_agent._NAME_RE, byte-identical
+
+
+def _as_int(v: object) -> int | None:
+    try:
+        return int(str(v).strip()) if v is not None and str(v).strip() else None
+    except ValueError:
+        return None
+
+
+def _json_rows(path: Path) -> list[dict]:
+    """A JSONL file's dict rows (the identity file); unreadable ⇒ []."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    out = []
+    for line in text.splitlines():
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(r, dict):
+            out.append(r)
+    return out
+
+
+def _json_doc(path: Path) -> dict | None:
+    """ONE JSON document (a `<pid>.json` registry entry) — pretty-printed or not; unreadable ⇒ None."""
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError):
+        return None
+    return d if isinstance(d, dict) else None
+
+
+def _at(r: dict) -> int:
+    """A row's `at` for ordering: a missing or unparsable value ranks BELOW an explicit 0."""
+    at = _as_int(r.get("at"))
+    return -1 if at is None else at
+
+
+def agent_map(identity: Path, sessions: Path) -> dict[str, str]:
+    """session_id → agent name: the latest identity row per session id, then the registry join.
+
+    The join: a `<pid>.json` entry's `sessionId` is tagged with the name of the identity row whose
+    `(pid, pid_start)` equals the entry's `(pid, procStart)` AS INTEGERS — the registry stores
+    `procStart` as a JSON string, `whoami_agent._pid_start` writes an int. An AMBIGUOUS join — two
+    registry entries for one session id resolving to different names — tags nothing (review
+    2026-10-11, archiver-S1). Equal `at` → the later row wins, as `whoami_agent.resolve_agent_name`
+    reads; a missing `at` ranks below an explicit 0 (archiver-S5). Read-only: this never writes the
+    identity file. Unreadable or absent inputs ⇒ fewer tags, never an error."""
+    rows = [r for r in _json_rows(identity) if _NAME_RE.fullmatch(str(r.get("name") or ""))]
+    by_sid: dict[str, tuple[int, str]] = {}
+    by_proc: dict[tuple[int, int], tuple[int, str]] = {}
+    for r in rows:
+        at = _at(r)
+        sid = str(r.get("session_id") or "")
+        if sid and (sid not in by_sid or at >= by_sid[sid][0]):
+            by_sid[sid] = (at, str(r["name"]))
+        pid, start = _as_int(r.get("pid")), _as_int(r.get("pid_start"))
+        if pid is not None and start is not None:
+            key = (pid, start)
+            if key not in by_proc or at >= by_proc[key][0]:
+                by_proc[key] = (at, str(r["name"]))
+    out = {sid: name for sid, (_, name) in by_sid.items()}
+    try:
+        entries = sorted(sessions.glob("*.json"))
+    except OSError:
+        entries = []
+    joined: dict[str, set[str]] = {}
+    for entry in entries:
+        e = _json_doc(entry)
+        if not e:
+            continue
+        sid = str(e.get("sessionId") or "")
+        if not sid or sid in out:
+            continue
+        pid, start = _as_int(e.get("pid")), _as_int(e.get("procStart"))
+        if pid is not None and start is not None and (pid, start) in by_proc:
+            joined.setdefault(sid, set()).add(by_proc[(pid, start)][1])
+    for sid, names in joined.items():
+        if len(names) == 1:
+            out[sid] = names.pop()
+    return out
+
+
+def _agents() -> dict[str, str]:
+    return agent_map(
+        _env_path("AGENT_IDENTITY_FILE", "~/.claude/state/agent-identity.jsonl"),
+        _env_path("CLAUDE_SESSIONS_DIR", "~/.claude/sessions"),
+    )
+
+
+def list_agent(manifest: Path, name: str, projects: Path) -> list[str]:
+    """`--agent <name>` (C.1.2): that agent's rows, newest `archived_at` first, with whether the
+    local transcript still exists — read-only."""
+    rows = [r for r in _json_rows(manifest) if r.get("agent") == name]
+    rows.sort(key=lambda r: str(r.get("archived_at") or ""), reverse=True)
+    out = []
+    for r in rows:
+        # local = ANY name of the inode still on disk: the primary slug or a hard-linked twin's
+        # (`also_slugs`, D-467) — the primary alone read a surviving twin as gone (archiver-S3)
+        raw_also = r.get("also_slugs")
+        if isinstance(raw_also, str):  # one slug, never a sequence of characters (archiver-S6)
+            also = [raw_also]
+        elif isinstance(raw_also, list):
+            also = [str(s) for s in raw_also if isinstance(s, str) and s]
+        else:  # absent, null, or a scalar the archiver never writes: no aliases (archiver-S8)
+            also = []
+        slugs = [str(r.get("project_slug") or ""), *also]
+        local = any((projects / s / f"{r.get('session_id')}.jsonl").exists() for s in slugs if s)
+        out.append(
+            f"{r.get('session_id')} {r.get('project_slug')} bytes={r.get('bytes')} "
+            f"archived_at={r.get('archived_at')} local={'yes' if local else 'no'}"
+        )
+    return out
+
+
 def archive_one(
     src: Path,
     archive_root: Path,
     max_bytes: int | None,
     latest: dict[tuple[str, str], dict],
     also_slugs: list[str],
+    agent: str | None = None,
 ) -> dict | None:
     """Compress one transcript and return its NEW manifest row, or None when nothing changed.
 
@@ -266,7 +406,7 @@ def archive_one(
         )
     # A manifest row is a PROMISE that the bytes exist and are readable.
     subprocess.run(["zstd", "-t", "-q", str(dest)], check=True, timeout=600)  # noqa: S603
-    return {
+    row = {
         "project_slug": slug,
         "session_id": session_id,
         "sha256": digest,
@@ -275,6 +415,9 @@ def archive_one(
         "also_slugs": also_slugs,
         "archived_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    if agent:
+        row["agent"] = agent  # absent, never null, for an unbound session (C.1.1)
+    return row
 
 
 def ship(archive_root: Path, env: dict[str, str]) -> None:
@@ -358,15 +501,24 @@ session, and what session-recall indexes. Deleting them to free disk space loses
 (it happened on 2026-09-03: 11 project folders emptied, found days later).
 
 An off-site copy is shipped daily to Backblaze B2 by scripts/sysadmin/archive_transcripts.py
-(docs/workstation/session-history-retention.md in /opt/fabrik). Nothing on this box prunes
-these files; if disk is short, ask before removing anything.
+(docs/workstation/session-history-retention.md in /opt/fabrik). The ONLY thing that prunes
+them is scripts/sysadmin/prune_transcripts.py (D-736): after a 3-day window, never an open
+session, never a project's or an agent's newest, never a file the archive and the bucket cannot
+prove byte-for-byte — and every deletion is listed in ~/.claude/archive/pruned.jsonl, which
+`prune_transcripts.py --restore <session_id>` puts back. If disk is short, ask before removing
+anything by hand.
 """
 
 
 def _ensure_marker(projects: Path) -> None:
-    """A.6 — the README aimed at the failure that actually happened: a human freeing disk."""
+    """A.6 — the README aimed at the failure that actually happened: a human freeing disk. A README
+    carrying an older MARKER text is rewritten, so it never says 'nothing prunes' once something does."""
     readme = projects / "README"
-    if not readme.exists():
+    try:
+        current = readme.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        current = None
+    if current != MARKER:
         readme.write_text(MARKER, encoding="utf-8")
 
 
@@ -421,10 +573,11 @@ def _archive(args: argparse.Namespace) -> int:
                 shutil.rmtree(orphan)
         manifest = archive_root / MANIFEST_NAME
         latest = _latest_rows(manifest)
+        agents = _agents()
         rows = []
         for src, also in _group_by_inode(todo):
             try:
-                row = archive_one(src, archive_root, max_bytes, latest, also)
+                row = archive_one(src, archive_root, max_bytes, latest, also, agents.get(src.stem))
             except FileNotFoundError as exc:
                 if src.exists():  # a missing zstd or archive dir, not a vanished transcript
                     raise ArchiveError(f"could not archive {src}: {exc}") from exc
@@ -480,8 +633,36 @@ def run(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--version-at", help="with --fetch: the object as it was at this RFC3339 instant"
     )
+    ap.add_argument(
+        "--agent",
+        metavar="NAME",
+        help="list the manifest rows tagged with this agent, newest first (read-only, C.1.2)",
+    )
     args = ap.parse_args(argv)
     try:
+        if args.agent:
+            if not _NAME_RE.fullmatch(args.agent):
+                raise ArchiveError(
+                    f"--agent: {args.agent!r} is not an agent name ([a-z0-9-]{{1,32}})"
+                )
+            others = [
+                f
+                for f, v in (
+                    ("--fetch", args.fetch),
+                    ("--remote-count", args.remote_count),
+                    ("--no-ship", args.no_ship),
+                    ("--dry-run", args.dry_run),
+                    ("--version-at", args.version_at),
+                )
+                if v
+            ]
+            if others:  # a read-only listing never doubles as another verb (archiver-S4)
+                ap.error(f"--agent takes no other verb or flag; given: {' '.join(others)}")
+            archive_root = _env_path("ARCHIVE_ROOT", "~/.claude/archive")
+            projects = _env_path("CLAUDE_PROJECTS_DIR", "~/.claude/projects")
+            for line in list_agent(archive_root / MANIFEST_NAME, args.agent, projects):
+                print(line)
+            return 0
         if args.remote_count or args.fetch:
             _probe_binaries(("rclone",))
             env = _child_env(*_credentials())

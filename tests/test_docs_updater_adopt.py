@@ -9,6 +9,7 @@ constraint: this flag must never run for real from inside a subagent worktree).
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import sys
@@ -1628,3 +1629,222 @@ def test_only_a_header_that_is_an_owner_cell_counts(header, is_owner):
     """W-77e00147 closing review: a classification column that merely STARTS with Tag/Owner
     (`Tag Type`, `Owner Org`) is not the owner cell — reading it as one skipped every row."""
     assert (du._backlog_tag_header_index([header]) is not None) is is_owner
+
+
+# W-e1b1052e: the MERGE OWNER row is written by the hub's `decisions.py --append`, under the
+# reservation lock. tests/conftest.py pins FABRIK_DECISIONS_PY to a missing script for every test;
+# these tests point it at the real one and move HOME into tmp_path so the store is a scratch one.
+_REAL_DECISIONS = Path(__file__).resolve().parents[1] / "scripts" / "decisions.py"
+
+
+class TestAdoptIdUnderTheReservationLock:
+    @staticmethod
+    def _repo(tmp_path, monkeypatch, *, decisions=_REAL_DECISIONS, ledger="table"):
+        import subprocess
+
+        root = tmp_path / "repo"
+        (root / "docs" / "development" / "plans").mkdir(parents=True)
+        (root / "docs" / "development" / "PLANS.md").write_text("# Plans\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+        led = root / "docs" / "DECISIONS.md"
+        if ledger == "table":
+            _decisions_no_merge_owner(led)
+        elif ledger == "no-separator":  # fabrik-lib's live shape: rows, no |---| line
+            led.write_text(
+                "# Decisions\n\n| id | when | who | what (the decision) | why | where |\n"
+                "| D-001 | 2026-01-01 | operator | some unrelated decision | because | here |\n",
+                encoding="utf-8",
+            )
+        home = tmp_path / "home"
+        home.mkdir()
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setenv("FABRIK_DECISIONS_PY", str(decisions))
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
+        monkeypatch.setattr(du, "PLANS_INDEX", root / "docs" / "development" / "PLANS.md")
+        store = home / ".claude" / "state" / "decision-ids" / f"{root.name}.jsonl"
+        return root, store
+
+    def test_a_reserved_id_is_never_reissued(self, tmp_path, monkeypatch):
+        root, store = self._repo(tmp_path, monkeypatch)
+        store.parent.mkdir(parents=True)
+        store.write_text('{"id": 7, "at": 0}\n', encoding="utf-8")
+
+        assert du.run_adopt(["alpha"], single_window=True) == 0
+
+        assert du.read_merge_owner() == ("alpha", "D-008")
+        assert '"id": 8' in store.read_text(encoding="utf-8")
+
+    def test_hub_absent_falls_back_to_max_plus_one_with_a_note(self, tmp_path, monkeypatch, capsys):
+        self._repo(tmp_path, monkeypatch, decisions=tmp_path / "missing" / "decisions.py")
+
+        assert du.run_adopt(["alpha"], single_window=True) == 0
+
+        assert du.read_merge_owner() == ("alpha", "D-002")
+        assert "NOTE:" in capsys.readouterr().err
+
+    def test_a_separator_less_ledger_falls_back_with_a_note(self, tmp_path, monkeypatch, capsys):
+        root, store = self._repo(tmp_path, monkeypatch, ledger="no-separator")
+
+        assert du.run_adopt(["alpha"], single_window=True) == 0
+
+        assert du.read_merge_owner() == ("alpha", "D-002")
+        assert "NOTE:" in capsys.readouterr().err
+        assert not store.exists()  # nothing was reserved: --append was never asked
+
+    def test_a_failing_append_writes_no_row_and_fails(self, tmp_path, monkeypatch, capsys):
+        fake = tmp_path / "fake" / "decisions.py"
+        fake.parent.mkdir()
+        fake.write_text("import sys\nsys.exit(1)\n", encoding="utf-8")
+        root, _store = self._repo(tmp_path, monkeypatch, decisions=fake)
+
+        assert du.run_adopt(["alpha"], single_window=True) == 3
+
+        assert du.read_merge_owner() is None
+        assert "decisions.py --append" in capsys.readouterr().out
+        assert "<!-- AUTO-GENERATED:PLANS:START -->" in (
+            root / "docs" / "development" / "PLANS.md"
+        ).read_text(encoding="utf-8")  # the other adoption writes stand
+
+    def test_a_missing_ledger_is_created_and_the_row_lands_under_its_header(
+        self, tmp_path, monkeypatch
+    ):
+        self._repo(tmp_path, monkeypatch, ledger=None)
+
+        assert du.run_adopt(["alpha"], single_window=True) == 0
+
+        assert du.read_merge_owner() == ("alpha", "D-001")
+
+    def test_dry_run_reserves_nothing_and_previews_the_real_id(self, tmp_path, monkeypatch, capsys):
+        root, store = self._repo(tmp_path, monkeypatch)
+        store.parent.mkdir(parents=True)
+        store.write_text('{"id": 7, "at": 0}\n', encoding="utf-8")
+        before = (root / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
+
+        du.run_adopt(["alpha"], single_window=True, dry_run=True)
+
+        assert (root / "docs" / "DECISIONS.md").read_text(encoding="utf-8") == before
+        assert store.read_text(encoding="utf-8") == '{"id": 7, "at": 0}\n'
+        assert "D-008 (MERGE OWNER)" in capsys.readouterr().out
+
+    def test_the_row_lands_atop_the_table(self, tmp_path, monkeypatch):
+        root, _store = self._repo(tmp_path, monkeypatch)
+        assert du.run_adopt(["alpha"], single_window=True) == 0
+        lines = (root / "docs" / "DECISIONS.md").read_text(encoding="utf-8").split("\n")
+        sep = next(i for i, ln in enumerate(lines) if ln.startswith("|---"))
+        assert lines[sep + 1].startswith("| D-002 |") and "MERGE OWNER: alpha" in lines[sep + 1]
+
+    def test_a_zero_exit_without_an_id_fails_closed(self, tmp_path, monkeypatch):
+        fake = tmp_path / "fake" / "decisions.py"
+        fake.parent.mkdir()
+        fake.write_text("print('')\n", encoding="utf-8")
+        self._repo(tmp_path, monkeypatch, decisions=fake)
+        assert du.run_adopt(["alpha"], single_window=True) == 3
+        assert du.read_merge_owner() is None
+
+    def test_a_held_lock_fails_closed(self, tmp_path, monkeypatch):
+        import fcntl
+
+        root, store = self._repo(tmp_path, monkeypatch)
+        store.parent.mkdir(parents=True)
+        with open(f"{store}.lock", "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            assert du.run_adopt(["alpha"], single_window=True) == 3
+        assert du.read_merge_owner() is None
+
+    def test_a_prose_only_ledger_gets_a_table_and_the_row(self, tmp_path, monkeypatch):
+        root, _store = self._repo(tmp_path, monkeypatch, ledger=None)
+        led = root / "docs" / "DECISIONS.md"
+        led.parent.mkdir(parents=True, exist_ok=True)
+        led.write_text("# Decisions\n\nNothing decided yet.\n", encoding="utf-8")
+        assert du.run_adopt(["alpha"], single_window=True) == 0
+        assert du.read_merge_owner() == ("alpha", "D-001")
+        assert "Nothing decided yet." in led.read_text(encoding="utf-8")
+
+    def test_a_not_reserved_note_is_passed_on(self, tmp_path, monkeypatch, capsys):
+        root, store = self._repo(tmp_path, monkeypatch)
+        store.parent.mkdir(parents=True)
+        store.parent.chmod(0o555)
+        try:
+            assert du.run_adopt(["alpha"], single_window=True) == 0
+        finally:
+            store.parent.chmod(0o755)
+        assert "not reserved" in capsys.readouterr().err
+
+    def test_an_id_on_a_later_stdout_line_is_still_read(self, tmp_path, monkeypatch):
+        fake = tmp_path / "fake" / "decisions.py"
+        fake.parent.mkdir()
+        fake.write_text(
+            "import pathlib, sys\n"
+            "root = pathlib.Path(sys.argv[2].split('=', 1)[-1])\n"
+            "led = root / 'docs' / 'DECISIONS.md'\n"
+            "t = led.read_text()\n"
+            "led.write_text(t.replace('|---|---|---|---|---|---|\\n',"
+            " '|---|---|---|---|---|---|\\n| D-009 | w | a (--adopt) | MERGE OWNER: a — x | y | z |\\n', 1))\n"
+            "print('note: ok')\nprint('D-009')\n",
+            encoding="utf-8",
+        )
+        self._repo(tmp_path, monkeypatch, decisions=fake)
+        assert du.run_adopt(["a"], single_window=True) == 0
+
+    def test_an_empty_ledger_gets_the_whole_head(self, tmp_path, monkeypatch):
+        root, _store = self._repo(tmp_path, monkeypatch, ledger=None)
+        led = root / "docs" / "DECISIONS.md"
+        led.write_text("", encoding="utf-8")
+        assert du.run_adopt(["alpha"], single_window=True) == 0
+        assert led.read_text(encoding="utf-8").startswith("# Decisions\n")
+        assert du.read_merge_owner() == ("alpha", "D-001")
+
+    def test_a_timed_out_append_fails_closed_and_says_so(self, tmp_path, monkeypatch, capsys):
+        fake = tmp_path / "fake" / "decisions.py"
+        fake.parent.mkdir()
+        fake.write_text("import time\ntime.sleep(30)\n", encoding="utf-8")
+        self._repo(tmp_path, monkeypatch, decisions=fake)
+        monkeypatch.setattr(du, "_DECISIONS_TIMEOUT_S", 1.0)
+        assert du.run_adopt(["alpha"], single_window=True) == 3
+        assert "timed out" in capsys.readouterr().out
+
+    def test_a_dry_run_with_no_ledger_labels_its_preview_local(self, tmp_path, monkeypatch, capsys):
+        self._repo(tmp_path, monkeypatch, ledger=None)
+        du.run_adopt(["alpha"], single_window=True, dry_run=True)
+        assert "local preview; no ledger yet" in capsys.readouterr().out
+
+
+def test_the_separator_check_matches_decisions_py_on_every_shape(tmp_path, monkeypatch):
+    """docs_updater copies decisions.py `_append_row`'s table test; a drift would send a ledger
+    to --append that it refuses (or the reverse). Both judge the same shapes the same way."""
+    import subprocess
+
+    shapes = {
+        "plain": "| id | x |\n|---|---|\n| D-001 | a |\n",
+        "crlf": "| id | x |\r\n|---|---|\r\n| D-001 | a |\r\n",
+        "aligned": "| id | x |\n| :--- | ---: |\n",
+        "sep-first": "|---|---|\n| D-001 | a |\n",
+        "no-sep": "| id | x |\n| D-001 | a |\n",
+        "blank-between": "| id | x |\n\n|---|---|\n",
+        "empty": "",
+        "prose": "# Decisions\n\nnothing\n",
+    }
+    for name, text in shapes.items():
+        repo = tmp_path / name
+        (repo / "docs").mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        (repo / "docs" / "DECISIONS.md").write_text(text, encoding="utf-8", newline="")
+        r = subprocess.run(
+            [
+                sys.executable,
+                str(_REAL_DECISIONS),
+                "--append",
+                str(repo),
+                "--when=w",
+                "--who=w",
+                "--what=w",
+                "--why=w",
+                "--where=w",
+            ],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "HOME": str(tmp_path / "h")},
+        )
+        refused = "no table header" in r.stderr
+        assert du._ledger_has_separator(text) is (not refused), (name, r.returncode, r.stderr)

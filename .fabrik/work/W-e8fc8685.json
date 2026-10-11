@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-13T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "f08c80f7c14080127339e6fedbc8c7be7b502bf7",
   "id": "W-e8fc8685",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:4e267ec3c12a",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "An undelivered chain push retries every tick with no backoff — a dead notifier costs a spawn per account per tick (2026-09-13, owner: fleet)"
 }

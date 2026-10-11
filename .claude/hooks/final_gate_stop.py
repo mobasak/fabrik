@@ -2226,10 +2226,21 @@ def _main_checkout_git(root: Path) -> tuple[Path, Path] | None:
 # warns through ONCE and stays silent for that fingerprint until the queue changes, and a null action
 # clears the file. Silent under a running record, an accepted DECISION block, a formatted BLOCKED:
 # ending, a RED/WALL quota band (a missing or stale posture reads as GREEN — the posture hook's own
-# fail-open charter), and on any failure of the call. COBRA (D-253): the cheapest way past is to keep
+# fail-open charter), and on any failure of the call. At AMBER ("finish what you started, start nothing
+# heavy" — CLAUDE.md § Pointers) only the actions that START work stand down (`_COORD_AMBER_STARTS`,
+# W-05d3af0f): claim, owned, feedback, self, doorbell, merge (its text ends in a claim) and triage (it
+# fans work out to other windows); continue, release, commit-items and mail (a reply owed to a peer)
+# still block, and a Stop that stood work down (and blocked or warned on nothing) is one kaizen
+# `outcome=stood_down` event naming every action skipped, so a quiet queue at AMBER is never mistaken
+# for an empty one. COBRA (D-253): the cheapest way past is to keep
 # the fingerprint — every block and warn-through is a kaizen `stop_block cause=coordinator` event.
 _COORD_ARGV: tuple[str, ...] | None = None  # None → this repo's own scripts/work.py
 _COORD_QUIET_BANDS = frozenset({"RED", "WALL"})
+_COORD_AMBER_BANDS = frozenset({"AMBER"})
+_COORD_AMBER_STARTS = frozenset(
+    {"claim", "owned", "feedback", "self", "doorbell", "merge", "triage"}
+)
+_COORD_STOOD_DOWN: list[str] = []  # the start actions this Stop skipped at AMBER, for the event
 _POSTURE_HOOK = Path("/opt/fabrik/scripts/sysadmin/quota_posture_hook.py")
 
 
@@ -2258,7 +2269,9 @@ _COORD_MAP_MAX = 256
 _COORD_LAST_ACTION: list[str] = []  # the action the last block named, for the kaizen event
 
 
-def _coordinator_ladder(cands: list, state_path: Path) -> tuple[str, str] | None:
+def _coordinator_ladder(
+    cands: list, state_path: Path, band: str | None = None
+) -> tuple[str, str] | None:
     """AUTONOMY (work.py `_autonomy_candidates`): act on the FIRST candidate whose subject has not
     used up its CAP blocks this session. One map entry per subject (`{fp: attempts}`, at most
     `_COORD_MAP_MAX`, oldest dropped), so a subject exhausted once is never re-armed — A→B→A
@@ -2271,6 +2284,9 @@ def _coordinator_ladder(cands: list, state_path: Path) -> tuple[str, str] | None
     seen = dict(seen) if isinstance(seen, dict) else {}
     for cand in cands:
         if not isinstance(cand, dict) or not cand.get("fp"):
+            continue
+        if band in _COORD_AMBER_BANDS and cand.get("action") in _COORD_AMBER_STARTS:
+            _COORD_STOOD_DOWN.append(str(cand.get("action")))  # skipped, its attempts untouched
             continue
         fp = str(cand["fp"])
         try:
@@ -2296,7 +2312,9 @@ def _coordinator_ladder(cands: list, state_path: Path) -> tuple[str, str] | None
     return None
 
 
-def _coordinator_duty(root: Path, sid: str, cwd: Path) -> tuple[str, str] | None:
+def _coordinator_duty(
+    root: Path, sid: str, cwd: Path, band: str | None = None
+) -> tuple[str, str] | None:
     """(block reason, warn line) when this Stop must be refused or warned through; None to pass."""
     argv = _COORD_ARGV or (sys.executable, str(root / "scripts" / "work.py"))
     if _COORD_ARGV is None and not Path(argv[1]).is_file():
@@ -2312,9 +2330,12 @@ def _coordinator_duty(root: Path, sid: str, cwd: Path) -> tuple[str, str] | None
         result = None
     state_path = _coord_state_path(sid)
     if isinstance(result, dict) and isinstance(result.get("candidates"), list):
-        return _coordinator_ladder(result["candidates"], state_path)
+        return _coordinator_ladder(result["candidates"], state_path, band)
     if not isinstance(result, dict) or not result.get("action"):
         state_path.unlink(missing_ok=True)
+        return None
+    if band in _COORD_AMBER_BANDS and result.get("action") in _COORD_AMBER_STARTS:
+        _COORD_STOOD_DOWN.append(str(result.get("action")))  # its attempt state is left as it is
         return None
     fp = str(result.get("fp") or result.get("action"))
     try:
@@ -2330,6 +2351,7 @@ def _coordinator_duty(root: Path, sid: str, cwd: Path) -> tuple[str, str] | None
     att += 1
     state_path.write_text(json.dumps({"fp": fp, "att": att}), encoding="utf-8")
     text = str(result.get("text") or "")
+    _COORD_LAST_ACTION[:] = [str(result.get("action") or "")]  # the block event names THIS action
     if att > CAP:
         return (
             "",
@@ -4686,8 +4708,21 @@ def main(argv: list[str]) -> int:
                 # EIGHTH cause — coordinator assignment (see `_coordinator_duty`). After the
                 # counter write, so the 7-slot record behaves exactly as before.
                 if not run_active and not decision_ground and not _blocked_header(lam or ""):
-                    if (_coord_band(transcript_p) or "") not in _COORD_QUIET_BANDS:
-                        duty = _coordinator_duty(root, sid, Path(data.get("cwd") or root))
+                    band = _coord_band(transcript_p) or ""
+                    if band not in _COORD_QUIET_BANDS:
+                        _COORD_STOOD_DOWN.clear()
+                        duty = _coordinator_duty(root, sid, Path(data.get("cwd") or root), band)
+                        if duty is None and _COORD_STOOD_DOWN:
+                            # only when the cause neither blocked nor warned: one event per Stop,
+                            # naming every start action it stood down
+                            _kaizen(
+                                "stop_block",
+                                ev_sid,
+                                cause="coordinator",
+                                outcome="stood_down",
+                                band=band,
+                                action=",".join(dict.fromkeys(_COORD_STOOD_DOWN)),
+                            )
                         if duty and duty[0]:
                             _kaizen(
                                 "stop_block",

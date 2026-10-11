@@ -133,9 +133,13 @@ fi
 # shipped: `.git/hooks/` is untracked, so a fresh clone, a new worktree, or another machine gets NO
 # hook — and since 0bd6cf31 deleted .github/workflows, there is no cloud CI left to catch what the
 # hook misses. The gate existed only because one `pre-commit install -t pre-push` was typed by hand
-# on this box. Same cwd pin, same subshell, same idempotence as the trailer guard.
-[ -x "$FABRIK_ROOT/.venv/bin/pre-commit" ] && ( cd "$FABRIK_ROOT" 2>/dev/null &&
-    "$FABRIK_ROOT/.venv/bin/pre-commit" install -t pre-push >/dev/null 2>&1 )
+# on this box. Through the SERIALIZED installer (W-cd77f476): concurrent shells running the bare
+# install left a pre-push.legacy self-copy that failed every push "installed in migration mode".
+# Same cwd pin and subshell as the trailer guard; stderr is printed only on failure (a foreign
+# legacy is reported that way).
+[ -f "$FABRIK_ROOT/scripts/install_pre_push_hook.sh" ] && ( cd "$FABRIK_ROOT" 2>/dev/null &&
+    _err=$(bash "$FABRIK_ROOT/scripts/install_pre_push_hook.sh" 2>&1 >/dev/null) ||
+        echo "[wsl_startup_hook] install_pre_push_hook.sh: $_err" >&2 )
 
 # --- Daily pipeline (runs once per WSL boot day) ---
 # Run update if not already run today

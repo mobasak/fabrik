@@ -1063,14 +1063,16 @@ def test_round_zero_enumerates_the_fixs_input_space_before_the_pin() -> None:
             "a matcher or replacer against boundary, sentinel, prefix, overlapping, escaped and alternate-notation inputs",
             "and against its live population before it widens or narrows",
             "a parser against every form its grammar admits",
-            "a guard against an input that shows the condition, one that does not,",
-            "one that does not, and every error path" if name == "term-edit.md" else "one that does not, every error path",
             "a recursive or fallback helper against cycles, depth and each container type",
             "a trim or window at exactly one record's length",
             "any other fix against the input classes its own shape implies, listed before the probe runs",
             "a regex fix is drafted against every confirmed shape at once, never one patch per shape",
         ):
             assert needle in text, (name, needle)
+        # term-coverage continues the clause past "every error path" (d4009c252) and term-edit joins
+        # it with "and": only that word may sit between the halves, so an insertion still reds
+        guard = r"a guard against an input that shows the condition, one that does not,( and)? every error path"
+        assert re.search(guard, text), (name, guard)
 
 
 def test_the_finder_lessons_tell_a_seat_to_import_the_pin_and_state_the_ledger_high_water_mark() -> (
