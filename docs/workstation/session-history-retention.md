@@ -97,8 +97,8 @@ zstd -d /tmp/r.zst -o /tmp/r.jsonl                                              
 ### After a prune — `prune_transcripts.py --restore`
 
 A session the pruner removed (Phase C, D-736) is listed in `~/.claude/archive/pruned.jsonl` — one row
-per deletion with the slug, the session id, the sha256, every path removed, the agent tag and the
-object's size and SHA1 — and that file ships to the bucket with the archive, so the list is off-box too.
+per deletion with the tier (`main` or `subagents`), the slug, the session id, the sha256, the byte count,
+every path removed, the agent tag, the object key with its size and SHA1, and `pruned_at` — and that file ships to the bucket with the archive, so the list is off-box too.
 
 ```bash
 cd /opt/fabrik
@@ -132,7 +132,7 @@ which is what tags a window after `/clear`. `archive_transcripts.py --agent <nam
 rows newest first with whether the local file still exists — "infra's history" is that list plus
 session-recall. The pruner keeps each agent's NEWEST session as well as each project's. When a window's
 transcript passes `ROTATE_ADVISE_MB` (200 MB) the user-level hook prints one `ROTATE:` line per 100 MB
-step: run `/clear <agent>-<date>`, then `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent>
+step: run `/clear <agent>-<date>` now, then `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent>
 --force` — the holder the line names is this window's own claude process, so the `--force` is informed;
 the previous session stays resumable and is archived that night.
 

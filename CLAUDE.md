@@ -459,7 +459,7 @@ session-recall — structured rows beat lexical transcripts.
   byte-for-byte; the unit stays on `--dry-run` until the retention plan's Gate C passes. History is read through
   session-recall (`search_chats` / `get_chat`) or put back with `prune_transcripts.py --restore <session_id>`;
   `prune_transcripts.py --status` and `--verify-ledger` are the morning check. A named hub window rotates when the
-  `ROTATE:` line appears: `/clear <agent>-<date>`, then `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent>
+  `ROTATE:` line appears: `/clear <agent>-<date>` now, then `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent>
   --force` (the holder the line names is this window's own claude process). Doc:
   `docs/workstation/session-history-retention.md`.
 - **Subagent fan-out** (detail: `.windsurf/rules/core/62-using-subagents.md`): **⚠️ THE OPENROUTER POOL IS OFF —

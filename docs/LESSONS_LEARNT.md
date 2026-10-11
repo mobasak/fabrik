@@ -3,7 +3,7 @@
 
 ## A fail-closed guard is only as closed as its least-guarded leg, and a spy's empty list passes `all()` (2026-10-11)
 
-Building the pruner (retention plan Phase C.2/C.3) and its review: 30/30 clause mutations red before the review, yet round 1 confirmed 12 distinct defects.
+Building the pruner (retention plan Phase C.2/C.3) and its review: 30/30 clause mutations red before the review, yet round 1 confirmed 15 candidates — 12 distinct defects behind them.
 - **Two legs of one rule must read the same helper the same way.** `open_sessions()` fed `_alive()` unconditionally for the registry (a pid-less entry ⇒ OPEN) but guarded the identity leg with `pid is not None and …`, so the belt was fail-open where the primary was fail-closed. When a rule has mirrors, grade each mirror with the SAME input (the pid-less row) — a grader per leg, not per rule.
 - **"Right before the unlink" means inside the loop.** One `open_sessions()` before a 200-inode loop is a snapshot, not a last look; the docstring said per-unlink and the code said per-run. Write the grader that distinguishes them (the Nth candidate's session opens at the Nth re-check) before the prose.
 - **`assert all(x for x in seen)` over a spy's list is vacuous when the spy never fires** — assert the count first. The same shape hid a restore grader that passed because both restore tests produced a fresh survivor; the aged-survivor variant was the real test. A grader is proven by its red: neuter the clause, not just the expression inside it.
