@@ -17,7 +17,8 @@
   "priority": 1,
   "status": "open",
   "tags": [
-    "infra"
+    "infra",
+    "waits-band-green"
   ],
   "title": "wsl_startup_hook.sh races pre-commit install -t pre-push across concurrent shells: pre-commit truncates the hook in place (install_uninstall.py:92), a sibling shell's is_our_script reads the half-written file and moves it to pre-push.legacy (:77); the legacy then persists and every push fails 'installed in migration mode' (hit 2026-10-11, legacy written 2026-10-10 00:31; unblocked by deleting the byte-identical legacy)"
 }
