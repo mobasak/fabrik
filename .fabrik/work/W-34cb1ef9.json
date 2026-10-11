@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "REQUEST (D-441) — scripts/whoami_agent.py: a `/clear` predecessor binds its successor without --force (D-736 C.4)"
 }
