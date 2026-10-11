@@ -289,8 +289,16 @@ correctly (§ Evidence — Phase C, probe 1). C.0 just re-runs the probe after t
 records the four fresh rows; a hub window with NO row for two consecutive nights while its file
 changed is a `BLOCKED: missing infra — the archive is not current` before anything else in Phase C.
 
-### C.1 — Tag by agent, rotate the named windows (non-destructive)
+### C.1 — Tag by agent, rotate the named windows (non-destructive) — ✅ EXECUTED 2026-10-11 (aa876c94b; review fixes 14701439e · 4ea95fa87 · 6898b3244; receipt d2ab1d7fe)
 Appetite: 90
+
+> **Executed 2026-10-11:** `scripts/sysadmin/transcript_size_check.py` (new, the user-level UserPromptSubmit hook),
+> `archive_transcripts.py` (`agent` key via the identity row else the registry join on pid + procStart as integers;
+> the `--agent <name>` verb), `install_user_hooks.py` wiring, 20 new tests seen red first in a throwaway worktree
+> (94 pass over the three modules), docs rows (INDEX, hooks-index, session-history-retention, CONFIGURATION,
+> `.env.example`). The full `/fabrik-review` ran 4 rounds — 18 → 6 → 1 → 0 confirmed, 25 FIXED / 0 REFUTED — and its
+> receipt `docs/development/reviews/2026-09-06-plan-1-session-history-retention-phase-2-c1-review.md` is CONVERGED
+> with the post-flip `final_gate.py --check` embedded. Nothing deleted, nothing under `~/.claude/projects` touched.
 
 - **C.1.1 `agent` in the manifest row.** `archive_transcripts.py` reads
   `~/.claude/state/agent-identity.jsonl` (one JSON per line: `session_id`, `name`, `pid`,
