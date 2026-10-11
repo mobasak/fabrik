@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T22:08:32.663504Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-cdd2df95",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: a scripts/ helper the seat briefs name",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "kaizen-01m4n1k909"
+  ],
+  "title": "A ready literal-path probe runner for clone checks in critique and review seat briefs (kaizen 01M4N1K909 group 8; row 1791225462)"
+}
