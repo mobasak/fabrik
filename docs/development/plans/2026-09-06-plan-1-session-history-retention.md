@@ -380,7 +380,7 @@ traceback text when there was one; `prune_transcripts.py --status` prints the la
 APPLY row (the nightly dry-run writes rows of its own), Gate C (5) reads the apply row, and the
 retention doc names `--status` as the morning check. Exit codes: 0 = ran (0 or more
 deletions); 3 = refused (`--expect` mismatch, lock held, no manifest, `--verify-ledger` MISSING);
-1 = error (row written first); 2 = usage.
+1 = error (a dry-run or apply run writes its row first; the other verbs write none); 2 = usage.
 The pruner takes the archiver's own lock (`ARCHIVE_ROOT/<LOCK_NAME>`, the same `flock`) so a hand-run
 `--apply` can never overlap the timer's archiver; and the archiver's `_group_by_inode`
 (`archive_transcripts.py:200-206`) gains a `FileNotFoundError` skip for a path that vanished between
@@ -430,8 +430,10 @@ from the MAIN checkout after the archiver change is merged"*) — Gate C step (0
      name without a row ⇒ the inode is skipped. The names are unlinked in one pass after ONE ledger
      row naming them all; two `unlink()` calls are not atomic, so a kill between them leaves one
      twin and the row — `--restore` re-creates the missing name as a hard link to the surviving
-     twin when that twin's sha256 equals the row's (else from the object), so the names end as one
-     inode again (C.2.5 never overwrites an existing path);
+     twin when that twin's sha256 equals the row's, so the names end as one inode again; a
+     survivor whose sha256 differs (resumed and appended after the kill) is a REFUSAL — the
+     survivor is the newer history and tonight's archive takes it (C.2.5 never overwrites an
+     existing path);
   8. **session-recall holds it**: an `index_state` row (`/opt/session-recall/db/schema.sql:55-62`:
      `file_path`, `inode`, `size`, `mtime`, `lines_ingested`) whose `inode` is the file's `st_ino`
      and whose `size` is the file's current size — looked up BY INODE, never by path, because
@@ -502,7 +504,8 @@ from the MAIN checkout after the archiver change is merged"*) — Gate C step (0
   `changed-under-hash`, not deleted · `--apply` without `--expect` or with the wrong count → nothing
   deleted · more deletable than the cap → exactly the oldest cap-many deleted, the rest `deferred`,
   on the hand AND the nightly path; `--max` widens a hand run · the archiver lock held → exit 3 · an
-  exception anywhere → the summary row carries `error`, exit 1, and every unlinked name is in a
+  exception in a dry-run or apply run → the summary row carries `error`, exit 1, and every unlinked
+  name is in a
   ledger row written before it · `--status` prints the last summary row · `--verify-ledger` lists
   every `pruned.jsonl` row's object with its size and SHA1, exit 3 on any MISSING · a deletion writes
   its `pruned.jsonl` row
@@ -519,10 +522,13 @@ from the MAIN checkout after the archiver change is merged"*) — Gate C step (0
   (needs the download host — § Phase B; an unreachable host is a plain refusal naming the host),
   decompresses to the first missing path the row names and hard-links every other missing path to it;
   when a path of the row still EXISTS with the row's sha256 (a half-unlinked twin), the missing
-  names are hard-linked to that survivor and nothing is fetched. It verifies the sha256 against the
-  row before it reports. Restored files are ordinary transcripts:
-  `/resume` lists them, the archiver skips them unchanged (A.1a), and after 3 more days the pruner
-  may offer them again. `--restore` never deletes and never overwrites an existing path.
+  names are hard-linked to that survivor and nothing is fetched; when a path still exists with
+  ANOTHER sha256, `--restore` refuses (exit 3) naming it — that survivor is live history, not a
+  restore target. It verifies the sha256 against the row, then sets the inode's `mtime` to now
+  (a hard link inherits the survivor's old `mtime`; without the touch the names would be offered
+  again at the next dry-run), and reports. Restored files are ordinary transcripts: `/resume`
+  lists them, the archiver skips them unchanged (A.1a), and after 3 more days the pruner may offer
+  them again. `--restore` never deletes and never overwrites an existing path.
 - **C.2.6 `--verify-ledger` — the restore list's integrity check.** Re-runs rule 6 over every
   `pruned.jsonl` row: the object under the row's `project_slug` is listed with the row's size and
   SHA1 (one `rclone lsf` per slug), each row printed `OK` or `MISSING`; any `MISSING` ⇒ exit 3. It
@@ -613,9 +619,11 @@ the nightly incremental ingest, and `SESSION_RECALL_RO_DSN` is set in `/opt/fabr
 checked by name, never printed) — absent, Gate C is `BLOCKED: missing infra — session-recall's
 nightly ingest / the read-only DSN`, for Gate C only: C.1–C.4 and the dry-run do not wait on it;
 (2) `prune_transcripts.py` dry-run, its table pasted into Evidence — its deletable total must be
-> 0 (the DSN and a matching row are live) and its `not-indexed` count must be 0: every file that
-passes rules 1–7 also passes 8, so the nightly ingest provably covers the whole eligible set; a
-non-zero count names the sessions the ingest misses, and Gate C waits for session-recall; (3) the
+> 0 (the DSN and a matching row are live) and its `not-indexed` count must be 0: rule 8 is
+evaluated right after rules 1–3 (the order in C.2.1), so the count is every old, closed,
+non-newest transcript the ingest has not indexed to its end — the set session-recall must cover
+for "searchable" to be true, whether or not rules 4–7 would later refuse the file; a non-zero count
+names the sessions the ingest misses, and Gate C waits for session-recall; (3) the
 **canary**: `--apply --max 10 --expect 10` by hand (this
 run's set = the 10 oldest deletable files), then `--restore` of two of them from the bucket,
 byte-identical (`sha256sum` against the `pruned.jsonl` rows); the two restored files are LEFT in
@@ -732,7 +740,7 @@ Intake: 13 items — 11 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 - **Given** `pruned.jsonl` rows whose objects are listed with matching size and SHA1, and one whose object is absent, **When** `--verify-ledger` runs, **Then** it prints `OK` per row and `MISSING` for that one and exits 3; all present ⇒ exit 0 (C.2.6)
 - **Given** the archiver's lock held, **When** `--apply` runs, **Then** it exits 3 and deletes nothing (C.2 lock)
 - **Given** a path that vanishes between the archiver's scan and `_group_by_inode`, **When** the archiver runs, **Then** it skips that path and archives the rest (C.2, `archive_transcripts.py:200-206`)
-- **Given** a `pruned.jsonl` row and a reachable download host, **When** `--restore <session_id>` runs, **Then** every path in the row exists again with the row's sha256 and all of them are one inode — fetched when none survived, hard-linked to a surviving identical twin when one did (no fetch); an existing path is never overwritten; the restored file is inside the 3-day window (fresh `mtime`), so the next dry-run does not offer it (C.2.5)
+- **Given** a `pruned.jsonl` row and a reachable download host, **When** `--restore <session_id>` runs, **Then** every path in the row exists again with the row's sha256 and all of them are one inode — fetched when none survived, hard-linked to a surviving identical twin when one did (no fetch) — and the inode's `mtime` is now, so the next dry-run does not offer it; a surviving path with another sha256 ⇒ refused, exit 3, nothing written; an existing path is never overwritten (C.2.5)
 - **Given** a deletable file, **When** `--apply --expect N` runs, **Then** its `pruned.jsonl` row exists before the unlink and names every path removed (C.2.3)
 - **Given** a subagent sidechain older than 3 days whose parent is not OPEN and not in flight, **When** `--tier subagents --apply` runs, **Then** it is deleted with a row; an in-flight or live-parent sidechain stays (C.3)
 - **Given** `~/.claude/tasks/` and `~/.claude/shell-snapshots/` entries older than 3 days, **When** `--tier subagents --apply` runs, **Then** they are deleted with a row each; younger entries stay (C.3)
@@ -1259,7 +1267,8 @@ $ python3 scripts/review_rubric.py --changed scripts/sysadmin/archive_transcript
 | Pass 1 | 7 seats (8 stamped — the researcher slice raised nothing and needed no refuter), section-partitioned (D-212): opus×1 (rules-invariant: C.2, Gate C, review floor, BC, Evidence, File Scope, CC13–21, Digest) + sonnet×2 (rest-phases: preamble, C.0/C.1/C.3/C.4, Intake; rest-ledgers: Context Ledger, Open unknowns, Rubric/Pass Ledger, Residual, Self-audit, spec marker) + fabrik-researcher×1 (cited-facts: the external citations and the systemd rule), refuter per slice (sonnet×3) · Q1–Q11 | found: 30, new: 30, confirmed: 27, refuted: 3 (O17 — the pinned dirs are one tree; O20 — the stop-decider anchor holds; S4 — the crash fix is independent of the tag), fixed: 27, unexecuted: 0, edits: 34 + 2 cite corrections | method: full pass over the pinned 31dcd50e8 revision + the arming (b7073f822); the refuters executed every check and the orchestrator re-executed the load-bearing ones before fixing (`whoami_agent.py` resolution and the refused re-bind; the registry's 1,401/9/6 liveness count and its single directory; `man systemd.service`; the reboot sweep's deletions; the crontab's second deleter; every cited anchor). The researcher's slice: 0 candidates, every external citation fetched live and faithful | c36d6c5fe1897d958513434b0040baa0 (+ arming b7073f822) → 883972d7fe07d56f03f2225c4bcb0c8c (before this row) |
 | Pass 2 | the same 3 slices, 6 seats (8 stamped): opus×1 (rules-invariant) + sonnet×2 (rest-phases, rest-ledgers) + refuter per slice (sonnet×3) · the DELTA pass (D-339): every round-1 id re-verified over the fix diff, then the new text hunted | round-1 ids (27 unique; the ledger carried 30 rows, rest-ledgers S1–S3 twice): 23 NOW_FALSE, 3 STILL_TRUE (O10 → O30, O22 → O24, rest-phases-S3 → O29), 1 recorded NEW by the seat (O8 — closed through O25/O26), 0 REGRESSED; found: 14, new: 14, confirmed: 14, own-fix: 14 (all inside the round-1 fix text), fixed: 14, unexecuted: 0, edits: 30 | method: delta — the cap that refused instead of draining (O25/O26/O32), `last_at` as a freshness key (O27), the unconfigured database (O31), the unspecified `--verify-ledger` (O28), the swallowed exits (O29), the operator-named surfaces on a scoped review (O30/S5), the string `procStart` (O24), the uninformed `--force` (S4), the `--agent` row without a gate step (S6), the ledger's seat count (O33), rule 8's dependency on another repo (S5-ledgers); the orchestrator read `index_state`'s columns, `parse.py:108-122`, `README.md:34,63` and `psycopg` 3.3.4 in the hub venv before fixing | 0a2506a5b176b4708383f7f4b4012a6c → bd218780127b42d6d17230ebd2b80bdf (before this row) |
 | Pass 3 | the same 3 slices, 6 seats (8 stamped): opus×1 + sonnet×2 + refuter per slice (sonnet×3) · the DELTA pass over the round-2 fix diff | round-2 ids (14): 12 NOW_FALSE, 2 STILL_TRUE (O27 → O34, rest-ledgers-S4 → O37/S7), 0 REGRESSED; found: 21 (4 of them re-verification statuses), new: 17, confirmed: 17, own-fix: 16 (the spec md5 in the header predates the review), fixed: 17, unexecuted: 0, edits: 22 + 2 | method: delta — rule 8 by inode (session-recall's `_one_name_per_inode`, read), the existing `recall_ro` (schema read), `psycopg2` and its lock pin (venv + `uv.lock` read), the pruner's own env reader, the `--who` verb that prints no pid (code read), `--expect` vacuous under `--max`, Gate C (2) vacuous, the summary row's writers, C.4's circular wait on the Finish review, two unlinks not atomic, the Pass 2 counters, the header's spec md5. `command_run.py round` printed the scope-growth stop (D-355): pass 4 re-verifies the FIXED set alone, no new hunt | 2676f864b3881ed04da1c2fbf467019a → f7309c2cc1ba50beba6361f11fc7028d (before this row) |
-| Pass 4 | the same 3 slices, 6 seats (8 stamped): opus×1 + sonnet×2 + refuter per slice (sonnet×3) · RE-VERIFICATION of the fixed set alone (D-355) | round-3 ids (17): 13 NOW_FALSE, 4 STILL_TRUE (O38 `--expect` still vacuous without `--max`; O39 Gate C (2) still passable with ingest mostly broken; O43 r8's `core/25` sentence; O47 the BC `--restore` row's one-inode promise), 0 REGRESSED outside the fixed hunks; found: 9, new: 5 (O48 error-row scope, O49/S8 the Pass 3 counter, O50 the nightly dry-run row, rest-phases-S8 the grant's line), confirmed: 9, own-fix: 9, fixed: 9, unexecuted: 0, edits: 14 | method: re-verification — the refuters executed the `--who`/`--as` code paths, `_one_name_per_inode`, the `recall_ro` grant (at `:100`, not `:85-97`), the venv's `psycopg2` and `uv.lock`, the `_ENV_LINE` shape, both Digest quotes, and recounted pass-2/pass-3 ledgers; the orchestrator fixed only the nine and nothing else | 37c1cc763e6021c24fc78064ed020d0f → d826c2b4d68392b825832954aea4c0e4 (before this row) |
+| Pass 4 | the same 3 slices, 6 seats (8 stamped): opus×1 + sonnet×2 + refuter per slice (sonnet×3) · RE-VERIFICATION of the fixed set alone (D-355) | round-3 ids: the rules-invariant seat's `ledger_status` carries its 14 (10 NOW_FALSE, 4 STILL_TRUE — O38 `--expect` still vacuous without `--max`; O39 Gate C (2) still passable with ingest mostly broken; O43 r8's `core/25` sentence; O47 the BC `--restore` row's one-inode promise — and O48/O49 filed as NEW), and the two Sonnet seats re-verified rest-phases-S7 and rest-ledgers-S6/S7 in their notes (all FIXED) without `ledger_status` rows; 0 REGRESSED outside the fixed hunks; found: 9, new: 5 (O48 error-row scope, O49/S8 the Pass 3 counter, O50 the nightly dry-run row, rest-phases-S8 the grant's line), confirmed: 9, own-fix: 9, fixed: 9, unexecuted: 0, edits: 14 | method: re-verification — the refuters executed the `--who`/`--as` code paths, `_one_name_per_inode`, the `recall_ro` grant (at `:100`, not `:85-97`), the venv's `psycopg2` and `uv.lock`, the `_ENV_LINE` shape, both Digest quotes, and recounted pass-2/pass-3 ledgers; the orchestrator fixed only the nine and nothing else | 37c1cc763e6021c24fc78064ed020d0f → d826c2b4d68392b825832954aea4c0e4 (before this row) |
+| Pass 5 | the same 3 slices, 5 seats (8 stamped; the rest-phases slice raised nothing and needed no refuter): opus×1 + sonnet×2 + refuter ×2 · RE-VERIFICATION of the nine round-4 fixes | round-4 ids (9): all FIXED at their core; found: 5, new: 5 (O51 the hard-link branch inherits the survivor's old `mtime`; O52 a diverged survivor leaves two inodes; O53 the exit-code line and the C.2.3 grader still unscoped; O54 Gate C (2) names rules 1–7 where the order evaluates 8 after 1–3; rest-ledgers-S9 the Pass 4 row's counter vs the ledger file), confirmed: 5, own-fix: 5, fixed: 5, unexecuted: 0, edits: 8 | method: re-verification — the refuters executed `os.link` mtime inheritance and the diverged-survivor case in scratch, the Digest quotes, `schema.sql:85-100`, and recounted pass-3/pass-4; the orchestrator fixed only the five | d436ce84eb8b37978c88eb5def39f3be → 06af6e7a6a707e450212bd320b1881bf (before this row) |
 
 ## Pass Ledger (/fabrik-plan-review, revision 2026-10-05)
 
@@ -1600,7 +1609,11 @@ file · `CHANGELOG.md` per phase · `.env.example` + `docs/CONFIGURATION.md` for
   still true — `--expect` named an echo, Gate C (2) requires `not-indexed` = 0, r8 no longer
   attributes a rule to `core/25`, `--restore` re-links to a surviving identical twin — and the three
   the fixes introduced (the error row scoped to dry-run/apply, `--status` showing the last apply
-  row, the Pass 3 counter), plus the `recall_ro` grant's real line (`:100`).
+  row, the Pass 3 counter), plus the `recall_ro` grant's real line (`:100`). (h) Round 5 (5 confirmed,
+  all inside the round-4 hunks): `--restore` touches the inode's `mtime` after a hard link and
+  refuses a diverged survivor; the exit-code line and the C.2.3 grader carry the error row's scope;
+  Gate C (2) names the set it measures (files passing rules 1–3); the Pass 4 row counts what the
+  ledger file holds.
 - **Revision 2026-10-05:** every step that named vps1, Backrest, `ssh vps` or rsync was replaced or
   marked historical; Phase C's deferral is a recorded panel ruling with a three-part tripwire, not
   a silent drop. Round 1 of its review (25 confirmed) found the gates could not run in the order
