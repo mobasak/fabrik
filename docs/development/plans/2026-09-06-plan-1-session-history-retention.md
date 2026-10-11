@@ -231,7 +231,17 @@ The local round trip is measured. **The leg back from B2 is not, and it is the o
 sha256 equals the run-1 row's and differs from the run-2 row's; outputs embedded.
 ⚠️ A failed or skipped Gate B is a `BLOCKED:` escalation.
 
-## Phase C — ROTATE, TAG, PRUNE (reopened 2026-10-11, D-736)
+## Phase C — ROTATE, TAG, PRUNE (reopened 2026-10-11, D-736) — EXECUTED-pending-Gate-C 2026-10-11
+
+> **C.0–C.4 EXECUTED 2026-10-11** (D-742): the archive current (310 rows), the agent tag and the ROTATE advisory
+> (aa876c94b), the pruner and its subagent tier (09624683c) with the unit on `--dry-run`, the contract in the docs
+> and the four requests (1416db236); three full `/fabrik-review` loops, each closing at confirmed 0 (receipts
+> `…-phase-2-c1-review.md`, `…-phase-3-c2-c3-review.md`, `…-phase-5-c4-review.md`). **Nothing has been deleted:**
+> the live dry-run refuses every candidate (`not-indexed` 7,082 of 9,742). **Gate C is boarded, not passed** —
+> `W-c49a7adf` (0: infra's merge + `install_session_archive_timer.sh` from the main checkout), `W-18d6d1ae`
+> (1: the operator's Gate B download proof), `W-0fc6fe12` (1b: session-recall's nightly ingest + the DSN); steps
+> (2)–(6) follow them, each a pasted table, and the unit's `--dry-run` stays until (6). Status stays IN-PROGRESS
+> until Gate C.
 
 **What changed since the deferral.** The deferral's three tripwires were disk, a proven restore and
 searchability. Disk never fired; what fired instead was the VS Code extension host: it OOM'd four
@@ -613,8 +623,22 @@ window stays; an in-flight sidechain stays; a live parent keeps all its subagent
 shows the subagent tier's counts; `--apply` only at Gate C; the full `/fabrik-review` over C.2 + C.3
 runs here, after both tiers exist (review floor).
 
-### C.4 — Docs, the three governance files, session-recall
+### C.4 — Docs, the three governance files, session-recall — ✅ EXECUTED 2026-10-11 (1416db236; review fixes 9a42fca7e · a6730b30c; receipt 786645688)
 Appetite: 60
+
+> **Executed 2026-10-11:** hub `CLAUDE.md` § Pointers carries the session-history paragraph; the retention doc
+> gained the restore path after a prune (`--restore`), the morning check (`--status`, `--verify-ledger`,
+> `--agent`) and the named-windows section; the archiver's header and MARKER stopped saying nothing prunes
+> (in the C.2 review fix 6f79449f1); `.env.example` / CONFIGURATION rows landed in C.1/C.2. **The four
+> requests (D-441):** infra `01M4NVZGE9VTE3TK57ZVECD8FF` (the governance-template paragraph) and
+> `01M4NVZJTMSSBDTVPSR7M4X7GF` (`whoami_agent.py`: a `/clear` predecessor binds without `--force`); fabrik-lib
+> `01M4NVZMZ9THM7DFYMKSBCF82P` (its `CLAUDE.md` paragraph); session-recall `01M4NVZQ7NJR8F2GZMZKZPTB3E`
+> (keep archived sessions on `--full`, an `agent` column, a nightly ingest + the `recall_ro` DSN — rule 8
+> waits on it); replies `01M4NWR4HZD8K531SPP09JRQPT` / `01M4NWRF5VNEFB27AQT7A579A8` name the two deliberate
+> deviations the quoted paragraph carries. Gate C.4: `check_doc_links.py` OK (0 broken of 3,734 refs);
+> `docs_updater.py --check` reports only pre-existing items outside this surface (an old plan's broken links,
+> the PLANS block). The full `/fabrik-review`: 7 raised / 6 confirmed / 1 refuted → 1 own-fix → 0 — receipt
+> `docs/development/reviews/2026-09-06-plan-1-session-history-retention-phase-5-c4-review.md` CONVERGED.
 
 - `docs/workstation/session-history-retention.md`: "nothing prunes" becomes the C.2 contract, the
   restore path after a prune, the `--agent` verb and the ROTATE line; `archive_transcripts.py`'s header
