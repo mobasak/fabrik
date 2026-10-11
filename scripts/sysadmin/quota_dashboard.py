@@ -2190,7 +2190,9 @@ def _ext_matrix_table(rows: list[dict]) -> str:
 _HUB_OWNERS = ("infra", "fleet", "intel", "kaizen", "operator")
 REPOS_TTL_S = float(os.getenv("QUOTA_DASH_REPOS_TTL_S", "20"))
 NEXT_CAP = 160  # `next` is the bulk of the rows (1.0 MB of 1.4 MB measured); the cell is capped
-NEXT_TIP_CAP = 600  # and so is its tooltip — an uncapped tooltip re-adds the whole MB (measured 1.69 MB)
+NEXT_TIP_CAP = (
+    600  # and so is its tooltip — an uncapped tooltip re-adds the whole MB (measured 1.69 MB)
+)
 _repos_lock = threading.Lock()
 _repos_cache: tuple[float, str] | None = None
 _work_mod: tuple[float, object, list[str]] | None = None  # (work.py mtime, module, warnings sink)
@@ -2311,7 +2313,9 @@ def _repo_pane(r: dict, shown: bool) -> str:
             groups[owner],
             key=lambda i: (i.get("status") != "awaiting-operator", i["_prio"], str(i.get("id"))),
         )
-        out.append(f'<h3 class="owner">{escape(owner or "unassigned")} <span>{len(rows)}</span></h3>')
+        out.append(
+            f'<h3 class="owner">{escape(owner or "unassigned")} <span>{len(rows)}</span></h3>'
+        )
         body = []
         for i in rows:
             nxt = str(i.get("next") or "")
@@ -2330,7 +2334,7 @@ def _repo_pane(r: dict, shown: bool) -> str:
                 "</tr>"
             )
         out.append(
-            '<table><thead><tr><th>Item</th><th>Kind</th><th>Status</th><th>P</th>'
+            "<table><thead><tr><th>Item</th><th>Kind</th><th>Status</th><th>P</th>"
             "<th>Title</th><th>Next</th><th>Tags</th><th>Claim</th></tr></thead>"
             f"<tbody>{''.join(body)}</tbody></table>"
         )
@@ -2433,7 +2437,7 @@ def _repos_page(fresh: bool = False) -> str:
             f"{_repos_body()}"
             "<script>(function () {"
             ' var pick = document.getElementById("repo-pick"); if (!pick) { return; }'
-            " function show(name) { document.querySelectorAll(\"div.repo\").forEach(function (d) {"
+            ' function show(name) { document.querySelectorAll("div.repo").forEach(function (d) {'
             ' d.hidden = d.getAttribute("data-repo") !== name; }); }'
             ' var want = null; try { want = localStorage.getItem("repo-pick"); } catch (e) {}'
             " var known = Array.prototype.some.call(pick.options, function (o) { return o.value === want; });"
