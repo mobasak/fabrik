@@ -41,7 +41,8 @@ python3 scripts/command_run.py start --command fabrik-task --phases 5 \
 *(v2)* `consumers=external` when another repo reads the change; v1 ignores the key.
 
 `--file` is repeatable, ONE quoted repo path each. A path that does not exist yet is accepted on
-purpose: **declare the grader you are about to write.** Declare the CODE surface ONLY — the close
+purpose: **declare the grader you are about to write**; `ls` and grep every other path for the rule first, since
+a typo reads as that grader. Declare the CODE surface ONLY — the close
 excludes the Doc Sync Matrix destinations, the ledger files and `docs/CAPABILITIES.md`, so declaring
 `CHANGELOG.md` burns a slot and can refuse the start on a sibling's WIP.
 
@@ -69,7 +70,9 @@ into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is
 the rule already lives in; the population the change writes or thresholds measured (its readers
 are MIRROR's) — every writer, every occurrence of the shape it admits, every host it runs on, and
 the n behind any rate, bound or zero the design will claim; each external contract probed live
-once, a list read whole, never a sample. Then
+once, a list read whole, never a sample — each by EXECUTING the real path on real data (the producer's code,
+the tool's run output per mode, the design's own classifier, the writer of each state value it trusts), never a
+source read or a proxy. Then
 `python scripts/select_rules.py --changed <the declared paths>` — the path-scoped form — and READ
 the packs it prints.
 
@@ -80,7 +83,12 @@ Write six fields — **PROBLEM · APPROACH · DECISION (reversible?) · MIRROR �
 
 {{include:design-critique}}
 
-Then record them:
+This lane's brief also has each seat EXECUTE: replay the reported incident through the design; run each matcher,
+semantics or shell claim against the real tool under the live guard; sweep sibling write paths and the tests
+pinning a moved value; name each new guard's fail direction and any second approach the build cannot settle. It
+pins the tree (a commit or `git archive` copy), bars live-provider credentials and asks for small outputs. Wait
+for both in-turn. Then re-read `design.md`; each Behaviour names its test; every touched path is bare in
+backticks under `APPROACH:`/`MIRROR:`; `--design` lands ONCE. Record them:
 
 ```bash
 python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \
@@ -107,7 +115,10 @@ and counted on the close as `design_amends`.
 MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what changes — callers,
 each branch of a changed function, every resolver of the same identity, consumers of a moved or
 deleted file, other surfaces stating a changed claim, the gates that grade it — each found by an
-executed search, with the shape it now fails on and its cost measured, never estimated. A reader
+executed search, with the shape it now fails on and its cost measured, never estimated. The search is the
+whole tracked tree (tests and their pinned strings, `commands/`, UI, docs) under every spelling of the identifier,
+sibling write paths included; each new guard, veto or fallback names its fail direction — which error is
+dangerous, an answer versus an outage. A reader
 the build leaves untouched is named without backticks: every backticked MIRROR path counts as
 declared at a *(v2)* close. The fields
 are the D-row's draft: APPROACH+DECISION+MIRROR → *what*, PROBLEM → *why*, the declared files →
@@ -121,7 +132,10 @@ A declared path inside another lock's `owned_paths` is a STOP; so is an ACTIVE l
 DIRECTIVE 4; a shared-append file goes through § EXIT's private-index recipe, never the working file.
 One commit carries it at v1; *(v2)* several may, SPACE-separated — `done --commit shaA shaB …`
 measures each in order; a sync-path run (D7) commits ONCE, after phase 4, in the main checkout
-(`done` refuses more outside a worktree; `blocked`/`handoff` only note it).
+(`done` refuses more outside a worktree; `blocked`/`handoff` only note it). At v1 that one
+commit also carries phase 5's ledgers, so nothing is committed before phase 5. Each grader names its input domain
+and borrowed fixtures, EXECUTES an executable subject, runs hermetic on production's transport and is red on base
+by its named assertion; every guard and threshold edge the change adds is mutated.
 
 ## Phase 4 — REVIEW
 
@@ -131,9 +145,11 @@ the full `/fabrik-review` for a sync, heavy, migration or >5-file surface (D2, D
 never from memory; nested here, its own scope-growth stop fires at the FIRST own-fix-only round,
 not the third (D8), still closing only on a confirmed-zero pass. Give its seat briefs
 the phase-2 `design.md` path and the phase-0 declaration, plus three questions: *does the change ESCAPE the declared files? did it add a mechanism the declaration said `no` to?
-can you name a second approach the declaration said did not exist?* A `yes` to the first or third is that seat's UPGRADE verdict — take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315). A declared file left UNTOUCHED is padding
+can you name a second approach whose merits the build cannot settle (an equivalent implementation is not one)?* A `yes` to the first or third is that seat's UPGRADE verdict — take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315). A declared file left UNTOUCHED is padding
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
-an UPGRADE, which would strand the run.
+an UPGRADE, which would strand the run. A decision the review changes is re-drafted into the D-row with the drift
+noted. Under a QUOTA checkpoint the record stays open, *(v2)* the build is committed, and the review is sized to
+the runway.
 
 ## Phase 5 — CLOSE, in this order
 
@@ -163,7 +179,9 @@ The close re-measures every commit. At v1 an undeclared path is RECORDED as `ove
 never refused. *(v2)* a path missing from APPROACH/MIRROR/an amendment REFUSES `done` (phase 2's
 rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, never refusing a
 sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff`
-too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none.
+too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)):
+`review_receipt.py --init --lane --range <base>..<last code commit>` after that commit, then the receipt committed
+after it, never captured or passed to `--commit`. A split critique is named in `--evidence`.
 
 ## UPGRADE — the one-way ratchet, available from phase 1
 

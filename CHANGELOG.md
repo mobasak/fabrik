@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: the whole feedback queue answered in one pass (2026-10-11)
+- MEASURE executes the real path; MIRROR searches the whole tracked tree and names each new guard's fail direction; the lane's critique brief has seats execute claims and replay the incident; a pre-record checklist; graders execute their subject and every added guard is mutated; v1's single commit carries the ledgers; phase 4's third question excludes an equivalent implementation; the `--review` receipt's range tip is the last `--commit`. The design-critique fragment no longer re-critiques the version that folds its ACCEPTED concerns (D-734, D-735).
+
 ### Changed — /fabrik-data-contract: an approved spec naming the delta confirms a re-freeze (2026-10-09)
 - Phase 0: a FROZEN contract's re-freeze STOP is satisfied by a spec whose approval row (the panel's `→ both-approve` or the operator's approving answer) is in `docs/DECISIONS.md` and whose § Contract deltas (a `Profile: delta` spec's section) names the change; anything else still stops. Phase 3 gains check 5, which re-checks the deltas before the Phase-4 flip (D-730, decided by the Opus + Fable panel).
 
