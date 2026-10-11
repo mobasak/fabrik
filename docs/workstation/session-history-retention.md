@@ -97,8 +97,11 @@ zstd -d /tmp/r.zst -o /tmp/r.jsonl                                              
 ### After a prune — `prune_transcripts.py --restore`
 
 A session the pruner removed (Phase C, D-736) is listed in `~/.claude/archive/pruned.jsonl` — one row
-per deletion with the tier (`main` or `subagents`), the slug, the session id, the sha256, the byte count,
-every path removed, the agent tag, the object key with its size and SHA1, and `pruned_at` — and that file ships to the bucket with the archive, so the list is off-box too.
+per deletion. A `main` row carries the tier, the slug, the session id, the sha256, the byte count, every
+path removed, the agent tag, the object key with its size and SHA1, and `pruned_at`; a `subagents` row
+(a sidechain, a task or a shell snapshot — its `kind`) carries the tier, the kind, the slug, the parent
+session id, the byte count, the paths and `pruned_at`, and nothing to restore from, since that tier is
+never archived — and that file ships to the bucket with the archive, so the list is off-box too.
 
 ```bash
 cd /opt/fabrik
