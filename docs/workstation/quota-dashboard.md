@@ -162,10 +162,20 @@ Three properties worth knowing:
 `FABRIK_OPT_DIR` (the `/opt` seam, default `/opt`) that keeps a `.fabrik/work` store. Pick a repo in
 the selector — `fabrik` first, then repos by how much remains, then by name; the choice is kept in the
 browser's `localStorage` (`repo-pick`). For the chosen repo it prints a summary (remaining · awaiting
-the operator · blocked · claimed now · owners) and one table per owner — the hub's agents (`infra`,
-`fleet`, `intel`, `kaizen`) and `operator` first, other owners by name, `unassigned` last — with each
-item's id, kind, status, priority, title, next step (capped at 160 characters; the tooltip holds up to
-600), tags and live claim. Rows run awaiting-operator first, then by priority, then by id.
+the operator · blocked · claimed now · owners with items) and a row of owner chips, each with its count
+of remaining items: **All**, then `infra`, `fleet`, `intel`, `kaizen` (always shown, at 0 too, in every
+repo), `operator` and other owners by name, and **(unassigned)** last (always shown; an owner literally
+named `unassigned` keeps its own chip). Each owner's items sit in a collapsible section whose heading
+carries the owner's awaiting · blocked · claimed counts; an owner with nothing open says "No open
+items". **All** (the default) shows every section, closed except the ones you opened before, so the
+owners read as one list; a chip shows only that owner's section, opened. The chip is kept per repo in
+`localStorage` (`repo-owner:<repo>`: `*` for All, `~` for the empty owner, `=<owner>` for a named one),
+and so are the sections you open under All (`repo-open:<repo>`), because the frame is rebuilt every
+time you return to the tab. The page is served closed to every
+viewer and the script then applies your choice, so a large repo may briefly show the closed list first.
+Each table lists the item's id, kind, status, priority, title, next step (capped at 160 characters; the
+tooltip holds up to 600), tags and live claim. Rows run awaiting-operator first, then by priority, then
+by id.
 
 "Remaining" is `work.py`'s own rule, never a copy: not `done`/`dropped` and not hidden by a closed
 marker (`_iter_items`, `_closed_ids`, `_live_claims`, imported by path under a private module name and
