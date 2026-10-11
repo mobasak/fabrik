@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the review probe catalogue answers the /fabrik-review-scoped queue (2026-10-12)
+- `commands/_fragments/review-probe-catalogue.md` collects the probes, hunt lines, grader, prose-fix, isolation and loop steps ~290 feedback rows asked for; /fabrik-review-scoped step 5 points at it by its hub path. The command's `command_run.py` citations are by symbol (the line numbers had drifted), and a guard's escape variants are asked from round 1 (D-751).
+
 ### Changed — /fabrik-task: the specific steps the first queue pass left open (2026-10-12)
 - MEASURE names its real paths (subprocess-driven tests, the gate's own command, fail-open callees, a concurrent reader, written-file hashes, an independent parser); MIRROR names its specific readers (key verbs, literal paths, record shapes, env-var and config hand-offs, allowlist buckets); the critique brief executes a claim per external dependency and adjudicates ACCEPTED concerns against the tests; the review is sized before dispatch; the receipt is CONVERGED alone and outside the one-commit rule (D-747).
 
