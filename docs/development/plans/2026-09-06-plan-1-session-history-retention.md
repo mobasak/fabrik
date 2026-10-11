@@ -245,10 +245,15 @@ sets the contract this phase implements. Everything here is grounded in § Evide
 - **Off-box: everything.** Every MAIN transcript of every repo keeps shipping to B2 nightly (Phase A,
   live). Subagent transcripts, tasks and shell snapshots are never archived (they never were).
 - **Local: ~3 days.** A MAIN transcript whose `mtime` is older than **3 days** is deleted locally
-  once — and only once — the archive provably holds its bytes (C.2). Everything the operator can see
-  on a screen is inside that window by construction: an open window's file is written on every
-  turn, so its `mtime` is minutes old; and an OPEN session is refused by name regardless of age
-  (the sessions registry + the identity file, C.2.1).
+  once — and only once — the archive provably holds its bytes (C.2). What the pruner NEVER touches:
+  an OPEN session — a live `claude` process still carries its id (the registry's `pid`+`procStart`,
+  C.2.1 r2) — however old; a file written in the last 3 days; the newest session of every project
+  slug AND of every tagged agent (C.2.1 r3). What it DOES touch: a session older than 3 days whose
+  window is gone (a reload or an extension-host crash ends every session in a window,
+  `worktree_transcript_link.py:9-10`) and that is neither a project's nor an agent's newest — it
+  leaves the `/resume` picker and is one `prune_transcripts.py --restore <session_id>` (C.2.5) or one
+  `search_chats` away. That is the operator's "3 days might be fine" taken at its word; the restore
+  verb is what makes "be extremely careful" hold for the rest.
 - **Named histories for infra, kaizen, intel, fleet.** A session is tagged with its agent name in
   the manifest (C.1); a named window ROTATES to a fresh session before its file reaches the sizes
   that crash the extension (C.1.3), so "infra's history" becomes a chain of tagged sessions, each
@@ -283,6 +288,15 @@ Appetite: 90
   `pid_start`, `toplevel`, `at`; written by `scripts/whoami_agent.py`; 42 rows today) and writes
   `"agent": "<name>"` into each new manifest row (absent when no binding names the session). The
   latest `at` per `session_id` wins. Rows already shipped are not rewritten (append-only manifest).
+  **The binding is keyed by SESSION ID, and `/clear` mints a new one** — `resolve_agent_name()`
+  (`scripts/whoami_agent.py:259-274`) matches `row["session_id"] == CLAUDE_CODE_SESSION_ID`; `pid` +
+  `pid_start` is only the collision/liveness test (`:134-152`, `:356-373`). So a rotated window's
+  new session has no row. One function, `agent_for(session_id)`, resolves in two legs: (1) the latest
+  identity row for that `session_id`; else (2) the REGISTRY JOIN — the `~/.claude/sessions/<pid>.json`
+  entry whose `sessionId` is this session's, joined on `(pid, procStart)` to the identity row with
+  the same `(pid, pid_start)` (the `claude` PROCESS survives `/clear`; both fields are
+  `/proc/<pid>/stat` field 22 — asserted at build on one live window); else no key. The join is
+  read-only and never writes the identity file.
 - **C.1.2 `--agent <name>`.** A read-only verb: the manifest's rows for that agent, newest first —
   `session_id`, `project_slug`, `bytes`, `archived_at`, and whether the local file still exists.
   "infra's history" is this list; each session is readable through session-recall's `get_chat`
@@ -290,80 +304,166 @@ Appetite: 90
 - **C.1.3 The rotation advisory — a USER-level `UserPromptSubmit` hook, every window, every repo.**
   New `scripts/sysadmin/transcript_size_check.py`, wired by `scripts/sysadmin/install_user_hooks.py`
   beside `selfwatch_check.py` (the user-level hook list, `~/.claude/settings.json`; hub-local, not a
-  governance-sync path). It reads the hook JSON's `transcript_path`, stats the file, and when the
-  size is ≥ `ROTATE_ADVISE_MB` (default **200**) prints ONE line:
-  `ROTATE: this session's transcript is <N> MB — run `/clear <agent>-<YYYY-MM-DD>` now; the previous
-  session stays resumable and is archived tonight (D-736)`. Fail-open: any error, exit 0, no output.
+  governance-sync path). It reads the hook JSON's `transcript_path` (the field
+  `worktree_transcript_link.py:92` already reads from the same payload) and `session_id`, stats the
+  file, and when the size is ≥ `ROTATE_ADVISE_MB` (default **200**) prints ONE line:
+  `ROTATE: this session's transcript is <N> MB — run `/clear <agent>-<YYYY-MM-DD>` now, then
+  `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force`; the previous session stays
+  resumable and is archived tonight (D-736)`. Fail-open: any error, exit 0, no output. **Stamped,
+  never per-prompt:** `~/.claude/state/rotate-advised/<session_id>` records the 100 MB step last
+  advised; the line prints only when the size crosses a NEW step (200, 300, 400 …), so a window that
+  does not rotate hears it once per 100 MB, not on every prompt — `install_user_hooks.py:37-42`
+  records why: the per-prompt shape was measured and rejected ("9 of 9 live sessions fired on EVERY
+  prompt … wallpaper is how enforcement dies", D-184/D-187).
   Why 200: the extension crashed users at 467 MB (#23953) and loops past 2 GiB; a busy hub window
   grows ~25 MB/day (infra: 1,528 → 1,530 MB in a day of light use; the 2026-10-05 → 10-11 delta
   was ~170 MB), so 200 MB is roughly a week and keeps every window an order of magnitude under the
   first crash report. `/clear` starts a new session and keeps the previous one resumable
   (code.claude.com/docs/en/commands: *"`/clear [name]` — Start a new conversation with empty
-  context. Pass a name to label the previous conversation in the `/resume` picker"*); the agent
-  binding survives because `whoami_agent.py` binds by `pid`, not by session id (verify at build:
-  the new session's `agent-identity.jsonl` row, or a re-bind in the ROTATE line).
+  context. Pass a name to label the previous conversation in the `/resume` picker"*). The agent
+  binding does NOT follow `/clear` (C.1.1: keyed by session id), and a plain re-bind in the new
+  session is REFUSED — `_bind_locked` (`whoami_agent.py:356-373`) finds the pre-`/clear` row holding
+  the same name with the same live `pid`+`pid_start` and answers "held by a LIVE session" (executed
+  in round 1 with a scratch store). Hence `--force` in the ROTATE line (the holder is this window's
+  own previous session; the row records `force: true`), and the manifest's registry join (C.1.1)
+  tags the new session even when the operator skips the re-bind. The permanent fix — a holder row
+  with the same `pid`+`pid_start` IS this session's predecessor, bind without `--force` — is a
+  `scripts/whoami_agent.py` change, a governance-sync path (`.pre-commit-config.yaml:164`): sent to
+  infra as a `request` (D-441) in C.4, not edited here.
 - **C.1.4 Rotate the four windows NOW, before any deletion.** The operator runs `/clear infra-2026-10-11`
-  (and kaizen, intel, fleet) once this phase's advisory ships; the old sessions archive that night
-  and fall under C.2 three days later. This alone ends the startup OOM: the sidebar then lists
-  files of a few MB, not GB.
+  then `python3 scripts/whoami_agent.py --as infra --force` (and kaizen, intel, fleet alike) once this
+  phase's advisory ships; the old sessions archive that night and fall under C.2 three days later.
+  This alone ends the startup OOM: the sidebar then lists files of a few MB, not GB. It is a one-time
+  act plus the advisory; nothing forces a later rotation (Residual risk 10 names the backstops).
 
 **Gate C.1 (runnable):** `pytest tests/test_archive_transcripts.py -k agent` green after being seen
 red (a row for a bound session carries `agent`; an unbound one carries none; the latest binding
 wins); `pytest tests/test_transcript_size_check.py` green after red (≥ threshold prints the ROTATE
-line with the size; below prints nothing; a missing/unreadable path prints nothing, exit 0);
-`python3 scripts/sysadmin/install_user_hooks.py --check` exit 0 with the new hook listed.
+line with the size; below prints nothing; a missing/unreadable path prints nothing, exit 0; the
+same step twice prints once; a new step prints again); `pytest tests/test_archive_transcripts.py -k
+registry_join` green after red (a session with no identity row but a registry entry joined on
+`pid`+`procStart` gets the name; neither ⇒ no key); `python3 scripts/sysadmin/install_user_hooks.py
+--check` exit 0 with the new hook listed (`tests/test_install_user_hooks.py`).
 
-### C.2 — The pruner (the ONLY deleter on this box)
+### C.2 — The pruner (the ONLY deleter of MAIN transcripts under `~/.claude/projects`)
 Appetite: 150
 
 New `scripts/sysadmin/prune_transcripts.py` — `--dry-run` is the default and prints a table; `--apply`
-deletes. It runs after the archiver from the same unit (a second `ExecStart=` line in
-`session-archive.service`, oneshot units run them in order), so a night whose archive failed prunes
-nothing (the unit stops at the first failing `ExecStart`).
+deletes. It runs after the archiver from the same unit as a second `ExecStart=` line in
+`session-archive.service`, prefixed `-`: `man systemd.service` (ExecStart=) — *"If more than one
+command is specified, the commands are invoked sequentially in the order they appear in the unit
+file. If one of the commands fails (and is not prefixed with "-"), other lines are not executed, and
+the unit is considered failed."* So a night whose archive failed prunes nothing, and a pruner
+refusal (exit 3, reason printed) never fails the unit — without the `-`, `Restart=on-failure` would
+re-run the ARCHIVER up to `StartLimitBurst=4` times for a pruner outcome. Exit codes: 0 = ran (0 or
+more deletions); 3 = refused (`--expect` mismatch, cap exceeded, lock held, no manifest); 2 = usage.
+The pruner takes the archiver's own lock (`ARCHIVE_ROOT/<LOCK_NAME>`, the same `flock`) so a hand-run
+`--apply` can never overlap the timer's archiver; and the archiver's `_group_by_inode`
+(`archive_transcripts.py:200-206`) gains a `FileNotFoundError` skip for a path that vanished between
+its scan and its `stat` (today that raises outside `archive_one`'s handler, `:428`, and would abort
+the night's run). **Other deleters, inventoried:** the crontab's
+`17 5 * * * find ~/.claude-youtube-headless/projects -type f -mtime +1 -delete` removes a headless
+pipeline's own `claude -p` transcripts in a SEPARATE config dir after one day — never archived, not
+the operator's chat, out of D-736's scope and left as is; `~/.claude/bin/claude-reboot-sweep.sh`
+deletes only its lock and marker files (`:95-241`) and SCANS transcripts (`:259`) to list cut
+sessions — it removes none. The unit edit reaches `~/.config/systemd/user/` only through
+`install_session_archive_timer.sh` run from the MAIN checkout after the merge (its header: *"Run
+from the MAIN checkout after the archiver change is merged"*) — Gate C step (0).
 
 - **C.2.1 The invariant, in code — every clause fail-CLOSED.** A local MAIN transcript is deleted
   only when ALL hold:
   1. `mtime` older than `PRUNE_AFTER_DAYS` (default **3**);
-  2. **not OPEN**: its `session_id` appears in no `~/.claude/sessions/<pid>.json` whose `pid` is
-     alive (`/proc/<pid>` exists; 5 live of 1,398 entries today) and in no `agent-identity.jsonl`
-     row whose `pid`+`pid_start` is alive;
-  3. **not the newest session of its project slug** (a long-idle project keeps its resume point);
+  2. **not OPEN**: no `~/.claude/sessions/<pid>.json` entry carries its `sessionId` with a live
+     process — `/proc/<pid>` exists AND the entry's `procStart` equals `/proc/<pid>/stat` field 22
+     (a missing `procStart` counts as alive: fail-closed; a recycled pid does not) — and no
+     `agent-identity.jsonl` row carries its `session_id` with `pid`+`pid_start` alive the same way
+     (the identity file trims rows after 30 days, `whoami_agent.py:53`, so the registry is the
+     primary test and the identity row the belt). Measured 2026-10-11: 1,401 entries, 9 live pids,
+     6 of them with a matching `procStart`, 6 `pidDomain`s (= boots). The registry is ONE directory
+     for every account slug (`~/.claude-fleet/<slug>/sessions` → `~/.claude/sessions`, Evidence
+     probe 5), so a pinned session is seen;
+  3. **not the newest session of its project slug, and not the newest of its agent** (the `agent`
+     tag, C.1.1) — a long-idle project keeps its resume point, and each hub agent keeps its latest
+     chain link even though the four hub windows share the `-opt-fabrik` slug;
   4. its CURRENT sha256 equals the latest manifest row's `sha256` for `(project_slug, session_id)`
      (re-hashed at delete time, never trusted from archive time);
-  5. the local `.zst` exists and `zstd -t` passes;
-  6. the bucket lists the object with the SAME size and SHA1 as the local `.zst`
-     (`rclone lsf --files-only --format psh --hash SHA1 <prefix>/<slug>/`, one listing per slug —
-     works from this network for small AND multi-part objects, § Evidence probe 3; the listing
-     failing ⇒ nothing in that slug is deleted);
-  7. every hard-linked name of the inode (the worktree slug twin `worktree_transcript_link.py`
-     creates, D-467) passes 1–3 too; the names are unlinked together or not at all.
-  A deletion appends a row to `~/.claude/archive/pruned.jsonl` (`project_slug`, `session_id`,
-  `sha256`, `bytes`, `paths`, `pruned_at`) — the restore list.
-- **C.2.2 `--apply` is deliberate.** It requires `--expect <N>` equal to the dry-run's deletable
-  count; a mismatch deletes nothing and prints both numbers. The unit runs `--apply --expect` only
-  from a wrapper that computes `N` from a dry-run in the same invocation (so a human-run `--apply`
-  must have read the table). COBRA: the cheapest way to satisfy "the operator saw the count" is a
-  wrapper that always agrees with itself — so the wrapper ALSO refuses when `N` exceeds
-  `PRUNE_MAX_PER_RUN` (default **200** files) or when the deletable bytes exceed what the dry-run
-  reported by more than 1%, and the first ever `--apply` is run by hand (Gate C).
+  5. the `.zst` under the ROW's `project_slug` (objects exist only under the primary slug,
+     `archive_transcripts.py:242-244`; an aliased `also_slugs` row points there too) exists,
+     decompresses, and the sha256 of its CONTENT equals the row's and the file's — `zstd -t` alone
+     proves the frame, not the bytes: with `also_slugs` aliasing, a worktree name whose hard link
+     broke keeps resolving to a row whose object was later rewritten for the primary (executed in
+     round 1: `zst exists True · decompresses to the worktree bytes False`);
+  6. the bucket lists the object under the ROW's `project_slug` with the SAME size and SHA1 as the
+     local `.zst` (`rclone lsf --files-only --format psh --hash SHA1 <prefix>/<slug>/`, one listing
+     per slug — works from this network for small AND multi-part objects, § Evidence probe 3; the
+     listing failing ⇒ nothing in that slug is deleted);
+  7. every name of the inode — found at PRUNE time by `(st_dev, st_ino)` over the whole tree, never
+     from the manifest's `also_slugs` (a twin `worktree_transcript_link.py` created after the
+     archive run has no alias) — passes 1–3, and every name's `(slug, session_id)` has a row; one
+     name without a row ⇒ the inode is skipped. The names are unlinked together or not at all;
+  8. **session-recall holds it**: a `sessions` row for the id exists (`/opt/session-recall/db/
+     schema.sql:18-27`: `id`, `last_at`, `turn_count`) with `turn_count > 0` and `last_at` not older
+     than the file's last `timestamp` field (the pruner already reads the file to hash it). No
+     database, no row, or a stale row ⇒ not deleted. Nothing on this box schedules session-recall's
+     ingest today (no timer, no cron — round-1 probe), so until C.4's request lands this clause
+     refuses EVERY deletion — the correct failure: "searchable through session-recall" (C.2.4) is a
+     promise the pruner must not make for it.
+  **Order and the last look:** rules 1–3 and 8 (cheap) → 4 (the hash, seconds on a GB file) → 5–6
+  → then, immediately before the unlink, a re-`stat` (size and `mtime` unchanged since the hash) and
+  rule 2 again; a change ⇒ skipped with reason `changed-under-hash`. A deletion appends a row to
+  `~/.claude/archive/pruned.jsonl` (`project_slug`, `session_id`, `sha256`, `bytes`, `paths`,
+  `agent`, `pruned_at`) — the restore list `--restore` reads (C.2.5); the file sits in
+  `ARCHIVE_ROOT`, so `ship()` uploads it nightly as one more small object, deliberately: the restore
+  list is off-box too.
+- **C.2.2 `--apply` is deliberate, and CAPPED on every path.** A hand run requires
+  `--apply --expect <N>` equal to the dry-run's deletable count; a mismatch deletes nothing and
+  prints both numbers. The unit runs `--apply --nightly` (no wrapper script — the mode lives in
+  `prune_transcripts.py`, in File Scope): it computes `N` itself and prints it. BOTH paths refuse
+  (exit 3) when `N` exceeds `PRUNE_MAX_PER_RUN` (default **200** files) unless the hand run passes an
+  explicit `--max <N>` — so Gate C's first deletion cannot clear the ~7,200-file backlog in one step
+  (Evidence probe 2: 9,687 MAIN files, 2,470 inside the window). COBRA, stated honestly: a nightly
+  mode that computes its own `N` always agrees with itself, so "the operator saw the count" is NOT
+  what the nightly path proves — its brake is the cap and the ledger row per deletion; the hand path
+  proves the count was read (`--expect`) and raises the cap only by naming the number. A
+  "bytes within 1% of the dry-run" check was dropped: both figures come from one process over one
+  tree, seconds apart, and could never disagree.
 - **C.2.3 Graders, each SEEN RED first** (`core/45-testing-strategy.md:22`): a file inside the
   window → never offered · an OPEN session (live pid) → never offered, however old · the newest
   session of a slug → never offered · absent from the manifest → not deleted · archived at sha A
   then mutated to sha B → not deleted · `.zst` missing → not deleted · `.zst` corrupt → not deleted
   · remote listing absent / size differs / SHA1 differs → not deleted · listing call fails → nothing
-  in that slug deleted · two names on one inode where one fails → neither deleted · `--apply`
-  without `--expect` or with the wrong count → nothing deleted · a deletion writes its
-  `pruned.jsonl` row BEFORE the unlink (a crash between them leaves a row with the file still
-  present, never the reverse).
+  in that slug deleted · two names on one inode where one fails → neither deleted · a name whose
+  `(slug, session_id)` has no row → the inode skipped · the `.zst` decompresses to other bytes →
+  not deleted · an OPEN session by the identity row alone (registry entry dead) → not deleted · a
+  registry entry with a live pid but another `procStart` → not OPEN · the newest of an agent, older
+  than another agent's session in the same slug → kept · no session-recall row, or `last_at` older
+  than the file's last turn → not deleted · the file changed between the hash and the unlink →
+  `changed-under-hash`, not deleted · `--apply` without `--expect` or with the wrong count → nothing
+  deleted · `N` over `PRUNE_MAX_PER_RUN` without `--max` → exit 3, nothing deleted, on the hand AND
+  the nightly path · the archiver lock held → exit 3 · a deletion writes its `pruned.jsonl` row
+  BEFORE the unlink (a crash between them leaves a row with the file still present, never the
+  reverse) · `--restore <session_id>` re-creates every path of the row byte-identical to the row's
+  `sha256` (C.2.5) · `--agent <name>` lists only that agent's rows, newest first (C.1.2) · the unit
+  file's second `ExecStart` carries the `-` prefix and follows the archiver's line.
 - **C.2.4 What the operator sees afterwards.** The VS Code picker lists each project's sessions
-  from the last 3 days plus its newest; older sessions are reached through session-recall
-  (`search_chats` / `get_chat`, their text is in Postgres) or restored with
-  `archive_transcripts.py --fetch` (needs the download host, § Phase B).
+  from the last 3 days plus its newest and each agent's newest; older sessions are reached through
+  session-recall (`search_chats` / `get_chat`, their text is in Postgres — rule 8 guarantees the
+  index holds them) or put back into the picker with `--restore` (C.2.5).
+- **C.2.5 `--restore <session_id>` — the restore list's one consumer.** Reads the `pruned.jsonl`
+  row (local first, else the bucket's copy), fetches the object with the archiver's `--fetch`
+  (needs the download host — § Phase B; an unreachable host is a plain refusal naming the host),
+  decompresses to EVERY path the row names (the primary and its hard-linked twins, re-linked), and
+  verifies the sha256 against the row before it reports. Restored files are ordinary transcripts:
+  `/resume` lists them, the archiver skips them unchanged (A.1a), and after 3 more days the pruner
+  may offer them again. `--restore` never deletes and never overwrites an existing path.
 
 **Gate C.2 (runnable):** `pytest tests/test_prune_transcripts.py` green after each grader was red;
 `python3 scripts/sysadmin/prune_transcripts.py` (dry-run) over the live tree prints its table and
-exits 0 with **0 deletions** and the counts of candidates per refusal reason; `ruff check` +
-`ruff format --check` clean. **No `--apply` in this gate.**
+exits 0 with **0 deletions** and the counts of candidates per refusal reason (rule 8 refuses all
+of them until session-recall's ingest timer exists — that count is the evidence the clause works);
+`pytest tests/test_archive_transcripts.py -k vanished` green after red (the `_group_by_inode` skip);
+the unit-file test asserts `Type=oneshot`, the archiver's `ExecStart` first and the pruner's
+`ExecStart=-` second; `ruff check` + `ruff format --check` clean. **No `--apply` in this gate.**
 
 ### C.3 — Subagent transcripts, tasks, shell snapshots: a 3-day cliff, no archive
 Appetite: 60
@@ -388,11 +488,17 @@ Appetite: 60
   and `MARKER` text stop saying the box never deletes (the archiver still never deletes — the pruner
   does, and the README names it).
 - `docs/workstation/hooks-index.md` + `install_user_hooks.py`: the new user-level hook row.
-- **Hub `CLAUDE.md` (this repo, fleet edits; a heavy surface — the full `/fabrik-review`):** one
-  paragraph under § Pointers: *Session history: every MAIN transcript ships to B2 nightly; the local
-  copy is pruned after 3 days by the guarded pruner (never an open session, never a project's newest);
-  history is read through session-recall or `archive_transcripts.py --fetch`; a named hub window
-  rotates with `/clear <agent>-<date>` when the ROTATE line appears (D-736).*
+- **Hub `CLAUDE.md` (this repo, fleet edits; NOT a governance-sync path — `.pre-commit-config.yaml:164`
+  carries no `^CLAUDE\.md`; a doc edit, so `/fabrik-review-scoped` per § Completion Contract 1a):**
+  one paragraph under § Pointers: *Session history: every MAIN transcript ships to B2 nightly; the
+  local copy is pruned after 3 days by the guarded pruner (never an open session, never a project's
+  or an agent's newest); history is read through session-recall or put back with
+  `prune_transcripts.py --restore <session_id>`; a named hub window rotates with `/clear
+  <agent>-<date>` + `whoami_agent.py --as <agent> --force` when the ROTATE line appears (D-736).*
+- **`scripts/whoami_agent.py` (a governance-sync path, infra's beat):** a `request` (D-441): a holder
+  row with the same `pid`+`pid_start` as the binding process is this session's `/clear` predecessor
+  — bind without `--force`, and record the predecessor's `session_id` on the new row. Until it
+  lands, the ROTATE line's `--force` is the sanctioned path (C.1.3).
 - **`templates/governance/CLAUDE.md` (every /opt project — a governance-sync path, infra's beat):**
   the same paragraph, sent to infra as a `request` carrying the exact text (D-441 authority); infra
   commits it in the main checkout so the post-commit sync distributes it.
@@ -403,26 +509,45 @@ Appetite: 60
   via `SESSION_ARCHIVE_MANIFEST`, default `~/.claude/archive/manifest.jsonl`) — today `--full` drops
   any session whose file is gone (`reindex.py:341,526-528`; the 2026-09 mail 01M1SPW1 is still unread
   in their inbox); (b) an `agent` column on `sessions`, filled from `agent-identity.jsonl`, and an
-  `agent=` filter on `search_chats`. Interim, verified: no cron, timer or script runs `--full` on
-  this box, so nothing deletes index rows before (a) lands; the pruner's `pruned.jsonl` is the list
-  to re-ingest from the archive if it ever does.
+  `agent=` filter on `search_chats`; (c) a NIGHTLY ingest (timer or cron) that runs before 00:00,
+  because the pruner's rule 8 deletes nothing whose last turn session-recall has not indexed —
+  today nothing schedules the ingest (round-1 probe: `systemctl --user list-timers --all` shows only
+  `session-archive` and `launchpadlib-cache-clean`; `crontab -l` has no reindex line), so without
+  (c) the pruner stays a dry-run in effect. Interim, verified: no cron, timer or script runs
+  `--full` on this box, so nothing deletes index rows before (a) lands; the pruner's `pruned.jsonl`
+  is the list to re-ingest from the archive if it ever does.
 
-**Gate C.4:** `docs_updater.py --check` green; `check_doc_links.py` green; the three mails sent (ids
-in Evidence); the hub `CLAUDE.md` paragraph reviewed by the full `/fabrik-review`.
+**Gate C.4:** `docs_updater.py --check` green; `check_doc_links.py` green; the FOUR mails sent (ids
+in Evidence: infra ×2 — the governance template and `whoami_agent.py` —, fabrik-lib, session-recall);
+the hub `CLAUDE.md` paragraph reviewed by `/fabrik-review-scoped`.
 
 ### Gate C — the FIRST real deletion (operator-visible, once)
 
-All of C.1–C.4 green, then, in this order: (1) **Gate B's download proof** (B.1–B.5) from a network
-that reaches `https://f004.backblazeb2.com` — the only thing this network cannot do; a phone hotspot
-or the VPN off does it in minutes; (2) `prune_transcripts.py` dry-run, its table pasted into Evidence;
-(3) `--apply --expect <N>` by hand, (4) `--remote-count` and `pruned.jsonl` row count agree with (3);
-(5) the sidebar of one project reopened and its last-3-days sessions still listed; (6) the unit's
-second `ExecStart` switched from dry-run to the wrapper. **Any step red ⇒ the unit stays on dry-run.**
-Deletes nothing until (3).
+All of C.1–C.4 green, then, in this order: (0) the branch MERGED by infra (`merge_request.py`) and
+`install_session_archive_timer.sh` re-run from the MAIN checkout — the unit calls
+`/opt/fabrik/scripts/sysadmin/prune_transcripts.py`, which does not exist there until the merge; the
+re-installed unit carries `ExecStart=-… --dry-run` (the default) and `systemctl --user cat` shows it;
+(1) **Gate B's download proof** (B.1–B.5) from a network that reaches `https://f004.backblazeb2.com`
+— the only thing this network cannot do; a phone hotspot or the VPN off does it in minutes; (2)
+`prune_transcripts.py` dry-run, its table pasted into Evidence — rule 8's count is non-zero only once
+session-recall's ingest (C.4 (c)) runs; (3) the **canary**: `--apply --expect 10 --max 10` by hand
+over the 10 oldest deletable files, then `--restore` of two of them from the bucket, byte-identical
+(`sha256sum` against the `pruned.jsonl` rows), then pruned again; (4) `prune_transcripts.py
+--verify-ledger`: every `pruned.jsonl` row's object is still listed with its size and SHA1 (rule 6
+re-run over the ledger), and `--remote-count` is UNCHANGED from before (3) — the pruner never
+touches the bucket; (5) the sidebar of one project reopened and its last-3-days sessions still
+listed, one hub window's `/resume` list still showing its newest; (6) the unit's second `ExecStart`
+switched from `--dry-run` to `--apply --nightly` (the cap drains the ~7,200-file backlog at ≤ 200 a
+night; a hand run with `--expect <N> --max <N>` after (3) may take bigger bites — each one a pasted
+table). **Any step red ⇒ the unit stays on dry-run.** Deletes nothing until (3).
 
-**Review floor:** `/fabrik-review-scoped` after C.1 and C.3; the full `/fabrik-review` after C.2
-(the deleter) and after C.4 (the hub `CLAUDE.md` is a heavy surface); seats native (D-181), the
-Opus seat authoritative on C.2's invariant; read-only git in seats.
+**Review floor** (CLAUDE.md § Completion Contract 1a: heavy = *"a new mechanism outside the
+`/fabrik-task` lane (D-315), gate/hook/enforcement, a governance-sync path, auth/schema/migrations/
+concurrency, >5 files, or anything an operator asked for by name"*): the full `/fabrik-review` after
+C.1 (a user-level HOOK) and after C.2 (the deleter — a new mechanism, concurrency, >5 files);
+`/fabrik-review-scoped` after C.3 and C.4 (the hub `CLAUDE.md` is outside the sync regex and a doc);
+seats native (D-181), the Opus seat authoritative on C.2's invariant; read-only git in seats. The
+plan's Finish `/fabrik-review` stands.
 
 ## Phase C (2026-10-05 deferral) — superseded text, kept for the record
 
@@ -475,7 +600,7 @@ by § Phase C above (D-736).
 | I4 | *"not the scratchpad, subagents etc."* | IN | C.3 (subagents, tasks, snapshots); scratch already swept |
 | I5 | *"we need to implement this asap"* | IN | C.1.4 rotation first (ends the crash today); C.2 behind Gate C |
 | I6 | *"we have 3 claude.md file … fabrik … fabrik-lib … governance for all opt projects"* | IN | C.4 |
-| I7 | *"be extremely careful not lose my chat histories seen in the screen"* | IN | C.2.1 rules 1–3, C.2.2, Gate C (1)–(5) |
+| I7 | *"be extremely careful not lose my chat histories seen in the screen"* | IN | C.2.1 rules 1–3 + the last look, C.2.2 (the cap), C.2.5 `--restore`, Gate C (0)–(5) |
 | I8 | *"(all repos)"* | IN | the pruner walks every project slug; the hook is user-level |
 | I9 | "why was the extension host running out of memory" (asked 2026-10-11) | IN | § Phase C preamble; root cause and the external issues cited |
 | I10 | "how are others doing this? research" | IN | § Phase C "Why rotation, not slimming"; sources in Evidence probe 5 |
@@ -489,18 +614,32 @@ Intake: 13 items — 11 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 
 - **Given** a manifest run over a session bound in `agent-identity.jsonl`, **When** its row is written, **Then** the row carries `"agent": "<name>"` and an unbound session's row carries no `agent` key (C.1.1)
 - **Given** two bindings for one session, **When** the row is written, **Then** the later `at` wins (C.1.1)
-- **Given** a transcript of ≥ `ROTATE_ADVISE_MB`, **When** `transcript_size_check.py` runs on the hook JSON, **Then** it prints exactly one `ROTATE:` line naming the size and `/clear`; below the threshold, or on any error, it prints nothing and exits 0 (C.1.3)
+- **Given** a session with no identity row whose registry entry's `(pid, procStart)` equals an identity row's `(pid, pid_start)`, **When** the row is written, **Then** `agent` is that row's name; with neither, no key (C.1.1 registry join)
+- **Given** `--agent <name>`, **When** it runs over a manifest, **Then** it lists only rows tagged `<name>`, newest first, each with whether the local file exists (C.1.2)
+- **Given** a transcript of ≥ `ROTATE_ADVISE_MB`, **When** `transcript_size_check.py` runs on the hook JSON, **Then** it prints exactly one `ROTATE:` line naming the size, `/clear` and the `--force` re-bind; below the threshold, or on any error, it prints nothing and exits 0 (C.1.3)
+- **Given** the same session at the same 100 MB step, **When** the hook runs again, **Then** it prints nothing; at a new step it prints once more (C.1.3 stamp)
+- **Given** the new hook in `ENTRIES`, **When** `install_user_hooks.py --check` runs, **Then** it exits 0 and lists it; a settings file missing it exits non-zero (C.1.3 wiring)
 - **Given** a MAIN transcript inside the 3-day window, **When** the pruner runs, **Then** it is never offered, in dry-run or apply (C.2.1 r1)
-- **Given** a transcript older than 3 days whose session id is in a live-pid registry entry, **When** the pruner runs, **Then** it is refused as OPEN (C.2.1 r2)
+- **Given** a transcript older than 3 days whose session id is in a registry entry with a live pid and a matching `procStart`, **When** the pruner runs, **Then** it is refused as OPEN; the same entry with a live pid and ANOTHER `procStart` is not OPEN; an entry without `procStart` is OPEN (C.2.1 r2)
+- **Given** a transcript whose only liveness evidence is an identity row with `pid`+`pid_start` alive, **When** the pruner runs, **Then** it is refused as OPEN (C.2.1 r2, identity leg)
 - **Given** a project slug whose only sessions are older than 3 days, **When** the pruner runs, **Then** the newest is kept (C.2.1 r3)
+- **Given** two agents' sessions in one slug, **When** the pruner runs, **Then** each agent's newest is kept even when another agent's session is newer (C.2.1 r3, agent leg)
+- **Given** a transcript with no manifest row for its `(slug, session_id)`, **When** `--apply` runs, **Then** it is not deleted, reason `not-archived` (C.2.1 r4)
 - **Given** a transcript whose current sha256 differs from its latest manifest row, **When** `--apply` runs, **Then** it is not deleted and the reason is `sha-mismatch` (C.2.1 r4)
-- **Given** a manifest row whose `.zst` is missing or fails `zstd -t`, **When** `--apply` runs, **Then** nothing is deleted for that session (C.2.1 r5)
+- **Given** a manifest row whose `.zst` is missing, fails `zstd -t`, or decompresses to bytes whose sha256 differs from the row's, **When** `--apply` runs, **Then** nothing is deleted for that session (C.2.1 r5)
+- **Given** a session with no session-recall `sessions` row, or one whose `last_at` is older than the file's last turn, or no reachable database, **When** `--apply` runs, **Then** it is not deleted, reason `not-indexed` (C.2.1 r8)
+- **Given** a file whose size or `mtime` changed between the hash and the unlink, **When** `--apply` runs, **Then** it is not deleted, reason `changed-under-hash` (C.2.1 last look)
 - **Given** a remote listing that is absent, or whose size or SHA1 differs from the local `.zst`, **When** `--apply` runs, **Then** nothing is deleted for that session; a failed listing deletes nothing in that slug (C.2.1 r6)
-- **Given** one inode with two names where one name fails a rule, **When** `--apply` runs, **Then** neither name is unlinked (C.2.1 r7)
+- **Given** one inode with two names where one name fails a rule or has no manifest row, **When** `--apply` runs, **Then** neither name is unlinked (C.2.1 r7)
 - **Given** `--apply` without `--expect`, or with a count that differs from the dry-run, **When** it runs, **Then** nothing is deleted and both counts are printed (C.2.2)
+- **Given** more deletable files than `PRUNE_MAX_PER_RUN`, **When** `--apply --expect N` or `--apply --nightly` runs without `--max`, **Then** it exits 3 and deletes nothing; with `--max N` on the hand path it proceeds (C.2.2)
+- **Given** the archiver's lock held, **When** `--apply` runs, **Then** it exits 3 and deletes nothing (C.2 lock)
+- **Given** a path that vanishes between the archiver's scan and `_group_by_inode`, **When** the archiver runs, **Then** it skips that path and archives the rest (C.2, `archive_transcripts.py:200-206`)
+- **Given** a `pruned.jsonl` row and a reachable download host, **When** `--restore <session_id>` runs, **Then** every path in the row exists again with the row's sha256 and the twins are one inode; an existing path is never overwritten (C.2.5)
 - **Given** a deletable file, **When** `--apply --expect N` runs, **Then** its `pruned.jsonl` row exists before the unlink and names every path removed (C.2.3)
 - **Given** a subagent sidechain older than 3 days whose parent is not OPEN and not in flight, **When** `--tier subagents --apply` runs, **Then** it is deleted with a row; an in-flight or live-parent sidechain stays (C.3)
-- **Given** the archive `ExecStart` failed, **When** the unit runs, **Then** the prune `ExecStart` never starts (C.2 unit ordering — asserted by a unit-file test, `ExecStart` order and `Type=oneshot`)
+- **Given** `~/.claude/tasks/` and `~/.claude/shell-snapshots/` entries older than 3 days, **When** `--tier subagents --apply` runs, **Then** they are deleted with a row each; younger entries stay (C.3)
+- **Given** the unit file, **When** `tests/test_archive_transcripts.py -k unit_file` runs, **Then** it asserts `Type=oneshot`, the archiver's `ExecStart` first and the pruner's `ExecStart=-` second — the `man systemd.service` ordering rule quoted in C.2 (C.2 unit ordering)
 
 ## Evidence — Phase C (2026-10-11 revision; every block captured from a run this session)
 
@@ -551,6 +690,20 @@ Probe 5 — open-session detection and the binding store:
 registry: live-pid entries 5, dead-pid entries 1393, live session ids 3     (~/.claude/sessions/<pid>.json: pid, sessionId, cwd, startedAt, …)
 42 /home/ozgur/.claude/state/agent-identity.jsonl                             ({"session_id","name","pid","pid_start","toplevel","at"} per line)
 ```
+Probe 5b — the liveness test and the binding, re-measured in the plan review (2026-10-11, later the
+same day; the registry keeps growing):
+```
+entries 1401 pid-alive 9 pid-alive-and-same-procStart 6 domains 6
+status values [None, 'busy', 'idle', 'waiting']
+readlink -f ~/.claude-fleet/{sarp,can,mob,ob,ozgurbasak,active}/sessions → /home/ozgur/.claude/sessions   (one registry for every slug)
+6 live claude processes, every one CLAUDE_CONFIG_DIR=/home/ozgur/.claude-fleet/active
+whoami_agent.py:259-274 resolve_agent_name(): CLAUDE_AGENT env, else the LAST row with session_id == CLAUDE_CODE_SESSION_ID
+whoami_agent.py:356-373 _bind_locked(): a holder row with the same name, another session_id and a live pid+pid_start → rc 1 "held by a LIVE session"
+man systemd.service (ExecStart=): "If one of the commands fails (and is not prefixed with "-"), other lines are not executed, and the unit is considered failed."
+systemctl --user list-timers --all: session-archive.timer, launchpadlib-cache-clean.timer — no session-recall ingest; crontab -l: no reindex/ingest line
+crontab -l: 17 5 * * * find /home/ozgur/.claude-youtube-headless/projects -type f -mtime +1 -delete   (the one other transcript deleter; a separate config dir)
+claude-reboot-sweep.sh: rm/-delete at :95,141,166,201,217,226,240,241 — lock and marker files only; :259 scans transcripts, deletes none
+```
 `code.claude.com/docs/en/commands`: *"`/clear [name]` — Start a new conversation with empty context. Pass
 a name to label the previous conversation in the `/resume` picker … Resume the previous conversation
 with …"*; `docs/en/interactive-mode`: *"Running `/clear` starts a new session … The previous session's
@@ -562,8 +715,10 @@ allaboutcoding.ghinda.com/where-ai-coding-clis-store-session-logs. Code anchors 
 `:225-278` (`archive_one`, the A.1a skip), `:316-345` (`remote_count`, `fetch`);
 `/opt/session-recall/ingest/reindex.py:341,526-528` (`_reclaim_orphans` on `--full`);
 `/opt/session-recall/db/schema.sql:38-50` (`turns.content`, the FTS mirror);
-`~/.claude/bin/claude-stop-decider.py:528-560` (`subagent_running`, `pending_subagents`);
-`scripts/sysadmin/worktree_transcript_link.py:1-30` (the hard-linked worktree twin);
+`~/.claude/bin/claude-stop-decider.py:528-560` (`subagent_running` at `:530`, `pending_subagents` at
+`:552`, signature `(transcript: Path, session_id: str, now: float | None = None)`);
+`scripts/sysadmin/worktree_transcript_link.py:1-30` (the hard-linked worktree twin) and `:92` (the
+hook payload's `transcript_path`, the field the ROTATE hook reads too);
 `.pre-commit-config.yaml:158-164` (the governance-sync filter — `scripts/sysadmin/` and the user-level
 hook list are outside it; `templates/governance/` and `.claude/hooks/` are inside).
 
@@ -688,16 +843,20 @@ over `rsync` argv is replaced by A-B7.
 - `scripts/sysadmin/install_user_hooks.py` (Phase C — the hook list)
 - `tests/test_install_user_hooks.py` (Phase C)
 - `docs/workstation/hooks-index.md` (Phase C — the hook row)
-- `CLAUDE.md` (Phase C.4 — one paragraph under § Pointers; a heavy surface, full `/fabrik-review`)
+- `CLAUDE.md` (Phase C.4 — one paragraph under § Pointers; outside the governance-sync regex, a doc:
+  `/fabrik-review-scoped`)
 
-Not in File Scope, sent as requests (D-441): `templates/governance/CLAUDE.md` (infra, a
-governance-sync path), `/opt/fabrik-lib/CLAUDE.md` (fabrik-lib), `/opt/session-recall/ingest/reindex.py`
-+ `db/schema.sql` (session-recall).
+Not in File Scope, sent as requests (D-441): `templates/governance/CLAUDE.md` and
+`scripts/whoami_agent.py` (infra — both governance-sync paths), `/opt/fabrik-lib/CLAUDE.md` (fabrik-lib),
+`/opt/session-recall/ingest/reindex.py` + `db/schema.sql` + a nightly ingest timer (session-recall).
+No wrapper script: the nightly mode (`--apply --nightly`) and the restore verb (`--restore`) live in
+`prune_transcripts.py`.
 
 Read, invoked, not modified: `scripts/sysadmin/sample_transcript_growth.sh` (the unit's
 `ExecStartPre`; writes `~/.claude/state/transcript-growth.tsv`). Outside the repo, written at run
 time (not repo paths, so not lockable): `~/.config/systemd/user/session-archive.{service,timer}` and
-`~/.config/systemd/user/timers.target.wants/` (the installer), `~/.claude/archive/` (the archiver),
+`~/.config/systemd/user/timers.target.wants/` (the installer), `~/.claude/archive/` (the archiver and
+`pruned.jsonl`), `~/.claude/state/rotate-advised/` (the ROTATE hook's stamps),
 `~/.claude/state/transcript-growth.tsv` (the sampler), `~/.claude/projects/README` (A.6), and the
 bucket prefixes `archive/` and `restore-proof/`. Governance ledgers (`CHANGELOG.md`, `INDEX.md`,
 `docs/DECISIONS.md`, `docs/LESSONS_LEARNT.md`, `docs/STRATEGIC_BACKLOG.md`) stay out of File Scope by
@@ -997,6 +1156,7 @@ $ python3 scripts/review_rubric.py --changed scripts/sysadmin/archive_transcript
 
 | Pass | seats · axes re-checked | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
+| Pass 1 | 8 seats, section-partitioned (D-212): opus×1 (rules-invariant: C.2, Gate C, review floor, BC, Evidence, File Scope, CC13–21, Digest) + sonnet×2 (rest-phases: preamble, C.0/C.1/C.3/C.4, Intake; rest-ledgers: Context Ledger, Open unknowns, Rubric/Pass Ledger, Residual, Self-audit, spec marker) + fabrik-researcher×1 (cited-facts: the external citations and the systemd rule), refuter per slice (sonnet×3) · Q1–Q11 | found: 30, new: 30, confirmed: 27, refuted: 3 (O17 — the pinned dirs are one tree; O20 — the stop-decider anchor holds; S4 — the crash fix is independent of the tag), fixed: 27, unexecuted: 0, edits: 34 + 2 cite corrections | method: full pass over the pinned 31dcd50e8 revision + the arming (b7073f822); the refuters executed every check and the orchestrator re-executed the load-bearing ones before fixing (`whoami_agent.py` resolution and the refused re-bind; the registry's 1,401/9/6 liveness count and its single directory; `man systemd.service`; the reboot sweep's deletions; the crontab's second deleter; every cited anchor). The researcher's slice: 0 candidates, every external citation fetched live and faithful | c36d6c5fe1897d958513434b0040baa0 (+ arming b7073f822) → 883972d7fe07d56f03f2225c4bcb0c8c (before this row) |
 
 ## Pass Ledger (/fabrik-plan-review, revision 2026-10-05)
 
@@ -1024,14 +1184,14 @@ $ python3 scripts/review_rubric.py --changed scripts/sysadmin/archive_transcript
 | CC11 | concurrency on the shared archive (hand run vs timer) | orchestrator, round 1 | FIXED | rules-O21: `flock` on `<ARCHIVE_ROOT>/.archive.lock` (A.1d, A-B10), excluded from the upload |
 | CC12 | gates executable as written, in the order written | orchestrator, round 1 | FIXED | rules-O1/S1/O2/S2: Gate 0 and Gate A run by hand before the merge, Gate S after it; gates use `--remote-count`/`--fetch`, which carry the key; B.4 builds its own two versions in `restore-proof/` |
 | CC13 | (2026-10-11) fail-open vs fail-closed on EVERY pruner clause — mtime window, OPEN test, newest-per-slug, sha equality, local `.zst` verify, remote size+SHA1, hard-link twins, `--expect`, the listing call failing | standing + `core/45-testing-strategy.md:22` | UNCHECKED | |
-| CC14 | (2026-10-11) open-session detection soundness — pid reuse, dead registry entries (1,393 of 1,398), `pidDomain`, a session open in another dir, the identity file's `pid_start` | orchestrator, Phase C | UNCHECKED | |
+| CC14 | (2026-10-11) open-session detection soundness — pid reuse (`procStart` must match), dead registry entries (1,393 of 1,398), `pidDomain`, a pinned session (one registry dir for every slug), the identity file's `pid_start` and its 30-day trim, a window idle past the 3-day window after a reload (not OPEN — kept only as a project's or agent's newest, else restorable) | orchestrator, Phase C | UNCHECKED | |
 | CC15 | (2026-10-11) hard-link identity — `(st_dev, st_ino)` as the archiver groups it; twin names with differing mtimes; a twin the linker has not yet created | `scripts/sysadmin/worktree_transcript_link.py` | UNCHECKED | |
 | CC16 | (2026-10-11) remote integrity proof — `lsf --hash SHA1` on small AND multi-part objects, a stale version listed, a prefix with no objects, the download host still blocked (Gate C precondition) | `core/30-ops.md:225` (a backup that protects nothing reads green) | UNCHECKED | |
-| CC17 | (2026-10-11) the ROTATE hook — reads `transcript_path` from the hook JSON (verify against `selfwatch_check.py`), fail-open on every error, threshold env var, the agent binding across `/clear` | `core/10-python.md` MATCHED | UNCHECKED | |
-| CC18 | (2026-10-11) unit ordering — a second `ExecStart=` in a `Type=oneshot` unit runs only after the first succeeds (systemd semantics, asserted by a unit-file test) | orchestrator, Phase C | UNCHECKED | |
+| CC17 | (2026-10-11) the ROTATE hook — reads `transcript_path` from the hook JSON (the field `worktree_transcript_link.py:92` reads; `selfwatch_check.py` reads only `session_id`/`cwd`), fail-open on every error, threshold env var, the 100 MB-step stamp (never per-prompt — `install_user_hooks.py:37-42`), the agent binding across `/clear` (keyed by session id; `--force` re-bind; the registry join) | `core/10-python.md` MATCHED | UNCHECKED | |
+| CC18 | (2026-10-11) unit ordering — a second `ExecStart=` in a `Type=oneshot` unit runs only after the first succeeds, and carries the `-` prefix so a pruner refusal never fails the unit nor re-runs the archiver under `Restart=on-failure` (`man systemd.service`, quoted in C.2; asserted by a unit-file test) | orchestrator, Phase C | UNCHECKED | |
 | CC19 | (2026-10-11) data-integrity of the manifest as the delete authority — append-only, `also_slugs` aliasing, a row for the worktree slug while the canonical row is `-opt-fabrik`, `agent` key optional | `archive_transcripts.py:209-222` | UNCHECKED | |
 | CC20 | (2026-10-11) behaviour without a test — every Phase C G/W/T row names its grader; the governance-file paragraphs and the three mails have an executable gate (`docs_updater.py --check`, mail ids in Evidence) | `core/45-testing-strategy.md` MATCHED | UNCHECKED | |
-| CC21 | (2026-10-11) Status/lifecycle grammar — `Status: DRAFT` on a plan whose Phases 0/A are EXECUTED (the 2026-10-05 precedent), `Appetite:` per sub-phase readable by `check_plan_quality.py`, the Coverage Checklist + rubric block the flip reads | `check_convergence.py` (`_checklist_section`, `RUBRIC_RUN`) | UNCHECKED | |
+| CC21 | (2026-10-11) Status/lifecycle grammar — `Status: DRAFT` on a plan whose Phases 0/A are EXECUTED (the 2026-10-05 precedent), `Appetite:` per sub-phase as the EXECUTION contract (`/fabrik-execute-plan`'s UPGRADE finding; `check_plan_quality.py` does not grade a plan dated before `LANE_ROLLOUT_DATE` 2026-10-03 — `plan_appetite.is_graded`), the Coverage Checklist + rubric block the flip reads | `check_convergence.py` (`_checklist_section`, `RUBRIC_RUN`) | UNCHECKED | |
 
 ## Execution notes
 
@@ -1202,7 +1362,8 @@ Computed via `review_rubric.py --changed` over this plan's full File Scope (§ R
 `core/35-security-auth.md`, `core/25-data-postgres.md`, `core/30-ops.md` + the 12-Factor axes;
 MATCHED `core/10-python.md`, `core/40-documentation.md`, `core/45-testing-strategy.md` — six packs.
 `core/25-data-postgres.md` binds nothing here (no database is touched) and is named so its absence
-from the rows below is a reading, not an omission. Quotes re-located verbatim 2026-10-05.
+from the rows below is a reading, not an omission. Quotes re-located verbatim 2026-10-05 and
+re-checked 2026-10-11 (8 of 8 at their cited lines, round 1 of the Phase C review).
 
 | Verbatim quote | Source | Rule |
 |---|---|---|
@@ -1215,10 +1376,13 @@ from the rows below is a reading, not an omission. Quotes re-located verbatim 20
 | host = os.getenv('DB_HOST', 'postgres-main')  # banned — use DATABASE_URL directly | `.windsurf/rules/core/10-python.md:129` | No hardcoded hosts |
 | rows immutable, supersede-by-new-row | `.windsurf/rules/core/40-documentation.md:24` | Decision ledger (D-565) |
 
-`core/30-ops.md:225` is the sharpest row and it decides two steps: Gate A counts the `.zst`
-objects that actually landed in the bucket (≥ 1, equal to the local count), and Gate B restores
-bytes from the bucket — a transport that reads green while shipping nothing fails both.
-`core/30-ops.md:467` decides A.1c.
+`core/30-ops.md:225` is the sharpest row and it decides three steps: Gate A counts the `.zst`
+objects that actually landed in the bucket (≥ 1, equal to the local count), Gate B restores
+bytes from the bucket, and **Gate C's canary (3)** deletes ten files only after two of them come
+back byte-identical through `--restore` — a transport that reads green while shipping nothing fails
+all three, and a pruner whose rule 5 trusted `zstd -t` alone would have passed a frame holding the
+wrong bytes (C.2.1 r5). `core/45-testing-strategy.md:22` binds the deleter's every clause: each
+refusal in C.2.3 is a grader SEEN RED. `core/30-ops.md:467` decides A.1c.
 
 ## fabrik-lib verdict
 
@@ -1261,17 +1425,23 @@ file · `CHANGELOG.md` per phase · `.env.example` + `docs/CONFIGURATION.md` for
    overwrite is recoverable; a key leaked WITH `deleteFiles` could still remove versions. Enabling
    Object Lock on `wsl-ozgur` is an operator console setting — recommended, not required to close.
 8. **(2026-10-11) A pruned session leaves the VS Code picker.** By design and by the operator's
-   ruling: after 3 days a session is reached through session-recall or a `--fetch` restore, not the
-   sidebar. The newest session of every project is kept so a long-idle project still has its resume
-   point. If the operator later wants a longer window, `PRUNE_AFTER_DAYS` is the one knob.
-9. **(2026-10-11) session-recall's `--full` is a manual command in another repo.** Nothing schedules
-   it (verified: no cron, timer or script); until session-recall lands the manifest-aware sweep
-   (C.4 request), a hand-run `--full` after a prune would drop the pruned sessions' index rows —
-   `pruned.jsonl` is the list to re-ingest from the archive.
+   ruling: after 3 days a closed session is reached through session-recall or put back with
+   `--restore <session_id>` (C.2.5), not the sidebar. The newest session of every project AND of
+   every tagged agent is kept, so a long-idle project and each hub agent still have their resume
+   point; an OPEN window is never touched however idle. A window closed by a reload and idle 4+
+   days is the case the operator must know: it is restorable, not visible. If the operator later
+   wants a longer window, `PRUNE_AFTER_DAYS` is the one knob.
+9. **(2026-10-11) session-recall's ingest and `--full` are manual commands in another repo.** Nothing
+   schedules either (verified: no cron, timer or script); rule 8 therefore refuses every deletion
+   until the nightly ingest (C.4 (c)) exists — fail-closed, and the dry-run table shows it as the
+   `not-indexed` count. A hand-run `--full` after a prune would drop the pruned sessions' index
+   rows until (a) lands — `pruned.jsonl` is the list to re-ingest from the archive.
 10. **(2026-10-11) The ROTATE line is advice, not enforcement.** A window that never rotates keeps
-   growing; its file still ships nightly and is never pruned while open. The extension's crash
-   threshold is Anthropic's defect (#89075, #97229); the advisory keeps us an order of magnitude
-   under it, and the sidebar load is bounded by the prune regardless.
+   growing; its file still ships nightly and is never pruned while open. Backstops: the line
+   re-prints at every new 100 MB step (never silent, never wallpaper), and the nightly run's log
+   lists every MAIN transcript over `ROTATE_ADVISE_MB`. The extension's crash threshold is
+   Anthropic's defect (#89075, #97229); the advisory keeps us an order of magnitude under it, and the
+   sidebar load is bounded by the prune regardless.
 7. **The largest transcripts are over a gigabyte** (1,358.0 MB and two linked copies of 1,030.5 MB
    on 2026-10-05); rclone uploads them as B2 large files in parts. `ARCHIVE_MAX_FILE_MB` stays unset
    so nothing is silently skipped; a file over a ceiling, when one is set, is reported.
@@ -1287,12 +1457,22 @@ file · `CHANGELOG.md` per phase · `.env.example` + `docs/CONFIGURATION.md` for
   exactly as `_latest_rows` keys them (`archive_transcripts.py:209-222`); C.2.1 r7 and the archiver's
   `_group_by_inode` agree on `(st_dev, st_ino)` as the identity of a file; C.3 calls the stop-decider's
   `pending_subagents` by its existing signature `(transcript, session_id, now)`; the unit's second
-  `ExecStart` depends on the first succeeding (oneshot ordering), which C.2's unit-file test asserts.
+  `ExecStart=-` depends on the first succeeding (oneshot ordering, `man systemd.service` quoted in
+  C.2) and never fails the unit itself, which C.2's unit-file test asserts; C.1.1's registry join
+  and C.2.1 r2 read the same registry fields (`sessionId`, `pid`, `procStart`) and the same identity
+  fields (`session_id`, `pid`, `pid_start`); `--restore` reads the `pruned.jsonl` row exactly as the
+  deletion wrote it (`paths`, `sha256`).
   (c) The grounding passes: four probes executed this session (idle window, population, remote
   size+SHA1, transcript composition), the sessions registry and identity file read, the archiver's
   selection/skip/ship code read at `:188-345`, the external crash class and practice elsewhere
-  fetched from primary sources; one claim stays marked VERIFY-AT-BUILD (the agent binding across
-  `/clear`, C.1.3). Not a fixed point yet: `/fabrik-plan-review` has not run on this revision.
+  fetched from primary sources. (d) Round 1 of `/fabrik-plan-review` (30 candidates, 27 confirmed,
+  3 refuted) corrected the one claim that had been marked VERIFY-AT-BUILD: the binding is keyed by
+  session id, not pid (`whoami_agent.py:259-274`), a re-bind after `/clear` is refused without
+  `--force` (`:356-373`), and C.1.1 now derives the tag through the registry join — no VERIFY-AT-BUILD
+  remains. The same round made rule 2 match `procStart`, rule 5 compare decompressed bytes, rule 7
+  scan inodes at prune time, added rule 8 (session-recall holds it) and the last look, capped every
+  `--apply`, replaced the wrapper with `--nightly`, added `--restore`, the `-` prefix, the lock, the
+  stamp, the inventory of other deleters, Gate C (0) and the canary, and re-sized the review floor.
 - **Revision 2026-10-05:** every step that named vps1, Backrest, `ssh vps` or rsync was replaced or
   marked historical; Phase C's deferral is a recorded panel ruling with a three-part tripwire, not
   a silent drop. Round 1 of its review (25 confirmed) found the gates could not run in the order
