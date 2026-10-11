@@ -21,9 +21,9 @@ ExecStart=/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/archive_tran
 # a failing command without "-" stops the rest and fails the unit), so a night whose archive
 # failed prunes nothing. Its own "-" keeps a pruner refusal (exit 3) from failing the unit, which
 # would make Restart= re-run the ARCHIVER for a pruner outcome; the pruner reports for itself in
-# ~/.claude/archive/prune-log.jsonl (`prune_transcripts.py --status`). It stays on --dry-run until
-# Gate C step (6) of the retention plan switches it to --apply --nightly (D-736).
-ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_transcripts.py --dry-run
+# ~/.claude/archive/prune-log.jsonl (`prune_transcripts.py --status`). Gate C of the retention plan
+# passed on 2026-10-12 (D-736, D-746): the leg runs --apply --nightly — the 3-day cliff is live.
+ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_transcripts.py --apply --nightly
 Restart=on-failure
 RestartSec=15min
 Nice=10
