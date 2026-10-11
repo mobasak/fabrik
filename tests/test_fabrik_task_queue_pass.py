@@ -42,7 +42,7 @@ def test_the_lane_critique_brief_asks_seats_to_execute() -> None:
     """S3 (critique brief): replay the incident, run claims against the real tool, pin the tree."""
     phase2 = _section("## Phase 2", "## Phase 3")
     assert "This lane's brief also has each seat EXECUTE: replay the reported incident and the real corpus through the design" in phase2
-    assert "pins the tree (a commit or `git archive` copy), bars live-provider credentials" in phase2
+    assert "pins the tree (a commit or `git archive` copy) and any live state file the design reads" in phase2
 
 
 def test_the_pre_record_checklist_sits_before_the_record_call() -> None:
@@ -89,3 +89,25 @@ def test_critique_is_not_rerun_on_the_folded_version() -> None:
     """Row 1791070230: 'once per artifact version' read as re-critiquing every folded design.md."""
     text = _norm(CRITIQUE)
     assert "a version that ONLY folds its ACCEPTED concerns is not a new one" in text
+
+
+def test_second_pass_names_the_specific_steps_in_their_phases() -> None:
+    """The 2026-10-12 second pass (D-747): the specific steps the first pass left open sit in their phase."""
+    measure = _section("## Phase 1", "## Phase 2")
+    assert "the tests that drive it by subprocess, the completion gate's own command" in measure
+    assert "what a concurrent reader sees mid-write, a before/after hash of every file it writes" in measure
+    phase2 = _section("## Phase 2", "## Phase 3")
+    assert "Before dispatch, re-read `design.md` against the working tree." in phase2
+    assert "execute one claim about every external dependency" in phase2
+    assert "A concern is ACCEPTED only after the tests are grepped for every line it touches" in phase2
+    assert "DECISION names its evidence and whether it is independent of the change" in phase2
+    assert "the literal path beside any constant, every party a text reaches" in phase2
+    phase3 = _section("## Phase 3", "## Phase 4")
+    assert "a removed duplicate is guarded behaviourally, never by text shape" in phase3
+    phase4 = _section("## Phase 4", "## Phase 5")
+    assert "The review is sized before dispatch — the callers a fix may touch counted, the quota runway read" in phase4
+    close = _section("## Phase 5", "## UPGRADE")
+    assert "Status CONVERGED alone, outside phase 3's one-commit rule" in close
+    assert "`--evidence` names it and the `--terminal` it no longer meets" in close
+    upgrade = _norm(SRC)[_norm(SRC).index("## UPGRADE"):]
+    assert "a critique returning after the handoff is appended to that seed file" in upgrade

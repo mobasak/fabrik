@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: the specific steps the first queue pass left open (2026-10-12)
+- MEASURE names its real paths (subprocess-driven tests, the gate's own command, fail-open callees, a concurrent reader, written-file hashes, an independent parser); MIRROR names its specific readers (key verbs, literal paths, record shapes, env-var and config hand-offs, allowlist buckets); the critique brief executes a claim per external dependency and adjudicates ACCEPTED concerns against the tests; the review is sized before dispatch; the receipt is CONVERGED alone and outside the one-commit rule (D-747).
+
 ### Changed — /fabrik-task: the whole feedback queue answered in one pass (2026-10-11)
 - MEASURE executes the real path; MIRROR searches the whole tracked tree and names each new guard's fail direction; the lane's critique brief has seats execute claims and replay the incident; a pre-record checklist; graders execute their subject and every added guard is mutated; v1's single commit carries the ledgers; phase 4's third question excludes an equivalent implementation; the `--review` receipt's range tip is the last `--commit`. The design-critique fragment no longer re-critiques the version that folds its ACCEPTED concerns (D-734, D-735).
 
