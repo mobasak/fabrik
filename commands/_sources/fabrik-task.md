@@ -71,12 +71,12 @@ the rule already lives in; the population the change writes or thresholds measur
 are MIRROR's) — every writer, every occurrence of the shape it admits, every host it runs on, and
 the n behind any rate, bound or zero the design will claim; each external contract probed live
 once, a list read whole, never a sample — each by EXECUTING the real path on real data (the producer's code,
-the tool's run output per mode, the design's own classifier, the writer of each state value it trusts), never a
+the tool's run output per mode, the design's own classifier, the writer of each state value it trusts or ranks on), never a
 source read or a proxy: the tests that drive it by subprocess, the completion gate's own command, a recipe's real
 target layout, each callee a fail-open branch wraps and how it fails, whether a production path reaches the text,
 what a concurrent reader sees mid-write, a before/after hash of every file it writes, an independent parser for a
 parsed format, its operator-facing strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded)
-and per artifact class, and the whole output, not one field. Then
+and per artifact class, whose commits a gate's new scope holds, and the whole output, not one field. Then
 `python scripts/select_rules.py --changed <the declared paths>` — the path-scoped form — and READ
 the packs it prints.
 
@@ -87,17 +87,17 @@ Write six fields — **PROBLEM · APPROACH · DECISION (reversible?) · MIRROR �
 
 {{include:design-critique}}
 
-Before dispatch, re-read `design.md` against the working tree. This lane's brief also has each seat EXECUTE: replay the reported incident and the real corpus through the design; run each matcher,
+Before the seats go out: re-read `design.md` against the working tree; DECISION names its evidence and whether it
+is independent of the change; a shipped config is executed; the fixtures a grader borrows are listed with what
+each stubs; the existing suites run against a throwaway scratch build of a new refusal (not phase 3). This lane's brief also has each seat EXECUTE: replay the reported incident and the real corpus through the design; run each matcher,
 semantics or shell claim against the real tool under the live guard; sweep sibling write paths and the tests
 pinning a moved value; name each new guard's fail direction and any second approach the build cannot settle; execute one claim about
 every external dependency. It pins the tree (a commit or `git archive` copy) and any live state file the design
-reads, names the unmerged branch owning a mirrored file, bars live-provider credentials and asks for small
-outputs. Wait for both in-turn; the Stop hook blocks meanwhile. A concern is ACCEPTED only after the tests are
+reads, names the unmerged branch owning a mirrored file, bars live-provider credentials (no `.env` loaded, no provider client built) and asks for small
+outputs. Wait for both in-turn: with stamped seats out, the Stop hook's run-record block stands down and will not hold you. A concern is ACCEPTED only after the tests are
 grepped for every line it touches; an optional one adding behaviour only when provable inside the declared files,
-else filed to its owner; a later executed review finding may override it, recorded in the design. Then, every
-pre-record step above this call: DECISION names its evidence and whether it is independent of the change; a
-shipped config is executed; the fixtures a grader borrows are listed with what each stubs; the existing suites run
-against a scratch build of a new refusal; re-read `design.md`; each Behaviour names its test; every touched path is bare in
+else filed to its owner; a later executed review finding may override it, recorded in the D-row with the drift noted. Then, before this
+call: re-read `design.md`; each Behaviour names its test; every touched path is bare in
 backticks under `APPROACH:`/`MIRROR:`; `--design` lands ONCE. Record them:
 
 ```bash
@@ -126,10 +126,10 @@ MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what cha
 each branch of a changed function, every resolver of the same identity, consumers of a moved or
 deleted file, other surfaces stating a changed claim, the gates that grade it — each found by an
 executed search, with the shape it now fails on and its cost measured, never estimated. The search is the
-whole tracked tree (tests and their pinned strings, `commands/`, UI, docs) under every spelling of the identifier and its rule's key
+whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs) under every spelling of the identifier and its rule's key
 verbs — the literal path beside any constant, every party a text reaches, every reader of a changed record shape,
 the hub scripts the text tells a project to run, the file handing a new env var to the process and the spec, the
-parser a read config belongs to, whether a normalised form is what readers receive, the first-or-every rule for a
+parser a read config belongs to, whether a normalised form is what readers receive, the form a ported validator's source validates, the first-or-every rule for a
 repeating field, the paths guarded code opens and the env each reads, and for a registration or allowlist the
 checks each bucket runs — sibling write paths included; each new guard, veto or fallback names its fail direction — which error is
 dangerous, an answer versus an outage. Every function, anchor or subject the design names is grepped to exist,
@@ -149,10 +149,10 @@ One commit carries it at v1; *(v2)* several may, SPACE-separated — `done --com
 measures each in order; a sync-path run (D7) commits ONCE, after phase 4, in the main checkout
 (`done` refuses more outside a worktree; `blocked`/`handoff` only note it). At v1 that one
 commit also carries phase 5's ledgers, so nothing is committed before phase 5. Each grader names its input domain
-and borrowed fixtures, EXECUTES an executable subject, runs hermetic on production's transport and is red on base
+and borrowed fixtures, EXECUTES an executable subject, runs hermetic (box env stripped, e.g. `env -u DATABASE_URL`) on production's transport and is red on base
 by its named assertion; every guard and threshold edge the change adds is mutated. The gate helpers a new call shape must satisfy are read
-first, a removed duplicate is guarded behaviourally, never by text shape, and a new threshold is derived in its
-comment.
+first, a removed duplicate is guarded behaviourally, never by text shape, a new threshold is derived in its
+comment, and a probe worktree carries the built dist a test reads at import.
 
 ## Phase 4 — REVIEW
 
@@ -166,7 +166,7 @@ can you name a second approach whose merits the build cannot settle (an equivale
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
 an UPGRADE, which would strand the run. A decision the review changes is re-drafted into the D-row with the drift
 noted. The review is sized before dispatch — the callers a fix may touch counted, the quota runway read; seats
-create nothing outside scratch, where the nested review keeps its resume artifacts (pass args, pins dir). Under
+create nothing outside scratch (an installed corpus included), where the nested review keeps its resume artifacts (round args, pin dir). Under
 the urgent-90 CHECKPOINT the record stays open, *(v2)* the build is committed through phase 5 step 5's
 capture line (v1 keeps it uncommitted), and the review is sized to the runway.
 
@@ -200,9 +200,9 @@ rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, nev
 sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff`
 too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)):
 after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
---range <base>..<that sha>` (a re-tip after a fix commit takes a new `--scope`), then commit the receipt — Status CONVERGED alone, outside
-phase 3's one-commit rule, never captured or passed to `--commit`. When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names it and the
-`--terminal` it no longer meets.
+--range <base>..<that sha>` — the Surface line it writes is what check (d) reads (a re-tip after a fix commit takes a new `--scope`), run the full `/fabrik-review` into it until `Status: CONVERGED`, then commit that receipt alone
+(outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`. When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a
+terminal it changed was restated with `--terminal-amend` before `--design`.
 
 ## UPGRADE — the one-way ratchet, available from phase 1
 
@@ -212,7 +212,7 @@ D-row names it — D-315) —
 **first materialises the seed** (the
 phase-2 `design.md` plus a `## RESUME` block naming the test crossed; before the design exists, that
 block alone, naming phase 1's `measure.md`), then closes; a critique returning after the handoff is appended to
-that seed file. ⚠️ **`UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it** —
+that seed file and to the `resume_copy` path `handoff` printed. ⚠️ **`UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it** —
 lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` (v1 and v2) · *(v2)*
 `contract` · `new-source` · `behaviours` · `appetite`, then a dash and the detail. Nothing
 downgrades mid-run:

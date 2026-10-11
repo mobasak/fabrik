@@ -34,7 +34,7 @@ def test_measure_executes_the_real_path() -> None:
     """S2 (population): the population is measured by executing the real path, never a proxy."""
     assert (
         "each by EXECUTING the real path on real data (the producer's code, the tool's run output per mode, "
-        "the design's own classifier, the writer of each state value it trusts), never a source read or a proxy"
+        "the design's own classifier, the writer of each state value it trusts or ranks on), never a source read or a proxy"
     ) in _section("## Phase 1", "## Phase 2")
 
 
@@ -55,7 +55,7 @@ def test_the_pre_record_checklist_sits_before_the_record_call() -> None:
 def test_mirror_searches_the_whole_tree_and_names_fail_direction() -> None:
     """S1 (readers) and the fail-direction rows: where the search runs, and which error is dangerous."""
     phase2 = _section("## Phase 2", "## Phase 3")
-    assert "The search is the whole tracked tree (tests and their pinned strings, `commands/`, UI, docs)" in phase2
+    assert "The search is the whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs)" in phase2
     assert "names its fail direction — which error is dangerous, an answer versus an outage" in phase2
     assert "Every function, anchor or subject the design names is grepped to exist" in phase2
 
@@ -97,17 +97,23 @@ def test_second_pass_names_the_specific_steps_in_their_phases() -> None:
     assert "the tests that drive it by subprocess, the completion gate's own command" in measure
     assert "what a concurrent reader sees mid-write, a before/after hash of every file it writes" in measure
     phase2 = _section("## Phase 2", "## Phase 3")
-    assert "Before dispatch, re-read `design.md` against the working tree." in phase2
+    assert "Before the seats go out: re-read `design.md` against the working tree" in phase2
+    # the fixtures and the scratch-suite run precede the critique, not the record call (round 2)
+    assert phase2.index("the fixtures a grader borrows") < phase2.index("This lane's brief also has each seat")
+    # round 1 of pass 2: the hook stands down for stamped seats, and an override goes to the D-row
+    assert "the Stop hook's run-record block stands down and will not hold you" in phase2
+    assert "may override it, recorded in the D-row with the drift noted" in phase2
     assert "execute one claim about every external dependency" in phase2
     assert "A concern is ACCEPTED only after the tests are grepped for every line it touches" in phase2
     assert "DECISION names its evidence and whether it is independent of the change" in phase2
     assert "the literal path beside any constant, every party a text reaches" in phase2
     phase3 = _section("## Phase 3", "## Phase 4")
     assert "a removed duplicate is guarded behaviourally, never by text shape" in phase3
+    assert "a probe worktree carries the built dist a test reads at import" in phase3
     phase4 = _section("## Phase 4", "## Phase 5")
     assert "The review is sized before dispatch — the callers a fix may touch counted, the quota runway read" in phase4
     close = _section("## Phase 5", "## UPGRADE")
-    assert "Status CONVERGED alone, outside phase 3's one-commit rule" in close
-    assert "`--evidence` names it and the `--terminal` it no longer meets" in close
+    assert "run the full `/fabrik-review` into it until `Status: CONVERGED`, then commit that receipt alone" in close
+    assert "`--evidence` names the split; a terminal it changed was restated with `--terminal-amend`" in close
     upgrade = _norm(SRC)[_norm(SRC).index("## UPGRADE"):]
-    assert "a critique returning after the handoff is appended to that seed file" in upgrade
+    assert "appended to that seed file and to the `resume_copy` path `handoff` printed" in upgrade
