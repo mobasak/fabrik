@@ -25,7 +25,7 @@ Date: 2026-09-06 (revised 2026-10-05)
 Owner: fleet
 Spec: `docs/superpowers/specs/2026-09-05-session-history-retention-design.md` (CONVERGED 2026-09-06,
 D-142; partially superseded by D-565 — it now carries a header note and markers at every passage
-the revision changed; md5 `1a2218dec048bf08e810e94443cc86bd` after those markers)
+the revision changed; md5 `1334dc674424a17ea32303abde3bce28` with the D-736 marker of 2026-10-11)
 
 ## Why the phase order is a safety property, not a preference
 
@@ -332,16 +332,18 @@ Appetite: 90
   in round 1 with a scratch store). Hence `--force` in the ROTATE line — and `--force` skips the
   WHOLE collision block (`:356`), the liveness check included, so a genuinely different live session
   on the same name would be overwritten silently: that is why the line prints the holder's pid and
-  says it is this window's, and why the operator types `--force` only on a line that names a pid
-  (`whoami_agent.py --who` in the new session shows the refusal's pid; the two must agree). The row
+  says it is this window's, and why the operator types `--force` only after a plain
+  `whoami_agent.py --as <agent>` (no `--force`) in the new session has been REFUSED naming that same
+  pid — the refusal text carries it (`:367-370`); `--who` prints only the resolved name (`:424-427`)
+  and cannot serve here. The two pids must agree. The row
   records `force: true`, and the manifest's registry join (C.1.1) tags the new session even when the
   operator skips the re-bind. The permanent fix — a holder row
   with the same `pid`+`pid_start` IS this session's predecessor, bind without `--force` — is a
   `scripts/whoami_agent.py` change, a governance-sync path (`.pre-commit-config.yaml:164`): sent to
   infra as a `request` (D-441) in C.4, not edited here.
 - **C.1.4 Rotate the four windows NOW, before any deletion.** The operator runs `/clear infra-2026-10-11`
-  then `python3 scripts/whoami_agent.py --as infra --force` after the ROTATE line (or `--who`) has
-  shown the holder is this window's pid (and kaizen, intel, fleet alike) once this
+  then `python3 scripts/whoami_agent.py --as infra` (refused, naming the holder's pid), and `--force`
+  only when that pid is the one the ROTATE line printed (and kaizen, intel, fleet alike) once this
   phase's advisory ships; the old sessions archive that night and fall under C.2 three days later.
   This alone ends the startup OOM: the sidebar then lists files of a few MB, not GB. It is a one-time
   act plus the advisory; nothing forces a later rotation (Residual risk 10 names the backstops).
@@ -371,6 +373,7 @@ re-run the ARCHIVER up to `StartLimitBurst=4` times for a pruner outcome. The `-
 crash (exit 1) from systemd, so the pruner reports for itself: `main()` catches every exception and,
 BEFORE exiting, appends one summary row to `~/.claude/archive/prune-log.jsonl` — `run_at`, `mode`,
 `deleted`, `deferred` (deletable beyond this run's cap), the refusals by reason, `over_threshold`
+(written by dry-run and apply runs only — `--restore`, `--verify-ledger` and `--status` write none),
 (every MAIN transcript larger than `ROTATE_ADVISE_MB`, Residual 10's backstop), and `error` with the
 traceback text when there was one; `prune_transcripts.py --status` prints the last row, Gate C (5)
 reads it, and the retention doc names it as the morning check. Exit codes: 0 = ran (0 or more
@@ -422,18 +425,29 @@ from the MAIN checkout after the archiver change is merged"*) — Gate C step (0
   7. every name of the inode — found at PRUNE time by `(st_dev, st_ino)` over the whole tree, never
      from the manifest's `also_slugs` (a twin `worktree_transcript_link.py` created after the
      archive run has no alias) — passes 1–3, and every name's `(slug, session_id)` has a row; one
-     name without a row ⇒ the inode is skipped. The names are unlinked together or not at all;
-  8. **session-recall holds it**: its `index_state` row for the file's path
-     (`/opt/session-recall/db/schema.sql:55-62`: `file_path`, `inode`, `size`, `mtime`,
-     `lines_ingested`) carries the file's CURRENT inode and size — the ingest's own incrementality
-     key (`ingest/reindex.py:239-248`: same inode and size ⇒ already indexed to the end). Not
-     `sessions.last_at`: that is the newest TEXT turn (`ingest/parse.py:108-122` drops tool-result,
-     tool-use-only and system lines), so it is legitimately older than the file's last line. The
-     pruner reads it through `psycopg` (3.3.4, already in the hub venv) with a READ-ONLY DSN,
-     `SESSION_RECALL_RO_DSN`, read from `/opt/fabrik/.env` the way the archiver reads only its
-     `SESSION_ARCHIVE_*` lines (rows in `.env.example` + `docs/CONFIGURATION.md`; a `recall_ro` role
-     with `SELECT` on `index_state` only — C.4 (c) asks session-recall for it). No DSN, no
-     connection, no row, or a mismatch ⇒ not deleted, reason `not-indexed`. The index is fresh on
+     name without a row ⇒ the inode is skipped. The names are unlinked in one pass after ONE ledger
+     row naming them all; two `unlink()` calls are not atomic, so a kill between them leaves one
+     twin and the row — `--restore` re-creates only the missing name (C.2.5 never overwrites);
+  8. **session-recall holds it**: an `index_state` row (`/opt/session-recall/db/schema.sql:55-62`:
+     `file_path`, `inode`, `size`, `mtime`, `lines_ingested`) whose `inode` is the file's `st_ino`
+     and whose `size` is the file's current size — looked up BY INODE, never by path, because
+     session-recall keeps ONE row per inode and prefers the `--claude-worktrees-` name
+     (`ingest/reindex.py:298-312`, `_one_name_per_inode`), so a hub window's `-opt-fabrik` name has
+     no row of its own. Same inode and size is the ingest's own "indexed to the end" key
+     (`reindex.py:239-248`). Not `sessions.last_at`: that is the newest TEXT turn
+     (`ingest/parse.py:108-122` drops tool-result, tool-use-only and system lines), so it is
+     legitimately older than the file's last line. The pruner reads it through `psycopg2` (2.9.12 in
+     the hub venv; today only a transitive pin in `uv.lock` as `psycopg2-binary`, so C.2 DECLARES it in
+     `pyproject.toml` — the one dependency edit this plan authorises — and regenerates the lock) with
+     session-recall's EXISTING read-only role
+     `recall_ro` (`schema.sql:85-97`: `SELECT` on `sessions`, `turns`, `index_state`, `index_run` —
+     the MCP server's own role; nothing is created or narrowed), whose DSN the operator copies into
+     `/opt/fabrik/.env` as `SESSION_RECALL_RO_DSN`. The pruner's own env reader — the archiver's
+     `_ENV_LINE` shape (`archive_transcripts.py:70`) with the prefixes `SESSION_RECALL_RO_DSN`,
+     `PRUNE_` and `ROTATE_ADVISE_MB`; the hook uses the same reader — is how `PRUNE_AFTER_DAYS`,
+     `PRUNE_MAX_PER_RUN` and `ROTATE_ADVISE_MB` reach a unit with no `EnvironmentFile=` (rows in
+     `.env.example` + `docs/CONFIGURATION.md`). No DSN, no connection, no row for the inode, or a size
+     mismatch ⇒ not deleted, reason `not-indexed`. The index is fresh on
      USE, not by schedule — session-recall's tools run a bounded incremental reindex before answering
      (`README.md:34`), and nothing else on this box runs `python -m ingest.reindex` (no timer, no
      cron — round-1 probe) — so until C.4 (c)'s nightly ingest exists this clause refuses every
@@ -458,8 +472,10 @@ from the MAIN checkout after the archiver change is merged"*) — Gate C step (0
   summary row, so the ~7,200-file backlog (Evidence probe 2: 9,687 MAIN files, 2,470 inside the
   window) drains in about 36 nights, never in one step. COBRA, stated honestly: a nightly mode that
   computes its own set always agrees with itself, so "the operator saw the count" is NOT what the
-  nightly path proves — its brake is the cap, the summary row and the ledger row per deletion; the
-  hand path proves the count was read (`--expect`) and widens a run only by naming the number. A
+  nightly path proves — its brake is the cap, the summary row and the ledger row per deletion. On
+  the hand path `--expect` proves the dry-run's this-run count was read only when `--max` is absent;
+  with `--max M`, `--expect M` holds by construction whenever `M` files are deletable, so there the
+  proof is the pasted dry-run table Gate C demands, not the flag. A
   "bytes within 1% of the dry-run" check was dropped: both figures come from one process over one
   tree, seconds apart, and could never disagree.
 - **C.2.3 Graders, each SEEN RED first** (`core/45-testing-strategy.md:22`): a file inside the
@@ -471,13 +487,14 @@ from the MAIN checkout after the archiver change is merged"*) — Gate C step (0
   `(slug, session_id)` has no row → the inode skipped · the `.zst` decompresses to other bytes →
   not deleted · an OPEN session by the identity row alone (registry entry dead) → not deleted · a
   registry entry with a live pid but another `procStart` → not OPEN · the newest of an agent, older
-  than another agent's session in the same slug → kept · no session-recall row, or `last_at` older
-  than the file's last turn → not deleted · the file changed between the hash and the unlink →
+  than another agent's session in the same slug → kept · no `index_state` row for the file's inode,
+  or its `size` differs from the file's, or no DSN → not deleted (`not-indexed`) · the file changed
+  between the hash and the unlink →
   `changed-under-hash`, not deleted · `--apply` without `--expect` or with the wrong count → nothing
   deleted · more deletable than the cap → exactly the oldest cap-many deleted, the rest `deferred`,
   on the hand AND the nightly path; `--max` widens a hand run · the archiver lock held → exit 3 · an
-  exception anywhere → the summary row carries `error`, exit 1, nothing half-deleted (each unlink
-  follows its own ledger row) · `--status` prints the last summary row · `--verify-ledger` lists
+  exception anywhere → the summary row carries `error`, exit 1, and every unlinked name is in a
+  ledger row written before it · `--status` prints the last summary row · `--verify-ledger` lists
   every `pruned.jsonl` row's object with its size and SHA1, exit 3 on any MISSING · a deletion writes
   its `pruned.jsonl` row
   BEFORE the unlink (a crash between them leaves a row with the file still present, never the
@@ -534,8 +551,8 @@ Appetite: 60
   does, and the README names it).
 - `docs/workstation/hooks-index.md` + `install_user_hooks.py`: the new user-level hook row.
 - **Hub `CLAUDE.md` (this repo, fleet edits; NOT a governance-sync path — `.pre-commit-config.yaml:164`
-  carries no `^CLAUDE\.md`, so nothing distributes on commit; operator-named (I6), so the Finish
-  `/fabrik-review` covers it in full):**
+  carries no `^CLAUDE\.md`, so nothing distributes on commit; operator-named (I6), so C.4's full
+  `/fabrik-review` covers it):**
   one paragraph under § Pointers: *Session history: every MAIN transcript ships to B2 nightly; the
   local copy is pruned after 3 days by the guarded pruner (never an open session, never a project's
   or an agent's newest); history is read through session-recall or put back with
@@ -557,9 +574,10 @@ Appetite: 60
   in their inbox); (b) an `agent` column on `sessions`, filled from `agent-identity.jsonl`, and an
   `agent=` filter on `search_chats`; (c) a NIGHTLY incremental ingest (`cd /opt/session-recall &&
   .venv/bin/python -m ingest.reindex`, their documented command, `README.md:63`) that runs before
-  00:00, plus a read-only role `recall_ro` with `SELECT` on `index_state` whose DSN the operator puts
-  in `/opt/fabrik/.env` as `SESSION_RECALL_RO_DSN` — because the pruner's rule 8 deletes nothing whose
-  file session-recall's `index_state` has not indexed to its current inode and size —
+  00:00, plus the EXISTING `recall_ro` role's DSN (`schema.sql:85-97`; no new role, no changed
+  grant) for the operator to copy into `/opt/fabrik/.env` as `SESSION_RECALL_RO_DSN` — because the
+  pruner's rule 8 deletes nothing whose file session-recall's `index_state` has not indexed to its
+  current inode and size —
   today nothing schedules the ingest (round-1 probe: `systemctl --user list-timers --all` shows only
   `session-archive` and `launchpadlib-cache-clean`; `crontab -l` has no reindex line), so without
   (c) the pruner stays a dry-run in effect. Interim, verified: no cron, timer or script runs
@@ -568,7 +586,8 @@ Appetite: 60
 
 **Gate C.4:** `docs_updater.py --check` green; `check_doc_links.py` green; the FOUR mails sent (ids
 in Evidence: infra ×2 — the governance template and `whoami_agent.py` —, fabrik-lib, session-recall);
-the hub `CLAUDE.md` paragraph is reviewed by the plan's Finish `/fabrik-review` (review floor).
+the full `/fabrik-review` over C.4's diff (docs, the hub `CLAUDE.md` paragraph, the four mails'
+texts) green — review floor.
 
 ### Gate C — the FIRST real deletion (operator-visible, once)
 
@@ -582,15 +601,18 @@ re-installed unit carries `ExecStart=-… --dry-run` (the default) and `systemct
 the nightly incremental ingest, and `SESSION_RECALL_RO_DSN` is set in `/opt/fabrik/.env` (presence
 checked by name, never printed) — absent, Gate C is `BLOCKED: missing infra — session-recall's
 nightly ingest / the read-only DSN`, for Gate C only: C.1–C.4 and the dry-run do not wait on it;
-(2) `prune_transcripts.py` dry-run, its table pasted into Evidence — rule 8's `not-indexed` count
-must be 0 for this run's set; (3) the **canary**: `--apply --max 10 --expect 10` by hand (this
+(2) `prune_transcripts.py` dry-run, its table pasted into Evidence — its deletable total must be
+> 0 and its `not-indexed` refusals fewer than the files older than 3 days (so the DSN, the index
+and rule 8 are proven live, not merely fail-closed); (3) the **canary**: `--apply --max 10 --expect 10` by hand (this
 run's set = the 10 oldest deletable files), then `--restore` of two of them from the bucket,
 byte-identical (`sha256sum` against the `pruned.jsonl` rows); the two restored files are LEFT in
 place — they carry a fresh `mtime`, so rule 1 keeps them 3 days and they re-enter the queue then;
 (4) `prune_transcripts.py --verify-ledger` prints `OK` for every row (exit 0), and `--remote-count`
 is UNCHANGED from before (3) — the pruner never touches the bucket; (5) the sidebar of one project
 reopened and its last-3-days sessions still listed, one hub window's `/resume` list still showing
-its newest, and `--status` showing the canary's summary row (`deleted: 10`, no `error`); (6) the
+its newest, and `--status` showing the canary's summary row (`deleted: 10`, no `error` — only
+dry-run and apply runs write a summary row; `--restore`, `--verify-ledger` and `--status` do not, so
+the canary's row is still the last); (6) the
 unit's second `ExecStart` switched from `--dry-run` to `--apply --nightly` (the oldest 200 a night;
 a hand run with `--max <M> --expect <M>` after (3) may take bigger bites — each one a pasted
 table). **Any step red ⇒ the unit stays on dry-run.** Deletes nothing until (3).
@@ -601,11 +623,12 @@ concurrency, >5 files, or anything an operator asked for by name"*): every sub-p
 operator-named (I3, I4, I6), so none takes the scoped review — the full `/fabrik-review` after C.1
 (a user-level HOOK), the full `/fabrik-review` ONCE over C.2 + C.3 together (one script,
 `prune_transcripts.py`, its MAIN and subagent tiers, the concurrency with in-flight subagents), and
-C.4's docs and the hub `CLAUDE.md` paragraph reviewed by the plan's Finish `/fabrik-review`, which
-is full and covers the whole Phase C diff (the hub `CLAUDE.md` is outside the sync regex, so no
-post-commit distribution rides on it — the reason it is a doc edit, not the reason it could take a
-lighter review); seats native (D-181), the Opus seat authoritative on C.2's invariant; read-only git
-in seats.
+the full `/fabrik-review` after C.4 (its docs and the hub `CLAUDE.md` paragraph — outside the sync
+regex, so no post-commit distribution rides on it, which is why it is a doc edit and not why it
+could take a lighter review) — three full reviews, each before the next sub-phase, so Gate C's
+"all of C.1–C.4 green" never waits on the plan's Finish review, which still runs last over the whole
+Phase C diff; seats native (D-181), the Opus seat authoritative on C.2's invariant; read-only git in
+seats.
 
 ## Phase C (2026-10-05 deferral) — superseded text, kept for the record
 
@@ -685,11 +708,11 @@ Intake: 13 items — 11 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 - **Given** a transcript with no manifest row for its `(slug, session_id)`, **When** `--apply` runs, **Then** it is not deleted, reason `not-archived` (C.2.1 r4)
 - **Given** a transcript whose current sha256 differs from its latest manifest row, **When** `--apply` runs, **Then** it is not deleted and the reason is `sha-mismatch` (C.2.1 r4)
 - **Given** a manifest row whose `.zst` is missing, fails `zstd -t`, or decompresses to bytes whose sha256 differs from the row's, **When** `--apply` runs, **Then** nothing is deleted for that session (C.2.1 r5)
-- **Given** a file with no session-recall `index_state` row, or one whose `inode` or `size` differs from the file's, or no `SESSION_RECALL_RO_DSN`, or no reachable database, **When** `--apply` runs, **Then** it is not deleted, reason `not-indexed`; a row with the file's inode and size passes (C.2.1 r8)
+- **Given** a file with no session-recall `index_state` row for its inode, or a row whose `size` differs from the file's, or no `SESSION_RECALL_RO_DSN`, or no reachable database, **When** `--apply` runs, **Then** it is not deleted, reason `not-indexed`; a row for the inode under ANY path (the worktree name) with the file's size passes (C.2.1 r8)
 - **Given** a file whose size or `mtime` changed between the hash and the unlink, **When** `--apply` runs, **Then** it is not deleted, reason `changed-under-hash` (C.2.1 last look)
 - **Given** a remote listing that is absent, or whose size or SHA1 differs from the local `.zst`, **When** `--apply` runs, **Then** nothing is deleted for that session; a failed listing deletes nothing in that slug (C.2.1 r6)
 - **Given** one inode with two names where one name fails a rule or has no manifest row, **When** `--apply` runs, **Then** neither name is unlinked (C.2.1 r7)
-- **Given** `--apply` without `--expect`, or with a count that differs from the dry-run, **When** it runs, **Then** nothing is deleted and both counts are printed (C.2.2)
+- **Given** `--apply` without `--expect`, or with a count that differs from this run's count (the dry-run's capped figure, or `--max`'s), **When** it runs, **Then** nothing is deleted and both counts are printed (C.2.2)
 - **Given** more deletable files than `PRUNE_MAX_PER_RUN`, **When** `--apply --nightly` runs, **Then** exactly the oldest cap-many are deleted and the rest are reported `deferred`; **When** a hand run passes `--max M --expect M`, **Then** exactly the oldest `M` are deleted (C.2.2)
 - **Given** any exception during a run, **When** the pruner exits, **Then** a `prune-log.jsonl` summary row carrying `error` exists, the exit code is 1, and no file was unlinked without its `pruned.jsonl` row; `--status` prints that row (C.2 summary row)
 - **Given** a MAIN transcript larger than `ROTATE_ADVISE_MB`, **When** the nightly run writes its summary row, **Then** the path is in `over_threshold` (C.2, Residual 10's backstop)
@@ -794,7 +817,8 @@ re-run at each phase boundary and its live output decides.)
 ## Context Ledger
 
 - **Rule packs** (the rubric over the full File Scope, § Rubric run): `core/35-security-auth.md`,
-  `core/25-data-postgres.md` (binds rule 8's ONE read-only query — Phase C), `core/30-ops.md`, `core/10-python.md`,
+  `core/25-data-postgres.md` (an application-code pack — BaseSettings, asyncpg; it binds nothing in a stdlib
+  script's one `SELECT`), `core/30-ops.md`, `core/10-python.md`,
   `core/40-documentation.md`, `core/45-testing-strategy.md`; quoted in § CONSTRAINTS DIGEST.
 - **fabrik-lib modules:** none vendored (§ fabrik-lib verdict: BUILD, hub-local).
 - **`agents-fabrik.md` invariants:** none touched — this is box-local workstation infrastructure,
@@ -897,6 +921,7 @@ over `rsync` argv is replaced by A-B7.
 - `docs/development/plans/2026-09-06-plan-1-session-history-retention.md`
 - `docs/superpowers/specs/2026-09-05-session-history-retention-design.md`
 - `.env.example` (Phase C: `SESSION_RECALL_RO_DSN`, `PRUNE_AFTER_DAYS`, `PRUNE_MAX_PER_RUN`, `ROTATE_ADVISE_MB`)
+- `pyproject.toml` + `uv.lock` (Phase C.2 — `psycopg2-binary` declared, the lock regenerated; no other dependency changes)
 - `docs/CONFIGURATION.md` (the same four rows)
 - `scripts/sysadmin/prune_transcripts.py` (new, Phase C)
 - `tests/test_prune_transcripts.py` (new, Phase C)
@@ -906,7 +931,7 @@ over `rsync` argv is replaced by A-B7.
 - `tests/test_install_user_hooks.py` (Phase C)
 - `docs/workstation/hooks-index.md` (Phase C — the hook row)
 - `CLAUDE.md` (Phase C.4 — one paragraph under § Pointers; outside the governance-sync regex;
-  reviewed in full by the plan's Finish `/fabrik-review`)
+  reviewed by C.4's full `/fabrik-review`)
 
 Not in File Scope, sent as requests (D-441): `templates/governance/CLAUDE.md` and
 `scripts/whoami_agent.py` (infra — both governance-sync paths), `/opt/fabrik-lib/CLAUDE.md` (fabrik-lib),
@@ -1219,7 +1244,8 @@ $ python3 scripts/review_rubric.py --changed scripts/sysadmin/archive_transcript
 | Pass | seats · axes re-checked | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | 7 seats (8 stamped — the researcher slice raised nothing and needed no refuter), section-partitioned (D-212): opus×1 (rules-invariant: C.2, Gate C, review floor, BC, Evidence, File Scope, CC13–21, Digest) + sonnet×2 (rest-phases: preamble, C.0/C.1/C.3/C.4, Intake; rest-ledgers: Context Ledger, Open unknowns, Rubric/Pass Ledger, Residual, Self-audit, spec marker) + fabrik-researcher×1 (cited-facts: the external citations and the systemd rule), refuter per slice (sonnet×3) · Q1–Q11 | found: 30, new: 30, confirmed: 27, refuted: 3 (O17 — the pinned dirs are one tree; O20 — the stop-decider anchor holds; S4 — the crash fix is independent of the tag), fixed: 27, unexecuted: 0, edits: 34 + 2 cite corrections | method: full pass over the pinned 31dcd50e8 revision + the arming (b7073f822); the refuters executed every check and the orchestrator re-executed the load-bearing ones before fixing (`whoami_agent.py` resolution and the refused re-bind; the registry's 1,401/9/6 liveness count and its single directory; `man systemd.service`; the reboot sweep's deletions; the crontab's second deleter; every cited anchor). The researcher's slice: 0 candidates, every external citation fetched live and faithful | c36d6c5fe1897d958513434b0040baa0 (+ arming b7073f822) → 883972d7fe07d56f03f2225c4bcb0c8c (before this row) |
-| Pass 2 | the same 3 slices, 6 seats (8 stamped): opus×1 (rules-invariant) + sonnet×2 (rest-phases, rest-ledgers) + refuter per slice (sonnet×3) · the DELTA pass (D-339): every round-1 id re-verified over the fix diff, then the new text hunted | round-1 ids: 24 NOW_FALSE, 3 STILL_TRUE (O10 → O30, O22 → O24, rest-phases-S3 → O29), 0 REGRESSED; found: 14, new: 14, confirmed: 14, own-fix: 14 (all inside the round-1 fix text), fixed: 14, unexecuted: 0, edits: 30 | method: delta — the cap that refused instead of draining (O25/O26/O32), `last_at` as a freshness key (O27), the unconfigured database (O31), the unspecified `--verify-ledger` (O28), the swallowed exits (O29), the operator-named surfaces on a scoped review (O30/S5), the string `procStart` (O24), the uninformed `--force` (S4), the `--agent` row without a gate step (S6), the ledger's seat count (O33), rule 8's dependency on another repo (S5-ledgers); the orchestrator read `index_state`'s columns, `parse.py:108-122`, `README.md:34,63` and `psycopg` 3.3.4 in the hub venv before fixing | 0a2506a5b176b4708383f7f4b4012a6c → bd218780127b42d6d17230ebd2b80bdf (before this row) |
+| Pass 2 | the same 3 slices, 6 seats (8 stamped): opus×1 (rules-invariant) + sonnet×2 (rest-phases, rest-ledgers) + refuter per slice (sonnet×3) · the DELTA pass (D-339): every round-1 id re-verified over the fix diff, then the new text hunted | round-1 ids (27 unique; the ledger carried 30 rows, rest-ledgers S1–S3 twice): 23 NOW_FALSE, 3 STILL_TRUE (O10 → O30, O22 → O24, rest-phases-S3 → O29), 1 recorded NEW by the seat (O8 — closed through O25/O26), 0 REGRESSED; found: 14, new: 14, confirmed: 14, own-fix: 14 (all inside the round-1 fix text), fixed: 14, unexecuted: 0, edits: 30 | method: delta — the cap that refused instead of draining (O25/O26/O32), `last_at` as a freshness key (O27), the unconfigured database (O31), the unspecified `--verify-ledger` (O28), the swallowed exits (O29), the operator-named surfaces on a scoped review (O30/S5), the string `procStart` (O24), the uninformed `--force` (S4), the `--agent` row without a gate step (S6), the ledger's seat count (O33), rule 8's dependency on another repo (S5-ledgers); the orchestrator read `index_state`'s columns, `parse.py:108-122`, `README.md:34,63` and `psycopg` 3.3.4 in the hub venv before fixing | 0a2506a5b176b4708383f7f4b4012a6c → bd218780127b42d6d17230ebd2b80bdf (before this row) |
+| Pass 3 | the same 3 slices, 6 seats (8 stamped): opus×1 + sonnet×2 + refuter per slice (sonnet×3) · the DELTA pass over the round-2 fix diff | round-2 ids: 11 NOW_FALSE, 2 STILL_TRUE (O27 → O34, rest-ledgers-S4 → O37/S7), 0 REGRESSED; found: 21 (4 of them re-verification statuses), new: 17, confirmed: 17, own-fix: 16 (the spec md5 in the header predates the review), fixed: 17, unexecuted: 0, edits: 22 + 2 | method: delta — rule 8 by inode (session-recall's `_one_name_per_inode`, read), the existing `recall_ro` (schema read), `psycopg2` and its lock pin (venv + `uv.lock` read), the pruner's own env reader, the `--who` verb that prints no pid (code read), `--expect` vacuous under `--max`, Gate C (2) vacuous, the summary row's writers, C.4's circular wait on the Finish review, two unlinks not atomic, the Pass 2 counters, the header's spec md5. `command_run.py round` printed the scope-growth stop (D-355): pass 4 re-verifies the FIXED set alone, no new hunt | 2676f864b3881ed04da1c2fbf467019a → f7309c2cc1ba50beba6361f11fc7028d (before this row) |
 
 ## Pass Ledger (/fabrik-plan-review, revision 2026-10-05)
 
@@ -1424,10 +1450,12 @@ status: failure | skipped: ['pytest']
 Computed via `review_rubric.py --changed` over this plan's full File Scope (§ Rubric run): FLOOR
 `core/35-security-auth.md`, `core/25-data-postgres.md`, `core/30-ops.md` + the 12-Factor axes;
 MATCHED `core/10-python.md`, `core/40-documentation.md`, `core/45-testing-strategy.md` — six packs.
-`core/25-data-postgres.md` bound nothing through Phase B (no database was touched); Phase C's rule 8
-adds ONE read-only `SELECT` on session-recall's `index_state` through `SESSION_RECALL_RO_DSN`, and
-the pack binds it: a dedicated read-only role, no DDL, the DSN from the environment, never a
-hard-coded host (`core/10-python.md:129`, below). Quotes re-located verbatim 2026-10-05 and
+`core/25-data-postgres.md` binds nothing here: through Phase B no database was touched, and Phase
+C's rule 8 — ONE read-only `SELECT` on session-recall's `index_state` through `SESSION_RECALL_RO_DSN`
+— is bound by the rows below, not by that pack (its rules address application code: settings
+classes, the asyncpg scheme): the DSN comes from the environment and is never a literal
+(`core/10-python.md:129`), and no secret enters the script (`core/35-security-auth.md:267`). Quotes
+re-located verbatim 2026-10-05 and
 re-checked 2026-10-11 (8 of 8 at their cited lines, round 1 of the Phase C review).
 
 | Verbatim quote | Source | Rule |
@@ -1547,6 +1575,14 @@ file · `CHANGELOG.md` per phase · `.env.example` + `docs/CONFIGURATION.md` for
   read-only DSN the Digest now binds; `--verify-ledger` and the summary row / `--status` specified
   with rows; the restored canary files are left in place; the `--force` re-bind is informed by the
   holder pid the hook prints; the review floor is full everywhere the operator named the surface.
+  (f) Round 3 (the delta pass, 17 new confirmed) corrected what round 2's text asserted without
+  reading: rule 8 looks up `index_state` by INODE (session-recall keeps one row per inode under the
+  worktree name), through the existing `recall_ro` role and the declared `psycopg2`; the pruner's own
+  env reader carries the `PRUNE_*`/`ROTATE_*` knobs into a unit without `EnvironmentFile=`; the
+  `--force` cross-check is the plain `--as` refusal's pid, not `--who`; `--expect` under `--max` is
+  named vacuous; Gate C (2) can fail; the summary row's writers are named; C.4 gets its own full
+  review (no wait on the Finish); two unlinks are not atomic; the spec md5 and the Pass 2 counters
+  corrected.
 - **Revision 2026-10-05:** every step that named vps1, Backrest, `ssh vps` or rsync was replaced or
   marked historical; Phase C's deferral is a recorded panel ruling with a three-part tripwire, not
   a silent drop. Round 1 of its review (25 confirmed) found the gates could not run in the order
