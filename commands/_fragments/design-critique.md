@@ -35,8 +35,8 @@ one came back empty), you adjudicate every concern by executing its claim**, the
 - `REJECTED` — with the counter-evidence;
 - `OPEN` — the operator rules on it (at a design-approval gate, an OPEN concern makes the panel split).
 
-Run the step once per artifact: an md5 already critiqued in this run is not re-dispatched, nor is the version
-folding its ACCEPTED concerns — the delta round reviews it, or `/fabrik-task` records it as is. In
+Run the step once per artifact version: an md5 already critiqued in this run is not re-dispatched, and a version that
+ONLY folds its ACCEPTED concerns is not a new one — the delta round reviews it, or `/fabrik-task` records it as is. In
 `/fabrik-task`, present both critiques with the design: each seat's verdict, then each concern with its
 disposition. At a design-approval gate, the panel step that follows decides what reaches the operator.
 

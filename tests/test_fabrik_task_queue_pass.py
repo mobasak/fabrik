@@ -41,7 +41,7 @@ def test_measure_executes_the_real_path() -> None:
 def test_the_lane_critique_brief_asks_seats_to_execute() -> None:
     """S3 (critique brief): replay the incident, run claims against the real tool, pin the tree."""
     phase2 = _section("## Phase 2", "## Phase 3")
-    assert "This lane's brief also has each seat EXECUTE: replay the reported incident through the design" in phase2
+    assert "This lane's brief also has each seat EXECUTE: replay the reported incident and the real corpus through the design" in phase2
     assert "pins the tree (a commit or `git archive` copy), bars live-provider credentials" in phase2
 
 
@@ -57,6 +57,7 @@ def test_mirror_searches_the_whole_tree_and_names_fail_direction() -> None:
     phase2 = _section("## Phase 2", "## Phase 3")
     assert "The search is the whole tracked tree (tests and their pinned strings, `commands/`, UI, docs)" in phase2
     assert "names its fail direction — which error is dangerous, an answer versus an outage" in phase2
+    assert "Every function, anchor or subject the design names is grepped to exist" in phase2
 
 
 def test_v1_commits_once_with_the_ledgers_and_graders_execute() -> None:
@@ -70,6 +71,7 @@ def test_the_third_review_question_excludes_an_equivalent_implementation() -> No
     """Row 1790692304: any nameable equivalent implementation read as an UPGRADE verdict."""
     phase4 = _section("## Phase 4", "## Phase 5")
     assert "a second approach whose merits the build cannot settle (an equivalent implementation is not one)" in phase4
+    assert "Under the urgent-90 CHECKPOINT the record stays open" in phase4
     assert "the declaration said did not exist" not in phase4
 
 
@@ -78,10 +80,12 @@ def test_the_receipt_range_tip_is_the_last_commit() -> None:
     close = _section("## Phase 5", "## UPGRADE")
     assert "Its range tip must be the LAST `--commit` (`task_lane.py` check (d))" in close
     assert "never captured or passed to `--commit`" in close
+    # review_receipt.py requires --changed and --out/--scope; the tip is the last captured sha (round 1).
+    assert "--changed <declared paths> --scope <slug> --range <base>..<that sha>" in close
+    assert "after the last sha in `commit.sha`" in close
 
 
 def test_critique_is_not_rerun_on_the_folded_version() -> None:
     """Row 1791070230: 'once per artifact version' read as re-critiquing every folded design.md."""
     text = _norm(CRITIQUE)
-    assert "nor is the version folding its ACCEPTED concerns" in text
-    assert "once per artifact version" not in text
+    assert "a version that ONLY folds its ACCEPTED concerns is not a new one" in text

@@ -71,11 +71,11 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # the prior record, the measured population, live contract probes — 25 feedback rows).
 # D-705 (kaizen, 2026-10-08): 13610 -> 13941 for phase 2's `--terminal-amend` sentence (infra built
 # the verb at 15423ef2f; MEASURE or the critiques can narrow what ends the run — 5 feedback rows).
-# D-734 (kaizen, 2026-10-11): 13941 -> 15967 for the one-pass answer to the whole /fabrik-task queue (D-735):
+# D-734 (kaizen, 2026-10-11): 13941 -> 16312 for the one-pass answer to the whole /fabrik-task queue (D-735):
 # measure by executing the real path, MIRROR's whole-tree search and fail direction, the lane's critique-brief
 # additions, the pre-record checklist, graders, v1's single commit, phase 4's third question, and the
 # receipt's range tip — ~150 feedback rows.
-SIZE_CAP = 15967
+SIZE_CAP = 16312
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")

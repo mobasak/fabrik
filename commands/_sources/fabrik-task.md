@@ -83,7 +83,7 @@ Write six fields — **PROBLEM · APPROACH · DECISION (reversible?) · MIRROR �
 
 {{include:design-critique}}
 
-This lane's brief also has each seat EXECUTE: replay the reported incident through the design; run each matcher,
+This lane's brief also has each seat EXECUTE: replay the reported incident and the real corpus through the design; run each matcher,
 semantics or shell claim against the real tool under the live guard; sweep sibling write paths and the tests
 pinning a moved value; name each new guard's fail direction and any second approach the build cannot settle. It
 pins the tree (a commit or `git archive` copy), bars live-provider credentials and asks for small outputs. Wait
@@ -118,7 +118,8 @@ deleted file, other surfaces stating a changed claim, the gates that grade it �
 executed search, with the shape it now fails on and its cost measured, never estimated. The search is the
 whole tracked tree (tests and their pinned strings, `commands/`, UI, docs) under every spelling of the identifier,
 sibling write paths included; each new guard, veto or fallback names its fail direction — which error is
-dangerous, an answer versus an outage. A reader
+dangerous, an answer versus an outage. Every function, anchor or subject the design names is grepped to exist,
+and each guard a claim relies on is quoted. A reader
 the build leaves untouched is named without backticks: every backticked MIRROR path counts as
 declared at a *(v2)* close. The fields
 are the D-row's draft: APPROACH+DECISION+MIRROR → *what*, PROBLEM → *why*, the declared files →
@@ -148,8 +149,8 @@ the phase-2 `design.md` path and the phase-0 declaration, plus three questions: 
 can you name a second approach whose merits the build cannot settle (an equivalent implementation is not one)?* A `yes` to the first or third is that seat's UPGRADE verdict — take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315). A declared file left UNTOUCHED is padding
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
 an UPGRADE, which would strand the run. A decision the review changes is re-drafted into the D-row with the drift
-noted. Under a QUOTA checkpoint the record stays open, *(v2)* the build is committed, and the review is sized to
-the runway.
+noted. Under the urgent-90 CHECKPOINT the record stays open, *(v2)* the build is committed through phase 5 step 5's
+capture line (v1 keeps it uncommitted), and the review is sized to the runway.
 
 ## Phase 5 — CLOSE, in this order
 
@@ -180,8 +181,9 @@ never refused. *(v2)* a path missing from APPROACH/MIRROR/an amendment REFUSES `
 rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, never refusing a
 sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff`
 too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)):
-`review_receipt.py --init --lane --range <base>..<last code commit>` after that commit, then the receipt committed
-after it, never captured or passed to `--commit`. A split critique is named in `--evidence`.
+after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <declared paths> --scope <slug> --range
+<base>..<that sha>` (a re-tip after a fix commit takes a new `--scope`), then commit the receipt — never captured or
+passed to `--commit`. When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names it.
 
 ## UPGRADE — the one-way ratchet, available from phase 1
 
