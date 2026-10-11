@@ -905,6 +905,58 @@ hook payload's `transcript_path`, the field the ROTATE hook reads too);
 `.pre-commit-config.yaml:158-164` (the governance-sync filter — `scripts/sysadmin/` and the user-level
 hook list are outside it; `templates/governance/` and `.claude/hooks/` are inside).
 
+**Gate C (0) — GREEN (W-c49a7adf), captured by infra (session dd3c06d1), 2026-10-11.** Branch
+`worktree-fleet` merged (c3ca37677, request 01M4NYEN9SEP1C3EQ147VE4XYT); the pruner reached the main
+checkout with it (`git log -1 -- scripts/sysadmin/prune_transcripts.py` → 6f79449f1). Then
+`bash scripts/sysadmin/install_session_archive_timer.sh` ran from `/opt/fabrik` at 20:00 +03; the timer
+next fires Mon 2026-10-12 00:14 +03. The re-installed unit:
+```
+$ systemctl --user cat session-archive.service
+# /home/ozgur/.config/systemd/user/session-archive.service
+# Session-history archive -> Backblaze B2 (docs/workstation/session-history-retention.md, D-565).
+# Installed by scripts/sysadmin/install_session_archive_timer.sh into ~/.config/systemd/user/.
+# No EnvironmentFile=: the archiver reads ONLY the SESSION_ARCHIVE_* lines of /opt/fabrik/.env
+# itself, so the hub's other secrets never enter this unit's environment.
+#
+# No After=network-online.target: the USER manager has no such target, so it would order
+# nothing. A run that starts before the network is up (the boot-time catch-up) fails with a
+# non-zero exit and is retried by Restart= below, at most 4 times in 2 hours.
+[Unit]
+Description=Archive Claude session transcripts to Backblaze B2
+StartLimitIntervalSec=2h
+StartLimitBurst=4
+
+[Service]
+Type=oneshot
+# The leading "-" ignores the sampler's exit status: it runs under set -euo pipefail, and a
+# sampler error must never skip the backup.
+ExecStartPre=-/opt/fabrik/scripts/sysadmin/sample_transcript_growth.sh
+ExecStart=/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/archive_transcripts.py
+# The pruner runs AFTER the archiver (man systemd.service, ExecStart=: commands run sequentially;
+# a failing command without "-" stops the rest and fails the unit), so a night whose archive
+# failed prunes nothing. Its own "-" keeps a pruner refusal (exit 3) from failing the unit, which
+# would make Restart= re-run the ARCHIVER for a pruner outcome; the pruner reports for itself in
+# ~/.claude/archive/prune-log.jsonl (`prune_transcripts.py --status`). It stays on --dry-run until
+# Gate C step (6) of the retention plan switches it to --apply --nightly (D-736).
+ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_transcripts.py --dry-run
+Restart=on-failure
+RestartSec=15min
+Nice=10
+IOSchedulingClass=idle
+```
+
+The unit's second `ExecStart=` argv, run by hand from `/opt/fabrik` at 2026-10-11 20:11:03 +03 (an
+interactive shell, not the unit's environment). This is NOT Gate C (2)'s table: it fails (2)'s bar
+(deletable > 0, `not-indexed` 0), as it must while (1b) is open. Its counts move as transcripts are
+written and indexed; the C.2 capture above is an earlier run of the pruner, from fleet's worktree before
+the merge brought it to `/opt/fabrik`:
+```
+$ /opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_transcripts.py --dry-run
+prune_transcripts (dry-run): MAIN tier — 9813 transcript inode(s) scanned · deletable 0 · this run 0 (cap 200) · deferred 0
+  refusals: in-window 1055 · newest-of-agent 2 · newest-of-slug 1618 · not-indexed 7138
+  over-threshold (> 200 MB): 22 file(s)
+```
+
 ### Gate C — execution log (2026-10-12, fleet; operator D-746 "proceed and do not stop again for the things you can handle yourself")
 
 **(0) infra's merge + timer re-install — DONE** (`c3ca37677` merged 2026-10-11; `systemctl --user cat session-archive.service` line 27

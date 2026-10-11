@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T22:08:32.793187Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c3ecd01e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide via /fabrik-spec: a new run-record state touches the Stop hook, the feedback ledger and every close reader",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "kaizen-01m4n1k909"
+  ],
+  "title": "A sanctioned HOLD exit for a run parked behind another agent's merge, distinct from BLOCKED — a new close verb (kaizen 01M4N1K909 group 5b; row 1791174957)"
+}

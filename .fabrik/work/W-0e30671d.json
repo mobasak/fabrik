@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T22:08:32.009216Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0e30671d",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task over scripts/command_run.py start and step --design output",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen-01m4n1k909"
+  ],
+  "title": "command_run.py start / step --design print the next phase, the quota runway beside the appetite, an ACTIVE plan lock owning a declared --file, and the declared files the design's APPROACH/MIRROR do not name (kaizen 01M4N1K909 group 3; rows 1791355691, 1791336923, 1791324378, 1791130188, 1791128626)"
+}

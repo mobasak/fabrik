@@ -2188,6 +2188,9 @@ def _ext_matrix_table(rows: list[dict]) -> str:
 # carries the ~0.5 MB of rows. Every git call work.py makes here is capped at 1 s
 # (`_hook_git_budget`); a repo that still fails shows its own banner and the others list.
 _HUB_OWNERS = ("infra", "fleet", "intel", "kaizen", "operator")
+# The hub agents whose owner chip and section show in every repo pane, even with nothing open, so
+# "kaizen has nothing" and "kaizen is missing" never look the same (operator ask 2026-10-11).
+_HUB_AGENTS = ("infra", "fleet", "intel", "kaizen")
 REPOS_TTL_S = float(os.getenv("QUOTA_DASH_REPOS_TTL_S", "20"))
 NEXT_CAP = 160  # `next` is the bulk of the rows (1.0 MB of 1.4 MB measured); the cell is capped
 NEXT_TIP_CAP = (
@@ -2298,24 +2301,44 @@ def _repo_pane(r: dict, shown: bool) -> str:
     if not items:
         out.append('<p class="intro">No remaining work in this repo.</p></div>')
         return "".join(out)
-    count = lambda st: sum(1 for i in items if i.get("status") == st)  # noqa: E731
-    claimed = sum(1 for i in items if i.get("_claim"))
+    count = lambda rows, st: sum(1 for i in rows if i.get("status") == st)  # noqa: E731
+    claimed = lambda rows: sum(1 for i in rows if i.get("_claim"))  # noqa: E731
     groups: dict[str, list[dict]] = {}
     for it in items:
         groups.setdefault(str(it.get("owner") or ""), []).append(it)
     out.append(
         f'<p class="intro"><strong>{len(items)}</strong> remaining · '
-        f"{count('awaiting-operator')} awaiting the operator · {count('blocked')} blocked · "
-        f"{claimed} claimed now · {len(groups)} owner(s)</p>"
+        f"{count(items, 'awaiting-operator')} awaiting the operator · {count(items, 'blocked')} "
+        f"blocked · {claimed(items)} claimed now · {len(groups)} owner(s) with items</p>"
     )
-    for owner in _owner_order(set(groups)):
+    # Every hub agent and the empty owner get a chip and a section even at 0. The empty owner is
+    # labelled "(unassigned)" so a literal owner named "unassigned" stays distinguishable.
+    owners = _owner_order(set(groups) | set(_HUB_AGENTS) | {""})
+    label = lambda o: o or "(unassigned)"  # noqa: E731
+    chips = [f'<button type="button" data-all>All <span>{len(items)}</span></button>']
+    chips += [
+        f'<button type="button" data-owner="{escape(o)}">{escape(label(o))} '
+        f"<span>{len(groups.get(o, []))}</span></button>"
+        for o in owners
+    ]
+    out.append(f'<div class="owners">{"".join(chips)}</div>')
+    for owner in owners:
         rows = sorted(
-            groups[owner],
+            groups.get(owner, []),
             key=lambda i: (i.get("status") != "awaiting-operator", i["_prio"], str(i.get("id"))),
         )
-        out.append(
-            f'<h3 class="owner">{escape(owner or "unassigned")} <span>{len(rows)}</span></h3>'
+        meta = (
+            f"{count(rows, 'awaiting-operator')} awaiting · {count(rows, 'blocked')} blocked · "
+            f"{claimed(rows)} claimed"
         )
+        out.append(
+            f'<details class="og" data-owner="{escape(owner)}"><summary>'
+            f'<h3 class="owner">{escape(label(owner))} <span>{len(rows)}</span></h3> '
+            f'<span class="og-meta">{meta}</span></summary>'
+        )
+        if not rows:
+            out.append('<p class="intro">No open items.</p></details>')
+            continue
         body = []
         for i in rows:
             nxt = str(i.get("next") or "")
@@ -2336,7 +2359,7 @@ def _repo_pane(r: dict, shown: bool) -> str:
         out.append(
             "<table><thead><tr><th>Item</th><th>Kind</th><th>Status</th><th>P</th>"
             "<th>Title</th><th>Next</th><th>Tags</th><th>Claim</th></tr></thead>"
-            f"<tbody>{''.join(body)}</tbody></table>"
+            f"<tbody>{''.join(body)}</tbody></table></details>"
         )
     out.append("</div>")
     return "".join(out)
@@ -2361,6 +2384,15 @@ _REPOS_STYLE = """
  .banner.warn { background:color-mix(in srgb, var(--warn) 16%, transparent); border:1px solid var(--warn); }
  .banner.crit { background:color-mix(in srgb, var(--crit) 16%, transparent); border:1px solid var(--crit); }
  h3.owner { margin:20px 0 8px; font-size:15px; }
+ .owners { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 12px; }
+ .owners button { font:inherit; font-size:13px; padding:4px 10px; border-radius:999px; cursor:pointer;
+   border:1px solid var(--line); background:var(--card); color:var(--fg); }
+ .owners button span { color:var(--sub); }
+ .owners button.on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 16%, transparent); }
+ details.og { margin:10px 0; }
+ details.og > summary { cursor:pointer; padding:4px 0; }
+ details.og > summary h3.owner { display:inline; margin:0; }
+ .og-meta { color:var(--sub); font-size:12px; margin-left:8px; }
  h3.owner span { color:var(--sub); font-weight:400; }
  table { width:100%; border-collapse:separate; border-spacing:0; background:var(--card);
    border:1px solid var(--line); border-radius:10px; overflow:hidden; }
@@ -2415,6 +2447,48 @@ def _repos_body() -> str:
     )
 
 
+# The owner chips, one IIFE of their own so an error here cannot take the repo picker with it.
+# Per pane (every div.repo, keyed by its data-repo); sections are found by iterating details.og and
+# comparing data-owner, never by a selector built from an owner name. Stored keys cannot collide:
+# "*" is All, "~" the empty owner and every named owner is "=" + its name (a hand-edited owner
+# literally "*" or "~" stays its own key); only a MISSING (null) or unknown key falls back to All,
+# so the empty owner can never read as "nothing stored". Under All the sections the operator opened
+# are remembered too (the Repos frame is rebuilt on every return to the tab), and each toggle
+# re-reads that list before writing it, so a second frame never writes back a stale copy. Each pane
+# runs in its own try, so one pane's error leaves the others working.
+_OWNER_FILTER_JS = (
+    "(function () {"
+    ' function key(o) { return o === "" ? "~" : "=" + o; }'
+    ' function chipKey(b) { return b.hasAttribute("data-all") ? "*" : key(b.getAttribute("data-owner")); }'
+    ' document.querySelectorAll("div.repo").forEach(function (pane) { try {'
+    '  var repo = pane.getAttribute("data-repo");'
+    '  var chips = pane.querySelectorAll("div.owners button"); if (!chips.length) { return; }'
+    '  var secs = pane.querySelectorAll("details.og");'
+    "  function get(k) { try { return localStorage.getItem(k + repo); } catch (e) { return null; } }"
+    "  function put(k, v) { try { localStorage.setItem(k + repo, v); } catch (e) {} }"
+    '  function load() { var v = []; try { v = JSON.parse(get("repo-open:") || "[]"); } catch (e) { v = []; }'
+    "   return Array.isArray(v) ? v : []; }"
+    "  var opened = load();"
+    '  var known = ["*"]; secs.forEach(function (d) { known.push(key(d.getAttribute("data-owner"))); });'
+    '  var mode = "*";'
+    "  function apply(want) { mode = want;"
+    '   secs.forEach(function (d) { var k = key(d.getAttribute("data-owner"));'
+    '    if (want === "*") { d.hidden = false; d.open = opened.indexOf(k) >= 0; }'
+    "    else { d.hidden = k !== want; d.open = k === want; } });"
+    '   chips.forEach(function (b) { b.classList.toggle("on", chipKey(b) === want); }); }'
+    '  var want = get("repo-owner:"); if (want === null || known.indexOf(want) < 0) { want = "*"; }'
+    "  apply(want);"
+    '  chips.forEach(function (b) { b.addEventListener("click", function () {'
+    '   var k = chipKey(b); apply(k); put("repo-owner:", k); }); });'
+    '  secs.forEach(function (d) { d.addEventListener("toggle", function () { if (mode !== "*") { return; }'
+    '   opened = load(); var k = key(d.getAttribute("data-owner")); var i = opened.indexOf(k);'
+    "   if (d.open && i < 0) { opened.push(k); } if (!d.open && i >= 0) { opened.splice(i, 1); }"
+    '   put("repo-open:", JSON.stringify(opened)); }); });'
+    " } catch (e) {} });"
+    "})();"
+)
+
+
 def _wants_fresh(request_path: str) -> bool:
     """`/repos.html?fresh=1` (the page's refresh link) bypasses the cache; exactly `fresh=1`."""
     query = request_path.split("?", 1)[1] if "?" in request_path else ""
@@ -2445,7 +2519,8 @@ def _repos_page(fresh: bool = False) -> str:
             " pick.value = want; show(want);"
             ' pick.addEventListener("change", function () { show(pick.value);'
             '  try { localStorage.setItem("repo-pick", pick.value); } catch (e) {} });'
-            "})();</script></body></html>"
+            "})();</script>"
+            f"<script>{_OWNER_FILTER_JS}</script></body></html>"
         )
         _repos_cache = (now, page)
         return page

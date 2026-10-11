@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T22:08:32.267124Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-19a50f06",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task over scripts/command_run.py run-record lifecycle",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen-01m4n1k909"
+  ],
+  "title": "command_run.py: resume a fabrik-task record closed blocked on a quota wall so done can name every commit (kaizen 01M4N1K909 group 5a; row 1791314925)"
+}

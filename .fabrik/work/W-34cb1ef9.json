@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T17:02:14.952937Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-34cb1ef9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4NVZJTMSSBDTVPSR7M4X7GF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "REQUEST (D-441) — scripts/whoami_agent.py: a `/clear` predecessor binds its successor without --force (D-736 C.4)"
+}
