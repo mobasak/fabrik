@@ -1521,7 +1521,9 @@ def _fleet_tick_spies(monkeypatch):
 def test_fleet_tick_pushes_once_per_chain_inside_three_days(tmp_path, monkeypatch, capsys):
     """A chain inside 3 d of its expiry (or past it) is pushed to the operator ONCE — the tick log
     is not read, and an unnoticed lapse becomes a fleet hold (2026-09-12). The stamp keys on the
-    chain's expiry epoch: the same chain never pushes twice, a re-minted chain re-arms."""
+    chain's expiry epoch: the same chain never pushes twice, a re-minted chain re-arms — at the
+    first tick at or past the attempt backoff (W-e8fc8685), since the notifier's own per-account
+    window would suppress an earlier send anyway."""
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=4 * 86400.0)  # 4 d left
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)  # 30 d → silent
@@ -1558,8 +1560,15 @@ def test_fleet_tick_pushes_once_per_chain_inside_three_days(tmp_path, monkeypatc
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=30 * 86400.0)
     assert cr._cmd_tick() == 0
     assert len([m for m in actions["telegrams"] if "refresh chain" in m]) == 1
-    # …and a NEW short chain (different expiry) pushes again, once
+    # …and a NEW short chain (different expiry) pushes again, once — but not inside the attempt
+    # backoff of the push that just went out (per account): the same tick sends nothing…
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=1 * 86400.0)
+    assert cr._cmd_tick() == 0
+    assert len([m for m in actions["telegrams"] if "refresh chain" in m]) == 1, (
+        "a re-minted chain inside the backoff waits for it"
+    )
+    # …and the first tick at or past the backoff pushes the new chain, once
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW + cr._CHAIN_PUSH_BACKOFF_S)
     assert cr._cmd_tick() == 0
     assert len([m for m in actions["telegrams"] if "refresh chain" in m]) == 2
 
@@ -1634,15 +1643,18 @@ def test_chain_push_stamps_only_a_delivered_notify(tmp_path, monkeypatch, capsys
     monkeypatch.setattr(Path, "home", lambda: tmp_path)  # no notifier → the reason says so
     capsys.readouterr()
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0
-    assert cr._chain_expiry_push([row], FLEET_NOW) == 0, "unconfirmed → retried, never stamped"
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 0, "unconfirmed → never stamped"
     out = capsys.readouterr().out
-    assert out.count("push UNCONFIRMED") == 2 and "unavailable" in out
+    assert out.count("push UNCONFIRMED") == 1 and "unavailable" in out, (
+        "the second tick sits inside the attempt backoff: no spawn, no line (W-e8fc8685)"
+    )
     assert not cr._chain_push_stamp("sarp@ocoron.com").exists()
 
     sent = []
     monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: sent.append(m) or True)
-    assert cr._chain_expiry_push([row], FLEET_NOW) == 1
-    assert cr._chain_expiry_push([row], FLEET_NOW) == 0 and len(sent) == 1
+    later = FLEET_NOW + cr._CHAIN_PUSH_BACKOFF_S  # the first tick at or past the backoff
+    assert cr._chain_expiry_push([row], later) == 1
+    assert cr._chain_expiry_push([row], later) == 0 and len(sent) == 1
 
 
 def test_tick_telegram_reports_delivery_from_the_notifier_artifact(tmp_path, monkeypatch):
@@ -1867,7 +1879,10 @@ def test_chain_push_says_so_and_repeats_when_the_state_dir_refuses_the_stamp(
         assert cr._chain_expiry_push([row], FLEET_NOW) == 1
         assert cr._chain_expiry_push([row], FLEET_NOW) == 1, "nothing remembered it → pushed again"
         out = capsys.readouterr().out
-        assert out.count("stamp unwritable") == 2 and "bounded by the notifier's window" in out
+        assert out.count("stamp unwritable") == 2 and "repeats next tick" in out
+        assert out.count("attempt epoch not recorded") == 2, (
+            "the 0o500 dir refuses the attempt sibling too, so the line says the retry IS next tick"
+        )
         assert len(sent) == 2
     finally:
         state.chmod(0o700)
@@ -1910,6 +1925,127 @@ def test_chain_push_refuses_a_planted_symlink_stamp(tmp_path, monkeypatch, capsy
     assert cr._chain_expiry_push([row], FLEET_NOW) == 1, "a planted link never reads as stamped"
     assert victim.read_text() == key, "nor does the push path write through it"
     assert "stamp unwritable" in capsys.readouterr().out
+    # the ATTEMPT sibling (W-e8fc8685): a link planted there is never written through either; the
+    # attempt is not recorded, the per-tick cadence stands and the UNCONFIRMED line says so
+    victim2 = tmp_path / "victim2"
+    victim2.write_text("ORIGINAL")
+    attempt = stamp.with_name(stamp.name + ".attempt")
+    attempt.unlink()  # the delivered push above dated it; plant the link in its place
+    attempt.symlink_to(victim2)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: False)
+    stamp.unlink()
+    for _ in range(2):
+        assert cr._chain_expiry_push([row], FLEET_NOW) == 0
+    out = capsys.readouterr().out
+    assert out.count("attempt epoch not recorded") == 2 and out.count("retried next tick") == 2
+    assert victim2.read_text() == "ORIGINAL" and attempt.is_symlink()
+
+
+def test_chain_push_backs_off_for_the_notifiers_window(tmp_path, monkeypatch, capsys):
+    """B1 (W-e8fc8685): an UNCONFIRMED push is not re-attempted inside `_CHAIN_PUSH_BACKOFF_S` of
+    the attempt — no spawn, no line — and at the first tick at or past it the attempt runs again;
+    a delivered one then stamps the chain as before."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
+    calls = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: calls.append(m) or False)
+    capsys.readouterr()
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 0
+    for t in (FLEET_NOW + 300, FLEET_NOW + 1500, FLEET_NOW + cr._CHAIN_PUSH_BACKOFF_S - 1):
+        assert cr._chain_expiry_push([row], t) == 0
+    out = capsys.readouterr().out
+    assert len(calls) == 1, "three ticks inside the backoff spawned nothing"
+    assert out.count("push UNCONFIRMED") == 1 and out.count("chain push:") == 1, (
+        "a skipped tick prints nothing"
+    )
+    assert cr._chain_expiry_push([row], FLEET_NOW + cr._CHAIN_PUSH_BACKOFF_S) == 0
+    assert len(calls) == 2, "the first tick at or past the backoff attempts again"
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: calls.append(m) or True)
+    assert cr._chain_expiry_push([row], FLEET_NOW + 2 * cr._CHAIN_PUSH_BACKOFF_S) == 1
+    assert cr._stamp_holds(cr._chain_push_stamp("sarp@ocoron.com"), str(int(FLEET_NOW + 86400)))
+    assert cr._chain_expiry_push([row], FLEET_NOW + 3 * cr._CHAIN_PUSH_BACKOFF_S) == 0
+    assert len(calls) == 3, (
+        "a delivered chain never attempts again (the delivery stamp, not the backoff)"
+    )
+
+
+def test_chain_push_ignores_a_future_dated_attempt_stamp(tmp_path, monkeypatch):
+    """B4 (W-e8fc8685): a clock step back leaves the attempt sibling in the future — it reads as
+    "attempt now" (the failure direction is notifying) and is re-dated to the tick's `now`."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
+    calls = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: calls.append(m) or False)
+    stamp = cr._chain_push_stamp("sarp@ocoron.com")
+    attempt = stamp.with_name(stamp.name + ".attempt")
+    cr._touch_stamp(attempt, FLEET_NOW + 7200)  # 2 h in the future
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 0
+    assert len(calls) == 1, "a future-dated sibling never holds the backoff"
+    assert cr._regular_stamp_mtime(attempt) == FLEET_NOW, "and it is re-dated to now"
+    assert cr._chain_expiry_push([row], FLEET_NOW + 60) == 0 and len(calls) == 1
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory modes")
+def test_chain_push_attempt_stamp_refusal_keeps_the_per_tick_cadence(tmp_path, monkeypatch, capsys):
+    """B5 (W-e8fc8685): a state dir that refuses the attempt sibling (0o500) cannot hold a backoff:
+    every tick attempts, and the UNCONFIRMED line says the attempt epoch was not recorded and that
+    the retry IS next tick. Today's cadence, said aloud."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
+    calls = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: calls.append(m) or False)
+    state.chmod(0o500)
+    capsys.readouterr()
+    try:
+        assert cr._chain_expiry_push([row], FLEET_NOW) == 0
+        assert cr._chain_expiry_push([row], FLEET_NOW) == 0
+    finally:
+        state.chmod(0o700)
+    out = capsys.readouterr().out
+    assert len(calls) == 2, "no attempt epoch → no backoff → every tick attempts"
+    assert out.count("attempt epoch not recorded") == 2 and out.count("retried next tick") == 2
+    assert "backoff" not in out
+
+
+def test_chain_push_records_the_attempt_before_the_spawn(tmp_path, monkeypatch):
+    """B6 (W-e8fc8685): the attempt sibling is dated BEFORE `_tick_telegram` runs, so a notifier
+    that hangs to its timeout or fails to start still counts as an attempt and the next tick is
+    skipped."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
+    stamp = cr._chain_push_stamp("sarp@ocoron.com")
+    attempt = stamp.with_name(stamp.name + ".attempt")
+    seen = []
+
+    def spawn_sees_the_stamp(m, **kw):
+        seen.append(cr._regular_stamp_mtime(attempt))
+        return False  # the notifier did not finish (its 30 s timeout) — unconfirmed
+
+    monkeypatch.setattr(cr, "_tick_telegram", spawn_sees_the_stamp)
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 0
+    assert seen == [FLEET_NOW], "the sibling was dated with the tick's now before the spawn"
+    assert cr._chain_expiry_push([row], FLEET_NOW + 60) == 0 and len(seen) == 1
+
+
+def test_chain_push_backoff_is_per_account(tmp_path, monkeypatch):
+    """B7 (W-e8fc8685): one account's young attempt never skips another's — each email has its
+    own sibling, named like its delivery stamp (slug + digest)."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    a = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
+    b = {"email": "ob@ocoron.com", "slugs": ["intel"], "refresh_expires_epoch": FLEET_NOW + 3600}
+    calls = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: calls.append(m) or False)
+    assert cr._chain_expiry_push([a], FLEET_NOW) == 0
+    assert cr._chain_expiry_push([a, b], FLEET_NOW + 60) == 0
+    assert len(calls) == 2 and "ob@ocoron.com" in calls[1], "b attempts while a backs off"
+    sa = cr._chain_push_stamp("sarp@ocoron.com")
+    sb = cr._chain_push_stamp("ob@ocoron.com")
+    assert cr._regular_stamp_mtime(sa.with_name(sa.name + ".attempt")) == FLEET_NOW
+    assert cr._regular_stamp_mtime(sb.with_name(sb.name + ".attempt")) == FLEET_NOW + 60
 
 
 def test_chain_push_names_the_notifier_verdict_it_can_know(tmp_path, monkeypatch, capsys):
@@ -1931,11 +2067,11 @@ def test_chain_push_names_the_notifier_verdict_it_can_know(tmp_path, monkeypatch
     monkeypatch.setenv("CLAUDE_SOUND_SH", str(script))
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")  # runs, delivers nothing
-    assert cr._chain_expiry_push([row], FLEET_NOW) == 0
+    assert cr._chain_expiry_push([row], FLEET_NOW + cr._CHAIN_PUSH_BACKOFF_S) == 0
     out = capsys.readouterr().out
-    assert (
-        "push UNCONFIRMED" in out and "could not be confirmed" in out and "retried next tick" in out
-    )
+    assert "push UNCONFIRMED" in out and "could not be confirmed" in out
+    assert "retried at the first tick at or past the 30-minute backoff" in out
+    assert "retried next tick" not in out, "the cadence is the backoff, never the next tick"
     assert "NOT delivered" not in out, "the tick never asserts non-delivery it cannot know"
 
 
