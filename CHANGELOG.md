@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review answers its feedback queue in one pass (2026-10-12)
+- Phase 1 points at the review probe catalogue; the Agent-tool shape covers a review the operator did not invoke; a failed or `NO RESULT` refuter's candidates are executed by the lead; the delta brief names its must-read files; a quiet round 1's closing pass omits `ledger` (the `next` recipe needs ids it never raised); the close stages before its IN-PROGRESS gate. The catalogue gains redactor timing and what a fix recipe leaves unchanged (D-752).
+
 ### Added — the review probe catalogue answers the /fabrik-review-scoped queue (2026-10-12)
 - `commands/_fragments/review-probe-catalogue.md` collects the probes, hunt lines, grader, prose-fix, isolation and loop steps ~290 feedback rows asked for; /fabrik-review-scoped step 5 points at it by its hub path. The command's `command_run.py` citations are by symbol (the line numbers had drifted), and a guard's escape variants are asked from round 1 (D-751).
 
