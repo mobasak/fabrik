@@ -1,0 +1,26 @@
+{
+  "block_digest": "a6613a7c68148c920862054801f0c60f410ccb03bea16175e9397adfb2968835",
+  "blocked_by": [],
+  "created": "2026-10-11T09:57:39.794247Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-6387c033",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "50b6d24a2f2076053e4a7dcee1ce36ecf9e06cb2766d2f8336b7597bd3196d44"
+  ],
+  "next": "",
+  "note": "operator 2026-10-11: implement asap — all histories off-box in B2, local keeps ~3 days, named histories for infra/kaizen/intel/fleet, no scratchpad/subagents, update the 3 CLAUDE.md files, never lose the sessions visible on screen (all repos). Recorded as D-736.",
+  "owner": "",
+  "priority": 2,
+  "question": "Do I reopen the retention plan's Phase C with this design (rotate named sessions weekly + tag by agent; prune local main transcripts after 3 days when their hash is in B2; delete subagent transcripts after 3 days; guard session-recall's orphan sweep), superseding D-470 and D-565?",
+  "status": "done",
+  "title": "Do I reopen the retention plan's Phase C with this design (rotate named sessions weekly + tag by agent; prune local main transcripts after 3 days when their hash is in B2; delete subagent transcripts after 3 days; guard session-recall's orphan sweep), superseding D-470 and D-565?"
+}
