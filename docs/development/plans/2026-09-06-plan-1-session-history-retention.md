@@ -380,8 +380,9 @@ traceback text when there was one; `prune_transcripts.py --status` prints the la
 APPLY row (the nightly dry-run writes rows of its own), Gate C (5) reads the apply row, and the
 retention doc names `--status` as the morning check. Exit codes: 0 = ran (0 or more
 deletions); 3 = refused (`--expect` mismatch, lock held, no manifest, `--verify-ledger` MISSING,
-`--restore` with a survivor of another sha256, or whose `--fetch` brought nothing — the object
-absent from the bucket or the download host unreachable, which A.2's `--fetch` cannot tell apart);
+`--restore` with a survivor of another sha256, or whose `--fetch` failed — the object absent from
+the bucket, the download host unreachable, or rclone's own failure such as a revoked key; A.2's
+`--fetch` exits 1 for all three, so the refusal names all three and passes rclone's stderr through);
 1 = error (a dry-run or apply run writes its row first; the other verbs write none); 2 = usage.
 The pruner takes the archiver's own lock (`ARCHIVE_ROOT/<LOCK_NAME>`, the same `flock`) so a hand-run
 `--apply` can never overlap the timer's archiver; and the archiver's `_group_by_inode`
@@ -514,8 +515,9 @@ from the MAIN checkout after the archiver change is merged"*) — Gate C step (0
   BEFORE the unlink (a crash between them leaves a row with the file still present, never the
   reverse) · `--restore` with a survivor carrying the row's sha256 → the missing names hard-linked to
   it, no fetch, and the inode's `mtime` is now · `--restore` with a survivor of another sha256 →
-  exit 3, nothing written · `--restore` whose `--fetch` brings nothing (absent object or unreachable
-  host) → exit 3, nothing written · `--restore <session_id>` re-creates every path of the row byte-identical to the row's
+  exit 3, nothing written · `--restore` whose `--fetch` fails (absent object, unreachable host, or an
+  rclone failure) → exit 3, nothing written, and stderr names the three causes with rclone's own
+  message · `--restore <session_id>` re-creates every path of the row byte-identical to the row's
   `sha256` (C.2.5) · `--agent <name>` lists only that agent's rows, newest first (C.1.2) · the unit
   file's second `ExecStart` carries the `-` prefix and follows the archiver's line.
 - **C.2.4 What the operator sees afterwards.** The VS Code picker lists each project's sessions
@@ -524,8 +526,9 @@ from the MAIN checkout after the archiver change is merged"*) — Gate C step (0
   index holds them) or put back into the picker with `--restore` (C.2.5).
 - **C.2.5 `--restore <session_id>` — the restore list's one consumer.** Reads the `pruned.jsonl`
   row (local first, else the bucket's copy), fetches the object with the archiver's `--fetch`
-  (needs the download host — § Phase B; a `--fetch` that brings nothing — absent object or
-  unreachable host, indistinguishable per A.2 — is a plain refusal, exit 3, naming both causes),
+  (needs the download host — § Phase B; a `--fetch` that fails — absent object, unreachable host, or
+  rclone's own failure, indistinguishable by exit code per A.2 — is a plain refusal, exit 3, naming
+  the three causes with rclone's stderr passed through),
   decompresses to the first missing path the row names and hard-links every other missing path to it;
   when a path of the row still EXISTS with the row's sha256 (a half-unlinked twin), the missing
   names are hard-linked to that survivor and nothing is fetched; when a path still exists with
@@ -1278,6 +1281,7 @@ $ python3 scripts/review_rubric.py --changed scripts/sysadmin/archive_transcript
 | Pass 5 | the same 3 slices, 5 seats (8 stamped; the rest-phases slice raised nothing and needed no refuter): opus×1 + sonnet×2 + refuter ×2 · RE-VERIFICATION of the nine round-4 fixes | round-4 ids (9): re-verified in the seats' notes (no `ledger_status` rows in pass-5.json), all FIXED at their core; found: 5, new: 5 (O51 the hard-link branch inherits the survivor's old `mtime`; O52 a diverged survivor leaves two inodes; O53 the exit-code line and the C.2.3 grader still unscoped; O54 Gate C (2) names rules 1–7 where the order evaluates 8 after 1–3; rest-ledgers-S9 the Pass 4 row's counter vs the ledger file), confirmed: 5, own-fix: 5, fixed: 5, unexecuted: 0, edits: 8 | method: re-verification — the refuters executed `os.link` mtime inheritance and the diverged-survivor case in scratch, the Digest quotes, `schema.sql:85-100`, and recounted pass-3/pass-4; the orchestrator fixed only the five | d436ce84eb8b37978c88eb5def39f3be → 06af6e7a6a707e450212bd320b1881bf (before this row) |
 | Pass 6 | 2 slices, 4 seats (8 stamped): opus×1 (rules-invariant) + sonnet×1 (rest-ledgers) + refuter ×2 · RE-VERIFICATION of the five round-5 fixes | round-5 ids (5): all FIXED (recorded in the seats' notes; the opus seat's `ledger_status` is empty by its own report); found: 5 (4 new + S9 re-confirmed: the Pass 4 row's 'in their notes' named a field pass-4.json lacks — reworded in pass 7 to name the journal), new: 4 (O55 the touched inode is re-hashed nightly under A.1a; O56 the exit-3 list lacked `--restore`'s refusals; O57 no grader for the two new `--restore` outcomes; O58 the Pass 5 row's statuses rest on notes, not rows), confirmed: 5, own-fix: 5, fixed: 4, unexecuted: 0, edits: 5 | method: re-verification — the refuter executed `os.utime` on a hard-linked pair (the survivor's `mtime` moves too) and recounted pass-5.json (0 `ledger_status` rows); the orchestrator fixed only the four | 580de832df6cb47014131d1a97e217a7 → a80c8dd4f4b60abe9f8a036cc6342d02 (before this row) |
 | Pass 7 | 2 slices, 4 seats (8 stamped): opus×1 + sonnet×1 + refuter ×2 · RE-VERIFICATION of the four round-6 fixes | round-6 ids (4): all FIXED (`ledger_status` rows in pass-7.json, NOW_FALSE ×4); found: 2, new: 2 (O59 `--restore`'s no-object refusal named one of two causes `--fetch` cannot tell apart and had no grader; rest-ledgers-S1 the Pass 4 row's 'in their notes' named a field the ledger file lacks), confirmed: 2, own-fix: 2, fixed: 2, unexecuted: 0, edits: 6 | method: re-verification — the refuter grepped the pin for every `unreachable` and read A.2 :146-149 against the exit-code line, C.2.5 and C.2.3; the orchestrator fixed only the two | b9fab016c3384c1717282564b9cddc3f → 25b304a47f5e5926e8f8f4f9e6d3fdcf (before this row) |
+| Pass 8 | 2 slices, 3 seats (8 stamped; the rest-ledgers slice raised nothing and needed no refuter): opus×1 + sonnet×1 + refuter ×1 · RE-VERIFICATION of the two round-7 fixes | round-7 ids (2): both FIXED (`ledger_status` O59 NOW_FALSE; the Pass 4/6 rows' sources verified against the wf_c804dd39-fa3 journal's result rows by agentId); found: 2, new: 2 (O60 the `--fetch` refusal named two of the three causes A.2 maps to exit 1 — rclone's own failure missing; O61 its grader asserted no message), both PLAUSIBLE from the finder, confirmed by the refuter, own-fix: 2, fixed: 2, unexecuted: 0, edits: 4 | method: re-verification — the finder grepped every `unreachable`/`tell apart` in the pin (11 hits, all placed) and read A.2 :140-153; the orchestrator widened the refusal to the three causes and made the grader assert the message | 4ce5c6fd88e93924d382d054ce5c67a1 → 4e6e3482132ae7c61a40135641d7ef59 (before this row) |
 
 ## Pass Ledger (/fabrik-plan-review, revision 2026-10-05)
 
@@ -1627,7 +1631,9 @@ file · `CHANGELOG.md` per phase · `.env.example` + `docs/CONFIGURATION.md` for
   C.2.5 states the nightly re-hash a touched inode costs under A.1a; the Pass 5 row says where its
   statuses live. (j) Round 7 (2 confirmed): `--restore`'s no-object refusal names both causes
   `--fetch` cannot tell apart (A.2) with its grader; the Pass 4 row names the journal, not notes, as
-  where the Sonnet seats' statuses live.
+  where the Sonnet seats' statuses live. (k) Round 8 (2 confirmed): the `--fetch` refusal names
+  rclone's own failure as the third cause A.2 maps to the same exit, and its grader asserts the
+  message.
 - **Revision 2026-10-05:** every step that named vps1, Backrest, `ssh vps` or rsync was replaced or
   marked historical; Phase C's deferral is a recorded panel ruling with a three-part tripwire, not
   a silent drop. Round 1 of its review (25 confirmed) found the gates could not run in the order
