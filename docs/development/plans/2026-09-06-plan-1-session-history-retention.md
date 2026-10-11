@@ -379,8 +379,22 @@ agent_verb` green after red (`--agent <name>` lists only that agent's rows, newe
 local-file flag); `python3 scripts/sysadmin/install_user_hooks.py --check` exit 0 with the new hook
 listed (`tests/test_install_user_hooks.py`).
 
-### C.2 — The pruner (the ONLY deleter of MAIN transcripts under `~/.claude/projects`)
+### C.2 — The pruner (the ONLY deleter of MAIN transcripts under `~/.claude/projects`) — ✅ EXECUTED 2026-10-11 (09624683c; review fix 6f79449f1; receipt e094b5bdd)
 Appetite: 150
+
+> **Executed 2026-10-11:** `scripts/sysadmin/prune_transcripts.py` (new) — the eight fail-closed clauses in this
+> section's order, the last look (stat + OPEN re-read before EACH unlink), the fsynced `pruned.jsonl` row before
+> every unlink, the cap and the `--expect` echo, the `prune-log.jsonl` summary row written in a `finally`,
+> `--restore` / `--verify-ledger` / `--status`, the archiver's lock; `_group_by_inode` skips (and names) a vanished
+> path; the unit's second `ExecStart=-… --dry-run`; `psycopg2-binary` declared, `uv.lock` regenerated; the
+> `.env.example` / CONFIGURATION rows. Graders: 49 in `tests/test_prune_transcripts.py` + 4 in
+> `tests/test_archive_transcripts.py`, every clause seen red (30/30 then 9/9 mutations red in throwaway worktrees).
+> **Gate C.2 dry-run over the live tree:** 9,742 inodes scanned · deletable 0 · not-indexed 7,082 ·
+> newest-of-slug 1,618 · in-window 1,040 · newest-of-agent 2 · 22 files over 200 MB reported · exit 0 — nothing
+> deleted (rule 8 refuses everything until session-recall's ingest and the DSN exist, as this section predicts).
+> The full `/fabrik-review` over C.2 + C.3: 16 raised / 15 confirmed / 1 refuted in round 1, all fixed in
+> 6f79449f1; round 2 confirmed 0 — receipt
+> `docs/development/reviews/2026-09-06-plan-1-session-history-retention-phase-3-c2-c3-review.md` CONVERGED.
 
 New `scripts/sysadmin/prune_transcripts.py` — `--dry-run` is the default and prints a table; `--apply`
 deletes. It runs after the archiver from the same unit as a second `ExecStart=` line in
@@ -576,8 +590,15 @@ of them until session-recall's ingest timer exists — that count is the evidenc
 the unit-file test asserts `Type=oneshot`, the archiver's `ExecStart` first and the pruner's
 `ExecStart=-` second; `ruff check` + `ruff format --check` clean. **No `--apply` in this gate.**
 
-### C.3 — Subagent transcripts, tasks, shell snapshots: a 3-day cliff, no archive
+### C.3 — Subagent transcripts, tasks, shell snapshots: a 3-day cliff, no archive — ✅ EXECUTED 2026-10-11 (09624683c, with C.2; receipt e094b5bdd)
 Appetite: 60
+
+> **Executed 2026-10-11:** `prune_transcripts.py --tier subagents` (included by `--nightly`): sidechains older than
+> the window whose parent is not OPEN and not in flight (the stop-decider's rule, `subagent_running` copied), plus
+> `~/.claude/tasks/` and `~/.claude/shell-snapshots/` entries by age — one `pruned.jsonl` row each, no cap, never
+> archived. Graders red-first (a young sidechain stays, an in-flight one stays, a live parent keeps all, tasks and
+> snapshots by age). Reviewed with C.2 (the one review this section's gate names); its one candidate (a parent-OPEN
+> test for tasks/snapshots) was refuted against the Behavior Contract row — age alone, as written.
 
 `prune_transcripts.py --tier subagents`: `~/.claude/projects/<slug>/<session>/subagents/agent-*.jsonl`
 older than 3 days whose parent session is not OPEN (C.2.1 rule 2) and which
