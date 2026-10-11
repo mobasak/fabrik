@@ -880,6 +880,12 @@ def test_c12_agent_verb_local_flag_sees_a_surviving_hard_linked_twin(
     (projects / "-opt-alpha--claude-worktrees-x" / "twin.jsonl").write_bytes(b"x")
     assert at.run(["--agent", "fleet"]) == 0
     assert "local=yes" in capsys.readouterr().out
+    # a row whose also_slugs is a bare STRING (not the list the archiver writes) is one slug, never
+    # a sequence of one-character directory names (review round 2, archiver-S6)
+    row["also_slugs"] = "-opt-alpha--claude-worktrees-x"
+    (archive / "manifest.jsonl").write_text(json.dumps(row) + "\n")
+    assert at.run(["--agent", "fleet"]) == 0
+    assert "local=yes" in capsys.readouterr().out
 
 
 def test_c12_agent_verb_refuses_to_double_as_another_verb(tree, rec, tmp_path, capsys):
@@ -891,6 +897,12 @@ def test_c12_agent_verb_refuses_to_double_as_another_verb(tree, rec, tmp_path, c
         at.run(["--agent", "fleet", "--fetch", "/-opt-x/s.jsonl.zst", str(tmp_path / "out")])
     assert exc.value.code == 2
     assert "--agent takes no other verb" in capsys.readouterr().err
-    for extra in (["--no-ship"], ["--dry-run"], ["--remote-count"]):
-        with pytest.raises(SystemExit):
+    for extra in (
+        ["--no-ship"],
+        ["--dry-run"],
+        ["--remote-count"],
+        ["--version-at", "2026-01-01T00:00:00Z"],
+    ):
+        with pytest.raises(SystemExit) as more:
             at.run(["--agent", "fleet", *extra])
+        assert more.value.code == 2, extra  # the usage exit, never a traceback or a listing

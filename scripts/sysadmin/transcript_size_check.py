@@ -241,7 +241,9 @@ def advise(payload: dict, now: float | None = None) -> str | None:
     """The ROTATE line for this prompt, or None. Pure apart from the stamp file."""
     tp = payload.get("transcript_path")
     sid = str(payload.get("session_id") or "")
-    if not isinstance(tp, str) or not tp or not _SID_RE.fullmatch(sid) or sid in (".", ".."):
+    # `_SID_RE` needs an alphanumeric first character, so `.`, `..` and every `/`-bearing id fail
+    # here before any stamp path is built (hook-S5; the explicit `.`/`..` tuple was unreachable)
+    if not isinstance(tp, str) or not tp or not _SID_RE.fullmatch(sid):
         return None
     size_mb = Path(tp).stat().st_size // MB
     threshold = _threshold_mb()

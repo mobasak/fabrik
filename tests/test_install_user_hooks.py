@@ -324,8 +324,9 @@ def test_worktree_transcript_link_is_registered_on_session_start_and_stop(tmp_pa
 
 def test_transcript_size_check_is_registered_on_user_prompt_submit(tmp_path, monkeypatch):
     """C.1.3 (D-736): the ROTATE advisory is a user-level UserPromptSubmit hook in every account
-    dir — stamped per 100 MB step by the script itself, so the registration is per-prompt without
-    being wallpaper (the D-184/D-187 measurement the SessionStart comment above records)."""
+    dir — stamped per 100 MB step by the script itself, so a per-prompt REGISTRATION is not
+    per-prompt behaviour: the stamp is the counter-measure to the bare per-prompt shape the
+    D-184/D-187 measurement rejected for scratch_sweep; this hook was not separately measured."""
     home = _home(tmp_path)
     monkeypatch.setenv("HOME", str(home))
     assert iuh.run([]) == 0

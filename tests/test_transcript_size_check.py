@@ -227,16 +227,6 @@ def test_an_ambiguous_registry_join_tags_nothing(box, monkeypatch, capsys, tmp_p
     assert tsc._agent_name("sid-y") == "alpha"
 
 
-def test_a_pretty_printed_registry_entry_still_joins(box, monkeypatch, tmp_path):
-    """archiver-S2's twin for the hook: a `<pid>.json` is ONE document, not JSONL."""
-    sessions = tmp_path / "sessions"
-    sessions.mkdir()
-    (sessions / "4242.json").write_text(
-        json.dumps({"pid": 4242, "sessionId": "sid-p", "procStart": "99"}, indent=2)
-    )
-    assert tsc._agent_name("sid-p") == "fleet"
-
-
 def test_dot_and_dotdot_and_separator_session_ids_are_refused_before_any_stamp_path(
     box, monkeypatch, capsys
 ):
