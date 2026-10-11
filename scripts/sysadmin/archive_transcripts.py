@@ -6,8 +6,10 @@ Compresses MAIN Claude transcripts to zstd, records them in a manifest, and ship
 straight to the Backblaze B2 bucket with rclone (D-565). Nothing lands on a VPS.
 
 ⚠️ THIS SCRIPT NEVER DELETES A TRANSCRIPT OR AN ARCHIVED OBJECT — locally or in the bucket (it
-removes only its own temporary `.snapshot-*` copy). Pruning is Phase C, which
-is DEFERRED (D-565). The `.bak` incident that started this work happened because a
+removes only its own temporary `.snapshot-*` copy). Pruning is Phase C's
+`prune_transcripts.py` — the ONLY deleter, eight fail-closed guards, a 3-day window (D-736) — which
+runs AFTER this script in the same unit; this script still never deletes. The `.bak` incident
+that started this work happened because a
 "provably lossless" deletion was argued from a size comparison instead of from bytes.
 
 ⚠️ EVERY rclone CALL GOES THROUGH `_rclone`, AND ITS VERB IS AN ALLOW-LIST: copy, copyto,
@@ -215,8 +217,9 @@ def _group_by_inode(paths: list[Path]) -> list[tuple[Path, list[str]]]:
     for p in sorted(paths):
         try:
             st = p.stat()
-        except FileNotFoundError:
-            continue  # vanished between the scan and this stat (C.2): skip it, archive the rest
+        except FileNotFoundError:  # vanished between the scan and this stat (C.2): say so, go on
+            print(f"  vanished {p} (removed since the scan) — skipped")
+            continue
         groups.setdefault((st.st_dev, st.st_ino), []).append(p)
     return [(ps[0], sorted({q.parent.name for q in ps[1:]})) for ps in groups.values()]
 
@@ -498,15 +501,24 @@ session, and what session-recall indexes. Deleting them to free disk space loses
 (it happened on 2026-09-03: 11 project folders emptied, found days later).
 
 An off-site copy is shipped daily to Backblaze B2 by scripts/sysadmin/archive_transcripts.py
-(docs/workstation/session-history-retention.md in /opt/fabrik). Nothing on this box prunes
-these files; if disk is short, ask before removing anything.
+(docs/workstation/session-history-retention.md in /opt/fabrik). The ONLY thing that prunes
+them is scripts/sysadmin/prune_transcripts.py (D-736): after a 3-day window, never an open
+session, never a project's or an agent's newest, never a file the archive and the bucket cannot
+prove byte-for-byte — and every deletion is listed in ~/.claude/archive/pruned.jsonl, which
+`prune_transcripts.py --restore <session_id>` puts back. If disk is short, ask before removing
+anything by hand.
 """
 
 
 def _ensure_marker(projects: Path) -> None:
-    """A.6 — the README aimed at the failure that actually happened: a human freeing disk."""
+    """A.6 — the README aimed at the failure that actually happened: a human freeing disk. A README
+    carrying an older MARKER text is rewritten, so it never says 'nothing prunes' once something does."""
     readme = projects / "README"
-    if not readme.exists():
+    try:
+        current = readme.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        current = None
+    if current != MARKER:
         readme.write_text(MARKER, encoding="utf-8")
 
 

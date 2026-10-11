@@ -464,9 +464,10 @@ def test_ab13_units_load_no_env_file_run_main_checkout_and_catch_up():
 
 
 def test_a_path_that_vanishes_between_the_scan_and_group_by_inode_is_skipped(
-    tree, rec, monkeypatch
+    tree, rec, monkeypatch, capsys
 ):
-    """C.2: `_group_by_inode` stats each scanned path; one removed in between is skipped, not a crash."""
+    """C.2: `_group_by_inode` stats each scanned path; one removed in between is skipped, not a crash,
+    and the skip is SAID like the other vanished site's (review 2026-10-11, wiring-S3)."""
     projects, archive = tree
     real_group = at._group_by_inode
 
@@ -479,6 +480,22 @@ def test_a_path_that_vanishes_between_the_scan_and_group_by_inode_is_skipped(
     monkeypatch.setattr(at, "_group_by_inode", gone_before_grouping)
     assert at.run([]) == 0
     assert {r["project_slug"] for r in _rows(archive)} == {"-opt-alpha"}
+    assert "vanished" in capsys.readouterr().out
+
+
+def test_a_stale_marker_readme_is_rewritten_and_names_the_pruner(tree, rec):
+    """The README that stops a human freeing disk must not say 'nothing prunes' once the pruner
+    exists: an older text is refreshed on the next run (review 2026-10-11, wiring-S2)."""
+    projects, _archive = tree
+    readme = projects / "README"
+    readme.write_text(
+        "THIS DIRECTORY IS DATA, NOT CACHE.\n\nNothing on this box prunes these files.\n"
+    )
+    assert at.run([]) == 0
+    text = readme.read_text()
+    assert "Nothing on this box prunes" not in text
+    assert "prune_transcripts.py" in text and "--restore" in text
+    assert text == at.MARKER
 
 
 def test_group_by_inode_skips_a_vanished_path_directly(tmp_path):

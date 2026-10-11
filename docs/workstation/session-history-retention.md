@@ -3,7 +3,8 @@
 Box-local. What keeps this machine's Claude Code session transcripts safe, where the copy lives,
 and how to get a transcript back. Decisions: D-142 (archive, not session-recall, is the durable
 tier), D-470 (local retention 3650 days on every account), D-565 (ship direct to Backblaze B2),
-D-569 (the plan's converged revision). Plan:
+D-569 (the plan's converged revision), D-736 (the operator's ruling: every history in B2, ~3 days
+local, the four named hub windows, never a session visible on screen), D-737 (Phase C). Plan:
 `docs/development/plans/2026-09-06-plan-1-session-history-retention.md`.
 
 ## What runs
@@ -15,6 +16,7 @@ D-569 (the plan's converged revision). Plan:
 | `scripts/sysadmin/sample_transcript_growth.sh` | main checkout | one row a day into `~/.claude/state/transcript-growth.tsv` (date, MAIN bytes, files, largest) |
 | `scripts/sysadmin/transcript_size_check.py` | user-level hook (every window) | the ROTATE advisory (D-736 C.1.3): one `ROTATE:` line when a session's transcript crosses a new 100 MB step at or past `ROTATE_ADVISE_MB` (200) — `/clear <agent>-<date>`, then the informed `--force` re-bind; stamped per session, fail-open |
 | `scripts/sysadmin/archive_transcripts.py` | main checkout | zstd each MAIN transcript (`ARCHIVE_AFTER_DAYS`, default 0 — an open window ships a daily snapshot, compressed from a frozen copy) into `~/.claude/archive/<slug>/<session>.jsonl.zst`, append `manifest.jsonl`, `rclone copy` to the bucket, then upload the manifest |
+| `scripts/sysadmin/prune_transcripts.py` | main checkout — the unit's second `ExecStart=-` line, after the archiver | the ONLY deleter of MAIN transcripts (D-736 C.2): on `--dry-run` (the installed mode until Gate C step 6) it prints the table and writes a summary row to `~/.claude/archive/prune-log.jsonl`; on `--apply --nightly` it deletes the oldest `PRUNE_MAX_PER_RUN` (200) transcripts that pass EVERY guard — older than `PRUNE_AFTER_DAYS` (3), not an OPEN session, not a project's or an agent's newest, indexed by session-recall to the current inode and size, current sha256 = the manifest row's, the `.zst` decompressing to those bytes, the bucket listing it with the same size and SHA1, every hard-linked name passing — one fsynced `pruned.jsonl` row BEFORE each unlink; `--restore <session_id>` puts one back, `--verify-ledger` re-lists every pruned object, `--status` shows the last row and the last apply row; the subagent tier (sidechains, `~/.claude/tasks`, `~/.claude/shell-snapshots`) is a 3-day cliff, never archived |
 
 Install (from the main checkout, once the archiver change is merged):
 
@@ -34,9 +36,14 @@ copies them and enables the timer.
   is restricted to that bucket and lives in the same file; the archiver reads ONLY the
   `SESSION_ARCHIVE_*` lines.
 - **Local** `~/.claude/archive/` holds the same `.zst` files and the manifest.
-- The transcripts themselves stay in `~/.claude/projects/` (3650-day retention, D-470), so
-  session-recall keeps indexing all of them. Nothing prunes them: the pruner (plan Phase C) is
-  deferred until disk, a proven restore and session-recall's `--full` behaviour all allow it.
+- The transcripts themselves stay in `~/.claude/projects/` for at least 3 days (Claude's own
+  `cleanupPeriodDays` stays 3650, D-470 — its sweep is never the deleter). The ONE thing that
+  prunes them is `prune_transcripts.py` (the row above; D-736 superseding the Phase C deferral):
+  installed on `--dry-run` until Gate C of the plan passes (merge, the download proof,
+  session-recall's nightly ingest + `SESSION_RECALL_RO_DSN`, a 10-file canary restored), then
+  `--apply --nightly`. A pruned session is still read through session-recall and put back with
+  `prune_transcripts.py --restore <session_id>`; `prune_transcripts.py --status` and
+  `--verify-ledger` are the morning check.
 
 ## Safety properties
 

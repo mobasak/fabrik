@@ -93,6 +93,7 @@ class World:
         # the fake bucket: slug → {name: (size, sha1)}; None = the listing fails
         self.bucket: dict[str, dict[str, tuple[int, str]] | None] = {}
         self.rclone_calls: list[list[str]] = []
+        self.bucket_ledger: str | None = None  # the bucket's pruned.jsonl copy; None = absent
         monkeypatch.setattr(at, "_run_rclone", self._rclone)
         # session-recall's index: (inode, size) rows; None = the connection fails
         self.index: list[tuple[int, int]] | None = []
@@ -173,11 +174,13 @@ class World:
             src, dst = argv[-2], argv[-1]
             rel = src.split(f"{at._remote_base()}/", 1)[-1]
             local = self.archive / rel
-            if (
+            if rel == pt.LEDGER_NAME:
+                # the bucket's copy of the restore list: served from `self.bucket_ledger` when set
+                if self.bucket_ledger is not None:
+                    Path(dst).write_text(self.bucket_ledger)
+            elif (
                 local.is_file()
                 and self.bucket.get(local.parent.name, {}).get(local.name) is not None
-                or rel == pt.LEDGER_NAME
-                and local.is_file()
             ):
                 shutil.copyfile(local, dst)
             return subprocess.CompletedProcess(argv, 0, "", "")
@@ -260,10 +263,13 @@ def test_r2_a_dead_pid_is_not_open_and_a_registry_entry_without_a_pid_is(world):
 def test_r2_an_identity_row_alone_with_pid_and_pid_start_alive_is_open(world):
     world.bind("a-old-10", "fleet", LIVE_PID, LIVE_START)
     world.bind("a-old-06", "intel", LIVE_PID, LIVE_START + 1)  # recycled pid: not alive
+    with world.identity.open("a") as fh:  # a row without a pid: untestable, so OPEN (pruner-S1)
+        fh.write(json.dumps({"session_id": "b-old-10", "name": "kaizen", "at": 1}) + "\n")
     world.ready()
     v = world.evaluate()
     assert v["a-old-10"] == "open"
     assert v["a-old-06"] != "open"
+    assert v["b-old-10"] == "open", "the identity leg is fail-closed like the registry leg"
 
 
 def test_r3_the_newest_session_of_a_slug_is_kept_even_when_old(world):
@@ -370,6 +376,8 @@ def test_r6_the_bucket_must_list_the_object_with_the_same_size_and_sha1(world):
     assert world.evaluate()["a-old-10"] == "remote-differs"
     world.bucket["-opt-alpha"][name] = (size, sha1)
     assert world.evaluate()["a-old-10"] is None
+    world.bucket["-opt-alpha"][name] = (size, sha1.upper())  # some backends list upper-case hex
+    assert world.evaluate()["a-old-10"] is None, "the listing's case is normalised (graders-S1)"
 
 
 def test_r6_a_failed_listing_refuses_every_object_of_that_slug_and_no_other(world):
@@ -398,7 +406,9 @@ def test_r7_one_inode_two_names_where_one_name_fails_a_rule_or_has_no_row_keeps_
     world.transcript("-opt-fabrik--claude-worktrees-fleet", "wt-2", days=4)
     world.ready()
     assert world.evaluate()["hub-1"] is None
-    # the twin's slug has no row for it: a link created after the archive run
+    # the twin's slug has no row for it: a link created after the archive run. The aliasing the
+    # pop below removes lives in archive_transcripts._latest_rows (`also_slugs` → a row per
+    # alias slug), which the pruner calls as `at._latest_rows` — not in prune_transcripts.py.
     manifest = world.archive / at.MANIFEST_NAME
     rows = [json.loads(x) for x in manifest.read_text().splitlines()]
     for r in rows:
@@ -412,6 +422,18 @@ def test_r7_one_inode_two_names_where_one_name_fails_a_rule_or_has_no_row_keeps_
     )
     assert _apply(3) == 0, "the three alpha/beta inodes; the hub inode is not in the set"
     assert hub.exists() and wt.exists()
+
+
+def test_r7_two_names_of_one_inode_with_different_session_ids_are_refused(world):
+    """A hand-made hard link under another name: no per-name lookup can be keyed right (pruner-S2)."""
+    world.transcript("-opt-alpha", "a-old-10", days=10)  # re-create: the fixture's file, re-aged
+    other = world.projects / "-opt-beta" / "b-alias.jsonl"
+    os.link(world.projects / "-opt-alpha" / "a-old-10.jsonl", other)
+    world.ready()
+    v = world.evaluate()
+    assert v["a-old-10"] == "names-differ"
+    assert _apply(2) == 0  # a-old-06 and b-old-10 only
+    assert (world.projects / "-opt-alpha" / "a-old-10.jsonl").exists() and other.exists()
 
 
 def test_r7_a_twin_that_is_the_newest_of_its_slug_keeps_the_hub_name_too(world):
@@ -509,6 +531,7 @@ def test_the_ledger_row_is_written_and_fsynced_before_the_unlink_and_names_every
 
     monkeypatch.setattr(Path, "unlink", spy_unlink)
     assert _apply(4) == 0
+    assert len(seen) == 5, "a-old-10, b-old-10, a-old-06 and hub-1's two names: five unlinks"
     assert all(n >= 1 for n, _ in seen), "an unlink ran before any ledger row existed"
     hub_row = next(r for r in world.ledger() if r["session_id"] == "hub-1")
     assert len(hub_row["paths"]) == 2 and not any(Path(p).exists() for p in hub_row["paths"])
@@ -571,6 +594,27 @@ def test_the_last_look_re_checks_open_right_before_the_unlink(world, monkeypatch
     monkeypatch.setattr(pt, "open_sessions", opens_late)
     assert _apply(3) == 0
     assert (world.projects / "-opt-alpha" / "a-old-10.jsonl").exists()
+
+
+def test_the_open_re_check_runs_before_each_unlink_not_once_before_the_loop(world, monkeypatch):
+    """Run order is a-old-10, b-old-10, a-old-06 (oldest first). a-old-06's session opens only at
+    the re-check made for ITS unlink (call 4: one in evaluate_main, then one per inode) — a single
+    pre-loop snapshot would have deleted it (pruner-S3)."""
+    world.ready()
+    real = pt.open_sessions
+    calls = {"n": 0}
+
+    def opens_for_the_third(*a, **kw):
+        calls["n"] += 1
+        out = real(*a, **kw)
+        return out | {"a-old-06"} if calls["n"] >= 4 else out
+
+    monkeypatch.setattr(pt, "open_sessions", opens_for_the_third)
+    assert _apply(3) == 0
+    assert (world.projects / "-opt-alpha" / "a-old-06.jsonl").exists()
+    assert not (world.projects / "-opt-alpha" / "a-old-10.jsonl").exists()
+    assert not (world.projects / "-opt-beta" / "b-old-10.jsonl").exists()
+    assert calls["n"] == 4, "one call in evaluate_main, then one per inode in the run set"
 
 
 def test_the_archiver_lock_held_refuses_with_exit_3_and_deletes_nothing(world):
@@ -726,6 +770,50 @@ def test_restore_whose_fetch_fails_exits_3_naming_the_three_causes_with_fetch_st
         "absent from the bucket" in err and "download host" in err and "rclone itself failed" in err
     )
     assert "was not downloaded" in err, "--fetch's own line is passed through"
+    assert not (world.projects / "-opt-alpha" / "a-old-10.jsonl").exists()
+
+
+def test_restore_falls_back_to_the_buckets_ledger_copy_when_the_local_one_is_gone(world):
+    """The restore list is off-box too (the archiver ships pruned.jsonl); with no local ledger the
+    row is read from the bucket's copy — and with none there either, a refusal (graders-H1)."""
+    world.ready()
+    assert _apply(3) == 0
+    ledger = world.archive / pt.LEDGER_NAME
+    world.bucket_ledger = ledger.read_text()
+    ledger.unlink()
+    assert pt.run(["--restore", "a-old-10"]) == 0
+    assert (world.projects / "-opt-alpha" / "a-old-10.jsonl").exists()
+    fetched = [c for c in world.rclone_calls if c[1] == "copyto"]
+    assert fetched and fetched[0][-2].endswith("/" + pt.LEDGER_NAME), "the ledger was fetched first"
+    world.bucket_ledger = None
+    assert pt.run(["--restore", "b-old-10"]) == 3
+
+
+def test_restore_computes_the_object_key_when_an_old_row_lacks_it(world):
+    """A ledger row from before the `object` key: the key is `<slug>/<sid>.jsonl.zst` (graders-S3)."""
+    world.ready()
+    assert _apply(3) == 0
+    ledger = world.archive / pt.LEDGER_NAME
+    rows = [json.loads(x) for x in ledger.read_text().splitlines()]
+    for r in rows:
+        r.pop("object", None)
+    ledger.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    assert pt.run(["--restore", "a-old-10"]) == 0
+    fetched = [c for c in world.rclone_calls if c[1] == "copyto"]
+    assert fetched[-1][-2].endswith("/-opt-alpha/a-old-10.jsonl.zst")
+    assert at._sha256(world.projects / "-opt-alpha" / "a-old-10.jsonl") == rows[0]["sha256"]
+
+
+def test_restore_without_zstd_refuses_before_any_fetch(world, monkeypatch, capsys):
+    """A restore cannot finish without zstd: exit 3 naming it, nothing fetched (pruner-H3)."""
+    world.ready()
+    assert _apply(3) == 0
+    real_which = shutil.which
+    monkeypatch.setattr(at.shutil, "which", lambda n: None if n == "zstd" else real_which(n))
+    world.rclone_calls.clear()
+    assert pt.run(["--restore", "a-old-10"]) == 3
+    assert "zstd" in capsys.readouterr().err
+    assert not any(c[1] == "copyto" for c in world.rclone_calls)
     assert not (world.projects / "-opt-alpha" / "a-old-10.jsonl").exists()
 
 

@@ -28,7 +28,8 @@ FAILS CLOSED (a doubt is a refusal, printed with its reason):
       `rclone lsf --format psh --hash SHA1` per slug; a listing that fails refuses the whole slug);
   r7  every name of the inode — found NOW by (st_dev, st_ino) over the whole tree, never from the
       manifest's `also_slugs` — passes r1–r3 and has its own manifest row; one name failing ⇒ the
-      inode is skipped. The names are unlinked in one pass after ONE ledger row naming them all.
+      inode is skipped, and names with DIFFERENT session ids (`names-differ`) are refused outright.
+      The names are unlinked in one pass after ONE ledger row naming them all.
   Then THE LAST LOOK, immediately before the unlink: a re-`stat` (size and mtime_ns unchanged since
   the hash) and r2 again; a change ⇒ `changed-under-hash`.
 
@@ -183,7 +184,8 @@ def _alive(pid: int | None, start: int | None) -> bool:
 
 
 def open_sessions(sessions_dir: Path, identity: Path) -> set[str]:
-    """Session ids with a live process: the peer registry (primary) and the identity rows (belt)."""
+    """Session ids with a live process: the peer registry (primary) and the identity rows (belt).
+    Both legs read `_alive` the same way — an entry or row whose pid cannot be tested is OPEN."""
     out: set[str] = set()
     try:
         entries = sorted(sessions_dir.glob("*.json"))
@@ -198,8 +200,9 @@ def open_sessions(sessions_dir: Path, identity: Path) -> set[str]:
             out.add(sid)
     for r in at._json_rows(identity):
         sid = str(r.get("session_id") or "")
-        pid = at._as_int(r.get("pid"))
-        if sid and pid is not None and _alive(pid, at._as_int(r.get("pid_start"))):
+        # the same fail-closed `_alive`: a row without a pid is an untestable binding, so OPEN
+        # (review 2026-10-11, pruner-S1 — the registry leg already read it that way)
+        if sid and _alive(at._as_int(r.get("pid")), at._as_int(r.get("pid_start"))):
             out.add(sid)
     return out
 
@@ -439,7 +442,11 @@ def evaluate_main(
             ),
             None,
         )
-        if c.mtime_ns > cutoff_ns:
+        if len({n.stem for n in c.names}) > 1:
+            # a hand-made link under another session id: every per-name lookup (r3, r4, r7) would
+            # key on ONE stem, so the inode is refused outright (review 2026-10-11, pruner-S2)
+            c.reason = "names-differ"
+        elif c.mtime_ns > cutoff_ns:
             c.reason = "in-window"
         elif c.session_id in opened:
             c.reason = "open"
@@ -696,8 +703,10 @@ def prune(
         return EXIT_REFUSED
     ledger = w.archive_root / LEDGER_NAME
     deleted = 0
-    opened = open_sessions(w.sessions_dir, w.identity)  # r2 again, right before the unlinks
     for c in run_main:
+        # r2 again, right before THIS inode's unlink — a session resumed while an earlier
+        # candidate was being deleted is caught here (review 2026-10-11, pruner-S3)
+        opened = open_sessions(w.sessions_dir, w.identity)
         fresh = []
         for n in c.names:
             try:
@@ -795,6 +804,10 @@ def _restore_rows(w: World, session_id: str, slug: str | None) -> list[dict]:
 def restore(w: World, session_id: str, slug: str | None) -> int:
     if not _SID_RE.fullmatch(session_id):
         raise RefusalError(f"--restore: {session_id!r} is not a session id")
+    try:
+        at._probe_binaries(("zstd",))  # before any fetch: a restore cannot finish without it
+    except at.ArchiveError as exc:
+        raise RefusalError(f"--restore: {exc}") from exc
     rows = _restore_rows(w, session_id, slug)
     if not rows:
         raise RefusalError(
