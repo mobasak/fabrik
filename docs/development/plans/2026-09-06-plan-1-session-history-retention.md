@@ -1,6 +1,6 @@
 # Plan — session-history retention: archive, prove, then prune
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** fleet
 Revision: 2026-10-11 — **Phase C REOPENS under the operator's ruling D-736**; CONVERGED the same day by `/fabrik-plan-review` after 16 passes (§ Pass Ledger, revision 2026-10-11) (supersedes D-470's
 3650-day local keep and D-565's Phase C deferral). Operator, 2026-10-11, verbatim: *"i want all my
@@ -269,8 +269,17 @@ duplicate rows from the `/compact` re-append bug (#92089) are 9.7%. Deduplicatio
 tenth; the rest is exactly the tool output session-recall indexes. Rotation makes the live file
 small by construction and leaves the content where search already is.
 
-### C.0 — Verify the archive is current for the hub windows (read-only, 10 min)
+### C.0 — Verify the archive is current for the hub windows (read-only, 10 min) — ✅ EXECUTED 2026-10-11 (the C.1 commit; read-only, no diff of its own)
 Appetite: 10
+
+> **Executed 2026-10-11 13:34–13:44 UTC:** rather than wait for the 00:00 timer, `systemctl --user start
+> session-archive.service` ran the installed unit by hand (9,769 MAIN transcripts eligible, **310 new
+> manifest rows**, `Finished` rc 0). The probe then showed every hub window with a fresh row —
+> infra `dd3c06d1` 1,530,478,917 B, intel `4e90716e` 1,158,228,129 B, fleet `1970a0ff` 803,835,706 B,
+> kaizen `5fa5812d` 79,177,890 B, all `archived_at` 2026-10-11T13:34/35Z — intel and kaizen unchanged
+> since (A.1a will skip them tonight), infra and fleet already grown (open windows, the daily snapshot
+> catches them). Not BLOCKED: the archive is current. Probe script: `scratchpad/c0_probe.py`
+> (identity rows → session ids → `stat` vs the latest manifest row; metadata only).
 
 The 2026-10-11 00:17 run failed on DNS (`lookup api.backblazeb2.com … read udp`), systemd's 15-min
 restart succeeded with 51 rows, and the hub windows had no new row that night. Not a defect: they

@@ -13,6 +13,7 @@ D-569 (the plan's converged revision). Plan:
 | `session-archive.timer` | `~/.config/systemd/user/` (source: `scripts/sysadmin/systemd/`) | daily, `Persistent=true` — a run missed while the machine was off fires when the user manager next starts; linger keeps that manager up without a login |
 | `session-archive.service` | same | `ExecStartPre=-` the growth sampler (its failure never skips the backup), then the archiver; a failed run (e.g. no network at boot) is retried every 15 min, at most 4 times in 2 h |
 | `scripts/sysadmin/sample_transcript_growth.sh` | main checkout | one row a day into `~/.claude/state/transcript-growth.tsv` (date, MAIN bytes, files, largest) |
+| `scripts/sysadmin/transcript_size_check.py` | user-level hook (every window) | the ROTATE advisory (D-736 C.1.3): one `ROTATE:` line when a session's transcript crosses a new 100 MB step at or past `ROTATE_ADVISE_MB` (200) — `/clear <agent>-<date>`, then the informed `--force` re-bind; stamped per session, fail-open |
 | `scripts/sysadmin/archive_transcripts.py` | main checkout | zstd each MAIN transcript (`ARCHIVE_AFTER_DAYS`, default 0 — an open window ships a daily snapshot, compressed from a frozen copy) into `~/.claude/archive/<slug>/<session>.jsonl.zst`, append `manifest.jsonl`, `rclone copy` to the bucket, then upload the manifest |
 
 Install (from the main checkout, once the archiver change is merged):
@@ -102,4 +103,5 @@ means updating this page in the same change. This list is generated from those h
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
 - `scripts/sysadmin/archive_transcripts.py`
+- `scripts/sysadmin/transcript_size_check.py`
 <!-- END related-scripts -->

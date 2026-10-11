@@ -29,6 +29,14 @@ older row's bytes live on as a prior version in the bucket (it keeps all version
 Hard links (D-467 links worktree transcripts into their repo's lane) are archived ONCE per
 (st_dev, st_ino), under the first slug in sorted order; the others go in `also_slugs`.
 
+THE `agent` KEY (Phase C.1, D-736): a row carries `"agent": "<name>"` when the session is bound to
+a hub agent — the latest `agent-identity.jsonl` row for its session id (what `whoami_agent.py`
+writes), else the REGISTRY JOIN: the `~/.claude/sessions/<pid>.json` entry carrying this session
+id, joined on `pid`+`procStart` to an identity row's `pid`+`pid_start` (both as integers; the
+registry stores `procStart` as a string). The join is what tags a window after `/clear`, which
+mints a new session id but keeps the claude process. An unbound session's row has no `agent`
+key. `--agent <name>` lists that agent's rows, newest first — "infra's history" is this list.
+
 Env (12-Factor III):
   ARCHIVE_ROOT                local archive dir                       (default ~/.claude/archive)
   ARCHIVE_AFTER_DAYS          only files idle longer than this        (default 0: every MAIN
@@ -41,6 +49,10 @@ Env (12-Factor III):
   SESSION_ARCHIVE_ENV_FILE    where the two key variables are read from when the process
                               environment lacks them; only `SESSION_ARCHIVE_*` lines are read
                               (default /opt/fabrik/.env)
+  AGENT_IDENTITY_FILE         the agent↔session binding store, read-only here
+                              (default ~/.claude/state/agent-identity.jsonl)
+  CLAUDE_SESSIONS_DIR         Claude Code's own peer registry, read-only here
+                              (default ~/.claude/sessions)
 SESSION_ARCHIVE_B2_ENDPOINT is recorded in .env for humans and is NEVER passed to rclone: it is
 B2's S3 endpoint, and rclone's native b2 backend wants its endpoint left blank.
 """
@@ -222,12 +234,101 @@ def _latest_rows(manifest: Path) -> dict[tuple[str, str], dict]:
     return latest
 
 
+# ── the agent tag (C.1.1) ───────────────────────────────────────────────────────────────────
+
+_NAME_RE = re.compile(r"[a-z0-9-]{1,32}")  # whoami_agent._NAME_RE, byte-identical
+
+
+def _as_int(v: object) -> int | None:
+    try:
+        return int(str(v).strip()) if v is not None and str(v).strip() else None
+    except ValueError:
+        return None
+
+
+def _json_rows(path: Path) -> list[dict]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    out = []
+    for line in text.splitlines():
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(r, dict):
+            out.append(r)
+    return out
+
+
+def agent_map(identity: Path, sessions: Path) -> dict[str, str]:
+    """session_id → agent name: the latest identity row per session id, then the registry join.
+
+    The join: a `<pid>.json` entry's `sessionId` is tagged with the name of the identity row whose
+    `(pid, pid_start)` equals the entry's `(pid, procStart)` AS INTEGERS — the registry stores
+    `procStart` as a JSON string, `whoami_agent._pid_start` writes an int. Read-only: this never
+    writes the identity file. Unreadable or absent inputs ⇒ fewer tags, never an error."""
+    rows = [r for r in _json_rows(identity) if _NAME_RE.fullmatch(str(r.get("name") or ""))]
+    by_sid: dict[str, tuple[int, str]] = {}
+    by_proc: dict[tuple[int, int], tuple[int, str]] = {}
+    for r in rows:
+        at = _as_int(r.get("at")) or 0
+        sid = str(r.get("session_id") or "")
+        if sid and (sid not in by_sid or at >= by_sid[sid][0]):
+            by_sid[sid] = (at, str(r["name"]))
+        pid, start = _as_int(r.get("pid")), _as_int(r.get("pid_start"))
+        if pid is not None and start is not None:
+            key = (pid, start)
+            if key not in by_proc or at >= by_proc[key][0]:
+                by_proc[key] = (at, str(r["name"]))
+    out = {sid: name for sid, (_, name) in by_sid.items()}
+    try:
+        entries = sorted(sessions.glob("*.json"))
+    except OSError:
+        entries = []
+    for entry in entries:
+        for e in _json_rows(entry)[:1] if entry.suffix == ".json" else []:
+            sid = str(e.get("sessionId") or "")
+            if not sid or sid in out:
+                continue
+            pid, start = _as_int(e.get("pid")), _as_int(e.get("procStart"))
+            if pid is not None and start is not None and (pid, start) in by_proc:
+                out[sid] = by_proc[(pid, start)][1]
+    return out
+
+
+def _agents() -> dict[str, str]:
+    return agent_map(
+        _env_path("AGENT_IDENTITY_FILE", "~/.claude/state/agent-identity.jsonl"),
+        _env_path("CLAUDE_SESSIONS_DIR", "~/.claude/sessions"),
+    )
+
+
+def list_agent(manifest: Path, name: str, projects: Path) -> list[str]:
+    """`--agent <name>` (C.1.2): that agent's rows, newest `archived_at` first, with whether the
+    local transcript still exists — read-only."""
+    rows = [r for r in _json_rows(manifest) if r.get("agent") == name]
+    rows.sort(key=lambda r: str(r.get("archived_at") or ""), reverse=True)
+    out = []
+    for r in rows:
+        local = (
+            projects / str(r.get("project_slug") or "") / f"{r.get('session_id')}.jsonl"
+        ).exists()
+        out.append(
+            f"{r.get('session_id')} {r.get('project_slug')} bytes={r.get('bytes')} "
+            f"archived_at={r.get('archived_at')} local={'yes' if local else 'no'}"
+        )
+    return out
+
+
 def archive_one(
     src: Path,
     archive_root: Path,
     max_bytes: int | None,
     latest: dict[tuple[str, str], dict],
     also_slugs: list[str],
+    agent: str | None = None,
 ) -> dict | None:
     """Compress one transcript and return its NEW manifest row, or None when nothing changed.
 
@@ -266,7 +367,7 @@ def archive_one(
         )
     # A manifest row is a PROMISE that the bytes exist and are readable.
     subprocess.run(["zstd", "-t", "-q", str(dest)], check=True, timeout=600)  # noqa: S603
-    return {
+    row = {
         "project_slug": slug,
         "session_id": session_id,
         "sha256": digest,
@@ -275,6 +376,9 @@ def archive_one(
         "also_slugs": also_slugs,
         "archived_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    if agent:
+        row["agent"] = agent  # absent, never null, for an unbound session (C.1.1)
+    return row
 
 
 def ship(archive_root: Path, env: dict[str, str]) -> None:
@@ -421,10 +525,11 @@ def _archive(args: argparse.Namespace) -> int:
                 shutil.rmtree(orphan)
         manifest = archive_root / MANIFEST_NAME
         latest = _latest_rows(manifest)
+        agents = _agents()
         rows = []
         for src, also in _group_by_inode(todo):
             try:
-                row = archive_one(src, archive_root, max_bytes, latest, also)
+                row = archive_one(src, archive_root, max_bytes, latest, also, agents.get(src.stem))
             except FileNotFoundError as exc:
                 if src.exists():  # a missing zstd or archive dir, not a vanished transcript
                     raise ArchiveError(f"could not archive {src}: {exc}") from exc
@@ -480,8 +585,23 @@ def run(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--version-at", help="with --fetch: the object as it was at this RFC3339 instant"
     )
+    ap.add_argument(
+        "--agent",
+        metavar="NAME",
+        help="list the manifest rows tagged with this agent, newest first (read-only, C.1.2)",
+    )
     args = ap.parse_args(argv)
     try:
+        if args.agent:
+            if not _NAME_RE.fullmatch(args.agent):
+                raise ArchiveError(
+                    f"--agent: {args.agent!r} is not an agent name ([a-z0-9-]{{1,32}})"
+                )
+            archive_root = _env_path("ARCHIVE_ROOT", "~/.claude/archive")
+            projects = _env_path("CLAUDE_PROJECTS_DIR", "~/.claude/projects")
+            for line in list_agent(archive_root / MANIFEST_NAME, args.agent, projects):
+                print(line)
+            return 0
         if args.remote_count or args.fetch:
             _probe_binaries(("rclone",))
             env = _child_env(*_credentials())

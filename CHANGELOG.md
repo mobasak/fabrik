@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — session-history retention Phase C.1: the agent tag and the ROTATE advisory (2026-10-11)
+- `scripts/sysadmin/archive_transcripts.py`: each manifest row carries `"agent": "<name>"` when the session is bound — the latest `agent-identity.jsonl` row for its session id, else the registry join (`~/.claude/sessions/<pid>.json` → `pid`+`procStart` ↔ the identity row's `pid`+`pid_start`, as integers), which tags a window after `/clear`; an unbound session's row has no key. New read-only verb `--agent <name>` lists that agent's rows, newest first, with whether the local file still exists (D-736, D-737 C.1.1–C.1.2).
+- `scripts/sysadmin/transcript_size_check.py` (new) + `install_user_hooks.py`: a user-level `UserPromptSubmit` hook in every window that prints ONE `ROTATE:` line when the session's transcript is at or past `ROTATE_ADVISE_MB` (200) and has crossed a new 100 MB step — the size, `/clear <agent>-<date>`, then the informed `whoami_agent.py --as <agent> --force` with the holder pid; stamped per session under `~/.claude/state/rotate-advised/`, fail-open (C.1.3). `.env.example` / `docs/CONFIGURATION.md` gain `ROTATE_ADVISE_MB`.
+- Tests: `tests/test_transcript_size_check.py` (new), `tests/test_archive_transcripts.py` (+4: the agent key, the latest binding wins, the registry join, `--agent`), `tests/test_install_user_hooks.py` (+1) — every one seen red against HEAD in a throwaway worktree first.
+
 ### Changed — /fabrik-data-contract: an approved spec naming the delta confirms a re-freeze (2026-10-09)
 - Phase 0: a FROZEN contract's re-freeze STOP is satisfied by a spec whose approval row (the panel's `→ both-approve` or the operator's approving answer) is in `docs/DECISIONS.md` and whose § Contract deltas (a `Profile: delta` spec's section) names the change; anything else still stops. Phase 3 gains check 5, which re-checks the deltas before the Phase-4 flip (D-730, decided by the Opus + Fable panel).
 

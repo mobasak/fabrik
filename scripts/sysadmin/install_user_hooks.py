@@ -30,6 +30,11 @@ ENTRIES = {
     "UserPromptSubmit": [
         f"python3 {HUB}/scripts/sysadmin/selfwatch_check.py",
         f"python3 {HUB}/scripts/sysadmin/user_hook_gate.py {HUB}/.claude/hooks/mcp_watch.py",
+        # D-736 / C.1.3: the ROTATE advisory. Per-prompt by REGISTRATION, not by behaviour — the
+        # script stamps the 100 MB step it last advised per session and prints only when a new
+        # step is crossed, so a window that never rotates hears it once per 100 MB, not on every
+        # prompt (the measurement below is why that stamp exists).
+        f"python3 {HUB}/scripts/sysadmin/transcript_size_check.py",
     ],
     "PreToolUse": [
         f"python3 {HUB}/scripts/sysadmin/user_hook_gate.py {HUB}/.claude/hooks/quota_stop.py",

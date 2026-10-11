@@ -119,6 +119,7 @@ New projects never needed a Coolify API token.
 | `SESSION_ARCHIVE_B2_KEY_ID` / `SESSION_ARCHIVE_B2_APPLICATION_KEY` | an application key restricted to that bucket, read + write |
 | `SESSION_ARCHIVE_B2_PREFIX` | path under the bucket, default `archive` |
 | `SESSION_ARCHIVE_ENV_FILE` | where the archiver reads every `SESSION_ARCHIVE_*` setting (key, bucket, prefix) from when the process environment lacks it or holds an empty value, default `/opt/fabrik/.env` — only `SESSION_ARCHIVE_*` lines are read |
+| `ROTATE_ADVISE_MB` | the ROTATE advisory's threshold in MB (default 200; D-736 C.1.3) — `scripts/sysadmin/transcript_size_check.py` prints its one line when a session's transcript is at or past it and has crossed a new 100 MB step; read from the process env, else this file's line |
 | `ARCHIVE_ROOT` / `ARCHIVE_AFTER_DAYS` / `ARCHIVE_MAX_FILE_MB` | local archive dir (`~/.claude/archive`), idle window in days (default 0 — every MAIN transcript, so an open window ships a daily snapshot), optional per-file ceiling |
 
 **How to get the key:** B2 console → Application Keys → Add a New Application Key, restricted to

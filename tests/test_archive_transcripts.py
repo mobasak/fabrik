@@ -662,3 +662,121 @@ def test_a_snapshot_named_symlink_is_left_alone_and_does_not_crash(tree, rec, tm
     assert at.run([]) == 0
     assert link.is_symlink()
     assert (target / "keep.txt").exists()
+
+
+# ── Phase C.1 (D-736 / D-737): the `agent` tag and the `--agent` verb ───────────────────────────
+
+
+def _identity(tmp_path: Path, rows: list[dict]) -> Path:
+    p = tmp_path / "state" / "agent-identity.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    return p
+
+
+def _registry(tmp_path: Path, entries: list[dict]) -> Path:
+    d = tmp_path / "sessions"
+    d.mkdir(parents=True, exist_ok=True)
+    for e in entries:
+        (d / f"{e['pid']}.json").write_text(json.dumps(e))
+    return d
+
+
+def test_c11_a_bound_session_row_carries_agent_and_an_unbound_one_carries_no_key(
+    tree, rec, tmp_path, monkeypatch
+):
+    projects, archive = tree
+    (projects / "-opt-alpha" / "bound.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path, [{"session_id": "bound", "name": "fleet", "pid": 1, "pid_start": 2, "at": 10}]
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(tmp_path / "no-sessions"))
+    assert at.run(["--no-ship"]) == 0
+    rows = [json.loads(line) for line in (archive / "manifest.jsonl").read_text().splitlines()]
+    by_sid = {r["session_id"]: r for r in rows}
+    assert by_sid["bound"]["agent"] == "fleet"
+    assert "agent" not in by_sid["shared-id"]
+
+
+def test_c11_the_latest_binding_by_at_wins(tree, rec, tmp_path, monkeypatch):
+    projects, archive = tree
+    (projects / "-opt-alpha" / "rebound.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path,
+        [
+            {"session_id": "rebound", "name": "intel", "pid": 1, "pid_start": 2, "at": 50},
+            {"session_id": "rebound", "name": "fleet", "pid": 1, "pid_start": 2, "at": 20},
+        ],
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(tmp_path / "no-sessions"))
+    assert at.run(["--no-ship"]) == 0
+    rows = [json.loads(line) for line in (archive / "manifest.jsonl").read_text().splitlines()]
+    assert {r["session_id"]: r.get("agent") for r in rows}["rebound"] == "intel"
+
+
+def test_c11_registry_join_tags_a_cleared_window_by_pid_and_procstart_as_integers(
+    tree, rec, tmp_path, monkeypatch
+):
+    """After /clear the new session id has no identity row; the registry entry for the SAME
+    claude pid carries the new id, and its procStart (a JSON string) equals the identity row's
+    pid_start (an int)."""
+    projects, archive = tree
+    (projects / "-opt-alpha" / "new-sid.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    (projects / "-opt-alpha" / "other-sid.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path,
+        [{"session_id": "old-sid", "name": "kaizen", "pid": 777, "pid_start": 123456, "at": 5}],
+    )
+    sessions = _registry(
+        tmp_path,
+        [
+            {"pid": 777, "sessionId": "new-sid", "procStart": "123456"},
+            {"pid": 778, "sessionId": "other-sid", "procStart": "123456"},  # another pid: no join
+        ],
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(sessions))
+    assert at.run(["--no-ship"]) == 0
+    rows = {
+        r["session_id"]: r
+        for r in (json.loads(x) for x in (archive / "manifest.jsonl").read_text().splitlines())
+    }
+    assert rows["new-sid"]["agent"] == "kaizen"
+    assert "agent" not in rows["other-sid"]
+
+
+def test_c12_agent_verb_lists_that_agents_rows_newest_first_with_the_local_flag(
+    tree, rec, tmp_path, monkeypatch, capsys
+):
+    projects, archive = tree
+    archive.mkdir(parents=True, exist_ok=True)
+
+    def row(slug, sid, when, agent=None, n=1):
+        r = {
+            "project_slug": slug,
+            "session_id": sid,
+            "sha256": str(n) * 64,
+            "bytes": 10 * n,
+            "mtime_ns": 1,
+            "also_slugs": [],
+            "archived_at": when,
+        }
+        if agent:
+            r["agent"] = agent
+        return r
+
+    rows = [
+        row("-opt-alpha", "a1", "2026-10-01T00:00:00Z", "fleet", 1),
+        row("-opt-alpha", "a2", "2026-10-03T00:00:00Z", "fleet", 2),
+        row("-opt-beta", "b1", "2026-10-02T00:00:00Z", "intel", 3),
+        row("-opt-beta", "shared-id", "2026-10-04T00:00:00Z", None, 4),
+    ]
+    (archive / "manifest.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    (projects / "-opt-alpha" / "a2.jsonl").write_bytes(b"x")  # a2 is still local, a1 is not
+    assert at.run(["--agent", "fleet"]) == 0
+    out = capsys.readouterr().out.strip().splitlines()
+    assert [line.split()[0] for line in out] == ["a2", "a1"], out
+    assert "local=yes" in out[0] and "local=no" in out[1]
+    assert all("intel" not in line and "shared-id" not in line for line in out)
