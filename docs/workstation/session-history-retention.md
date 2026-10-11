@@ -103,5 +103,6 @@ means updating this page in the same change. This list is generated from those h
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
 - `scripts/sysadmin/archive_transcripts.py`
+- `scripts/sysadmin/prune_transcripts.py`
 - `scripts/sysadmin/transcript_size_check.py`
 <!-- END related-scripts -->

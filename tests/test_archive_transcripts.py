@@ -456,6 +456,35 @@ def test_ab13_units_load_no_env_file_run_main_checkout_and_catch_up():
     assert "ExecStartPre=-/opt/fabrik/scripts/sysadmin/sample_transcript_growth.sh" in service
     assert "Persistent=true" in timer and "Unit=session-archive.service" in timer
     assert "Restart=on-failure" in service, "a boot-time run without network must be retried"
+    # C.2 unit ordering: Type=oneshot, the archiver's ExecStart first, the pruner's `ExecStart=-` second
+    assert "Type=oneshot" in service.splitlines()
+    starts = [ln for ln in service.splitlines() if ln.startswith("ExecStart=")]
+    assert len(starts) == 2 and "archive_transcripts.py" in starts[0]
+    assert starts[1].startswith("ExecStart=-") and "prune_transcripts.py" in starts[1]
+
+
+def test_a_path_that_vanishes_between_the_scan_and_group_by_inode_is_skipped(
+    tree, rec, monkeypatch
+):
+    """C.2: `_group_by_inode` stats each scanned path; one removed in between is skipped, not a crash."""
+    projects, archive = tree
+    real_group = at._group_by_inode
+
+    def gone_before_grouping(paths):
+        (
+            projects / "-opt-beta" / "shared-id.jsonl"
+        ).unlink()  # removed after main_transcripts() saw it
+        return real_group(paths)
+
+    monkeypatch.setattr(at, "_group_by_inode", gone_before_grouping)
+    assert at.run([]) == 0
+    assert {r["project_slug"] for r in _rows(archive)} == {"-opt-alpha"}
+
+
+def test_group_by_inode_skips_a_vanished_path_directly(tmp_path):
+    a, b = tmp_path / "a.jsonl", tmp_path / "gone.jsonl"
+    a.write_text("x")
+    assert at._group_by_inode([a, b]) == [(a, [])]
 
 
 # ── rclone copyto exits 0 when the SOURCE object is absent and writes nothing ───────────────

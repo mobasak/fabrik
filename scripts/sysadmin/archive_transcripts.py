@@ -213,7 +213,10 @@ def _group_by_inode(paths: list[Path]) -> list[tuple[Path, list[str]]]:
     """One (primary path, other slugs) per file; the primary is the first path in sorted order."""
     groups: dict[tuple[int, int], list[Path]] = {}
     for p in sorted(paths):
-        st = p.stat()
+        try:
+            st = p.stat()
+        except FileNotFoundError:
+            continue  # vanished between the scan and this stat (C.2): skip it, archive the rest
         groups.setdefault((st.st_dev, st.st_ino), []).append(p)
     return [(ps[0], sorted({q.parent.name for q in ps[1:]})) for ps in groups.values()]
 
