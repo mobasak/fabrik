@@ -382,10 +382,10 @@ retention doc names `--status` as the morning check. Exit codes: 0 = ran (0 or m
 deletions); 3 = refused (`--expect` mismatch, lock held, no manifest, `--verify-ledger` MISSING,
 `--restore` with a survivor of another sha256, or whose `--fetch` failed — the object absent from
 the bucket, the download host unreachable, or rclone's own failure such as a revoked key; A.2's
-`--fetch` exits non-zero for all three — 1 when no file arrived, rclone's own code when rclone failed
-— and the pruner treats any non-zero `--fetch` as this refusal, naming the three causes and passing
-`--fetch`'s stderr through: the archiver's own line for the first two, where rclone exited 0 and
-wrote nothing, rclone's message for the third);
+`--fetch` exits non-zero for all three — 1 when no file arrived, non-zero when rclone fails (A.2 fixes
+no code for that case) — and the pruner treats any non-zero `--fetch` as this refusal, naming the
+three causes and passing `--fetch`'s stderr through: the archiver's own line for the first two, where
+rclone exited 0 and wrote nothing, whatever `--fetch` prints for the third);
 1 = error (a dry-run or apply run writes its row first; the other verbs write none); 2 = usage.
 The pruner takes the archiver's own lock (`ARCHIVE_ROOT/<LOCK_NAME>`, the same `flock`) so a hand-run
 `--apply` can never overlap the timer's archiver; and the archiver's `_group_by_inode`
@@ -520,7 +520,7 @@ from the MAIN checkout after the archiver change is merged"*) — Gate C step (0
   it, no fetch, and the inode's `mtime` is now · `--restore` with a survivor of another sha256 →
   exit 3, nothing written · `--restore` whose `--fetch` fails (absent object, unreachable host, or an
   rclone failure) → exit 3, nothing written, and stderr names the three causes and carries
-  `--fetch`'s stderr (the archiver's line; rclone's message when rclone failed) · `--restore <session_id>` re-creates every path of the row byte-identical to the row's
+  `--fetch`'s stderr (the archiver's line; whatever `--fetch` prints when rclone failed) · `--restore <session_id>` re-creates every path of the row byte-identical to the row's
   `sha256` (C.2.5) · `--agent <name>` lists only that agent's rows, newest first (C.1.2) · the unit
   file's second `ExecStart` carries the `-` prefix and follows the archiver's line.
 - **C.2.4 What the operator sees afterwards.** The VS Code picker lists each project's sessions
@@ -1286,6 +1286,7 @@ $ python3 scripts/review_rubric.py --changed scripts/sysadmin/archive_transcript
 | Pass 7 | 2 slices, 4 seats (8 stamped): opus×1 + sonnet×1 + refuter ×2 · RE-VERIFICATION of the four round-6 fixes | round-6 ids (4): all FIXED (`ledger_status` rows in pass-7.json, NOW_FALSE ×4); found: 2, new: 2 (O59 `--restore`'s no-object refusal named one of two causes `--fetch` cannot tell apart and had no grader; rest-ledgers-S1 the Pass 4 row's 'in their notes' named a field the ledger file lacks), confirmed: 2, own-fix: 2, fixed: 2, unexecuted: 0, edits: 6 | method: re-verification — the refuter grepped the pin for every `unreachable` and read A.2 :146-149 against the exit-code line, C.2.5 and C.2.3; the orchestrator fixed only the two | b9fab016c3384c1717282564b9cddc3f → 25b304a47f5e5926e8f8f4f9e6d3fdcf (before this row) |
 | Pass 8 | 2 slices, 3 seats (8 stamped; the rest-ledgers slice raised nothing and needed no refuter): opus×1 + sonnet×1 + refuter ×1 · RE-VERIFICATION of the two round-7 fixes | round-7 ids (2): both FIXED (`ledger_status` O59 NOW_FALSE; the Pass 4/6 rows' sources verified against the wf_c804dd39-fa3 journal's result rows by agentId); found: 2, new: 2 (O60 the `--fetch` refusal named two of the three causes A.2 maps to exit 1 — rclone's own failure missing; O61 its grader asserted no message), both PLAUSIBLE from the finder, confirmed by the refuter, own-fix: 2, fixed: 2, unexecuted: 0, edits: 4 | method: re-verification — the finder grepped every `unreachable`/`tell apart` in the pin (11 hits, all placed) and read A.2 :140-153; the orchestrator widened the refusal to the three causes and made the grader assert the message | 4ce5c6fd88e93924d382d054ce5c67a1 → 4e6e3482132ae7c61a40135641d7ef59 (before this row) |
 | Pass 9 | 2 slices, 4 seats (8 stamped): opus×1 + sonnet×1 + refuter ×2 · RE-VERIFICATION of the two round-8 fixes | round-8 ids (2): both FIXED (`ledger_status` O60/O61 NOW_FALSE; the rest-ledgers seat recorded the same two as FIXED rows S2/S3); found: 5 rows, of which 2 defects (O62 = rest-ledgers-S1: 'rclone's own message' does not exist for the two causes where rclone exits 0 and writes nothing — the message is `--fetch`'s own line; O63: 'exits 1 for all three' overstated A.2's 'non-zero when rclone does'), confirmed: 2, own-fix: 2, fixed: 2, unexecuted: 0, edits: 4 | method: re-verification — the finder grepped the pin for every `brings nothing`/`both causes`/`tell apart`/`unreachable` (14 hits, all placed) and read A.2 :138-155 and the worked `--fetch` transcript :1393-1395; the orchestrator aligned the three sentences with A.2's exact words | 034eac457f7c7adc0d78a3892dff0758 → a8fd5f399b5405b280d3d4f4f7a5c273 (before this row) |
+| Pass 10 | 2 slices, 3 seats (8 stamped; the rest-ledgers slice raised nothing and needed no refuter): opus×1 + sonnet×1 + refuter ×1 · RE-VERIFICATION of the two round-9 fixes | round-9 ids (2): both FIXED (the opus seat's notes; the rest-ledgers seat raised nothing); found: 1, new: 1 (O64: the C.2 text asserted rclone's exit code and message are passed through, which A.2 :145-146 never promises — only 'non-zero when rclone does'), confirmed: 1, own-fix: 1, fixed: 1, unexecuted: 0, edits: 3 | method: re-verification — the refuter grepped every exit/stderr/rclone claim in the pin (13 hits, all placed) against A.2 :144-149; the orchestrator weakened the four phrases to A.2's words | 12ac1059b49991f92ac9c5dad7ab19fa → 440e9ef0b193d933ae4ecaba7f08f616 (before this row) |
 
 ## Pass Ledger (/fabrik-plan-review, revision 2026-10-05)
 
@@ -1638,8 +1639,10 @@ file · `CHANGELOG.md` per phase · `.env.example` + `docs/CONFIGURATION.md` for
   where the Sonnet seats' statuses live. (k) Round 8 (2 confirmed): the `--fetch` refusal names
   rclone's own failure as the third cause A.2 maps to the same exit, and its grader asserts the
   message. (l) Round 9 (2 confirmed): the refusal's exit and message claims now match A.2 exactly —
-  non-zero (1 when no file arrived, rclone's code when rclone failed) and `--fetch`'s stderr, which
-  is the archiver's own line for the two causes where rclone exited 0 and wrote nothing.
+  non-zero (1 when no file arrived, non-zero when rclone fails) and `--fetch`'s stderr, which is the
+  archiver's own line for the two causes where rclone exited 0 and wrote nothing. (m) Round 10 (1
+  confirmed): the C.2 text no longer asserts rclone's code or message are passed through — A.2
+  promises only 'non-zero when rclone does' and `--fetch`'s own output.
 - **Revision 2026-10-05:** every step that named vps1, Backrest, `ssh vps` or rsync was replaced or
   marked historical; Phase C's deferral is a recorded panel ruling with a three-part tripwire, not
   a silent drop. Round 1 of its review (25 confirmed) found the gates could not run in the order
