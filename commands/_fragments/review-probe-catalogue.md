@@ -93,8 +93,9 @@ or name in the brief why the shape does not have it.
 ## Prose and docs fixes
 - Read a fragment's scope sentences, and a rule already in a fragment is quoted in its own words and pointed at; a
   ported rule is re-derived against this command's machinery; a parser rule is stated positively, not as a terminator
-  list; a scoped exception beats a new section note; tool claims are written from the source, then checked against the
-  live corpus and the tool's real output variants.
+  list; a scoped exception beats a new section note; tool claims are written from the source (a sentence describing a
+  record format or a code string quotes the emit site's keys or the string verbatim), then checked against the live
+  corpus and the tool's real output variants.
 - After the edit: rewrap the whole paragraph by tool; re-read an inserted sentence with the one after it; a long-line
   replacement keeps its neighbours' opening clauses; re-read a cited range after rewording its citation; moved table
   rows are placed by computed position and checked by an inversion diff against base; sentences a test pins verbatim
@@ -122,7 +123,8 @@ or name in the brief why the shape does not have it.
   metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive copy by
   `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a
   `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo root
-  with the repo's own config; tests run by exact node id.
+  with the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the same
+  path); tests run by exact node id.
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word
