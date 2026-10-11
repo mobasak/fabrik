@@ -1,6 +1,19 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A point-in-time restore is keyed on the SERVER's clock — capture the instant from the server, never from `date -u` (2026-10-12)
+
+Gate B.4 of the retention plan (`archive_transcripts.py --fetch … --version-at <T>`, rclone `--b2-version-at`) returned nothing for every
+`T` taken from this box's clock between the two proof uploads, while a `T` five minutes later returned the newer version. The box runs
+2 min 49 s behind Backblaze (`date -u` 21:19:51Z against both B2 hosts' `Date: 21:22:40 GMT`), and B2 stamps a version with ITS upload
+time, so a locally captured instant lands before the first upload and reads "absent". Probing forward found the run-1 bytes at
+21:18:00Z and the proof passed.
+- **Capture `T` from the service, not the shell:** `date -u -d "$(curl -sI <server> | sed -n 's/^[Dd]ate: //p')" +%Y-%m-%dT%H:%M:%SZ` after the first write, plus 2 s for the floored second. Never "sleep past the skew": that only helps when the box is BEHIND the server — ahead of it, a local `T` lands after the SECOND upload and returns the newer version silently, a wrong restore rather than an absent one.
+- **A restore tool that prints "absent from the bucket, or B2's download host is unreachable from this network" for a clock miss misdirects the reader** — the
+  archiver's fetch cannot tell a clock miss from those two causes; the plan's B.4 text now says to take `T` from the server.
+- **An SNI filter on the download host is routed around, not waited out:** a SOCKS tunnel through our own VPS (`ssh -N -D`) carries
+  `HTTPS_PROXY` into rclone through the archiver's child environment; the keys never leave the box.
+
 ## A fail-closed guard is only as closed as its least-guarded leg, and a spy's empty list passes `all()` (2026-10-11)
 
 Building the pruner (retention plan Phase C.2/C.3) and its review: 30/30 clause mutations red before the review, yet round 1 confirmed 15 candidates — 12 distinct defects behind them.

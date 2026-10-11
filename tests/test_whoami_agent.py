@@ -37,6 +37,9 @@ def store(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENT_IDENTITY_FILE", str(p))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-alpha")
     monkeypatch.delenv("CLAUDE_AGENT", raising=False)
+    # The real claude process exports CLAUDE_PID into every shell; the predecessor rule reads it, so
+    # an ambient value must never decide a grader (W-34cb1ef9 review B-S2).
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
     return p
 
 
@@ -626,3 +629,131 @@ def test_the_append_path_uses_o_append(store):
     src = inspect.getsource(_mod()._append_row)
     body = src.split('"""')[-1]
     assert "O_APPEND" in body, "concurrent appends are only atomic under O_APPEND"
+
+
+def _holder(m, pid, start, sid="sid-other", name="agent-2"):
+    return json.dumps(
+        {
+            "session_id": sid,
+            "name": name,
+            "pid": pid,
+            "pid_start": start,
+            "toplevel": m._toplevel(),
+            "at": 9_999_999_999,
+            "force": False,
+        }
+    )
+
+
+def _own_process(m, monkeypatch, pid=None):
+    """Pretend this test process is the window's claude process (its pid is live and readable)."""
+    pid = os.getpid() if pid is None else pid
+    monkeypatch.setattr(m, "_session_pid", lambda: pid)
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
+    return pid, m._pid_start(pid)
+
+
+def test_a_clear_successor_binds_its_own_window_name_without_force(store, monkeypatch):
+    """W-34cb1ef9: /clear mints a new session id in the SAME claude process; its own earlier row
+    is a predecessor, not a holder, so the bind needs no --force and says who it succeeded."""
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    store.write_text(
+        _holder(m, pid, start, sid="sid-old")
+        + "\n"
+        + _holder(m, pid, start, sid="sid-older")
+        + "\n",
+        encoding="utf-8",
+    )
+    code, msg = m.bind("agent-2")
+    assert code == 0, msg
+    assert m.resolve_agent_name() == "agent-2"
+    last = m._rows(store)[-1]
+    assert last["predecessor"] == "sid-older" and "sid-older" in msg  # the most recent matching row
+    assert last["force"] is False
+
+
+def test_a_forced_rotation_still_records_its_predecessor(store, monkeypatch):
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    store.write_text(_holder(m, pid, start, sid="sid-old") + "\n", encoding="utf-8")
+    assert m.bind("agent-2", force=True)[0] == 0
+    last = m._rows(store)[-1]
+    assert last["predecessor"] == "sid-old" and last["force"] is True
+
+
+def test_a_predecessor_never_excuses_a_live_foreign_holder(store, monkeypatch):
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    other = os.getppid()
+    store.write_text(
+        _holder(m, pid, start, sid="sid-old")
+        + "\n"
+        + _holder(m, other, m._pid_start(other), sid="sid-foreign")
+        + "\n",
+        encoding="utf-8",
+    )
+    code, msg = m.bind("agent-2")
+    assert code == 1 and "held by a LIVE session" in msg
+
+
+def test_a_live_holder_in_another_process_still_refuses(store, monkeypatch):
+    m = _mod()
+    _own_process(m, monkeypatch, pid=os.getppid())
+    me = os.getpid()
+    store.write_text(_holder(m, me, m._pid_start(me)) + "\n", encoding="utf-8")
+    code, msg = m.bind("agent-2")
+    assert code == 1 and "held by a LIVE session" in msg
+
+
+def test_an_unknown_start_time_never_makes_a_predecessor(store, monkeypatch):
+    """A legacy row (pid_start None) on our own pid, and our own start unreadable: (pid, None) ==
+    (pid, None) must not read as 'the same window'."""
+    m = _mod()
+    pid, _start = _own_process(m, monkeypatch)
+    monkeypatch.setattr(m, "_pid_start", lambda _pid: None)
+    store.write_text(_holder(m, pid, None) + "\n", encoding="utf-8")
+    code, msg = m.bind("agent-2")
+    assert code == 1 and "held by a LIVE session" in msg
+
+
+def test_a_walk_that_disagrees_with_claude_pid_claims_no_predecessor(store, monkeypatch):
+    """A nested claude the /proc walk passes through reaches the OUTER window's pid; CLAUDE_PID,
+    exported by the real claude process, names the mismatch and the bind stays refused."""
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    monkeypatch.setenv("CLAUDE_PID", str(os.getppid()))
+    store.write_text(_holder(m, pid, start, sid="sid-old") + "\n", encoding="utf-8")
+    code, msg = m.bind("agent-2")
+    assert code == 1 and "held by a LIVE session" in msg
+
+
+def test_a_hand_edited_row_with_digit_strings_is_still_this_windows_predecessor(store, monkeypatch):
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    store.write_text(_holder(m, str(pid), str(start), sid="sid-old") + "\n", encoding="utf-8")
+    code, msg = m.bind("agent-2")
+    assert code == 0, msg
+    assert m._rows(store)[-1]["predecessor"] == "sid-old"
+
+
+def test_a_live_foreign_holder_with_a_string_start_time_still_refuses(store, monkeypatch):
+    """A start time stored as a digit string must not read as a DEAD holder: before the review this
+    compared int to str, so any session could take a live name with no refusal."""
+    m = _mod()
+    _own_process(m, monkeypatch, pid=os.getppid())
+    me = os.getpid()
+    store.write_text(_holder(m, me, str(m._pid_start(me))) + "\n", encoding="utf-8")
+    code, msg = m.bind("agent-2")
+    assert code == 1 and "held by a LIVE session" in msg
+
+
+def test_a_boolean_pid_is_never_a_process(store, monkeypatch):
+    """JSON `true` equals 1 in Python; a corrupted row must not match a claude running as pid 1."""
+    m = _mod()
+    monkeypatch.setattr(m, "_session_pid", lambda: 1)
+    monkeypatch.setattr(m, "_pid_start", lambda _pid: 7)
+    store.write_text(_holder(m, True, 7, sid="sid-old") + "\n", encoding="utf-8")
+    code, msg = m.bind("agent-2")
+    assert code == 0, msg
+    assert "predecessor" not in m._rows(store)[-1]

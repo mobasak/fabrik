@@ -218,30 +218,30 @@ The local round trip is measured. **The leg back from B2 is not, and it is the o
   ISOLATED prefix (`SESSION_ARCHIVE_B2_PREFIX=restore-proof`, a scratch `CLAUDE_PROJECTS_DIR` and
   `ARCHIVE_ROOT`, `ARCHIVE_AFTER_DAYS=0`): archive a synthetic transcript (run 1), append a line to
   it, archive again (run 2), delete the scratch source, then `--fetch /<slug>/<sid>.jsonl.zst out.zst
-  --version-at <T>` — `T` captured with `date -u +%Y-%m-%dT%H:%M:%SZ` after run 1 returns, with at
-  least 2 s before run 2 starts (`archived_at` is the compression time, not the upload, § A.1a) —
+  --version-at <T>` — `T` captured from the SERVER's clock after run 1 returns — `date -u -d "$(curl -sI https://api.backblazeb2.com/ | sed -n 's/^[Dd]ate: //p')" +%Y-%m-%dT%H:%M:%SZ` converts the RFC 7231 `Date` header to the RFC 3339 instant `--version-at` takes, then add 2 s (the header is floored to the second; B2 stamps a version with its own upload time, and this box ran 2 min 49 s behind it on 2026-10-12, so a `date -u` instant read "absent") — with at
+  least 4 s before run 2 starts (`archived_at` is the compression time, not the upload, § A.1a) —
   and match its decompressed sha256 to the RUN-1 row —
   the bytes no file on disk holds any more. (One live run cannot do this: a bucket version exists
   only after the same object is written twice.) The proof objects stay in `restore-proof/`; they
   are tiny and the transport cannot delete them.
-- **B.5** `--remote-count` alone (the manifest fetched from the bucket) lists the object B.1
-  restored — a restore with only the bucket can find what is in it.
+- **B.5** `--remote-count` alone fetches the manifest object from the bucket and prints its sha256 (no parse) and a bucket-wide
+  object count (never an object list or a key lookup): with only the bucket, the listing works and the manifest comes down — the
+  two things a restore needs before B.1's fetch, which is what shows B.1's key is present.
 
 **Gate B (runnable):** B.2's `cmp` exits 0 and its sha256 equals the row's; B.4's decompressed
 sha256 equals the run-1 row's and differs from the run-2 row's; outputs embedded.
 ⚠️ A failed or skipped Gate B is a `BLOCKED:` escalation.
 
-## Phase C — ROTATE, TAG, PRUNE (reopened 2026-10-11, D-736) — EXECUTED-pending-Gate-C 2026-10-11
+## Phase C — ROTATE, TAG, PRUNE (reopened 2026-10-11, D-736) — EXECUTED 2026-10-12 (Gate C passed)
 
 > **C.0–C.4 EXECUTED 2026-10-11** (D-742): the archive current (310 rows), the agent tag and the ROTATE advisory
 > (aa876c94b), the pruner and its subagent tier (09624683c) with the unit on `--dry-run`, the contract in the docs
 > and the four requests (1416db236); three full `/fabrik-review` loops, each closing at confirmed 0 (receipts
-> `…-phase-2-c1-review.md`, `…-phase-3-c2-c3-review.md`, `…-phase-5-c4-review.md`). **Nothing has been deleted:**
-> the live dry-run refuses every candidate (`not-indexed` 7,082 of 9,742 at C.2; 7,138 of 9,813 at Gate C (0)). **Gate C is boarded, not passed** —
-> `W-c49a7adf` (0: infra's merge + `install_session_archive_timer.sh` from the main checkout — GREEN 2026-10-11, § Evidence — Phase C), `W-18d6d1ae`
-> (1: the operator's Gate B download proof), `W-0fc6fe12` (1b: session-recall's nightly ingest + the DSN); steps
-> (2)–(6) follow them, each a pasted table, and the unit's `--dry-run` stays until (6). Status stays IN-PROGRESS
-> until Gate C.
+> `…-phase-2-c1-review.md`, `…-phase-3-c2-c3-review.md`, `…-phase-5-c4-review.md`). **Gate C PASSED 2026-10-12**
+> (§ Evidence — Phase C, "Gate C — execution log"): steps (0)–(6) executed — `W-c49a7adf`, `W-18d6d1ae`, `W-0fc6fe12`
+> closed at 59a2a136a; the canary deleted 10 transcripts and restored 2 byte-exact; the unit runs `--apply --nightly`.
+> Status stays IN-PROGRESS until the first nightly apply (Tue 2026-10-13 00:00 + the timer's up-to-15-min delay) is
+> read; then EXECUTED and archived.
 
 **What changed since the deferral.** The deferral's three tripwires were disk, a proven restore and
 searchability. Disk never fired; what fired instead was the VS Code extension host: it OOM'd four
@@ -956,6 +956,115 @@ prune_transcripts (dry-run): MAIN tier — 9813 transcript inode(s) scanned · d
   refusals: in-window 1055 · newest-of-agent 2 · newest-of-slug 1618 · not-indexed 7138
   over-threshold (> 200 MB): 22 file(s)
 ```
+
+### Gate C — execution log (2026-10-12, fleet; operator D-746 "proceed and do not stop again for the things you can handle yourself")
+
+**(0) infra's merge + timer re-install — DONE** (`c3ca37677` merged 2026-10-11; `systemctl --user cat session-archive.service` line 27
+`ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_transcripts.py --dry-run`; timer next 2026-10-12 00:14).
+
+**(1) Gate B's download proof — PASSED through a SOCKS tunnel to vps1** (`ssh -N -D 127.0.0.1:1080 ozgur@vps1.ocoron.com`,
+`HTTPS_PROXY=socks5://127.0.0.1:1080`, which reaches rclone through the archiver's child environment — it strips only `RCLONE_*`).
+This network's SNI filter still drops `f004.backblazeb2.com` directly (`curl --resolve f004.backblazeb2.com:443:149.137.128.16` times out);
+through the tunnel it answers `HTTP 301`. The first attempt, COMPLETE and verbatim from scratch `gateb-run.out` from its `== B.1` line
+to its `(end)` (B.1, B.2 and B.5 pass; B.4 as written in this plan — `T` from the local clock — FAILS):
+```
+== B.1 fetch /-opt-seo/8fe44dc5-a1ef-4f95-a79f-c5b19dfcee02.jsonl.zst from the bucket (through the tunnel)
+fetched /-opt-seo/8fe44dc5-a1ef-4f95-a79f-c5b19dfcee02.jsonl.zst -> /tmp/claude-1000/-opt-fabrik--claude-worktrees-fleet/1970a0ff-baa3-401b-ba52-fb0c5de43261/scratchpad/gateb/r.zst
+fetch rc=0
+  object bytes 7918
+== B.2 decompress, cmp against the live original, sha256 against the row
+  cmp: IDENTICAL
+  sha256 fetched : 43fcd3a37c25d51cde6896bfc19d5dd0c9184731220459a64eae809c1dc5f891
+  sha256 row     : 43fcd3a37c25d51cde6896bfc19d5dd0c9184731220459a64eae809c1dc5f891
+  sha256: MATCH
+== B.4 the archive stands alone: two versions of a synthetic transcript in restore-proof/, the first restored by --version-at after the source is gone
+archive_transcripts: 1 MAIN transcript(s) eligible (idle > 0.0d)
+archive_transcripts: 1 new manifest row(s); archive at /tmp/claude-1000/-opt-fabrik--claude-worktrees-fleet/1970a0ff-baa3-401b-ba52-fb0c5de43261/scratchpad/gateb/proof/archive
+run1 rc=0
+archive_transcripts: 1 MAIN transcript(s) eligible (idle > 0.0d)
+archive_transcripts: 1 new manifest row(s); archive at /tmp/claude-1000/-opt-fabrik--claude-worktrees-fleet/1970a0ff-baa3-401b-ba52-fb0c5de43261/scratchpad/gateb/proof/archive
+run2 rc=0
+  scratch source deleted; T=2026-10-11T21:15:12Z
+archive_transcripts: /-gateb-proof/00000000-0000-4000-8000-00000000b4b4.jsonl.zst was not downloaded: absent from the bucket, or B2's download host is unreachable from this network
+version-at fetch rc=1
+zstd: can't stat /tmp/claude-1000/-opt-fabrik--claude-worktrees-fleet/1970a0ff-baa3-401b-ba52-fb0c5de43261/scratchpad/gateb/v1.zst : No such file or directory -- ignored 
+  sha256 run-1 source : f7e662fdc67b33459e677f151b4b0b1c26dde6f73bb706192444a5e39d1886bc
+  sha256 fetched v1   : <none>
+  B.4: MISMATCH
+== B.5 remote-count (the manifest fetched from the bucket) lists the B.1 object
+remote_objects 9923
+remote_manifest_sha256 2a9a7784834bf2b4b651460c1013f25884e6aa360889fe7abd5a61301b4faa74
+```
+B.4 then PASSED once `T` was taken from the SERVER's clock — COMPLETE and verbatim, the `== B.4 proof` section of scratch
+`gatec-fixes-run.out` (both versions are addressable by instant; the run-1 bytes come back from the bucket alone):
+```
+== B.4 proof, preserved: --version-at 2026-10-11T21:18:00Z (between the two uploads on the SERVER clock) and 21:19:00Z (after run 2)
+fetched /-gateb-proof/00000000-0000-4000-8000-00000000b4b4.jsonl.zst -> /tmp/claude-1000/-opt-fabrik--claude-worktrees-f
+  2026-10-11T21:18:00Z -> 1 line(s), sha256 f7e662fdc67b33459e677f151b4b0b1c26dde6f73bb706192444a5e39d1886bc == run-1 source: B.4 MATCH
+fetched /-gateb-proof/00000000-0000-4000-8000-00000000b4b4.jsonl.zst -> /tmp/claude-1000/-opt-fabrik--claude-worktrees-f
+  2026-10-11T21:19:00Z -> 2 line(s), sha256 11fe4e48ad4cbb562f5e278882d552fe0a75aaa313e23db4845fb90bc372d32e (run-2 bytes)
+  run-1 source sha256: f7e662fdc67b33459e677f151b4b0b1c26dde6f73bb706192444a5e39d1886bc
+```
+B.5's 9923 was counted while the 23:12 archive run's uploads were still landing; after that run and the canary the bucket holds
+9923 objects = the manifest's 9,923 distinct `(slug, session)` keys over 9,969 rows (the same `gatec-fixes-run.out`), so B.5 and the
+post-canary count agree and the canary changed nothing in the bucket. `--remote-count` fetches the manifest object from the bucket and prints
+its sha256 (it never parses it) and a bucket-wide object count, never an object list or a key lookup: it proves the bucket is listable and the
+manifest downloadable with only the bucket; B.1's own fetch is what shows B.1's key is present (the B.5 recipe now says so).
+B.4's recipe as written (`T` from the local clock, 3 s after run 1) returned NOTHING at every instant from 21:15:16Z to 21:17:40Z:
+this box's clock is 2 min 49 s BEHIND B2's (`date -u` 21:19:51Z while both B2 hosts answered `Date: … 21:22:40 GMT`), and
+`--b2-version-at` is keyed on the server's upload time. The proof holds; the lesson is in `docs/LESSONS_LEARNT.md`.
+
+**(1b) session-recall's side — LIVE.** The index is incremental within minutes (a turn of this session written 21:14 was returned by
+`search_chats` at 21:33; `recent_chats` for the worktree slug reports nothing because the hard-linked transcript is indexed under
+`-opt-fabrik`, D-467). `SESSION_RECALL_RO_DSN` is present in `/opt/fabrik/.env` (by name — copied by fleet under D-746 after the
+operator's ruling; `grep -c '^SESSION_RECALL_RO_DSN=' /opt/fabrik/.env` → 1; hub `.env` backed up to `backups/.env.backup.20261012-000806`).
+The plan's (1b) names session-recall's REPLY as the evidence; the reply has not come (mail 01M4NVZQ7NJR8F2GZMZKZPTB3E unread in their
+inbox after 9 h). Its intent — the ingest live and incremental — was verified by execution above, and the DSN half was closed under
+D-746, which covers the copy and nothing else. Recorded as a DEVIATION from the step as written: the mail stays open and their reply,
+when it comes, is pasted here; it is not a precondition the operator waived.
+
+**The archive is current:** a manual `archive_transcripts.py` run at 23:12–00:32 shipped 230 new rows (9,739 → 9,969; the 217 same-day
+transcripts and the changed ones); 11 of the 230 carry an `agent` tag — `infra`, `fleet`, `intel`, `kaizen` among them (the first tagged
+rows: C.1 landed after the day's earlier run).
+
+**(2) dry-run with the index visible (through the tunnel; a direct `rclone lsf` took > 3 min per slug):**
+```
+prune_transcripts (dry-run): MAIN tier — 9959 transcript inode(s) scanned · deletable 7280 · this run 200 (cap 200) · deferred 7080
+  refusals: in-window 1059 · newest-of-agent 2 · newest-of-slug 1618
+  over-threshold (> 200 MB): 22 file(s)
+```
+`not-indexed` is 0 (the line is gone); this run's 200 come from 4 slugs (trade-intelligence 105 · youtube 48 · -tmp 36 · -home-ozgur 11).
+
+**(3) the canary — `--apply --max 10 --expect 10`:**
+```
+prune_transcripts: deleted 10 (MAIN 10 inode(s), subagent-tier 0); deferred 7272; ledger /home/ozgur/.claude/archive/pruned.jsonl
+```
+(3 `-home-ozgur` + 7 `-opt-youtube` sessions, the oldest; one fsynced `pruned.jsonl` row before each unlink.)
+
+**(4) two restored from the bucket alone, then the ledger verified:**
+```
+restore: 3b5d6a6e-77d3-4097-aeef-ac5aea8f905e — fetched; paths ['…/-opt-youtube/3b5d6a6e-….jsonl']; sha256 83c29f423de3… verified; mtime now   (69036 bytes back)
+restore: 247cfafc-0ca5-46b0-834c-f8b7c1ff18d6 — fetched; paths ['…/-opt-youtube/247cfafc-….jsonl']; sha256 b290a3928663… verified; mtime now   (70140 bytes back)
+verify-ledger: 10 row(s), 0 MISSING
+```
+`--remote-count` after the canary (`gatec-fixes-run.out`): `remote_objects 9923` — equal to B.5's figure and to the manifest's 9,923 distinct
+keys; the deletion touched nothing in the bucket.
+
+**(5) `--status`:** `last apply: {"deleted": 10, "deletable": 7282, "deferred": 7272, "mode": "apply", …}`. The step's
+operator-visible half (a project's sidebar still listing its last-3-days sessions, a hub window's `/resume` still showing its newest)
+is the operator's glance at the next window open; the rule that guarantees it held at file level (`gatec-fixes-run.out`): after the canary
+`-opt-youtube` holds 6 sessions modified within 3 days — 2 of them the restored canary files (their mtime is now; `ls -t` lists them first)
+and 4 in-window sessions the rule kept, its newest original session (`a16ff916…`, third in `ls -t`) among the 4; `-opt-fabrik` holds 108; the canary
+took only sessions older than 3 days that were neither a project's nor an agent's newest.
+
+**(6) the unit flipped and installed** (`scripts/sysadmin/systemd/session-archive.service` → `--apply --nightly`; installed from this
+worktree's `install_session_archive_timer.sh`, which copies the unit from its own tree): `systemctl --user cat session-archive.service`
+line 27 `ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_transcripts.py --apply --nightly`; next run
+Tue 2026-10-13 00:00 plus the timer's `RandomizedDelaySec` (up to 15 min). **Gate C PASSED 2026-10-12 00:50** — the first nightly
+apply takes the oldest 200 of the MAIN set as it stands that night (the 2 restored canary files carry `mtime now` and re-enter after 3
+days; newly aged files join) AND the subagent tier, which `--nightly` adds and which has no cap by design (C.3 — the 3-day cliff, never
+archived). Measured by `--dry-run --tier subagents` on 2026-10-12 01:06 (`gatec-fixes-run.out`): `16208 entr(ies) scanned · this run 6723 ·
+refusals: in-window 152 · parent-open 9333`. The morning check is `prune_transcripts.py --status` + `--verify-ledger`.
 
 ## Gate mechanics
 
