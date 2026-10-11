@@ -116,4 +116,4 @@ def test_second_pass_names_the_specific_steps_in_their_phases() -> None:
     assert "run the full `/fabrik-review` into it (skipping its own `--init`) until `Status: CONVERGED`" in close
     assert "`--evidence` names the split; a terminal it changed was restated with `--terminal-amend`" in close
     upgrade = _norm(SRC)[_norm(SRC).index("## UPGRADE"):]
-    assert "appended to that seed file, and to the D-row when it must outlive the session" in upgrade
+    assert "appended to that seed file, and to the `/fabrik-spec` draft the seed opens when it must outlive the session" in upgrade
