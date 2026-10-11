@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the chain push backs off for the notifier's window instead of retrying every tick (2026-10-11)
+- `scripts/sysadmin/claude_rotate.py` (and its byte-identical twin `scripts/aro-wake/claude_rotate.py`): an UNCONFIRMED refresh-chain push is re-attempted at the first tick at or past `_CHAIN_PUSH_BACKOFF_S` (1800 s, the notifier's own delivered-send window) after the last ATTEMPT — the attempt's epoch is the mtime of a `.attempt` sibling of the per-account push stamp, dated before the spawn — so a dead notifier costs one `mesh-notify` spawn and one log line per account per 30 minutes, never one per 5-minute tick (W-e8fc8685, review row X7 of 2026-09-13). A state dir that refuses the sibling, or a planted link there, keeps today's per-tick retry and the UNCONFIRMED line says so; the delivery stamp's contract is untouched. Five graders red-first in `tests/test_claude_fleet.py`, four existing ones advanced to the new cadence; `docs/workstation/claude-account-rotation.md` states the cadence.
+
 ### Fixed — at a fleet AMBER band the Stop hook stops ordering new work (2026-10-11)
 - The Stop hook's coordinator cause blocked every turn with "WORK WAITING — claim …" at AMBER, where the quota contract says "finish what you started, start nothing heavy". It now stands down the actions that START work (claim, owned, feedback, self, doorbell, merge, triage) at AMBER while still enforcing continue, release, commit-items and mail, and a Stop that stood work down without blocking records one kaizen `stood_down` event naming every action it skipped (W-05d3af0f, D-741).
 
