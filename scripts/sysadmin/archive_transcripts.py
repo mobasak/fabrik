@@ -339,8 +339,13 @@ def list_agent(manifest: Path, name: str, projects: Path) -> list[str]:
     for r in rows:
         # local = ANY name of the inode still on disk: the primary slug or a hard-linked twin's
         # (`also_slugs`, D-467) — the primary alone read a surviving twin as gone (archiver-S3)
-        also = r.get("also_slugs") or []
-        also = [also] if isinstance(also, str) else [str(s) for s in also if s]  # never per-char
+        raw_also = r.get("also_slugs")
+        if isinstance(raw_also, str):  # one slug, never a sequence of characters (archiver-S6)
+            also = [raw_also]
+        elif isinstance(raw_also, list):
+            also = [str(s) for s in raw_also if isinstance(s, str) and s]
+        else:  # absent, null, or a scalar the archiver never writes: no aliases (archiver-S8)
+            also = []
         slugs = [str(r.get("project_slug") or ""), *also]
         local = any((projects / s / f"{r.get('session_id')}.jsonl").exists() for s in slugs if s)
         out.append(

@@ -886,6 +886,13 @@ def test_c12_agent_verb_local_flag_sees_a_surviving_hard_linked_twin(
     (archive / "manifest.jsonl").write_text(json.dumps(row) + "\n")
     assert at.run(["--agent", "fleet"]) == 0
     assert "local=yes" in capsys.readouterr().out
+    # a scalar the archiver never writes (an int, a bool, a null) means NO aliases — the listing
+    # reports the primary's state and never raises (review round 3, archiver-S8)
+    for scalar in (7, True, None, 2.5, {"k": "v"}):
+        row["also_slugs"] = scalar
+        (archive / "manifest.jsonl").write_text(json.dumps(row) + "\n")
+        assert at.run(["--agent", "fleet"]) == 0, scalar
+        assert "local=no" in capsys.readouterr().out, scalar
 
 
 def test_c12_agent_verb_refuses_to_double_as_another_verb(tree, rec, tmp_path, capsys):
