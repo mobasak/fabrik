@@ -17,10 +17,10 @@
     "27b66d611bd1979a9e2c7b526150934f847288479aacf855dbbb2010c1a76c9f"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-11 ruled retention first (implement asap); W-989653a7 stays released until the retention work ships.",
   "owner": "",
   "priority": 2,
   "question": "Should I start W-989653a7 now, or keep holding at the recorded resume point until you come back?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Should I start W-989653a7 now, or keep holding at the recorded resume point until you come back?"
 }
