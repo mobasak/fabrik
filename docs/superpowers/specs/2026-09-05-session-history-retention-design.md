@@ -6,6 +6,13 @@ Owner: fleet (box-local infrastructure / DR)
 Trigger: operator, this session — "now we must fix this properly", after 11 project dirs were
 emptied on 2026-09-03 by a manual ~28 GB disk cleanup and the loss surfaced days later.
 
+> **Pruner REOPENED 2026-10-11 by D-736** (`docs/DECISIONS.md`, the operator's ruling): local MAIN
+> transcripts are pruned after 3 days once their bytes are proven in the bucket (never an open session,
+> never a project's newest), the four named hub windows rotate and are tagged by agent, subagent
+> transcripts get a 3-day local cliff, and the three governance files state the contract. The current
+> design is the plan's § Phase C (`docs/development/plans/2026-09-06-plan-1-session-history-retention.md`);
+> the deferral paragraph below is history.
+>
 > **Partially superseded 2026-10-05 by D-565** (`docs/DECISIONS.md`): the archive ships DIRECT from
 > this machine to the Backblaze B2 bucket `wsl-ozgur` with rclone — nothing goes through vps1 or
 > Backrest — and the pruner (Approach A's prune tiers, build-order gate 3) is DEFERRED behind a
