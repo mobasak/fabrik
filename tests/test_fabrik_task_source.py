@@ -75,7 +75,10 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # measure by executing the real path, MIRROR's whole-tree search and fail direction, the lane's critique-brief
 # additions, the pre-record checklist, graders, v1's single commit, phase 4's third question, and the
 # receipt's range tip — ~150 feedback rows.
-SIZE_CAP = 16326
+# D-747 (kaizen, 2026-10-12): 16326 -> 19497 for the second pass over the /fabrik-task queue (D-735): the
+# specific MEASURE, MIRROR, critique-brief, grader, review-sizing and receipt steps the first pass left open —
+# 53 feedback rows.
+SIZE_CAP = 19497
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
