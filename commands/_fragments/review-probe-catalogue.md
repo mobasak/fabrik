@@ -106,8 +106,9 @@ or name in the brief why the shape does not have it.
   claim, checked against the code lines it names; a count cites the command (with its range — the brief hands the seat
   that exact command) and the line that holds it, a measured count names its population, a closing brief names each
   figure's source and the record's own round trend, a live value is a timestamped snapshot; a code snippet in prose is
-  a checkable claim; an evidence block pastes the artifact's section whole and names the kept file (one that elides is
-  a claim, not evidence); an unverified hand-derived enumeration is deleted.
+  a checkable claim; an evidence block in a report or receipt pastes the artifact's section whole and names the file
+  it was copied from, by path and md5 (one that elides is a claim, not evidence); an unverified hand-derived
+  enumeration is deleted.
 - A site a round re-opened, a bullet wrong two rounds running, or a mechanism the fix added and a round broke, is
   rewritten or deleted whole, never patched again.
 
