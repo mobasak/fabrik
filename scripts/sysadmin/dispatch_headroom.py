@@ -845,11 +845,26 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
                 for k in sorted(full)
                 if full.get(k, 0) > mix.get(k, 0)
             )
+            # the remedy is the fragment's rule (subagents-core.md, term-edit.md), named, never
+            # restated in other words: the old "re-sweep them next round" sent unread slices into
+            # a delta round after the corpus moved them to further full-pass waves (01M4F2H157)
+            # the cut is counted per model, never per slice — this tool cannot know which slice
+            # lost which seat, so it names the consequence for every trim instead of computing a
+            # per-slice claim it cannot ground (the count-based version was wrong both ways)
             return (
-                f" — TRIMMED partition: {sum(full.values())} slices wanted, "
+                f" — TRIMMED partition: {sum(full.values())} slice seats wanted, "
                 f"{sum(mix.values())} dispatched ({dropped}). The union of the seats you dispatch "
-                "is NOT the full pass — name the unread slices in the receipt and re-sweep them "
-                "next round" + tail
+                "is NOT the full pass — name the unread slices in the receipt; further full-pass "
+                "waves over those slices alone run before any delta pass "
+                "(/opt/fabrik/commands/_fragments/subagents-core.md)."
+                # a zero-seat trim kept no seat anywhere, so no slice "kept another" (round 2)
+                + (
+                    " A slice that lost a seat but kept another is read by fewer finders than "
+                    "its partition names — name it too."
+                    if sum(mix.values()) > 0
+                    else ""
+                )
+                + tail
             )
         opus_clause = (
             "an Opus finder in the partition — D-207's mix, not the D-344 pilot's"

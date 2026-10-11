@@ -4,7 +4,7 @@ Spec: docs/superpowers/specs/2026-09-29-hub-worktree-cutover-design.md § The de
 
 Every fixture below builds its OWN throwaway git repo under `tmp_path` to stand in for the hub —
 never a worktree of the real /opt/fabrik (CLAUDE.md § Shared repo). `_HUB_PATH` (the module-level
-constant each of the four converted files carries) is monkeypatched to that fake repo so the
+constant each of the five converted files carries) is monkeypatched to that fake repo so the
 git-common-dir-parent comparison in `_resolve_fabrik_root` matches it instead of the real hub.
 """
 
@@ -21,7 +21,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# The four converted files, keyed for parametrized cross-target tests below — every target must
+# The five converted files, keyed for parametrized cross-target tests below — every target must
 # answer the SAME `_resolve_fabrik_root` call the same way, config.py included, so a defect in any
 # one replica (not just config.py) turns its own parametrize case red.
 _TARGETS: dict[str, Path] = {
@@ -29,6 +29,7 @@ _TARGETS: dict[str, Path] = {
     "sync_projects": Path("scripts/sync_projects.py"),
     "vps_sync": Path("scripts/vps_sync.py"),
     "command_feedback_report": Path("scripts/command_feedback_report.py"),
+    "update_vps_docs": Path("scripts/update_vps_docs.py"),
 }
 
 _MODULE_TAG = itertools.count()
@@ -72,13 +73,13 @@ def _load_module(path: Path, name: str) -> ModuleType:
 
 
 def _load_target(key: str) -> ModuleType:
-    """Load one of the four converted files by its `_TARGETS` key, with a fresh, collision-free
+    """Load one of the five converted files by its `_TARGETS` key, with a fresh, collision-free
     module name every call (parametrized tests reload the same file repeatedly)."""
     rel = _TARGETS[key]
     return _load_module(REPO_ROOT / rel, f"_t01_{key}_{next(_MODULE_TAG)}")
 
 
-# ── Behavior Contract row 1 (cross-target): every one of the four converted files answers the
+# ── Behavior Contract row 1 (cross-target): every one of the five converted files answers the
 # SAME `_resolve_fabrik_root` call the same way — config.py's own function AND each replica's
 # independently-typed copy. A mutation to any single target's algorithm (not only config.py's)
 # must turn its own parametrize case red.
@@ -284,6 +285,7 @@ CONVERTED_FILES = {
     "scripts/sync_projects.py",
     "scripts/vps_sync.py",
     "scripts/command_feedback_report.py",
+    "scripts/update_vps_docs.py",
 }
 
 # path -> one-line reason. Every reason is one of:
@@ -414,10 +416,10 @@ ALLOWLIST: dict[str, str] = {
     "scripts/implement_self_review_workflow.py": "dead: one-off generator (last touched 2026-09-06), part of the same traycer_agents_fixed/ batch",
     "scripts/seed_real_ports.py": "dead: its own docstring says 'One-time script' — a historical migration, not ongoing automation",
     "scripts/fabrik_synced_manifest.py": "no-write: the canonical sync-manifest REGISTRY (a dict of source/dest pairs other scripts read) — the matched write-heuristic is a diagnostic self-check block, not a hub-root write site of its own",
-    # ── deferred: a real D3 candidate, outside T01's Touches — not silently dropped ──
-    "scripts/sysadmin/kaizen_digest.py": "deferred: writes tracked docs/reference/agents/kaizen-log-*.md, which fleet/intel worktree agents also need to write — a genuine D3 candidate outside T01's Touches",
-    "scripts/sysadmin/kaizen_shrink_audit.py": "deferred: same tracked kaizen-log-*.md write path as kaizen_digest.py, outside T01's Touches",
-    "scripts/update_vps_docs.py": "deferred: writes the same tracked docs/infrastructure/*.md as vps_sync.py via a hardcoded REPO — the same class of gap, outside T01's four named Touches",
+    # ── the former `deferred` rows, measured (W-319a83d7): update_vps_docs.py is CONVERTED ──
+    "scripts/sysadmin/kaizen_digest.py": "read: REPO only locates send-telegram.sh to execute (:123); it writes no tracked file — `kaizen-log-*.md` is text in its message (:115)",
+    "scripts/sysadmin/kaizen_shrink_audit.py": "no-write: REPO = Path(__file__).resolve().parents[2] (:53), so kaizen-shrink-audit.md (:1065) is already worktree-relative; its /opt/fabrik literals classify crontab lines (:512, :516)",
+    "scripts/review_loop_ledger.py": "read: its only hit is a comment naming PIN_IMPORT's FABRIK_ROOT warning (:352); it writes only under the caller's --pins-dir",
 }
 
 _EXCLUDED_DIR_PREFIXES = ("tests/", "libs/", "scripts/.archive/", "scripts/archived/")
@@ -463,7 +465,7 @@ def _has_write_call(text: str) -> bool:
 def test_every_hub_root_write_hit_is_converted_or_allowlisted():
     """The search: every tracked *.py/*.sh outside tests/, libs/, scripts/.archive/,
     scripts/archived/ containing a `/opt/fabrik` string-literal prefix or `FABRIK_ROOT`, AND a
-    write call. Each hit is the four converted files or carries a one-line ALLOWLIST reason —
+    write call. Each hit is the five converted files or carries a one-line ALLOWLIST reason —
     an unlisted new hit fails this test naming the file."""
     listed = subprocess.run(
         ["git", "ls-files", "--", "*.py", "*.sh"],
@@ -502,3 +504,37 @@ def test_every_hub_root_write_hit_is_converted_or_allowlisted():
         f"{len(stale)} ALLOWLIST entr(y/ies) name a file the search no longer hits: {stale} — "
         "remove the stale entry."
     )
+
+
+def test_update_vps_docs_skips_the_push_off_hub(tmp_path, monkeypatch):
+    """W-319a83d7, both design critiques: off the hub, update_vps_docs commits on the invoker's
+    branch but never pushes — a worktree-agent branch has no upstream (the ladder would fail) and a
+    named worktree's bare `git push` would publish the session's own unreviewed commits and could
+    leave its live tree mid-rebase. On the hub the ladder runs as before."""
+    hub = _init_fake_hub(tmp_path)
+    wt = _add_worktree(hub, tmp_path)
+    module = _load_target("update_vps_docs")
+    monkeypatch.setattr(module, "_HUB_PATH", hub)
+    calls: list[list[str]] = []
+
+    class _Done:
+        returncode = 0
+
+    monkeypatch.setattr(module.subprocess, "run", lambda argv, **kw: calls.append(argv) or _Done())
+    monkeypatch.setattr(module, "REPO", wt.resolve())
+    assert module._push_if_hub() is None
+    assert not calls, calls
+    monkeypatch.setattr(module, "REPO", hub.resolve())
+    assert module._push_if_hub() is True
+    assert calls and calls[0][-1] == "push", calls
+    # and main() reaches the push ONLY through the guard — a direct ladder call would bypass it
+    import ast
+
+    tree = ast.parse((REPO_ROOT / _TARGETS["update_vps_docs"]).read_text(encoding="utf-8"))
+    main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main")
+    called = {
+        n.func.id
+        for n in ast.walk(main)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+    }
+    assert "_push_if_hub" in called and "_push_with_ladder" not in called, called

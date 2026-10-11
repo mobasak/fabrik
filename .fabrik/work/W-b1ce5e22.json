@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T23:52:53.534709Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-b1ce5e22",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EXASF6589PWF863ZHS69X3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "URGENT fleet quota — stop gracefully, hook to the next reset"
+}

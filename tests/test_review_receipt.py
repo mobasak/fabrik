@@ -304,6 +304,20 @@ def test_the_residual_grammar_example_sits_under_a_heading_that_says_example(rep
     assert text.index("### Verdict grammar") < text.index("| F12 | RECORDED — unexecuted")
 
 
+def test_the_gate_section_states_the_commands_close_order(repo: Path) -> None:
+    """kaizen 01M4F1KHBB (row 1791223902): the skeleton said paste the gate "at the CONVERGED flip",
+    so an agent ran it once, AFTER the flip. The command runs it at IN-PROGRESS first, flips, re-runs."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    gate = out.read_text(encoding="utf-8").split("## Gate", 1)[1]
+    assert "at the CONVERGED flip" not in gate and "pasted verbatim at the flip" not in gate
+    assert "/fabrik-review` § Reporting" in gate
+    first, flip, rerun = (
+        gate.index(t) for t in ("Status: IN-PROGRESS", "flip to CONVERGED", "re-run")
+    )
+    assert first < flip < rerun, gate
+
+
 # ── --command and --lane (plan T03b, W-0a89f069; spec D1 (c), D8) ──────────────────────────
 
 
@@ -419,10 +433,36 @@ def test_the_three_pass_row_texts_agree_on_cell_order_and_labels() -> None:
     root = Path(__file__).resolve().parents[1]
     inline = r"`(\| Pass [kN] \|[^`]*\|)`"
     per_text = {
-        "term-coverage": [m.group(1) for m in re.finditer(inline, (root / "commands" / "_fragments" / "term-coverage.md").read_text(encoding="utf-8"))],
-        "convergence-prompts": [m.group(1) for m in re.finditer(inline, (root / "docs" / "reference" / "convergence-prompts.md").read_text(encoding="utf-8"))],
-        "/fabrik-review": [ln for ln in (root / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8").splitlines() if re.match(r"\| Pass \d+ \| ", ln)],
-        "receipt skeleton": [ln for ln in (root / "scripts" / "review_receipt.py").read_text(encoding="utf-8").splitlines() if re.match(r"\| Pass \d+ \| ", ln)],
+        "term-coverage": [
+            m.group(1)
+            for m in re.finditer(
+                inline,
+                (root / "commands" / "_fragments" / "term-coverage.md").read_text(encoding="utf-8"),
+            )
+        ],
+        "convergence-prompts": [
+            m.group(1)
+            for m in re.finditer(
+                inline,
+                (root / "docs" / "reference" / "convergence-prompts.md").read_text(
+                    encoding="utf-8"
+                ),
+            )
+        ],
+        "/fabrik-review": [
+            ln
+            for ln in (root / "commands" / "_sources" / "fabrik-review.md")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if re.match(r"\| Pass \d+ \| ", ln)
+        ],
+        "receipt skeleton": [
+            ln
+            for ln in (root / "scripts" / "review_receipt.py")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if re.match(r"\| Pass \d+ \| ", ln)
+        ],
     }
     empty = [name for name, found in per_text.items() if not found]
     assert not empty, ("a text whose rows are not found grades nothing", empty)

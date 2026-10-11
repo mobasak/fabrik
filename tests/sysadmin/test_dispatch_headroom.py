@@ -8,6 +8,7 @@ stubbed so no test reads the live box or the live fleet.
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import json
 from pathlib import Path
@@ -714,7 +715,7 @@ def test_a_none_reading_is_unknown_never_cool_and_a_lone_opus_seat_counts_as_cov
                         {"state": "active", "email": "a@x", "session_pct": None, "weekly_pct": None}
                     ],
                     "active": "a@x",
-                    "hold": False,
+                    "hold": None,  # the picture emits None, never False (_hold_is_wall reads False as a wall)
                     "thresholds": {"drain_band": 85.0},
                 }
             }
@@ -765,7 +766,7 @@ def test_a_standby_in_the_drain_band_is_no_fallback_and_a_release_marker_is_a_kn
                         },
                     ],
                     "active": "a@x",
-                    "hold": False,
+                    "hold": None,
                     "thresholds": {"drain_band": 85.0},
                 }
             }
@@ -822,7 +823,7 @@ def test_round7_shapes_a_release_beside_a_count_a_standby_without_a_grade_and_th
     s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
     assert s["seats"] == 0 and s["unrecorded"] == 0 and s["sessions"] == 0  # no seat in flight
     pic = {
-        "hold": False,
+        "hold": None,
         "thresholds": {"drain_band": 85.0},
         "accounts": [
             {"email": "a@x", "state": "active", "session_pct": 10, "weekly_pct": 10},
@@ -1397,12 +1398,42 @@ def test_a_trimmed_slices_partition_never_claims_every_file_read_once(monkeypatc
     assert "every file read once" not in out, out
     # the story must name the SIZE of the gap and every kind it dropped, so the receipt can list
     # the unread slices — 10 wanted, 5 dispatched, {opus: 1, sonnet: 2, haiku: 2} cut
-    assert "10 slices wanted, 5 dispatched" in out, out
+    assert "10 slice seats wanted, 5 dispatched" in out, out  # seats, never "slices" (A-O2)
     for dropped in ("haiku: 2", "opus: 1", "sonnet: 2"):
         assert dropped in out, (dropped, out)
     assert "NOT the full pass" in out, out
-    assert "re-sweep them next round" in out, out
+    # 01M4F2H157: the remedy is the fragment's rule — further full-pass waves before any delta
+    # pass — named, never the old "re-sweep them next round" (a delta round)
+    assert "re-sweep them next round" not in out, out
+    assert "further full-pass waves over those slices alone run before any delta pass" in out, out
+    assert "/opt/fabrik/commands/_fragments/subagents-core.md" in out, out  # hub-absolute
+    # the cut is counted per model, so the tool names the consequence for every trim rather than
+    # a per-slice "one finder" claim it cannot ground (review round 1: wrong both ways)
+    assert "is read by fewer finders than its partition names" in out, out
+    assert "read by ONE finder" not in out, out
     assert "haiku 1x · sonnet 2x · opus 5x · fable 10x" in out, out  # the D-190 tail survives
+
+
+def test_an_untrimmed_partition_names_no_seat_cut(monkeypatch, capsys):
+    """The discriminating half of the fewer-finders sentence: nothing was cut, so it is never said."""
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--slices", "opus=1,sonnet=2,haiku=2"]) == 0
+    out = capsys.readouterr().out
+    assert "TRIMMED partition" not in out, out
+    assert "fewer finders" not in out, out
+
+
+def test_a_zero_seat_trim_claims_no_slice_kept_a_seat():
+    """Review round 2: a trim that dispatched nothing kept no seat anywhere, so the fewer-finders
+    sentence (a slice that 'kept another' seat) cannot be true and is not said."""
+    a = argparse.Namespace(slices="opus=1,sonnet=3,haiku=3", mix=None, units=None)
+    story = dh._mix_story(a, {}, {"opus": 1, "sonnet": 3, "haiku": 3})
+    assert "TRIMMED partition" in story and "0 dispatched" in story, story
+    assert "fewer finders" not in story, story
 
 
 def test_an_untrimmed_slices_partition_still_says_every_file_read_once(monkeypatch, capsys):

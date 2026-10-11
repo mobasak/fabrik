@@ -222,12 +222,23 @@ def test_both_push_call_sites_pass_the_floored_set(tmp_path):
     assert "def _baseline_floor(" in src
     # no call site may hand it the raw lifetime map again
     assert "_ahead_of_upstream(root, set(authored_map))" not in src
-    assert src.count("_ahead_of_upstream(") == 3  # the def + exactly two call sites
-    for call in ("ahead = _ahead_of_upstream(", "push_attempts if _ahead_of_upstream("):
-        i = src.index(call)
-        window = src[i : i + 240]
+    # EVERY call site, however many there are — a hard-coded count went stale when the urgent-90
+    # checkpoint (707abee81, W-37003fa1) added a third, and the guard read red on correct code.
+    # Real Call nodes, never raw text: a comment naming `_ahead_of_upstream(` is not a call site.
+    import ast
+
+    sites = [
+        n
+        for n in ast.walk(ast.parse(src))
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Name)
+        and n.func.id == "_ahead_of_upstream"
+    ]
+    assert len(sites) >= 2, len(sites)
+    for call in sites:
+        window = ast.get_source_segment(src, call) or ""
         assert "_this_sessions_edits(authored_map, _baseline_floor(sid))" in window, window
-        # W-851b6f3a: both sites also hand over the session-name resolver
+        # W-851b6f3a: every site also hands over the session-name resolver
         assert "_session_agent(root, sid)" in window, window
 
 

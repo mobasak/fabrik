@@ -25,6 +25,7 @@ Called automatically by:
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -32,9 +33,43 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv("/opt/fabrik/.env")
+# Replicated (not imported) from src/fabrik/config.py::_resolve_fabrik_root — see the identical
+# comment in scripts/sync_projects.py. Spec docs/superpowers/specs/2026-09-29-hub-worktree-
+# cutover-design.md § The delta D3; converted by W-319a83d7 (`fabrik` run in a worktree launches this
+# copy, src/fabrik/cli.py:90, and the hard-coded root wrote, committed and pushed the MAIN checkout).
+_HUB_PATH = Path("/opt/fabrik")
 
-REPO = Path("/opt/fabrik")
+
+def _resolve_fabrik_root() -> Path:
+    env_root = os.environ.get("FABRIK_ROOT")
+    if env_root:
+        return Path(env_root)
+    hub_path = _HUB_PATH.resolve()
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return hub_path
+    if result.returncode != 0:
+        return hub_path
+    lines = result.stdout.strip().splitlines()
+    if len(lines) != 2:
+        return hub_path
+    toplevel, common_dir = Path(lines[0]), Path(lines[1])
+    if common_dir.parent.resolve() == hub_path:
+        return toplevel.resolve()
+    return hub_path
+
+
+# The root resolves BEFORE the hub .env loads, so a FABRIK_ROOT written there cannot silently
+# override the worktree rule; the load honours FABRIK_NO_AUTOLOAD like src/fabrik/config.py:21.
+REPO = _resolve_fabrik_root()
+if os.environ.get("FABRIK_NO_AUTOLOAD") != "1":
+    load_dotenv("/opt/fabrik/.env")  # gitignored: exists only in the main checkout
 DOCS_INFRA = REPO / "docs/infrastructure"
 
 # ── Sentinel comments that wrap dynamic sections ─────────────────────────────
@@ -312,6 +347,16 @@ def _push_with_ladder() -> bool:
     return push.returncode == 0
 
 
+def _push_if_hub() -> bool | None:
+    """Push only from the hub itself. Off the hub (a linked worktree's root) the commit stays on the
+    invoker's branch and the push is the session's own exit: a worktree-agent branch has no upstream
+    (the ladder would fail), and a named worktree's bare `git push` would publish the session's own
+    unreviewed commits and could leave its live tree mid-rebase. Returns None when skipped."""
+    if REPO.resolve() != _HUB_PATH.resolve():
+        return None
+    return _push_with_ladder()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Update VPS documentation from live state")
     parser.add_argument("--dry-run", action="store_true", help="Print diff only, no writes")
@@ -402,7 +447,13 @@ def main() -> int:
             check=True,
         )
         print("✅ Committed.")
-        print("✅ Pushed." if _push_with_ladder() else "⚠️  Push failed — commit left local.")
+        pushed = _push_if_hub()
+        if pushed is None:
+            print(
+                f"✅ Committed on {REPO} (a worktree) — not pushed; the session's own exit pushes it."
+            )
+        else:
+            print("✅ Pushed." if pushed else "⚠️  Push failed — commit left local.")
 
     return 0
 

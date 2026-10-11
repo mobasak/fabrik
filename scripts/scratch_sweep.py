@@ -1466,6 +1466,27 @@ def run_dead_mode(args: argparse.Namespace) -> int:
 
 
 # ── mode 3: --worktrees ─────────────────────────────────────────────────────────────────────────
+def _status_z(repo: Path, *extra: str) -> tuple[int, list[tuple[str, str]]]:
+    """`git status --porcelain -z` → `[(XY, path)]`, git's own bytes with no C-quoting to undo.
+
+    The line form quotes a path holding a tab, newline, quote or (with core.quotePath) any
+    non-ASCII byte, and stripping the quotes without unescaping resolved the wrong path
+    (W-fe6e0ed3). A rename's second field (its source) is consumed, never read as an entry.
+    """
+    rc, out = _git(repo, "status", "--porcelain", "-z", *extra)
+    if rc != 0:
+        return rc, []
+    entries: list[tuple[str, str]] = []
+    fields = iter(out.split("\0"))
+    for rec in fields:
+        if len(rec) < 4:
+            continue
+        entries.append((rec[:2], rec[3:]))
+        if rec[0] in "RC":
+            next(fields, None)
+    return 0, entries
+
+
 def _git(repo: Path, *args: str, timeout: int = 20) -> tuple[int, str]:
     try:
         p = subprocess.run(
@@ -1582,7 +1603,7 @@ def _sync_materialised_paths(worktree: Path, names: list[str]) -> set[str]:
     """
     out: set[str] = set()
     for raw in names:
-        rel = raw.strip().strip('"')
+        rel = raw
         if not rel:
             continue
         if not rel.endswith("/"):
@@ -1729,7 +1750,6 @@ def _rebuildable(
     `.worktreeinclude` copied in at creation. A collapsed directory entry (`dir/`) is rebuildable
     only when every file under it is; an empty one is not.
     """
-    rel = rel.strip().strip('"')
     if ignored and (
         rel.startswith(CACHE_ALLOWLIST) or REBUILD_DIRS & set(rel.rstrip("/").split("/"))
     ):
@@ -1739,12 +1759,14 @@ def _rebuildable(
     if (wt / rel.rstrip("/")).is_symlink():
         return True  # removal unlinks it; `worktree remove --force` never follows into the target
     if rel.endswith("/"):
-        rc, out = _git(wt, "ls-files", "--others", "--exclude-standard", "--ignored", "--", rel)
-        rc2, out2 = _git(wt, "ls-files", "--others", "--exclude-standard", "--", rel)
+        rc, out = _git(
+            wt, "ls-files", "-z", "--others", "--exclude-standard", "--ignored", "--", rel
+        )
+        rc2, out2 = _git(wt, "ls-files", "-z", "--others", "--exclude-standard", "--", rel)
         if rc != 0 or rc2 != 0:
             return False
-        ign = [(f, True) for f in out.splitlines() if f.strip()]
-        unign = [(f, False) for f in out2.splitlines() if f.strip()]
+        ign = [(f, True) for f in out.split("\0") if f]
+        unign = [(f, False) for f in out2.split("\0") if f]
         if not ign and not unign:
             return False
         ledger = _sync_ledger(wt)
@@ -1776,14 +1798,13 @@ def _ignored_data(repo_wt: Path, main_path: Path | None = None) -> list[str]:
     worktree holding `.tmp/subagents/pg_outbox.jsonl` — which cleanup-automation § D marks
     NEVER-delete — would be removed while `git status --porcelain` reported it clean.
     """
-    rc, out = _git(repo_wt, "status", "--porcelain", "--ignored=matching")
+    rc, entries = _status_z(repo_wt, "--ignored=matching")
     if rc != 0:
         return []
     hits: list[str] = []
-    for line in out.splitlines():
-        if not line.startswith("!!"):
+    for xy, path in entries:
+        if xy != "!!":
             continue
-        path = line[2:].strip()
         if any(path.startswith(c) or f"/{c}" in path for c in CACHE_ALLOWLIST):
             continue
         if main_path is not None and _rebuildable(repo_wt, path, main_path, ignored=True):
@@ -2020,10 +2041,13 @@ def _worktree_chain(
         )
     if p in held or str(path.resolve()) in held:
         return "wt-held", "a live process is working in it", held.get(p, "")
-    rc, status = _git(path, "status", "--porcelain")
-    if rc == 0 and status.strip():
-        all_names = [ln[3:] for ln in status.splitlines()]
-        untracked = {ln[3:] for ln in status.splitlines() if ln.startswith("??")}
+    rc, entries = _status_z(path)
+    if rc != 0:
+        # an unreadable status is not a clean one: the verdict this feeds is destructive-adjacent
+        return "wt-dirty", f"its status is unreadable (git status rc {rc})", ""
+    if entries:
+        all_names = [n for _, n in entries]
+        untracked = {n for xy, n in entries if xy == "??"}
         # T12.23 (01M23JK2R, reported by wef3): the governance sync MATERIALISES manifest-owned
         # files into a worktree, so a worktree nobody has touched reads dirty. Those paths are not
         # "uncommitted work" by any session — nothing authored them.
@@ -2120,11 +2144,11 @@ def _not_sync_only_now(path: Path, branch: str, repo: Path) -> str:
     `--force` deletes untracked AND ignored files, so the classification is re-earned at removal
     time: a file authored since the dry run, a stash naming the branch, or ignored data keeps it.
     """
-    rc, status = _git(path, "status", "--porcelain")
+    rc, entries = _status_z(path)
     if rc != 0:
         return "its status is unreadable"
-    names = [ln[3:] for ln in status.splitlines()]
-    untracked = {ln[3:] for ln in status.splitlines() if ln.startswith("??")}
+    names = [n for _, n in entries]
+    untracked = {n for xy, n in entries if xy == "??"}
     synced = _sync_materialised_paths(path, names)
     authored = [
         n for n in names if n not in synced and not (n in untracked and _rebuildable(path, n, repo))

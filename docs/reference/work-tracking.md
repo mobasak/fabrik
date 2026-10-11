@@ -303,6 +303,16 @@ line prints its bound (`V5: PASS — <items> open next item(s) <=
 <sessions> qualifying session(s), <claims> live claim(s)`), so a vacuous 0 <= 0 reads differently from a
 real one.
 
+**Reading 2026-10-09** (V5 on its due date, 13 days after the T08 adoption commit `36ea99199`; W-aa89df9f):
+`next_census.py --since 7 --repo /opt/fabrik` printed `V5: PASS — 0 open next item(s) <= 3 qualifying session(s),
+6 live claim(s)`, and the classes line `next: 18742 lines over 4680 sessions — names-item 3126 · none 263 ·
+operator-decision 1121 · blocked 8 · free-text 14224` (9183 distinct free-text; 20 accepted-free-text sessions
+fleet-wide). What it settles about the spec's open unknown (whether `_is_anchor` is the right filter for the
+session's `next` item): `_is_anchor` is KEPT (D-724), on narrower grounds than "proven right". The 3 qualifying
+sessions show the filter accepts some free-text NEXTs; the open-item side cannot show its width either way — one
+`next` item per session at most, and the supersede and 7-day idle closes above empty it independently of what
+the filter admitted. No over- or under-admission has been reported; the first report re-opens it.
+
 ## Spec and plan state is derived, never copied
 
 `status` and `sync --check` read spec `Status:` lines, plan `Status:` lines, Ticket Boards and plan

@@ -146,6 +146,7 @@ try:
     DOCS_ALLOWLIST = _doc_registry.docs_allowlist() | _doc_registry.LEGACY_TOLERATED
 except Exception:  # noqa: BLE001 — a registry glitch must never crash the structure gate
     DOCS_ALLOWLIST = _FALLBACK_DOCS_ALLOWLIST
+    _doc_registry = None  # type: ignore[assignment]  # bound, so the parity check can say NOT checked
 
 
 def _gitignored_files(root: Path) -> set[str]:
@@ -439,7 +440,12 @@ def _scaffold_registry_drift(project_root: Path) -> list[str]:
     except (OSError, SyntaxError, ValueError):
         return []  # unreadable source is not this check's verdict to give
     if _doc_registry is None:
-        return []
+        # the hub's scaffold.py is here, so parity is owed: an unimportable registry is a check
+        # that could not run, never PARITY (W-fe6e0ed3 — the fail-silent green two lines below fix)
+        return [
+            "could not import scripts/enforcement/_doc_registry.py, so ALL_TYPES parity with "
+            "src/fabrik/scaffold.py::SCAFFOLD_TYPES was NOT checked. This is not a pass"
+        ]
     if declared is None:
         # NO assignment found at all (or a bare annotation with no value) — a different fact from
         # "found it, could not read literals out of it", and the one message covered both until

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-09T01:13:29.875607Z",
+  "creator": "kaizen",
+  "evidence": "02657dae4d21bea83a6292cbcc76ed3cceda40b6",
+  "id": "W-b63ffe1a",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-command-improve fabrik-review — edit the pack mirror and CLAUDE.md:250 under a full /fabrik-review, add the get_writable_files grader",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "fabrik-review text-defect follow-ups: 62-using-subagents.md:52 'confirming every claim executed true' mirror (fleet-synced, full review); CLAUDE.md:250 'scopes ruff to the diff' vs staged+unpushed; a grader driving get_writable_files for the ruff-scope sentence"
+}
