@@ -1819,12 +1819,15 @@ def test_a_rerendered_corpus_invalidates_the_cache(tmp_path, monkeypatch):
     assert "pool" in {s for r in qd._load_commands() for s in r["services"]}
 
 
-def test_page_has_two_tabs_quota_default_commands_second(tmp_path, monkeypatch):
+def test_page_tabs_repos_default_then_quota_then_commands(tmp_path, monkeypatch):
+    # Repos became the first, default tab on 2026-10-11 (operator ask); Quota is reached by #quota
     qd = _load(tmp_path, monkeypatch)
     html = qd.render(_payload(), time.time())
     assert 'data-tab="quota"' in html and 'data-tab="commands"' in html
+    assert html.index('data-tab="repos"') < html.index('data-tab="quota"')
     assert html.index('data-tab="quota"') < html.index('data-tab="commands"')
-    assert '<section id="pane-quota" class="pane">' in html
+    assert '<section id="pane-repos" class="pane">' in html
+    assert '<section id="pane-quota" class="pane" hidden>' in html
     assert '<section id="pane-commands" class="pane" hidden>' in html
     assert html.count('<tr><td class="ord">') == len(qd._load_commands())
     assert "location.hash" in html  # the chosen tab survives the 20s reload
@@ -3465,3 +3468,200 @@ def test_an_orphaned_probe_re_kicks_only_when_no_other_probe_is_alive(tmp_path, 
     assert nxt is not None and nxt is not other
     nxt.join(timeout=10)
     assert len(started) == 3 and qd._budget_cache["html"]  # the re-kick landed as current
+
+
+
+# ── Repos tab (operator ask 2026-10-11) ─────────────────────────────────────────────────────────
+# "a tab should come first named repos. in it i want to be able to select different repos start with
+# fabrik first." The repos come from FABRIK_OPT_DIR, which conftest pins to an empty dir per test.
+
+
+def _work_repo(opt: Path, name: str, items: list[dict], *, closed=(), claims=None, git=True):
+    repo = opt / name
+    (repo / ".fabrik" / "work").mkdir(parents=True)
+    if git:
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    for it in items:
+        item = {"kind": "task", "status": "open", "priority": 2, "owner": "", "next": "", **it}
+        (repo / ".fabrik" / "work" / f"{item['id']}.json").write_text(json.dumps(item))
+    shared = repo / ".git" / "fabrik-work"
+    for item_id in closed:
+        (shared / "closed").mkdir(parents=True, exist_ok=True)
+        (shared / "closed" / f"{item_id}.json").write_text(json.dumps({"at": time.time()}))
+    for item_id, agent in (claims or {}).items():
+        (shared / "claims").mkdir(parents=True, exist_ok=True)
+        claim = {"agent": agent, "session": "s1", "at": time.time(), "lease_s": 7200, "token": 1}
+        (shared / "claims" / f"{item_id}.json").write_text(json.dumps(claim))
+    return repo
+
+
+def _opt() -> Path:
+    return Path(os.environ["FABRIK_OPT_DIR"])
+
+
+def test_repos_is_the_first_tab_and_the_bare_url_opens_it(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    html = qd.render(_payload(), time.time())
+    tabs = re.findall(r'data-tab="([a-z]+)"', html.split("</nav>")[0])
+    assert tabs[0] == "repos", tabs
+    assert '<section id="pane-repos" class="pane">' in html
+    assert '<section id="pane-quota" class="pane" hidden>' in html
+    # loaded only when shown: a plain src would re-fetch ~0.7 MB on every 20s reload of another tab
+    assert 'data-src="/repos.html"' in html.split('id="pane-repos"')[1].split("</section>")[0]
+    assert ' src="/repos.html"' not in html
+    # the bare URL is Repos' now, so Quota must write #quota or the 20s reload drops it on Repos
+    assert 'name === "repos" ? location.pathname' in html
+    assert 'name === "quota" ? location.pathname' not in html
+
+
+def test_the_main_page_never_reads_a_work_store(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+
+    def boom(_opt):
+        raise RuntimeError("store exploded")
+
+    monkeypatch.setattr(qd, "_collect_work", boom)
+    html = qd.render(_payload(), time.time())
+    assert "store exploded" not in html and "mob@ocoron.com" in html
+    page = qd._repos_page(fresh=True)
+    assert "store exploded" in page and 'class="banner crit"' in page
+
+
+def test_the_repo_picker_lists_fabrik_first_then_by_open_count(tmp_path, monkeypatch):
+    opt = _opt()
+    _work_repo(opt, "aaa", [])
+    _work_repo(opt, "big", [{"id": f"W-0000000{i}"} for i in range(3)])
+    _work_repo(opt, "mid", [{"id": "W-00000010"}, {"id": "W-00000011"}])
+    _work_repo(opt, "fabrik", [{"id": "W-00000020"}])
+    qd = _load(tmp_path, monkeypatch)
+    page = qd._repos_page(fresh=True)
+    picker = page.split('id="repo-pick"')[1].split("</select>")[0]
+    assert re.findall(r'<option value="([^"]+)"', picker) == ["fabrik", "big", "mid", "aaa"]
+    assert '"repo-pick"' in page.split("<script>")[1]  # the choice is kept in localStorage
+
+
+def test_a_repo_shows_only_remaining_work_grouped_by_owner(tmp_path, monkeypatch):
+    _work_repo(
+        _opt(),
+        "fabrik",
+        [
+            {"id": "W-0000000a", "owner": "zed", "title": "zed item"},
+            {"id": "W-0000000b", "owner": "", "title": "nobody's"},
+            {"id": "W-0000000c", "owner": "fleet", "status": "blocked", "title": "fleet item"},
+            {"id": "W-0000000d", "owner": "infra", "title": "infra item", "next": "x" * 400},
+            {"id": "W-0000000e", "owner": "operator", "status": "awaiting-operator", "kind": "decision"},
+            {"id": "W-0000000f", "owner": "infra", "status": "done", "title": "finished"},
+            {"id": "W-00000001", "owner": "infra", "status": "dropped", "title": "dropped one"},
+            {"id": "W-00000002", "owner": "infra", "title": "closed elsewhere"},
+        ],
+        closed=["W-00000002"],
+        claims={"W-0000000d": "infra"},
+    )
+    qd = _load(tmp_path, monkeypatch)
+    page = qd._repos_page(fresh=True)
+    for gone in ("W-0000000f", "W-00000001", "W-00000002"):
+        assert gone not in page, gone
+    heads = re.findall(r'<h3 class="owner">([^<]+)<', page)
+    assert [h.split(" ")[0] for h in heads] == ["infra", "fleet", "operator", "zed", "unassigned"]
+    infra = page.split('<h3 class="owner">infra')[1].split("</table>")[0]
+    assert "W-0000000d" in infra and "infra item" in infra and "claimed by infra" in infra
+    cell = re.search(r'title="x+">(x+…?)</td>', infra)
+    assert cell and len(cell.group(1)) == 160, cell  # the Next cell is capped at 160 characters
+    assert "blocked" in page.split('<h3 class="owner">fleet')[1].split("</table>")[0]
+
+
+def test_one_unreadable_repo_does_not_hide_the_others(tmp_path, monkeypatch):
+    _work_repo(_opt(), "fabrik", [{"id": "W-00000004", "title": "still listed"}])
+    _work_repo(_opt(), "nogit", [{"id": "W-00000005"}], git=False)
+    qd = _load(tmp_path, monkeypatch)
+    page = qd._repos_page(fresh=True)
+    assert "still listed" in page
+    nogit = page.split('data-repo="nogit"')[1].split('<div class="repo"')[0]
+    assert 'class="banner crit"' in nogit
+
+
+def test_item_text_is_escaped(tmp_path, monkeypatch):
+    _work_repo(_opt(), "fabrik", [{"id": "W-00000003", "title": "<script>x</script>"}])
+    qd = _load(tmp_path, monkeypatch)
+    page = qd._repos_page(fresh=True)
+    assert "<script>x</script>" not in page and "&lt;script&gt;x&lt;/script&gt;" in page
+
+
+def test_rows_run_awaiting_operator_first_then_priority_then_id(tmp_path, monkeypatch):
+    _work_repo(
+        _opt(),
+        "fabrik",
+        [
+            {"id": "W-000000c1", "owner": "infra", "priority": 1},
+            {"id": "W-000000a3", "owner": "infra", "priority": 3},
+            {"id": "W-000000b2", "owner": "infra", "priority": 1},
+            {"id": "W-000000d9", "owner": "infra", "priority": 3, "status": "awaiting-operator"},
+        ],
+    )
+    qd = _load(tmp_path, monkeypatch)
+    page = qd._repos_page(fresh=True)
+    assert re.findall(r"<code>(W-[0-9a-f]+)</code>", page) == [
+        "W-000000d9", "W-000000b2", "W-000000c1", "W-000000a3"
+    ]
+
+
+def test_a_malformed_item_or_a_file_store_stays_inside_its_repo(tmp_path, monkeypatch):
+    opt = _opt()
+    _work_repo(opt, "fabrik", [{"id": "W-00000006", "title": "still listed"}])
+    bad = _work_repo(opt, "bad", [{"id": "W-00000007"}])
+    item = bad / ".fabrik" / "work" / "W-00000007.json"
+    item.write_text(json.dumps({**json.loads(item.read_text()), "priority": {"x": 1}, "tags": 5}))
+    (opt / "flat" / ".fabrik").mkdir(parents=True)
+    (opt / "flat" / ".fabrik" / "work").write_text("not a dir")
+    (opt / "alias").symlink_to(opt / "fabrik")
+    qd = _load(tmp_path, monkeypatch)
+    real = qd._repo_pane
+
+    def pane(r, shown):  # one repo's rendering blows up; only that repo may show it
+        if r["name"] == "bad":
+            raise ValueError("bad item")
+        return real(r, shown)
+
+    monkeypatch.setattr(qd, "_repo_pane", pane)
+    page = qd._repos_page(fresh=True)
+    assert "still listed" in page
+    bad_pane = page.split('data-repo="bad"')[1].split('<div class="repo"')[0]
+    assert 'class="banner crit"' in bad_pane and "bad item" in bad_pane
+    flat = page.split('data-repo="flat"')[1].split('<div class="repo"')[0]
+    assert 'class="banner crit"' in flat and "not a directory" in flat
+    names = re.findall(r'<option value="([^"]+)"', page)
+    assert sorted(names) == ["bad", "fabrik", "flat"]  # the symlinked alias is not listed twice
+
+
+def test_the_page_scripts_keep_health_checks_and_never_build_a_selector(tmp_path, monkeypatch):
+    _work_repo(_opt(), "fabrik", [{"id": "W-00000008"}])
+    qd = _load(tmp_path, monkeypatch)
+    main = qd.render(_payload(), time.time())
+    js = main.split("<script>")[-1]
+    # the health check still runs on Repos; only the reload is deferred until another tab opens
+    assert js.index('fetch("/health"') < js.index("reloadDue = true")
+    assert "if (reloadDue && name !== \"repos\") { location.reload(); return; }" in js
+    page = qd._repos_page(fresh=True)
+    assert "querySelector('option" not in page and 'o.value === want' in page
+    assert 'href="/repos.html?fresh=1"' in page
+
+
+def test_only_an_exact_fresh_1_bypasses_the_repos_cache(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    assert qd._wants_fresh("/repos.html?fresh=1") and qd._wants_fresh("/repos.html?x=y&fresh=1")
+    for path in ("/repos.html", "/repos.html?fresh=10", "/repos.html?fresh=0", "/repos.html?xfresh=1"):
+        assert not qd._wants_fresh(path), path
+
+
+def test_the_repos_route_passes_fresh_through_to_the_page(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    seen: list[bool] = []
+    monkeypatch.setattr(qd, "_repos_page", lambda fresh=False: (seen.append(fresh), "<p>ok</p>")[1])
+    httpd, base = _serve(qd)
+    try:
+        for path in ("/repos.html", "/repos.html?fresh=1"):
+            with urllib.request.urlopen(base + path, timeout=10) as r:
+                assert r.status == 200 and r.read() == b"<p>ok</p>"
+    finally:
+        httpd.shutdown()
+    assert seen == [False, True]

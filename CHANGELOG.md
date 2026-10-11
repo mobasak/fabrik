@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the quota board's first tab, Repos: every repo's remaining work by owner (2026-10-11)
+- Operator ask: "a tab should come first named repos. in it i want to be able to select different repos start with fabrik first." `scripts/sysadmin/quota_dashboard.py` gains `/repos.html` and a first, default **Repos** tab: a repo selector (fabrik first, then by remaining count) and, per repo, one table per owner (hub agents and operator first, unassigned last) of every open, blocked or awaiting-operator item with its next step, tags and live claim. "Remaining" is `work.py`'s own rule, imported by path; the page is built on request under its own lock and 20 s cache, never inside the probe loop, so no work store can delay the rotation trigger. Quota moves to `#quota`, and the page's 20 s reload pauses while Repos is open.
+
 ### Changed — /fabrik-data-contract: an approved spec naming the delta confirms a re-freeze (2026-10-09)
 - Phase 0: a FROZEN contract's re-freeze STOP is satisfied by a spec whose approval row (the panel's `→ both-approve` or the operator's approving answer) is in `docs/DECISIONS.md` and whose § Contract deltas (a `Profile: delta` spec's section) names the change; anything else still stops. Phase 3 gains check 5, which re-checks the deltas before the Phase-4 flip (D-730, decided by the Opus + Fable panel).
 

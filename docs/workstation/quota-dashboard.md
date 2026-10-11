@@ -5,7 +5,9 @@ Claude account's session (5h) and weekly headroom, reset times, the active point
 warnings. It is a VIEW over `claude_rotate.py --status --json`; it owns no state, decides
 nothing, and never touches a credential file.
 
-**Open it:** <http://localhost:5051/> (works from Windows too — WSL forwards loopback).
+**Open it:** <http://localhost:5051/> (works from Windows too — WSL forwards loopback). The bare URL
+opens the **Repos** tab (every repo's remaining work, § The Repos tab); the quota board itself is
+<http://localhost:5051/#quota>.
 
 Tool: `scripts/sysadmin/quota_dashboard.py` · Output: `~/.claude/quota-dashboard/`
 (`index.html` + `quota.json`) · Log: `~/.claude/quota-dashboard.log`
@@ -15,7 +17,9 @@ Tool: `scripts/sysadmin/quota_dashboard.py` · Output: `~/.claude/quota-dashboar
 **The server probes every `QUOTA_DASH_PROBE_INTERVAL_S` (default 20s) whether or not a page is open**, on a
 thread `serve()` starts (`_start_probe_loop`), and after every probe hands the fresh payload to the
 rotation trigger (below). The page's health-gated reloader re-fetches every `QUOTA_DASH_REFRESH_S`
-(default 20s), so what you see is at most ~20s old. The on-view floor (`QUOTA_DASH_MAX_AGE_S`, now 20s)
+(default 20s), so what you see on the Quota tab is at most ~20s old (while the Repos tab is open the
+reload waits and is taken the moment you switch to another tab, so the quota figures you switch to
+are never older than one cycle). The on-view floor (`QUOTA_DASH_MAX_AGE_S`, now 20s)
 remains only as the fallback for a view that lands before the first loop iteration: the operator wants the board — and the rotation decision it feeds — current at 20s granularity, and a few usage probes every 20s is the price.
 
 **The rotation trigger — the fast path to a flip.** After each probe, if the ACTIVE account's 5h window is
@@ -152,9 +156,32 @@ Three properties worth knowing:
 - **Unknown is silence.** No key, or an unreachable endpoint with no cached balance, renders nothing
   and alerts nothing. A box without the pool configured looks exactly as it did before.
 
+### The Repos tab (first, the default)
+
+**Repos** (operator ask 2026-10-11) is the remaining work of every repo on the box: each repo under
+`FABRIK_OPT_DIR` (the `/opt` seam, default `/opt`) that keeps a `.fabrik/work` store. Pick a repo in
+the selector — `fabrik` first, then repos by how much remains, then by name; the choice is kept in the
+browser's `localStorage` (`repo-pick`). For the chosen repo it prints a summary (remaining · awaiting
+the operator · blocked · claimed now · owners) and one table per owner — the hub's agents (`infra`,
+`fleet`, `intel`, `kaizen`) and `operator` first, other owners by name, `unassigned` last — with each
+item's id, kind, status, priority, title, next step (capped at 160 characters; the tooltip holds up to
+600), tags and live claim. Rows run awaiting-operator first, then by priority, then by id.
+
+"Remaining" is `work.py`'s own rule, never a copy: not `done`/`dropped` and not hidden by a closed
+marker (`_iter_items`, `_closed_ids`, `_live_claims`, imported by path under a private module name and
+re-imported when `work.py` changes). The tab is its own page, `/repos.html`, built on request and
+cached `QUOTA_DASH_REPOS_TTL_S` (20 s) under its own lock — never inside the probe loop, so a slow or
+broken store can neither stall the 20-second regeneration nor delay the rotation trigger. Every git
+call it makes is capped at 1 s; a repo that still fails to read shows its own red banner and the
+others list. The frame loads when the tab is shown. While Repos is open the page keeps its 20-second
+health check but defers the reload (it would reset the list's scroll) until you open another tab; the
+page's own **refresh** link (`/repos.html?fresh=1`) re-reads the stores at once, bypassing the cache.
+Tab hash:
+none (the bare URL); every other tab has its own (`#quota`, `#usage`, `#commands`, `#external`).
+
 ### The Commands tab
 
-The page has four tabs. **Quota** (default) is the board above. **Commands** lists every `/fabrik-*`
+The page has five tabs. **Repos** (default) is described above; **Quota** (`#quota`) is the board above it. **Commands** lists every `/fabrik-*`
 command in pipeline order — `#`, command, stage badge, purpose, when to use, skip when, next — and
 none of it is typed into the dashboard: each row is parsed live from the command's own frontmatter
 `description:` under `commands/_sources/` (purpose = the text before `TRIGGER —`; when = the
@@ -261,7 +288,7 @@ the row says which. A stale reading keeps the last good numbers and is badged `s
 `docs/reference/external-services-registry.md`). The board only SERVES that file on
 `/external-services.html` (byte-for-byte, never cached, 404 while it has not been generated) and shows
 it in a same-origin iframe whose `src` is set the first time the tab is opened, so the 20-second reload
-of the Quota tab never re-downloads it. The line above the frame stamps the file's age from its mtime —
+of another tab never re-downloads it. The line above the frame stamps the file's age from its mtime —
 the chain's liveness contract is "mtime ≤ 30 h", so a stale stamp here is the same signal
 `liveness_audit.py` raises. Override the file's location with `QUOTA_DASH_EXT_SERVICES`. Tab hash:
 `#external`.
@@ -273,6 +300,7 @@ the chain's liveness contract is "mtime ≤ 30 h", so a stale stamp here is the 
 | `/` | the dashboard (regenerates if the render is older than the floor) |
 | `/quota.json` | the raw `--status --json` payload behind the page |
 | `/health` | `ok` — liveness for the keepalive |
+| `/repos.html` | the Repos tab's page — every repo's remaining work, cached `QUOTA_DASH_REPOS_TTL_S`; `?fresh=1` re-reads the stores now |
 | `POST /switch` | body `{"account": "<slug>"}` + the `X-Quota-Dash` header → shells `claude_rotate.py --switch <slug>`, re-renders synchronously, answers `{ok, output}` (200); every outcome is one line in `~/.claude/quota-dashboard.log` (`POST /switch 'can' -> 200 in 3.2s: …`) — a click that "did not work" now leaves its trace · `{ok:false, error}` — 403 without the header, 400 for a slug the board's last payload does not list, 502 when the CLI refuses (its stderr is the error). The custom header is the CSRF story: a cross-origin page cannot add one without a preflight this server never answers |
 | `POST /park` | body `{"account": "<email>", "park": true|false}` + the same `X-Quota-Dash` header → shells `claude_rotate.py --park|--unpark <email>` and re-renders, with `/switch`'s contract: 403 without the header, 400 for an email the board's last payload does not list or a non-boolean `park`, 502 with the CLI's stderr on refusal. Same `QUOTA_DASH_SWITCH_TIMEOUT_S`, same log line (`POST /park …`) |
 
@@ -299,6 +327,7 @@ files and exit — useful for a scripted refresh without a browser).
 | Variable | Default | Purpose |
 |---|---|---|
 | `QUOTA_DASH_BUDGET` | `1` | `0` disables the box-budget banner above the commands table (it shells out to `dispatch_headroom.py`, which probes the fleet) — set in the test suite, never on the served board |
+| `QUOTA_DASH_REPOS_TTL_S` | `20` | how long `/repos.html` is served from cache before the work stores are read again |
 | `QUOTA_DASH_PORT` | `5051` | listen port (PORTS.md: WSL Python range) |
 | `QUOTA_DASH_HOST` | `127.0.0.1` | bind address — loopback by design |
 | `QUOTA_DASH_MAX_AGE_S` | `20` | regeneration floor (probe-volume bound) |

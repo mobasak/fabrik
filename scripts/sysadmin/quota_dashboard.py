@@ -2175,6 +2175,278 @@ def _ext_matrix_table(rows: list[dict]) -> str:
     )
 
 
+# ── Repos tab (operator ask 2026-10-11) ─────────────────────────────────────────────────────────
+# "a tab should come first named repos. in it i want to be able to select different repos start
+# with fabrik first." Every repo under FABRIK_OPT_DIR (the box's /opt seam, which tests/conftest.py
+# pins to an empty dir for every test) that keeps a `.fabrik/work` store, and its REMAINING work:
+# not done/dropped, not hidden by a closed marker. "Remaining" and "claimed" are work.py's own
+# rules, imported by path — a second copy of the closed-marker rule would drift from it.
+#
+# ISOLATION: this is its own page, GET /repos.html, built on request in the handler thread under
+# its own lock and cached REPOS_TTL_S. It never runs inside generate(), so a slow or broken store
+# can neither stall the 20 s probe loop nor delay the rotation trigger, and the main page never
+# carries the ~0.5 MB of rows. Every git call work.py makes here is capped at 1 s
+# (`_hook_git_budget`); a repo that still fails shows its own banner and the others list.
+_HUB_OWNERS = ("infra", "fleet", "intel", "kaizen", "operator")
+REPOS_TTL_S = float(os.getenv("QUOTA_DASH_REPOS_TTL_S", "20"))
+NEXT_CAP = 160  # `next` is the bulk of the rows (1.0 MB of 1.4 MB measured); the cell is capped
+NEXT_TIP_CAP = 600  # and so is its tooltip — an uncapped tooltip re-adds the whole MB (measured 1.69 MB)
+_repos_lock = threading.Lock()
+_repos_cache: tuple[float, str] | None = None
+_work_mod: tuple[float, object, list[str]] | None = None  # (work.py mtime, module, warnings sink)
+
+
+def _work_module():
+    """work.py under a PRIVATE module name (never sys.modules["work"], which tests/test_work.py
+    owns), re-imported when its mtime moves. Its `_warn` is rebound on this private object to a
+    list, never via redirect_stderr — that swaps the process-wide stderr of a threaded server."""
+    global _work_mod
+    import importlib.util
+
+    path = _FABRIK_ROOT / "scripts" / "work.py"
+    mtime = path.stat().st_mtime
+    if _work_mod is None or _work_mod[0] != mtime:
+        spec = importlib.util.spec_from_file_location("_quota_dash_work", path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"{path} cannot be loaded")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        sink: list[str] = []
+        mod._warn = sink.append
+        _work_mod = (mtime, mod, sink)
+    return _work_mod[1], _work_mod[2]
+
+
+def _opt_root() -> Path:
+    return Path(os.environ.get("FABRIK_OPT_DIR") or "/opt")
+
+
+def _collect_work(opt: Path) -> list[dict]:
+    """One entry per repo with a work store: {name, items, error, skipped}."""
+    wk, sink = _work_module()
+    out: list[dict] = []
+    with wk._hook_git_budget():
+        seen: set[Path] = set()
+        # real directories first, so a symlinked alias never takes a repo's own name
+        stores = sorted(opt.glob("*/.fabrik/work"), key=lambda p: (p.parent.parent.is_symlink(), p))
+        for store in stores:
+            repo = store.parent.parent.resolve()
+            if repo in seen:  # a symlink to a repo already listed would double every count
+                continue
+            seen.add(repo)
+            entry: dict = {"name": store.parent.parent.name, "items": [], "error": None}
+            del sink[:]
+            try:
+                if not store.is_dir():  # work.py reads a non-dir store as empty: an all-clear lie
+                    raise NotADirectoryError(f"{store} is not a directory")
+                items = list(wk._iter_items(repo))
+                closed = wk._closed_ids(repo)
+                claims = wk._live_claims(repo)
+                for it in items:
+                    if it.get("status") in wk.RESOLVED or it.get("id") in closed:
+                        continue
+                    claim = claims.get(it.get("id"))
+                    entry["items"].append(
+                        {
+                            **it,
+                            "_prio": wk._priority(it),
+                            "_claim": str(claim.get("agent") or "a session") if claim else "",
+                        }
+                    )
+            except Exception as exc:  # one repo's failure is that repo's banner, never the page's
+                entry["error"] = f"{type(exc).__name__}: {exc}"
+                entry["items"] = []
+            entry["skipped"] = list(sink)  # unreadable item, claim or closed-marker files
+            out.append(entry)
+    return out
+
+
+def _repo_order(repos: list[dict]) -> list[dict]:
+    """fabrik first, then by remaining count (desc), then by name."""
+    return sorted(repos, key=lambda r: (r["name"] != "fabrik", -len(r["items"]), r["name"]))
+
+
+def _owner_order(owners: set[str]) -> list[str]:
+    hub = [o for o in _HUB_OWNERS if o in owners]
+    rest = sorted(o for o in owners if o and o not in _HUB_OWNERS)
+    return hub + rest + ([""] if "" in owners else [])
+
+
+def _cap(text: str, n: int) -> str:
+    return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def _repo_pane(r: dict, shown: bool) -> str:
+    name = str(r["name"])
+    out = [f'<div class="repo" data-repo="{escape(name)}"{"" if shown else " hidden"}>']
+    if r["error"]:
+        out.append(
+            f'<div class="banner crit">{escape(name)}: the work store could not be read — '
+            f"{escape(r['error'])}</div></div>"
+        )
+        return "".join(out)
+    if r.get("skipped"):
+        named = "; ".join(escape(str(w)) for w in r["skipped"][:3])
+        more = f" (+{len(r['skipped']) - 3} more)" if len(r["skipped"]) > 3 else ""
+        out.append(
+            f'<div class="banner warn">{len(r["skipped"])} unreadable work-store file(s) skipped '
+            f"— an item, claim or closed marker: {named}{more}</div>"
+        )
+    items = r["items"]
+    if not items:
+        out.append('<p class="intro">No remaining work in this repo.</p></div>')
+        return "".join(out)
+    count = lambda st: sum(1 for i in items if i.get("status") == st)  # noqa: E731
+    claimed = sum(1 for i in items if i.get("_claim"))
+    groups: dict[str, list[dict]] = {}
+    for it in items:
+        groups.setdefault(str(it.get("owner") or ""), []).append(it)
+    out.append(
+        f'<p class="intro"><strong>{len(items)}</strong> remaining · '
+        f"{count('awaiting-operator')} awaiting the operator · {count('blocked')} blocked · "
+        f"{claimed} claimed now · {len(groups)} owner(s)</p>"
+    )
+    for owner in _owner_order(set(groups)):
+        rows = sorted(
+            groups[owner],
+            key=lambda i: (i.get("status") != "awaiting-operator", i["_prio"], str(i.get("id"))),
+        )
+        out.append(f'<h3 class="owner">{escape(owner or "unassigned")} <span>{len(rows)}</span></h3>')
+        body = []
+        for i in rows:
+            nxt = str(i.get("next") or "")
+            raw = i.get("tags") or []
+            tags = ", ".join(str(t) for t in (raw if isinstance(raw, list) else [raw]) if t)
+            body.append(
+                "<tr>"
+                f"<td><code>{escape(str(i.get('id', '')))}</code></td>"
+                f"<td>{escape(str(i.get('kind', '')))}</td>"
+                f'<td class="st-{escape(str(i.get("status", "")))}">{escape(str(i.get("status", "")))}</td>'
+                f"<td>P{i['_prio']}</td>"
+                f"<td>{escape(str(i.get('title', '')))}</td>"
+                f'<td title="{escape(_cap(nxt, NEXT_TIP_CAP))}">{escape(_cap(nxt, NEXT_CAP))}</td>'
+                f"<td>{escape(tags)}</td>"
+                f"<td>{('claimed by ' + escape(i['_claim'])) if i.get('_claim') else ''}</td>"
+                "</tr>"
+            )
+        out.append(
+            '<table><thead><tr><th>Item</th><th>Kind</th><th>Status</th><th>P</th>'
+            "<th>Title</th><th>Next</th><th>Tags</th><th>Claim</th></tr></thead>"
+            f"<tbody>{''.join(body)}</tbody></table>"
+        )
+    out.append("</div>")
+    return "".join(out)
+
+
+_REPOS_STYLE = """
+ :root { color-scheme: light dark;
+   --bg:#f6f7f9; --card:#fff; --fg:#14161a; --sub:#666e7a; --line:#e3e6ea;
+   --warn:#c47f14; --crit:#c8402f; --accent:#3b6fd4; }
+ @media (prefers-color-scheme: dark) { :root {
+   --bg:#0f1216; --card:#171b21; --fg:#e8ecf1; --sub:#98a1ae; --line:#242a33;
+   --warn:#e8b04b; --crit:#ff6b57; --accent:#6f9bff; } }
+ * { box-sizing:border-box; }
+ body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
+   font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+ .bar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:12px; }
+ .bar select { font:inherit; padding:6px 10px; border-radius:8px; border:1px solid var(--line);
+   background:var(--card); color:var(--fg); min-width:16rem; }
+ .bar a, .stamp { color:var(--sub); font-size:13px; }
+ .intro { color:var(--sub); margin:6px 0 12px; }
+ .banner { padding:10px 14px; border-radius:8px; margin-bottom:12px; }
+ .banner.warn { background:color-mix(in srgb, var(--warn) 16%, transparent); border:1px solid var(--warn); }
+ .banner.crit { background:color-mix(in srgb, var(--crit) 16%, transparent); border:1px solid var(--crit); }
+ h3.owner { margin:20px 0 8px; font-size:15px; }
+ h3.owner span { color:var(--sub); font-weight:400; }
+ table { width:100%; border-collapse:separate; border-spacing:0; background:var(--card);
+   border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+ th, td { padding:8px 10px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); }
+ thead th { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--sub); }
+ tbody tr:last-child td { border-bottom:none; }
+ td code { white-space:nowrap; }
+ td.st-awaiting-operator { color:var(--warn); font-weight:600; }
+ td.st-blocked { color:var(--crit); }
+"""
+
+
+def _safe_pane(r: dict, shown: bool) -> str:
+    """One repo's pane; a malformed item in it becomes that repo's banner, never the page's."""
+    try:
+        return _repo_pane(r, shown)
+    except Exception as exc:
+        name = escape(str(r.get("name", "?")))
+        return (
+            f'<div class="repo" data-repo="{name}"{"" if shown else " hidden"}>'
+            f'<div class="banner crit">{name}: an item could not be rendered — '
+            f"{escape(type(exc).__name__)}: {escape(str(exc))}</div></div>"
+        )
+
+
+def _repos_body() -> str:
+    try:
+        repos = _repo_order(_collect_work(_opt_root()))
+    except Exception as exc:  # the whole read failed: say so here; the quota board is untouched
+        return (
+            f'<div class="banner crit">Work stores unreadable — {escape(type(exc).__name__)}: '
+            f"{escape(str(exc))}</div>"
+        )
+    if not repos:
+        return (
+            f'<p class="intro">No repo under {escape(str(_opt_root()))} keeps a '
+            "<code>.fabrik/work</code> store.</p>"
+        )
+    total = sum(len(r["items"]) for r in repos)
+    opts = "".join(
+        f'<option value="{escape(str(r["name"]))}">{escape(str(r["name"]))} ({len(r["items"])})</option>'
+        for r in repos
+    )
+    panes = "".join(_safe_pane(r, i == 0) for i, r in enumerate(repos))
+    return (
+        f'<div class="bar"><label>Repo <select id="repo-pick">{opts}</select></label>'
+        f'<a href="/repos.html?fresh=1">refresh</a></div>'
+        f'<p class="intro">{len(repos)} repos keep a <code>.fabrik/work</code> store · {total} '
+        "remaining items in all of them (open, blocked or awaiting the operator; done and dropped "
+        "are not shown) · grouped by owner, the hub's agents first.</p>"
+        f"{panes}"
+    )
+
+
+def _wants_fresh(request_path: str) -> bool:
+    """`/repos.html?fresh=1` (the page's refresh link) bypasses the cache; exactly `fresh=1`."""
+    query = request_path.split("?", 1)[1] if "?" in request_path else ""
+    return "fresh=1" in query.split("&")
+
+
+def _repos_page(fresh: bool = False) -> str:
+    """The /repos.html page, cached REPOS_TTL_S, built under its own lock."""
+    global _repos_cache
+    with _repos_lock:
+        now = time.time()
+        if not fresh and _repos_cache and now - _repos_cache[0] < REPOS_TTL_S:
+            return _repos_cache[1]
+        stamp = datetime.fromtimestamp(now).astimezone().strftime("%H:%M:%S")
+        page = (
+            '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f"<title>Repos — remaining work</title><style>{_REPOS_STYLE}</style></head><body>"
+            f'<div class="stamp">read {escape(stamp)} · cached {int(REPOS_TTL_S)}s</div>'
+            f"{_repos_body()}"
+            "<script>(function () {"
+            ' var pick = document.getElementById("repo-pick"); if (!pick) { return; }'
+            " function show(name) { document.querySelectorAll(\"div.repo\").forEach(function (d) {"
+            ' d.hidden = d.getAttribute("data-repo") !== name; }); }'
+            ' var want = null; try { want = localStorage.getItem("repo-pick"); } catch (e) {}'
+            " var known = Array.prototype.some.call(pick.options, function (o) { return o.value === want; });"
+            " if (!want || !known) { want = pick.options[0].value; }"
+            " pick.value = want; show(want);"
+            ' pick.addEventListener("change", function () { show(pick.value);'
+            '  try { localStorage.setItem("repo-pick", pick.value); } catch (e) {} });'
+            "})();</script></body></html>"
+        )
+        _repos_cache = (now, page)
+        return page
+
+
 def render(
     payload: dict, generated_at: float, error: str | None = None, credits: dict | None = None
 ) -> str:
@@ -2362,8 +2634,11 @@ def render(
   <div class="stamp">updated {escape(gen)} · refreshes every {REFRESH_S}s ·
     <span id="conn">live</span></div>
 </header>
-<nav class="tabs" role="tablist"><button type="button" class="tab is-on" data-tab="quota">Quota</button><button type="button" class="tab" data-tab="usage">Usage</button><button type="button" class="tab" data-tab="commands">Commands</button><button type="button" class="tab" data-tab="external">External services</button></nav>
-<section id="pane-quota" class="pane">
+<nav class="tabs" role="tablist"><button type="button" class="tab is-on" data-tab="repos">Repos</button><button type="button" class="tab" data-tab="quota">Quota</button><button type="button" class="tab" data-tab="usage">Usage</button><button type="button" class="tab" data-tab="commands">Commands</button><button type="button" class="tab" data-tab="external">External services</button></nav>
+<section id="pane-repos" class="pane">
+<iframe id="repos-frame" title="Repos — remaining work" data-src="/repos.html" style="width:100%;min-height:85vh;border:1px solid var(--line);border-radius:12px;background:var(--card)"></iframe>
+</section>
+<section id="pane-quota" class="pane" hidden>
 {banner}
 {gov_html}
 {credits_html}
@@ -2406,23 +2681,34 @@ every session bound to the pointer follows it — no restart.</footer>
   function showTab(name) {{
     tabs.forEach(function (b) {{ b.classList.toggle("is-on", b.getAttribute("data-tab") === name); }});
     document.querySelectorAll("section.pane").forEach(function (p) {{ p.hidden = (p.id !== "pane-" + name); }});
-    var fr = document.getElementById("ext-frame");
-    if (name === "external" && fr && !fr.getAttribute("src")) {{ fr.setAttribute("src", fr.getAttribute("data-src")); }}
+    // a frame loads only when its tab is shown: a src would re-fetch it on every 20s reload
+    var fr = document.getElementById(name === "repos" ? "repos-frame" : name === "external" ? "ext-frame" : "");
+    if (fr && !fr.getAttribute("src")) {{ fr.setAttribute("src", fr.getAttribute("data-src")); }}
   }}
+  var reloadDue = false;
   tabs.forEach(function (b) {{ b.addEventListener("click", function () {{
     var name = b.getAttribute("data-tab");
-    if (history.replaceState) {{ history.replaceState(null, "", name === "quota" ? location.pathname : "#" + name); }}
+    if (history.replaceState) {{ history.replaceState(null, "", name === "repos" ? location.pathname : "#" + name); }}
+    if (reloadDue && name !== "repos") {{ location.reload(); return; }}
     showTab(name);
   }}); }});
   // GENERIC restore. This used to name "commands" and "external" literally, so every tab added
   // later fell through to quota on the {REFRESH_S}s auto-reload — the page would silently jump
   // off whatever you were reading. Any pane that exists is now restorable by its own hash.
   var want = (location.hash || "").replace("#", "");
-  showTab(want && document.getElementById("pane-" + want) ? want : "quota");
+  showTab(want && document.getElementById("pane-" + want) ? want : "repos");
   var conn = document.getElementById("conn");
   setInterval(function () {{
     fetch("/health", {{cache: "no-store"}})
-      .then(function (r) {{ if (r.ok) location.reload(); }})
+      .then(function (r) {{
+        if (!r.ok) {{ return; }}
+        if (conn) {{ conn.textContent = "live"; }}
+        // On Repos a reload would reset the frame's scroll; remember it is due and take it the
+        // moment another tab is opened, so Quota never shows figures older than one cycle.
+        var on = document.querySelector("nav.tabs button.is-on");
+        if (on && on.getAttribute("data-tab") === "repos") {{ reloadDue = true; return; }}
+        location.reload();
+      }})
       .catch(function () {{
         if (conn) {{ conn.textContent = "server unreachable — retrying"; }}
       }});
@@ -2907,6 +3193,9 @@ class _Handler(BaseHTTPRequestHandler):
             ctype = "application/json"
         elif path == "/health":
             body, ctype = b"ok", "text/plain"
+        elif path == "/repos.html":
+            body = _repos_page(fresh=_wants_fresh(self.path)).encode("utf-8")
+            ctype = "text/html; charset=utf-8"
         elif path == "/external-services.html":
             # Only a regular `.html` file is ever served — the env override is the operator's own
             # process env on a 127.0.0.1-only server (single-operator threat model), but a symlink
