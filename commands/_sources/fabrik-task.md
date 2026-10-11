@@ -181,8 +181,8 @@ never refused. *(v2)* a path missing from APPROACH/MIRROR/an amendment REFUSES `
 rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, never refusing a
 sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff`
 too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)):
-after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <declared paths> --scope <slug> --range
-<base>..<that sha>` (a re-tip after a fix commit takes a new `--scope`), then commit the receipt — never captured or
+after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
+--range <base>..<that sha>` (a re-tip after a fix commit takes a new `--scope`), then commit the receipt — never captured or
 passed to `--commit`. When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names it.
 
 ## UPGRADE — the one-way ratchet, available from phase 1

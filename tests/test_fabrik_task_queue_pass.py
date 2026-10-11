@@ -81,7 +81,7 @@ def test_the_receipt_range_tip_is_the_last_commit() -> None:
     assert "Its range tip must be the LAST `--commit` (`task_lane.py` check (d))" in close
     assert "never captured or passed to `--commit`" in close
     # review_receipt.py requires --changed and --out/--scope; the tip is the last captured sha (round 1).
-    assert "--changed <declared paths> --scope <slug> --range <base>..<that sha>" in close
+    assert "--changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>" in close
     assert "after the last sha in `commit.sha`" in close
 
 
