@@ -166,7 +166,7 @@ can you name a second approach whose merits the build cannot settle (an equivale
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
 an UPGRADE, which would strand the run. A decision the review changes is re-drafted into the D-row with the drift
 noted. The review is sized before dispatch — the callers a fix may touch counted, the quota runway read; seats
-create nothing outside scratch (an installed corpus included), where the nested review keeps its resume artifacts (round args, pin dir). Under
+create nothing outside scratch (an installed corpus included), where the nested review keeps its resume artifacts (the workflow `args` — pass, ledger — and the pin dir). Under
 the urgent-90 CHECKPOINT the record stays open, *(v2)* the build is committed through phase 5 step 5's
 capture line (v1 keeps it uncommitted), and the review is sized to the runway.
 
@@ -200,7 +200,7 @@ rule and remedy); `blocked`/`handoff` record it as `oversized_mini` instead, nev
 sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff`
 too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)):
 after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
---range <base>..<that sha>` — the Surface line it writes is what check (d) reads (a re-tip after a fix commit takes a new `--scope`), run the full `/fabrik-review` into it until `Status: CONVERGED`, then commit that receipt alone
+--range <base>..<that sha>` — the Surface line it writes is what check (d) reads (a re-tip after a fix commit takes a new `--scope`), run the full `/fabrik-review` into it (skipping its own `--init`) until `Status: CONVERGED`, then commit that receipt alone
 (outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`. When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a
 terminal it changed was restated with `--terminal-amend` before `--design`.
 
@@ -212,7 +212,7 @@ D-row names it — D-315) —
 **first materialises the seed** (the
 phase-2 `design.md` plus a `## RESUME` block naming the test crossed; before the design exists, that
 block alone, naming phase 1's `measure.md`), then closes; a critique returning after the handoff is appended to
-that seed file and to the `resume_copy` path `handoff` printed. ⚠️ **`UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it** —
+that seed file, and to the D-row when it must outlive the session (never to the `resume_copy`). ⚠️ **`UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it** —
 lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` (v1 and v2) · *(v2)*
 `contract` · `new-source` · `behaviours` · `appetite`, then a dash and the detail. Nothing
 downgrades mid-run:

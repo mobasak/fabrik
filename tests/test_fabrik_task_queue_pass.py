@@ -113,7 +113,7 @@ def test_second_pass_names_the_specific_steps_in_their_phases() -> None:
     phase4 = _section("## Phase 4", "## Phase 5")
     assert "The review is sized before dispatch — the callers a fix may touch counted, the quota runway read" in phase4
     close = _section("## Phase 5", "## UPGRADE")
-    assert "run the full `/fabrik-review` into it until `Status: CONVERGED`, then commit that receipt alone" in close
+    assert "run the full `/fabrik-review` into it (skipping its own `--init`) until `Status: CONVERGED`" in close
     assert "`--evidence` names the split; a terminal it changed was restated with `--terminal-amend`" in close
     upgrade = _norm(SRC)[_norm(SRC).index("## UPGRADE"):]
-    assert "appended to that seed file and to the `resume_copy` path `handoff` printed" in upgrade
+    assert "appended to that seed file, and to the D-row when it must outlive the session" in upgrade
