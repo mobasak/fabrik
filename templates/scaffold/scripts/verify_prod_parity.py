@@ -28,6 +28,7 @@ the deployed service is written `UNVERIFIABLE (mutating — needs a scoped paylo
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import re
@@ -96,21 +97,107 @@ def parse_header(path: Path | None = None) -> dict[str, str]:
     return {**m.groupdict(), "parsed": "true"}
 
 
-def _health_probe() -> Any | None:
-    """The vendored `libs/health_probe` module, or None when it is not (yet) vendored here.
+def _comparator_root() -> tuple[Path | None, Path, Path, str | None]:
+    """Where the vendored comparator is loaded from — the PRECEDENCE the runner's recipes rely on
+    (W-82cff1ac): (1) this script's own clone when `<clone>/libs/health_probe/health_probe.py` exists
+    (the documented `python scripts/verify_prod_parity.py` run, and the container leg's `/app`);
+    (2) a FLAT `health_probe/` copy BESIDE the script — where `/fabrik-deploy-verify`'s host leg stages
+    it (`scp -r libs/health_probe <vps>:/tmp/health_probe` next to `/tmp/verify_prod_parity.py`, the
+    script run from `/tmp` with cwd `/opt/<project>`, whose checkout never holds the gitignored
+    comparator) — accepted only when that directory AND the module file are owned by this user and writable by nobody
+    else (a shared `/tmp` lets another local user plant a directory, or write one file in yours); (3) neither → None, and the stub fails closed
+    with its message and its `.env` location unchanged. The marker is the MODULE the loader needs,
+    never the directory (an empty or `__pycache__`-only leftover does not qualify). Never the cwd — a
+    hub-cwd run would load the hub's module under the project's row names — and never an environment
+    knob. The module is loaded BY FILE PATH (`importlib.util.spec_from_file_location`), never by a
+    `sys.path` name lookup, so neither an installed distribution named `health_probe` nor a stray
+    module earlier on `sys.path` can stand in for the staged copy.
 
-    Run as documented (`python scripts/verify_prod_parity.py …`) `sys.path[0]` is `scripts/`, not the
-    project root, so `libs` is invisible unless the root is put back first (review 2026-09-02: the
-    precondition row read UNVERIFIABLE on every vendored project, masked by a PYTHONPATH-injecting rig)."""
-    root = str(Path(__file__).resolve().parent.parent)
-    if root not in sys.path:
-        sys.path.insert(0, root)
-    try:
-        from libs.health_probe import (
-            health_probe,  # noqa: PLC0415 — lazy on purpose (see module doc)
+    Returns (the module path chosen or None, the clone path looked for, the beside path looked for,
+    and why a present beside copy was refused, or None)."""
+    here = Path(__file__).resolve().parent
+    clone = here.parent
+    in_clone = clone / "libs" / "health_probe" / "health_probe.py"
+    beside = here / "health_probe" / "health_probe.py"
+    if in_clone.is_file():
+        return in_clone, in_clone, beside, None
+    if beside.is_file():
+        for node, what in (
+            (beside.parent, "the staged copy's directory"),
+            (beside, "the staged copy"),
+        ):
+            st = node.stat()
+            if st.st_uid != os.geteuid():
+                return None, in_clone, beside, f"{what} is not owned by this user"
+            if st.st_mode & 0o022:
+                return None, in_clone, beside, f"{what} is writable by others"
+        return beside, in_clone, beside, None
+    return None, in_clone, beside, None
+
+
+_COMPARATOR: tuple[Any | None, str | None] | None = (
+    None  # (module, failure) — resolved ONCE per process
+)
+
+
+def _load_comparator() -> tuple[Any | None, str | None]:
+    """The vendored comparator module, or (None, why). Resolved once per process (a run serves one
+    project; the row runner calls `_health_probe()` per row). A chosen file that fails to import or
+    lacks the vendored API is reported as FOUND BUT UNUSABLE, never as 'not vendored'."""
+    global _COMPARATOR
+    if _COMPARATOR is not None:
+        return _COMPARATOR
+    chosen, in_clone, beside, refused = _comparator_root()
+    if chosen is None:
+        why = (
+            f"health_probe not vendored — looked for {in_clone} and {beside}"
+            + (f" ({refused})" if refused else "")
+            + "; vendor libs/health_probe or stage it beside the script"
         )
-    except ImportError:
+        _COMPARATOR = (None, why)
+        return _COMPARATOR
+    try:
+        spec = importlib.util.spec_from_file_location("_parity_health_probe", chosen)
+        if spec is None or spec.loader is None:
+            raise ImportError("no loader for the module path")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+    except Exception as exc:  # noqa: BLE001 — a syntax error or a missing dependency is a row detail, never a crash
+        sys.modules.pop("_parity_health_probe", None)
+        _COMPARATOR = (
+            None,
+            f"health_probe found at {chosen} but unusable ({type(exc).__name__}: {exc})",
+        )
+        return _COMPARATOR
+    if not callable(getattr(module, "compare", None)):
+        _COMPARATOR = (
+            None,
+            f"health_probe found at {chosen} but unusable (not the vendored comparator: no compare())",
+        )
+        return _COMPARATOR
+    _COMPARATOR = (module, None)
+    return _COMPARATOR
+
+
+def _not_vendored_detail() -> str:
+    _, why = _load_comparator()
+    return why or "health_probe unavailable"
+
+
+def _health_probe() -> Any | None:
+    """The vendored `libs/health_probe` module, or None when it is not (yet) usable here.
+
+    `_comparator_root()` picks the module file by its stated precedence and `_load_comparator()` loads
+    it by path once per process (review 2026-09-02: the precondition row read UNVERIFIABLE on every
+    vendored project because the module was looked up by name from `scripts/`; review 2026-10-11: a
+    by-name import also let an installed or planted `health_probe` stand in for the staged copy). The
+    project `.env` is always the CLONE's, whichever rung supplied the module."""
+    health_probe, _ = _load_comparator()
+    if health_probe is None:
         return None
+    clone = Path(__file__).resolve().parent.parent
+    root = str(clone)
     # Since fabrik-lib cfd9215f importing the module no longer loads the project `.env`; rows that
     # read os.environ after this import relied on it, so load THIS project's `.env` here once, by
     # explicit path (its default search reads the cwd under `python -c`) — a real variable still
@@ -181,7 +268,7 @@ def compare_row(
     only `match` is invisible to an `expected AND actual` test; the vendored predicate is a disjunction)."""
     hp = _health_probe()
     if hp is None:
-        return unverifiable(system, "health_probe not vendored — run the fleet sync")
+        return unverifiable(system, _not_vendored_detail())
     row: dict[str, Any] = dict(hp.compare(system, expected, actual, comparator=comparator))
     return row
 
