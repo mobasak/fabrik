@@ -106,7 +106,8 @@ or name in the brief why the shape does not have it.
   claim, checked against the code lines it names; a count cites the command (with its range — the brief hands the seat
   that exact command) and the line that holds it, a measured count names its population, a closing brief names each
   figure's source and the record's own round trend, a live value is a timestamped snapshot; a code snippet in prose is
-  a checkable claim; an unverified hand-derived enumeration is deleted.
+  a checkable claim; an evidence block pastes the artifact's section whole and names the kept file (one that elides is
+  a claim, not evidence); an unverified hand-derived enumeration is deleted.
 - A site a round re-opened, a bullet wrong two rounds running, or a mechanism the fix added and a round broke, is
   rewritten or deleted whole, never patched again.
 
@@ -139,10 +140,11 @@ or name in the brief why the shape does not have it.
   never `resumeFromRunId`.
 - A round is recorded only after every candidate is read, each classed as a defect of THIS change, pre-existing or
   planned before it counts; `confirmed` counts DEFECTS, never checks passed, and a gate-caught defect counts; each
-  brief embeds its ledger text; a delta brief lists the exact mutant ids executed, reads a unified diff, and checks
-  ROUTED claims for routing only; a one-hop edit found mid-fix is named in the next brief; stale pre-existing text in
-  an edited file is RECORDED with a destination (term-coverage D4), or fixed in the same hunk and named — never
-  counted; the slice ledger is round 1's claim count even at zero confirmed.
+  brief embeds its ledger text; the closing-pass brief has every seat list each slice file it read, by path; a delta
+  brief lists the exact mutant ids executed, reads a unified diff, and checks ROUTED claims for routing only; a
+  one-hop edit found mid-fix is named in the next brief; stale pre-existing text in an edited file is RECORDED with a
+  destination (term-coverage D4), or fixed in the same hunk and named — never counted; the slice ledger is round 1's
+  claim count even at zero confirmed.
 - Lint or format findings are compared against HEAD — and against the committed diff, under every claimed toolchain
   version — before they are reported or refuted; tests re-run after the last lint fix; a refutation that a later
   commit lands is checked against the completion gate; read the callee before confirming a wrong-method finding; a
