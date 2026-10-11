@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — concurrent shells no longer break the pre-push gate (2026-10-11)
+- Every interactive shell ran a bare `pre-commit install -t pre-push`, which rewrites the hook in place; two shells starting together read each other's half-written file as foreign and left a `pre-push.legacy` copy, after which every push failed "installed in migration mode" (live on 2026-10-11; 16 of 20 trials with 8 concurrent installs). `scripts/install_pre_push_hook.sh` now installs it under one `flock` in the shared hooks dir, heals a self-copy or empty legacy (by pre-commit's own `# ID:` line), leaves a current hook untouched (an in-place rewrite briefly leaves an empty hook, which git runs as a pass), and reports a foreign legacy; `scripts/wsl_startup_hook.sh` calls it (W-cd77f476).
+
 ### Added — the quota board's first tab, Repos: every repo's remaining work by owner (2026-10-11)
 - Operator ask: "a tab should come first named repos. in it i want to be able to select different repos start with fabrik first." `scripts/sysadmin/quota_dashboard.py` gains `/repos.html` and a first, default **Repos** tab: a repo selector (fabrik first, then by remaining count) and, per repo, one table per owner (hub agents and operator first, unassigned last) of every open, blocked or awaiting-operator item with its next step, tags and live claim. "Remaining" is `work.py`'s own rule, imported by path; the page is built on request under its own lock and 20 s cache, never inside the probe loop, so no work store can delay the rotation trigger. Quota moves to `#quota`, and the page's 20 s reload pauses while Repos is open.
 

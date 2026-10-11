@@ -185,8 +185,19 @@ active enforcement.
 2. **A hook with no explicit `stages:` runs at EVERY stage, including pre-push.** Without `default_stages: [pre-commit]` a push fires the whole commit-blocker set *and* `governance-sync`, which writes into every project tree. Verified by executing
    `.git/hooks/pre-push` directly; `pre-commit run --hook-stage pre-push` does NOT reproduce it.
 
-**Install:** `.venv/bin/pre-commit install -t pre-push` (or a bare `pre-commit install`, now that
-`default_install_hook_types` covers pre-commit and pre-push — deliberately NOT post-commit, D-369). **A config stanza that is installed nowhere is not
+**Install:** `bash scripts/install_pre_push_hook.sh` — run by `wsl_startup_hook.sh` from every interactive
+shell, under one `flock` in the shared hooks dir (W-cd77f476). A bare `pre-commit install -t pre-push` rewrites
+the hook in place, so two shells starting together read each other's half-written file as foreign and moved it to
+`pre-push.legacy` — after which every push failed "installed in migration mode" (8 concurrent installs left one in
+16 of 20 trials) — and the rewrite itself leaves an empty hook for a moment, which git runs as a pass. The
+installer heals a legacy that is pre-commit's own script (its `# ID:` line) or empty, leaves a current hook
+untouched, skips when another shell holds the lock, and reports a FOREIGN legacy (exit 3, printed by the
+startup hook) because the gate then runs in migration mode. "Current" means pre-commit's own script (its
+`is_our_script`), executable (git silently skips a hook without `+x`), for the same interpreter and the pre-push
+stage. It refuses (exit 1) when `core.hooksPath` is set, exits 1 with a message when the install itself fails,
+and is a silent no-op when `.venv/bin/pre-commit` is missing. A bare `pre-commit install` typed by hand (it covers
+pre-commit and pre-push via `default_install_hook_types` — deliberately NOT post-commit, D-369) takes no lock;
+whatever it breaks, the next shell heals. **A config stanza that is installed nowhere is not
 enforcement** — this is wired in the hub only; the project repos have no local push gate.
 
 ## 5. Plain git hooks (NOT managed by pre-commit)
