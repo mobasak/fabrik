@@ -212,8 +212,7 @@ D-row names it — D-315) —
 **first materialises the seed** (the
 phase-2 `design.md` plus a `## RESUME` block naming the test crossed; before the design exists, that
 block alone, naming phase 1's `measure.md`), then closes; a critique returning after the handoff is appended to
-that seed file, and to the `/fabrik-spec` draft the seed opens when it must outlive the session (never to the
-`resume_copy`). ⚠️ **`UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it** —
+that seed file before `/fabrik-spec` opens from it (never to the `resume_copy`). ⚠️ **`UPGRADE:` must BEGIN the value, and the record takes the FIRST WHITESPACE TOKEN after it** —
 lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` (v1 and v2) · *(v2)*
 `contract` · `new-source` · `behaviours` · `appetite`, then a dash and the detail. Nothing
 downgrades mid-run:
