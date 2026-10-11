@@ -11,6 +11,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — a window's own `/clear` successor binds its agent name without `--force` (2026-10-12)
 - fleet's request (mail 01M4NVZJTM, D-736): `/clear` starts a new session id in the same `claude` process, and `whoami_agent.py --as <agent>` refused it because the window's own earlier row looked like a live holder. A row carrying this process's exact pid and start time (and agreeing with `CLAUDE_PID`) is now a predecessor, recorded on the new row with or without `--force`; a live foreign holder and a pre-start-time row still refuse (W-34cb1ef9, D-748). Stored pids are compared as ints, which also stops a start time stored as a string from reading a live holder as dead.
 
+### Added — the review probe catalogue answers the /fabrik-review-scoped queue (2026-10-12)
+- `commands/_fragments/review-probe-catalogue.md` collects the probes, hunt lines, grader, prose-fix, isolation and loop steps ~290 feedback rows asked for; /fabrik-review-scoped step 5 points at it by its hub path. The command's `command_run.py` citations are by symbol (the line numbers had drifted), and a guard's escape variants are asked from round 1 (D-751).
+
 ### Changed — /fabrik-task: the specific steps the first queue pass left open (2026-10-12)
 - MEASURE names its real paths (subprocess-driven tests, the gate's own command, fail-open callees, a concurrent reader, written-file hashes, an independent parser); MIRROR names its specific readers (key verbs, literal paths, record shapes, env-var and config hand-offs, allowlist buckets); the critique brief executes a claim per external dependency and adjudicates ACCEPTED concerns against the tests; the review is sized before dispatch; the receipt is CONVERGED alone and outside the one-commit rule (D-747).
 
