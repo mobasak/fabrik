@@ -329,8 +329,10 @@ def test_transcript_size_check_is_registered_on_user_prompt_submit(tmp_path, mon
     home = _home(tmp_path)
     monkeypatch.setenv("HOME", str(home))
     assert iuh.run([]) == 0
+    # the EXACT canonical command — a substring match would also accept a registration wrapped
+    # through user_hook_gate.py or pointing at another checkout (review 2026-10-11, wiring-docs-S1)
+    want = "python3 /opt/fabrik/scripts/sysadmin/transcript_size_check.py"
+    assert want in iuh.ENTRIES["UserPromptSubmit"]
     for f in (home / ".claude" / "settings.json", home / ".claude-fleet" / "can" / "settings.json"):
         got = _has(f)
-        assert any("transcript_size_check.py" in c for c in got.get("UserPromptSubmit", [])), (
-            f"{f}: {got}"
-        )
+        assert got.get("UserPromptSubmit", []).count(want) == 1, f"{f}: {got}"

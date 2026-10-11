@@ -327,8 +327,11 @@ Appetite: 90
   never per-prompt:** `~/.claude/state/rotate-advised/<session_id>` records the 100 MB step last
   advised; the line prints only when the size crosses a NEW step (200, 300, 400 …), so a window that
   does not rotate hears it once per 100 MB, not on every prompt — `install_user_hooks.py:37-42`
-  records why: the per-prompt shape was measured and rejected ("9 of 9 live sessions fired on EVERY
-  prompt … wallpaper is how enforcement dies", D-184/D-187).
+  records why: the bare per-prompt shape was measured and rejected for `scratch_sweep` ("9 of 9 live
+  sessions fired on EVERY prompt … wallpaper is how enforcement dies", D-184/D-187); the stamp is
+  this hook's counter-measure to that shape (its fire rate is bounded by steps, by construction),
+  not a repeat of that measurement. The read-compare-write runs under an `flock`, so two windows of
+  one session print a step once; an ambiguous registry join tags nothing (review 2026-10-11).
   Why 200: the extension crashed users at 467 MB (#23953) and loops past 2 GiB; a busy hub window
   grows ~25 MB/day (infra: 1,528 → 1,530 MB in a day of light use; the 2026-10-05 → 10-11 delta
   was ~170 MB), so 200 MB is roughly a week and keeps every window an order of magnitude under the

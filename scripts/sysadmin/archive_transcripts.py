@@ -247,6 +247,7 @@ def _as_int(v: object) -> int | None:
 
 
 def _json_rows(path: Path) -> list[dict]:
+    """A JSONL file's dict rows (the identity file); unreadable ⇒ []."""
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
@@ -262,18 +263,36 @@ def _json_rows(path: Path) -> list[dict]:
     return out
 
 
+def _json_doc(path: Path) -> dict | None:
+    """ONE JSON document (a `<pid>.json` registry entry) — pretty-printed or not; unreadable ⇒ None."""
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError):
+        return None
+    return d if isinstance(d, dict) else None
+
+
+def _at(r: dict) -> int:
+    """A row's `at` for ordering: a missing or unparsable value ranks BELOW an explicit 0."""
+    at = _as_int(r.get("at"))
+    return -1 if at is None else at
+
+
 def agent_map(identity: Path, sessions: Path) -> dict[str, str]:
     """session_id → agent name: the latest identity row per session id, then the registry join.
 
     The join: a `<pid>.json` entry's `sessionId` is tagged with the name of the identity row whose
     `(pid, pid_start)` equals the entry's `(pid, procStart)` AS INTEGERS — the registry stores
-    `procStart` as a JSON string, `whoami_agent._pid_start` writes an int. Read-only: this never
-    writes the identity file. Unreadable or absent inputs ⇒ fewer tags, never an error."""
+    `procStart` as a JSON string, `whoami_agent._pid_start` writes an int. An AMBIGUOUS join — two
+    registry entries for one session id resolving to different names — tags nothing (review
+    2026-10-11, archiver-S1). Equal `at` → the later row wins, as `whoami_agent.resolve_agent_name`
+    reads; a missing `at` ranks below an explicit 0 (archiver-S5). Read-only: this never writes the
+    identity file. Unreadable or absent inputs ⇒ fewer tags, never an error."""
     rows = [r for r in _json_rows(identity) if _NAME_RE.fullmatch(str(r.get("name") or ""))]
     by_sid: dict[str, tuple[int, str]] = {}
     by_proc: dict[tuple[int, int], tuple[int, str]] = {}
     for r in rows:
-        at = _as_int(r.get("at")) or 0
+        at = _at(r)
         sid = str(r.get("session_id") or "")
         if sid and (sid not in by_sid or at >= by_sid[sid][0]):
             by_sid[sid] = (at, str(r["name"]))
@@ -287,14 +306,20 @@ def agent_map(identity: Path, sessions: Path) -> dict[str, str]:
         entries = sorted(sessions.glob("*.json"))
     except OSError:
         entries = []
+    joined: dict[str, set[str]] = {}
     for entry in entries:
-        for e in _json_rows(entry)[:1] if entry.suffix == ".json" else []:
-            sid = str(e.get("sessionId") or "")
-            if not sid or sid in out:
-                continue
-            pid, start = _as_int(e.get("pid")), _as_int(e.get("procStart"))
-            if pid is not None and start is not None and (pid, start) in by_proc:
-                out[sid] = by_proc[(pid, start)][1]
+        e = _json_doc(entry)
+        if not e:
+            continue
+        sid = str(e.get("sessionId") or "")
+        if not sid or sid in out:
+            continue
+        pid, start = _as_int(e.get("pid")), _as_int(e.get("procStart"))
+        if pid is not None and start is not None and (pid, start) in by_proc:
+            joined.setdefault(sid, set()).add(by_proc[(pid, start)][1])
+    for sid, names in joined.items():
+        if len(names) == 1:
+            out[sid] = names.pop()
     return out
 
 
@@ -312,9 +337,10 @@ def list_agent(manifest: Path, name: str, projects: Path) -> list[str]:
     rows.sort(key=lambda r: str(r.get("archived_at") or ""), reverse=True)
     out = []
     for r in rows:
-        local = (
-            projects / str(r.get("project_slug") or "") / f"{r.get('session_id')}.jsonl"
-        ).exists()
+        # local = ANY name of the inode still on disk: the primary slug or a hard-linked twin's
+        # (`also_slugs`, D-467) — the primary alone read a surviving twin as gone (archiver-S3)
+        slugs = [str(r.get("project_slug") or ""), *(r.get("also_slugs") or [])]
+        local = any((projects / s / f"{r.get('session_id')}.jsonl").exists() for s in slugs if s)
         out.append(
             f"{r.get('session_id')} {r.get('project_slug')} bytes={r.get('bytes')} "
             f"archived_at={r.get('archived_at')} local={'yes' if local else 'no'}"
@@ -597,6 +623,19 @@ def run(argv: list[str] | None = None) -> int:
                 raise ArchiveError(
                     f"--agent: {args.agent!r} is not an agent name ([a-z0-9-]{{1,32}})"
                 )
+            others = [
+                f
+                for f, v in (
+                    ("--fetch", args.fetch),
+                    ("--remote-count", args.remote_count),
+                    ("--no-ship", args.no_ship),
+                    ("--dry-run", args.dry_run),
+                    ("--version-at", args.version_at),
+                )
+                if v
+            ]
+            if others:  # a read-only listing never doubles as another verb (archiver-S4)
+                ap.error(f"--agent takes no other verb or flag; given: {' '.join(others)}")
             archive_root = _env_path("ARCHIVE_ROOT", "~/.claude/archive")
             projects = _env_path("CLAUDE_PROJECTS_DIR", "~/.claude/projects")
             for line in list_agent(archive_root / MANIFEST_NAME, args.agent, projects):

@@ -780,3 +780,117 @@ def test_c12_agent_verb_lists_that_agents_rows_newest_first_with_the_local_flag(
     assert [line.split()[0] for line in out] == ["a2", "a1"], out
     assert "local=yes" in out[0] and "local=no" in out[1]
     assert all("intel" not in line and "shared-id" not in line for line in out)
+
+
+# ── review round 1 (2026-10-11) regression guards for the agent tag ─────────────────────────────
+
+
+def test_c11_an_ambiguous_registry_join_tags_nothing_and_an_agreeing_one_tags(
+    tree, rec, tmp_path, monkeypatch
+):
+    """archiver-S1: two `<pid>.json` entries for one session id joining to different identity
+    rows — the lexically-first file must not decide the tag."""
+    projects, archive = tree
+    (projects / "-opt-alpha" / "amb.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    (projects / "-opt-alpha" / "agree.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path,
+        [
+            {"session_id": "old-a", "name": "alpha", "pid": 100, "pid_start": 1, "at": 1},
+            {"session_id": "old-b", "name": "beta", "pid": 200, "pid_start": 2, "at": 2},
+        ],
+    )
+    sessions = _registry(
+        tmp_path,
+        [
+            {"pid": 100, "sessionId": "amb", "procStart": "1"},
+            {"pid": 200, "sessionId": "amb", "procStart": "2"},
+            {"pid": 300, "sessionId": "agree", "procStart": "1"},
+        ],
+    )
+    # a third entry for `agree` joining to the SAME name as a 100/1 twin is not ambiguous
+    (sessions / "301.json").write_text(
+        json.dumps({"pid": 100, "sessionId": "agree", "procStart": "1"})
+    )
+    (sessions / "300.json").write_text(
+        json.dumps({"pid": 100, "sessionId": "agree", "procStart": "1"})
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(sessions))
+    assert at.run(["--no-ship"]) == 0
+    rows = {
+        r["session_id"]: r
+        for r in (json.loads(x) for x in (archive / "manifest.jsonl").read_text().splitlines())
+    }
+    assert "agent" not in rows["amb"]
+    assert rows["agree"]["agent"] == "alpha"
+
+
+def test_c11_a_pretty_printed_registry_entry_joins_and_a_missing_at_ranks_below_zero(
+    tree, rec, tmp_path, monkeypatch
+):
+    """archiver-S2: `<pid>.json` is one document, indented or not. archiver-S5: a row without `at`
+    must not beat a row with an explicit `at: 0` by file order."""
+    projects, archive = tree
+    (projects / "-opt-alpha" / "pp.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    (projects / "-opt-alpha" / "tie.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path,
+        [
+            {"session_id": "old", "name": "kaizen", "pid": 777, "pid_start": 5, "at": 3},
+            {"session_id": "tie", "name": "intel", "pid": 1, "pid_start": 1, "at": 0},
+            {"session_id": "tie", "name": "fleet", "pid": 1, "pid_start": 1},  # no `at`
+        ],
+    )
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    (sessions / "777.json").write_text(
+        json.dumps({"pid": 777, "sessionId": "pp", "procStart": "5"}, indent=2)
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(sessions))
+    assert at.run(["--no-ship"]) == 0
+    rows = {
+        r["session_id"]: r
+        for r in (json.loads(x) for x in (archive / "manifest.jsonl").read_text().splitlines())
+    }
+    assert rows["pp"]["agent"] == "kaizen"
+    assert rows["tie"]["agent"] == "intel"
+
+
+def test_c12_agent_verb_local_flag_sees_a_surviving_hard_linked_twin(
+    tree, rec, tmp_path, monkeypatch, capsys
+):
+    """archiver-S3: the primary name is gone, the worktree twin (`also_slugs`) survives — the
+    history is still local."""
+    projects, archive = tree
+    archive.mkdir(parents=True, exist_ok=True)
+    row = {
+        "project_slug": "-opt-alpha",
+        "session_id": "twin",
+        "sha256": "9" * 64,
+        "bytes": 1,
+        "mtime_ns": 1,
+        "also_slugs": ["-opt-alpha--claude-worktrees-x"],
+        "archived_at": "2026-10-05T00:00:00Z",
+        "agent": "fleet",
+    }
+    (archive / "manifest.jsonl").write_text(json.dumps(row) + "\n")
+    (projects / "-opt-alpha--claude-worktrees-x").mkdir()
+    (projects / "-opt-alpha--claude-worktrees-x" / "twin.jsonl").write_bytes(b"x")
+    assert at.run(["--agent", "fleet"]) == 0
+    assert "local=yes" in capsys.readouterr().out
+
+
+def test_c12_agent_verb_refuses_to_double_as_another_verb(tree, rec, tmp_path, capsys):
+    """archiver-S4: `--agent fleet --fetch a b` silently listed and never fetched."""
+    _projects, archive = tree
+    archive.mkdir(parents=True, exist_ok=True)
+    (archive / "manifest.jsonl").write_text("")
+    with pytest.raises(SystemExit) as exc:
+        at.run(["--agent", "fleet", "--fetch", "/-opt-x/s.jsonl.zst", str(tmp_path / "out")])
+    assert exc.value.code == 2
+    assert "--agent takes no other verb" in capsys.readouterr().err
+    for extra in (["--no-ship"], ["--dry-run"], ["--remote-count"]):
+        with pytest.raises(SystemExit):
+            at.run(["--agent", "fleet", *extra])
