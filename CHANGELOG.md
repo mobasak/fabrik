@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped briefs a guard's model boundary with its escape variants (2026-10-12)
+- A GUARD's brief states the inputs it is meant to judge, so an escape variant outside them is `RECORDED — by design (D-785)` in round 1 instead of seeding own-fix rounds (D-785).
+
 ### Fixed — a review seat can check the pinned copies from any directory (2026-10-12)
 - `scripts/review_loop_ledger.py pin` also writes `MANIFEST.pins.md5` with each copy's absolute path and prints its `pins_digest`, so `md5sum -c --quiet <pins_dir>/MANIFEST.pins.md5` verifies the pins from any cwd; `MANIFEST.md5` from the repo root remains the live-file check. `pin` refuses a newline in a path or in the pins dir and a root file named like a manifest; the subagents-core fragment and the review-loop reference name the new check (site-provisioner 01M4RNTM85, W-1008046c, D-780).
 
