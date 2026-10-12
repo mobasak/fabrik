@@ -100,7 +100,9 @@ prevent — enumerate what you READ (files × surfaces), not what you remember.
   gauntlets cannot turn into a scenario ("improved architecture") is not a feature row — cut or rewrite it.
 - **State honesty:** deprecated/disabled/feature-flagged capabilities are marked so (`(beta)` /
   `(deprecated — <date>)`) — a gauntlet must know whether a red scenario is a defect or a flag. A shipped row states the CURRENT
-  behaviour; a known defect is a pointer to its backlog row or work item, never an enumeration of its cases.
+  behaviour; a known defect is a pointer to its backlog row or work item, never an enumeration of its cases. A code
+  defect the grounding finds with no row yet is filed to its owner (a mail to the code's owning session, or a backlog
+  row) and the feature row points at that id — never patched inside a features run.
 - Keep the template's shape: customer-oriented categories, benefit-oriented descriptions. This file doubles
   as public feature documentation — write for the customer, cite for the agent.
 
