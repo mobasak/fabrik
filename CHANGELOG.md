@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the /fabrik-task close accepts a receipt reviewed before the commit (2026-10-12)
 - kaizen's triage (mail 01M4N1K909, rows 1791317858, 1791470714, 1791116082, 1791099519, 1791465412, 1791074435): `--review` refused every receipt made with `review_receipt.py --init` and no `--range` (156 of 671 on disk), so a close then refused the receipt as undeclared. Check (d) now also accepts that working-tree Surface when the commit's diff over its paths rebuilds to the same bytes (untracked files included); `review_receipt.py --restamp <receipt>` re-anchors it after the review's last fix. A design note citing `path:N-M` or `path::symbol` now names that file at close, and a `--commit` value holding whitespace is refused with the fix (W-ebbedc88, D-750).
 
+### Changed — /fabrik-catchup runs the gate first, claims items and probes the work store (2026-10-12)
+- Phase 0 queues the gate's reds first; probe 1 reads status through the parser; probe 2 derives code roots and needs drift; a probe 7 lists polluted work items; Phase 2 claims existing store items by id and mails other beats' items in the hub (D-762).
+
 ### Changed — /fabrik-ui-design gains a re-freeze mode and a mirror sweep (2026-10-12)
 - Phase 0 names a `re-freeze` mode; the size ceiling is measured; Phase 6 checks ids are defined once, every enum value and the size ceiling; the Re-freeze close-out sweeps mirrors and names /fabrik-ui-design-review's gate and the expected attestation WARN (D-761).
 
