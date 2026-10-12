@@ -55,7 +55,7 @@ _SAAS_FAMILY = ("saas-skeleton", "static-site", "office-extension")
 _NODE_DB = ("node-api", "file-api")
 _NOTHING = ("desktop-app", "docusaurus", "file-worker-nodb")
 
-_HEADER = 'psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql'
+_HEADER = 'u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'
 
 
 def _name(kind: str) -> str:
@@ -351,7 +351,7 @@ def _roles(s: ScratchPg, db: str) -> tuple[str, str]:
 def _apply_as_header_says(
     s: ScratchPg, schema: Path, db: str, owner_pw: str
 ) -> subprocess.CompletedProcess:
-    """``psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql`` as the owner."""
+    """``u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql`` as the owner — the pgurl form, never the raw variable (01M464NPPB)."""
     subprocess.run(
         ["docker", "cp", str(schema), f"{s.container}:/schema.sql"], check=True, timeout=60
     )
