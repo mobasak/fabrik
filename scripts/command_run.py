@@ -3721,6 +3721,14 @@ _TASK_LEDGER_EXCL = (
     ".fabrik/work/",
 )
 
+# A run's own review receipt is its evidence, as a Doc Sync destination is (kaizen 01M4RP9QCR): a
+# `.md` under this dir, `archived/` excepted — the set the pre-commit coverage hook grades — never
+# the bare prefix, which would hide an undeclared source file. One spelling with
+# `task_lane.REVIEWS_DIR` (graded in tests/test_command_run_fabrik_task.py). Being in
+# `_task_excluded`, it reaches every close measure that helper feeds: the v2 refusal and the v1
+# and unstamped `oversized_mini` records (D-789).
+_TASK_REVIEWS_DIR = "docs/development/reviews/"
+
 _TASK_BACKTICKED = re.compile(r"`([^`]+)`")
 # Root-level destinations the Doc Sync Matrix names WITHOUT a slash. A harvested token with no
 # `/` and not in this set is prose (see `_doc_sync_tokens`).
@@ -3794,7 +3802,14 @@ def _task_excl(root: Path) -> set[str]:
 
 
 def _task_excluded(path: str, excl: set[str]) -> bool:
-    """A concrete path matches exactly; a `<name>` row's PREFIX matches its whole directory."""
+    """A concrete path matches exactly; a `<name>` row's PREFIX matches its whole directory; a
+    review receipt (`_TASK_REVIEWS_DIR`) matches too."""
+    if (
+        path.startswith(_TASK_REVIEWS_DIR)
+        and path.endswith(".md")
+        and not path.startswith(_TASK_REVIEWS_DIR + "archived/")
+    ):
+        return True
     return path in excl or any(t.endswith("/") and path.startswith(t) for t in excl)
 
 
@@ -4056,9 +4071,11 @@ def _task_measure(
             # A RENAME's DESTINATION inherits its source's membership — a declared file renamed
             # is still the declared work, and the source ceases to exist. The SOURCE is judged on
             # its OWN membership like any other path, so both tokens of the pair may contribute.
-            if _member(src):
+            # Only a DECLARED source lends membership: an exempt one (a ledger, a receipt) renamed
+            # onto `src/x.py` would launder it — v2's `task_lane._undeclared` agrees (D-789 A-H1).
+            if src in declared:
                 member = True
-            else:
+            elif not _member(src):
                 a.add(src)
         elif src is not None:
             # A COPY is NOT a rename. The source SURVIVES — its own edit, if any, arrives as its
