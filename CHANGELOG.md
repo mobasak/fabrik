@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — /fabrik-flows commits the DRAFT with its index rows at first write (2026-10-12)
-- An untracked `docs/flows.md` reds every gate in a shared checkout, so the first write is committed with its `INDEX.md` and `docs/README.md` rows (D-772).
+- An untracked `docs/flows.md` reds every full (Tier-2) gate run in a shared checkout, so the first write is committed with its `INDEX.md` and `docs/README.md` rows (D-772).
 
 ### Changed — the certification NOT-QUIET line is shown in the exact form the grader accepts (2026-10-12)
 - `cert-execution` (service-test, user-test) gives ``ledger: **`NOT-QUIET (routes outstanding)`**`` as the declaration line and names the shapes `NOT_QUIET` refuses (D-771).
