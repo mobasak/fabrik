@@ -17,11 +17,12 @@ which owns its own convergence loop.
 
 This is a bounded MEASURE → QUEUE → EXECUTE run, not an open-ended loop. You are done **only when a
 fresh re-run of Phase 0 MEASURE raises zero new queue items** — every prior finding is now fixed,
-explicitly `BLOCKED`, or **report-only** (BOTH report-only classes count as accounted-for on re-measure,
-not new items, once named in this run's report: a candidate dead consumer reference, and a genuinely
-undecidable reconcile downgraded per Phase 2 — each stays un-committed by design; see Phase 2; so does an
-item ROUTED by mail to the beat that owns its surface, once the mail id is in the report) — a genuine no-op re-measure **and** `python scripts/final_gate.py --check
---json` reports `"status":"success"` **in this same run**. Executing one item can surface another (a doc
+explicitly `BLOCKED`, or **accounted for** (these count on re-measure as named, not as new items, once this run's report names
+them: a candidate dead consumer reference and a genuinely undecidable reconcile downgraded per Phase 2 —
+both report-only, un-committed by design; an item ROUTED to whoever owns it — mailed to its beat, or a
+gate red or work item reported to its owning item or live sibling — with the mail id or owner named; and an
+item another session holds, named) — a genuine no-op re-measure **and** `python scripts/final_gate.py --check
+--json` reports `"status":"success"` **in this same run** — or reds only on checks a named owner holds (`GATE: failure (owned: <owner>)`). Executing one item can surface another (a doc
 converge can expose a fresher staleness elsewhere) — **the pass in which you executed any queue item is
 never the last MEASURE**; run Phase 0 again, unprompted, before you stop. Three thoughts that each mean
 *run the re-measure now*: "the queue looked short," "that fix was trivial," "it's obviously caught up."
@@ -57,9 +58,9 @@ audit's three probes would silently drop them:
 1. **Plan state vs lock.** Enumerate BOTH plan shapes, excluding anything under
    `docs/development/plans/archived/`: single-file plans `docs/development/plans/*.md`, and plan-set
    dirs `docs/development/plans/*/` (read the dir's same-stem spine file). For each, read its `Status:`
-   through `parse_plan_status` (`python3 -c "import sys; sys.path.insert(0, 'scripts'); from docs_updater
-   import parse_plan_status; print(parse_plan_status(__import__('pathlib').Path(sys.argv[1]))[0])" <plan>`) —
-   the value the gate's tools act on, which a grep misreads on a bold or decorated header — and look up `.fabrik/plan-locks/<file-or-dir-stem>.json` if it exists — reconcile against ALL
+   through `parse_plan_status` (`python3 -c "import sys; sys.path[:0] = ['/opt/fabrik/scripts', 'scripts']; from docs_updater
+   import parse_plan_status; print(parse_plan_status(__import__('pathlib').Path(sys.argv[1]))[0])" <plan file or spine .md>`; the hub's copy first,
+   since a project's synced copy can predate a parser fix) — the value the gate's tools act on, which a grep misreads on a bold or decorated header — and look up `.fabrik/plan-locks/<file-or-dir-stem>.json` if it exists — reconcile against ALL
    `.fabrik/plan-locks/*` entries so no lock is left unmatched to a live plan. Flag a contradiction:
    spine says `IN-PROGRESS` but the lock is missing or its `status` is not `"active"` (a released lock
    while the spine still claims work is running); spine says `DRAFT`/`CONVERGED` but an `active` lock
@@ -75,8 +76,8 @@ audit's three probes would silently drop them:
    every registry-obligated key doc (`docs/SERVICES.md`, `docs/RESILIENCE.md`,
    `docs/CONFIGURATION.md`, `docs/DEPLOYMENT.md`, `docs/FEATURES.md` — only the ones this
    `project.yaml::type` actually obligates). The code roots are the top-level directories
-   `git ls-files -- '*.py' '*.ts' '*.tsx' '*.js' | cut -d/ -f1 | sort -u` prints, less `tests` — never a
-   hand list (`tryton_modules/` and `sao-overlay/` sit outside `src app web lib scripts`). ≥14 days behind =
+   `git ls-files -- '*.py' '*.ts' '*.tsx' '*.js' | grep / | cut -d/ -f1 | sort -u` prints, less `tests`,
+   `docs`, `templates`, a vendored `libs` and dot-directories — never a hand list (`tryton_modules/` and `sao-overlay/` sit outside `src app web lib scripts`). ≥14 days behind =
    a CANDIDATE: it is queued only when a spot check finds a claim in the doc that the code contradicts — a
    date-stale doc with no drift is named in the report, not queued.
 3. **Stub sentinels.** Run `python3 /opt/fabrik/scripts/fleet_doc_audit.py --repo .` and read its `stubs:`
@@ -102,18 +103,21 @@ audit's three probes would silently drop them:
    catalog row can outlive the service it describes, so neither "the row says it's live" nor a
    project-side probe saying "unreachable" is proof — only a hub-side check settles it. Actual retirement
    (once the operator confirms) routes to `/fabrik-decommission`, the hub-side retirement runbook — never
-      remove or repoint a reference from inside this command.
+   remove or repoint a reference from inside this command.
 7. **Work-store hygiene** (a repo with `.fabrik/work/`). An open item whose title is a markdown heading or
    opens with a closed marker is a polluted queue entry a distributor would hand to another agent:
-   `grep -lE '"title": "(#|✅|~~|\*\*CLOSED)' .fabrik/work/W-*.json | xargs grep -LE '"status": "(done|dropped)"'`
-   lists them; so does an open item with an empty `evidence`. Route each to its owner (`work.py drop` for a
-   finished one, a retitle for a live one) — never close another owner's item here.
+   `grep -lE '"title": "(#|✅|~~|\*\*CLOSED)' .fabrik/work/W-*.json | xargs -r grep -LE '"status": "(done|dropped)"'`
+   lists them. An owned one goes to its owner (`work.py drop` for a finished one, a retitle for a live one);
+   an unowned one is dropped or retitled here — never close another owner's item.
+
+
 
 
 ## Phase 1 — QUEUE (worst-first, routed)
 
-Turn Phase 0's findings into one ordered list, worst first (a plan-state contradiction or a candidate dead
-consumer reference outranks a 15-day-stale doc, which outranks a stub sentinel). Every item names: the finding,
+Turn Phase 0's findings into one ordered list, worst first (a gate red first — it holds the termination
+gate; then a plan-state contradiction or a candidate dead consumer reference, which outrank a 15-day-stale
+doc, which outranks a stub sentinel or a polluted work item). Every item names: the finding,
 its evidence (`path:line` or the command output that raised it), and its **route**:
 
 | Finding class | Route |
@@ -124,12 +128,17 @@ its evidence (`path:line` or the command output that raised it), and its **route
 | `docs/ui-design.md` stale vs the built screens (GUI project types only) | `/fabrik-ui-design` |
 | Plan spine `Status:` vs lock contradiction | a named reconcile action — fix the spine header or the lock file to match reality (never both silently); state which was wrong and why; genuinely undecidable → report-only per Phase 2 |
 | Spec `shape:` flag lying vs code | a named reconcile action — flip the flag in `specs/services/<id>.yaml` to match the code, or fix the code to match an intentionally-true flag; state which; genuinely undecidable → report-only per Phase 2 |
+| Gate red (Phase 0) | the fix its check names; one an open item or a live sibling owns is reported to it, never fixed here |
 | Work-store item polluted (probe 7) | its owner: a finished item is dropped by its owner or the distributor (`work.py drop`), a live one retitled; this command never closes another owner's item |
 | Candidate dead consumer reference | **report only, no auto-fix** — name the reference + why it looks retired, and hand actual retirement to the operator via `/fabrik-decommission` (hub-side runbook); this command never docker-probes liveness or removes/repoints from a project |
 
 ## Phase 2 — EXECUTE (one item at a time)
 
-Work the queue top to bottom. **In a repo with `.fabrik/work/` and more than one agent, put each queued item in the store and claim it before executing it** (`python3 scripts/work.py add --kind task --title "<the finding>"`, then `work.py claim <id>`), so a sibling's catchup sees the claim and takes the next item; an item another session already holds is skipped and named. In the hub, an item on another agent's beat is mailed to that beat (`docs/reference/agents/`) instead of executed, and the mail id goes in the report. Per item: run its routed command or reconcile action, verify the fix by
+Work the queue top to bottom. **In a repo with `.fabrik/work/`, claim before executing:** a queued item an open store item already
+names is claimed by its id (`python3 scripts/work.py claim W-xxxxxxxx`, the file stem), its commit names that id,
+and `work.py done W-xxxxxxxx --evidence <sha>` closes it; one another session holds is skipped and named. A
+finding with no store item is executed without minting one: a minted item would stay open after the fix,
+an orphan for the next distributor. In the hub, an item on another agent's beat is mailed to that beat (`docs/reference/agents/`) instead of executed, and the mail id goes in the report. Per item: run its routed command or reconcile action, verify the fix by
 re-running the exact probe that raised it, then commit — explicit pathspecs only, Agent Provenance
 Trailers, **one commit per item** (never batch unrelated items into one commit — a bisect needs the
 granularity). Two manifesto laws bind the reconcile actions specifically: **a DECISION-SHAPED

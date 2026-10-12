@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — /fabrik-catchup runs the gate first, claims items and probes the work store (2026-10-12)
-- Phase 0 queues the gate's reds first; probe 1 reads status through the parser; probe 2 derives code roots and needs drift; a probe 7 lists polluted work items; Phase 2 claims items and mails other beats' items in the hub (D-762).
+- Phase 0 queues the gate's reds first; probe 1 reads status through the parser; probe 2 derives code roots and needs drift; a probe 7 lists polluted work items; Phase 2 claims existing store items by id and mails other beats' items in the hub (D-762).
 
 ### Changed — /fabrik-ui-design gains a re-freeze mode and a mirror sweep (2026-10-12)
 - Phase 0 names a `re-freeze` mode; the size ceiling is measured; Phase 6 checks ids are defined once, every enum value and the size ceiling; the Re-freeze close-out sweeps mirrors and names /fabrik-ui-design-review's gate and the expected attestation WARN (D-761).
