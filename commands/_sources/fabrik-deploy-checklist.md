@@ -43,7 +43,8 @@ compose services, the scheduler, the `os.getenv` set or the schema head change (
 warns when the contract's `Version` predates such a change).
 
 Inputs — read them, name them: `project.yaml::type` (the live registry is `scaffold.py::SCAFFOLD_TYPES`)
-→ the per-type pack of rows; `specs/services/<id>.yaml` `shape:` → the Layer-3 obligations (a flag that is
+→ the per-type pack of rows; `specs/services/<id>.yaml` `shape:` (in a project repo usually absent — read the hub's
+`/opt/fabrik/specs/services/<id>.yaml`, read-only) → the Layer-3 obligations (a flag that is
 `false` makes its row `not obligated`, never absent); `docs/DECISIONS.md` → every ruling about what ships
 and what does not (the exclusion set lives here — e.g. *"everything ships EXCEPT sales/activities/invoices
 history"*; the ruling is the row's WHAT cell — 4th column, after `id | when | who` — quote it verbatim
@@ -142,6 +143,10 @@ Write `scripts/verify_prod_parity.py` to the seeded template's shape:
 - **`UNVERIFIABLE (<why>)` rows are emitted, never dropped** — they count in the denominator so shrinkage
   is visible. The store-type and static-type packs ship `UNVERIFIABLE` by default; a wrong check that
   silently passes is worse than a stated gap.
+- **A `--rows-from` merge trusts the leg files whole** (`_rows_for` concatenates them): a leg file reaches
+  CONFIRMED through which row ids appear, how many times each appears, which comparison keys a row carries, and
+  what its `match` holds — so the verdict checks each against the contract's own row list (every id exactly
+  once, from its declared site, with the keys its kind carries) before counting a row.
 - **The exclusion set is data** in the script (a list with the ruling's `D-NNN` beside it), applied to the
   DEV baseline, so the runner and a reader see what was excluded and why.
 - **Read-only against the target.** A row that would mutate the deployed service is written as
@@ -178,13 +183,19 @@ pass.
 
 1. Run the contract against DEV — expected: every derived row `match: True`, every `UNVERIFIABLE` row
    `match: None` with its why.
-2. For each row CLASS, break DEV deliberately and re-run: drop a table's rows for a state row · rename an
+2. Run the probes in a copy that carries the gitignored vendored dirs the contract imports (`libs/` — a fresh
+   worktree lacks them, and every row there reads UNVERIFIABLE for the wrong reason), and run the unmutated copy
+   first as the control: a red the control also shows proves nothing. Then, for each row CLASS, break DEV
+   deliberately and re-run: drop a table's rows for a state row · rename an
    env key for the env row · stop the scheduler for the jobs row · remove a route for the routes row ·
    detach a service for the services row. **Each targeted row must report `match: False`** (or, for a
    raising comparator, `match: None` **with `compare_error` set** — that is fail-closed, not green).
    Restore DEV after each.
 3. A row that cannot be made to fail is REWRITTEN, or marked `UNVERIFIABLE (cannot be seen red: <why>)`.
-4. Paste the red table into the report: `row · how DEV was broken · result`. **A contract with no red
+4. A test added for the contract runs in the gate's pytest leg (the whole suite, one process) before freeze:
+   the first row that needs the vendored probe loads the project's `.env` into `os.environ`, and that state
+   reaches every later test in the process.
+5. Paste the red table into the report: `row · how DEV was broken · result`. **A contract with no red
    table is DRAFT** whatever its header says.
 
 ## Phase 6 — Freeze + wire the truth `[anywhere]`

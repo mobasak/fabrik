@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-deploy-checklist names the leg-file threat model and runs a red-seen control (2026-10-12)
+- The hub spec is read read-only; Phase 2 names how a merged leg file can reach CONFIRMED; Phase 5 runs probes with the vendored dirs and an unmutated control, and runs a contract test in the gate's pytest leg (D-769).
+
 ### Changed — /fabrik-conformance-review checks a spot-run's target and bounds its re-sweeps (2026-10-12)
 - Spot-runs print their resolved DB/service target and read shared fixtures before calling a run read-only; class re-sweeps stay inside the inventory; `ROUTED(n)` says what it counts (D-768).
 
