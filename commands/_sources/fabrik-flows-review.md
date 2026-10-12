@@ -127,9 +127,9 @@ closing round — identical hashes are the proof). Your say-so does not substitu
 
 - **Closing round at `confirmed: 0`:** the FROZEN contract stands. Add the attestation to its header —
   `Independently reviewed: v<N> — /fabrik-flows-review confirmed: 0 <YYYY-MM-DD>` — and report the Pass Ledger.
-- **You edited the contract:** editing a FROZEN artifact re-opens it — bump `Version`, re-freeze (the
-  closing round IS the re-freeze convergence). Bump at the run's first edit and keep editing under that version until the closing round
-  re-freezes it — one bump and one row per review run, a hold and its resume included, never a bump per round. The bump is a Status-flip event: **mint its
+- **You edited the contract:** editing a FROZEN artifact re-opens it — the run's first edit bumps `Version`, every later edit
+  stays under that version, and the closing round re-freezes it (the closing round IS the re-freeze convergence):
+  one bump and one row per review run, a run closed `blocked` and resumed included, never a bump per round. The bump is a Status-flip event: **mint its
   `docs/DECISIONS.md` row staged in the same commit as the artifact** (the `/fabrik-flows` freeze law;
   classify at mint — plain row normally). Only then attest.
 - **A BLOCKING gap remains** (a criterion with no resolvable journey; a second actor whose journey cannot

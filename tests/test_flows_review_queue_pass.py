@@ -24,4 +24,5 @@ def test_the_dispatch_line_names_the_exact_invocation_and_it_counts_the_axes() -
 
 def test_one_bump_and_one_row_per_review_run() -> None:
     """Row 1791511001."""
-    assert "Bump at the run's first edit and keep editing under that version until the closing round re-freezes it — one bump and one row per review run, a hold and its resume included" in _norm()
+    assert "the run's first edit bumps `Version`, every later edit stays under that version, and the closing round re-freezes it" in _norm()
+    assert "one bump and one row per review run, a run closed `blocked` and resumed included, never a bump per round" in _norm()
