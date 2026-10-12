@@ -193,7 +193,7 @@ def test_the_receipt_template_shows_the_gate_scope_line_the_gate_accepts_filled(
 def test_a_scope_growth_remainder_round_restates_every_slice() -> None:
     """Row 1791847183: the exit's re-verify step never said the remainder round still re-states every slice."""
     text = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert "re-verify the fixed set alone (its `round --slices` still re-states every earlier slice;" in text
+    assert "re-verify the fixed set alone (in a slice-partitioned loop, its `round --slices` still re-states every earlier slice;" in text
 
 
 def test_a_capped_round_one_merges_low_risk_slices() -> None:
