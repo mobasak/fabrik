@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — the panel's ACCEPTED delta round is recorded as the next Pass (2026-10-12)
-- In /fabrik-spec-review and /fabrik-plan-review, the delta round an ACCEPTED panel concern re-opens is recorded as the next Pass with every round-1 slice re-stated, and the 0 → k → 0 oscillation advisory it may print is expected there, not drift (D-758).
+- In /fabrik-spec-review and /fabrik-plan-review, the delta round an ACCEPTED panel concern re-opens is recorded as the next Pass with every earlier-stated slice re-stated, and an OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift (D-758).
 
 ### Fixed — /fabrik-doc-converge: three contract rows counted from the wrong source (2026-10-12)
 - RESILIENCE's billable APIs come from the code, not the doc's own §2; README's capability claims are verified against the code (FEATURES is a cross-check); INDEX.md reads an untracked-but-present file as present and resolves a bare filename under its directory row. Every docs-level index obeys the docs/README row, and a code defect found mid-converge is filed and described as it is (D-757).
