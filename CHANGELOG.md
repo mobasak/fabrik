@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the owner DSN split is EXECUTED: the Finish review closed on three fix commits, the plan and its lock are released (2026-10-12)
+
+- Plan `2026-10-12-plan-1-owner-dsn-split` Phase C (D-754, W-4e74ea9d). The whole-plan `/fabrik-review` (four file slices, a Sonnet and a
+  Haiku finder per slice plus the Opus floor on the deployer, a refuter per slice) raised 20 candidates, confirmed 17, refuted 3 and closed
+  20→4→0 over three fix commits: `scaffold.py` spells the owner file through `OWNER_ENV_FILE` and the hand-off scan runs only over a compose
+  that parses (1a82aa9b7); `_deploy_template` renders the secrets without the owner keys, G1/G3 assert no DSN value reaches the log, the
+  cutover pin refusal says remove the pin, the spec and plan show the fail-closed read (a6d0da75c); `_read_env_file`'s docstring names
+  `_build_env` as the deploy merge reader and the check module's docstring states the per-line dedup fallback (c60a0ef10). Receipt
+  `docs/development/reviews/2026-10-12-plan-1-owner-dsn-split-review.md`; plan `Status: EXECUTED`; lock released. The one read-only
+  ssh of Phase C found none of the four named paths on vps1, so the live `.env` mode (R1) stays unmeasured and the first post-merge
+  `fabrik apply` reads it back. Deferred to backlog: W-94a3b4df, W-c03bf797, W-8dd25072.
+
 ### Changed — the scaffold, the app-role check and the docs follow the owner DSN to `.env.owner` (2026-10-12)
 
 - Plan `2026-10-12-plan-1-owner-dsn-split` Phase B (D-754). `src/fabrik/spec_loader.py`: `CompanionService.owner_env` (default

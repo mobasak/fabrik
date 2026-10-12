@@ -1,6 +1,22 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A fix that answers a finding's first half leaves its second half for the next round — read the whole row before closing it (2026-10-12)
+
+The Finish `/fabrik-review` of the owner-DSN split (plan `2026-10-12-plan-1-owner-dsn-split`, 20 candidates, 17 confirmed) needed a third fix
+commit for two rows the first two had "fixed": deployer-O7 named a stale comment AND a stale docstring, the round-2 fix reworded the comment
+alone; check-S2 named a dedup fallback the round-1 fix then DOCUMENTED in a code comment while the module docstring kept the promise the
+fallback breaks. Both came back STILL_TRUE from the round-1 seats on the pass-2 pin — docstrings only, c60a0ef10.
+- **A candidate's claim is a list, not a sentence.** Split every confirmed row into its clauses before fixing and tick each one against the
+  diff; a fix that satisfies the clause you remembered satisfies the row only if there was one clause.
+- **Documenting a behaviour in a comment does not fix the docstring that contradicts it** — the reader of the module docstring never sees
+  the comment at :849. Put the exception where the promise is made.
+- **The seat-isolation brief must list every root the slice's tests import.** Two deployer seats lost minutes rediscovering that
+  `templates/`, `.windsurf/rules/versions.yaml` and `scripts/fabrik_synced_manifest.py` are needed beside `src`/`tests`; the
+  pass-1 brief's example roots named four, the SEAT ISOLATION paragraph nine, and the two paragraphs disagreed. One list, in one place.
+- **A seat's `-o`/`>` goes under its scratch — say so with the incident.** A pass-1 Haiku finder wrote `arch-tests.tar` into the
+  repo root; naming the leak in the next brief ended it (every later leak check read identical to its baseline).
+
 ## A point-in-time restore is keyed on the SERVER's clock — capture the instant from the server, never from `date -u` (2026-10-12)
 
 Gate B.4 of the retention plan (`archive_transcripts.py --fetch … --version-at <T>`, rclone `--b2-version-at`) returned nothing for every
