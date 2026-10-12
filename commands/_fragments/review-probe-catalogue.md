@@ -47,8 +47,10 @@ or name in the brief why the shape does not have it.
 - Parsers: the producer's real output contract first, then the parsing model before tokens; lossy cases (duplicate
   keys, ordering, whitespace), regex/strip edges (a regex redactor is also timed on a 100k-character input and probed
   at its truncation edges), the request-target grammar for URLs, comment and brace shapes for config, the real
-  interpreter (dash) and the parent commit as oracles; a generated file is parsed by its generator's format, and a
-  skip check reuses the consumer's own parser.
+  interpreter (dash) and the parent commit as oracles; a fix that reimplements another tool's semantics (a YAML merge,
+  a compose override) is run against that tool's own output on a fixture set in the round that lands it, never
+  modelled from memory; a generated file is parsed by its generator's format, and a skip check reuses the consumer's
+  own parser.
 - Guards and rules: the guard's equivalence class (must fold, must not), what a replaced guard covered that its
   replacement does not, every exception subclass a new catch admits, false negatives classed plausible vs contrived,
   whether each matcher shortcut is covered by the general path, every rule an overriding sentence overrides (and every

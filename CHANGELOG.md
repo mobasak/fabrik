@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review probes check a reimplemented tool against its own output (2026-10-13)
+- A fix that reimplements another tool's semantics is run against that tool on fixtures in the round that lands it (D-795).
+
 ### Changed — /design-review reaches a login-gated screen through the ui-verify auth harness (2026-10-13)
 - Seats sign in through `makeAuthedTest`/`makeUiAuthedTest` with credentials from the environment, never a brief, and confirm the signed-in screen before judging (D-794).
 

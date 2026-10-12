@@ -121,3 +121,10 @@ def test_a_silent_refuter_is_already_retried_once_and_marked_failed() -> None:
     js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text()
     assert "const retry = await refuteCall(r.slice, missing, '-retry')" in js
     assert "STILL UNANSWERED (refuter failed)" in js
+
+
+def test_a_reimplemented_tool_is_checked_against_its_own_output() -> None:
+    """Row 1791844847: a fix modelling js-yaml's merge from memory took three rounds."""
+    text = _norm(CAT)
+    parsers = text[text.index("- Parsers:") : text.index("- Guards and rules:")]
+    assert "a fix that reimplements another tool's semantics (a YAML merge, a compose override) is run against that tool's own output on a fixture set in the round that lands it, never modelled from memory" in parsers
