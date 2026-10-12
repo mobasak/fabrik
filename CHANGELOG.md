@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-upstream's send line names the mail contract's seven headers (2026-10-13)
+- The proposal mail's body carries WHAT, WHERE, WHEN, WHO, WHY, HOW and SYSTEMIC, pointing at the message contract (D-791).
+
 ### Changed — /fabrik-command-improve runs every test that names the edited source (2026-10-13)
 - PHASE 5 runs the queue-pass test plus every test file that names the edited source, the fragment or a command including it, so a size cap or a verbatim pin is caught before the commit (D-790).
 
