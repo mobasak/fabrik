@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — /fabrik-plan-after-chat checks a new plan's citations and its rubric's source tree (2026-10-12)
-- A first commit runs `git add -N` before the citation check; script-behaviour steps quote the function; spec-fed grounders start from the spec's anchors; the rubric runs from the tree holding the packs (D-766).
+- New plan files are graded with `check_citations_resolve.py --doc` before the citation check; script-behaviour steps quote the function; spec-fed grounders start from the spec's anchors; the rubric runs from the tree holding the packs (D-766).
 
 ### Changed — /fabrik-features gains a Scoped REFRESH mode and symbol-cited Planned rows (2026-10-12)
 - Planned rows cite symbols, not line numbers; REFRESH may run scoped to a plan or section, the code still its denominator; route rows cover every mode; known defects point at the backlog; Phase 3 names each population before counting (D-765).

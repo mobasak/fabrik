@@ -17,24 +17,31 @@ def _flat() -> str:
     return re.sub(r"\s+", " ", SRC.read_text())
 
 
-def test_citation_check_needs_the_plan_tracked() -> None:
-    """Row 1789474250."""
-    assert "a plan not yet tracked prints `nothing in scope — 0 docs`: run `git add -N <plan>` first" in _flat()
+def test_new_plan_files_are_graded_by_name() -> None:
+    """Row 1789474250: --changed never sees an untracked file; --doc grades it read-only (the flag is real)."""
+    assert "an untracked plan or ticket is never in scope" in _flat()
+    assert "`check_citations_resolve.py --doc <plan>`, one `--doc` per ticket of a set" in _flat()
+    assert "git add -N" not in _flat()
+    script = (ROOT / "scripts" / "enforcement" / "check_citations_resolve.py").read_text()
+    assert '"--doc"' in script
 
 
 def test_a_step_on_a_scripts_behaviour_quotes_the_function() -> None:
     """Row 1791725242."""
-    assert "names the script and quotes the function that does it (`path::function` and its lines), not the file" in _flat()
+    assert "names the script and quotes the function that does it (`path::function` and the code in it that does it), not the file" in _flat()
 
 
 def test_spec_fed_grounders_start_from_the_specs_anchors() -> None:
     """Row 1791762348."""
-    assert "each grounder's brief starts from the spec's cited anchors and asks only what they miss" in _flat()
+    assert "each grounder's brief starts from the spec's cited anchors and asks what they miss, re-verifying each anchor" in _flat()
+    assert "the three seats' angles still differ" in _flat()
 
 
 def test_rubric_without_packs_is_named_and_is_what_the_script_prints(tmp_path: Path) -> None:
     """Row 1791075720: run from a tree with no packs, the script exits 0 with the header and missing-pack lines."""
     assert "every pack line reading `(pack missing at …)`" in _flat()
+    assert "(or with `--project-root <that root>`)" in _flat()
+    assert "enforce the section and the pasted header (not the packs) mechanically" in _flat()
     res = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "review_rubric.py"), "--changed", "src/app.py"],
         cwd=tmp_path,
