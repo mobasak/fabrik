@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the /fabrik-task close accepts a receipt reviewed before the commit (2026-10-12)
 - kaizen's triage (mail 01M4N1K909, rows 1791317858, 1791470714, 1791116082, 1791099519, 1791465412, 1791074435): `--review` refused every receipt made with `review_receipt.py --init` and no `--range` (156 of 671 on disk), so a close then refused the receipt as undeclared. Check (d) now also accepts that working-tree Surface when the commit's diff over its paths rebuilds to the same bytes (untracked files included); `review_receipt.py --restamp <receipt>` re-anchors it after the review's last fix. A design note citing `path:N-M` or `path::symbol` now names that file at close, and a `--commit` value holding whitespace is refused with the fix (W-ebbedc88, D-750).
 
+### Fixed — /fabrik-docs-review: its floor seat can run commands; an out-of-surface gate red is declared (2026-10-12)
+- The floor seat is `fabrik-reviewer` (Bash) since Phase 2 verifies runnable examples by running them; `fabrik-researcher` keeps external claims. A doc-sync gate red none of whose findings the change caused is embedded with the `GATE-SCOPE: out-of-surface` declaration; seat briefs apply the review probe catalogue (D-755).
+
 ### Fixed — /fabrik-execute-plan: three wrong sentences and the recurring steps of its feedback queue (2026-10-12)
 - A merged sibling's lock is visible to the overlap scan; the baseline gate runs `--check`; the phase-review artifact binds every phase, not only GUI ones. The pre-flight spot-check repeats before each later phase, a resumed run names receipts with the plan prefix, the loop names the Profile: small waiver and the repo's interpreter, one ID per `Agent-Task:` line, D4's wave brief points at the review probe catalogue and its receipt passes `check_review_coverage.py`, D5 compares reds by name and D7 points at the quota pause (D-753).
 

@@ -783,7 +783,7 @@ PARAMS = {
             "HEADLINE": "pool-default for gradeable fan-out (records to the flywheel)",
             "TASK_TYPE": '"docs"',
             "PROJECT": "docs-review",
-            "FLOOR": _floor("docs review", "`fabrik-researcher`"),
+            "FLOOR": _floor("docs review", "`fabrik-reviewer`"),
             "EXTRA": " Reconciliation breadth is mostly mechanical → cheap pool (+ optional Haiku/Sonnet native samples for the external live-checks); keep Opus for the authoritative pass + the doc-routing decide.",
         },
     },
