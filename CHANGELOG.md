@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the certification NOT-QUIET line is shown in the exact form the grader accepts (2026-10-12)
+- `cert-execution` (service-test, user-test) gives ``ledger: **`NOT-QUIET (routes outstanding)`**`` as the declaration line and names the shapes `NOT_QUIET` refuses (D-771).
+
 ### Changed — /fabrik-release leads with a missing certification report and names its docs checks (2026-10-12)
 - A UI/service surface with no certification report is BLOCKED first; the dated-docs precondition says what its git-date and `Last Updated` checks each read, with a printed content tiebreak (D-770).
 
