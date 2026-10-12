@@ -294,7 +294,7 @@ These three fire in `**/*.py` — the only glob that catches where config is loa
 **BANNED:** `logging.FileHandler`, `logging.handlers.RotatingFileHandler`, `TimedRotatingFileHandler`, `loguru` file sinks, any `*.log` file write, any in-app log rotation/retention/cleanup. The app never decides where logs are stored or routed — Docker → Promtail → Loki does. Full rule: `55-observability.md` § Logs.
 
 **Factor XII — Admin processes. NEVER migrate from app startup.**
-**BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (see `30-ops.md` § Release & Admin Processes).
+**BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (`<svc>` is a service that declares `.env.owner` (a `migrate` service), never the app service — the owner DSN is not in the app service's environment after the owner split (D-754), and `run` replaces the service's `command`, so a hand-off written there is bypassed) (see `30-ops.md` § Release & Admin Processes).
 
 ---
 
@@ -302,7 +302,7 @@ These three fire in `**/*.py` — the only glob that catches where config is loa
 
 | Pattern | Use Instead |
 |---------|-------------|
-| `alembic upgrade head` in `lifespan` / startup hook | One-off admin process against the deployed release: `docker compose run --rm <svc> alembic upgrade head` (concurrent replicas race the version table) |
+| `alembic upgrade head` in `lifespan` / startup hook | One-off admin process against the deployed release: `docker compose run --rm <svc> alembic upgrade head`, `<svc>` a service that declares `.env.owner` (a `migrate` service), never the app service (D-754) (concurrent replicas race the version table) |
 | `logging.FileHandler` / `RotatingFileHandler` / loguru file sink / any `*.log` write | Structured JSON → `stdout`, unbuffered (`PYTHONUNBUFFERED=1`). The platform routes logs, not the app |
 | `config/production.yml` / `settings.production` grouped env sets | Granular, orthogonal env vars set per deploy (12-Factor III) |
 | `pip` / `poetry` / `pipenv` | `uv` (`uv sync`, `uv add`, `uv run`) |
