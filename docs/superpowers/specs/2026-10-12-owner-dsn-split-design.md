@@ -121,7 +121,9 @@ Invariants (the words the code and the docs will carry):
    so the writer routes it (invariant 3).
 2. **The merged view is unchanged for every reader, in ONE round trip.** `_read_env_file` keeps its one probe and one
    `cat`: the probe answers `present`/`absent` for `.env` on its first line as today and a second line `owner` when
-   `.env.owner` exists; the second command is today's `sudo cat <env>` alone, or `sudo sh -c 'cat <env>; echo; cat <owner>'` — the `echo` is a
+   `.env.owner` exists; the second command is today's `sudo cat <env>` alone, or `sudo sh -c 'cat <env> && echo && cat <owner>'` — the `&&` chain
+   fails closed (a `;` chain exits with the LAST cat's status, so a missing `.env` beside an owner file returned the owner keys
+   alone as the merged view — the plan's Phase A review, grader G2) and the `echo` is a
    SEPARATOR, because a plain two-file `cat` joins the last line of a `.env` that lacks a trailing newline onto the owner
    file's first line (executed at the approval panel on `_parse_env`: the owner key vanished from the parse and the owner
    DSN rode into `REDIS_URL`'s value, which the next write would have put back into `.env`) — so the owner file's keys
@@ -178,9 +180,11 @@ Invariants (the words the code and the docs will carry):
    `fabrik app-role-check` suppresses today as the canonical hand-off (`src/fabrik/app_role_check.py:40-48`, `:470-490`)
    — would resolve to an empty value and let a migration run against no DSN. The check turns that classification into a
    FINDING with the remedy of invariant 5 — and it ACCEPTS the remedy: a compose service whose `env_file` names
-   `.env.owner` (the long-syntax `path:` or the plain string) is an OWNER CONSUMER; its `compose service named migrate`
-   finding and a migration-tool pattern on its `command` line are suppressed, the connection source being decided by the
-   tool's own config, which the alembic `env.py` scan covers (`app_role_check.py:352-368`). Executed at the approval
+   `.env.owner` (the long-syntax `path:` or the plain string, any spelling `normpath` reduces to it) is an OWNER CONSUMER; its
+   `compose service named migrate` finding is skipped and a line finding inside its block is dropped only while the line
+   names no bare `DATABASE_URL` and the block shares no YAML anchor with a non-consumer (as built — the plan's Phase B review
+   narrowed the rule written here); alembic's connection source is scanned on its own (`env.py`), a prisma/drizzle/django
+   tool's config is not — the declaration is the evidence (backlog W-94a3b4df). Executed at the approval
    panel on today's scanner: the remedy shape yields TWO findings — `compose service named migrate` (an `env_file` entry
    never matches the owner token) and `alembic upgrade/downgrade` on the `command` line — so without this rule the split
    would make every cutover of a project with a `migrate` service refuse at `infrastructure.py:1177-1182`. The mirror
@@ -193,7 +197,7 @@ Touchpoints:
 
 | Where | Change |
 |---|---|
-| `src/fabrik/orchestrator/deployer_ssh.py:898-920` (`_read_env_file`) | the two-line probe and the one-file `cat` or the SEPARATED two-file read (`cat <env>; echo; cat <owner>`); returns the merged view; signature unchanged |
+| `src/fabrik/orchestrator/deployer_ssh.py:898-920` (`_read_env_file`) | the two-line probe and the one-file `cat` or the SEPARATED, fail-closed two-file read (`cat <env> && echo && cat <owner>`); returns the merged view; signature unchanged |
 | `deployer_ssh.py:328-364` (`inject_env`), the four deploy paths' `.env` writes (`:524`, `:607`, `:649`, `:686`) and `_persist_git_sha` (`:943-953`) | every `.env` write goes through the new `_write_env_files` (owner first, then `.env` without owner keys, one log line); `_build_env_content` (`:693-760`) is unchanged |
 | `deployer_ssh.py:962-1000` (`_write_file_to_vps_path`) | `sudo chmod 0600 <tmp> && ` BEFORE the `mv` for `.env` and `.env.owner` by filename; signature unchanged. The `:1217-1223` comment ("interpolates ${VAR} in `command:` from env_file") corrected: the source is the project `.env` (ods-60, ods-61) — the two coincide only for an image-sourced app |
 | `src/fabrik/app_role_check.py:40-48`, `:462-490`, `:590` | the `${DATABASE_URL_OWNER}` value classification becomes a finding with its remedy; a service declaring `.env.owner` is the accepted owner consumer (its `migrate` and `command`-line findings suppressed); an owner-sourced alembic env with no declaring service is a finding; docstring and comment rewritten |
@@ -383,7 +387,7 @@ reference doc: the subsystem is the deployer, already documented.
 Red-first graders in `tests/`: (1) `inject_env({"DATABASE_URL": a, "DATABASE_URL_OWNER": o})` writes `o` to
 `.env.owner` first and `a` to `.env`, one restart; (2) `read_env` returns the merged view in one probe and one `cat`, the
 owner file winning a shared key, and a bare `present` answer issues today's `cat` exactly; (2b) the separated read —
-the two-file command carries the `; echo;` separator, and a `.env` without a trailing newline beside an owner file still
+the two-file command carries the `&& echo &&` separator (fail-closed, G2), and a `.env` without a trailing newline beside an owner file still
 parses to both keys intact (the plain `cat` join kept as the negative half); (3) `_write_env_files` on a
 merged view carrying the key writes the owner file first, keeps the key out of `.env` and logs it; (3b) every writer —
 the four deploy paths and `_persist_git_sha` — goes through it (parametrized, red on today's code); (4) the rendered

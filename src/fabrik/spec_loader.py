@@ -814,6 +814,17 @@ class WatchdogConfig(BaseModel):
 
 # --- Main Spec Model ---
 
+# The owner DSN's home on the VPS (plan 2026-10-12-plan-1-owner-dsn-split, D-754): the keys the
+# deployer keeps OUT of ``/opt/<name>/.env`` and writes to ``/opt/<name>/.env.owner``, a file only
+# a compose service that declares it in ``env_file`` loads. One constant and one filename, defined
+# here — the lowest layer — so every Python consumer imports them and spells them nowhere else (the
+# Jinja companion partial cannot import; it spells the filename once, pinned by the rendered-template
+# grader in tests/test_scaffold_audit_log.py, and tests/test_scaffold_audit_log.py also refuses a
+# literal in scaffold.py). Reversal is
+# ``OWNER_ENV_KEYS = ()`` plus the checked per-project deletion the spec's § Decisions taken names.
+OWNER_ENV_KEYS: tuple[str, ...] = ("DATABASE_URL_OWNER",)
+OWNER_ENV_FILE = ".env.owner"
+
 
 class CompanionService(BaseModel):
     """A companion service that shares the parent app's image but runs a
@@ -852,6 +863,14 @@ class CompanionService(BaseModel):
     env_overrides: dict[str, str] | None = Field(
         default=None,
         description="Optional env merged ON TOP of the inherited parent env.",
+    )
+    owner_env: bool = Field(
+        default=False,
+        description=(
+            "Load the owner env file too (`env_file: [.env, {path: .env.owner, required: false}]`) — "
+            "the companion reads DATABASE_URL_OWNER (the audit-jobs companion does); every other "
+            "companion loads the project .env alone (D-754)."
+        ),
     )
 
 
@@ -962,6 +981,35 @@ class Spec(BaseModel):
             raise ValueError("repository is required for git source type")
         if self.source.type == SourceType.DOCKER and not self.source.image:
             raise ValueError("image is required for docker source type")
+        return self
+
+    @model_validator(mode="after")
+    def validate_no_owner_key_in_env(self):
+        """An owner key never belongs in a spec's ``env:`` block (owner split, D-754): the compose
+        templates render ``env:`` into EVERY service's ``environment:``, which would hand the app
+        the very key the split keeps in ``.env.owner``. Nor in a companion's ``env_overrides``,
+        which the companion partial renders into that service's ``environment:`` the same way
+        (review of the split, round 1). The postgres registrar is the owner key's only source;
+        the deployer writes it to ``.env.owner`` and never to ``.env``."""
+        owner_keys = sorted(k for k in self.env if k in OWNER_ENV_KEYS)
+        if owner_keys:
+            raise ValueError(
+                f"env: must not set {', '.join(owner_keys)} — the templates render env: into every "
+                f"service's environment:, which would hand the app the owner DSN; the postgres "
+                f"registrar injects it into {OWNER_ENV_FILE}, which only a service declaring that "
+                "file loads (remove the key from env:)"
+            )
+        for companion in self.companion_services:
+            companion_keys = sorted(
+                k for k in (companion.env_overrides or {}) if k in OWNER_ENV_KEYS
+            )
+            if companion_keys:
+                raise ValueError(
+                    f"companion_services[{companion.id}].env_overrides must not set "
+                    f"{', '.join(companion_keys)} — the partial renders env_overrides into that "
+                    f"service's environment:, a literal the split keeps out of compose; set "
+                    f"owner_env: true instead, so the service loads {OWNER_ENV_FILE}"
+                )
         return self
 
 

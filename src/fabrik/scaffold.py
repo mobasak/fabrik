@@ -32,6 +32,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from fabrik.config import FABRIK_ROOT
 from fabrik.spec_generator import SPEC_ENABLED_TYPES, generate_and_save_spec
+from fabrik.spec_loader import OWNER_ENV_FILE
 from fabrik.version_registry import load_versions
 
 # The base-image Debian variant is never a template literal: plain templates carry this token and
@@ -666,6 +667,7 @@ _COMMON_GITIGNORE_PATTERNS = (
     (
         "# Secrets (never commit)\n"
         ".env\n"
+        f"{OWNER_ENV_FILE}\n"
         ".env.backup\n"
         "*.key\n"
         "*.pem\n"
@@ -2213,10 +2215,10 @@ _SAAS_SERVER_REQUIREMENTS = (
 _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (PostgreSQL, RLS fail-closed).
 -- Per .windsurf/rules/saas/95-multi-tenant-saas.md (RLS) + core/75-workers-jobs.md (queue).
 -- Apply once after the DB is provisioned, as the database OWNER (the WHOLE file is one
--- transaction; any error aborts it):
---   u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql
--- (pgurl is in docs/TROUBLESHOOTING.md; with a plain postgresql:// DSN, as fabrik apply writes it:)
---   psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql
+-- transaction; any error aborts it). On the VPS the owner DSN lives in /opt/<name>/__OWNER_ENV_FILE__
+-- (root 0600) beside .env, so source both under sudo, in ONE line, from /opt/<name>:
+--   sudo sh -c 'set -a; . ./.env; . ./__OWNER_ENV_FILE__; set +a; psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql'
+-- (with pgurl, from docs/TROUBLESHOOTING.md, inside the same sh -c: u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql)
 -- (Fabrik runs NO automatic migrations — you apply this yourself.) Keep BEGIN/COMMIT
 -- out of this file: an inner COMMIT would end psql -1's transaction early.
 --
@@ -2356,6 +2358,8 @@ DROP TRIGGER IF EXISTS trg_job_inserted ON jobs;
 CREATE TRIGGER trg_job_inserted AFTER INSERT ON jobs
     FOR EACH ROW EXECUTE FUNCTION notify_job_inserted();
 """
+# The schema text spells the owner file through the one constant (D-754) — `__OWNER_ENV_FILE__` above.
+_SAAS_SCHEMA_SQL = _SAAS_SCHEMA_SQL.replace("__OWNER_ENV_FILE__", OWNER_ENV_FILE)
 
 _SAAS_TENANT_PY = '''"""Tenant context propagation for __NAME__ (multi-tenant RLS).
 
@@ -3591,10 +3595,13 @@ APP_AUDIT_LOG_DIR = FABRIK_LIB_DIR / "app-audit-log"
 # ``psql -f`` otherwise autocommits per statement. The file therefore carries no
 # top-level BEGIN/COMMIT: an inner COMMIT would end ``-1``'s transaction early.
 _SCHEMA_APPLY_HEADER = (
-    "-- Apply as the database OWNER (the WHOLE file is one transaction; any error aborts it):\n"
-    '--   u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql\n'
-    "-- (pgurl is in docs/TROUBLESHOOTING.md; with a plain postgresql:// DSN, as fabrik apply writes it:)\n"
-    '--   psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql\n'
+    "-- Apply as the database OWNER (the WHOLE file is one transaction; any error aborts it).\n"
+    f"-- On the VPS the owner DSN lives in /opt/<name>/{OWNER_ENV_FILE} (root 0600) beside .env — source\n"
+    "-- both under sudo, in ONE line, from /opt/<name>:\n"
+    f"--   sudo sh -c 'set -a; . ./.env; . ./{OWNER_ENV_FILE}; set +a; "
+    'psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql\'\n'
+    "-- (with pgurl, from docs/TROUBLESHOOTING.md, inside the same sh -c: "
+    'u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql)\n'
     "-- Never through DATABASE_URL: that is the app's non-owner role, which cannot CREATE.\n"
     "-- Keep BEGIN/COMMIT out of this file — an inner COMMIT would end psql -1's transaction.\n"
 )
@@ -3734,8 +3741,11 @@ def _vendor_app_audit_log(backend_dir: Path) -> None:
 # (`fabrik apply`), and a missing value fails loudly rather than falling back
 # (core/35-security-auth.md: DSNs get no default).
 _ENV_EXAMPLE_DSN_BLOCK = (
-    "# Database — both DSNs are injected into .env by the postgres registrar (`fabrik apply`).\n"
-    "# Neither has a default; a missing value fails loudly (core/35-security-auth.md).\n"
+    "# Database — both DSNs are injected by the postgres registrar (`fabrik apply`):\n"
+    f"# DATABASE_URL into .env (every service loads it); DATABASE_URL_OWNER into {OWNER_ENV_FILE},\n"
+    "# which only the services declaring it load — the audit-jobs companion, a migrate\n"
+    "# service — never the app (D-754). Neither has a default; a missing value fails loudly\n"
+    "# (core/35-security-auth.md). In WSL dev both live in .env.local, one local role.\n"
     "#   DATABASE_URL        the app's runtime role (<db>_app, not the owner — D-390)\n"
     "#   DATABASE_URL_OWNER  the database OWNER: db/schema.sql, migrations and the\n"
     "#                       audit-log retention/verification jobs — nothing else\n"
@@ -4161,8 +4171,10 @@ def _append_audit_jobs_service(project_dir: Path, name: str, project_type: str) 
 
     A git-sourced deploy (the scaffold default) runs this file, which ``companion_services``
     never drives, so the service the spec declares is written here too, from the same
-    :func:`~fabrik.spec_generator.audit_jobs_companion`. ``env_file: .env`` is what carries
-    ``DATABASE_URL_OWNER`` (compose ``environment:`` never holds it). The image's
+    :func:`~fabrik.spec_generator.audit_jobs_companion`. ``env_file`` names ``.env`` AND
+    ``.env.owner`` (long syntax, ``required: false``): the owner file is what carries
+    ``DATABASE_URL_OWNER`` since the owner split (D-754) — compose ``environment:`` never
+    holds it and the project ``.env`` no longer does. The image's
     HEALTHCHECK probes the APP (HTTP or its worker process), so the scheduler replaces it with a
     liveness probe (``kill -0 1``). Never ``disable: true``: ``compose up --wait`` fails a service
     whose healthcheck is disabled ("has no healthcheck configured"), measured on compose 2.40.3.
@@ -4189,7 +4201,12 @@ def _append_audit_jobs_service(project_dir: Path, name: str, project_type: str) 
         f"    command: {command}\n"
         "    env_file:\n"
         "      - .env\n"
-        "    healthcheck:\n"
+        + (
+            f"      - path: {OWNER_ENV_FILE}\n        required: false\n"
+            if companion.owner_env
+            else ""
+        )
+        + "    healthcheck:\n"
         # A liveness probe, never `disable: true`: compose `up --wait` refuses a disabled
         # healthcheck ("has no healthcheck configured", rc 1).
         '      test: ["CMD-SHELL", "kill -0 1"]\n'

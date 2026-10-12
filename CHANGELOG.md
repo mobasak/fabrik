@@ -73,6 +73,55 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-review answers its feedback queue in one pass (2026-10-12)
 - Phase 1 points at the review probe catalogue; a failed or `NO RESULT` refuter's candidates are executed by the lead, and the FAILED-seat re-dispatch names finders; the delta brief names its must-read files; `next`'s rows merge into `args.slices` by name; the close stages before its IN-PROGRESS gate. Every command, fragment and contract that states the Agent-tool fallback now also takes it for a run the operator did not invoke. The catalogue gains redactor timing, what a fix recipe leaves unchanged, quoting code from its emit site and linting a copy with the repo's config (D-752).
 
+### Changed — the owner DSN split is EXECUTED: the Finish review closed on three fix commits, the plan and its lock are released (2026-10-12)
+
+- Plan `2026-10-12-plan-1-owner-dsn-split` Phase C (D-754, W-4e74ea9d). The whole-plan `/fabrik-review` (four file slices, a Sonnet and a
+  Haiku finder per slice plus the Opus floor on the deployer, a refuter per slice) raised 20 candidates, confirmed 17, refuted 3 and closed
+  20→4→0 over three fix commits: `scaffold.py` spells the owner file through `OWNER_ENV_FILE` and the hand-off scan runs only over a compose
+  that parses (1a82aa9b7); `_deploy_template` renders the secrets without the owner keys, G1/G3 assert no DSN value reaches the log, the
+  cutover pin refusal says remove the pin, the spec and plan show the fail-closed read (a6d0da75c); `_read_env_file`'s docstring names
+  `_build_env` as the deploy merge reader and the check module's docstring states the per-line dedup fallback (c60a0ef10). Receipt
+  `docs/development/reviews/2026-10-12-plan-1-owner-dsn-split-review.md`; plan `Status: EXECUTED`; lock released. The one read-only
+  ssh of Phase C found none of the four named paths on vps1, so the live `.env` mode (R1) stays unmeasured and the first post-merge
+  `fabrik apply` reads it back. Deferred to backlog: W-94a3b4df, W-c03bf797, W-8dd25072.
+
+### Changed — the scaffold, the app-role check and the docs follow the owner DSN to `.env.owner` (2026-10-12)
+
+- Plan `2026-10-12-plan-1-owner-dsn-split` Phase B (D-754). `src/fabrik/spec_loader.py`: `CompanionService.owner_env` (default
+  false; `audit_jobs_companion` sets it) and a `Spec` validator that refuses an owner key in `env:` — the templates render
+  `env:` into every service's `environment:`. The companion partial and `_append_audit_jobs_service` emit `env_file: [.env,
+  {path: .env.owner, required: false}]` for an `owner_env` companion; the app services load `.env` alone.
+  `src/fabrik/app_role_check.py`: the `DATABASE_URL: ${DATABASE_URL_OWNER}` hand-off is now a finding whose text is the remedy
+  (`OWNER_HANDOFF_REMEDY` — compose interpolates from the project `.env`, where the key no longer lives) — in a `command:`
+  as much as under `environment:`, matched on the raw line, an odd run of `$` interpolating, one finding per service — and
+  so is naming the key in a service that does not load `.env.owner`; a service whose
+  `env_file` names `.env.owner` (any spelling `normpath` reduces to it) is the accepted owner consumer: its `migrate` finding
+  is skipped and a line inside its block clears only while it names no bare `DATABASE_URL` and defines no YAML anchor another
+  service aliases; an alembic env reading the owner
+  key while no parseable compose file declares it is the `NO_OWNER_CONSUMER` finding (repo-wide; its text names the remedy),
+  and `run_check` appends ` reaches DATABASE_URL` to label patterns only. The `Spec` validator also refuses the owner key in
+  a companion's `env_overrides`; the hand-off scan runs only over a compose that parses. `scaffold.py` spells the owner file
+  through `OWNER_ENV_FILE` alone (a grader refuses a literal). The schema headers
+  apply as one `sudo sh -c` sourcing both files; `.env.example` and the scaffold + three template `.gitignore`s name `.env.owner`.
+  Docs: `docs/operations/fabrik-lifecycle.md` (step 0 of the cutover runbook, the two-file layout, "what the split does not
+  cover"), `docs/CONFIGURATION.md`, `docs/operations/credential-recovery.md`, `docs/reference/modules/drivers.md`, the three
+  scaffold doc templates. Graders G8–G15 (the plan's labels — the tests are named in its Phase B steps) red-first, G16–G29
+  from the phase review's five rounds; thirty mutants red in a throwaway worktree.
+
+### Changed — the owner DSN leaves the project `.env`: the deployer writes `DATABASE_URL_OWNER` to `.env.owner` (2026-10-12)
+
+- `src/fabrik/orchestrator/deployer_ssh.py` (plan `2026-10-12-plan-1-owner-dsn-split` Phase A, D-754): every writer of a
+  project's `.env` — `inject_env`, the four deploy paths and `_persist_git_sha` — now goes through one `_write_env_files`,
+  which writes the owner keys (`OWNER_ENV_KEYS`, today `DATABASE_URL_OWNER`) to `/opt/<name>/.env.owner` FIRST and `.env`
+  without them, logging the move once; a project whose `.env` still carries the key gets it moved on its next apply or
+  redeploy. `_read_env_file` returns the merged view in one probe (two lines) and one read — the two-file read is
+  SEPARATED and fail-closed (`cat <env> && echo && cat <owner>`), because a plain two-file `cat` joined lines when `.env` lacked a trailing
+  newline. `.env` and `.env.owner` are `chmod 0600` on the remote temp file before the `mv`. The constants live in
+  `src/fabrik/spec_loader.py` (`OWNER_ENV_KEYS`, `OWNER_ENV_FILE`). `_deploy_template` renders no owner key into
+  `compose.yaml` (a `secrets.from_env` owner key rides to `.env.owner` through the writer, never into a service's
+  `environment:`); the cutover's pin refusal says "remove the pin" (an owner key in `env:` is refused). Graders G1–G7 in
+  `tests/orchestrator/test_deployer_ssh.py::TestOwnerEnvSplit`, each red-first; five mutants red in a throwaway worktree.
+
 ### Fixed — the parity stub finds the comparator the way the host-leg recipe stages it (2026-10-11)
 
 - `templates/scaffold/scripts/verify_prod_parity.py` (seeded into every scaffolded project; hub symlink `scripts/verify_prod_parity.py`): the stub imports `libs/health_probe` by a stated precedence — its own clone when `<clone>/libs/health_probe/health_probe.py` exists, else a FLAT `health_probe/` copy beside the script (exactly where `/fabrik-deploy-verify`'s host leg stages it: `scp -r libs/health_probe <vps>:/tmp/health_probe` next to `/tmp/verify_prod_parity.py`, the VPS checkout holding no gitignored comparator), else the clone as before. Pre-fix the root came from `__file__` alone, so every host-leg comparison row read `UNVERIFIABLE (health_probe not vendored — run the fleet sync)` (W-82cff1ac item 1, wef3's `/fabrik-deploy-checklist` round 2). The marker is the module, not the directory (a `__pycache__`-only leftover never qualifies); the module is loaded BY FILE PATH once per process, never by a `sys.path` name lookup (an installed or stray `health_probe` cannot stand in for the staged copy); a staged copy whose directory or module file is owned by another user or writable by others is refused; a file that loads but is not the vendored comparator, or whose dependency is missing, is reported FOUND BUT UNUSABLE with the cause instead of 'not vendored'; the project `.env` stays the clone's in every rung; the un-vendored detail keeps its prefix and names both paths looked for. No cwd rung and no env knob — two design critiques (Opus + Fable) rejected wef3's `PARITY_REPO_ROOT` and a cwd rung (a stale export or a hub cwd would re-root another project's run, and the VPS cwd never holds the comparator). Eight graders in `tests/test_scaffold_deploy_contract.py`, seven red-first on the pre-fix template and one labelled regression guard; the scoped review's round 1 (11 confirmed) replaced the first draft's `sys.path` append with the by-path load and added the ownership and API checks, and its round 2 (1 confirmed) extended the ownership check from the directory to the module file; `docs/reference/deployment-verification.md` states the precedence. Items 2-residual, 3 and 4 of the work item and four recipe findings are mailed to infra (`commands/_sources/` is a governance-sync path).

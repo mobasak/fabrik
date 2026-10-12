@@ -118,7 +118,7 @@ If the GitHub account is lost AND `/opt/fabrik/.env` is gone simultaneously:
 
 1. **Reissue everything that can be reissued.** That covers Cloudflare token, B2 keys, Namecheap, every service-issued key.
 2. **`BACKREST_RESTIC_PASSWORD` is unrecoverable.** B2 backups in the `vps1-ocoron-backups` bucket become permanently unreadable — they're encrypted with that password and restic stores no recovery mechanism.
-3. **vps1 disk data is still intact** (assuming you haven't lost vps1 too). You can `pg_dump` glitchtip + site_provisioner directly, scp `/opt/<svc>/.env` files off vps1, rebuild the env from those primary sources. The B2 backup chain is broken until you re-init restic with a new password (treat as a full DR-key rotation event).
+3. **vps1 disk data is still intact** (assuming you haven't lost vps1 too). You can `pg_dump` glitchtip + site_provisioner directly, scp `/opt/<svc>/.env` AND `/opt/<svc>/.env.owner` off vps1 (the owner password lives only in `.env.owner` since D-754 and cannot be recovered otherwise), rebuild the env from those primary sources. The B2 backup chain is broken until you re-init restic with a new password (treat as a full DR-key rotation event).
 
 This is the worst-case scenario the W9 design accepts because it's already accepted for the main code repo.
 

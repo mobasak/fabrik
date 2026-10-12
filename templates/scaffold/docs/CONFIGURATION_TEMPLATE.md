@@ -30,7 +30,7 @@ curl http://localhost:$PORT/health
 |----------|---------|-------------|
 | `PORT` | *(see .env.example)* | Service port. Auto-assigned by scaffold, registered in `PORTS.md`. |
 | `DATABASE_URL` | *(injected by `fabrik apply`)* | The app's PostgreSQL connection — the non-owner `<db>_app` role once the spec's `shape.database_url_app_role` is `true`. No default in code. |
-| `DATABASE_URL_OWNER` | *(injected by `fabrik apply`)* | The database OWNER. Only `db/schema.sql` (`u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql`, define `pgurl` first: Debug commands), migrations, runtime DDL and the audit-log retention/verification jobs use it. No default in code. |
+| `DATABASE_URL_OWNER` | *(injected by `fabrik apply`)* | The database OWNER, injected into `.env.owner` (root 0600; loaded only by the services that declare it — the audit-jobs companion, a `migrate` service — never the app; D-754). Only `db/schema.sql` (on the VPS, from `/opt/<name>`: `sudo sh -c 'set -a; . ./.env; . ./.env.owner; set +a; psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql'`; `pgurl`: Debug commands), migrations, runtime DDL and the audit-log retention/verification jobs use it. No default in code. |
 
 <!-- Add project-specific required vars. Delete both DSN rows if not using a database. -->
 
@@ -115,10 +115,12 @@ curl -sS -o /dev/null -w "HTTP %{http_code}\n" \
 ### Database
 
 **Shared postgres-main (recommended for Fabrik services):** the postgres registrar injects
-both DSNs into `.env` at `fabrik apply` — never hand-set them. The app connects with
-`DATABASE_URL`; schema work and the audit-log jobs connect with `DATABASE_URL_OWNER`.
-Both live in the same `.env`, so the append-only `audit_log` holds against the app's code
-paths and SQL injection, not against code execution inside the container.
+both DSNs at `fabrik apply` — never hand-set them: `DATABASE_URL` into `.env`, which every
+service loads, and `DATABASE_URL_OWNER` into `.env.owner`, which only the services declaring it
+load (the audit-jobs companion; a `migrate` service — D-754). The app connects with
+`DATABASE_URL`; schema work and the audit-log jobs connect with `DATABASE_URL_OWNER`, so an app
+container never holds the owner key; the owner credential leaves the app's environment once the
+spec cuts over to the app role (`shape.database_url_app_role: true`).
 
 ```bash
 DATABASE_URL=postgresql://[project]_app:password@postgres-main:5432/[project]
@@ -141,7 +143,7 @@ DATABASE_URL=postgresql://localhost:5432/[project]_dev
 PORT=<see .env.example>
 LOG_LEVEL=DEBUG
 DATABASE_URL=postgresql://localhost:5432/[project]_dev
-DATABASE_URL_OWNER=postgresql://localhost:5432/[project]_dev  # one local role serves both in dev
+DATABASE_URL_OWNER=postgresql://localhost:5432/[project]_dev  # one local role serves both in dev — and one file (.env.local)
 ```
 
 ### Production (VPS / Docker Compose)
@@ -150,7 +152,7 @@ DATABASE_URL_OWNER=postgresql://localhost:5432/[project]_dev  # one local role s
 PORT=${PORT}
 LOG_LEVEL=INFO
 DATABASE_URL=postgresql://[project]_app:${DB_PASSWORD}@postgres-main:5432/[project]
-DATABASE_URL_OWNER=postgresql://[project]:${DB_OWNER_PASSWORD}@postgres-main:5432/[project]
+DATABASE_URL_OWNER=postgresql://[project]:${DB_OWNER_PASSWORD}@postgres-main:5432/[project]  # in .env.owner, not .env (D-754)
 REDIS_URL=redis://redis-main:6379/0
 # ^ hub (vps1) Docker-DNS hosts. On a spoke (spec target_vps: vps2/vps3) the
 #   registrar injects 10.99.0.1:<port> here instead — trust the injected value.

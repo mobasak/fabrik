@@ -23,7 +23,7 @@ from typing import Any
 
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.exceptions import DeployError
-from fabrik.spec_loader import Source, SourceType
+from fabrik.spec_loader import OWNER_ENV_FILE, OWNER_ENV_KEYS, Source, SourceType
 
 logger = logging.getLogger(__name__)
 
@@ -357,9 +357,10 @@ class SSHDeployer:
         merged.update(env_vars)
 
         with _target_vps_env(ctx):
-            env_content = _format_env(merged)
-
-            _write_file_to_vps(name, ".env", env_content)
+            # The owner key lands in `.env.owner` FIRST, then `.env` without it, then ONE restart —
+            # the registrar's one-call injection at creation keeps its invariant: the owner password
+            # is on disk before anything below it can fail (plan 2026-10-12-plan-1-owner-dsn-split).
+            _write_env_files(f"/opt/{name}", merged, _env_writer_for(name))
             _compose_up(name, _health_disabled(ctx.spec), _ssh)
             logger.info("Injected %d env vars into %s and restarted", len(env_vars), name)
 
@@ -503,8 +504,15 @@ class SSHDeployer:
 
         spec_obj = Spec(**spec_dict)
 
-        # Always dry_run=True for render — we need content strings, not file paths
-        rendered = TemplateRenderer().render(spec_obj, secrets=ctx.secrets, dry_run=True)
+        # Always dry_run=True for render — we need content strings, not file paths. An owner
+        # key among the secrets never reaches compose.yaml (the renderer puts every secret into
+        # every service's `environment:`, which would hand the app the owner DSN, D-754): it
+        # rides to `.env.owner` through `_build_env` and the writer instead (the Finish review, O1).
+        rendered = TemplateRenderer().render(
+            spec_obj,
+            secrets={k: v for k, v in ctx.secrets.items() if k not in OWNER_ENV_KEYS},
+            dry_run=True,
+        )
         compose_content = rendered["compose.yaml"]
 
         # Validate compose against rule-pack constraints
@@ -516,12 +524,12 @@ class SSHDeployer:
         _assert_claude_cli_mounts(compose_content, ctx.spec)
 
         # Build .env from spec env + secrets (read-merge to preserve registrar-injected vars)
-        env_content = self._build_env_content(ctx, name, existing)
+        env = self._build_env(ctx, name, existing)
 
         # Write files to VPS
         _ssh(f"sudo mkdir -p /opt/{name}", timeout=10)
         _write_file_to_vps(name, "compose.yaml", compose_content)
-        _write_file_to_vps(name, ".env", env_content)
+        _write_env_files(f"/opt/{name}", env, _env_writer_for(name))
 
         # Write additional rendered files (Dockerfile, etc.)
         for filename, content in rendered.items():
@@ -601,10 +609,8 @@ class SSHDeployer:
         _assert_claude_cli_mounts(compose_content, ctx.spec)
 
         # Write .env (read-merge to preserve registrar-injected vars).
-        env_content = self._build_env_content(
-            ctx, name, existing, overrides={"GIT_SHA": sha} if sha else None
-        )
-        _write_file_to_vps(name, ".env", env_content)
+        env = self._build_env(ctx, name, existing, overrides={"GIT_SHA": sha} if sha else None)
+        _write_env_files(f"/opt/{name}", env, _env_writer_for(name))
 
         _ssh(f"cd /opt/{name} && sudo docker compose build", timeout=_BUILD_TIMEOUT)
         _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
@@ -642,11 +648,11 @@ class SSHDeployer:
             )
         _assert_claude_cli_mounts(compose_content, ctx.spec)
 
-        env_content = self._build_env_content(ctx, name, existing)
+        env = self._build_env(ctx, name, existing)
 
         _ssh(f"sudo mkdir -p /opt/{name}", timeout=10)
         _write_file_to_vps(name, "compose.yaml", compose_content)
-        _write_file_to_vps(name, ".env", env_content)
+        _write_env_files(f"/opt/{name}", env, _env_writer_for(name))
         _compose_up(name, _health_disabled(spec), _ssh)
 
     def _deploy_local(
@@ -682,8 +688,8 @@ class SSHDeployer:
         # ``path``, so its .env is always read (absent → {}) — else the merge dropped every
         # registrar-injected key, DATABASE_URL_OWNER included (W-7ec31807).
         existing = existing or {"name": name, "path": path}
-        env_content = self._build_env_content(ctx, name, existing, app_path=path)
-        _write_file_to_vps_path(path, ".env", env_content)
+        env = self._build_env(ctx, name, existing, app_path=path)
+        _write_env_files(path, env, _write_file_to_vps_path)
         _ssh(f"cd {path} && sudo docker compose up -d --wait", timeout=120)
 
     # ------------------------------------------------------------------
@@ -699,7 +705,21 @@ class SSHDeployer:
         *,
         overrides: dict[str, str] | None = None,
     ) -> str:
-        """Build .env content by merging spec env + secrets over existing vars.
+        """The formatted view of :meth:`_build_env` — kept for its readers and tests; the deploy
+        paths hand the DICT to :func:`_write_env_files`, never a string parsed back (the
+        format→parse round trip loses a value holding a newline — Phase A's review, O2)."""
+        return _format_env(self._build_env(ctx, name, existing, app_path, overrides=overrides))
+
+    def _build_env(
+        self,
+        ctx: DeploymentContext,
+        name: str,
+        existing: dict[str, Any] | None,
+        app_path: str | None = None,
+        *,
+        overrides: dict[str, str] | None = None,
+    ) -> dict[str, str]:
+        """Build the merged .env mapping — spec env + secrets over existing vars.
 
         Read-merge strategy: reads existing .env on VPS first (if any) to
         preserve registrar-injected vars (SENTRY_DSN, REDIS_URL, etc.) that
@@ -746,7 +766,7 @@ class SSHDeployer:
         for key, value in ctx.secrets.items():
             merged[key] = str(value)
 
-        return _format_env(merged)
+        return merged
 
 
 # ======================================================================
@@ -802,7 +822,7 @@ def _is_placeholder(value: str) -> bool:
 
     Fabrik specs carry registrar-managed vars (DATABASE_URL, REDIS_URL, …) as
     literal ``…placeholder…`` strings; the infra registrars overwrite them
-    post-deploy via ``inject_env()``. ``_build_env_content`` uses this to avoid
+    post-deploy via ``inject_env()``. ``_build_env`` uses this to avoid
     letting such a placeholder clobber an already-injected real value on a
     re-apply (which would break ``docker compose up --wait``).
 
@@ -896,28 +916,91 @@ def _format_env(env: dict[str, str]) -> str:
 
 
 def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
-    """Parse ``{path}/.env`` on the current SSH target — ``{}`` ONLY when the file is
-    absent; any ssh/read failure or unrecognised probe answer raises :class:`DeployError`.
+    """Parse ``{path}/.env`` overlaid by ``{path}/.env.owner`` on the current SSH target — the
+    MERGED view — ``{}`` ONLY when ``.env`` is absent; any ssh/read failure or unrecognised probe
+    answer raises :class:`DeployError`.
 
     The one absent-vs-failed distinction shared by :meth:`SSHDeployer.read_env` (the
     app-role decision and :meth:`~SSHDeployer.inject_env`'s merge) and
-    :meth:`SSHDeployer._build_env_content` (the deploy/redeploy merge).
+    :meth:`SSHDeployer._build_env` (the deploy/redeploy merge). ONE probe and ONE
+    read, as before the owner split: the probe answers ``present``/``absent`` for ``.env`` on
+    its first line and ``owner`` on a second line when ``.env.owner`` exists; the read is then
+    today's ``sudo cat <env>`` alone, or ``sudo sh -c 'cat <env> && echo && cat <owner>'`` —
+    chained with ``&&`` so a failed read of EITHER file is a non-zero exit the ssh driver raises
+    on (a ``;`` chain exits with the LAST cat's status and would hand back the owner keys alone
+    as the merged view — executed in Phase A's review), and the ``echo`` is a SEPARATOR,
+    because a plain two-file ``cat`` joins the last line of a ``.env``
+    that lacks a trailing newline onto the owner file's first line (executed at the design's
+    approval panel: the owner key vanished from the parse and the owner DSN rode into
+    ``REDIS_URL``'s value, which the next write would have put back into ``.env``). The owner
+    file's keys parse LAST, so they win a shared key (a stale copy left in ``.env``).
     """
     env_path = f"{path}/.env"
+    owner_path = f"{path}/{OWNER_ENV_FILE}"
     try:
         # The whole test runs INSIDE sudo: a refused sudo prints nothing (an
         # unrecognised answer → raise) instead of the `|| echo absent` fallback
         # that `sudo test -f X && … || echo absent` would print.
-        inner = f"[ -f {shlex.quote(env_path)} ] && echo present || echo absent"
+        inner = (
+            f"[ -f {shlex.quote(env_path)} ] && echo present || echo absent; "
+            f"[ -f {shlex.quote(owner_path)} ] && echo owner || true"
+        )
         probe = _ssh(f"sudo sh -c {shlex.quote(inner)}", timeout=10).strip()
-        if probe == "absent":
+        lines = [ln.strip() for ln in probe.splitlines()]
+        first = lines[0] if lines else ""
+        if first == "absent":
+            # The deployer always writes `.env` whenever it writes the owner file, so an orphan
+            # `.env.owner` is not read while `.env` is absent; the moment any write recreates
+            # `.env`, the next read merges the orphan again — by design, with no freshness check
+            # (D-754's reversal deletes the file explicitly for that reason).
             return {}
-        if probe != "present":
+        if first != "present" or len(lines) > 2 or (len(lines) == 2 and lines[1] != "owner"):
             raise DeployError(f"cannot read {env_path}: unexpected probe answer {probe[:40]!r}")
-        content = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
+        if len(lines) == 2:
+            cat = f"cat {shlex.quote(env_path)} && echo && cat {shlex.quote(owner_path)}"
+            content = _ssh(f"sudo sh -c {shlex.quote(cat)}", timeout=10)
+        else:
+            content = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
         raise DeployError(f"cannot read {env_path}: {e}") from e
     return _parse_env(content)
+
+
+def _split_env(env: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
+    """``(app, owner)`` — the keys of *env* partitioned by membership in ``OWNER_ENV_KEYS``."""
+    owner = {k: v for k, v in env.items() if k in OWNER_ENV_KEYS}
+    app = {k: v for k, v in env.items() if k not in OWNER_ENV_KEYS}
+    return app, owner
+
+
+def _write_env_files(
+    path: str, merged: dict[str, str], write: Callable[[str, str, str], None]
+) -> None:
+    """The ONE writer of ``.env`` and ``.env.owner`` under *path*: the owner half FIRST (only when
+    non-empty — no empty owner file is ever written), then ``.env`` WITHOUT any owner key, one log
+    line. Every path that used to write ``.env`` — ``inject_env``, the four deploy paths and
+    ``_persist_git_sha`` — writes through here, so no path can resurrect the key into ``.env``
+    from a merged read, and a project whose ``.env`` still carries the key gets it moved on its
+    next apply or redeploy with no flag and no runbook step (spec § The delta 3). *write* is the
+    ``(path, filename, content)`` writer: :func:`_write_file_to_vps_path` for a local-source app,
+    :func:`_env_writer_for` for the ``/opt/<name>`` apps.
+    """
+    app, owner = _split_env(merged)
+    if owner:
+        write(path, OWNER_ENV_FILE, _format_env(owner))
+        logger.info("env: %d owner key(s) kept in %s for %s", len(owner), OWNER_ENV_FILE, path)
+    write(path, ".env", _format_env(app))
+
+
+def _env_writer_for(name: str) -> Callable[[str, str, str], None]:
+    """A ``(path, filename, content)`` writer over :func:`_write_file_to_vps` for ``/opt/<name>``,
+    so the name-based callers (and their tests, which patch ``_write_file_to_vps``) keep the
+    ``(name, filename, content)`` shape they have today."""
+
+    def write(path: str, filename: str, content: str) -> None:
+        _write_file_to_vps(name, filename, content)
+
+    return write
 
 
 def _read_head_sha(name: str, _ssh: Any) -> str | None:
@@ -949,7 +1032,7 @@ def _persist_git_sha(name: str, sha: str, _ssh: Any) -> None:
     try:
         merged = _read_env_file(f"/opt/{name}", _ssh)
         merged["GIT_SHA"] = sha
-        _write_file_to_vps(name, ".env", _format_env(merged))
+        _write_env_files(f"/opt/{name}", merged, _env_writer_for(name))
     except (DeployError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
         logger.warning("GIT_SHA not updated for %s: .env read-merge-write failed: %s", name, e)
 
@@ -992,9 +1075,18 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
     parent = posixpath.dirname(filename)
     dest = f"{path}/{shlex.quote(filename)}"
     mkdir = f"sudo mkdir -p {path}/{shlex.quote(parent)} && " if parent else ""
+    # `.env` and `.env.owner` are root:root 0600 BY NAME, the mode set on the remote temp file
+    # BEFORE the `mv` (which keeps it; `chown` does not touch it) so the file never sits at its
+    # final path wider than 0600. Before the owner split the mode rested on the local temp file's
+    # 0600 carried by scp — which a stale remote tmp file under a recycled pid would override.
+    chmod = (
+        f"sudo chmod 0600 {shlex.quote(tmp_remote)} && "
+        if filename in (".env", OWNER_ENV_FILE)
+        else ""
+    )
     try:
         _ssh(
-            f"{mkdir}sudo mv {shlex.quote(tmp_remote)} {dest} && sudo chown root:root {dest}",
+            f"{chmod}{mkdir}sudo mv {shlex.quote(tmp_remote)} {dest} && sudo chown root:root {dest}",
             timeout=10,
         )
     except Exception:
@@ -1214,13 +1306,16 @@ def _generate_docker_compose(
     ]
     # Custom container command override (e.g. Zitadel's `start-from-init … --tlsMode external`). Without this
     # the container runs the image's DEFAULT CMD and the whole directive is silently lost. Docker Compose
-    # interpolates ${VAR} in `command:` from env_file at `up` time (verified on compose 2.40.3), so a
-    # secrets-minted ${ZITADEL_MASTERKEY} expands here exactly as it does in the env.
+    # interpolates ${VAR} in `command:` from the shell and the PROJECT `.env` beside compose.yaml at `up`
+    # time — never from a service's `env_file` entries (compose-spec interpolation; research ledger
+    # 2026-10-12-owner-dsn-split ods-60/61). For an image-sourced app the two files coincide, which is why
+    # the 2.40.3 check could not tell them apart; a secrets-minted ${ZITADEL_MASTERKEY} expands here because
+    # it lives in that project `.env` — an owner key never would (it lives in `.env.owner`).
     if image_command:
         # Single-quoted YAML scalar (escape embedded single-quotes by doubling) — keeps a colon, `#`, or
         # other YAML-special char in the command from breaking the compose, and matches Zitadel's own official
-        # docker-compose form. Compose still interpolates ${VAR} from env_file (interpolation runs on the
-        # parsed string value, after YAML parsing).
+        # docker-compose form. Compose still interpolates ${VAR} from the project `.env` (interpolation runs
+        # on the parsed string value, after YAML parsing).
         _q = image_command.replace("'", "''")
         lines.append(f"    command: '{_q}'")
     lines += [

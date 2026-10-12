@@ -432,7 +432,7 @@ def test_cutover_refuses_a_pinned_database_url(tmp_path: Path, extra, secrets) -
     assert ("ensure_app_role", True) not in events
     mocks["check"].assert_not_called()
     failures = _app_role_failures(ctx)
-    assert len(failures) == 1 and "DATABASE_URL_OWNER" in failures[0]
+    assert len(failures) == 1 and "remove the pin" in failures[0] and ".env.owner" in failures[0]
 
 
 def test_db_before_boot_seed_is_not_a_pin(tmp_path: Path) -> None:

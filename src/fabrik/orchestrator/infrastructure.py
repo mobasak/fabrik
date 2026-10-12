@@ -1163,8 +1163,9 @@ class InfrastructureProvisioner:
             raise AppRoleRefusalError(
                 f"cutover of {db_name} refused: DATABASE_URL is pinned by {pin}, which "
                 "rewrites it to the owner DSN on every apply (re-cutting over and resetting "
-                f"{app}'s password each time) — move the pinned value to DATABASE_URL_OWNER "
-                "first"
+                f"{app}'s password each time) — remove the pin: the registrar's .env and "
+                ".env.owner carry both DSNs, and an owner key in a spec's env: is refused by the "
+                "loader (D-754)"
             )
 
         siblings = _shared_db_siblings(db_name, getattr(ctx, "spec_path", None))

@@ -235,7 +235,7 @@ re-asserts every role below on each `fabrik apply`; nothing here is hand-run.
 
 | Role | Minted by | Connects as | May do on `audit_log` |
 |---|---|---|---|
-| owner (`<db>`) | `create_database` | `DATABASE_URL_OWNER` — migrations, runtime DDL, the retention job | everything; it owns the table (`ensure_app_role` re-owns it to the owner if anyone else holds it) |
+| owner (`<db>`) | `create_database` | `DATABASE_URL_OWNER` (in `/opt/<name>/.env.owner`, loaded only by the services that declare it — D-754) — migrations, runtime DDL, the retention job | everything; it owns the table (`ensure_app_role` re-owns it to the owner if anyone else holds it) |
 | app (`<db>_app`) | `ensure_app_role` | `DATABASE_URL` once the spec sets `shape.database_url_app_role: true` and the cutover ran | `INSERT`, `SELECT` only; `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, `REFERENCES` revoked; no `CREATE` on `public`, so it can never own a table |
 | watchdog rw (`<db>_wd_rw`) | `create_watchdog_roles` | `WATCHDOG_DB_URL_RW` | DML on other tables; `UPDATE`, `DELETE`, `TRUNCATE` on `audit_log` revoked after its `GRANT … ON ALL TABLES` |
 | group roles (`anon` / `authenticated` / `service_role`, Pattern A, where the project defines them) | the project's schema | never directly; the app reaches them by `SET ROLE` (membership `WITH INHERIT FALSE, SET TRUE`, mirroring the owner's) | the same revokes as the app, because after `SET ROLE` the session acts with that role's privileges |

@@ -1,6 +1,6 @@
 # Plan — the owner DSN leaves the app containers' environment (W-4e74ea9d)
 
-Status: CONVERGED
+Status: EXECUTED 2026-10-12 (Phase A c2ec25e4c + 2935a2da9 · Phase B 2de2c1097 + 1e93f89cf, 2b9aefffe, 67a843ccb, 7dd78e1c9, dbf0e5c13 · Phase C: Finish review fixes 1a82aa9b7, a6d0da75c, c60a0ef10; scoped reviews A 12→0, B 21→9→2→2→1→0; Finish /fabrik-review 20→4→0, receipt docs/development/reviews/2026-10-12-plan-1-owner-dsn-split-review.md; final_gate --check success) — approved by the Opus + Fable panel at /fabrik-plan-review's gate (D-754, D-613). Review-driven deviations: the two-file read is `&& echo &&` (fail-closed), the deploy paths hand the merged dict to `_write_env_files` (G7), `_deploy_template` renders the secrets without the owner keys (G32), the hand-off scan runs only over a compose that parses (G30), scaffold.py spells the owner file through `OWNER_ENV_FILE` (G31). Deferred: W-94a3b4df (non-alembic connection sources), W-c03bf797 (first-move WARNING), W-8dd25072 (mktemp staging). R1 (the live `.env` mode) unmeasured — none of the four named paths exist on vps1; the first post-merge apply reads it back.
 Profile: small
 **Owner:** fleet
 **Surface:** `git rev-parse HEAD` = f333de437 at authoring; `src/fabrik/orchestrator/deployer_ssh.py` 1,273 lines,
@@ -88,7 +88,8 @@ D7 floor) and one receipt.
 - **One round trip for the read, as today.** `_read_env_file` keeps ONE probe and ONE `cat`: the probe prints `present`
   or `absent` for `.env` on its first line and, on a second line, `owner` when `.env.owner` exists (a probe answer with
   no second line means no owner file — every scripted test fixture that answers a bare `present`/`absent` keeps its
-  meaning); the second command is today's `sudo cat <env>` alone, or `sudo sh -c 'cat <env>; echo; cat <owner>'` — the `echo` SEPARATES
+  meaning); the second command is today's `sudo cat <env>` alone, or `sudo sh -c 'cat <env> && echo && cat <owner>'` (as built —
+  the Phase A review made the chain `&&`, fail-closed) — the `echo` SEPARATES
   the files, because a plain two-file `cat` joins a `.env` lacking a trailing newline onto the owner file's first line
   (executed at the panel: the owner key vanished and the owner DSN rode into `REDIS_URL`) — so the owner file's keys
   parse LAST and win. No fixture gains an ssh call (round 1, rules-O1/rest-S1).
@@ -181,7 +182,7 @@ D7 floor) and one receipt.
 | "every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one**" | .windsurf/rules/core/45-testing-strategy.md:20 | Behaviour Contract |
 | "**Watched-fail-first** (for tests this change adds or modifies" | .windsurf/rules/core/45-testing-strategy.md:22 | Red first |
 
-## Phase A — the deployer: the owner file, the merged read, the split write
+## Phase A — the deployer: the owner file, the merged read, the split write — ✅ EXECUTED 2026-10-12 (c2ec25e4c; review fixes 2935a2da9)
 Appetite: 120
 
 **Interfaces — Produces** (all in `src/fabrik/orchestrator/deployer_ssh.py`; `spec § The delta` 1-3, 6):
@@ -198,7 +199,8 @@ Appetite: 120
   owner file exists, no second line means it does not. `absent` returns `{}` even when an owner line follows: the
   deployer always writes `.env` whenever it writes the owner file, so an orphan `.env.owner` survives on disk untouched
   (the owner write happens only for a non-empty owner half) and is read the moment `.env` exists. The second command
-  is `sudo cat <env>` when no owner line came back — today's command byte-for-byte — and `sudo sh -c 'cat <env>; echo; cat <owner>'`
+  is `sudo cat <env>` when no owner line came back — today's command byte-for-byte — and `sudo sh -c 'cat <env> && echo && cat <owner>'`
+  (as built; the Phase A execution notes record the `;` → `&&` change)
   when it did: the `echo` SEPARATES the two files (a plain `cat <env> <owner>` joins the last line of a `.env` lacking a
   trailing newline onto the owner file's first line — executed at the panel on `_parse_env`: `REDIS_URL` absorbed
   `DATABASE_URL_OWNER=…` and the owner key vanished, I14), so the owner file's keys parse last and win a shared key.
@@ -241,7 +243,7 @@ Steps:
    - G2 (the merged view, one round trip): `mock_ssh` answering `present\nowner\n` then `DATABASE_URL=a\nDATABASE_URL_OWNER=stale\n\nDATABASE_URL_OWNER=o\n`
      (what the separated read prints when `.env` still carries a stale copy) → `read_env(ctx) == {"DATABASE_URL": a,
      "DATABASE_URL_OWNER": o}` and `mock_ssh.call_count == 2`, the second command being
-     `sudo sh -c 'cat /opt/<name>/.env; echo; cat /opt/<name>/.env.owner'` exactly; a bare `present\n` answer → the second
+     `sudo sh -c 'cat /opt/<name>/.env && echo && cat /opt/<name>/.env.owner'` exactly (as built, fail-closed); a bare `present\n` answer → the second
      command is today's `sudo cat /opt/<name>/.env` exactly.
    - G2b (the separator is load-bearing): `_parse_env` of a `.env` content WITHOUT a trailing newline joined to the owner
      content as a plain `cat` would print it LACKS the owner key (the panel's reproduction, kept as the negative half:
@@ -299,7 +301,25 @@ Steps:
 - **Given** a `.env` without a trailing newline beside an owner file, **When** `read_env` runs, **Then** both files' keys parse intact — the separated read, never a joined line (spec § The delta 2)
 - **Given** a probe answer that is not `present`/`absent` on its first line, or an empty answer, **When** the reader parses it, **Then** `DeployError` names the path; an `absent` first line returns `{}` whatever follows (spec § What exists today — the fail-closed reader)
 
-## Phase B — the scaffold and the docs
+**Phase A execution notes (2026-10-12):** the `/fabrik-review-scoped` pass over c2ec25e4c (three readers + a refuter,
+12 candidates, 9 confirmed, 3 refuted) changed two Interfaces as written above, both for the better and both graded:
+(1) the two-file read is `sudo sh -c 'cat <env> && echo && cat <owner>'`, not `; echo;` — a `;` chain exits with the
+LAST cat's status, so a missing or unreadable `.env` beside an owner file returned the owner keys alone as the merged
+view (executed: rc 0), where the ssh driver raises only on a non-zero rc; `&&` fails closed and
+`test_g2_a_failed_two_file_read_raises_never_returns_the_owner_half` holds it; (2) the deploy paths hand the merged
+DICT to `_write_env_files` through a new `SSHDeployer._build_env(...) -> dict` (`_build_env_content` is its formatted
+view, kept for its readers and tests) instead of parsing `_build_env_content`'s string back — the format→parse round
+trip loses a value holding a newline (executed: `a\nb` → `"a`), so the Interfaces' "parse it back" clause is retired
+and `test_g7_deploy_paths_write_a_newline_value_intact` holds the seam. Also added: graders for the probe parser's
+fail-closed clauses and its per-line strip (O3/O5), and the constants' comment in `spec_loader.py` names no consumer
+that does not exist yet (O7). Refuted with evidence: the git-sha test fake's `.env`-only assert (a loud failure on a
+future owner fixture, never a silent one; the file is read-and-run only) and the Phase A→B rollout order (0 of 69
+specs declare the companion, 0 of 39 composes name the key; Phase B lands on the same branch before any merge).
+Mutants red in a throwaway worktree for every clause (M-G7, M-G3, M-G4, M-G2b, M-G5; then the `;` chain back, each
+probe clause dropped, the strip dropped, the docker path round-tripping); restored tree green; 305 tests on the Phase
+A list; ruff and mypy clean. The review-scoped record is the artifact (`--review-waived` per Execution Contract 3b).
+
+## Phase B — the scaffold and the docs — ✅ EXECUTED 2026-10-12 (2de2c1097; review fixes 1e93f89cf, 2b9aefffe, 67a843ccb, 7dd78e1c9, dbf0e5c13)
 Appetite: 90
 
 **Interfaces — Consumes** (Phase A): `OWNER_ENV_FILE` is the filename the compose block names; the merged view.
@@ -435,7 +455,35 @@ Steps:
 - **Given** a scaffolded database project, **When** its `.gitignore` is read, **Then** it lists `.env.owner` (spec § MIRROR)
 - **Given** an agent reading the lifecycle or configuration docs, **When** it looks up where the owner DSN lives, **Then** every sentence names `.env.owner`, the runbook's step 0 and the interpolation form that no longer works (spec § Documentation landing sites)
 
-## Phase C — the live check and Finish
+**Phase B execution notes (2026-10-12):** the two D-441 request mails of step 5 are `01M4Q22F278ZQ1Y4BG7595CPCS`
+(infra — the five rule-pack sentences: `core/30-ops.md:161`, `:445`, `core/10-python.md:297`, `:305`,
+`core/app-audit-log.md:39-41` + `:180`) and `01M4Q22F4XA9MBG8RKQ76RQ7JR` (fabrik-lib — `app-audit-log/README.md:53-58`).
+Grader fix-ups found while running them: the clears-every-site fixture declares `.env.owner` on its `migrate` service
+(the canonical post-split repo — the mirror otherwise fires, correctly); the app service of the node-api, python-api-gpu
+and chrome-extension templates renders no `env_file` key at all, so G8/G9/G10 assert that NO other service lists the
+owner file instead of `== [".env"]`; the mirror fires only in a repo that has a compose file (an alembic-only fixture
+has no service to name). 409 tests on the Phase B list; seven mutants red in a throwaway worktree (which needed
+`<scratch>/fabrik-lib -> /opt/fabrik-lib` beside it: the scaffold resolves the module tree relative to the repo root).
+The `/fabrik-review-scoped` pass over 2de2c1097 (seven finders — a Sonnet and a Haiku per unit, Opus on the check unit —
+three refuters; 24 candidates, 21 confirmed by execution, 3 refuted: the gitignore claims compared the pin against the
+unrelated main checkout, the cited pack sections exist, `.env.local` is the scaffold's WSL dev file) found the check
+module's owner-consumer rule WIDER than its premise and the compose hand-off NARROWER than the mechanism, so Produces (ii)
+reads differently as built. Round 1 (1e93f89cf): inside an owner consumer a line clears only while it names no bare
+`DATABASE_URL` (`psql "$$DATABASE_URL"` in the block stays; the executed probe had returned `[]`); an unescaped
+`$DATABASE_URL_OWNER` anywhere in a compose file, or the key named in a service not loading `.env.owner`, is the
+`OWNER_HANDOFF_REMEDY` finding (the former `compose_block_spans` test pinned the opposite — it is G16 now); `./.env.owner`
+and the scalar form count (`posixpath.normpath`); the mirror stays silent on an unparseable compose and its text names
+the remedy; `run_check` appends ` reaches DATABASE_URL` to label patterns only; the loader also refuses the owner key in a
+companion's `env_overrides` (the partial renders them into `environment:`) — G16–G25. Round 2 (2b9aefffe): the hand-off
+is matched on the RAW line (a `--dbname` before it had fed the comment stripper), an odd run of `$` interpolates
+(`$$$DATABASE_URL_OWNER`), one finding per service (a folded `environment:` value had yielded two), and a consumer line
+defining a YAML anchor another service aliases stays (the range filter reads text, not the resolved graph) — G26–G29.
+Rounds 3–5 (67a843ccb, 7dd78e1c9, dbf0e5c13): the anchor rule moved from the finding's line to the BLOCK — a declaring block that defines a YAML anchor aliased outside it is no consumer range at all (the folded-anchor, `<<: *base` and aliased-psql shapes the Opus seat reproduced), and G17's neighbour is a flow-style service so a range widened by one at the end reds; round 4 made the alias end where an anchor name ends (`&cmd-`) and exempted every declaring block from "outside" (two consumers sharing an anchored `env_file` both stay consumers); round 5 iterated that exemption to a fixpoint so a share counts through any number of merge hops. The scope-growth stop (D-355) tripped at round 4 — from there each round confirmed only a defect inside the review's own fix text — so each closing pass re-verified the fixed set alone: 6 passes, 21 → 9 → 2 → 2 → 1 → 0. Recorded by design: a `labels:` value naming
+the key in a non-consumer is a finding (the module's raw-line rule), and a prisma/drizzle/django consumer's connection
+source is not scanned — the declaration is the evidence (backlog `W-94a3b4df`). Thirty mutants red across the
+phase and its five rounds; 461 tests on the Phase B list plus the loader's consumers. Appetite: 90 min planned, 182 min at the review's close — the overrun is the six-round review of the check module (a guard whose premise the first draft stated wider than its code), recorded as the lane's UPGRADE finding; the phase has no remaining step to re-plan.
+
+## Phase C — the live check and Finish — ✅ EXECUTED 2026-10-12 (Finish review fixes 1a82aa9b7, a6d0da75c, c60a0ef10)
 
 Appetite: 60
 
@@ -464,6 +512,46 @@ Steps:
 
 **Behavior Contract (Phase C):**
 - **Given** the merged change, **When** the next `fabrik apply` of a database project runs, **Then** its `.env.owner` exists root-owned 0600 and its `.env` no longer carries the owner key — read back by the apply log's move line (spec § Lifecycle)
+
+**Phase C execution notes (2026-10-12):** step 1 — the one ssh ran twice: attempt 1 at 06:12:09Z timed out
+(`Connection timed out`, rc 255); attempt 2 at 06:12:35Z reached vps1 (ssh rc 0) and found NONE of the four paths:
+`stat: cannot statx '/opt/transdoc/.env': No such file or directory`, the same for `/opt/youtube/.env`, and
+`grep: /opt/test-saas-log: No such file or directory`, `grep: /opt/translator: No such file or directory` (grep rc 2).
+So R1 stays unmeasured — those four projects are not deployed on vps1 today (0 of 4 paths exist; the plan named them
+from the hub's clones and specs, not from a live inventory) — and the chmod both env files now get is the evidence the
+first post-merge `fabrik apply` reads back, as the step's own fallback says; R2's two vps1-only projects have no checkout
+there to grep, so the 0-reader count stands on the 17 of 22 measured here plus the 3 image-sourced by construction. No DSN
+crossed the wire (`-l`, `--exclude='.env*'`, and the files were absent). Step 2 — the Finish `/fabrik-review` over
+`a2fd75dde..HEAD`: four file slices (deployer · scaffold · check · docs), a Sonnet and a Haiku finder per slice plus the D7
+Opus floor on the deployer, a refuter per slice, 13 seats stamped; pass 1 raised 20 candidates, 17 confirmed by the
+refuters and the orchestrator's own execution, 3 refuted (the plan's D-355 sentence, the generator's alias keying, the
+redeploy target — `cli.py:1317-1325` env-swaps the host); 13 fixed in two commits (1a82aa9b7: `scaffold.py` spells the
+owner file through `OWNER_ENV_FILE` at every emitted site with G31, the hand-off scan runs only over a compose that parses
+with G30, spec invariants 2 and 7 as built, the lifecycle notice paragraph; a6d0da75c: `_deploy_template` renders the
+secrets WITHOUT the owner keys so a `secrets.from_env` owner key never lands in compose.yaml with G32, G1/G3 assert no DSN
+value reaches the log, the cutover pin refusal says remove the pin, the spec's touchpoint row and Validation (2b) and this
+plan's G2 text show `&& echo &&`, step 0 no longer claims a pre-split companion declares the file); 3 recorded by design
+(an orphan `.env.owner` is deleted only by D-754's reversal; an orphan beside an absent `.env` is not adopted until a write
+recreates `.env`; a prisma/drizzle/django consumer's connection source is not scanned — backlog `W-94a3b4df`); 1 recorded
+pre-existing (the pid-named `/tmp` staging path and the scp-before-chmod window — `a2fd75dde:deployer_ssh.py:975` stages
+the same way; backlog `W-8dd25072`, `mktemp -m 0600`); the first-move WARNING half of the degradation finding is backlog
+`W-c03bf797`; `W-766ce3f2` (filed on the redeploy premise) is dropped with the reason. Pass 2 (the round-1 seats over the
+two fix commits, 13 seats) found the two halves the fixes left: `_read_env_file`'s docstring still named
+`_build_env_content` as the deploy merge reader (it is `_build_env`), and the check module's docstring promised ONE hand-off
+finding per service without the per-line fallback its comment states for a block the text scan cannot locate — both
+docstring edits, c60a0ef10. Pass 3 (the round-1 deployer and check seats — a Sonnet, a Haiku and the Opus floor on the deployer, a Sonnet and a Haiku on the check module; 0 candidates, so no refuter was dispatched) confirmed 0. Receipt:
+`docs/development/reviews/2026-10-12-plan-1-owner-dsn-split-review.md`. Two seat-isolation defects of the loop machinery,
+recorded in the receipt and the FEEDBACK line: a round-1 Haiku finder wrote `arch-tests.tar` into the worktree root
+(removed, untracked, never staged), and the brief's archive-roots list omitted `scripts/` and `.windsurf/`, which the
+scaffold and deployer tests import (the seats added them). Step 3 — `final_gate.py --check --json` success twice (before
+and after the receipt's Status flip), `check_convergence.py` exit 0; `/fabrik-docs-review` over the Phase B docs is
+SKIPPED as a separate run: every Phase B doc was a slice of the Finish review (docs slice, Sonnet + Haiku + refuter, two
+passes), and the per-file claims it would re-check are the receipt's docs rows. Step 4 — this commit (the Phase C commit)
+carries the plan, the lock release and the receipt; `work.py done W-4e74ea9d`; merge request 01M4PX76WPDWVX2JKT1J1W6XVF
+(a2fd75dde) was acked `blocked` by infra at 01:59Z (a dirty `kaizen-log-fleet.md` in the main checkout), so a fresh
+`merge_request.py request --review <receipt> --item W-4e74ea9d` is sent at the close (I7). Appetite: 60 min planned,
+the Finish review ran from 09:36 to 21:10 local, roughly five hours of it the operator's retention interruption; the plan's own time was the review's three passes and two fix rounds, recorded as the lane's UPGRADE finding at the close — the Finish review's two fix rounds. The archive move to `docs/development/plans/archived/` is
+the merge owner's at merge time: D-754 cites this path.
 
 ## File Scope (owned paths)
 - src/fabrik/orchestrator/deployer_ssh.py
