@@ -154,12 +154,13 @@ or name in the brief why the shape does not have it.
   scratch copy, never the pinned files, and keep a timer running; write the Workflow args JSON to scratch, and
   relaunch an interrupted pass as a NEW `Workflow` invocation carrying the ledger in `args` — never `resumeFromRunId`.
 - A round is recorded only after every candidate is read, each classed as a defect of THIS change, pre-existing or
-  planned before it counts; `confirmed` counts DEFECTS, never checks passed, and a gate-caught defect counts; each
-  brief embeds its ledger text; the closing-pass brief has every seat list each slice file it read, by path; a delta
-  brief lists the exact mutant ids executed, reads a unified diff, and checks ROUTED claims for routing only; a
-  one-hop edit found mid-fix is named in the next brief; stale pre-existing text in an edited file is RECORDED with a
-  destination (term-coverage D4), or fixed in the same hunk and named — never counted; the slice ledger is round 1's
-  claim count even at zero confirmed.
+  planned before it counts; `confirmed` counts DEFECTS, never checks passed, and a gate-caught defect counts; each brief
+  embeds its ledger text; the closing-pass brief has every seat list each slice file it read, by path; a delta brief
+  lists the exact mutant ids executed, reads a unified diff, and checks ROUTED claims for routing only; a one-hop edit
+  found mid-fix is named in the next brief, and a guard a fix adds goes into that same next brief by name with its
+  escape variants (quote styles, unreadable values, globbed paths) and its model boundary; stale pre-existing text in an
+  edited file is RECORDED with a destination (term-coverage D4), or fixed in the same hunk and named — never counted;
+  the slice ledger is round 1's claim count even at zero confirmed.
 - Lint or format findings are compared against HEAD — and against the committed diff, under every claimed toolchain
   version — before they are reported or refuted; tests re-run after the last lint fix; a refutation that a later
   commit lands is checked against the completion gate; read the callee before confirming a wrong-method finding; a
