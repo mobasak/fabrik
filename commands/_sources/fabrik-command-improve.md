@@ -221,7 +221,7 @@ one sentence.
 **Check the claim, not the prose.** A sentence naming what a gate or script reads is checked against every
 branch of that function, for every shape the sentence covers; a rule adapted from `CLAUDE.md` or a fragment
 is pointed at, or quoted in its own words and routes, never narrowed in paraphrase; a `_fragments/` edit names each `{{include:}}`
-consumer and its bound placeholders, and must be obeyable in each. A sentence that describes what a script, tool or another step DOES — its output or advisory, the findings it classifies, an edge case such as an empty input or a quiet round, a mechanism name, a recipe — is executed against the real thing before the first pin and quoted as it prints (a recipe is copied from the test that already runs it; a claim about what fleet artifacts contain is checked on two real ones); when no recipe runs, the row is routed to the script's owner instead of worded.
+consumer and its bound placeholders, and must be obeyable in each. A sentence that describes what a script, tool or another step DOES — its output or advisory, every finding string it classifies, an edge case such as an empty input or a quiet round, a recipe — is executed on the scenario the sentence states before PHASE 4's review and quoted as it prints (a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites; a mechanism name it cites is grepped in the hub and dropped when nothing matches; a claim about what fleet artifacts contain is checked on two real ones); when no recipe runs, the row is mailed to the beat that owns the script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line.
 
 Then, **from the main master checkout only** — a worktree renders nothing and runs `--check` alone, since a
 render from a worktree PRUNES master-only commands box-wide, and infra renders at merge:
@@ -237,9 +237,11 @@ python3 commands/assemble_commands.py --check    # installed == sources, or the 
 § Drive bounds. Sized by the surface: one source file is one unit, so `dispatch_headroom.py --units 1
 --mechanical 1` — and the seats read the EDIT
 against the verdicts it claims to answer, not merely for style. A seat that cannot find the verdict
-in the new text is the finding.
+in the new text is the finding; for each row it finds answered, it returns the line that states the row's step.
 
 ## PHASE 5 — Commit, naming what you answered
+
+Run the edit's tests after the last edit, in the shell that commits, so a refused write cannot carry a red grader into the commit. The trailer's `rows` and the `--mark-answered` list below name the same rows: only those PHASE 4's seats found answered in the new text.
 
 The commit is the PROVENANCE — immutable, and what a later reader (and axis 5, continuous
 improvement, which is read across runs) uses to connect an edit to its evidence. The answered index
@@ -262,8 +264,6 @@ The declaration is what makes grading possible later; writing it now costs one l
 ⚠️ The trailer block must be its OWN paragraph with NO blank line inside it, or git parses none of
 it. Verify: `git log -1 --format='%(trailers:key=Agent-Context,valueonly)'` — empty output means the
 block did not parse.
-
-Run the edit's tests after the last edit, in the shell that commits, so a refused write cannot carry a red grader into the commit; and mark only the rows PHASE 4's seats found answered in the new text.
 
 **Then MARK the rows answered — the step that makes the queue fall:**
 

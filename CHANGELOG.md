@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — /fabrik-command-improve executes what a new sentence says a script does (2026-10-12)
-- PHASE 3: a sentence describing a script's, tool's or step's behaviour is executed against the real thing before the first pin and quoted as it prints, or the row goes to the script's owner. PHASE 5: the tests run in the commit's shell after the last edit, and only rows PHASE 4 found answered are marked (D-759).
+- PHASE 3: a sentence describing a script's, tool's or step's behaviour is executed on its own scenario before review and quoted as it prints, or the row is mailed to the script's beat. PHASE 5: the tests run in the commit's shell after the last edit, and the trailer and marks name only rows PHASE 4's seats found answered (D-759).
 
 ### Changed — the panel's ACCEPTED delta round is recorded as the next Pass (2026-10-12)
 - In /fabrik-spec-review and /fabrik-plan-review, the delta round an ACCEPTED panel concern re-opens is recorded as the next Pass with every earlier-stated slice re-stated, and an OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift (D-758).
