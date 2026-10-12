@@ -941,14 +941,13 @@ def test_owner_env_py_with_no_declaring_service_is_a_finding(tmp_path):
 
 
 def test_owner_consumer_block_keeps_a_bare_database_url_use_and_the_neighbour_service(tmp_path):
-    """G17 (owner split review, round 1 — check-S1/H2/O1/O3/O9, scaffold-S2/S3): inside an owner
+    """G17 (owner split review, rounds 1-2 — check-S1/H2/O1/O3/O9, scaffold-S2/S3): inside an owner
     consumer only a line naming NO bare DATABASE_URL clears — `alembic upgrade head` does, a
-    `psql "$$DATABASE_URL"` in the same block is the app role's connection and stays. The services
-    on either side of the block are outside it: their migration-tool lines (no bare DATABASE_URL,
-    so ONLY the range decides them) stay, one line before the block and two lines after it, so a
-    range widened at either end swallows one and reds (an off-by-one lands on a service-name line,
-    which carries no finding; the exact bounds were executed in review). A filter dropping every
-    line in the file reds on all three."""
+    `psql "$$DATABASE_URL"` in the same block is the app role's connection and stays. The block's
+    FIRST and LAST body lines are tool lines that clear, and the services on either side carry
+    tool lines (no bare DATABASE_URL, so ONLY the range decides them) one line before and two
+    lines after the block: a range moved or widened by one or two at either end reds (the exact
+    bounds were executed in review). A filter dropping every line in the file reds too."""
     repo = tmp_path / "repo"
     _write(
         repo / "compose.yaml",
@@ -958,15 +957,16 @@ def test_owner_consumer_block_keeps_a_bare_database_url_use_and_the_neighbour_se
         "      - .env\n"  # 4
         "    command: alembic upgrade head\n"  # 5 — the line before the block: a non-consumer's tool line
         "  migrate:\n"  # 6
-        "    env_file:\n"  # 7
-        "      - .env\n"  # 8
-        "      - path: .env.owner\n"  # 9
-        "        required: false\n"  # 10
-        "    command: alembic upgrade head\n"  # 11 — clears: no bare DATABASE_URL
-        "    healthcheck:\n"  # 12
-        '      test: sh -c \'psql "$$DATABASE_URL" -c "select 1"\'\n'  # 13 — stays: the app role's connection
-        "  worker:\n"  # 14 — the first line outside the block
-        "    command: npx prisma migrate deploy\n",  # 15 — a non-consumer's tool line
+        "    command: alembic upgrade head\n"  # 7 — the block's first body line: clears
+        "    healthcheck:\n"  # 8
+        '      test: sh -c \'psql "$$DATABASE_URL" -c "select 1"\'\n'  # 9 — stays: the app role's connection
+        "    env_file:\n"  # 10
+        "      - .env\n"  # 11
+        "      - path: .env.owner\n"  # 12
+        "        required: false\n"  # 13
+        "    entrypoint: alembic upgrade head\n"  # 14 — the block's last body line: clears
+        "  worker:\n"  # 15 — the first line outside the block
+        "    command: npx prisma migrate deploy\n",  # 16 — a non-consumer's tool line
     )
     _write(
         repo / "alembic" / "env.py",
@@ -977,9 +977,111 @@ def test_owner_consumer_block_keeps_a_bare_database_url_use_and_the_neighbour_se
 
     assert sorted((f.line, f.pattern) for f in result.findings) == [
         (5, "alembic upgrade/downgrade"),
-        (13, "psql invocation"),
-        (15, "prisma migrate/db push"),
+        (9, "psql invocation"),
+        (16, "prisma migrate/db push"),
     ], result.findings
+
+
+def test_compose_handoff_is_matched_on_the_raw_line(tmp_path):
+    """G26 (owner split review, round 2 — check-O11): a `--flag` or a `${VAR#pat}` before the
+    interpolation is not a comment — the module's raw-line rule holds for the hand-off too, so the
+    consumer's command interpolating the owner key behind `--dbname` is the finding (the keep-rule
+    would otherwise have cleared the psql line: it names no bare DATABASE_URL)."""
+    repo = tmp_path / "repo"
+    consumer = (
+        "services:\n"
+        "  migrate:\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "      - path: .env.owner\n"
+        "        required: false\n"
+    )
+    for command in (
+        '    command: sh -c "psql --dbname $DATABASE_URL_OWNER -f db/schema.sql"\n',
+        '    command: sh -c "x=${HOME#/}; psql $DATABASE_URL_OWNER -f db/schema.sql"\n',
+    ):
+        _write(repo / "compose.yaml", consumer + command)
+        result = scan_repo(repo)
+        assert [(f.line, f.pattern) for f in result.findings] == [(7, arc.OWNER_HANDOFF_REMEDY)], (
+            command,
+            result.findings,
+        )
+
+
+@pytest.mark.parametrize(
+    ("dollars", "handoff"),
+    [("$", True), ("$$", False), ("$$$", True), ("$$$$", False)],
+)
+def test_compose_handoff_counts_the_run_of_dollars(tmp_path, dollars, handoff):
+    """G27 (check-O12, scaffold-S5/H1): compose reads `$$` as ONE literal dollar and the next `$`
+    starts an interpolation — an odd run interpolates (the hand-off), an even run reaches the
+    container's shell as a literal (clears inside an owner consumer)."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "  migrate:\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "      - path: .env.owner\n"
+        "        required: false\n"
+        f'    command: sh -c "psql {dollars}DATABASE_URL_OWNER -f db/schema.sql"\n',
+    )
+
+    result = scan_repo(repo)
+
+    expected = [(7, arc.OWNER_HANDOFF_REMEDY)] if handoff else []
+    assert [(f.line, f.pattern) for f in result.findings] == expected, (dollars, result.findings)
+
+
+def test_compose_handoff_is_reported_once_per_service(tmp_path):
+    """G28 (check-O13): a folded `environment:` value puts the key on one line and the interpolation
+    on the next — the structural scan reports the key line, the line scan sees the value line; ONE
+    finding for the one hand-off (the remedy is the service's), never two."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "  api:\n"
+        "    environment:\n"
+        "      DATABASE_URL: >-\n"
+        "        ${DATABASE_URL_OWNER}\n"
+        '    command: sh -c "psql $DATABASE_URL_OWNER -c select"\n',
+    )
+
+    result = scan_repo(repo)
+
+    assert [f.pattern for f in result.findings] == [arc.OWNER_HANDOFF_REMEDY], result.findings
+
+
+def test_owner_consumer_keeps_a_line_whose_anchor_another_service_aliases(tmp_path):
+    """G29 (check-O9): the range filter reads text; a YAML anchor defined in the consumer and aliased
+    by a non-consumer is that service's command too, so the anchored line stays a finding (fail
+    closed) — while an anchor nobody aliases clears like any other consumer line."""
+    repo = tmp_path / "repo"
+    aliased = (
+        "services:\n"
+        "  migrate:\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "      - path: .env.owner\n"
+        "        required: false\n"
+        "    command: &migrate_cmd alembic upgrade head\n"
+        "  app:\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "    command: *migrate_cmd\n"
+    )
+    _write(repo / "compose.yaml", aliased)
+    assert [(f.line, f.pattern) for f in scan_repo(repo).findings] == [
+        (7, "alembic upgrade/downgrade")
+    ]
+
+    _write(
+        repo / "compose.yaml",
+        aliased.replace("    command: *migrate_cmd\n", "    command: echo hi\n"),
+    )
+    assert scan_repo(repo).findings == []
 
 
 @pytest.mark.parametrize(

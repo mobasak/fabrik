@@ -12,17 +12,19 @@ All notable changes to this project will be documented in this file.
   {path: .env.owner, required: false}]` for an `owner_env` companion; the app services load `.env` alone.
   `src/fabrik/app_role_check.py`: the `DATABASE_URL: ${DATABASE_URL_OWNER}` hand-off is now a finding whose text is the remedy
   (`OWNER_HANDOFF_REMEDY` — compose interpolates from the project `.env`, where the key no longer lives) — in a `command:`
-  as much as under `environment:`, and so is naming the key in a service that does not load `.env.owner`; a service whose
+  as much as under `environment:`, matched on the raw line, an odd run of `$` interpolating, one finding per service — and
+  so is naming the key in a service that does not load `.env.owner`; a service whose
   `env_file` names `.env.owner` (any spelling `normpath` reduces to it) is the accepted owner consumer: its `migrate` finding
-  is skipped and a line inside its block clears only while it names no bare `DATABASE_URL`; an alembic env reading the owner
+  is skipped and a line inside its block clears only while it names no bare `DATABASE_URL` and defines no YAML anchor another
+  service aliases; an alembic env reading the owner
   key while no parseable compose file declares it is the `NO_OWNER_CONSUMER` finding (repo-wide; its text names the remedy),
   and `run_check` appends ` reaches DATABASE_URL` to label patterns only. The `Spec` validator also refuses the owner key in
   a companion's `env_overrides`. The schema headers
   apply as one `sudo sh -c` sourcing both files; `.env.example` and the scaffold + three template `.gitignore`s name `.env.owner`.
   Docs: `docs/operations/fabrik-lifecycle.md` (step 0 of the cutover runbook, the two-file layout, "what the split does not
   cover"), `docs/CONFIGURATION.md`, `docs/operations/credential-recovery.md`, `docs/reference/modules/drivers.md`, the three
-  scaffold doc templates. Graders G8–G15 (the plan's labels — the tests are named in its Phase B steps) red-first, G16–G25
-  from the phase review; fourteen mutants red in a throwaway worktree.
+  scaffold doc templates. Graders G8–G15 (the plan's labels — the tests are named in its Phase B steps) red-first, G16–G29
+  from the phase review's two rounds; twenty-three mutants red in a throwaway worktree.
 
 ### Changed — the owner DSN leaves the project `.env`: the deployer writes `DATABASE_URL_OWNER` to `.env.owner` (2026-10-12)
 
