@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — the mail contract: an author never acks its own send to a shared mailbox (2026-10-12)
-- `docs/reference/fabrik-mail.md` and CLAUDE.md say the ack is the addressee's act, so on the hub's shared `fabrik` mailbox a session never acks mail it sent itself; the intra-repo ruling names mail as the handoff between beats (D-784).
+- `docs/reference/fabrik-mail.md` and CLAUDE.md say the ack is the addressee's act, so on the hub's shared `fabrik` mailbox a session never acks mail it sent itself; the intra-repo ruling names mail as the handoff between beats, and two dead `§ Addressing` references now point at the ADDRESSEE bullet (D-784).
 
 ### Changed — /fabrik-flows-review names its seat budget and bumps once per run (2026-10-12)
 - The dispatch line names `dispatch_headroom.py --units 8 --mechanical 2 --risky 2` (axes A–G plus E2), and a review run bumps the contract's version at its first edit and mints one row (D-783).

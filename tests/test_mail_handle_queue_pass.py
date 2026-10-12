@@ -19,7 +19,8 @@ def test_an_author_never_acks_its_own_send_to_a_shared_mailbox() -> None:
     text = _norm(ROOT / "docs" / "reference" / "fabrik-mail.md")
     assert "Nor is a message your session SENT to its own shared mailbox ever acked by you: the ack is the reader's act" in text
     assert "Within one repo, mail is only the durable handoff from one beat to another" in text
-    assert "(mail your own session SENT is the addressee's to ack, never yours)" in _norm(ROOT / "CLAUDE.md")
+    assert "Mail your own session SENT is the addressee's to ack, never yours." in _norm(ROOT / "CLAUDE.md")
+    assert "§ Addressing" not in text  # the file has no such heading
 
 
 def test_the_handle_now_order_already_ends_reply_then_ack() -> None:
