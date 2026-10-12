@@ -18,3 +18,9 @@ def test_the_send_line_names_the_message_contract_keys() -> None:
     contract = MAIL.read_text()
     keys = re.findall(r"^\| `([A-Z]+):` \|", contract[contract.index("## The message contract") :], flags=re.M)
     assert keys[:7] == ["WHAT", "WHERE", "WHEN", "WHO", "WHY", "HOW", "SYSTEMIC"]
+
+
+def test_the_closing_send_line_carries_the_contract_too() -> None:
+    """Review round 1 (D-791): the Next-command line is the only send instruction Phase 3's round-trip has."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    assert "(proposal path(s) in the body, under the message contract's seven headers as Phase 2 says)" in text
