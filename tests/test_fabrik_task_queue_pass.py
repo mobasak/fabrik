@@ -122,3 +122,24 @@ def test_second_pass_names_the_specific_steps_in_their_phases() -> None:
 def test_size_declares_operator_named_work_as_heavy() -> None:
     """Row 1791755899: operator-named work is lane row 1b's heavy surface, declared at SIZE, not found at phase 4."""
     assert "`heavy=yes` includes operator-named work (lane row 1b)" in _section("## SIZE", "## Phase 1")
+
+
+def test_a_full_review_receipt_is_named_under_mirror() -> None:
+    """Row 1791828927 (D-777): docs/development/reviews/ is not in the close's exclusion set."""
+    p2 = _section("## Phase 2 — DESIGN", "## Phase 3 — BUILD")
+    assert "so when phase 0 selects the full `/fabrik-review` its receipt — `docs/development/reviews/<date>-<scope>-review.md`, `review_receipt.py`'s default — is named under MIRROR too" in p2
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import command_run
+
+    excl = command_run._task_excl(ROOT)
+    assert not command_run._task_excluded("docs/development/reviews/2026-10-12-x-review.md", excl)
+    receipt = (ROOT / "scripts" / "review_receipt.py").read_text()
+    assert 'a.out = root / REVIEWS_DIR / f"{stem}-review.md"' in receipt
+
+
+def test_the_critique_sweeps_parallel_recipes_as_one_surface() -> None:
+    """Row 1791786161 (D-777)."""
+    p2 = _section("## Phase 2 — DESIGN", "## Phase 3 — BUILD")
+    assert "the parallel recipes of the same step (a host leg and a container leg are one surface: a defect fixed in one is checked in the other)" in p2
