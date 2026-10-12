@@ -44,7 +44,8 @@ warns when the contract's `Version` predates such a change).
 
 Inputs — read them, name them: `project.yaml::type` (the live registry is `scaffold.py::SCAFFOLD_TYPES`)
 → the per-type pack of rows; `specs/services/<id>.yaml` `shape:` (in a project repo usually absent — read the hub's
-`/opt/fabrik/specs/services/<id>.yaml`, read-only) → the Layer-3 obligations (a flag that is
+`/opt/fabrik/specs/services/<id>.yaml`, read-only; the hub copy wins when both exist, and when neither exists or the hub
+holds only a `.yaml.draft`, say so and treat every `shape:` row as obligated) → the Layer-3 obligations (a flag that is
 `false` makes its row `not obligated`, never absent); `docs/DECISIONS.md` → every ruling about what ships
 and what does not (the exclusion set lives here — e.g. *"everything ships EXCEPT sales/activities/invoices
 history"*; the ruling is the row's WHAT cell — 4th column, after `id | when | who` — quote it verbatim
@@ -145,8 +146,10 @@ Write `scripts/verify_prod_parity.py` to the seeded template's shape:
   silently passes is worse than a stated gap.
 - **A `--rows-from` merge trusts the leg files whole** (`_rows_for` concatenates them): a leg file reaches
   CONFIRMED through which row ids appear, how many times each appears, which comparison keys a row carries, and
-  what its `match` holds — so the verdict checks each against the contract's own row list (every id exactly
-  once, from its declared site, with the keys its kind carries) before counting a row.
+  what its `match` holds — so the contract's `--verdict --rows-from` path checks each merged row against `ROWS` before
+  counting it (every id exactly once, with the keys its kind carries). The seeded template does not do this yet
+  (`_rows_for` only concatenates — fleet 01M4Q92620): add the check when the contract is written. A row carries
+  no site, so a leg's site is known only from the file it came in.
 - **The exclusion set is data** in the script (a list with the ruling's `D-NNN` beside it), applied to the
   DEV baseline, so the runner and a reader see what was excluded and why.
 - **Read-only against the target.** A row that would mutate the deployed service is written as
@@ -183,8 +186,9 @@ pass.
 
 1. Run the contract against DEV — expected: every derived row `match: True`, every `UNVERIFIABLE` row
    `match: None` with its why.
-2. Run the probes in a copy that carries the gitignored vendored dirs the contract imports (`libs/` — a fresh
-   worktree lacks them, and every row there reads UNVERIFIABLE for the wrong reason), and run the unmutated copy
+2. Run the probes in a copy that carries the gitignored files the contract reads (`libs/` and `.env` — a fresh
+   worktree lacks them, and every comparison row there reads UNVERIFIABLE for the wrong reason; the copy
+   isolates the code only — DEV itself is shared, so break and restore it as below), and run the unmutated copy
    first as the control: a red the control also shows proves nothing. Then, for each row CLASS, break DEV
    deliberately and re-run: drop a table's rows for a state row · rename an
    env key for the env row · stop the scheduler for the jobs row · remove a route for the routes row ·
@@ -192,7 +196,9 @@ pass.
    raising comparator, `match: None` **with `compare_error` set** — that is fail-closed, not green).
    Restore DEV after each.
 3. A row that cannot be made to fail is REWRITTEN, or marked `UNVERIFIABLE (cannot be seen red: <why>)`.
-4. A test added for the contract runs in the gate's pytest leg (the whole suite, one process) before freeze:
+4. A test added for the contract runs in the gate's pytest leg (the whole suite, one process) before freeze —
+   where that leg is off (the gate prints `pytest (NOT RUN)`), run `python -m pytest tests/ -q` yourself and
+   paste its tail:
    the first row that needs the vendored probe loads the project's `.env` into `os.environ`, and that state
    reaches every later test in the process.
 5. Paste the red table into the report: `row · how DEV was broken · result`. **A contract with no red
