@@ -1115,6 +1115,42 @@ def test_owner_consumer_sharing_an_anchor_is_scanned_like_any_service(tmp_path, 
     ).findings
 
 
+def test_owner_consumer_anchor_name_ending_in_a_dash_is_still_shared(tmp_path):
+    """G29c (owner split review, round 4 — check-O16): a YAML anchor name may end in `-`, where a
+    `\b` after the alias would not match — the alias is read to where an anchor name ends, so the
+    block is still no suppression range."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        _CONSUMER_HEAD + "    command: &cmd- alembic upgrade head\n  app:\n    command: *cmd-\n",
+    )
+
+    assert [(f.line, f.pattern) for f in scan_repo(repo).findings] == [
+        (7, "alembic upgrade/downgrade")
+    ]
+
+
+def test_two_owner_consumers_sharing_an_anchored_env_file_both_clear(tmp_path):
+    """G29d (check-O17): an anchor aliased by ANOTHER declaring service is shared between two
+    consumers that both load `.env.owner` — neither is scanned as a non-consumer, both clear."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "  migrate:\n"
+        "    env_file: &owner_files\n"
+        "      - .env\n"
+        "      - path: .env.owner\n"
+        "        required: false\n"
+        "    command: alembic upgrade head\n"
+        "  jobs:\n"
+        "    env_file: *owner_files\n"
+        "    command: alembic upgrade head\n",
+    )
+
+    assert scan_repo(repo).findings == []
+
+
 def test_owner_consumer_anchor_aliased_only_inside_its_block_still_clears(tmp_path):
     """G29b (the mirror of G29): an anchor aliased within the SAME service is that service's own
     value — the block stays the consumer and clears like any other."""

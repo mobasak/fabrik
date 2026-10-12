@@ -598,16 +598,22 @@ def _service_block_ranges(
     return out
 
 
-def _shares_an_anchor(lines: list[str], block: tuple[int, int]) -> bool:
+def _shares_an_anchor(
+    lines: list[str], block: tuple[int, int], consumers: list[tuple[int, int]]
+) -> bool:
     """True when a line of ``block`` (1-based inclusive) defines a YAML anchor (``&name``) that is
-    aliased (``*name``) OUTSIDE the block — another service runs those values (a `command: &c`, a
-    folded ``&c >-`` scalar, a service-level ``migrate: &base`` merged with ``<<: *base``), and a
-    text-range scan cannot see which of them; such a block is never a suppression range."""
+    aliased (``*name``) outside EVERY declaring block in ``consumers`` — a service that does not
+    load ``.env.owner`` runs those values (a `command: &c`, a folded ``&c >-`` scalar, a
+    service-level ``migrate: &base`` merged with ``<<: *base``), and a text-range scan cannot see
+    which of them; such a block is never a suppression range. An alias inside another declaring
+    block (two consumers sharing an anchored ``env_file``) shares nothing with a non-consumer. The
+    alias must end where an anchor name ends — a name may end in ``-``, where ``\b`` would not."""
     start, end = block
     inside = lines[start - 1 : end]
-    outside = "\n".join(lines[: start - 1] + lines[end:])
+    exempt = {n for s, e in consumers for n in range(s, e + 1)}
+    outside = "\n".join(raw for n, raw in enumerate(lines, start=1) if n not in exempt)
     return any(
-        re.search(rf"\*{re.escape(name)}\b", outside)
+        re.search(rf"\*{re.escape(name)}(?![A-Za-z0-9_-])", outside)
         for raw in inside
         for name in _YAML_ANCHOR_RE.findall(raw)
     )
@@ -619,20 +625,21 @@ def _owner_consumer_ranges(text: str) -> list[tuple[int, int]]:
     finding is dropped only while the line names no bare ``DATABASE_URL`` (:func:`_scan_file`):
     the tool reads the owner key from the environment the file fills, so ``alembic upgrade head``
     clears, while ``psql "$$DATABASE_URL"`` is still the app role's connection and stays a
-    finding. A declaring block that shares an anchor is scanned like any other service (fail
-    closed): its tool lines are findings, and its owner-key uses the hand-off (the remedy text
-    still names the file the service must load, which is the path out)."""
+    finding. A declaring block that shares an anchor with a NON-declaring service is scanned like
+    any other service (fail closed): its tool lines are findings, and its owner-key uses the
+    hand-off (the remedy text still names the file the service must load, which is the path
+    out); two declaring blocks sharing an anchor both stay consumers."""
     services = _compose_services(text) or {}
     lines = text.splitlines()
     blocks = _service_block_ranges(lines, services)
-    return [
+    declaring = [
         blocks[str(name)]
         for name, cfg in services.items()
         if isinstance(cfg, dict)
         and _declares_owner_env_file(cfg.get("env_file"))
         and str(name) in blocks
-        and not _shares_an_anchor(lines, blocks[str(name)])
     ]
+    return [block for block in declaring if not _shares_an_anchor(lines, block, declaring)]
 
 
 def _block_of(line: int, blocks: dict[str, tuple[int, int]]) -> tuple[int, int] | None:
