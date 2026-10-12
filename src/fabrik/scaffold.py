@@ -2217,8 +2217,10 @@ _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (Postgr
 -- Apply once after the DB is provisioned, as the database OWNER (the WHOLE file is one
 -- transaction; any error aborts it). On the VPS the owner DSN lives in /opt/<name>/__OWNER_ENV_FILE__
 -- (root 0600) beside .env, so source both under sudo, in ONE line, from /opt/<name>:
---   sudo sh -c 'set -a; . ./.env; . ./__OWNER_ENV_FILE__; set +a; u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'
--- (pgurl — docs/TROUBLESHOOTING.md — rewrites the postgresql+asyncpg:// DSN for libpq and refuses an empty one; never psql the raw variable.)
+--   sudo sh -c "$(sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md)"'; set -a; . ./.env; . ./__OWNER_ENV_FILE__; set +a; u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'
+-- (the sed half defines pgurl — docs/TROUBLESHOOTING.md § Debug Commands — INSIDE the root shell, where a function pasted
+-- in your own shell does not exist; pgurl rewrites a postgresql+asyncpg:// DSN for libpq and refuses an empty one.
+-- Never psql the raw variable.)
 -- (Fabrik runs NO automatic migrations — you apply this yourself.) Keep BEGIN/COMMIT
 -- out of this file: an inner COMMIT would end psql -1's transaction early.
 --
@@ -3598,10 +3600,12 @@ _SCHEMA_APPLY_HEADER = (
     "-- Apply as the database OWNER (the WHOLE file is one transaction; any error aborts it).\n"
     f"-- On the VPS the owner DSN lives in /opt/<name>/{OWNER_ENV_FILE} (root 0600) beside .env — source\n"
     "-- both under sudo, in ONE line, from /opt/<name>:\n"
-    f"--   sudo sh -c 'set -a; . ./.env; . ./{OWNER_ENV_FILE}; set +a; "
+    "--   sudo sh -c \"$(sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md)\"'; "
+    f"set -a; . ./.env; . ./{OWNER_ENV_FILE}; set +a; "
     'u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql\'\n'
-    "-- (pgurl — docs/TROUBLESHOOTING.md — rewrites the postgresql+asyncpg:// DSN for libpq and refuses an\n"
-    "-- empty one; never psql the raw variable.)\n"
+    "-- (the sed half defines pgurl — docs/TROUBLESHOOTING.md § Debug Commands — INSIDE the root shell, where a\n"
+    "-- function pasted in your own shell does not exist; pgurl rewrites a postgresql+asyncpg:// DSN for libpq\n"
+    "-- and refuses an empty one. Never psql the raw variable.)\n"
     "-- Never through DATABASE_URL: that is the app's non-owner role, which cannot CREATE.\n"
     "-- Keep BEGIN/COMMIT out of this file — an inner COMMIT would end psql -1's transaction.\n"
 )
