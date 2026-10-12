@@ -20,9 +20,10 @@ file, not its scrollback. So:
         Run from the repo root before a pass (kaizen 01M4CGJZAX): writes each FILE to DIR/<FILE> — from the
         working tree, or with --from from that commit (a committed range) — and makes every pin AND directory
         read-only (with the directory writable, `sed -i` renames over a 0444 pin). Writes DIR/MANIFEST.md5
-        (md5sum format) and DIR/MANIFEST.json, and with --base extracts that whole commit read-only into
+        (md5sum format, repo-relative: the live-file check from the repo root), DIR/MANIFEST.pins.md5 (the
+        copies by absolute path: checks the pins from any cwd) and DIR/MANIFEST.json, and with --base extracts that whole commit read-only into
         DIR.base. Prints `DIRTY <file>` for a working-tree pin that is not HEAD's bytes, then the Workflow args
-        fragment — `pins_dir`, `pin_manifest`, `digest` (the md5 of MANIFEST.md5) and `base_pin_dir` — and the
+        fragment — `pins_dir`, `pin_manifest`, `digest` (the md5 of MANIFEST.md5), `pins_digest` (of MANIFEST.pins.md5) and `base_pin_dir` — and the
         workflow refuses a slice file the manifest lacks before any seat runs. A used DIR is refused: each pass
         gets a NEW one (`--replace` re-pins on purpose). A workflow script has no filesystem, so the pins are
         the lead's verb, never the script's.
@@ -296,6 +297,9 @@ def next_ledger(doc: dict, ids: list[str]) -> list[dict]:
     return [{"name": n, "ledger": rows} for n, rows in slices.items()]
 
 
+_MANIFEST_NAMES = frozenset({"MANIFEST.md5", "MANIFEST.json", "MANIFEST.pins.md5"})
+
+
 class PinError(Exception):
     """`pin` cannot pin a named file — absent, a directory, a symlink, outside the repo root — or its pins dir
     is already in use (each pass gets a NEW dir; `--replace` re-pins one on purpose)."""
@@ -466,11 +470,22 @@ def pin(
     if top is not None and top != root:
         # from a subdirectory the tree snapshot lists only that subtree and misses a root-level tarball
         raise PinError(f"run pin from the repo toplevel {top}, not {root}")
+    if "\n" in str(pins_dir):
+        # every MANIFEST.pins.md5 line carries this string, so a newline splits it (W-1008046c review A-S1)
+        raise PinError(
+            f"cannot pin into {str(pins_dir)!r}: a newline in the pins dir breaks MANIFEST.pins.md5"
+        )
     rels: list[str] = []
     # every file is checked before ANYTHING is written, so a refusal leaves no half-built pins dir behind
     for f in files:
         rel = os.path.normpath(f)
         cand = root / rel
+        # W-1008046c: a newline splits md5sum's line into a false FAILED, and a root file named like a
+        # manifest would be overwritten by it — both refused before anything is written
+        if "\n" in rel:
+            raise PinError(f"cannot pin {f!r}: a newline in the path breaks the md5 manifests")
+        if rel in _MANIFEST_NAMES:
+            raise PinError(f"cannot pin {f}: the name is reserved for the pins dir's own manifest")
         # with --from the bytes come from the commit, so the WORKING-TREE shape of the path (a local
         # symlink, a deletion) is irrelevant: escape is judged lexically and a symlink AT the ref by its
         # tree mode below (pin-refusal wording review A-S1)
@@ -525,6 +540,12 @@ def pin(
             (pins_dir / f).parent.mkdir(parents=True, exist_ok=True)
             (pins_dir / f).write_bytes(b)
         (pins_dir / "MANIFEST.md5").write_text("".join(f"{m}  {f}\n" for f, m in manifest.items()))
+        # W-1008046c: MANIFEST.md5 is repo-relative, so from the repo root it checks the LIVE files;
+        # a seat cannot cd, so the COPIES get their own manifest of absolute paths — the same
+        # pins_dir string the fragment prints, never resolved, so a quoted path still matches it
+        (pins_dir / "MANIFEST.pins.md5").write_text(
+            "".join(f"{m}  {pins_dir}/{f}\n" for f, m in manifest.items())
+        )
         (pins_dir / "MANIFEST.json").write_text(
             json.dumps(
                 {
@@ -545,6 +566,7 @@ def pin(
         "pins_dir": str(pins_dir),
         "pin_manifest": manifest,
         "digest": _md5(pins_dir / "MANIFEST.md5"),
+        "pins_digest": _md5(pins_dir / "MANIFEST.pins.md5"),
     }
     _lock_tree(pins_dir)
     if base:

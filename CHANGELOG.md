@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a review seat can check the pinned copies from any directory (2026-10-12)
+- `scripts/review_loop_ledger.py pin` also writes `MANIFEST.pins.md5` with each copy's absolute path and prints its `pins_digest`, so `md5sum -c --quiet <pins_dir>/MANIFEST.pins.md5` verifies the pins from any cwd; `MANIFEST.md5` from the repo root remains the live-file check. `pin` refuses a newline in a path or in the pins dir and a root file named like a manifest; the subagents-core fragment and the review-loop reference name the new check (site-provisioner 01M4RNTM85, W-1008046c, D-780).
+
 ### Changed — the review probe catalogue reads a pinned line's comment before copying it (2026-10-12)
 - Before adding a sibling of a pinned or guarded line, the lead reads the comment on the line it copies (D-782).
 
