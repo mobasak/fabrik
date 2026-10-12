@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review seats run scripts from the archive copy and pin one-hop callees (2026-10-13)
+- The catalogue's seat-isolation line runs a script from the archive with path arguments under scratch, and pins the changed files' one-hop callees that are repo files (D-792).
+
 ### Changed — /fabrik-upstream's send line names the mail contract's seven headers (2026-10-13)
 - The proposal mail's body carries WHAT, WHERE, WHEN, WHO, WHY, HOW and SYSTEMIC, pointing at the message contract (D-791).
 
