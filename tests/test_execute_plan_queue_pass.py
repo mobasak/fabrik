@@ -86,6 +86,10 @@ def test_d4_wave_brief_points_at_the_catalogue_and_closes_in_order() -> None:
         "passes `python3 scripts/enforcement/check_review_coverage.py <the receipt>` before its closing round is recorded"
         in d4
     )
+    assert (
+        "each wave receipt starts from `review_receipt.py --init` (the `## Coverage Checklist`"
+        in d4
+    )
 
 
 def test_d5_compares_named_reds_and_d7_points_at_the_pause() -> None:
