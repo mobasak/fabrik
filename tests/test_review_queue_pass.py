@@ -54,18 +54,14 @@ def test_the_delta_brief_names_its_must_read_files() -> None:
     )
 
 
-def test_closing_ledger_after_a_quiet_round_one() -> None:
-    """Rows 1791490105, 1791493834: `next` rows merge into `args.slices` by name; a quiet round 1 passes every id it raised."""
+def test_next_rows_merge_into_slices_by_name() -> None:
+    """Row 1791493834: `next` prints `{name, ledger}` rows, merged by name; the quiet-round-1 shape is intel's."""
     p4 = _section(_norm(SRC), "## Phase 4 — Converge", "## Behavior Contract")
     assert (
-        "each `ledger` goes on the `args.slices` entry of the same `name`, which keeps its `files`"
-        in p4
+        "(it prints `{name, ledger}` rows: each `ledger` goes on the `args.slices` entry of the same `name`, "
+        "which keeps its `files`)" in p4
     )
-    assert "and a slice with no row is left out" in p4
-    assert (
-        "after a quiet round 1 the ids are every id it raised, since its claims are all open to the closing pass"
-        in p4
-    )
+    assert "a fresh hunt of their own slice" not in p4
 
 
 def test_next_prints_name_and_ledger_rows_and_nothing_for_no_ids(tmp_path, capsys) -> None:
