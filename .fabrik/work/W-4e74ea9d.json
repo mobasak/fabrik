@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "053346e51f56601bad96c03285c8ed641722bd46",
   "id": "W-4e74ea9d",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:7f611d5f1124",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "The owner DSN shares the project `.env` with the app DSN (2026-09-24)"
 }
