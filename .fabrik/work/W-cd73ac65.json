@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:02:15.707329Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-cd73ac65",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: run kaizen_collect_v2.py's hole_count logic for 2026-10-11 and list the 105 transcripts; compare with kaizen_coroner.py's window and instrumentation rule (markers_seen, inconclusive_instrumented); name which reader is wrong",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "kaizen hole_count disagrees with the coroner: the collector counted 105 holes for 2026-10-11 (mail 01M4PDSS36) while kaizen_coroner.py's runs at 2026-10-11 00:53 and 2026-10-12 00:53 read holes_today 0; the WSL outage (D-773/D-774) was 2026-10-12 14:47-16:10, so it does not explain the 10-11 count"
+}
