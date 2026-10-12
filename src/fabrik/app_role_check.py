@@ -63,8 +63,9 @@ passes 1, 2 and 3 (spec § Derivations D1):
   ``DATABASE_URL`` — ``alembic upgrade head`` clears (the ``env.py`` scan checks alembic's
   connection source on its own; a prisma/drizzle/django tool's config is NOT scanned, the
   declaration is the evidence), while ``psql "$$DATABASE_URL"`` in the same block stays a
-  finding, as does a line defining a YAML anchor another service aliases (the range filter
-  reads text, not the resolved graph, so it fails closed there). The mirror — an alembic env reading ``DATABASE_URL_OWNER`` while NO compose
+  finding; and a declaring block that defines a YAML anchor aliased outside it is no consumer
+  range at all — the aliasing service runs those values and the range filter reads text, not
+  the resolved graph, so it fails closed on the whole block. The mirror — an alembic env reading ``DATABASE_URL_OWNER`` while NO compose
   service declares ``.env.owner`` (in a repo whose compose file PARSES; an unparseable one is
   its own finding) — is the ``NO_OWNER_CONSUMER`` finding, because after the split that env
   reads an empty value in every service. It is repo-wide: ANY declaring service silences it,
@@ -235,8 +236,8 @@ _URL_TOKEN_RE = re.compile(r"\bDATABASE_URL\b", re.IGNORECASE)
 _COMPOSE_OWNER_INTERP_RE = re.compile(
     r"(?<!\$)(?:\$\$)*\$(?:\{DATABASE_URL_OWNER\b[^}]*\}|DATABASE_URL_OWNER\b)"
 )
-# A YAML anchor definition (`&name`); its alias (`*name`) elsewhere in the file means another service
-# runs the same value, so the range filter never clears the anchored line (fail closed).
+# A YAML anchor definition (`&name`); its alias (`*name`) outside the defining service's block means
+# another service runs those values, so that block is never a suppression range (fail closed).
 _YAML_ANCHOR_RE = re.compile(r"&([A-Za-z0-9_-]+)")
 _COMPOSE_OWNER_NAME_RE = re.compile(r"\bDATABASE_URL_OWNER\b")
 # `(\.\w+)*` covers a submodule import (`from alembic.op import ...`,
@@ -597,31 +598,45 @@ def _service_block_ranges(
     return out
 
 
+def _shares_an_anchor(lines: list[str], block: tuple[int, int]) -> bool:
+    """True when a line of ``block`` (1-based inclusive) defines a YAML anchor (``&name``) that is
+    aliased (``*name``) OUTSIDE the block — another service runs those values (a `command: &c`, a
+    folded ``&c >-`` scalar, a service-level ``migrate: &base`` merged with ``<<: *base``), and a
+    text-range scan cannot see which of them; such a block is never a suppression range."""
+    start, end = block
+    inside = lines[start - 1 : end]
+    outside = "\n".join(lines[: start - 1] + lines[end:])
+    return any(
+        re.search(rf"\*{re.escape(name)}\b", outside)
+        for raw in inside
+        for name in _YAML_ANCHOR_RE.findall(raw)
+    )
+
+
 def _owner_consumer_ranges(text: str) -> list[tuple[int, int]]:
-    """1-based inclusive line ranges of every service block that declares ``.env.owner`` — inside
-    them a line finding is dropped only while the line names no bare ``DATABASE_URL`` and defines
-    no YAML anchor another service aliases (:func:`_scan_file`): the tool reads the owner key from
-    the environment the file fills, so ``alembic upgrade head`` clears, while ``psql
-    "$$DATABASE_URL"`` is still the app role's connection and stays a finding."""
+    """1-based inclusive line ranges of every service block that declares ``.env.owner`` and shares
+    no YAML anchor with the rest of the file (:func:`_shares_an_anchor`) — inside them a line
+    finding is dropped only while the line names no bare ``DATABASE_URL`` (:func:`_scan_file`):
+    the tool reads the owner key from the environment the file fills, so ``alembic upgrade head``
+    clears, while ``psql "$$DATABASE_URL"`` is still the app role's connection and stays a
+    finding. A declaring block that shares an anchor is scanned like any other service (fail
+    closed): its tool lines are findings, and its owner-key uses the hand-off (the remedy text
+    still names the file the service must load, which is the path out)."""
     services = _compose_services(text) or {}
-    blocks = _service_block_ranges(text.splitlines(), services)
+    lines = text.splitlines()
+    blocks = _service_block_ranges(lines, services)
     return [
         blocks[str(name)]
         for name, cfg in services.items()
         if isinstance(cfg, dict)
         and _declares_owner_env_file(cfg.get("env_file"))
         and str(name) in blocks
+        and not _shares_an_anchor(lines, blocks[str(name)])
     ]
 
 
 def _block_of(line: int, blocks: dict[str, tuple[int, int]]) -> tuple[int, int] | None:
     return next((b for b in blocks.values() if b[0] <= line <= b[1]), None)
-
-
-def _defines_aliased_anchor(raw: str, text: str) -> bool:
-    """True when ``raw`` defines a YAML anchor that is aliased (``*name``) elsewhere in ``text`` —
-    the aliasing service runs the same value, and the text-range filter cannot see it there."""
-    return any(re.search(rf"\*{re.escape(name)}\b", text) for name in _YAML_ANCHOR_RE.findall(raw))
 
 
 def _owner_token_lines(rel: Path, lines: list[str], inert: frozenset[int]) -> list[int]:
@@ -800,8 +815,8 @@ def _scan_file(rel: Path, text: str) -> list[Finding]:
         # An owner consumer's block (a service declaring `.env.owner`, D-754): a line finding is
         # dropped only while the line names no bare DATABASE_URL — the tool reads the owner key
         # from the environment the file fills (alembic's connection source is scanned on its own);
-        # a `psql "$$DATABASE_URL"` in the same block is the app role's connection and stays — and
-        # defines no YAML anchor another service aliases (that service runs the value too).
+        # a `psql "$$DATABASE_URL"` in the same block is the app role's connection and stays. A
+        # block sharing a YAML anchor with another service is not a range at all (fail closed).
         ranges = _owner_consumer_ranges(text)
         if ranges:
             findings = [
@@ -809,7 +824,6 @@ def _scan_file(rel: Path, text: str) -> list[Finding]:
                 for f in findings
                 if not _in_owner_consumer(f.line, ranges)
                 or _URL_TOKEN_RE.search(_strip_env_key(lines[f.line - 1]))
-                or _defines_aliased_anchor(lines[f.line - 1], text)
             ]
         findings.extend(_scan_compose_structure(rel, text))
         # The owner-key hand-off outside `environment:` (a `command:` interpolation, a naming in a

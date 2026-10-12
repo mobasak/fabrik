@@ -945,9 +945,10 @@ def test_owner_consumer_block_keeps_a_bare_database_url_use_and_the_neighbour_se
     consumer only a line naming NO bare DATABASE_URL clears — `alembic upgrade head` does, a
     `psql "$$DATABASE_URL"` in the same block is the app role's connection and stays. The block's
     FIRST and LAST body lines are tool lines that clear, and the services on either side carry
-    tool lines (no bare DATABASE_URL, so ONLY the range decides them) one line before and two
-    lines after the block: a range moved or widened by one or two at either end reds (the exact
-    bounds were executed in review). A filter dropping every line in the file reds too."""
+    tool lines (no bare DATABASE_URL, so ONLY the range decides them): the line before the block,
+    and the KEY line right after it (a flow-style service, so a range widened by ONE at the end
+    swallows a finding — a block-style neighbour's key line never carries one). A range moved or
+    widened by one or two at either end reds; a filter dropping every line in the file reds too."""
     repo = tmp_path / "repo"
     _write(
         repo / "compose.yaml",
@@ -965,8 +966,7 @@ def test_owner_consumer_block_keeps_a_bare_database_url_use_and_the_neighbour_se
         "      - path: .env.owner\n"  # 12
         "        required: false\n"  # 13
         "    entrypoint: alembic upgrade head\n"  # 14 — the block's last body line: clears
-        "  worker:\n"  # 15 — the first line outside the block
-        "    command: npx prisma migrate deploy\n",  # 16 — a non-consumer's tool line
+        "  worker: {command: npx prisma migrate deploy}\n",  # 15 — the first line outside the block
     )
     _write(
         repo / "alembic" / "env.py",
@@ -978,7 +978,7 @@ def test_owner_consumer_block_keeps_a_bare_database_url_use_and_the_neighbour_se
     assert sorted((f.line, f.pattern) for f in result.findings) == [
         (5, "alembic upgrade/downgrade"),
         (9, "psql invocation"),
-        (16, "prisma migrate/db push"),
+        (15, "prisma migrate/db push"),
     ], result.findings
 
 
@@ -1054,33 +1054,81 @@ def test_compose_handoff_is_reported_once_per_service(tmp_path):
     assert [f.pattern for f in result.findings] == [arc.OWNER_HANDOFF_REMEDY], result.findings
 
 
-def test_owner_consumer_keeps_a_line_whose_anchor_another_service_aliases(tmp_path):
-    """G29 (check-O9): the range filter reads text; a YAML anchor defined in the consumer and aliased
-    by a non-consumer is that service's command too, so the anchored line stays a finding (fail
-    closed) — while an anchor nobody aliases clears like any other consumer line."""
-    repo = tmp_path / "repo"
-    aliased = (
-        "services:\n"
-        "  migrate:\n"
-        "    env_file:\n"
-        "      - .env\n"
-        "      - path: .env.owner\n"
-        "        required: false\n"
-        "    command: &migrate_cmd alembic upgrade head\n"
-        "  app:\n"
-        "    env_file:\n"
-        "      - .env\n"
-        "    command: *migrate_cmd\n"
-    )
-    _write(repo / "compose.yaml", aliased)
-    assert [(f.line, f.pattern) for f in scan_repo(repo).findings] == [
-        (7, "alembic upgrade/downgrade")
-    ]
+_CONSUMER_HEAD = (
+    "services:\n"
+    "  migrate:\n"
+    "    env_file:\n"
+    "      - .env\n"
+    "      - path: .env.owner\n"
+    "        required: false\n"
+)
 
+
+@pytest.mark.parametrize(
+    ("compose", "expected"),
+    [
+        # the anchor on the tool line itself
+        (
+            _CONSUMER_HEAD + "    command: &c alembic upgrade head\n  app:\n    command: *c\n",
+            [(7, "alembic upgrade/downgrade")],
+        ),
+        # a folded anchored scalar: the anchor on the key line, the tool text on the next
+        (
+            _CONSUMER_HEAD
+            + "    command: &c >-\n      alembic upgrade head\n  app:\n    command: *c\n",
+            [(8, "alembic upgrade/downgrade")],
+        ),
+        # a service-level anchor merged into a non-consumer
+        (
+            "services:\n"
+            "  migrate: &base\n"
+            "    env_file:\n"
+            "      - .env\n"
+            "      - path: .env.owner\n"
+            "        required: false\n"
+            "    command: alembic upgrade head\n"
+            "  app:\n"
+            "    <<: *base\n"
+            "    env_file:\n"
+            "      - .env\n",
+            [(7, "alembic upgrade/downgrade")],
+        ),
+        # an aliased owner-key use: the non-consumer gets a literal it cannot expand — the hand-off
+        (
+            _CONSUMER_HEAD
+            + '    command: &c sh -c "psql $$DATABASE_URL_OWNER -f x.sql"\n  app:\n    command: *c\n',
+            [(7, arc.OWNER_HANDOFF_REMEDY)],
+        ),
+    ],
+)
+def test_owner_consumer_sharing_an_anchor_is_scanned_like_any_service(tmp_path, compose, expected):
+    """G29 (check-O9, rounds 2-3): the range filter reads text, not the resolved YAML graph — a
+    declaring block that defines an anchor aliased OUTSIDE it (on the tool line, on a folded key
+    line, or on the service itself merged with `<<:`) is no suppression range at all: the aliasing
+    service runs those values, so the block's tool lines are findings and its owner-key use the
+    hand-off (fail closed)."""
+    repo = tmp_path / "repo"
+    _write(repo / "compose.yaml", compose)
+
+    assert [(f.line, f.pattern) for f in scan_repo(repo).findings] == expected, scan_repo(
+        repo
+    ).findings
+
+
+def test_owner_consumer_anchor_aliased_only_inside_its_block_still_clears(tmp_path):
+    """G29b (the mirror of G29): an anchor aliased within the SAME service is that service's own
+    value — the block stays the consumer and clears like any other."""
+    repo = tmp_path / "repo"
     _write(
         repo / "compose.yaml",
-        aliased.replace("    command: *migrate_cmd\n", "    command: echo hi\n"),
+        _CONSUMER_HEAD
+        + "    command: &c alembic upgrade head\n"
+        + "    healthcheck:\n"
+        + "      test: *c\n"
+        + "  app:\n"
+        + "    command: echo hi\n",
     )
+
     assert scan_repo(repo).findings == []
 
 
