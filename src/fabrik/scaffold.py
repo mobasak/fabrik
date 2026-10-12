@@ -32,6 +32,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from fabrik.config import FABRIK_ROOT
 from fabrik.spec_generator import SPEC_ENABLED_TYPES, generate_and_save_spec
+from fabrik.spec_loader import OWNER_ENV_FILE
 from fabrik.version_registry import load_versions
 
 # The base-image Debian variant is never a template literal: plain templates carry this token and
@@ -666,7 +667,7 @@ _COMMON_GITIGNORE_PATTERNS = (
     (
         "# Secrets (never commit)\n"
         ".env\n"
-        ".env.owner\n"
+        f"{OWNER_ENV_FILE}\n"
         ".env.backup\n"
         "*.key\n"
         "*.pem\n"
@@ -2214,9 +2215,9 @@ _SAAS_SERVER_REQUIREMENTS = (
 _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (PostgreSQL, RLS fail-closed).
 -- Per .windsurf/rules/saas/95-multi-tenant-saas.md (RLS) + core/75-workers-jobs.md (queue).
 -- Apply once after the DB is provisioned, as the database OWNER (the WHOLE file is one
--- transaction; any error aborts it). On the VPS the owner DSN lives in /opt/<name>/.env.owner
+-- transaction; any error aborts it). On the VPS the owner DSN lives in /opt/<name>/__OWNER_ENV_FILE__
 -- (root 0600) beside .env, so source both under sudo, in ONE line, from /opt/<name>:
---   sudo sh -c 'set -a; . ./.env; . ./.env.owner; set +a; psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql'
+--   sudo sh -c 'set -a; . ./.env; . ./__OWNER_ENV_FILE__; set +a; psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql'
 -- (with pgurl, from docs/TROUBLESHOOTING.md, inside the same sh -c: u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql)
 -- (Fabrik runs NO automatic migrations — you apply this yourself.) Keep BEGIN/COMMIT
 -- out of this file: an inner COMMIT would end psql -1's transaction early.
@@ -2357,6 +2358,8 @@ DROP TRIGGER IF EXISTS trg_job_inserted ON jobs;
 CREATE TRIGGER trg_job_inserted AFTER INSERT ON jobs
     FOR EACH ROW EXECUTE FUNCTION notify_job_inserted();
 """
+# The schema text spells the owner file through the one constant (D-754) — `__OWNER_ENV_FILE__` above.
+_SAAS_SCHEMA_SQL = _SAAS_SCHEMA_SQL.replace("__OWNER_ENV_FILE__", OWNER_ENV_FILE)
 
 _SAAS_TENANT_PY = '''"""Tenant context propagation for __NAME__ (multi-tenant RLS).
 
@@ -3593,9 +3596,9 @@ APP_AUDIT_LOG_DIR = FABRIK_LIB_DIR / "app-audit-log"
 # top-level BEGIN/COMMIT: an inner COMMIT would end ``-1``'s transaction early.
 _SCHEMA_APPLY_HEADER = (
     "-- Apply as the database OWNER (the WHOLE file is one transaction; any error aborts it).\n"
-    "-- On the VPS the owner DSN lives in /opt/<name>/.env.owner (root 0600) beside .env — source\n"
+    f"-- On the VPS the owner DSN lives in /opt/<name>/{OWNER_ENV_FILE} (root 0600) beside .env — source\n"
     "-- both under sudo, in ONE line, from /opt/<name>:\n"
-    "--   sudo sh -c 'set -a; . ./.env; . ./.env.owner; set +a; "
+    f"--   sudo sh -c 'set -a; . ./.env; . ./{OWNER_ENV_FILE}; set +a; "
     'psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql\'\n'
     "-- (with pgurl, from docs/TROUBLESHOOTING.md, inside the same sh -c: "
     'u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql)\n'
@@ -3739,7 +3742,7 @@ def _vendor_app_audit_log(backend_dir: Path) -> None:
 # (core/35-security-auth.md: DSNs get no default).
 _ENV_EXAMPLE_DSN_BLOCK = (
     "# Database — both DSNs are injected by the postgres registrar (`fabrik apply`):\n"
-    "# DATABASE_URL into .env (every service loads it); DATABASE_URL_OWNER into .env.owner,\n"
+    f"# DATABASE_URL into .env (every service loads it); DATABASE_URL_OWNER into {OWNER_ENV_FILE},\n"
     "# which only the services declaring it load — the audit-jobs companion, a migrate\n"
     "# service — never the app (D-754). Neither has a default; a missing value fails loudly\n"
     "# (core/35-security-auth.md). In WSL dev both live in .env.local, one local role.\n"
@@ -4198,7 +4201,11 @@ def _append_audit_jobs_service(project_dir: Path, name: str, project_type: str) 
         f"    command: {command}\n"
         "    env_file:\n"
         "      - .env\n"
-        + ("      - path: .env.owner\n        required: false\n" if companion.owner_env else "")
+        + (
+            f"      - path: {OWNER_ENV_FILE}\n        required: false\n"
+            if companion.owner_env
+            else ""
+        )
         + "    healthcheck:\n"
         # A liveness probe, never `disable: true`: compose `up --wait` refuses a disabled
         # healthcheck ("has no healthcheck configured", rc 1).

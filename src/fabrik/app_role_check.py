@@ -843,20 +843,25 @@ def _scan_file(rel: Path, text: str) -> list[Finding]:
         # The owner-key hand-off outside `environment:` (a `command:` interpolation, a naming in a
         # non-consumer): ONE finding per service — the remedy is the service's (declare the file,
         # read the key from the environment), so a second site in the same block, or the
-        # structural scan's report of the same hand-off on its key line, adds nothing.
-        posix = rel.as_posix()
-        blocks = _service_block_ranges(lines, _compose_services(text) or {})
-        reported: set[object] = {
-            _block_of(f.line, blocks) or ("line", f.line)
-            for f in findings
-            if f.pattern == OWNER_HANDOFF_REMEDY
-        }
-        for lineno in _compose_owner_handoff_lines(rel, lines, ranges):
-            key: object = _block_of(lineno, blocks) or ("line", lineno)
-            if key in reported:
-                continue
-            reported.add(key)
-            findings.append(Finding(path=posix, line=lineno, pattern=OWNER_HANDOFF_REMEDY))
+        # structural scan's report of the same hand-off on its key line, adds nothing. Only over a
+        # compose that PARSES: an unparseable file is already its own finding and names no service
+        # to carry the remedy (the Finish review, check-S1). A block the text scan cannot locate
+        # falls back to one finding per line — more findings, never fewer (check-S2).
+        services = _compose_services(text)
+        if services is not None:
+            posix = rel.as_posix()
+            blocks = _service_block_ranges(lines, services)
+            reported: set[object] = {
+                _block_of(f.line, blocks) or ("line", f.line)
+                for f in findings
+                if f.pattern == OWNER_HANDOFF_REMEDY
+            }
+            for lineno in _compose_owner_handoff_lines(rel, lines, ranges):
+                key: object = _block_of(lineno, blocks) or ("line", lineno)
+                if key in reported:
+                    continue
+                reported.add(key)
+                findings.append(Finding(path=posix, line=lineno, pattern=OWNER_HANDOFF_REMEDY))
     return findings
 
 

@@ -19,7 +19,8 @@ All notable changes to this project will be documented in this file.
   service aliases; an alembic env reading the owner
   key while no parseable compose file declares it is the `NO_OWNER_CONSUMER` finding (repo-wide; its text names the remedy),
   and `run_check` appends ` reaches DATABASE_URL` to label patterns only. The `Spec` validator also refuses the owner key in
-  a companion's `env_overrides`. The schema headers
+  a companion's `env_overrides`; the hand-off scan runs only over a compose that parses. `scaffold.py` spells the owner file
+  through `OWNER_ENV_FILE` alone (a grader refuses a literal). The schema headers
   apply as one `sudo sh -c` sourcing both files; `.env.example` and the scaffold + three template `.gitignore`s name `.env.owner`.
   Docs: `docs/operations/fabrik-lifecycle.md` (step 0 of the cutover runbook, the two-file layout, "what the split does not
   cover"), `docs/CONFIGURATION.md`, `docs/operations/credential-recovery.md`, `docs/reference/modules/drivers.md`, the three

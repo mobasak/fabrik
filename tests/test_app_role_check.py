@@ -1278,6 +1278,20 @@ def test_mirror_stays_silent_when_the_compose_file_does_not_parse(tmp_path):
     assert patterns == ["compose file unparseable"], patterns
 
 
+def test_handoff_scan_stays_silent_when_the_compose_file_does_not_parse(tmp_path):
+    """G30 (the Finish review, check-S1): an unparseable compose file is its own finding; the raw-text
+    hand-off scan never adds `OWNER_HANDOFF_REMEDY` on top of it — the file names no service that
+    could carry the remedy, so the finding would assert what cannot be known (G20's rule)."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n  migrate: [\n    command: sh -c 'psql $DATABASE_URL_OWNER -f x.sql'\n",
+    )
+
+    patterns = [f.pattern for f in scan_repo(repo).findings]
+    assert patterns == ["compose file unparseable"], patterns
+
+
 def test_mirror_counts_a_lowercase_settings_attribute_as_an_owner_site(tmp_path):
     """G22 (check-O10, scaffold-S4 — the asymmetry pinned on purpose): `settings.database_url_owner`
     reads the same environment variable through pydantic-settings, so it is an owner site for the

@@ -121,7 +121,9 @@ Invariants (the words the code and the docs will carry):
    so the writer routes it (invariant 3).
 2. **The merged view is unchanged for every reader, in ONE round trip.** `_read_env_file` keeps its one probe and one
    `cat`: the probe answers `present`/`absent` for `.env` on its first line as today and a second line `owner` when
-   `.env.owner` exists; the second command is today's `sudo cat <env>` alone, or `sudo sh -c 'cat <env>; echo; cat <owner>'` — the `echo` is a
+   `.env.owner` exists; the second command is today's `sudo cat <env>` alone, or `sudo sh -c 'cat <env> && echo && cat <owner>'` — the `&&` chain
+   fails closed (a `;` chain exits with the LAST cat's status, so a missing `.env` beside an owner file returned the owner keys
+   alone as the merged view — the plan's Phase A review, grader G2) and the `echo` is a
    SEPARATOR, because a plain two-file `cat` joins the last line of a `.env` that lacks a trailing newline onto the owner
    file's first line (executed at the approval panel on `_parse_env`: the owner key vanished from the parse and the owner
    DSN rode into `REDIS_URL`'s value, which the next write would have put back into `.env`) — so the owner file's keys
@@ -178,9 +180,11 @@ Invariants (the words the code and the docs will carry):
    `fabrik app-role-check` suppresses today as the canonical hand-off (`src/fabrik/app_role_check.py:40-48`, `:470-490`)
    — would resolve to an empty value and let a migration run against no DSN. The check turns that classification into a
    FINDING with the remedy of invariant 5 — and it ACCEPTS the remedy: a compose service whose `env_file` names
-   `.env.owner` (the long-syntax `path:` or the plain string) is an OWNER CONSUMER; its `compose service named migrate`
-   finding and a migration-tool pattern on its `command` line are suppressed, the connection source being decided by the
-   tool's own config, which the alembic `env.py` scan covers (`app_role_check.py:352-368`). Executed at the approval
+   `.env.owner` (the long-syntax `path:` or the plain string, any spelling `normpath` reduces to it) is an OWNER CONSUMER; its
+   `compose service named migrate` finding is skipped and a line finding inside its block is dropped only while the line
+   names no bare `DATABASE_URL` and the block shares no YAML anchor with a non-consumer (as built — the plan's Phase B review
+   narrowed the rule written here); alembic's connection source is scanned on its own (`env.py`), a prisma/drizzle/django
+   tool's config is not — the declaration is the evidence (backlog W-94a3b4df). Executed at the approval
    panel on today's scanner: the remedy shape yields TWO findings — `compose service named migrate` (an `env_file` entry
    never matches the owner token) and `alembic upgrade/downgrade` on the `command` line — so without this rule the split
    would make every cutover of a project with a `migrate` service refuse at `infrastructure.py:1177-1182`. The mirror

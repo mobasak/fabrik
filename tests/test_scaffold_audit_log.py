@@ -709,6 +709,23 @@ def test_fresh_database_scaffold_scans_clean(projects: dict[str, Path], kind: st
     assert result.findings == [], result.findings
 
 
+def test_scaffold_spells_the_owner_file_only_through_the_constant() -> None:
+    """G31 (the Finish review, scaffold-S1/H1): `OWNER_ENV_FILE` is defined once in `spec_loader.py` "so
+    every Python consumer imports them and spells them nowhere else" — scaffold.py carries no literal
+    `.env.owner`, and the three emitted texts that name the file (the gitignore patterns, the two schema
+    headers, the .env.example block, the companion block) still spell it at run time."""
+    source = Path(scaffold.__file__).read_text()
+    assert '".env.owner' not in source and "'.env.owner" not in source
+    assert "OWNER_ENV_FILE" in source
+    for text in (
+        scaffold._SAAS_SCHEMA_SQL,
+        scaffold._SCHEMA_APPLY_HEADER,
+        scaffold._ENV_EXAMPLE_DSN_BLOCK,
+    ):
+        assert ".env.owner" in text and "__OWNER_ENV_FILE__" not in text
+    assert ".env.owner\n" in scaffold._COMMON_GITIGNORE_PATTERNS
+
+
 @requires_fabrik_env
 @pytest.mark.parametrize("kind", list(_PY_BACKENDS))
 def test_scaffolded_gitignore_lists_the_owner_env_file(

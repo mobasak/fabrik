@@ -209,6 +209,12 @@ one call before any other step can fail, because the owner password exists only 
 moment. The role model is in
 [`docs/reference/modules/drivers.md`](../reference/modules/drivers.md) § Postgres.
 
+A project whose compose predates the split declares nothing, and its next `fabrik apply` moves the key out of `.env`
+anyway: the apply log carries `env: 1 owner key(s) kept in .env.owner for /opt/<name>` (the deployer's one log line,
+`deployer_ssh.py::_write_env_files`) and the audit-jobs companion idles `audit_jobs: not_configured` until the compose
+declares the file. After that first apply, read the line, then run step 0 of the cutover runbook below before the
+project's next migration — nothing else tells you.
+
 On every `fabrik apply` the postgres registrar runs the app-role step after the watchdog and
 payments-ingest roles. It mints or re-asserts `<db>_app` and its grants, reads the live
 `.env` (on the spoke for a spoke target), and converges `DATABASE_URL` to what
