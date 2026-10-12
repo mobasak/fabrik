@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T19:54:06.876779Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-8259f800",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RKXS2G4S5EQATRA4HR4Z9S",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the scaffold's CI pair (.github/workflows/ci.yml + scripts/ci_local.sh, both \"fabrik-managed — regenerate via fabrik scaffold\") installs `ruff pytest pytest-asyncio fakeredis aiosqlite` but not sqlfluff, while the completion gate's sqlfluff leg (scripts/final_gate.py) lints every tracked *.sql"
+}

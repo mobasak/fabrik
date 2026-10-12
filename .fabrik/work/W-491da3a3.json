@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T20:21:18.861806Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-491da3a3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RTTDEEJSC9V0TSATDB8NRX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: blocked",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the whatsapp-agent deploy requested for tonight depends on trade-intelligence's `POST /api/internal/data/bind-staff-org`. That route is unbuilt: TI plan-08 is \"PINNED — DO NOT EXECUTE AS-WRITTEN\" over an unresolved multi-membership design question (which org is canonical after TI change 106)."
+}
