@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the mail contract: an author never acks its own send to a shared mailbox (2026-10-12)
+- `docs/reference/fabrik-mail.md` says the ack is the reader's act, so on the hub's shared `fabrik` mailbox a session never acks mail it sent itself (D-784).
+
 ### Changed — /fabrik-flows-review names its seat budget and bumps once per run (2026-10-12)
 - The dispatch line names `dispatch_headroom.py --units 8 --mechanical 2 --risky 2` (axes A–G plus E2), and a review run bumps the contract's version at its first edit and mints one row (D-783).
 

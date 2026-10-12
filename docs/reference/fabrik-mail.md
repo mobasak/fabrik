@@ -73,7 +73,9 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   `acked-by: <repo> · ts: <ISO> · disposition: <done|blocked|wontfix>`. Claim FIRST, then
   act, then ack. **Cooperative-ack rule:** within one repo the sessions share identity, so
   `ack`-ing a CLAIMED id asserts the work is DONE — never ack another agent's claim unless you
-  are finishing it (taking over a crashed claim goes through `requeue` first). Two simultaneous
+  are finishing it (taking over a crashed claim goes through `requeue` first). Nor is a message your
+  session SENT to its own shared mailbox ever acked by you: the ack is the reader's act, and on a shared
+  mailbox (the hub's `fabrik`) the reader is another session. Two simultaneous
   fallback-acks can both append (a visible doubled line, never silent loss) — tolerated at this
   volume — CORRECTED same-day: the claimed-message resolve is now RENAME-LOCKED like every
   other transition (`archive/<id>.md → .resolving → back`), so two concurrent fallback-acks
