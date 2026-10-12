@@ -29,11 +29,12 @@ def test_no_command_caps_the_workflow_pass_number() -> None:
 
 
 def test_the_round_recipe_states_own_fix() -> None:
-    """Row 1790713088: term-edit makes every delta round state --own-fix; the recipe omitted it."""
-    assert (
-        "--own-fix <own-fix; round 1: 0> --slices <name>:<verified>/<claims>,… --classes-swept <every class swept>"
-        in _norm()
-    )
+    """Row 1790713088: term-edit makes every delta round state --own-fix; both recipes omitted it."""
+    for path in (SRC, SOURCES / "fabrik-plan-review.md"):
+        assert (
+            "--own-fix <own-fix; round 1: 0> --slices <name>:<verified>/<claims>,… --classes-swept <every class swept>"
+            in _norm(path)
+        ), path.name
 
 
 def test_phase_zero_points_at_the_flip_gates() -> None:
