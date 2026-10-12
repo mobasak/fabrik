@@ -152,3 +152,33 @@ def test_catalogue_holds_the_two_recurring_probes() -> None:
         "on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the same path"
         in (_section(cat, "## Seat isolation", "## Loop bookkeeping"))
     )
+
+
+def test_the_round_grammar_names_own_fix() -> None:
+    """Row 1791764618 (D-778)."""
+    assert "--own-fix <how many of those confirmed defects lie in text this review added in an earlier round>" in _norm(SRC)
+
+
+def test_a_callers_plan_flip_follows_the_post_flip_gate_run() -> None:
+    """Row 1791828832 (D-778): the reason is check_convergence's own skip."""
+    assert "A caller that flips its plan to `EXECUTED` flips it only after that post-flip run is embedded: a red post-flip run sends the receipt back to `IN-PROGRESS`" in _norm(SRC)
+    conv = (ROOT / "scripts" / "enforcement" / "check_convergence.py").read_text()
+    assert re.search(r"if _receipt_in_progress\(rtext\):\s+continue", conv)
+
+
+def test_the_receipt_template_shows_the_gate_scope_line_the_gate_accepts_filled() -> None:
+    """Rows 1791829774, 1791828719 (D-778): the placeholder never reads as a declaration; a filled one does."""
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
+    try:
+        import check_convergence
+    finally:
+        sys.path.pop(0)
+    tmpl = (ROOT / "scripts" / "review_receipt.py").read_text()
+    line = "`GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>`"
+    assert line in tmpl
+    pats = [v for v in vars(check_convergence).values() if isinstance(v, re.Pattern) and "GATE-SCOPE" in v.pattern]
+    assert len(pats) == 1
+    assert not pats[0].search(line)
+    assert pats[0].search(line.replace("<failing check>", "docs-links").replace("<N>", "3").replace("<command>", "grep x"))
