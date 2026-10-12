@@ -136,7 +136,8 @@ or name in the brief why the shape does not have it.
   the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the same path);
   tests run by exact node id. A script a seat runs is run from its archive copy with every path argument under scratch
   (a script may treat any argument as a write path), and the pin carries the changed files' one-hop callees that are
-  repo files (`review_loop_ledger.py pin` refuses the whole list on one stdlib or third-party path).
+  repo files (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo
+  root).
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word
