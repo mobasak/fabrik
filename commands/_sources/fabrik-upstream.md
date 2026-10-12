@@ -159,7 +159,8 @@ mode done; an uncommitted proposal is unfinished work under the same rule that g
 
 Never touch the synced file itself, in any phase, for any reason — that boundary is the entire reason this
 command exists. End the run by **sending the proposal to the hub via fabrik-mail** (`docs/reference/fabrik-mail.md`):
-name the committed proposal path(s) in the body and `python scripts/mail.py send --to fabrik --to-agent
+name the committed proposal path(s) in the body — a body with the message contract's WHAT, WHERE, WHEN, WHO,
+WHY, HOW and SYSTEMIC headers (`docs/reference/fabrik-mail.md` § The message contract) — and `python scripts/mail.py send --to fabrik --to-agent
 infra --kind request --ack required` (synced-file defects are the infra beat) — or `--to fabrik-lib --kind
 upstream-feedback --ack required` when the proposal is a vendored
 fabrik-lib module fix. The explicit `--kind`/`--ack` preserve the proposal's durable, **acked** audit trail (a
