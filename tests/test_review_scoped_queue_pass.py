@@ -112,9 +112,8 @@ def test_a_guard_brief_states_its_model_boundary() -> None:
 def test_seats_run_scripts_from_the_archive_and_pin_callees() -> None:
     """Rows 1791842699, 1791841558 (D-792)."""
     iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
-    assert "pytest with `-c <archive>/pyproject.toml`" in iso
     assert "A script a seat runs is run from its archive copy with every path argument under scratch (a script may treat any argument as a write path)" in iso
-    assert "the pin carries the changed files' one-hop callees" in iso
+    assert "the pin carries the changed files' one-hop callees that are repo files (`review_loop_ledger.py pin` refuses the whole list on one stdlib or third-party path)" in iso
 
 
 def test_a_silent_refuter_is_already_retried_once_and_marked_failed() -> None:

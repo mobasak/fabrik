@@ -134,9 +134,9 @@ or name in the brief why the shape does not have it.
   `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a
   `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo root with
   the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the same path);
-  tests run by exact node id, pytest with `-c <archive>/pyproject.toml`. A script a seat runs is run from its archive
-  copy with every path argument under scratch (a script may treat any argument as a write path), and the pin carries the
-  changed files' one-hop callees.
+  tests run by exact node id. A script a seat runs is run from its archive copy with every path argument under scratch
+  (a script may treat any argument as a write path), and the pin carries the changed files' one-hop callees that are
+  repo files (`review_loop_ledger.py pin` refuses the whole list on one stdlib or third-party path).
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word
