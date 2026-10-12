@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T04:39:23.875894Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f82344ad",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Q67RC668RZWD0WWK702GK9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: worktree-kaizen"
+}
