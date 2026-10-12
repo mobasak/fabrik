@@ -197,7 +197,7 @@ Your final message MUST embed structured proof — not a summary, not "all looks
 
 1. **Claim ledger** — the full claim → verdict → `path:line` table (or a representative
    subset if >100 claims, with totals).
-2. **Gate output** — verbatim `docs_updater.py --check` + `check_doc_sync.py` green; a red whose findings name none of the reviewed docs and no file the change under review touched (a `Missing reference doc` for a module the change added is in-surface) is embedded verbatim with the one-line `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration (`/fabrik-review` § Reporting's grammar), and its findings are listed as residuals.
+2. **Gate output** — verbatim `docs_updater.py --check` + `check_doc_sync.py` green; a red none of whose findings the change under review caused (a finding naming a reviewed doc or a file the change touched, the reference doc of a module it added, or an index its added files feed — `PLANS.md`, `INDEX.md` — is in-surface) is embedded verbatim with the one-line `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration (`/fabrik-review` § Reporting's grammar), and its findings are listed as residuals.
 3. **Self-audit** — total claims, counts per verdict (VERIFIED / STALE-fixed / WRONG-fixed
    / DEAD-removed / UNVERIFIABLE), and the line-coverage reconciliation showing zero
    skipped lines.

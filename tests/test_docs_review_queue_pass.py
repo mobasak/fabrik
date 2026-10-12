@@ -39,10 +39,7 @@ def test_external_claims_go_to_the_web_seat() -> None:
 def test_an_out_of_surface_red_gate_is_declared_not_blocking() -> None:
     """Rows 1791335151, 1791193035, 1790986690, 1790725631, 1790295897: docs_updater --check is repo-wide."""
     text = _norm()
-    assert (
-        "a red whose findings name none of the reviewed docs and no file the change under review touched"
-        in text
-    )
+    assert "a red none of whose findings the change under review caused" in text
     assert "the doc-sync gate green, or red only out-of-surface and declared" in text
     # every sentence that states the terminal or the convergence bar allows the declared red
     assert (
