@@ -1363,6 +1363,22 @@ def test_a_rename_destination_inherits_its_sources_membership(
     ), _rows(run_dir)[-1]["oversized_mini"]
 
 
+def test_an_excluded_source_lends_no_membership_to_its_rename(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """D-789 review A-H1: inheritance is for the DECLARED work. A receipt (or a ledger) is exempt
+    on its own, but renaming it onto `src/hidden.py` must not launder the destination into the
+    lane — v2's `_undeclared` already inherits from declared paths only; v1 now agrees."""
+    receipt = "docs/development/reviews/2026-10-13-x-review.md"
+    _seed_claude(repo, also={receipt: "# Review\n"})
+    _start_task(run_dir, repo, hub, "src/a.py")
+    subprocess.run(["git", "mv", receipt, "src/hidden.py"], cwd=str(repo), check=True, timeout=15)
+    sha = _commit_all(repo, "launder")
+    r = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "green")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rows(run_dir)[-1]["oversized_mini"] == f"1 · commit={sha} · paths=src/hidden.py"
+
+
 def test_a_copy_and_a_rename_in_one_commit_are_split_on_three_fields(
     run_dir: Path, repo: Path, hub: Path
 ) -> None:
@@ -1896,6 +1912,33 @@ def test_a_repo_without_the_matrix_falls_back_to_eight_constants(
     out = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "green")
     assert out.returncode == 0, out.stdout + out.stderr
     assert _rows(run_dir)[-1]["oversized_mini"] == f"1 · commit={sha} · paths=docs/FEATURES.md"
+
+
+def test_a_review_receipt_is_excluded_and_nothing_else_under_its_dir(repo: Path) -> None:
+    """kaizen 01M4RP9QCR: a `.md` receipt under the reviews dir is the run's own evidence and is
+    excluded from the close's membership check; a non-`.md` file there, an `archived/` receipt and
+    a sibling `docs/development/` subtree are still measured. Built on a repo with no `CLAUDE.md`,
+    the fallback every fleet repo without the matrix takes."""
+    mod = _load("cr_receipt", _SCRIPT)
+    excl = mod._task_excl(repo)
+    assert mod._task_excluded("docs/development/reviews/2026-10-13-x-review.md", excl)
+    assert not mod._task_excluded("docs/development/reviews/helper.py", excl)
+    assert not mod._task_excluded("docs/development/reviews/archived/old-review.md", excl)
+    assert not mod._task_excluded("docs/development/plans/2026-10-13-plan-1.md", excl)
+    assert not mod._task_excluded("docs/development/reviewsX.md", excl)
+
+
+def test_the_close_and_the_lane_measure_name_one_reviews_dir() -> None:
+    """Two "never measured" lists disagreed about receipts (01M4RP9QCR): the close's receipt
+    dir IS task_lane's, and task_lane's replay measurement excludes it too."""
+    mod = _load("cr_reviews_dir", _SCRIPT)
+    spec = importlib.util.spec_from_file_location("tl_reviews_dir", _SCRIPT.parent / "task_lane.py")
+    assert spec and spec.loader
+    task_lane = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = task_lane  # its dataclasses resolve their module through sys.modules
+    spec.loader.exec_module(task_lane)
+    assert mod._TASK_REVIEWS_DIR == task_lane.REVIEWS_DIR
+    assert task_lane.REVIEWS_DIR in task_lane._MEASURE_EXCLUDE_PREFIX
 
 
 def test_the_matrix_scan_falls_back_to_end_of_file() -> None:

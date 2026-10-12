@@ -281,6 +281,32 @@ def _started_v2(run_dir: Path, tmp_path: Path, *extra: str) -> Path:
     return repo
 
 
+def test_v2_done_accepts_an_undeclared_review_receipt(run_dir: Path, tmp_path: Path) -> None:
+    """A run's own nested-review receipt is its evidence, like a Doc Sync ledger: committing
+    `docs/development/reviews/<x>-review.md` without naming it in APPROACH/MIRROR (or passing it
+    as `--review`) no longer refuses `done` (kaizen 01M4RP9QCR). A `.py` hidden there still does."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "docs/development/reviews/2026-10-13-x-review.md", "# Review\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", a, b)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_v2_done_still_refuses_a_source_file_under_the_reviews_dir(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """The receipt exemption is `.md` only: an undeclared `.py` under the reviews dir is a
+    hiding place, never evidence (design critiques, Opus + Fable)."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "docs/development/reviews/helper.py", "x = 1\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", a, b)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "docs/development/reviews/helper.py" in r.stdout
+
+
 def test_v2_done_refuses_an_undeclared_path_until_it_is_amended(
     run_dir: Path, tmp_path: Path
 ) -> None:

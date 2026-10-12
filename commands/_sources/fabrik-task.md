@@ -119,7 +119,8 @@ most 7 (an 8th is the `behaviours` UPGRADE, *(v2)*) — and name every file the 
 the Behaviours' tests, deletions and a rename's both paths included, under line-start UPPERCASE
 `APPROACH:`/`MIRROR:` labels, before any line opening with a field word or a `#` (fenced or not),
 one bare repo-relative path per backtick pair (`a.py::f`, `a.py:120` and `a.py, b.py` match
-nothing; of receipts, only a `--review` one is exempt): *(v2)* a committed path missing from both
+nothing; a `.md` under `docs/development/reviews/` but `archived/` is exempt): *(v2)* a committed
+path missing from both
 REFUSES `done` at close (v1 measures `--file` instead and only RECORDS); the remedy is
 `step --phase 2 --design-amend <path>` *(v2)*, append-only — it never overwrites a recorded field —
 and counted on the close as `design_amends`.

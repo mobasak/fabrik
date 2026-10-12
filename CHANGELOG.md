@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the /fabrik-task close no longer refuses a run's own review receipt (2026-10-13)
+- A committed `.md` under `docs/development/reviews/` (not `archived/`) is excluded from the close's undeclared-path measures (the v2 refusal, the v1 and unstamped `oversized_mini` records), like a Doc Sync destination; a non-`.md` file there is still measured. The v1 record no longer lets a rename's destination inherit membership from an exempt source. The close's receipt dir is graded equal to `task_lane.REVIEWS_DIR`, and fabrik-task.md says so (kaizen 01M4RP9QCR, D-789).
+
 ### Changed — review seats run scripts from the archive copy and pin one-hop callees (2026-10-13)
 - The catalogue's seat-isolation line runs a script from the archive with path arguments under scratch, and pins the changed files' one-hop callees that are repo files (D-792).
 
