@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task checks the design note's names at `--design`, and lists the tests that name a declared script (2026-10-13)
+- `step --phase 2 --design` on a lane-v2 run refuses, storing nothing, when a declared `--file` is not backticked in APPROACH or MIRROR, so the note is fixed before the build instead of amended after it. `start` and the stored design print the tracked test files naming each declared script (kaizen 01M4RNGC0H, D-796).
+
 ### Changed — review probes check a reimplemented tool against its own output (2026-10-13)
 - A fix that reimplements another tool's semantics proves parity against that tool's own output over its edge cases before it lands (D-795).
 
