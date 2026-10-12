@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-conformance-review pastes the rubric output and gives seats literal paths (2026-10-12)
+- PHASE 0 records both the rubric invocation line and its pasted output, whose header is what the coverage gate reads; the verifier brief names literal absolute paths (D-786).
+
 ### Changed — /fabrik-review-scoped briefs a guard's model boundary with its escape variants (2026-10-12)
 - A GUARD's brief states the inputs it is meant to judge, so an escape variant outside them is `RECORDED — by design (D-785)` in round 1 instead of seeding own-fix rounds (D-785).
 
