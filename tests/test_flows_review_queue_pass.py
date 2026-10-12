@@ -17,11 +17,11 @@ def _norm() -> str:
 
 def test_the_dispatch_line_names_the_exact_invocation_and_it_counts_the_axes() -> None:
     """Row 1790702929."""
-    assert "`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units 7 --mechanical 2` — one unit per axis A–G" in _norm()
-    axes = re.findall(r"^\*\*([A-Z])\)", SRC.read_text(), flags=re.M)
-    assert axes == list("ABCDEFG")
+    axes = re.findall(r"^\*\*([A-Z][0-9]*)\)", SRC.read_text(), flags=re.M)
+    assert axes == ["A", "B", "C", "D", "E", "E2", "F", "G"]
+    assert f"dispatch_headroom.py --units {len(axes)} --mechanical 2 --risky 2` — one unit per axis A–G plus E2" in _norm()
 
 
 def test_one_bump_and_one_row_per_review_run() -> None:
     """Row 1791511001."""
-    assert "One bump and one row per review run: every round's edits land under the version the closing round re-freezes, never a bump per round" in _norm()
+    assert "Bump at the run's first edit and keep editing under that version until the closing round re-freezes it — one bump and one row per review run, a hold and its resume included" in _norm()
