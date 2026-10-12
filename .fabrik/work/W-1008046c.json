@@ -16,5 +16,8 @@
   "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-2026-10-13"
+  ],
   "title": "review_loop_ledger.py pin writes MANIFEST.md5 with repo-relative paths (scripts/review_loop_ledger.py:527), so a seat's 'md5sum -c <pins>/MANIFEST.md5' from the repo cwd hashes the LIVE files and prints OK while the pins are never checked (from any other cwd it fails) — site-provisioner 01M4RNTM85; seats cannot cd"
 }
