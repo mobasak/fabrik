@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-12T02:11:07.334773Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "b03ba950512bda3f4d3963ec034ade793ffb2638",
   "id": "W-d0bbb94d",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "merge_request.py merge: a transient 'git fetch -q timed out after 60s' at preflight REFUSES and replies to the request, so the requester must re-send (twice on 2026-10-12: 01M4PQEFJF, 01M4PXVSWA); a network blip should leave the request waiting, not refused"
 }

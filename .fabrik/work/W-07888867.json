@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T06:32:29.083618Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-07888867",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Q1KRR12X40VYVXV0FMQT71",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-deploy-checklist Phase 2 should name the leg-file threat model's four axes (wef3 change: verdict 01M2T4AEWH, via fleet 01M4PKBYRV item D) — wording, your beat"
+}
