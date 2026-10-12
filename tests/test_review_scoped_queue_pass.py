@@ -78,6 +78,16 @@ def test_seat_isolation_names_every_root_the_tests_import_read_or_run() -> None:
     assert "names the live repo as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a worktree" in iso
 
 
+def test_own_fix_guards_helper_contracts_and_pinned_versions() -> None:
+    """Rows 1791833683, 1791830180, 1791831690; 1791830163 rests on the scoped source's own guard rule."""
+    text = _norm(CAT)
+    assert "Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its real shell)" in _section(text, "## Before the first pin", "## The brief's hunt lines")
+    assert "a pure helper's own return contract, not only what its callers observe" in _section(text, "- Callers and consumers:", "- Parsers:")
+    assert "a `fabrik-researcher` seat whose brief names the version the repo pins or deploys (its lockfile or spec line) and asks for the claim at that version" in _section(text, "- The premise:", "## Graders")
+    assert "an explicit ASK for its ESCAPE VARIANTS" in _norm(ROOT / "commands" / "_sources" / "fabrik-review-scoped.md")
+    assert max(len(line) for line in CAT.read_text().splitlines()) <= 120
+
+
 def test_a_silent_refuter_is_already_retried_once_and_marked_failed() -> None:
     """Row 1791826392 (mailed): the workflow already retries; the ledger's `read` table is the gap."""
     js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text()

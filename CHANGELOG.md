@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review probe catalogue runs emitted one-liners, checks helper contracts and pinned versions (2026-10-12)
+- An emitted one-liner runs as emitted under its real shell; a pure helper's own return contract is checked; an external quote's brief names the version the repo pins or deploys (D-779).
+
 ### Fixed — docs_updater --adopt refuses to run in a linked worktree (2026-10-12)
 - `scripts/docs_updater.py`: `--adopt` writes the merge-owner row and owner stamps that belong to the main checkout; since `--single-window` disarms the session-count guard, a worktree agent could mint the owner row on its branch. It now refuses (exit 2) in a linked worktree before any write, with or without `--single-window` (W-e6acc9ac).
 
