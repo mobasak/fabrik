@@ -68,5 +68,6 @@ def test_phase_two_names_cross_repo_paths_escaped_pipes_and_by_design_rulings() 
     text = _norm()
     p2 = text[text.index("## Phase 2") : text.index("## Phase 3")]
     assert "A path in another `/opt` repo is written as a backticked plain path, never a markdown link — GitHub resolves a link's leading `/` against this repo's root" in p2
-    assert "A `\\|` inside a table cell is cell content (GFM), so a table-shape check splits on unescaped pipes only" in p2
-    assert "grep `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling on it" in p2
+    assert "A `\\|` inside a table cell is cell content (GFM), so a table-shape check splits on unescaped pipes only — and a bare pipe inside a backtick span still splits the row" in p2
+    assert "Seat briefs carry these two rules and the by-design check below" in p2
+    assert "grep `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling on it, quoting the row; a ruling that does not cover the finding leaves it standing" in p2
