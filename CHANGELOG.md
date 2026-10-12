@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review probe catalogue reads a pinned line's comment before copying it (2026-10-12)
+- Before adding a sibling of a pinned or guarded line, the lead reads the comment on the line it copies (D-782).
+
 ### Changed — /fabrik-doc-converge writes cross-repo paths plainly, reads escaped pipes, checks by-design rulings (2026-10-12)
 - Phase 2 writes another `/opt` repo's path as a backticked plain path, treats `\|` in a cell as content, and greps DECISIONS and the archive for a by-design ruling before raising a schema finding (D-781).
 

@@ -18,7 +18,8 @@ or name in the brief why the shape does not have it.
   false green and false red — committing the positive/negative probe list beside it.
 - Name the defect's class and grep the whole class (every site, sibling guards, every scaffold type, recursively,
   vendored venvs and `.claude/worktrees` excluded) before patching one instance; diff sibling implementations side by
-  side; port vendored code and prove parity by an executable diff over the original's edge cases.
+  side, and before adding a sibling of a pinned or guarded line, read the comment on the line it copies; port vendored
+  code and prove parity by an executable diff over the original's edge cases.
 - One mutant per clause the edit states, written as a literal before/after (an ordering claim names its mutant);
   re-run every prior mutant and the reproducing probe after each fix; probe each new grader with its mutant.
 - Run the repo's structural source graders, every touched test file whole, every gate the changed sentence will meet
