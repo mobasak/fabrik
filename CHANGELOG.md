@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-docs-review: its floor seat can run commands; an out-of-surface gate red is declared (2026-10-12)
+- The floor seat is `fabrik-reviewer` (Bash) since Phase 2 verifies runnable examples by running them; `fabrik-researcher` keeps external claims. A repo-wide `docs_updater.py --check` red naming none of the reviewed docs is embedded with the `GATE-SCOPE: out-of-surface` declaration; seat briefs apply the review probe catalogue (D-755).
+
 ### Fixed — /fabrik-execute-plan: three wrong sentences and the recurring steps of its feedback queue (2026-10-12)
 - A merged sibling's lock is visible to the overlap scan; the baseline gate runs `--check`; the phase-review artifact binds every phase, not only GUI ones. The pre-flight spot-check repeats before each later phase, a resumed run names receipts with the plan prefix, the loop names the Profile: small waiver and the repo's interpreter, one ID per `Agent-Task:` line, D4's wave brief points at the review probe catalogue and its receipt passes `check_review_coverage.py`, D5 compares reds by name and D7 points at the quota pause (D-753).
 

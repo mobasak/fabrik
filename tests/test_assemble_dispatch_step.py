@@ -233,12 +233,11 @@ def test_both_floor_sentences_reach_their_rendered_commands_whole(tmp_path):
         for native in ("`fabrik-reviewer`", "`fabrik-researcher`", "`design-review`")
     }
     assert units == {
-        "`fabrik-reviewer`": ["fabrik-doc-converge", "fabrik-features"],
+        "`fabrik-reviewer`": ["fabrik-doc-converge", "fabrik-docs-review", "fabrik-features"],
         # the third carrier (review-family pass 3, D1): /design-review keeps its mechanical seat
         "`design-review`": ["design-review"],
         # `/fabrik-spec-review` left this list for the SECTION-partition floor (D-212/D-218)
         "`fabrik-researcher`": [
-            "fabrik-docs-review",
             "fabrik-flows-review",
             "fabrik-rules-review",
             "fabrik-ui-design-review",

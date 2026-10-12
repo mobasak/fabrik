@@ -16,7 +16,7 @@ Converge the documentation to a fixed point — do not stop after one pass.
 ```bash
 python3 scripts/command_run.py start --command fabrik-docs-review --phases 5 \
   --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \
-  --terminal "closing round confirmed 0 + docs_updater --check green"
+  --terminal "closing round confirmed 0 + docs_updater --check green, or red only out-of-surface and declared"
 ```
 
 {{include:orient}}
@@ -99,8 +99,7 @@ real source, and check BOTH directions:
   flags, env vars, files, migrations, features) and confirm each is reflected in the
   right doc. A shipped change no doc mentions is a discrepancy.
 - **Doc → live source (EXTERNAL claims):** a claim about a 3rd-party API / SDK / endpoint,
-  **pricing**, a rate limit, a library **version**, or an ISO/RFC **standard** is NOT
-  verifiable against local code — re-verify it **LIVE** (`mcp__exa__web_search_exa` →
+  **pricing**, a rate limit, a library **version**, or an ISO/RFC **standard** is NOT verifiable against local code — a `fabrik-researcher` seat (web, no shell) re-verifies it **LIVE** (`mcp__exa__web_search_exa` →
   `WebSearch` → `mcp__brave-search__brave_web_search` → official-docs `WebFetch` for library detail;
   a standard/RFC → fetch the primary doc and quote the clause).
   A live-checkable external claim is **VERIFIED-or-WRONG**, never parked as UNVERIFIABLE —
@@ -135,7 +134,7 @@ features documented-but-removed or shipped-but-undocumented.
 
 Dispatch one INDEPENDENT native seat per doc/subsystem, every run (recipe in
 § Subagents), run them in parallel, then merge + dedupe their findings — refuting any that are provably wrong
-(quote the code/doc line that disproves the discrepancy) before acting — before the next pass.
+(quote the code/doc line that disproves the discrepancy) before acting — before the next pass. Every seat brief applies the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE.
 **Round 1 keeps the units-sized floor (D-208 — never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles, measured not assumed — 1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186); every later round is sized by the fragment's D5 sentence (one seat per unit with an open claim, the round-1 `--units` count as the ceiling, D-335).**
 
 **Verify subagents:** after merging subagent ledgers, independently re-check a random
@@ -198,7 +197,7 @@ Your final message MUST embed structured proof — not a summary, not "all looks
 
 1. **Claim ledger** — the full claim → verdict → `path:line` table (or a representative
    subset if >100 claims, with totals).
-2. **Gate output** — verbatim `docs_updater.py --check` + `check_doc_sync.py` green.
+2. **Gate output** — verbatim `docs_updater.py --check` + `check_doc_sync.py` green; a red whose findings name none of the reviewed docs is embedded verbatim with the one-line `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration (`/fabrik-review` § Reporting's grammar), and its findings are listed as residuals.
 3. **Self-audit** — total claims, counts per verdict (VERIFIED / STALE-fixed / WRONG-fixed
    / DEAD-removed / UNVERIFIABLE), and the line-coverage reconciliation showing zero
    skipped lines.
