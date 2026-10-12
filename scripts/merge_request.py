@@ -110,6 +110,12 @@ class TimedOutError(RefusedError):
     the owner send on, the child MAY have acted, so the caller reads it as PARTIAL."""
 
 
+class UnreachableError(RefusedError):
+    """The remote could not be reached: a fetch timed out, or failed for any reason but a missing
+    ref. In step (a) the request DEFERS (claimed, nothing replied; the next run retries it); after
+    the CAS it is PARTIAL — never a refusal, never a parked record (W-d0bbb94d)."""
+
+
 class PartialError(Exception):
     """The owner's request may already be written: exit 4, never re-run."""
 
@@ -553,6 +559,9 @@ class _Ctx:
         self.mailbox = main.name
         self.records = common / "fabrik-merge"
         self.notes: list[str] = []
+        # remotes a fetch could not reach THIS run: a request on one defers without another fetch,
+        # and the inbox is served only for requests on other remotes (one timeout per remote)
+        self.unreachable: set[str] = set()
 
 
 def _lit_env() -> dict:
@@ -1345,19 +1354,28 @@ def _push(ctx: _Ctx, rec: dict, remote: str) -> tuple[bool, str]:
     return res.returncode == 0, (res.stderr.strip() or res.stdout.strip())
 
 
-def _fetch_base(ctx: _Ctx, remote: str, base: str) -> str:
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
-    track = f"refs/remotes/{remote}/{base}"
-    res = _run(
-        ["git", "fetch", "-q", remote, f"+{HEADS}{base}:{track}"],
-        REMOTE_TIMEOUT_S,
-        cwd=ctx.main,
-        env=env,
-    )
+_MISSING_REF = "couldn't find remote ref"
+
+
+def _fetch(ctx: _Ctx, remote: str, refspec: str, what: str) -> None:
+    """One remote fetch. A missing ref on a reachable remote is a ``RefusedError``; a timeout or
+    any other failure (DNS, transport, a gone path — git exits 128 for all of them) is an
+    ``UnreachableError``, which defers rather than refuses."""
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"}  # C: the classified stderr
+    try:
+        res = _run(["git", "fetch", "-q", remote, refspec], REMOTE_TIMEOUT_S, cwd=ctx.main, env=env)
+    except TimedOutError as exc:
+        raise UnreachableError(str(exc)) from exc
     if res.returncode != 0:
-        raise RefusedError(
-            f"git fetch {remote} {base} failed: {res.stderr.strip() or res.returncode}"
-        )
+        why = f"git fetch {remote} {what} failed: {res.stderr.strip() or res.returncode}"
+        if _MISSING_REF in res.stderr:
+            raise RefusedError(why)
+        raise UnreachableError(why)
+
+
+def _fetch_base(ctx: _Ctx, remote: str, base: str) -> str:
+    track = f"refs/remotes/{remote}/{base}"
+    _fetch(ctx, remote, f"+{HEADS}{base}:{track}", base)
     sha = _rev(ctx.main, track)
     if not sha:
         raise RefusedError(f"{remote} has no {HEADS}{base}")
@@ -1561,13 +1579,12 @@ def _validate_request(rec: dict) -> None:
 def _ensure_head(ctx: _Ctx, rec: dict, remote: str) -> None:
     if _rev(ctx.main, rec["head"]):
         return
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
-    _run(
-        ["git", "fetch", "-q", remote, HEADS + rec["branch"]],
-        REMOTE_TIMEOUT_S,
-        cwd=ctx.main,
-        env=env,
-    )
+    try:
+        _fetch(ctx, remote, HEADS + rec["branch"], rec["branch"])
+    except UnreachableError:
+        raise
+    except RefusedError:
+        pass  # the branch is not on the remote: the refusal below names it
     if not _rev(ctx.main, rec["head"]):
         raise RefusedError(
             f"the request head {rec['head'][:12]} is not in this repo or on {remote}"
@@ -1577,6 +1594,7 @@ def _ensure_head(ctx: _Ctx, rec: dict, remote: str) -> None:
 def _merge_request_steps(ctx: _Ctx, rec: dict, remote: str) -> None:
     """(a)-(d) for the request itself; on success the record holds ``merged``."""
     step = "(a) preflight"
+    rec.pop("deferred", None)
     try:
         _validate_request(rec)
         _refuse_linked_base(ctx, rec["base"])
@@ -1611,6 +1629,10 @@ def _merge_request_steps(ctx: _Ctx, rec: dict, remote: str) -> None:
         old, new, snap, tests, on_base = _merge_into_base(
             ctx, rec, rec["head"], _merge_message(ctx, rec), catch_up=False
         )
+    except UnreachableError as exc:
+        rec["deferred"] = f"{step}: {' '.join(str(exc).split())}"  # phase stays as it was
+        _save(ctx, rec)
+        return
     except RefusedError as exc:
         rec.update(
             phase="refused", outcome="refused", reason=f"{step}: {' '.join(str(exc).split())}"
@@ -1735,6 +1757,12 @@ def _after_cas(ctx: _Ctx, rec: dict, remote: str, resuming: bool) -> None:
         if not ok and resuming:
             try:
                 _catch_up(ctx, rec, remote)
+            except UnreachableError as exc:
+                raise MergePartialError(
+                    f"the catch-up could not reach {remote} ({' '.join(str(exc).split())}); the "
+                    f"merge {rec['merge_sha']} is committed locally, nothing parked — finish with "
+                    f"`merge_request.py resume {rec['id']}`"
+                ) from exc
             except RefusedError as exc:
                 rec.update(phase="catchup-refused", reason=_catch_up_refused(ctx, rec, remote, exc))
                 _save(ctx, rec)
@@ -1769,7 +1797,19 @@ def _drive(ctx: _Ctx, rec: dict, *, resuming: bool) -> int:
         rec.update(phase="refused", outcome="refused", reason=f"(a) preflight: {exc}")
         _save(ctx, rec)
     if rec["phase"] in ("claimed", "built"):
-        _merge_request_steps(ctx, rec, remote)  # a start: the origin-ahead refusal applies
+        if remote in ctx.unreachable:
+            rec["deferred"] = f"(a) preflight: {remote} was unreachable earlier in this run"
+            _save(ctx, rec)
+        else:
+            _merge_request_steps(ctx, rec, remote)  # a start: the origin-ahead refusal applies
+        if rec.get("deferred"):
+            ctx.unreachable.add(remote)
+            print(
+                f"merge_request: DEFERRED {rec['id']} — {rec['deferred']}; nothing replied; "
+                "the next merge run retries it",
+                file=sys.stderr,
+            )
+            return EXIT_REFUSED
     if rec["phase"] == "refused":
         _reply_and_ack(ctx, rec)
         for note in ctx.notes:
@@ -1818,6 +1858,21 @@ def _mail_claim(ctx: _Ctx, rec: dict) -> dict:
     rec["phase"] = "claimed"
     _save(ctx, rec)
     return rec
+
+
+def _remote_of_request(ctx: _Ctx, fm: dict) -> str | None:
+    """The push remote of an inbox request's base, read from its body — None when it cannot be
+    read or resolved (the request is then claimed and refused or merged as before)."""
+    if not ctx.unreachable:
+        return None
+    try:
+        text = (_mail_root() / ctx.mailbox / "inbox" / f"{fm.get('id')}.md").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        base = _split_message(text)[1].get("base") or ""
+        return _remote_name(ctx.main, base) if base else None
+    except (OSError, RefusedError):
+        return None
 
 
 def _claim(ctx: _Ctx, msg_id: str) -> dict:
@@ -1945,8 +2000,9 @@ def merge(args: argparse.Namespace) -> int:
     CAS the local base, rebuilding up to MAX_REBUILDS times; (e) carry; (f) fast-forward push;
     (g) the hub's governance sync; (h) reply to requester and coordinator, then ack.
 
-    Exit: 0 merged (or nothing waiting) · 1 refused (acked ``blocked`` with the reason, or the
-    lock was held) · 4 committed locally but not finished — run ``resume <id>``.
+    Exit: 0 merged (or nothing waiting) · 1 refused (acked ``blocked`` with the reason), DEFERRED
+    (the remote was unreachable: claimed, nothing replied, retried by the next run), or the
+    lock was held · 4 committed locally but not finished — run ``resume <id>``.
     Cobra note (D-253): the cheapest way past D-B is to ack without merging; ``mail.py ack done``
     refuses a merge SHA that is not in base, does not name the request, or lacks its head."""
     ctx = _context(Path.cwd())
@@ -1981,6 +2037,14 @@ def merge(args: argparse.Namespace) -> int:
                     )
             if not waiting:
                 print(f"no merge-request waiting for {ctx.owner} in {ctx.mailbox}")
+                return rc
+            waiting = [fm for fm in waiting if _remote_of_request(ctx, fm) not in ctx.unreachable]
+            if not waiting:
+                print(
+                    "merge_request: every waiting request is on a remote this run could not reach "
+                    f"({', '.join(sorted(ctx.unreachable))}) — nothing claimed",
+                    file=sys.stderr,
+                )
                 return rc
             rec = _claim(ctx, waiting[0]["id"])
             return max(rc, _drive(ctx, rec, resuming=False))

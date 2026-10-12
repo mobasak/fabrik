@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a merge request waits out an unreachable remote instead of being refused (2026-10-12)
+- `scripts/merge_request.py`: a fetch that times out or cannot reach the remote no longer refuses the request and asks the requester to re-send; the request stays claimed, nothing is replied, the run says DEFERRED, the next `merge` run retries it and requests on other remotes keep merging meanwhile, and the same outage after the merge stays resumable instead of parking the queue. A branch or base the reachable remote does not have is still refused (W-d0bbb94d, D-775).
+
 ### Fixed — /fabrik-deploy-verify stages a fresh comparator where every stub reads it (2026-10-12)
 - `commands/_sources/fabrik-deploy-verify.md`: the host leg stages the comparator beside the script with a stale copy removed and group/other write stripped, and stages a stub older than D-744 in a private clone layout; the container leg removes the last run's copy inside the container, creates `/app/scripts` and `/app/libs` as root, stops on a failed copy instead of hiding it, and runs the script by its absolute path; a `--header` `sites` count of 0 skips only the remote exec, and the hub still emits that site with `--unreachable` (fleet mail 01M4PKBYRV, fleet's W-82cff1ac, infra's W-4f902e2f, D-763).
 
