@@ -19,7 +19,8 @@ This is a bounded MEASURE → QUEUE → EXECUTE run, not an open-ended loop. You
 fresh re-run of Phase 0 MEASURE raises zero new queue items** — every prior finding is now fixed,
 explicitly `BLOCKED`, or **report-only** (BOTH report-only classes count as accounted-for on re-measure,
 not new items, once named in this run's report: a candidate dead consumer reference, and a genuinely
-undecidable reconcile downgraded per Phase 2 — each stays un-committed by design; see Phase 2) — a genuine no-op re-measure **and** `python scripts/final_gate.py --check
+undecidable reconcile downgraded per Phase 2 — each stays un-committed by design; see Phase 2; so does an
+item ROUTED by mail to the beat that owns its surface, once the mail id is in the report) — a genuine no-op re-measure **and** `python scripts/final_gate.py --check
 --json` reports `"status":"success"` **in this same run**. Executing one item can surface another (a doc
 converge can expose a fresher staleness elsewhere) — **the pass in which you executed any queue item is
 never the last MEASURE**; run Phase 0 again, unprompted, before you stop. Three thoughts that each mean
@@ -42,29 +43,42 @@ row, read it as a head start — **never as a substitute**: the report can be up
 number in it still needs the fresh check below. If the path is unreadable (a non-hub box, or the file
 hasn't run yet), skip it — it is a head start, not a dependency.
 
+Run `python scripts/final_gate.py --check --json` FIRST and queue each red it reports as an item: a fresh
+linked worktree can red for reasons outside the project (an untracked or ignored file it lacks), and a red
+found only at the termination gate costs a second loop. Before fixing a red, look for its owner — an open item
+in `.fabrik/work/` that names the failing check, or a sibling mid-flight on that file: an owned red is reported
+to its owner (and, in a worktree, to the merge owner), never fixed here.
+
 Run every probe against the CURRENT tree. Probes 2-4 mirror `scripts/fleet_doc_audit.py`'s probe set
-project-side; probes 1, 5, and 6 EXTEND it — plan-lock reconcile, spec `shape:` truth, and dead-reference
-detection have no counterpart in the fleet audit, so scoping this run down to the audit's three probes
-would silently drop them:
+project-side; probes 1, 5, 6 and 7 EXTEND it — plan-lock reconcile, spec `shape:` truth, dead-reference
+detection and work-store hygiene have no counterpart in the fleet audit, so scoping this run down to the
+audit's three probes would silently drop them:
 
 1. **Plan state vs lock.** Enumerate BOTH plan shapes, excluding anything under
    `docs/development/plans/archived/`: single-file plans `docs/development/plans/*.md`, and plan-set
    dirs `docs/development/plans/*/` (read the dir's same-stem spine file). For each, read its `Status:`
-   header and look up `.fabrik/plan-locks/<file-or-dir-stem>.json` if it exists — reconcile against ALL
+   through `parse_plan_status` (`python3 -c "import sys; sys.path.insert(0, 'scripts'); from docs_updater
+   import parse_plan_status; print(parse_plan_status(__import__('pathlib').Path(sys.argv[1]))[0])" <plan>`) —
+   the value the gate's tools act on, which a grep misreads on a bold or decorated header — and look up `.fabrik/plan-locks/<file-or-dir-stem>.json` if it exists — reconcile against ALL
    `.fabrik/plan-locks/*` entries so no lock is left unmatched to a live plan. Flag a contradiction:
    spine says `IN-PROGRESS` but the lock is missing or its `status` is not `"active"` (a released lock
    while the spine still claims work is running); spine says `DRAFT`/`CONVERGED` but an `active` lock
    exists; spine says `EXECUTED` but the plan (file or dir) still sits outside
    `docs/development/plans/archived/`; a lock whose `plan` path does not resolve on disk, or resolves
-   outside `archived/` while its `status` is terminal — the allowlist is {`released`, `executed`, `complete`, `completed`, `done`} (allowlist-not-denylist per fabrik-lib `f8249ec3`: an unknown word leaves a lock flagged for a human; measured live 2026-08-29, `executed` is this tree's MOST COMMON terminal and the old `released`/`complete` example would have mis-flagged four finished locks); a lock whose `plan` path
+   under `docs/development/plans/` but outside `archived/` while its `status` is terminal (a lock for a plan kept
+   elsewhere — an epic, a spec-owned plan — is not held to the `archived/` rule) — the allowlist is {`released`, `executed`, `complete`, `completed`, `done`} (allowlist-not-denylist per fabrik-lib `f8249ec3`: an unknown word leaves a lock flagged for a human; measured live 2026-08-29, `executed` is this tree's MOST COMMON terminal and the old `released`/`complete` example would have mis-flagged four finished locks); a lock whose `plan` path
    resolves INTO `docs/development/plans/archived/` while its `status` is still `"active"` (an abandoned
    run archived by hand without releasing the lock). **Not a finding:** a lock pointing INTO
    `docs/development/plans/archived/` with a terminal `status` is the normal end state for a finished plan
    — don't flag it.
-2. **Key-doc freshness vs code.** `git log -1 --format=%ct -- src app web lib scripts` vs the same for
+2. **Key-doc freshness vs code.** `git log -1 --format=%ct -- <code roots>` vs the same for
    every registry-obligated key doc (`docs/SERVICES.md`, `docs/RESILIENCE.md`,
    `docs/CONFIGURATION.md`, `docs/DEPLOYMENT.md`, `docs/FEATURES.md` — only the ones this
-   `project.yaml::type` actually obligates). ≥14 days behind = flagged stale.
+   `project.yaml::type` actually obligates). The code roots are the top-level directories
+   `git ls-files -- '*.py' '*.ts' '*.tsx' '*.js' | cut -d/ -f1 | sort -u` prints, less `tests` — never a
+   hand list (`tryton_modules/` and `sao-overlay/` sit outside `src app web lib scripts`). ≥14 days behind =
+   a CANDIDATE: it is queued only when a spot check finds a claim in the doc that the code contradicts — a
+   date-stale doc with no drift is named in the report, not queued.
 3. **Stub sentinels.** Run `python3 /opt/fabrik/scripts/fleet_doc_audit.py --repo .` and read its `stubs:`
    line — the hub audit's own probe, never a hand list. It reports `<DOC>.md (template text left: p%)` for a doc
    left as its scaffold template (at least half of some version of that template is still in it, and template
@@ -88,7 +102,13 @@ would silently drop them:
    catalog row can outlive the service it describes, so neither "the row says it's live" nor a
    project-side probe saying "unreachable" is proof — only a hub-side check settles it. Actual retirement
    (once the operator confirms) routes to `/fabrik-decommission`, the hub-side retirement runbook — never
-   remove or repoint a reference from inside this command.
+      remove or repoint a reference from inside this command.
+7. **Work-store hygiene** (a repo with `.fabrik/work/`). An open item whose title is a markdown heading or
+   opens with a closed marker is a polluted queue entry a distributor would hand to another agent:
+   `grep -lE '"title": "(#|✅|~~|\*\*CLOSED)' .fabrik/work/W-*.json | xargs grep -LE '"status": "(done|dropped)"'`
+   lists them; so does an open item with an empty `evidence`. Route each to its owner (`work.py drop` for a
+   finished one, a retitle for a live one) — never close another owner's item here.
+
 
 ## Phase 1 — QUEUE (worst-first, routed)
 
@@ -104,11 +124,12 @@ its evidence (`path:line` or the command output that raised it), and its **route
 | `docs/ui-design.md` stale vs the built screens (GUI project types only) | `/fabrik-ui-design` |
 | Plan spine `Status:` vs lock contradiction | a named reconcile action — fix the spine header or the lock file to match reality (never both silently); state which was wrong and why; genuinely undecidable → report-only per Phase 2 |
 | Spec `shape:` flag lying vs code | a named reconcile action — flip the flag in `specs/services/<id>.yaml` to match the code, or fix the code to match an intentionally-true flag; state which; genuinely undecidable → report-only per Phase 2 |
+| Work-store item polluted (probe 7) | its owner: a finished item is dropped by its owner or the distributor (`work.py drop`), a live one retitled; this command never closes another owner's item |
 | Candidate dead consumer reference | **report only, no auto-fix** — name the reference + why it looks retired, and hand actual retirement to the operator via `/fabrik-decommission` (hub-side runbook); this command never docker-probes liveness or removes/repoints from a project |
 
 ## Phase 2 — EXECUTE (one item at a time)
 
-Work the queue top to bottom. Per item: run its routed command or reconcile action, verify the fix by
+Work the queue top to bottom. **In a repo with `.fabrik/work/` and more than one agent, put each queued item in the store and claim it before executing it** (`python3 scripts/work.py add --kind task --title "<the finding>"`, then `work.py claim <id>`), so a sibling's catchup sees the claim and takes the next item; an item another session already holds is skipped and named. In the hub, an item on another agent's beat is mailed to that beat (`docs/reference/agents/`) instead of executed, and the mail id goes in the report. Per item: run its routed command or reconcile action, verify the fix by
 re-running the exact probe that raised it, then commit — explicit pathspecs only, Agent Provenance
 Trailers, **one commit per item** (never batch unrelated items into one commit — a bisect needs the
 granularity). Two manifesto laws bind the reconcile actions specifically: **a DECISION-SHAPED
@@ -127,7 +148,7 @@ queue item once it is named in the report (retirement is the operator's call, ru
 ## Output (always, last thing)
 
 ```
-CATCHUP: <project> — measured 6 probe classes, queued <N> items, executed <N>, blocked <N>, reported <N>
+CATCHUP: <project> — measured 7 probe classes, queued <N> items, executed <N>, blocked <N>, reported <N>
 RE-MEASURE: <clean (zero new items) | N new items found: <name them>>
 GATE: python scripts/final_gate.py --check --json → success|failure
 ```
