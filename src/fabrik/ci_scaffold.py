@@ -32,6 +32,14 @@ TEST_DATABASE_URL = f"postgresql://postgres:postgres@localhost:5432/{TEST_DB_NAM
 # agree. Bump deliberately + re-seed baselines together. (scripts/backfill_ci.py asserts this matches.)
 RUFF_VERSION = "0.14.10"
 DEFAULT_TEST_CMD = "python -m pytest -q"
+# The gate's sqlfluff leg (scripts/final_gate.py: `git ls-files -- '*.sql'`, then `python -m sqlfluff
+# lint --dialect postgres <files>`), spelled ONCE and emitted on both sides, so neither replica can
+# drift from the other or from the gate; a repo with no tracked .sql runs nothing (`xargs -r`).
+# Before 2026-10-12 CI installed only ruff + the test deps, so a project's schema lint was graded at
+# the gate alone and any hand-added sqlfluff died on regeneration (whatsapp-agent 01M4RKXS2G).
+SQLFLUFF_STEP = (
+    "git ls-files -z -- '*.sql' | xargs -0 -r python -m sqlfluff lint --dialect postgres"
+)
 
 
 @dataclass(frozen=True)
@@ -83,7 +91,7 @@ def render_ci_workflow(cfg: CiConfig) -> str:
         "  pull_request:",
         "jobs:",
         "  python:",
-        "    name: python (ruff + pytest)",
+        "    name: python (ruff + sqlfluff + pytest)",
         "    runs-on: ubuntu-latest",
     ]
     if cfg.needs_database:
@@ -119,9 +127,9 @@ def render_ci_workflow(cfg: CiConfig) -> str:
         # them in [project.optional-dependencies]; a missing extra just warns, base still installs.
         '          if [ -f pyproject.toml ]; then pip install -e ".[dev,test]" || pip install -e . || true; fi',
     ]
-    # ruff is always installed (the ruff step below always runs); test deps appended.
+    # ruff and sqlfluff are always installed (their steps below always run); test deps appended.
     lines.append(
-        f"          pip install ruff=={RUFF_VERSION} {' '.join(cfg.extra_test_deps)}".rstrip()
+        f"          pip install ruff=={RUFF_VERSION} sqlfluff {' '.join(cfg.extra_test_deps)}".rstrip()
     )
     lines += [
         # RATCHET, not raw `ruff check .`: lint debt may not GROW, but existing debt does
@@ -136,6 +144,8 @@ def render_ci_workflow(cfg: CiConfig) -> str:
         "open('.fabrik/lint-baseline.json'))['ruff_errors']))\" 2>/dev/null || echo \"$n\")",
         '          echo "ruff: $n errors (baseline $b)"',
         '          [ "$n" -le "$b" ] || { echo "::error::ruff rose $b -> $n (new lint debt)"; exit 1; }',
+        "      - name: sqlfluff (every tracked *.sql, postgres dialect — the gate's leg)",
+        f"        run: {SQLFLUFF_STEP}",
         # Genuine test failures still red; only "no tests collected" (pytest exit 5) is tolerated.
         "      - name: pytest",
         f'        run: {cfg.test_cmd} || {{ c=$?; [ "$c" -eq 5 ] '
@@ -206,7 +216,7 @@ def render_ci_local(cfg: CiConfig) -> str:
         '|| "$VENV/bin/pip" install --quiet -e . || true; fi',
     ]
     lines.append(
-        f'"$VENV/bin/pip" install --quiet ruff=={RUFF_VERSION} {" ".join(cfg.extra_test_deps)}'.rstrip()
+        f'"$VENV/bin/pip" install --quiet ruff=={RUFF_VERSION} sqlfluff {" ".join(cfg.extra_test_deps)}'.rstrip()
     )
     # Prepend the fresh venv to PATH so `python`, `pytest`, `ruff` — however test_cmd is
     # spelled — resolve to the venv, never a system install. (The earlier per-command
@@ -220,6 +230,8 @@ def render_ci_local(cfg: CiConfig) -> str:
         "open('.fabrik/lint-baseline.json'))['ruff_errors']))\" 2>/dev/null || echo \"$n\")",
         'echo "[ci_local] ruff: $n errors (baseline $b)"',
         '[ "$n" -le "$b" ] || { echo "[ci_local] ruff rose $b -> $n (new lint debt)" >&2; exit 1; }',
+        # sqlfluff (mirrors ci.yml): the gate's leg over every tracked .sql file.
+        SQLFLUFF_STEP,
         f'{cfg.test_cmd} || {{ c=$?; [ "$c" -eq 5 ] && echo "[ci_local] no tests collected" || exit "$c"; }}',
         'echo "[ci_local] OK — matches CI"',
     ]
