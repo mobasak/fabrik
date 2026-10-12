@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan never formats beyond its File Scope (2026-10-13)
+- `ruff format` is never run by hand beyond the plan's File Scope; the bare gate run already formats only the run's own changes (D-793).
+
 ### Changed — the /fabrik-task close no longer refuses a run's own review receipt (2026-10-13)
 - A committed `.md` under `docs/development/reviews/` (not `archived/`) is excluded from the close's undeclared-path measures (the v2 refusal, the v1 and unstamped `oversized_mini` records), like a Doc Sync destination; a non-`.md` file there is still measured. The v1 record no longer lets a rename's destination inherit membership from an exempt source. The close's receipt dir is graded equal to `task_lane.REVIEWS_DIR`, and fabrik-task.md says so (kaizen 01M4RP9QCR, D-789).
 
