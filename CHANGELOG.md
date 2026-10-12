@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the owner DSN leaves the project `.env`: the deployer writes `DATABASE_URL_OWNER` to `.env.owner` (2026-10-12)
+
+- `src/fabrik/orchestrator/deployer_ssh.py` (plan `2026-10-12-plan-1-owner-dsn-split` Phase A, D-754): every writer of a
+  project's `.env` — `inject_env`, the four deploy paths and `_persist_git_sha` — now goes through one `_write_env_files`,
+  which writes the owner keys (`OWNER_ENV_KEYS`, today `DATABASE_URL_OWNER`) to `/opt/<name>/.env.owner` FIRST and `.env`
+  without them, logging the move once; a project whose `.env` still carries the key gets it moved on its next apply or
+  redeploy. `_read_env_file` returns the merged view in one probe (two lines) and one read — the two-file read is
+  SEPARATED (`cat <env>; echo; cat <owner>`), because a plain two-file `cat` joined lines when `.env` lacked a trailing
+  newline. `.env` and `.env.owner` are `chmod 0600` on the remote temp file before the `mv`. The constants live in
+  `src/fabrik/spec_loader.py` (`OWNER_ENV_KEYS`, `OWNER_ENV_FILE`). Graders G1–G7 in
+  `tests/orchestrator/test_deployer_ssh.py::TestOwnerEnvSplit`, each red-first; five mutants red in a throwaway worktree.
+
 ### Fixed — the parity stub finds the comparator the way the host-leg recipe stages it (2026-10-11)
 
 - `templates/scaffold/scripts/verify_prod_parity.py` (seeded into every scaffolded project; hub symlink `scripts/verify_prod_parity.py`): the stub imports `libs/health_probe` by a stated precedence — its own clone when `<clone>/libs/health_probe/health_probe.py` exists, else a FLAT `health_probe/` copy beside the script (exactly where `/fabrik-deploy-verify`'s host leg stages it: `scp -r libs/health_probe <vps>:/tmp/health_probe` next to `/tmp/verify_prod_parity.py`, the VPS checkout holding no gitignored comparator), else the clone as before. Pre-fix the root came from `__file__` alone, so every host-leg comparison row read `UNVERIFIABLE (health_probe not vendored — run the fleet sync)` (W-82cff1ac item 1, wef3's `/fabrik-deploy-checklist` round 2). The marker is the module, not the directory (a `__pycache__`-only leftover never qualifies); the module is loaded BY FILE PATH once per process, never by a `sys.path` name lookup (an installed or stray `health_probe` cannot stand in for the staged copy); a staged copy whose directory or module file is owned by another user or writable by others is refused; a file that loads but is not the vendored comparator, or whose dependency is missing, is reported FOUND BUT UNUSABLE with the cause instead of 'not vendored'; the project `.env` stays the clone's in every rung; the un-vendored detail keeps its prefix and names both paths looked for. No cwd rung and no env knob — two design critiques (Opus + Fable) rejected wef3's `PARITY_REPO_ROOT` and a cwd rung (a stale export or a hub cwd would re-root another project's run, and the VPS cwd never holds the comparator). Eight graders in `tests/test_scaffold_deploy_contract.py`, seven red-first on the pre-fix template and one labelled regression guard; the scoped review's round 1 (11 confirmed) replaced the first draft's `sys.path` append with the by-path load and added the ownership and API checks, and its round 2 (1 confirmed) extended the ownership check from the directory to the module file; `docs/reference/deployment-verification.md` states the precedence. Items 2-residual, 3 and 4 of the work item and four recipe findings are mailed to infra (`commands/_sources/` is a governance-sync path).

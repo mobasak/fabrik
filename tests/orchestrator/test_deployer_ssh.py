@@ -1011,10 +1011,17 @@ class TestDeployLocal:
             ]
             SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
 
-        path, filename, content = mock_write.call_args[0]
-        assert (path, filename) == ("/srv/my-app", ".env")
-        parsed = _parse_env(content)
-        assert parsed["DATABASE_URL_OWNER"] == "postgresql://shop:ownerpw@postgres-main:5432/shop"
+        # Owner split (2026-10-12 plan, D-754): the owner key rides the FIRST write, `.env.owner`;
+        # the LAST write is `.env`, which never carries it.
+        writes = [c.args for c in mock_write.call_args_list]
+        assert [(p, f) for p, f, _ in writes] == [
+            ("/srv/my-app", ".env.owner"),
+            ("/srv/my-app", ".env"),
+        ], writes
+        owner = _parse_env(writes[0][2])
+        assert owner == {"DATABASE_URL_OWNER": "postgresql://shop:ownerpw@postgres-main:5432/shop"}
+        parsed = _parse_env(writes[-1][2])
+        assert "DATABASE_URL_OWNER" not in parsed, "the owner key must never land in .env"
         assert parsed["DATABASE_URL"] == "postgresql://shop_app:apppw@postgres-main:5432/shop"
         assert parsed["PORT"] == "8000"
 
@@ -1632,6 +1639,7 @@ class TestWriteFileToVpsPathNested:
         ):
             _write_file_to_vps_path("~/apps/foo", ".env", "content")
         assert cmds == [
+            f"sudo chmod 0600 {self._tmp('.env')} && "
             f"sudo mv {self._tmp('.env')} ~/apps/foo/.env && sudo chown root:root ~/apps/foo/.env"
         ], cmds
 
@@ -1647,3 +1655,243 @@ class TestWriteFileToVpsPathNested:
             _write_file_to_vps_path("/opt/docs", bad, "content")
         scp.assert_not_called()
         ssh.assert_not_called()
+
+
+# ======================================================================
+# The owner DSN split — `.env.owner` (plan 2026-10-12-plan-1-owner-dsn-split, D-754)
+# ======================================================================
+
+_OWNER_DSN = "postgresql://shop:ownerpw@postgres-main:5432/shop"
+_APP_DSN = "postgresql://shop_app:apppw@postgres-main:5432/shop"
+
+
+class TestOwnerEnvSplit:
+    """`DATABASE_URL_OWNER` lives in `/opt/<name>/.env.owner` and nowhere else on the VPS: one
+    probe + one SEPARATED read, one writer (owner file FIRST, then `.env` without owner keys),
+    `chmod 0600` on the temp file before the `mv`. Spec § The delta 1-3, 6."""
+
+    def _ctx(self) -> DeploymentContext:
+        ctx = _ctx({"name": "my-app"})
+        ctx.app_name = "my-app"
+        return ctx
+
+    # G1 — the split write, owner first, one restart
+    def test_g1_inject_env_writes_owner_file_first_then_env_then_one_restart(self):
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=["absent", ""]) as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+        ):
+            SSHDeployer().inject_env(
+                self._ctx(), {"DATABASE_URL": _APP_DSN, "DATABASE_URL_OWNER": _OWNER_DSN}
+            )
+        writes = [c.args for c in mock_write.call_args_list]
+        assert [(n, f) for n, f, _ in writes] == [("my-app", ".env.owner"), ("my-app", ".env")]
+        assert _parse_env(writes[0][2]) == {"DATABASE_URL_OWNER": _OWNER_DSN}
+        assert _parse_env(writes[1][2]) == {"DATABASE_URL": _APP_DSN}
+        ups = [c for c in mock_ssh.call_args_list if "docker compose up" in c.args[0]]
+        assert len(ups) == 1
+
+    # G2 — the merged view in one probe + one (separated) read, the owner file winning
+    def test_g2_read_env_merges_both_files_in_one_separated_read(self):
+        answers = [
+            "present\nowner\n",
+            f"DATABASE_URL={_APP_DSN}\nDATABASE_URL_OWNER=stale\n\nDATABASE_URL_OWNER={_OWNER_DSN}\n",
+        ]
+        with patch("fabrik.drivers.ssh.ssh", side_effect=answers) as mock_ssh:
+            env = SSHDeployer().read_env(self._ctx())
+        assert env == {"DATABASE_URL": _APP_DSN, "DATABASE_URL_OWNER": _OWNER_DSN}
+        assert mock_ssh.call_count == 2
+        assert mock_ssh.call_args_list[1].args[0] == (
+            "sudo sh -c 'cat /opt/my-app/.env; echo; cat /opt/my-app/.env.owner'"
+        )
+
+    def test_g2_bare_present_answer_issues_todays_cat_exactly(self):
+        with patch("fabrik.drivers.ssh.ssh", side_effect=["present\n", "A=1\n"]) as mock_ssh:
+            assert SSHDeployer().read_env(self._ctx()) == {"A": "1"}
+        assert mock_ssh.call_args_list[1].args[0] == "sudo cat /opt/my-app/.env"
+
+    # G2b — the separator is load-bearing: a plain two-file `cat` joins lines when `.env` lacks
+    # a trailing newline (the approval panel's executed reproduction, kept as the negative half)
+    def test_g2b_plain_join_loses_the_owner_key_and_the_separated_join_keeps_it(self):
+        env_no_newline = f"DATABASE_URL={_APP_DSN}\nREDIS_URL=redis://r:6379/0"
+        owner = f"DATABASE_URL_OWNER={_OWNER_DSN}\n"
+        joined = _parse_env(env_no_newline + owner)
+        assert "DATABASE_URL_OWNER" not in joined
+        assert joined["REDIS_URL"].endswith(f"DATABASE_URL_OWNER={_OWNER_DSN}")
+        separated = _parse_env(env_no_newline + "\n" + owner)
+        assert separated == {
+            "DATABASE_URL": _APP_DSN,
+            "REDIS_URL": "redis://r:6379/0",
+            "DATABASE_URL_OWNER": _OWNER_DSN,
+        }
+
+    # G3 — the one writer: owner first, `.env` without owner keys, one log line
+    def test_g3_write_env_files_splits_owner_first_and_logs_once(self, caplog):
+        from fabrik.orchestrator.deployer_ssh import _write_env_files
+
+        writes: list[tuple[str, str, str]] = []
+
+        def write(path: str, filename: str, content: str) -> None:
+            writes.append((path, filename, content))
+
+        with caplog.at_level("INFO", logger="fabrik.orchestrator.deployer_ssh"):
+            _write_env_files(
+                "/opt/x",
+                {"DATABASE_URL": _APP_DSN, "DATABASE_URL_OWNER": _OWNER_DSN, "K": "v"},
+                write,
+            )
+        assert [(p, f) for p, f, _ in writes] == [("/opt/x", ".env.owner"), ("/opt/x", ".env")]
+        assert _parse_env(writes[0][2]) == {"DATABASE_URL_OWNER": _OWNER_DSN}
+        assert _parse_env(writes[1][2]) == {"DATABASE_URL": _APP_DSN, "K": "v"}
+        assert "1 owner key(s) kept in .env.owner" in caplog.text
+
+        writes.clear()
+        caplog.clear()
+        _write_env_files("/opt/x", {"K": "v"}, write)
+        assert [(p, f) for p, f, _ in writes] == [("/opt/x", ".env")]
+        assert "owner key(s) kept" not in caplog.text
+
+    # G4 — no owner key, no owner write, today's ssh call count
+    def test_g4_no_owner_key_means_no_owner_write(self):
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=["absent", ""]) as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+        ):
+            SSHDeployer().inject_env(self._ctx(), {"K": "v"})
+        assert [c.args[1] for c in mock_write.call_args_list] == [".env"]
+        assert mock_ssh.call_count == 2
+
+    # G5 — the chmod by name, BEFORE the mv
+    @pytest.mark.parametrize("filename", [".env", ".env.owner"])
+    def test_g5_env_files_are_chmod_0600_on_the_temp_file_before_the_mv(self, filename):
+        import os
+
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        cmds: list[str] = []
+        with (
+            patch("fabrik.drivers.ssh.scp_to_vps"),
+            patch(
+                "fabrik.drivers.ssh.ssh", side_effect=lambda cmd, timeout=10: cmds.append(cmd) or ""
+            ),
+        ):
+            _write_file_to_vps_path("/opt/x", filename, "K=v\n")
+        tmp = f"/tmp/fabrik-{os.getpid()}-{filename}"
+        assert cmds == [
+            f"sudo chmod 0600 {tmp} && sudo mv {tmp} /opt/x/{filename} "
+            f"&& sudo chown root:root /opt/x/{filename}"
+        ], cmds
+
+    def test_g5_other_files_keep_todays_command(self):
+        import os
+
+        from fabrik.orchestrator.deployer_ssh import _write_file_to_vps_path
+
+        cmds: list[str] = []
+        with (
+            patch("fabrik.drivers.ssh.scp_to_vps"),
+            patch(
+                "fabrik.drivers.ssh.ssh", side_effect=lambda cmd, timeout=10: cmds.append(cmd) or ""
+            ),
+        ):
+            _write_file_to_vps_path("/opt/x", "compose.yaml", "services: {}\n")
+        tmp = f"/tmp/fabrik-{os.getpid()}-compose.yaml"
+        assert cmds == [
+            f"sudo mv {tmp} /opt/x/compose.yaml && sudo chown root:root /opt/x/compose.yaml"
+        ]
+
+    # G6 — the probe protocol stays fail-closed
+    def test_g6_probe_protocol_is_fail_closed(self):
+        from fabrik.orchestrator.deployer_ssh import _read_env_file
+
+        assert _read_env_file("/opt/my-app", lambda cmd, timeout=10: "absent\nowner\n") == {}
+        with pytest.raises(DeployError, match=r"/opt/my-app/\.env"):
+            _read_env_file("/opt/my-app", lambda cmd, timeout=10: "nonsense\n")
+        with pytest.raises(DeployError, match=r"/opt/my-app/\.env"):
+            _read_env_file("/opt/my-app", lambda cmd, timeout=10: "")
+
+    # G7 — every writer goes through the one writer: an existing `.env` carrying the owner key
+    # ends up with the key in `.env.owner` (written first) and never in `.env`
+    _MERGED = f"A=1\nDATABASE_URL_OWNER={_OWNER_DSN}\n"
+
+    @staticmethod
+    def _owner_then_env(writes: list[tuple[str, str, str]]) -> None:
+        env_writes = [(p, f, c) for p, f, c in writes if f in (".env", ".env.owner")]
+        assert [f for _, f, _ in env_writes] == [".env.owner", ".env"], env_writes
+        assert _parse_env(env_writes[0][2]) == {"DATABASE_URL_OWNER": _OWNER_DSN}
+        assert "DATABASE_URL_OWNER" not in _parse_env(env_writes[1][2])
+
+    def test_g7_persist_git_sha_goes_through_the_split_writer(self):
+        from fabrik.orchestrator.deployer_ssh import _persist_git_sha
+
+        answers = ["present\nowner\n", self._MERGED]
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=answers) as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+        ):
+            _persist_git_sha("my-app", "a" * 40, mock_ssh)
+        writes = [c.args for c in mock_write.call_args_list]
+        self._owner_then_env(writes)
+        assert _parse_env(writes[-1][2]) == {"A": "1", "GIT_SHA": "a" * 40}
+
+    def test_g7_deploy_template_goes_through_the_split_writer(self):
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "template"},
+                "template": "python-api",
+                "domain": "my-app.example.com",
+            }
+        )
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh", return_value=""),
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+            patch.object(SSHDeployer, "_build_env_content", return_value=self._MERGED),
+        ):
+            SSHDeployer()._deploy_template(ctx, "my-app", None)
+        self._owner_then_env([c.args for c in mock_write.call_args_list])
+
+    def test_g7_deploy_git_goes_through_the_split_writer(self):
+        ctx = _ctx(
+            {"name": "my-app", "source": {"type": "git", "repository": "git@github.com:u/r.git"}}
+        )
+        with (
+            patch(
+                "fabrik.drivers.ssh.ssh",
+                side_effect=["exists", "", "", "a" * 40 + "\n", _VALID_GIT_COMPOSE, "", ""],
+            ),
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+            patch.object(SSHDeployer, "_build_env_content", return_value=self._MERGED),
+        ):
+            SSHDeployer()._deploy_git(ctx, "my-app", ctx.spec["source"], None)
+        self._owner_then_env([c.args for c in mock_write.call_args_list])
+
+    def test_g7_deploy_docker_goes_through_the_split_writer(self):
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "docker", "image": "nginx:latest", "image_port": 80},
+                "domain": "my-app.example.com",
+            }
+        )
+        with (
+            patch("fabrik.drivers.ssh.ssh", return_value=""),
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+            patch.object(SSHDeployer, "_build_env_content", return_value=self._MERGED),
+        ):
+            SSHDeployer()._deploy_docker(ctx, "my-app", ctx.spec["source"], None)
+        self._owner_then_env([c.args for c in mock_write.call_args_list])
+
+    def test_g7_deploy_local_goes_through_the_split_writer(self):
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
+        ctx.secrets = {}
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=["exists", ""]),
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+            patch.object(SSHDeployer, "_build_env_content", return_value=self._MERGED),
+        ):
+            SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        writes = [c.args for c in mock_write.call_args_list]
+        assert all(p == "/srv/my-app" for p, _, _ in writes)
+        self._owner_then_env(writes)

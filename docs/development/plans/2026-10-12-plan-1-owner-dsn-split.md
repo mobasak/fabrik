@@ -1,6 +1,6 @@
 # Plan — the owner DSN leaves the app containers' environment (W-4e74ea9d)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** fleet
 **Surface:** `git rev-parse HEAD` = f333de437 at authoring; `src/fabrik/orchestrator/deployer_ssh.py` 1,273 lines,
