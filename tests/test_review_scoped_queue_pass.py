@@ -61,3 +61,17 @@ def test_command_run_is_cited_by_symbol_not_line() -> None:
     assert not re.search(r"command_run\.py:\d", text)
     assert "`command_run.py::_trend_label`" in text
     assert "`command_run.py::AGENT_CLOSED_STATES`" in text
+
+
+def test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim() -> None:
+    """Row 1791769363 (D-776)."""
+    premise = _section(_norm(CAT), "- The premise:", "## Graders")
+    assert "a re-vendor brief hands the seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack" in premise
+    assert "the vendored copy's own header and every importer of it" in premise
+
+
+def test_a_silent_refuter_is_already_retried_once_and_marked_failed() -> None:
+    """Row 1791826392 was rejected on this behaviour (D-696)."""
+    js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text()
+    assert "const retry = await refuteCall(r.slice, missing, '-retry')" in js
+    assert "STILL UNANSWERED (refuter failed)" in js

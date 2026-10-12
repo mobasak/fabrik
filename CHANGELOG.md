@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review seats attack a re-vendor's byte-identity result as a claim (2026-10-12)
+- The review probe catalogue's premise line has a re-vendor brief hand the seats the lead's executed byte-identity result to attack, so they spend on the vendored copy's header and its importers (D-776).
+
 ### Changed — /fabrik-flows commits the DRAFT with its index rows at first write (2026-10-12)
 - An untracked `docs/flows.md` reds every full (Tier-2) gate run in a shared checkout, so the first write is committed with its `INDEX.md` and `docs/README.md` rows (D-772).
 

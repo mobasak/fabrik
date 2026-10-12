@@ -64,7 +64,9 @@ or name in the brief why the shape does not have it.
 - The premise: the authoritative seat attacks the work item's premise and a ported heuristic's premise, not only the
   implementation; ask whether an existing mechanism or fragment already covers the class, and whether the check fits a
   boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to
-  a `fabrik-researcher` seat; a seat names the whole input class of a finding it raises.
+  a `fabrik-researcher` seat; a seat names the whole input class of a finding it raises; a re-vendor brief hands
+  the seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack, so they
+  spend on what byte identity cannot show — the vendored copy's own header and every importer of it.
 
 ## Graders
 - Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is absent
