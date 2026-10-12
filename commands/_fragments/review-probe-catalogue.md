@@ -139,10 +139,10 @@ or name in the brief why the shape does not have it.
 - Run `dispatch_headroom.py` before the pin, then stamp `command_run.py dispatch --seats <SEATS + one refuter per
   unit>` before the dispatching message — the stamp is an upper bound, closed by the round's `--seats`; a SEATS 0 on a
   box cap is an in-turn wait (re-run once a minute), and when the `Workflow` tool is absent or cannot load the script,
-  seats go out through the `Agent` tool and the close's `--evidence` names `shape: agent-tool`; while seats are out,
-  build the next fixes in a scratch copy, never the pinned files, and keep a timer running; write the Workflow args
-  JSON to scratch, and relaunch an interrupted pass as a NEW `Workflow` invocation carrying the ledger in `args` —
-  never `resumeFromRunId`.
+  or the operator did not invoke this run (the tool runs only on their explicit opt-in), seats go out through the
+  `Agent` tool and the close's `--evidence` names `shape: agent-tool`; while seats are out, build the next fixes in a
+  scratch copy, never the pinned files, and keep a timer running; write the Workflow args JSON to scratch, and
+  relaunch an interrupted pass as a NEW `Workflow` invocation carrying the ledger in `args` — never `resumeFromRunId`.
 - A round is recorded only after every candidate is read, each classed as a defect of THIS change, pre-existing or
   planned before it counts; `confirmed` counts DEFECTS, never checks passed, and a gate-caught defect counts; each
   brief embeds its ledger text; the closing-pass brief has every seat list each slice file it read, by path; a delta

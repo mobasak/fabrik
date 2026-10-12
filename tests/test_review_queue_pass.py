@@ -55,13 +55,17 @@ def test_the_delta_brief_names_its_must_read_files() -> None:
 
 
 def test_closing_ledger_after_a_quiet_round_one() -> None:
-    """Rows 1791490105, 1791493834: `next` rows merge into `args.slices` by name; a quiet round 1 omits the ledger."""
+    """Rows 1791490105, 1791493834: `next` rows merge into `args.slices` by name; a quiet round 1 passes every id it raised."""
     p4 = _section(_norm(SRC), "## Phase 4 — Converge", "## Behavior Contract")
     assert (
         "each `ledger` goes on the `args.slices` entry of the same `name`, which keeps its `files`"
         in p4
     )
-    assert "after a quiet round 1 there is no id to pass, so the closing pass omits `ledger`" in p4
+    assert "and a slice with no row is left out" in p4
+    assert (
+        "after a quiet round 1 the ids are every id it raised, since its claims are all open to the closing pass"
+        in p4
+    )
 
 
 def test_next_prints_name_and_ledger_rows_and_nothing_for_no_ids(tmp_path, capsys) -> None:
@@ -91,14 +95,20 @@ def test_next_prints_name_and_ledger_rows_and_nothing_for_no_ids(tmp_path, capsy
 
 
 def test_the_opt_in_fallback_is_stated_in_every_copy() -> None:
-    """C5 of the review: the Agent-tool fallback's opt-in clause in all four places that state the fallback."""
-    for path in (
-        SRC,
-        ROOT / "commands" / "_sources" / "fabrik-review-scoped.md",
-        ROOT / "commands" / "_fragments" / "subagents-core.md",
-        ROOT / "docs" / "reference" / "review-loop-workflow.md",
-    ):
-        assert "(the tool runs only on their explicit opt-in)" in _norm(path), path.name
+    """Every file that states the Agent-tool fallback ("cannot load the script") carries the opt-in clause too."""
+    roots = [
+        ROOT / "commands" / "_sources",
+        ROOT / "commands" / "_fragments",
+        ROOT / "docs" / "reference",
+    ]
+    copies = [
+        p for r in roots for p in sorted(r.rglob("*.md")) if "cannot load the script" in _norm(p)
+    ]
+    assert len(copies) >= 10, [p.name for p in copies]
+    missing = [
+        p.name for p in copies if "(the tool runs only on their explicit opt-in)" not in _norm(p)
+    ]
+    assert not missing, missing
 
 
 def test_a_refuter_that_returns_nothing_is_not_re_dispatched_as_a_finder() -> None:
