@@ -88,6 +88,12 @@ def test_own_fix_guards_helper_contracts_and_pinned_versions() -> None:
     assert max(len(line) for line in CAT.read_text().splitlines()) <= 120
 
 
+def test_a_new_sibling_of_a_pinned_line_reads_its_comment_first() -> None:
+    """Row 1791836370."""
+    before = _section(_norm(CAT), "## Before the first pin", "## The brief's hunt lines")
+    assert "before adding a sibling of a pinned or guarded line, read the comment on the line it copies" in before
+
+
 def test_a_silent_refuter_is_already_retried_once_and_marked_failed() -> None:
     """Row 1791826392 (mailed): the workflow already retries; the ledger's `read` table is the gap."""
     js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text()
