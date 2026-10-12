@@ -204,7 +204,10 @@ Three shapes are NOT yours to apply here, and each has a destination:
 
 **Read the command source whole before editing** — the overwhelming majority of "add a rule about X"
 edits belong INSIDE a section that already exists (CLAUDE.md § READ BEFORE YOU EDIT). An append that
-restates what the file already says creates two sources of truth in one document.
+restates what the file already says creates two sources of truth in one document. Before a sentence is
+written, read what already governs its subject: the target's intro and guardrails (a new mode or term must
+not contradict them), the fragments it includes (§ Drive's consistency rule says where a shared rule lives), the target's own routing rules (state the overlap), and the --help and argument
+handling of any script the sentence works around (a mode may already cover the blind spot).
 
 **Commands are rules, not changelogs:** write the new text in the present tense as the rule, and
 DELETE what it replaces. The history lives in git.
@@ -221,7 +224,14 @@ one sentence.
 **Check the claim, not the prose.** A sentence naming what a gate or script reads is checked against every
 branch of that function, for every shape the sentence covers; a rule adapted from `CLAUDE.md` or a fragment
 is pointed at, or quoted in its own words and routes, never narrowed in paraphrase; a `_fragments/` edit names each `{{include:}}`
-consumer and its bound placeholders, and must be obeyable in each. A sentence that describes what a script, tool or another step DOES — its output or advisory, every finding string it classifies, an edge case such as an empty input or a quiet round, a recipe — is executed on the scenario the sentence states before PHASE 4's review and quoted as it prints (a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites; a mechanism name it cites is grepped in the hub and dropped when nothing matches; a claim about what fleet artifacts contain is checked on two real ones); when no recipe runs, the row is mailed to the beat that owns the script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line.
+consumer and its bound placeholders, and must be obeyable in each. A sentence that describes what a script, tool or another step DOES — its output or advisory, every finding
+string it classifies, an edge case such as an empty input or a quiet round, a recipe — or tells the agent to run
+one of its verbs is executed on the scenario the sentence states before PHASE 4's review and quoted as it prints
+(a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites, and is run on a
+real artifact the command produces and on two fleet ones as well as a synthetic file; a verb is run end to end in
+a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped in the hub and
+dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the script
+(`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line.
 
 Then, **from the main master checkout only** — a worktree renders nothing and runs `--check` alone, since a
 render from a worktree PRUNES master-only commands box-wide, and infra renders at merge:

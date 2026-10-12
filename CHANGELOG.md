@@ -10,6 +10,12 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the /fabrik-task close accepts a receipt reviewed before the commit (2026-10-12)
 - kaizen's triage (mail 01M4N1K909, rows 1791317858, 1791470714, 1791116082, 1791099519, 1791465412, 1791074435): `--review` refused every receipt made with `review_receipt.py --init` and no `--range` (156 of 671 on disk), so a close then refused the receipt as undeclared. Check (d) now also accepts that working-tree Surface when the commit's diff over its paths rebuilds to the same bytes (untracked files included); `review_receipt.py --restamp <receipt>` re-anchors it after the review's last fix. A design note citing `path:N-M` or `path::symbol` now names that file at close, and a `--commit` value holding whitespace is refused with the fix (W-ebbedc88, D-750).
 
+### Changed — /fabrik-command-improve reads what already governs a subject before writing (2026-10-12)
+- PHASE 3 names the reads (target intro and guardrails, included fragments, routing rules, a script's --help), runs a verb the agent is told to run end to end in a scratch repo, and runs recipes on real artifacts (D-767).
+
+### Changed — /fabrik-plan-after-chat checks a new plan's citations and its rubric's source tree (2026-10-12)
+- New plan files are graded with `check_citations_resolve.py --doc` before the citation check; script-behaviour steps quote the function; spec-fed grounders start from the spec's anchors; the rubric runs from the tree holding the packs (D-766).
+
 ### Changed — /fabrik-features gains a Scoped REFRESH mode and symbol-cited Planned rows (2026-10-12)
 - Planned rows cite symbols, not line numbers; REFRESH may run scoped to a plan or section, the code still its denominator; route rows cover every mode; known defects point at the backlog; Phase 3 names each population before counting (D-765).
 

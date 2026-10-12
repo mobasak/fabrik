@@ -35,3 +35,20 @@ def test_phase_five_tests_before_the_commit_and_marks_only_covered_rows() -> Non
     run = p5.index("Run the edit's tests after the last edit, in the shell that commits")
     assert run < p5.index("Agent-Role: primary") < p5.index("Then MARK the rows answered")
     assert "The trailer's `rows` and the `--mark-answered` list below name the same rows" in p5
+
+
+def test_phase_three_reads_what_already_governs_the_subject() -> None:
+    """Rows 1791779653, 1791778642, 1791774646, 1791780696 (D-767)."""
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    assert "read what already governs its subject: the target's intro and guardrails" in p3
+    assert "the fragments it includes (§ Drive's consistency rule says where a shared rule lives)" in p3
+    assert "the target's own routing rules (state the overlap)" in p3
+    assert "the --help and argument handling of any script the sentence works around" in p3
+
+
+def test_phase_three_runs_verbs_end_to_end_and_recipes_on_real_artifacts() -> None:
+    """Rows 1791777600, 1791775906 (D-767): a sentence that tells the agent to run a verb is bound too."""
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    assert "or tells the agent to run one of its verbs is executed on the scenario the sentence states" in p3
+    assert "is run on a real artifact the command produces and on two fleet ones as well as a synthetic file" in p3
+    assert "a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox" in p3
