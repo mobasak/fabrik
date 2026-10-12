@@ -91,6 +91,19 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-review answers its feedback queue in one pass (2026-10-12)
 - Phase 1 points at the review probe catalogue; a failed or `NO RESULT` refuter's candidates are executed by the lead, and the FAILED-seat re-dispatch names finders; the delta brief names its must-read files; `next`'s rows merge into `args.slices` by name; the close stages before its IN-PROGRESS gate. Every command, fragment and contract that states the Agent-tool fallback now also takes it for a run the operator did not invoke. The catalogue gains redactor timing, what a fix recipe leaves unchanged, quoting code from its emit site and linting a copy with the repo's config (D-752).
 
+### Fixed — the scaffold's CI pair installs sqlfluff and lints every tracked `.sql` like the gate does (2026-10-12)
+
+- `src/fabrik/ci_scaffold.py` (whatsapp-agent finding 01M4RKXS2G4S5EQATRA4HR4Z9S): `scripts/ci_local.sh` and the kept
+  `ci.yml` renderer installed `ruff` + the test deps only, while `final_gate.py`'s sqlfluff leg lints every tracked
+  `*.sql` — a project's schema lint was graded at the gate alone and a hand-added `sqlfluff` died on regeneration.
+  Both renderers now install `sqlfluff==SQLFLUFF_VERSION` (pinned like ruff — an unpinned linter reds a repo on a
+  new rule with zero code change) beside the pinned ruff and emit ONE shared step, `SQLFLUFF_STEP`
+  (`git ls-files -z -- '*.sql' | xargs -0 python -m sqlfluff lint --dialect postgres` behind a portable
+  no-files guard, never GNU `xargs -r`), between the ruff ratchet and pytest. The replica is STRICTER than
+  the gate on purpose: every run, not only when a `.sql` file is in the diff. Graders red-first in
+  `tests/test_ci_scaffold.py`; `scripts/backfill_ci.py` is run by hand only, so no existing repo changes
+  until its owner regenerates `scripts/ci_local.sh` (8 repos carry one today).
+
 ### Changed — the owner DSN split is EXECUTED: the Finish review closed on three fix commits, the plan and its lock are released (2026-10-12)
 
 - Plan `2026-10-12-plan-1-owner-dsn-split` Phase C (D-754, W-4e74ea9d). The whole-plan `/fabrik-review` (four file slices, a Sonnet and a
