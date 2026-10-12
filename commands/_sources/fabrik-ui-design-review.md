@@ -52,7 +52,8 @@ closing pass by the round-1 seats over their own axes (D-335 — the fragment's 
 
 **A) Design-system integrity.** Every screen's components (Phase-5 blocks) come **only** from the established
 system — on a mobile surface built to the component patterns in `mobile-app/ocoron-mobile-design-system.md` — flag any bespoke/invented component where a system primitive exists, any off-token visual, any screen
-missing its enriched states (loading/empty/error/permission-denied/success/partial/disabled). If the system was
+missing its enriched states (loading/empty/error/permission-denied/success/partial/disabled), and any form
+control that breaks `design-system-template.md` § Forms and Inline Editing or § Permissions UX. If the system was
 CREATED (not adopted), confirm it defines every component the screens reference — a screen citing a component
 the design system never defined is a defect on one side or the other; reconcile it. **For a shadcn-based system,
 verify each referenced component actually exists** via the connected **shadcn MCP**
@@ -67,7 +68,10 @@ implies it should be). A screen showing a field the data contract lacks is the #
 it in the data contract (via `/fabrik-data-contract`), never by silently adding it here.
 
 **C) Coverage / completeness.** Every spec task has a flow (Phase 3); every flow's screens are in the inventory
-(Phase 2); every inventory screen is reachable in the IA (Phase 4) — hunt orphaned screens and dead nav nodes.
+(Phase 2); every inventory screen is reachable in the IA (Phase 4) — hunt orphaned screens and dead nav nodes. When the
+surface is already built, ground each menu/IA claim against the built navigation (the router's route table, or
+the surface's menu registry such as an ERP's menu records), not the contract's own earlier version — a tree
+that was never built reads as consistent with itself.
 Every auth level (public/authed/admin) a screen claims is consistent with the spec. No placeholders
 (`TBD`/`TODO`/"tbd screen").
 
@@ -89,7 +93,9 @@ primary; a state listed on one screen and forgotten on its twin).
 **Parallelism — UNCONDITIONAL, every round.** Dispatch one INDEPENDENT native seat per axis (or per surface) — recipe in § Subagents — run
 them in parallel, then merge + **REFUTE** any finding you can disprove (quote the contract line / the
 data-contract field / the pack rule that makes it a non-issue) before editing.
-**Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186).
+When `dispatch_headroom.py` prints fewer `SEATS:` than axes, each seat carries several axes, its brief names
+them, and it returns the screens or sections of its slice it did not reach; the next round dispatches those
+first. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186).
 
 After each pass, list what you re-grounded (which screens you read, which `docs/data-contract.md` fields you
 confirmed, which pack rules you checked) and what you found, then fix the contract. **The loop terminates ONLY
@@ -106,6 +112,9 @@ as-is:
   build-ready — fix it.
 - **Every flow** is testable by the Build Verification Loop: a named entry, an ordered click path within budget,
   a success end-state — so the built screen can be asserted against it.
+- **Every cross-reference resolves to the DESIGN it names**, not merely to a heading: a pointer such as "the
+  decision lives in §5.6" is followed, and §5.6 must state that decision (its components, states or rule) — a
+  heading that exists but does not carry it is a dangling reference.
 - **The freeze is real:** `Status: FROZEN` + `Version` + `Date` + `Surface` + `Design system` header set; the verbatim
   freeze rule present. If your review edited anything, the freeze is stale — see Convergence.
 
@@ -129,7 +138,9 @@ I found" does not.
 
 - **Closing round at `confirmed: 0` (no edits):** the FROZEN contract stands. Add a one-line attestation to its header —
   `Independently reviewed: v<N> — /fabrik-ui-design-review confirmed: 0 <YYYY-MM-DD>` — and report the Pass Ledger.
-- **You edited the contract:** editing a FROZEN artifact re-opens it — per the freeze rule, **bump `Version` and
+- **You edited the contract:** the header stays `FROZEN` at the reviewed `Version` while the loop runs, and every
+  seat brief says so — an edit this review made, pending its bump at the closing round, is not an in-place-edit
+  finding. Editing a FROZEN artifact re-opens it — per the freeze rule, **bump `Version` and
   re-freeze** (the closing round above IS the re-freeze convergence). The bump is a Status-flip
   event: **mint its `docs/DECISIONS.md` row staged in the same commit as the artifact** (the `/fabrik-ui-design`
   freeze law; classify at mint — plain row normally). Only then attest.

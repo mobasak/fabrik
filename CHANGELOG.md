@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-ui-design-review grounds IA on the built surface and follows cross-references (2026-10-12)
+- Form controls are checked against the template's Forms and Permissions UX sections; built menus ground IA claims; trimmed seats carry named axes; a cross-reference must resolve to the design it names; in-loop edits are not in-place-edit findings (D-764).
+
 ### Changed — /fabrik-catchup runs the gate first, claims items and probes the work store (2026-10-12)
 - Phase 0 queues the gate's reds first; probe 1 reads status through the parser; probe 2 derives code roots and needs drift; a probe 7 lists polluted work items; Phase 2 claims existing store items by id and mails other beats' items in the hub (D-762).
 
