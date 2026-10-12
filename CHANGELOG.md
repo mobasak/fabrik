@@ -9,9 +9,13 @@ All notable changes to this project will be documented in this file.
 - `src/fabrik/ci_scaffold.py` (whatsapp-agent finding 01M4RKXS2G4S5EQATRA4HR4Z9S): `scripts/ci_local.sh` and the kept
   `ci.yml` renderer installed `ruff` + the test deps only, while `final_gate.py`'s sqlfluff leg lints every tracked
   `*.sql` — a project's schema lint was graded at the gate alone and a hand-added `sqlfluff` died on regeneration.
-  Both renderers now install `sqlfluff` beside the pinned ruff and emit ONE shared step, `SQLFLUFF_STEP`
-  (`git ls-files -z -- '*.sql' | xargs -0 -r python -m sqlfluff lint --dialect postgres`), between the ruff ratchet
-  and pytest; a repo without a tracked `.sql` runs nothing. Graders red-first in `tests/test_ci_scaffold.py`.
+  Both renderers now install `sqlfluff==SQLFLUFF_VERSION` (pinned like ruff — an unpinned linter reds a repo on a
+  new rule with zero code change) beside the pinned ruff and emit ONE shared step, `SQLFLUFF_STEP`
+  (`git ls-files -z -- '*.sql' | xargs -0 python -m sqlfluff lint --dialect postgres` behind a portable
+  no-files guard, never GNU `xargs -r`), between the ruff ratchet and pytest. The replica is STRICTER than
+  the gate on purpose: every run, not only when a `.sql` file is in the diff. Graders red-first in
+  `tests/test_ci_scaffold.py`; `scripts/backfill_ci.py` is run by hand only, so no existing repo changes
+  until its owner regenerates `scripts/ci_local.sh` (8 repos carry one today).
 
 ### Changed — the owner DSN split is EXECUTED: the Finish review closed on three fix commits, the plan and its lock are released (2026-10-12)
 
