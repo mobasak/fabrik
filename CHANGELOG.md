@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scratch_sweep reads a git warning on a `-z` listing as unreadable, and its stale quote test is current (2026-10-13)
+- `scripts/scratch_sweep.py::_git` glued stderr onto stdout, so a warning at rc 0 ("could not open directory") became a fake NUL-separated `git status`/`ls-files -z` entry on an INCOMPLETE listing. A `-z` call now returns stdout alone and reads rc 0 with stderr as unreadable, so the worktree is kept (0 of 352 registered worktrees fire it today); `_ignored_data`, which read an unreadable `--ignored` listing as "no ignored data", now reports it as a hit, so the NEVER-delete guard keeps the worktree too. `tests/test_scratch_sweep_sync_materialised.py`'s quote-unwrapping test, red since W-fe6e0ed3 moved the caller to `-z`, now asserts names are taken verbatim (W-d81efab9).
+
 ### Changed — /fabrik-review-scoped briefs a guard's model boundary with its escape variants (2026-10-12)
 - A GUARD's brief states the inputs it is meant to judge, so an escape variant outside them is `RECORDED — by design (D-785)` in round 1 instead of seeding own-fix rounds (D-785).
 

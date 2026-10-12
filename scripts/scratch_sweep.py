@@ -1500,6 +1500,13 @@ def _git(repo: Path, *args: str, timeout: int = 20) -> tuple[int, str]:
             errors="surrogateescape",
             timeout=timeout,
         )
+        if "-z" in args:
+            # a `-z` listing is machine-parsed: stderr glued on became a fake entry, and a warning at
+            # rc 0 ("could not open directory") means the listing is INCOMPLETE — unreadable, so every
+            # verdict built on it keeps the worktree (W-d81efab9 review A-O1)
+            if p.returncode == 0 and p.stderr:
+                return 1, p.stderr
+            return p.returncode, p.stdout or ""
         return p.returncode, (p.stdout or "") + (p.stderr or "")
     except (OSError, subprocess.SubprocessError) as exc:
         return 1, str(exc)
@@ -1800,7 +1807,8 @@ def _ignored_data(repo_wt: Path, main_path: Path | None = None) -> list[str]:
     """
     rc, entries = _status_z(repo_wt, "--ignored=matching")
     if rc != 0:
-        return []
+        # unreadable is not "no data": both callers keep the worktree on any hit (review A-O5)
+        return ["(the --ignored listing is unreadable)"]
     hits: list[str] = []
     for xy, path in entries:
         if xy != "!!":
