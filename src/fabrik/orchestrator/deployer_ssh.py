@@ -822,7 +822,7 @@ def _is_placeholder(value: str) -> bool:
 
     Fabrik specs carry registrar-managed vars (DATABASE_URL, REDIS_URL, …) as
     literal ``…placeholder…`` strings; the infra registrars overwrite them
-    post-deploy via ``inject_env()``. ``_build_env_content`` uses this to avoid
+    post-deploy via ``inject_env()``. ``_build_env`` uses this to avoid
     letting such a placeholder clobber an already-injected real value on a
     re-apply (which would break ``docker compose up --wait``).
 
@@ -922,7 +922,7 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
 
     The one absent-vs-failed distinction shared by :meth:`SSHDeployer.read_env` (the
     app-role decision and :meth:`~SSHDeployer.inject_env`'s merge) and
-    :meth:`SSHDeployer._build_env_content` (the deploy/redeploy merge). ONE probe and ONE
+    :meth:`SSHDeployer._build_env` (the deploy/redeploy merge). ONE probe and ONE
     read, as before the owner split: the probe answers ``present``/``absent`` for ``.env`` on
     its first line and ``owner`` on a second line when ``.env.owner`` exists; the read is then
     today's ``sudo cat <env>`` alone, or ``sudo sh -c 'cat <env> && echo && cat <owner>'`` —

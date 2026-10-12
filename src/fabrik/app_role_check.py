@@ -51,7 +51,8 @@ passes 1, 2 and 3 (spec § Derivations D1):
   (``OWNER_HANDOFF_REMEDY``: declare ``.env.owner`` in ``env_file`` and read the key from
   the environment, Alembic in ``env.py``; run it as ``docker compose run --rm <that
   service>``, which replaces ``command``). The same hand-off ANYWHERE in a compose file is the
-  same finding, ONE per service: ``$DATABASE_URL_OWNER``/``${DATABASE_URL_OWNER}`` behind an odd
+  same finding, ONE per service (per LINE only where the text scan cannot locate the service's
+  block — more findings, never fewer): ``$DATABASE_URL_OWNER``/``${DATABASE_URL_OWNER}`` behind an odd
   run of ``$`` in a ``command:`` interpolates to the same empty value (``$$`` is the literal the
   container's shell expands from ``env_file``, and clears), and a line naming the owner key in
   a service that does NOT load ``.env.owner`` names a key no process there has — matched on the
