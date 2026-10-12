@@ -1,6 +1,6 @@
 """/fabrik-spec-review feedback queue answered in one pass (D-735): the pass ceiling, the round recipe, Phase 0.
 
-The ceiling test is a property over every command source, since the same wrong phrase sat in three of them.
+The ceiling test is a property over every command source, since the same wrong phrase sat in four of them.
 """
 
 import re
@@ -25,12 +25,15 @@ def test_no_command_caps_the_workflow_pass_number() -> None:
         "fabrik-review-scoped.md",
         "fabrik-review.md",
     ):
-        assert "`pass: <n>`, the next pass number — no ceiling" in _norm(SOURCES / name), name
+        assert "`pass: <n>`, the next pass number (unbounded)" in _norm(SOURCES / name), name
 
 
 def test_the_round_recipe_states_own_fix() -> None:
     """Row 1790713088: term-edit makes every delta round state --own-fix; the recipe omitted it."""
-    assert "round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <n>" in _norm()
+    assert (
+        "round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <own-fix; round 1: 0>"
+        in _norm()
+    )
 
 
 def test_phase_zero_points_at_the_flip_gates() -> None:
