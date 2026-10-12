@@ -502,3 +502,32 @@ def test_pgurl_rewrites_a_driver_dsn_for_libpq():
         ["sh", "-c", definition + '\nu=$(pgurl "") && echo RAN'], capture_output=True, text=True
     )
     assert empty.returncode != 0 and "RAN" not in empty.stdout
+
+
+def test_readme_template_carries_every_section_the_readme_gate_requires():
+    """infra 01M4RQ3FH6 (whatsapp-agent 01M4RNRXQJ, 2026-10-12): the template's headings were Overview, Tech
+    Stack, Requirements, Documentation while scripts/enforcement/check_readme_md.py requires `## Quick Start`
+    too — a README converged toward the template failed the gate. Two hand-kept lists of one contract drift
+    silently; this grader reads the gate's `required_sections` literal and asserts every `## ` entry is a
+    heading of the template, so the next drift reds here before it reds a project."""
+    import ast
+
+    gate_src = (REPO_ROOT / "scripts" / "enforcement" / "check_readme_md.py").read_text(
+        encoding="utf-8"
+    )
+    required: list[str] = []
+    for node in ast.walk(ast.parse(gate_src)):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "required_sections" for t in node.targets
+        ):
+            required = [ast.literal_eval(elt) for elt in node.value.elts]  # type: ignore[attr-defined]
+    assert required, (
+        "check_readme_md.py no longer defines required_sections — update this grader with the gate"
+    )
+    template = (
+        REPO_ROOT / "templates" / "scaffold" / "docs" / "PROJECT_README_TEMPLATE.md"
+    ).read_text(encoding="utf-8")
+    headings = {line.strip() for line in template.splitlines() if line.startswith("## ")}
+    missing = [s for s in required if s.startswith("## ") and s not in headings]
+    assert missing == [], f"template lacks the gate's required section(s): {missing}"
+    assert "## Quick Start" in headings
