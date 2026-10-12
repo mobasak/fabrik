@@ -51,3 +51,9 @@ def test_coverage_names_each_population_before_counting() -> None:
     p3 = _section("## Phase 3", "## Guardrails")
     assert "name each denominator's expected population and where it comes from" in p3
     assert "never by `tail -n +N` after a filter (a separator row the filter drops shifts the offset)" in p3
+
+
+def test_a_grounded_code_defect_is_filed_never_patched() -> None:
+    """Row 1791827504 (D-788): the doc-converge exit, in the phase that grounds rows."""
+    p2 = _section("## Phase 2", "## Phase 3")
+    assert "A code defect the grounding finds with no row yet is filed to its owner (a mail to the code's owning session, or a backlog row) and the feature row points at that id — never patched inside a features run" in p2

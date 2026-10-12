@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-features files a code defect it finds, never patches it (2026-10-13)
+- Phase 2 files a code defect with no row yet to its owner and points the feature row at that id (D-788).
+
 ### Changed — the review probe catalogue briefs a fix's own guard in the next round (2026-10-12)
 - A guard a review's fix adds goes into every brief from the next one on, by name, with its escape variants and model boundary (D-787).
 
