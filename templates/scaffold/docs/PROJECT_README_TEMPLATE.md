@@ -39,6 +39,10 @@
 - Docker + Docker Compose
 - `.env` configured from `.env.example`
 
+## Quick Start
+
+See [docs/QUICKSTART.md](docs/QUICKSTART.md) — the five-minute run, dev and VPS.
+
 ## Documentation
 
 See [INDEX.md](INDEX.md) for master file index and documentation links.
