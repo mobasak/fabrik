@@ -24,7 +24,7 @@ All notable changes to this project will be documented in this file.
   Docs: `docs/operations/fabrik-lifecycle.md` (step 0 of the cutover runbook, the two-file layout, "what the split does not
   cover"), `docs/CONFIGURATION.md`, `docs/operations/credential-recovery.md`, `docs/reference/modules/drivers.md`, the three
   scaffold doc templates. Graders G8–G15 (the plan's labels — the tests are named in its Phase B steps) red-first, G16–G29
-  from the phase review's four rounds; twenty-nine mutants red in a throwaway worktree.
+  from the phase review's five rounds; thirty mutants red in a throwaway worktree.
 
 ### Changed — the owner DSN leaves the project `.env`: the deployer writes `DATABASE_URL_OWNER` to `.env.owner` (2026-10-12)
 

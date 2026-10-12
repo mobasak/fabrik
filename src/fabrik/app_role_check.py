@@ -628,18 +628,25 @@ def _owner_consumer_ranges(text: str) -> list[tuple[int, int]]:
     finding. A declaring block that shares an anchor with a NON-declaring service is scanned like
     any other service (fail closed): its tool lines are findings, and its owner-key uses the
     hand-off (the remedy text still names the file the service must load, which is the path
-    out); two declaring blocks sharing an anchor both stay consumers."""
+    out); two declaring blocks sharing an anchor both stay consumers — unless the one holding
+    the alias is itself disqualified, in which case what it merged in is reached by a non-consumer
+    through it: the exemption is iterated to a FIXPOINT, so a share counts through any number of
+    hops (review of the owner split, round 5)."""
     services = _compose_services(text) or {}
     lines = text.splitlines()
     blocks = _service_block_ranges(lines, services)
-    declaring = [
+    consumers = [
         blocks[str(name)]
         for name, cfg in services.items()
         if isinstance(cfg, dict)
         and _declares_owner_env_file(cfg.get("env_file"))
         and str(name) in blocks
     ]
-    return [block for block in declaring if not _shares_an_anchor(lines, block, declaring)]
+    while True:
+        kept = [block for block in consumers if not _shares_an_anchor(lines, block, consumers)]
+        if kept == consumers:
+            return kept
+        consumers = kept
 
 
 def _block_of(line: int, blocks: dict[str, tuple[int, int]]) -> tuple[int, int] | None:

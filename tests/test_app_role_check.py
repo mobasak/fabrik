@@ -1151,6 +1151,36 @@ def test_two_owner_consumers_sharing_an_anchored_env_file_both_clear(tmp_path):
     assert scan_repo(repo).findings == []
 
 
+def test_shared_anchor_counts_through_a_disqualified_consumer(tmp_path):
+    """G29e (owner split review, round 5 — check-O18): declaring `migrate` is `&a`; declaring `jobs`
+    merges `<<: *a` and is `&b`; the non-consumer `app` merges `<<: *b` and so runs BOTH their
+    commands. `jobs` is disqualified by `app`'s alias; once it is, its `*a` is outside every
+    consumer and `migrate` is disqualified too — a share counts through any number of hops."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "  migrate: &a\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "      - path: .env.owner\n"
+        "        required: false\n"
+        "    command: alembic upgrade head\n"  # 7
+        "  jobs: &b\n"
+        "    <<: *a\n"
+        "    command: npx prisma migrate deploy\n"  # 10
+        "  app:\n"
+        "    <<: *b\n"
+        "    env_file:\n"
+        "      - .env\n",
+    )
+
+    assert sorted((f.line, f.pattern) for f in scan_repo(repo).findings) == [
+        (7, "alembic upgrade/downgrade"),
+        (10, "prisma migrate/db push"),
+    ]
+
+
 def test_owner_consumer_anchor_aliased_only_inside_its_block_still_clears(tmp_path):
     """G29b (the mirror of G29): an anchor aliased within the SAME service is that service's own
     value — the block stays the consumer and clears like any other."""
