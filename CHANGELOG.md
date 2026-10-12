@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-ui-design gains a re-freeze mode and a mirror sweep (2026-10-12)
+- Phase 0 names a `re-freeze` mode; the size ceiling is measured; Phase 6 checks unique ids and every enum value; the Re-freeze close-out sweeps mirrors and names /fabrik-ui-design-review's gate and the expected attestation WARN (D-761).
+
 ### Changed — /fabrik-spec grades its own DRAFT before handoff (2026-10-12)
 - Phase 5's self-review runs `check_spec_convergence.py` on a copy of the DRAFT flipped to CONVERGED; § 1a gives the wording an amendment with no external fact uses; § 1c seats carry the 1a facts; fabrik-researcher quotes schema fields from the raw arm on HTML docs pages (D-760).
 
