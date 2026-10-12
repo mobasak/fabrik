@@ -42,7 +42,9 @@ Operate on the **current project** (cwd) — `$ARGUMENTS`, if given, is the spec
 - **Inputs:** the `/fabrik-spec` design doc (goal, chosen approach, the product's core workflow) and
   `docs/data-contract.md` (the frozen fields — screens render these). Link both by path.
 - **Mode:** **new** (spec-driven, design from the product) · **backfill** (reverse-map an existing GUI's real
-  screens/routes into the contract, grandfathering) · **fresh** (no spec yet → minimal stub).
+  screens/routes into the contract, grandfathering) · **fresh** (no spec yet → minimal stub) · **re-freeze** (a version bump on a FROZEN contract: Phases 1–5 run only
+  over the screens and sections the change touches; Phase 6 and the Re-freeze close-out run over the whole contract; Phase 7 sets the header and mints the
+  DECISIONS row, and skips its one-time seeding and its planning hand-off, which waits for the review — see Next).
 
 ## Phase 1 — Establish the DESIGN SYSTEM (FORCED FIRST — blocks Phase 2)
 
@@ -67,7 +69,9 @@ one of two ways and **state which**:
   against `design-system-template.md` § The design-system.md contract** — every section present, every colour
   slot valued in both modes, the § Contrast table recomputed with the WCAG formula (never trusted as stated);
   author only what it lacks, on top of those brand tokens. Author it **lean** — enough to design and
-  build against, NOT a 1,850-line clone. **Size ceiling: 25,000 tokens (about 1,100 lines) per contract file — the Read tool's page cap; above it every reader sees a PARTIAL view. Split history (retired screens, superseded versions) into `docs/archive/ui-design-history.md` and keep the live contract under the ceiling (01M25G1BN, 01M2803TM).** Its shape is `design-system-template.md` § The design-system.md contract, and the structure is inherited from that template by reference, never copied (the brand tokens come from BIC),
+  build against, NOT a 1,850-line clone. **Size ceiling: 25,000 tokens (about 1,100 lines) per contract file — the Read tool's page cap; above it every reader sees a PARTIAL view. Split history (retired screens, superseded versions) into `docs/archive/ui-design-history.md` and keep the live contract under the ceiling (01M25G1BN, 01M2803TM). Measure it with one whole-file Read: over the
+  ceiling the Read either fails (`File content (<N> tokens) exceeds maximum allowed tokens (25000)`) or returns a PARTIAL
+  view naming the cap (`… (<N> tokens, cap 25000)`) — either one is over.** Its shape is `design-system-template.md` § The design-system.md contract, and the structure is inherited from that template by reference, never copied (the brand tokens come from BIC),
   but keep it minimal: **color/surface/text tokens · typography (heading/body/mono) · spacing scale · motion
   tokens · the core component list (Button, Input, Card, Table, Modal, Toast, …) · the enriched states every
   component handles (loading/empty/error/permission-denied/success/partial/disabled) · WCAG 2.2 AA baseline ·
@@ -131,8 +135,14 @@ Repeat until the Termination contract's closing round — `confirmed: 0` with th
 1. **Design system established** and every screen's components come only from it (no ad-hoc visuals).
 2. **Coverage** — every spec task has a flow; every flow's screens are in the inventory; every screen is reachable in the IA.
 3. **Minimal-click** — every flow is within its click budget (or the over-budget one is redesigned, not excused).
-4. **Consistency** — same task-type uses the same pattern across screens; states are complete; naming/microcopy follow the design system's voice.
-5. **Data-wired** — every screen's fields exist in `docs/data-contract.md`; no orphan field, no invented field.
+4. **Consistency** — same task-type uses the same pattern across screens; states are complete; naming/microcopy follow the design system's voice; every id the contract mints (a rule, a note, a screen id)
+   is DEFINED once, for each prefix the contract uses: the lines that open with it (a heading, a list or numbered
+   item, a table row) repeat none — `grep -oE '^(#+ |- |[0-9]+\. |\| )\**<prefix>-[0-9]+\b' docs/ui-design.md | grep -oE '<prefix>-[0-9]+' | sort |
+   uniq -d` prints
+   nothing (a later citation of the id is a mention, not a definition).
+5. **Data-wired** — every screen's fields exist in `docs/data-contract.md`; no orphan field, no invented field; a displayed field
+   backed by an enum states how the screen renders EVERY value the data contract lists for it.
+6. **Size** — the contract is under Phase 1's size ceiling, measured as Phase 1 states (every mode, a re-freeze included).
 
 ## Phase 7 — Freeze + hand off
 
@@ -271,7 +281,10 @@ holds the diff that names what changed, so only this run can say what the re-fre
 2026-08-22: a v5 column with a GUI-field name reached no screen; the pin gate alone would have hidden it):
 
 1. **Diff the artifact against its pre-run version** (`git diff HEAD -- <artifact>` before committing, or
-   HEAD~1 after) and extract the changed entity/column/enum/section names.
+   HEAD~1 after) and extract the changed entity/column/enum/section names. Grep THIS artifact for every other
+   mention of each changed or deleted name and correct each mirror in the same version, before the closing
+   pass; for a deleted control or screen, name the control that now hosts each gate, consent or acknowledgement
+   it carried.
 2. **Grep each DOWNSTREAM frozen consumer** for those names and emit a **Downstream impact** table in the
    closing report: `changed name → consumer → citing section(s) → verdict (cites it / silent)`. Zero hits
    is a stated result, never an omitted one.
@@ -280,5 +293,11 @@ holds the diff that names what changed, so only this run can say what the re-fre
    projects.domain needs a §5.3 control; §5.11 'unbuildable' passages now stale`) — never the first-run
    pipeline chain line. The gate's WARN will nag until that re-freeze lands; the impact list is the part
    only you know.
+4. **A re-freeze is approved where a first freeze is:** at `/fabrik-ui-design-review`'s design-approval gate
+   (D-613). Until that review attests the new version, `check_frozen_chain.py` prints `<artifact>: newest
+   independent review attests v<M> but the contract is at v<N> — … re-run the review twin or drop the
+   claim` for a contract that carries an earlier attestation — the expected state after this run, not a
+   regression. With no downstream impact, `NEXT:` names `/fabrik-ui-design-review docs/ui-design.md`; with impact,
+   `NEXT:` names step 3's owed re-freeze and states that this review of the new version is still owed.
 
 {{include:close-chain}}
