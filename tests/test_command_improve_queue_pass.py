@@ -41,15 +41,14 @@ def test_phase_three_reads_what_already_governs_the_subject() -> None:
     """Rows 1791779653, 1791778642, 1791774646, 1791780696 (D-767)."""
     p3 = _phase("## PHASE 3", "## PHASE 4")
     assert "read what already governs its subject: the target's intro and guardrails" in p3
-    assert "the fragments it includes (a rule about a shared mechanism" in p3
+    assert "the fragments it includes (§ Drive's consistency rule says where a shared rule lives)" in p3
     assert "the target's own routing rules (state the overlap)" in p3
     assert "the --help and argument handling of any script the sentence works around" in p3
 
 
 def test_phase_three_runs_verbs_end_to_end_and_recipes_on_real_artifacts() -> None:
-    """Rows 1791777600, 1791775906, 1791779653 (D-767): the 1024 cap is the assembler's own."""
+    """Rows 1791777600, 1791775906 (D-767): a sentence that tells the agent to run a verb is bound too."""
     p3 = _phase("## PHASE 3", "## PHASE 4")
-    assert "a verb the agent is told to run end to end in a scratch repo, never the live store" in p3
-    assert "a recipe on two real artifacts the command produces as well as a synthetic file" in p3
-    assert "the composed skill description is refused over 1024 characters" in p3
-    assert "> 1024" in (ROOT / "commands" / "assemble_commands.py").read_text()
+    assert "or tells the agent to run one of its verbs is executed on the scenario the sentence states" in p3
+    assert "is run on a real artifact the command produces and on two fleet ones as well as a synthetic file" in p3
+    assert "a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox" in p3
