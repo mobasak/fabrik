@@ -117,3 +117,9 @@ def test_one_ticket_id_per_agent_task_line_is_what_the_parser_reads() -> None:
     spec.loader.exec_module(mod)
     assert mod.AGENT_TASK_RE.findall("Agent-Task: T04, T05\n") == ["T04"]
     assert mod.AGENT_TASK_RE.findall("Agent-Task: T04\nAgent-Task: T05\n") == ["T04", "T05"]
+
+
+def test_ruff_format_only_touches_files_formatted_at_baseline() -> None:
+    """Row 1791842869 (D-793): the second verdict on the held ruff-format subject, edited."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-execute-plan.md").read_text())
+    assert "Run `ruff format` only on files this phase changed that `ruff format --check` passed at the phase's baseline — never wholesale on a sibling's lane, even a granted one" in text

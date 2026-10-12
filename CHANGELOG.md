@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan formats only files formatted at the phase's baseline (2026-10-13)
+- `ruff format` runs only on files the phase changed that passed `ruff format --check` at its baseline, never wholesale on a sibling's lane (D-793).
+
 ### Changed — review seats run scripts from the archive copy and pin one-hop callees (2026-10-13)
 - The catalogue's seat-isolation line runs a script from the archive with path arguments under scratch, and pins the changed files' one-hop callees that are repo files (D-792).
 
