@@ -157,7 +157,7 @@ def test_catalogue_holds_the_two_recurring_probes() -> None:
 def test_a_guard_a_fix_adds_is_briefed_in_the_next_round() -> None:
     """Row 1791838673 (D-787): the catalogue both review commands read."""
     cat = _norm(ROOT / "commands" / "_fragments" / "review-probe-catalogue.md")
-    assert "a guard a fix adds goes into that same next brief by name with its escape variants (quote styles, unreadable values, globbed paths) and its model boundary" in cat
+    assert "a guard a fix adds goes into every brief from that next one on, by name, with its escape variants (quote styles, unreadable values, globbed paths) and its model boundary" in cat
 
 
 def test_the_round_grammar_names_own_fix() -> None:

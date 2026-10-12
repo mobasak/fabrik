@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — the review probe catalogue briefs a fix's own guard in the next round (2026-10-12)
-- A guard a review's fix adds goes into the very next brief by name, with its escape variants and model boundary (D-787).
+- A guard a review's fix adds goes into every brief from the next one on, by name, with its escape variants and model boundary (D-787).
 
 ### Changed — /fabrik-conformance-review pastes the rubric output and gives seats literal paths (2026-10-12)
 - PHASE 0 records both the rubric invocation line and its pasted output, whose header is what the coverage gate reads; the verifier brief names literal absolute paths (D-786).
