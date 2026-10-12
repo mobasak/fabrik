@@ -10,6 +10,12 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the /fabrik-task close accepts a receipt reviewed before the commit (2026-10-12)
 - kaizen's triage (mail 01M4N1K909, rows 1791317858, 1791470714, 1791116082, 1791099519, 1791465412, 1791074435): `--review` refused every receipt made with `review_receipt.py --init` and no `--range` (156 of 671 on disk), so a close then refused the receipt as undeclared. Check (d) now also accepts that working-tree Surface when the commit's diff over its paths rebuilds to the same bytes (untracked files included); `review_receipt.py --restamp <receipt>` re-anchors it after the review's last fix. A design note citing `path:N-M` or `path::symbol` now names that file at close, and a `--commit` value holding whitespace is refused with the fix (W-ebbedc88, D-750).
 
+### Changed — the panel's ACCEPTED delta round is recorded as the next Pass (2026-10-12)
+- In /fabrik-spec-review and /fabrik-plan-review, the delta round an ACCEPTED panel concern re-opens is recorded as the next Pass with every earlier-stated slice re-stated, and an OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift (D-758).
+
+### Fixed — /fabrik-doc-converge: three contract rows counted from the wrong source (2026-10-12)
+- RESILIENCE's billable APIs come from the code, not the doc's own §2; README's capability claims are verified against the code (FEATURES is a cross-check); INDEX.md reads an untracked-but-present file as present and resolves a bare filename under its directory row. Every docs-level index obeys the docs/README row, and a code defect found mid-converge is filed and described as it is (D-757).
+
 ### Fixed — review commands: no pass-number ceiling; the round recipe states --own-fix (2026-10-12)
 - `pass: 2|3` read as a ceiling in /fabrik-spec-review, /fabrik-plan-review, /fabrik-review-scoped, /fabrik-review and the review-loop workflow contract; it is now the next pass number with no ceiling. The spec-review and plan-review round recipes state `--own-fix`; spec-review's Phase 0 runs the flip gates on a flipped scratch copy before Pass 1, and its briefs apply the review probe catalogue (D-756).
 
