@@ -73,9 +73,9 @@ def test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim() -> None:
 def test_seat_isolation_names_every_root_the_tests_import_read_or_run() -> None:
     """Rows 1791774523, 1791785471: the archive roots and the live repo."""
     iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
-    assert "with every top-level path the tests import, read or run" in iso
+    assert "the brief extends it to every top-level path the tests import, read or run" in iso
     assert "`templates/`, reads `.windsurf/` or runs `scripts/` by subprocess" in iso
-    assert "the live repo is the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a worktree" in iso
+    assert "names the live repo as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a worktree" in iso
 
 
 def test_a_silent_refuter_is_already_retried_once_and_marked_failed() -> None:

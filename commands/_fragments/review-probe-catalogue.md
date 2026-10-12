@@ -120,13 +120,14 @@ or name in the brief why the shape does not have it.
 
 ## Seat isolation
 - Seats copy the pin to scratch and assert its md5s first; tests run against an archive of the pinned SHA by the seat
-  prompt's `PIN_IMPORT`/`PYTEST_PINS` recipe — the whole test tree archived so collection succeeds, with every
-  top-level path the tests import, read or run (a test that renders `templates/`, reads `.windsurf/` or runs
-  `scripts/` by subprocess is a false red without it), the live repo's `.venv` python (never `uv run`; the live repo is
-  the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a worktree), no `.env` copied (a dummy on `.invalid` only for an import-failing variable); the
-  pins line follows the real layout and the digest is the pin authority. A SEAT never runs `git worktree add` (its
-  metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive copy by
-  `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a
+  prompt's `PIN_IMPORT`/`PYTEST_PINS` recipe — the whole test tree archived so collection succeeds, the live repo's
+  `.venv` python (never `uv run`), no `.env` copied (a dummy on `.invalid` only for an import-failing variable). The
+  recipe names its roots by what the tests import, so the brief extends it to every top-level path the tests import,
+  read or run (a test that renders `templates/`, reads `.windsurf/` or runs `scripts/` by subprocess is a false red
+  without it) and names the live repo as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik`
+  from a worktree. The pins line follows the real layout and the digest is the pin authority. A SEAT never runs
+  `git worktree add` (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its
+  archive copy by `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a
   `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo root
   with the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the same
   path); tests run by exact node id.
