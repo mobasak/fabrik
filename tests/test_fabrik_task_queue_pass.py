@@ -128,4 +128,4 @@ def test_phase_four_names_the_committed_work_receipt_up_front() -> None:
     """Row 1791845646: the nested review learned the `--range` init only at phase 5's close."""
     text = " ".join((ROOT / "commands" / "_sources" / "fabrik-task.md").read_text().split())
     review = text[text.index("Invoke the review phase 0 already picked") : text.index("Give its seat briefs")]
-    assert "Over committed work its receipt inits with `--range <base>..<tip>` and is committed alone (phase 5)." in review
+    assert "A full `/fabrik-review` over committed work inits its receipt with `--range <base>..<tip>`, committed alone (phase 5); a scoped one needs none." in review

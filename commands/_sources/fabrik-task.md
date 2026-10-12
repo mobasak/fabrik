@@ -162,7 +162,7 @@ Invoke the review phase 0 already picked — at v1 always `/fabrik-review-scoped
 surface never reaches the lane — it routes right-now instead); *(v2)* `/fabrik-review-scoped`, or
 the full `/fabrik-review` for a sync, heavy, migration or >5-file surface (D2, D7) — unchanged,
 never from memory; nested here, its own scope-growth stop fires at the FIRST own-fix-only round,
-not the third (D8), still closing only on a confirmed-zero pass. Over committed work its receipt inits with `--range <base>..<tip>` and is committed alone (phase 5). Give its seat briefs
+not the third (D8), still closing only on a confirmed-zero pass. A full `/fabrik-review` over committed work inits its receipt with `--range <base>..<tip>`, committed alone (phase 5); a scoped one needs none. Give its seat briefs
 the phase-2 `design.md` path and the phase-0 declaration, plus three questions: *does the change ESCAPE the declared files? did it add a mechanism the declaration said `no` to?
 can you name a second approach whose merits the build cannot settle (an equivalent implementation is not one)?* A `yes` to the first or third is that seat's UPGRADE verdict — take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315). A declared file left UNTOUCHED is padding
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
