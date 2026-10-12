@@ -173,7 +173,7 @@ TASK terminator, and the record is what proves the task is actually over.
      red at finish that was **already red at start is NOT yours to fix** (a sibling owns it — shared-master);
      only a **newly**-red check is. It's what lets you answer "did I introduce this?" instead of chasing a
      sibling's file or an untracked plan (the exact trap that stalls a run at the end).
-9. **Critical pre-flight review (ONCE, before Phase A — the plan may be stale even if it converged).** A plan
+9. **Critical pre-flight review (before Phase A, its spot-check repeated per phase — the plan may be stale even if it converged).** A plan
    is grounded when written, not necessarily now — the repo moves under it (siblings commit, deps drift,
    an approach gets invalidated). Read the plan **adversarially against the code AS IT IS NOW**: does any
    phase contradict the current code/schema, assume a `path:line` / dependency / invariant that has since
