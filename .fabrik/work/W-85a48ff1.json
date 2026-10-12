@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:09:48.110793Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-85a48ff1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RJRXWFDPFMKBBSRPHGW6SN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: work.py migrate-backlog turned every section of an older-variant STRATEGIC_BACKLOG template into OPEN work items. Separately, the /fabrik-catchup probe 7 regex cannot see that kind of pollution."
+}
