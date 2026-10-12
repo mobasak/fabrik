@@ -42,7 +42,8 @@ checked against its four binding sources, all read THIS session:
   `docs/design-system.md`, and in every case `.windsurf/rules/core/design-system-template.md` for the structure — the only components/tokens/states a screen may use),
 - the **surface pack** for the contract's `Surface:` — `saas/60-saas-ui.md` (web page inventory) ·
   `mobile-app/80-mobile.md` (RN screen inventory + a11y) plus `mobile-app/ocoron-mobile-design-system.md` (the component patterns — every mobile project, whatever its brand or mode) · `chrome-ext/70-chrome-ext.md` (MV3 surfaces) ·
-  `desktop-app/72-desktop.md`. Read the pack(s) that match. **Size ceiling: 25,000 tokens (about 1,100 lines) — the Read tool's page cap; a contract above it is read PARTIALLY by every seat, so the review's first finding is the split: history to `docs/archive/ui-design-history.md`, the live contract under the ceiling (01M25G1BN).**
+  `desktop-app/72-desktop.md`. Read the pack(s) that match. **Size ceiling: 25,000 tokens (about 1,100 lines) — the Read tool's page cap; a contract above it is read PARTIALLY by every seat, so the review's first finding is the split: history to `docs/archive/ui-design-history.md`, the live contract under the ceiling (01M25G1BN). Until it is split, every seat reads it in ranges and
+  names the line ranges it read; a range no seat names is unread.**
 
 ## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later passes the same seats over their own axes, D-335)
 
@@ -53,7 +54,8 @@ closing pass by the round-1 seats over their own axes (D-335 — the fragment's 
 **A) Design-system integrity.** Every screen's components (Phase-5 blocks) come **only** from the established
 system — on a mobile surface built to the component patterns in `mobile-app/ocoron-mobile-design-system.md` — flag any bespoke/invented component where a system primitive exists, any off-token visual, any screen
 missing its enriched states (loading/empty/error/permission-denied/success/partial/disabled), and any form
-control that breaks `design-system-template.md` § Forms and Inline Editing or § Permissions UX. If the system was
+control that breaks `design-system-template.md` § Forms and Inline Editing, § Forms (Accessibility) or
+§ Permissions UX. If the system was
 CREATED (not adopted), confirm it defines every component the screens reference — a screen citing a component
 the design system never defined is a defect on one side or the other; reconcile it. **For a shadcn-based system,
 verify each referenced component actually exists** via the connected **shadcn MCP**
@@ -69,7 +71,7 @@ it in the data contract (via `/fabrik-data-contract`), never by silently adding 
 
 **C) Coverage / completeness.** Every spec task has a flow (Phase 3); every flow's screens are in the inventory
 (Phase 2); every inventory screen is reachable in the IA (Phase 4) — hunt orphaned screens and dead nav nodes. When the
-surface is already built, ground each menu/IA claim against the built navigation (the router's route table, or
+surface is already built, its navigation is a fifth binding source, read this session: ground each menu/IA claim against it (the router's route table, or
 the surface's menu registry such as an ERP's menu records), not the contract's own earlier version — a tree
 that was never built reads as consistent with itself.
 Every auth level (public/authed/admin) a screen claims is consistent with the spec. No placeholders
@@ -93,9 +95,11 @@ primary; a state listed on one screen and forgotten on its twin).
 **Parallelism — UNCONDITIONAL, every round.** Dispatch one INDEPENDENT native seat per axis (or per surface) — recipe in § Subagents — run
 them in parallel, then merge + **REFUTE** any finding you can disprove (quote the contract line / the
 data-contract field / the pack rule that makes it a non-issue) before editing.
-When `dispatch_headroom.py` prints fewer `SEATS:` than axes, each seat carries several axes, its brief names
-them, and it returns the screens or sections of its slice it did not reach; the next round dispatches those
-first. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186).
+When `dispatch_headroom.py` trims the round (its `COST:` line names units with NO seat), dispatch exactly the
+seats it prints, one axis each; the seatless axes are named in the round's ledger and swept by further
+full-pass waves before any delta pass (term-edit's trimmed-round rule) — round 1 is complete only when every
+axis has had its seat, and a seat whose slice was too large reports the screens or sections it did not reach,
+which join that next wave. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186).
 
 After each pass, list what you re-grounded (which screens you read, which `docs/data-contract.md` fields you
 confirmed, which pack rules you checked) and what you found, then fix the contract. **The loop terminates ONLY
@@ -108,7 +112,7 @@ its coverage; an empty pass with no evidence doesn't count.
 The contract is reviewed only if a planner (Traycer or `/fabrik-plan-after-chat`) and a builder can consume it
 as-is:
 - **Every screen** carries a complete Phase-5 block: layout skeleton · design-system components per region ·
-  enriched states · data mapping (GUI field ↔ data-contract column). A screen missing any of these is not
+  enriched states · data mapping (GUI field ↔ data-contract column) · form controls, where the screen has forms. A screen missing any of these is not
   build-ready — fix it.
 - **Every flow** is testable by the Build Verification Loop: a named entry, an ordered click path within budget,
   a success end-state — so the built screen can be asserted against it.
@@ -116,7 +120,8 @@ as-is:
   decision lives in §5.6" is followed, and §5.6 must state that decision (its components, states or rule) — a
   heading that exists but does not carry it is a dangling reference.
 - **The freeze is real:** `Status: FROZEN` + `Version` + `Date` + `Surface` + `Design system` header set; the verbatim
-  freeze rule present. If your review edited anything, the freeze is stale — see Convergence.
+  freeze rule present. If your review edited anything, the freeze is stale until the bump Convergence describes — owed by the
+  orchestrator, not a seat finding.
 
 ## Phase 3 — The contract must make each screen build-verifiable
 
@@ -138,9 +143,10 @@ I found" does not.
 
 - **Closing round at `confirmed: 0` (no edits):** the FROZEN contract stands. Add a one-line attestation to its header —
   `Independently reviewed: v<N> — /fabrik-ui-design-review confirmed: 0 <YYYY-MM-DD>` — and report the Pass Ledger.
-- **You edited the contract:** the header stays `FROZEN` at the reviewed `Version` while the loop runs, and every
-  seat brief says so — an edit this review made, pending its bump at the closing round, is not an in-place-edit
-  finding. Editing a FROZEN artifact re-opens it — per the freeze rule, **bump `Version` and
+- **You edited the contract:** the header keeps its reviewed `Version` (still `FROZEN` — a `DRAFT` header
+  would fail Phase 0's check on a resumed run) while the fix rounds run, and every seat brief says so — an edit
+  this review made is not an in-place-edit finding. The bump is the LAST edit, made before the closing round,
+  which is then quiet against the bumped text. Editing a FROZEN artifact re-opens it — per the freeze rule, **bump `Version` and
   re-freeze** (the closing round above IS the re-freeze convergence). The bump is a Status-flip
   event: **mint its `docs/DECISIONS.md` row staged in the same commit as the artifact** (the `/fabrik-ui-design`
   freeze law; classify at mint — plain row normally). Only then attest.
