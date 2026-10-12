@@ -139,9 +139,6 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
   `check_spec_convergence.py`'s pattern does not match "no NEW external facts", so a spec citing no URL then grades
   SILENT-1a. The 1c approach floor (≥2 cited URLs, `APPROACH-FLOOR`) still applies to an amendment.
 
-
-
-
 ### 1b — Internal capability: the fabrik-lib vendor→enhance→build ladder (+ shape-level infra)
 
 Read `/opt/fabrik-lib/README.md` (the module table). For **each capability** the design needs, decide via
