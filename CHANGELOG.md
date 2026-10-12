@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — /fabrik-release leads with a missing certification report and names its docs checks (2026-10-12)
-- A UI/service surface with no certification report is BLOCKED first; the dated-docs check names the git date and the `Last Updated` header it compares, with content as the tiebreak (D-770).
+- A UI/service surface with no certification report is BLOCKED first; the dated-docs precondition says what its git-date and `Last Updated` checks each read, with a printed content tiebreak (D-770).
 
 ### Changed — /fabrik-deploy-checklist names the leg-file threat model and runs a red-seen control (2026-10-12)
 - The hub spec is read read-only; Phase 2 names how a merged leg file can reach CONFIRMED; Phase 5 runs probes with the vendored dirs and an unmutated control, and runs a contract test in the gate's pytest leg (D-769).
