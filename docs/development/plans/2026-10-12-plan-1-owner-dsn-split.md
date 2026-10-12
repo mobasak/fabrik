@@ -181,7 +181,7 @@ D7 floor) and one receipt.
 | "every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one**" | .windsurf/rules/core/45-testing-strategy.md:20 | Behaviour Contract |
 | "**Watched-fail-first** (for tests this change adds or modifies" | .windsurf/rules/core/45-testing-strategy.md:22 | Red first |
 
-## Phase A — the deployer: the owner file, the merged read, the split write
+## Phase A — the deployer: the owner file, the merged read, the split write — ✅ EXECUTED 2026-10-12 (c2ec25e4c; review fixes 2935a2da9)
 Appetite: 120
 
 **Interfaces — Produces** (all in `src/fabrik/orchestrator/deployer_ssh.py`; `spec § The delta` 1-3, 6):
@@ -298,6 +298,24 @@ Steps:
 - **Given** a write of `.env` or `.env.owner`, **When** the deployer issues its command, **Then** the temp file is `chmod 0600` BEFORE the `mv` and the result is `chown root:root`; any other file issues today's command unchanged (spec § The delta 6)
 - **Given** a `.env` without a trailing newline beside an owner file, **When** `read_env` runs, **Then** both files' keys parse intact — the separated read, never a joined line (spec § The delta 2)
 - **Given** a probe answer that is not `present`/`absent` on its first line, or an empty answer, **When** the reader parses it, **Then** `DeployError` names the path; an `absent` first line returns `{}` whatever follows (spec § What exists today — the fail-closed reader)
+
+**Phase A execution notes (2026-10-12):** the `/fabrik-review-scoped` pass over c2ec25e4c (three readers + a refuter,
+12 candidates, 9 confirmed, 3 refuted) changed two Interfaces as written above, both for the better and both graded:
+(1) the two-file read is `sudo sh -c 'cat <env> && echo && cat <owner>'`, not `; echo;` — a `;` chain exits with the
+LAST cat's status, so a missing or unreadable `.env` beside an owner file returned the owner keys alone as the merged
+view (executed: rc 0), where the ssh driver raises only on a non-zero rc; `&&` fails closed and
+`test_g2_a_failed_two_file_read_raises_never_returns_the_owner_half` holds it; (2) the deploy paths hand the merged
+DICT to `_write_env_files` through a new `SSHDeployer._build_env(...) -> dict` (`_build_env_content` is its formatted
+view, kept for its readers and tests) instead of parsing `_build_env_content`'s string back — the format→parse round
+trip loses a value holding a newline (executed: `a\nb` → `"a`), so the Interfaces' "parse it back" clause is retired
+and `test_g7_deploy_paths_write_a_newline_value_intact` holds the seam. Also added: graders for the probe parser's
+fail-closed clauses and its per-line strip (O3/O5), and the constants' comment in `spec_loader.py` names no consumer
+that does not exist yet (O7). Refuted with evidence: the git-sha test fake's `.env`-only assert (a loud failure on a
+future owner fixture, never a silent one; the file is read-and-run only) and the Phase A→B rollout order (0 of 69
+specs declare the companion, 0 of 39 composes name the key; Phase B lands on the same branch before any merge).
+Mutants red in a throwaway worktree for every clause (M-G7, M-G3, M-G4, M-G2b, M-G5; then the `;` chain back, each
+probe clause dropped, the strip dropped, the docker path round-tripping); restored tree green; 305 tests on the Phase
+A list; ruff and mypy clean. The review-scoped record is the artifact (`--review-waived` per Execution Contract 3b).
 
 ## Phase B — the scaffold and the docs
 Appetite: 90
