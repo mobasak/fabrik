@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /design-review captures a login-gated screen with an env-reading script (2026-10-13)
+- The grounding gate signs in with credentials from the environment, never a brief, and seats judge the captured screenshots (D-794).
+
 ### Changed — /fabrik-execute-plan never formats beyond its File Scope (2026-10-13)
 - `ruff format` is never run by hand beyond the plan's File Scope; the bare gate run already formats only the run's own changes (D-793).
 
