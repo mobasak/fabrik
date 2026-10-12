@@ -36,7 +36,9 @@ All notable changes to this project will be documented in this file.
   redeploy. `_read_env_file` returns the merged view in one probe (two lines) and one read — the two-file read is
   SEPARATED and fail-closed (`cat <env> && echo && cat <owner>`), because a plain two-file `cat` joined lines when `.env` lacked a trailing
   newline. `.env` and `.env.owner` are `chmod 0600` on the remote temp file before the `mv`. The constants live in
-  `src/fabrik/spec_loader.py` (`OWNER_ENV_KEYS`, `OWNER_ENV_FILE`). Graders G1–G7 in
+  `src/fabrik/spec_loader.py` (`OWNER_ENV_KEYS`, `OWNER_ENV_FILE`). `_deploy_template` renders no owner key into
+  `compose.yaml` (a `secrets.from_env` owner key rides to `.env.owner` through the writer, never into a service's
+  `environment:`); the cutover's pin refusal says "remove the pin" (an owner key in `env:` is refused). Graders G1–G7 in
   `tests/orchestrator/test_deployer_ssh.py::TestOwnerEnvSplit`, each red-first; five mutants red in a throwaway worktree.
 
 ### Fixed — the parity stub finds the comparator the way the host-leg recipe stages it (2026-10-11)

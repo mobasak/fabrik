@@ -504,8 +504,15 @@ class SSHDeployer:
 
         spec_obj = Spec(**spec_dict)
 
-        # Always dry_run=True for render — we need content strings, not file paths
-        rendered = TemplateRenderer().render(spec_obj, secrets=ctx.secrets, dry_run=True)
+        # Always dry_run=True for render — we need content strings, not file paths. An owner
+        # key among the secrets never reaches compose.yaml (the renderer puts every secret into
+        # every service's `environment:`, which would hand the app the owner DSN, D-754): it
+        # rides to `.env.owner` through `_build_env` and the writer instead (the Finish review, O1).
+        rendered = TemplateRenderer().render(
+            spec_obj,
+            secrets={k: v for k, v in ctx.secrets.items() if k not in OWNER_ENV_KEYS},
+            dry_run=True,
+        )
         compose_content = rendered["compose.yaml"]
 
         # Validate compose against rule-pack constraints
@@ -943,7 +950,9 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
         first = lines[0] if lines else ""
         if first == "absent":
             # The deployer always writes `.env` whenever it writes the owner file, so an orphan
-            # `.env.owner` is read the moment `.env` exists — never adopted on its own.
+            # `.env.owner` is not read while `.env` is absent; the moment any write recreates
+            # `.env`, the next read merges the orphan again — by design, with no freshness check
+            # (D-754's reversal deletes the file explicitly for that reason).
             return {}
         if first != "present" or len(lines) > 2 or (len(lines) == 2 and lines[1] != "owner"):
             raise DeployError(f"cannot read {env_path}: unexpected probe answer {probe[:40]!r}")

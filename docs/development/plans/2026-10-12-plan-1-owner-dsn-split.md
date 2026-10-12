@@ -88,7 +88,8 @@ D7 floor) and one receipt.
 - **One round trip for the read, as today.** `_read_env_file` keeps ONE probe and ONE `cat`: the probe prints `present`
   or `absent` for `.env` on its first line and, on a second line, `owner` when `.env.owner` exists (a probe answer with
   no second line means no owner file — every scripted test fixture that answers a bare `present`/`absent` keeps its
-  meaning); the second command is today's `sudo cat <env>` alone, or `sudo sh -c 'cat <env>; echo; cat <owner>'` — the `echo` SEPARATES
+  meaning); the second command is today's `sudo cat <env>` alone, or `sudo sh -c 'cat <env> && echo && cat <owner>'` (as built —
+  the Phase A review made the chain `&&`, fail-closed) — the `echo` SEPARATES
   the files, because a plain two-file `cat` joins a `.env` lacking a trailing newline onto the owner file's first line
   (executed at the panel: the owner key vanished and the owner DSN rode into `REDIS_URL`) — so the owner file's keys
   parse LAST and win. No fixture gains an ssh call (round 1, rules-O1/rest-S1).
@@ -198,7 +199,8 @@ Appetite: 120
   owner file exists, no second line means it does not. `absent` returns `{}` even when an owner line follows: the
   deployer always writes `.env` whenever it writes the owner file, so an orphan `.env.owner` survives on disk untouched
   (the owner write happens only for a non-empty owner half) and is read the moment `.env` exists. The second command
-  is `sudo cat <env>` when no owner line came back — today's command byte-for-byte — and `sudo sh -c 'cat <env>; echo; cat <owner>'`
+  is `sudo cat <env>` when no owner line came back — today's command byte-for-byte — and `sudo sh -c 'cat <env> && echo && cat <owner>'`
+  (as built; the Phase A execution notes record the `;` → `&&` change)
   when it did: the `echo` SEPARATES the two files (a plain `cat <env> <owner>` joins the last line of a `.env` lacking a
   trailing newline onto the owner file's first line — executed at the panel on `_parse_env`: `REDIS_URL` absorbed
   `DATABASE_URL_OWNER=…` and the owner key vanished, I14), so the owner file's keys parse last and win a shared key.
@@ -241,7 +243,7 @@ Steps:
    - G2 (the merged view, one round trip): `mock_ssh` answering `present\nowner\n` then `DATABASE_URL=a\nDATABASE_URL_OWNER=stale\n\nDATABASE_URL_OWNER=o\n`
      (what the separated read prints when `.env` still carries a stale copy) → `read_env(ctx) == {"DATABASE_URL": a,
      "DATABASE_URL_OWNER": o}` and `mock_ssh.call_count == 2`, the second command being
-     `sudo sh -c 'cat /opt/<name>/.env; echo; cat /opt/<name>/.env.owner'` exactly; a bare `present\n` answer → the second
+     `sudo sh -c 'cat /opt/<name>/.env && echo && cat /opt/<name>/.env.owner'` exactly (as built, fail-closed); a bare `present\n` answer → the second
      command is today's `sudo cat /opt/<name>/.env` exactly.
    - G2b (the separator is load-bearing): `_parse_env` of a `.env` content WITHOUT a trailing newline joined to the owner
      content as a plain `cat` would print it LACKS the owner key (the panel's reproduction, kept as the negative half:

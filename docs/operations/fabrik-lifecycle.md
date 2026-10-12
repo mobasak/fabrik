@@ -243,8 +243,9 @@ Logs name roles, never a DSN or a password.
    alembic upgrade head`, never through the app service, which no longer holds the key. The
    `DATABASE_URL: ${DATABASE_URL_OWNER}` interpolation form and a hand-off in `command` no longer
    work (compose interpolates from the project `.env`, where the key no longer lives; `run`
-   replaces `command`), and `fabrik app-role-check` reports the first. The scaffolded audit-jobs
-   companion already declares the file.
+   replaces `command`), and `fabrik app-role-check` reports the first. An audit-jobs companion
+   scaffolded after the split declares the file; one scaffolded before it does not — add the two
+   `env_file` lines above to its compose before its next apply, or its jobs idle `not_configured`.
 1. Set `shape.database_url_app_role: true` in `specs/services/<id>.yaml` (a YAML boolean; a
    string or a number is refused, never read as a switch).
 2. Run `fabrik app-role-check --spec specs/services/<id>.yaml` and fix everything it reports (a

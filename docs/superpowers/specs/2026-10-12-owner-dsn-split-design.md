@@ -197,7 +197,7 @@ Touchpoints:
 
 | Where | Change |
 |---|---|
-| `src/fabrik/orchestrator/deployer_ssh.py:898-920` (`_read_env_file`) | the two-line probe and the one-file `cat` or the SEPARATED two-file read (`cat <env>; echo; cat <owner>`); returns the merged view; signature unchanged |
+| `src/fabrik/orchestrator/deployer_ssh.py:898-920` (`_read_env_file`) | the two-line probe and the one-file `cat` or the SEPARATED, fail-closed two-file read (`cat <env> && echo && cat <owner>`); returns the merged view; signature unchanged |
 | `deployer_ssh.py:328-364` (`inject_env`), the four deploy paths' `.env` writes (`:524`, `:607`, `:649`, `:686`) and `_persist_git_sha` (`:943-953`) | every `.env` write goes through the new `_write_env_files` (owner first, then `.env` without owner keys, one log line); `_build_env_content` (`:693-760`) is unchanged |
 | `deployer_ssh.py:962-1000` (`_write_file_to_vps_path`) | `sudo chmod 0600 <tmp> && ` BEFORE the `mv` for `.env` and `.env.owner` by filename; signature unchanged. The `:1217-1223` comment ("interpolates ${VAR} in `command:` from env_file") corrected: the source is the project `.env` (ods-60, ods-61) — the two coincide only for an image-sourced app |
 | `src/fabrik/app_role_check.py:40-48`, `:462-490`, `:590` | the `${DATABASE_URL_OWNER}` value classification becomes a finding with its remedy; a service declaring `.env.owner` is the accepted owner consumer (its `migrate` and `command`-line findings suppressed); an owner-sourced alembic env with no declaring service is a finding; docstring and comment rewritten |
@@ -387,7 +387,7 @@ reference doc: the subsystem is the deployer, already documented.
 Red-first graders in `tests/`: (1) `inject_env({"DATABASE_URL": a, "DATABASE_URL_OWNER": o})` writes `o` to
 `.env.owner` first and `a` to `.env`, one restart; (2) `read_env` returns the merged view in one probe and one `cat`, the
 owner file winning a shared key, and a bare `present` answer issues today's `cat` exactly; (2b) the separated read —
-the two-file command carries the `; echo;` separator, and a `.env` without a trailing newline beside an owner file still
+the two-file command carries the `&& echo &&` separator (fail-closed, G2), and a `.env` without a trailing newline beside an owner file still
 parses to both keys intact (the plain `cat` join kept as the negative half); (3) `_write_env_files` on a
 merged view carrying the key writes the owner file first, keeps the key out of `.env` and logs it; (3b) every writer —
 the four deploy paths and `_persist_git_sha` — goes through it (parametrized, red on today's code); (4) the rendered

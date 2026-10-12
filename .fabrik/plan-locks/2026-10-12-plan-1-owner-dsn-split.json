@@ -23,7 +23,8 @@
     "docs/CONFIGURATION.md",
     "docs/reference/modules/drivers.md",
     "docs/superpowers/specs/2026-10-12-owner-dsn-split-design.md",
-    "docs/development/reviews/2026-10-12-plan-1-owner-dsn-split-review.md"
+    "docs/development/reviews/2026-10-12-plan-1-owner-dsn-split-review.md",
+    "src/fabrik/orchestrator/infrastructure.py"
   ],
   "branch": "worktree-fleet",
   "started_at": "2026-10-12T01:58:00+00:00",
@@ -34,5 +35,6 @@
     "red_checks": [],
     "command": "python scripts/final_gate.py --lean --check --json"
   },
-  "overlap_note": "docs/CONFIGURATION.md is also owned by the active lock 2026-09-06-plan-1-session-history-retention.json — the same agent (fleet), the same branch, that plan paused at Gate C with its CONFIGURATION rows committed; this plan edits only the DSN section (:245-254). Recorded, not a sibling's live run."
+  "overlap_note": "docs/CONFIGURATION.md is also owned by the active lock 2026-09-06-plan-1-session-history-retention.json \u2014 the same agent (fleet), the same branch, that plan paused at Gate C with its CONFIGURATION rows committed; this plan edits only the DSN section (:245-254). Recorded, not a sibling's live run.",
+  "scope_note": "src/fabrik/orchestrator/infrastructure.py added at Finish for ONE message string (the cutover pin refusal, deployer-O2 of the Finish review): its old remedy sent the operator to a key the loader now refuses."
 }

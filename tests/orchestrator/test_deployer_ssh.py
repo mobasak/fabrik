@@ -1676,8 +1676,9 @@ class TestOwnerEnvSplit:
         return ctx
 
     # G1 — the split write, owner first, one restart
-    def test_g1_inject_env_writes_owner_file_first_then_env_then_one_restart(self):
+    def test_g1_inject_env_writes_owner_file_first_then_env_then_one_restart(self, caplog):
         with (
+            caplog.at_level("DEBUG", logger="fabrik.orchestrator.deployer_ssh"),
             patch("fabrik.drivers.ssh.ssh", side_effect=["absent", ""]) as mock_ssh,
             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
         ):
@@ -1690,6 +1691,8 @@ class TestOwnerEnvSplit:
         assert _parse_env(writes[1][2]) == {"DATABASE_URL": _APP_DSN}
         ups = [c for c in mock_ssh.call_args_list if "docker compose up" in c.args[0]]
         assert len(ups) == 1
+        # No DSN value ever reaches the log (core/35; the Finish review, deployer-O5).
+        assert "ownerpw" not in caplog.text and "apppw" not in caplog.text
 
     # G2 — the merged view in one probe + one (separated) read, the owner file winning
     def test_g2_read_env_merges_both_files_in_one_separated_read(self):
@@ -1773,6 +1776,8 @@ class TestOwnerEnvSplit:
         assert _parse_env(writes[0][2]) == {"DATABASE_URL_OWNER": _OWNER_DSN}
         assert _parse_env(writes[1][2]) == {"DATABASE_URL": _APP_DSN, "K": "v"}
         assert "1 owner key(s) kept in .env.owner" in caplog.text
+        # The log line names the count and the file, never a value (deployer-O5).
+        assert "ownerpw" not in caplog.text and "apppw" not in caplog.text
 
         writes.clear()
         caplog.clear()
@@ -1901,6 +1906,32 @@ class TestOwnerEnvSplit:
         ):
             SSHDeployer()._deploy_template(ctx, "my-app", None)
         self._owner_then_env([c.args for c in mock_write.call_args_list])
+
+    def test_g32_deploy_template_renders_no_owner_key_into_compose(self):
+        """G32 (the Finish review, deployer-O1): the renderer puts every secret into every service's
+        `environment:`; an owner key among the secrets (`secrets.from_env`) must never reach
+        compose.yaml — it goes to `.env.owner` through the writer. An ordinary secret still renders."""
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "template"},
+                "template": "python-api",
+                "domain": "my-app.example.com",
+            }
+        )
+        ctx.secrets = {"DATABASE_URL_OWNER": _OWNER_DSN, "API_TOKEN": "tok-visible"}
+        merged = dict(self._MERGED_DICT) | {"API_TOKEN": "tok-visible"}
+        with (
+            patch("fabrik.drivers.ssh.ssh", return_value=""),
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+            patch.object(SSHDeployer, "_build_env", return_value=merged),
+        ):
+            SSHDeployer()._deploy_template(ctx, "my-app", None)
+        by_name = {c.args[1]: c.args[2] for c in mock_write.call_args_list}
+        compose = by_name["compose.yaml"]
+        assert "DATABASE_URL_OWNER" not in compose and "ownerpw" not in compose, compose
+        assert "API_TOKEN=tok-visible" in compose
+        assert _parse_env(by_name[".env.owner"]) == {"DATABASE_URL_OWNER": _OWNER_DSN}
 
     def test_g7_deploy_git_goes_through_the_split_writer(self):
         ctx = _ctx(

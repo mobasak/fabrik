@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "SSHDeployer.redeploy (deployer_ssh.py:377) never enters _target_vps_env, so a git redeploy's _persist_git_sha read-merge-write of .env and .env.owner targets FABRIK_VPS_SSH_HOST, not the spec's target_vps — a pre-existing gap the owner split now exercises on two files. Wrap redeploy in _target_vps_env(ctx) (it needs the ctx, today it takes only name) and grade it with a spoke-targeted redeploy test (Finish review of plan 2026-10-12-plan-1-owner-dsn-split, deployer-S3).",
-  "note": "",
+  "note": "refuted in the Finish review's pass 1 by its refuter and re-executed by fleet: cli.py:1317-1325 env-swaps FABRIK_VPS_SSH_HOST to the resolved target_vps around deployer.redeploy(), the same swap _target_vps_env makes, so a redeploy's _persist_git_sha already reaches the right host — not a defect",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "deployer"
   ],
