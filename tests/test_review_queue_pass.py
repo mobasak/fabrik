@@ -188,3 +188,22 @@ def test_the_receipt_template_shows_the_gate_scope_line_the_gate_accepts_filled(
     assert len(pats) == 1
     assert not pats[0].search(line)
     assert pats[0].search(line.replace("<failing check>", "docs-links").replace("<N>", "3").replace("<command>", "grep x"))
+
+
+def test_a_scope_growth_remainder_round_restates_every_slice() -> None:
+    """Row 1791847183: the exit's re-verify step never said the remainder round still re-states every slice."""
+    text = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert "re-verify the fixed set alone (its `round --slices` still re-states every earlier slice;" in text
+
+
+def test_a_capped_round_one_merges_low_risk_slices() -> None:
+    """Row 1791847121: a box cap dropped a slice to one finder and cost a second wave."""
+    text = _norm(CAT)
+    remainder = text[text.index("- Remainder rounds:") : text.index("- Route-up and close:")]
+    assert "or, when the cap is known before round 1, merge two low-risk slices so the riskiest keeps both finders" in remainder
+
+
+def test_a_fix_outside_the_pin_is_pinned_or_named() -> None:
+    """Row 1791844045: a CHANGELOG fix outside the pins was re-raised from the base copy."""
+    text = _norm(CAT)
+    assert "a ledger row whose fix landed in a file outside the pin (a CHANGELOG or ledger hunk) has that file pinned next pass, or the brief names it" in text

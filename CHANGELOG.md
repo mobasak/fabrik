@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review loop: slices re-stated in remainder rounds, capped round 1 merges low-risk slices (2026-10-13)
+- A scope-growth remainder round still re-states every slice; a known cap merges two low-risk slices; a fix outside the pin is pinned or named (D-798).
+
 ### Changed — /fabrik-task phase 4 names the committed-work receipt init up front (2026-10-13)
 - A nested full `/fabrik-review` over committed work inits its receipt with `--range <base>..<tip>` and commits it alone (a scoped review needs none); the size cap grows by that sentence (D-797).
 
