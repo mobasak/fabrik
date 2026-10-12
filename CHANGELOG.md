@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task phase 4 names the committed-work receipt init up front (2026-10-13)
+- A nested review over committed work inits its receipt with `--range <base>..<tip>` and commits it alone; the size cap grows by that sentence (D-797).
+
 ### Changed — review probes check a reimplemented tool against its own output (2026-10-13)
 - A fix that reimplements another tool's semantics proves parity against that tool's own output over its edge cases before it lands (D-795).
 
