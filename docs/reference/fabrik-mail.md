@@ -75,7 +75,7 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   `ack`-ing a CLAIMED id asserts the work is DONE — never ack another agent's claim unless you
   are finishing it (taking over a crashed claim goes through `requeue` first). Nor is a message your
   session SENT to its own shared mailbox ever acked by you: the ack is the reader's act, and on a shared
-  mailbox (the hub's `fabrik`) the reader is another session. Two simultaneous
+  mailbox (the hub's `fabrik`) the reader is the addressed beat's session. Two simultaneous
   fallback-acks can both append (a visible doubled line, never silent loss) — tolerated at this
   volume — CORRECTED same-day: the claimed-message resolve is now RENAME-LOCKED like every
   other transition (`archive/<id>.md → .resolving → back`), so two concurrent fallback-acks
@@ -266,9 +266,9 @@ they **all share the one `<repo>/inbox`** — identity is the repo basename, so 
   (it strips any stale marker, re-opening the message cleanly for the next session).
 - **No intra-repo addressing (ruling).** `--to <repo>` reaches *whichever* session of that repo picks
   it up, **not a specific one** — so to reach "the fabrik AIs" a sender mails `--to fabrik` and the
-  session pool handles it. Agent-to-agent messaging *within* one repo is **not** a mail use case (a
-  fabrik session mailing `fabrik` would just mail the queue it is already reading); sessions in one
-  repo coordinate through the shared tree + plan-locks, not mail. A `<repo>/<agent>` sub-address is a
+  session pool handles it. Within one repo, mail is only the durable handoff from one beat to another, addressed
+  with `--to-agent` (§ Addressing), and its author never acks it; live coordination between a repo's
+  sessions goes through the shared tree, plan-locks and session messaging, not mail. A `<repo>/<agent>` sub-address is a
   future option only if a concrete need appears — the shared queue is the model today.
 
 ## Operator visibility
