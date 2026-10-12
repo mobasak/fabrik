@@ -57,4 +57,12 @@ def test_the_rubric_needs_both_the_line_and_the_pasted_output() -> None:
 def test_seat_brief_paths_are_literal_absolute_paths() -> None:
     """Row 1791828726 (D-786)."""
     p1 = _phase("## PHASE 1", "## PHASE 2")
-    assert "is a literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself" in p1
+    assert "a literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself) and returns a compact report:" in p1
+
+
+def test_the_source_never_satisfies_the_rubric_gate_itself() -> None:
+    """Review round 1 (D-786): a quoted header that matches RUBRIC_RUN lets a copied sentence pass the gate."""
+    sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
+    import check_review_coverage
+
+    assert not check_review_coverage.RUBRIC_RUN.search(SRC.read_text())
