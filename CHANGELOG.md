@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the scaffold, the app-role check and the docs follow the owner DSN to `.env.owner` (2026-10-12)
+
+- Plan `2026-10-12-plan-1-owner-dsn-split` Phase B (D-754). `src/fabrik/spec_loader.py`: `CompanionService.owner_env` (default
+  false; `audit_jobs_companion` sets it) and a `Spec` validator that refuses an owner key in `env:` — the templates render
+  `env:` into every service's `environment:`. The companion partial and `_append_audit_jobs_service` emit `env_file: [.env,
+  {path: .env.owner, required: false}]` for an `owner_env` companion; the app services load `.env` alone.
+  `src/fabrik/app_role_check.py`: the `DATABASE_URL: ${DATABASE_URL_OWNER}` hand-off is now a finding whose text is the remedy
+  (`OWNER_HANDOFF_REMEDY` — compose interpolates from the project `.env`, where the key no longer lives); a service whose
+  `env_file` names `.env.owner` is the accepted owner consumer (its `migrate` and command-line findings suppressed); an alembic
+  env reading the owner key while no compose service declares the file is the `NO_OWNER_CONSUMER` finding. The schema headers
+  apply as one `sudo sh -c` sourcing both files; `.env.example` and the scaffold + three template `.gitignore`s name `.env.owner`.
+  Docs: `docs/operations/fabrik-lifecycle.md` (step 0 of the cutover runbook, the two-file layout, "what the split does not
+  cover"), `docs/CONFIGURATION.md`, `docs/operations/credential-recovery.md`, `docs/reference/modules/drivers.md`, the three
+  scaffold doc templates. Graders G8–G15 red-first; seven mutants red in a throwaway worktree.
+
 ### Changed — the owner DSN leaves the project `.env`: the deployer writes `DATABASE_URL_OWNER` to `.env.owner` (2026-10-12)
 
 - `src/fabrik/orchestrator/deployer_ssh.py` (plan `2026-10-12-plan-1-owner-dsn-split` Phase A, D-754): every writer of a

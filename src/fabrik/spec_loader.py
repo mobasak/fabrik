@@ -861,6 +861,14 @@ class CompanionService(BaseModel):
         default=None,
         description="Optional env merged ON TOP of the inherited parent env.",
     )
+    owner_env: bool = Field(
+        default=False,
+        description=(
+            "Load the owner env file too (`env_file: [.env, {path: .env.owner, required: false}]`) — "
+            "the companion reads DATABASE_URL_OWNER (the audit-jobs companion does); every other "
+            "companion loads the project .env alone (D-754)."
+        ),
+    )
 
 
 class Spec(BaseModel):
@@ -970,6 +978,22 @@ class Spec(BaseModel):
             raise ValueError("repository is required for git source type")
         if self.source.type == SourceType.DOCKER and not self.source.image:
             raise ValueError("image is required for docker source type")
+        return self
+
+    @model_validator(mode="after")
+    def validate_no_owner_key_in_env(self):
+        """An owner key never belongs in a spec's ``env:`` block (owner split, D-754): the compose
+        templates render ``env:`` into EVERY service's ``environment:``, which would hand the app
+        the very key the split keeps in ``.env.owner``. The postgres registrar is the owner key's
+        only source; the deployer writes it to ``.env.owner`` and never to ``.env``."""
+        owner_keys = sorted(k for k in self.env if k in OWNER_ENV_KEYS)
+        if owner_keys:
+            raise ValueError(
+                f"env: must not set {', '.join(owner_keys)} — the templates render env: into every "
+                f"service's environment:, which would hand the app the owner DSN; the postgres "
+                f"registrar injects it into {OWNER_ENV_FILE}, which only a service declaring that "
+                "file loads (remove the key from env:)"
+            )
         return self
 
 

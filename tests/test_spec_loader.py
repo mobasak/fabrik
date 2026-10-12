@@ -783,3 +783,39 @@ def test_load_spec_database_url_app_role_default_survives_load(
     assert spec.shape is not None
     assert spec.shape.needs_database is True
     assert spec.shape.database_url_app_role is False
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Owner split (D-754): a spec `env:` block never carries an owner key — the
+# templates render `env:` into every service's `environment:`, which would
+# hand the app the very key the split removes.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def _owner_split_spec(env: dict[str, str]) -> dict:
+    return {
+        "id": "demo",
+        "kind": "service",
+        "template": "python-api",
+        "domain": "demo.example.com",
+        "source": {"type": "template"},
+        "env": env,
+    }
+
+
+def test_spec_refuses_an_owner_key_in_env() -> None:
+    from pydantic import ValidationError
+
+    from fabrik.spec_loader import Spec
+
+    with pytest.raises(ValidationError) as exc:
+        Spec.model_validate(_owner_split_spec({"DATABASE_URL_OWNER": "postgresql://o:p@h/db"}))
+    message = str(exc.value)
+    assert "DATABASE_URL_OWNER" in message and ".env.owner" in message
+
+
+def test_spec_accepts_an_ordinary_env_key() -> None:
+    from fabrik.spec_loader import Spec
+
+    spec = Spec.model_validate(_owner_split_spec({"FOO": "bar"}))
+    assert spec.env == {"FOO": "bar"}

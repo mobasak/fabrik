@@ -527,7 +527,13 @@ def test_committed_compose_carries_the_audit_jobs_companion(
     assert companion is not None
     svc = services[companion.id]
     assert svc["command"] == companion.command
-    assert svc["env_file"] == [".env"]
+    # Owner split (D-754): the companion loads `.env` AND `.env.owner` (long syntax, `required: false`
+    # — the registrar writes the owner file after the first `up`); the app service loads `.env` alone.
+    assert svc["env_file"] == [".env", {"path": ".env.owner", "required": False}]
+    # every OTHER service stays off the owner file (an app service may render no env_file key at all)
+    for other, cfg in services.items():
+        if other != companion.id:
+            assert ".env.owner" not in str(cfg.get("env_file", [])), (other, cfg.get("env_file"))
     assert svc["deploy"]["resources"]["limits"]["memory"] == companion.memory
     assert svc["networks"] == ["fabrik"] and svc["restart"] == "unless-stopped"
     assert svc["container_name"] == companion.id
@@ -553,9 +559,14 @@ def test_rendered_template_carries_the_audit_jobs_companion(ptype: str, tmp_path
     name = f"rt-{ptype}"
     spec = generate_spec(name, ptype, f"{name}.vps1.ocoron.com", use_database=True)
     rendered = TemplateRenderer(output_dir=tmp_path).render(spec, dry_run=True)
-    svc = yaml.safe_load(rendered["compose.yaml"])["services"][f"{name}-audit-jobs"]
+    services = yaml.safe_load(rendered["compose.yaml"])["services"]
+    svc = services[f"{name}-audit-jobs"]
     assert svc["command"] == spec.companion_services[0].command
-    assert ".env" in svc["env_file"]
+    assert svc["env_file"] == [".env", {"path": ".env.owner", "required": False}]
+    # every OTHER service (the app, whatever its template names it) stays off the owner file
+    for other, cfg in services.items():
+        if other != f"{name}-audit-jobs":
+            assert ".env.owner" not in str(cfg.get("env_file", [])), (other, cfg.get("env_file"))
 
 
 @requires_fabrik_env
@@ -696,3 +707,14 @@ def test_fresh_database_scaffold_scans_clean(projects: dict[str, Path], kind: st
     result = scan_repo(projects[kind])
     assert result.files_scanned > 0
     assert result.findings == [], result.findings
+
+
+@requires_fabrik_env
+@pytest.mark.parametrize("kind", list(_PY_BACKENDS))
+def test_scaffolded_gitignore_lists_the_owner_env_file(
+    projects: dict[str, Path], kind: str
+) -> None:
+    """Owner split (D-754): `/opt/<name>` on the VPS is a git working tree, so an un-ignored
+    `.env.owner` would show as untracked there and in every clone."""
+    lines = (projects[kind] / ".gitignore").read_text().splitlines()
+    assert ".env" in lines and ".env.owner" in lines, lines[:12]

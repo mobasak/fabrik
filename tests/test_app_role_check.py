@@ -209,6 +209,10 @@ def test_suppression_owner_as_real_connection_source_clears_every_site(tmp_path)
         repo / "compose.yaml",
         "services:\n"
         "  migrate:\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "      - path: .env.owner\n"
+        "        required: false\n"
         '    command: sh -c "DATABASE_URL_OWNER=$DATABASE_URL_OWNER alembic upgrade head"\n'
         "  api:\n"
         "    environment:\n"
@@ -219,7 +223,13 @@ def test_suppression_owner_as_real_connection_source_clears_every_site(tmp_path)
 
     result = scan_repo(repo)
 
-    assert result.findings == []
+    # Owner split (D-754): every owner-sourced SITE still clears, the `migrate` service declaring
+    # `.env.owner` is the accepted owner consumer (its command line is suppressed) — except the compose
+    # `environment: DATABASE_URL: ${DATABASE_URL_OWNER}` hand-off on `api`, which compose interpolates
+    # from the project `.env`, where the owner key no longer lives; it is the ONE finding, with its remedy.
+    assert [(f.path, f.pattern) for f in result.findings] == [
+        ("compose.yaml", arc.OWNER_HANDOFF_REMEDY)
+    ], result.findings
 
 
 @pytest.mark.parametrize("marker", ["#", "--", "//"])
@@ -283,7 +293,10 @@ def test_compose_environment_passthrough_is_not_a_finding_at_all(tmp_path):
     assert result.findings == []
 
 
-def test_compose_environment_owner_value_is_suppressed(tmp_path):
+def test_compose_environment_owner_value_is_a_finding_after_the_split(tmp_path):
+    """Owner split (D-754): `${DATABASE_URL_OWNER}` is interpolated from the project `.env`,
+    which no longer carries the key, so the value would be EMPTY — a finding whose remedy names
+    `.env.owner`, `env_file` and reading the key from the environment."""
     repo = tmp_path / "repo"
     _write(
         repo / "compose.yaml",
@@ -292,7 +305,16 @@ def test_compose_environment_owner_value_is_suppressed(tmp_path):
 
     result = scan_repo(repo)
 
-    assert result.findings == []
+    (finding,) = result.findings
+    assert finding.pattern == arc.OWNER_HANDOFF_REMEDY and finding.line == 4
+    for word in (
+        ".env.owner",
+        "env_file",
+        "DATABASE_URL_OWNER",
+        "env.py",
+        "docker compose run --rm",
+    ):
+        assert word in finding.pattern
 
 
 def test_compose_environment_hardcoded_override_is_a_finding_despite_owner_mentioned_elsewhere_in_block(
@@ -767,11 +789,11 @@ def test_disqualifier_reads_the_raw_line_not_the_comment_stripped_one(tmp_path):
     assert any(f.pattern == "psql invocation" for f in result.findings)
 
 
-def test_migrate_service_canonical_owner_handoff_is_suppressed(tmp_path):
-    """O18: `DATABASE_URL: ${DATABASE_URL_OWNER}` is the canonical, intended
-    hand-off — the `DATABASE_URL:` KEY text itself (a bare, word-bounded
-    "DATABASE_URL") must never be counted as the bare-token disqualifier, or
-    this exact canonical form would defeat its own suppression."""
+def test_migrate_service_owner_interpolation_is_a_finding_after_the_split(tmp_path):
+    """Was O18's canonical hand-off. Owner split (D-754): the `DATABASE_URL:` KEY text still never
+    counts as the bare-token disqualifier (the `migrate` finding stays suppressed), but the VALUE
+    `${DATABASE_URL_OWNER}` is now the one finding — compose interpolates it from the project `.env`,
+    which no longer carries the key."""
     repo = tmp_path / "repo"
     _write(
         repo / "compose.yaml",
@@ -780,7 +802,66 @@ def test_migrate_service_canonical_owner_handoff_is_suppressed(tmp_path):
 
     result = scan_repo(repo)
 
-    assert result.findings == []
+    assert [f.pattern for f in result.findings] == [arc.OWNER_HANDOFF_REMEDY], result.findings
+
+
+def test_owner_consumer_migrate_service_with_an_owner_env_py_is_clean(tmp_path):
+    """G12 (D-754): the check ACCEPTS its own remedy — a `migrate` service declaring `.env.owner`
+    (long syntax) whose alembic `env.py` reads `DATABASE_URL_OWNER` yields NO finding. Today's
+    scanner reported two on this shape (`compose service named migrate`, `alembic upgrade/downgrade`),
+    so without the rule every cutover with a migrate service would refuse."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "  app:\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "  migrate:\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "      - path: .env.owner\n"
+        "        required: false\n"
+        "    command: alembic upgrade head\n",
+    )
+    _write(
+        repo / "alembic" / "env.py",
+        "import os\nfrom alembic import context\nurl = os.environ['DATABASE_URL_OWNER']\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert result.findings == [], result.findings
+
+
+def test_owner_env_py_with_no_declaring_service_is_a_finding(tmp_path):
+    """G13 (D-754), the mirror: an alembic env that reads `DATABASE_URL_OWNER` while NO compose
+    service declares `.env.owner` reads an empty value in every service after the split — one
+    finding at the env.py line, BESIDE the two today's scanner already reports for a `migrate`
+    service with no owner source (which stay: that service is not an owner consumer)."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "  app:\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "  migrate:\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "    command: alembic upgrade head\n",
+    )
+    _write(
+        repo / "alembic" / "env.py",
+        "import os\nfrom alembic import context\nurl = os.environ['DATABASE_URL_OWNER']\n",
+    )
+
+    result = scan_repo(repo)
+
+    mirror = [f for f in result.findings if f.pattern == arc.NO_OWNER_CONSUMER]
+    assert [(f.path, f.line) for f in mirror] == [("alembic/env.py", 3)], result.findings
+    others = sorted(f.pattern for f in result.findings if f.pattern != arc.NO_OWNER_CONSUMER)
+    assert others == ["alembic upgrade/downgrade", "compose service named migrate"], result.findings
 
 
 def test_owner_classification_requires_a_fullmatch_not_a_substring(tmp_path):
@@ -972,10 +1053,10 @@ def test_compose_variable_names_are_case_sensitive_for_owner(tmp_path):
     assert any(f.pattern == "compose environment sets DATABASE_URL" for f in result.findings)
 
 
-def test_migrate_list_form_owner_handoff_is_suppressed(tmp_path):
-    """O28 (fail-closed): `- DATABASE_URL=${DATABASE_URL_OWNER}` is the canonical
-    hand-off in COMPOSE'S LIST environment form — the `DATABASE_URL=` key text
-    must not itself count as a bare-token use, same as the dict-form key."""
+def test_migrate_list_form_owner_handoff_is_a_finding_after_the_split(tmp_path):
+    """Was O28. The `DATABASE_URL=` key text still never counts as a bare-token use (the `migrate`
+    finding stays suppressed); the list-form VALUE `${DATABASE_URL_OWNER}` is the one finding after
+    the owner split (D-754)."""
     repo = tmp_path / "repo"
     _write(
         repo / "compose.yaml",
@@ -984,7 +1065,7 @@ def test_migrate_list_form_owner_handoff_is_suppressed(tmp_path):
 
     result = scan_repo(repo)
 
-    assert result.findings == []
+    assert [f.pattern for f in result.findings] == [arc.OWNER_HANDOFF_REMEDY], result.findings
 
 
 def test_migrate_list_form_value_less_database_url_still_counts_as_bare(tmp_path):
@@ -1037,9 +1118,9 @@ def test_migrate_yaml_null_database_url_still_counts_as_bare_whatever_the_spelli
     assert any(f.pattern == "compose service named migrate" for f in result.findings)
 
 
-def test_migrate_canonical_owner_handoff_stays_suppressed_after_d7(tmp_path):
-    """The D7 fix must not regress the r2 O18 canonical hand-off — a REAL owner
-    reference (not a null) still clears the migrate finding."""
+def test_migrate_real_owner_reference_still_clears_the_migrate_finding_after_d7(tmp_path):
+    """The D7 fix must not regress O18's rule: a REAL owner reference (not a null) still clears
+    the `migrate` finding — after the owner split (D-754) the VALUE itself is the one finding."""
     repo = tmp_path / "repo"
     _write(
         repo / "compose.yaml",
@@ -1048,7 +1129,8 @@ def test_migrate_canonical_owner_handoff_stays_suppressed_after_d7(tmp_path):
 
     result = scan_repo(repo)
 
-    assert result.findings == []
+    assert "compose service named migrate" not in {f.pattern for f in result.findings}
+    assert [f.pattern for f in result.findings] == [arc.OWNER_HANDOFF_REMEDY], result.findings
 
 
 # ── Fixup D7 (whole-plan validation — O2, S1, S2) ──────────────────────────── #
