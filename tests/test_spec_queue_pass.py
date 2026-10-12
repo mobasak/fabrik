@@ -39,6 +39,7 @@ def test_a_best_practice_seat_carries_the_1a_facts() -> None:
     """Row 1791761722."""
     s1c = _section("### 1c", "## Phase 2")
     assert "A 1c (best-practice) seat is dispatched after the 1a facts it rests on are grounded or executed" in s1c
+    assert "the 1a wave and the 1c wave are two dispatches" in s1c
 
 
 def test_self_review_grades_a_converged_copy_of_the_draft() -> None:
@@ -47,9 +48,32 @@ def test_self_review_grades_a_converged_copy_of_the_draft() -> None:
     assert "set the copy's Status line to `CONVERGED`" in p5
     assert "scripts/enforcement/check_spec_convergence.py <the copy>" in p5
     assert "a DRAFT is not graded" in p5
+    assert "`/fabrik-plan-review` for a `Size: small` spec" in p5
+
+
+def _grade(tmp_path: Path, body: str, capsys) -> str:
+    spec = tmp_path / "2026-10-12-amend-design.md"
+    spec.write_text(body)
+    check_spec_convergence.main([str(spec)])
+    return capsys.readouterr().out
+
+
+def test_the_check_skips_a_draft_and_grades_its_flipped_copy(tmp_path: Path, capsys) -> None:
+    """The Phase 5 and 1a sentences, executed: the DRAFT is skipped; the copy prints the findings named."""
+    draft = "# Amend\n\n**Status:** DRAFT\n\nThis amendment adds no new external facts.\n"
+    assert "a DRAFT is not graded" in _grade(tmp_path, draft, capsys)
+    flipped = _grade(tmp_path, draft.replace("DRAFT", "CONVERGED"), capsys)
+    for finding in ("SILENT-1a", "APPROACH-FLOOR", "NO-PERSONAS", "NO-LIFECYCLE", "NO-INTAKE"):
+        assert finding in flipped, finding
+    recipe = draft.replace("DRAFT", "CONVERGED").replace(
+        "adds no new external facts.", "adds no external facts beyond docs/x-design.md, last verified live 2026-09-01."
+    )
+    graded = _grade(tmp_path, recipe, capsys)
+    assert "SILENT-1a" not in graded and "APPROACH-FLOOR" in graded
 
 
 def test_researcher_quotes_schema_and_versions_from_a_raw_fetch() -> None:
     """Row 1791275601."""
     text = _flat(RESEARCHER)
-    assert "a schema field, a parameter name or a version number is quoted from a raw fetch" in text
+    assert "on an HTML docs page a schema field or a parameter name is quoted from the raw arm" in text
+    assert "JSON/XML and version claims keep rule 3's routing" in text
