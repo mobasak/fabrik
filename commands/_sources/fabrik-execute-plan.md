@@ -128,7 +128,7 @@ TASK terminator, and the record is what proves the task is actually over.
      resolved; the BLOCKED report should say so.)
    - **Locks are in-repo and PER WORKING TREE — that is the design.** A linked worktree carries its own
      `.fabrik/plan-locks/`, so step 7's overlap scan sees the tree you are in, which is exactly the tree
-     your own resume reads. A sibling AGENT's lock is invisible from here until the merge owner merges its branch (locks are committed, § Plan Status Tracking) — from then on it is in this tree and step 7's overlap scan treats it like any other lock — and that is safe: each agent commits to its own branch and only the merge owner writes the base branch, so overlapping work
+     your own resume reads. A sibling AGENT's lock is invisible from here until this tree's branch contains the merge of its branch (locks are committed, § Plan Status Tracking), and step 7's scan at start then reads it like any other lock — and that is safe: each agent commits to its own branch and only the merge owner writes the base branch, so overlapping work
      surfaces as an ordinary git conflict at merge rather than as lost work. Cross-tree lock visibility is
      unbuilt — never synthesise it by writing a lock outside this tree.
 8. **Isolate + verify clean + capture the baseline.**
@@ -292,7 +292,7 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    `@testing-library/react-native` + Maestro `assertScreenshot`; **extension:** `@axe-core/playwright`
    `bypassCSP:true` + `toHaveScreenshot` (400px popup) + `size-limit`), then dispatch **`/design-review`** (or the
    `design-review` subagent) for the rendered critique. Every finding terminates FIXED or REFUTED; iterate until
-   `/fabrik-review` reaches its coverage-adjudicated exit (every checklist class CLEAN/FIXED/REFUTED). The next phase begins only after that exit. Non-GUI phases skip the screen steps above, never what follows. ⚠️ **Every phase's review exit — GUI or not — must EMIT AN ARTIFACT** — a non-empty file under `docs/development/reviews/` whose name contains `phase-<N>` (written at or after the run record's start, or starting with the plan's `<date>-plan-<n>-` prefix), or in DISPATCHER mode the ticket receipt `<plan-stem>-T<id>-review.md` bound to the plan the record's `--surface` names. `check_review_coverage.py`'s subject is that DIRECTORY, so a phase review that writes nothing there leaves the gate with NO SUBJECT and it passes on an empty set: transdoc shipped 17 phases that way and the first real adversarial gate found 71 defects, including a dead job queue. `command_run.py step --phase N+1` now REFUSES until phase N's artifact exists; an unavoidable skip goes through `--review-waived "<reason>"`, which is recorded in the run record rather than silent. A run resuming at phase N reaches the earlier phases' receipts through the plan-prefix form, so name every phase receipt with that prefix; the waiver is for a phase that has none. ⚠️ **Under `Profile: small` this and item 3 bind at once and cannot both be satisfied**: the per-phase pass is `/fabrik-review-scoped`, whose round ledger IS its artifact and which writes no file by design — so `--review-waived "Profile: small — /fabrik-review-scoped, ledger is the artifact"` IS the sanctioned exit there, not an unavoidable skip. Say it in the record and move on; the Finish review writes the whole-plan receipt `check_review_coverage.py` grades (fabrik-lib 01M2JWEMFRFN3H, who resolved it by writing a file anyway because the exit is named only here).
+   `/fabrik-review` reaches its coverage-adjudicated exit (every checklist class CLEAN/FIXED/REFUTED). The next phase begins only after that exit. Non-GUI phases skip the screen steps above, never what follows. ⚠️ **Every phase's review exit — GUI or not — must EMIT AN ARTIFACT** — a non-empty file under `docs/development/reviews/` whose name contains `phase-<N>` (written at or after the run record's start, or starting with the plan's `<date>-plan-<n>-` prefix), or in DISPATCHER mode the ticket receipt `<plan-stem>-T<id>-review.md` bound to the plan the record's `--surface` names. `check_review_coverage.py`'s subject is that DIRECTORY, so a phase review that writes nothing there leaves the gate with NO SUBJECT and it passes on an empty set: transdoc shipped 17 phases that way and the first real adversarial gate found 71 defects, including a dead job queue. `command_run.py step --phase N+1` now REFUSES until phase N's artifact exists; an unavoidable skip goes through `--review-waived "<reason>"`, which is recorded in the run record rather than silent. A run resuming at phase N reaches the earlier phases' receipts through the plan-prefix form, which `step` reads from the record's `--surface` — so that run's `--surface` names the plan file and every phase receipt carries the prefix; the waiver is for a phase that has none. ⚠️ **Under `Profile: small` this and item 3 bind at once and cannot both be satisfied**: the per-phase pass is `/fabrik-review-scoped`, whose round ledger IS its artifact and which writes no file by design — so `--review-waived "Profile: small — /fabrik-review-scoped, ledger is the artifact"` IS the sanctioned exit there, not an unavoidable skip. Say it in the record and move on; the Finish review writes the whole-plan receipt `check_review_coverage.py` grades (fabrik-lib 01M2JWEMFRFN3H, who resolved it by writing a file anyway because the exit was then named only here).
 4. **All HARD STOPS still apply** — except the commit restriction is suspended for plan-scoped commits. Never `git add -A`. Never push unless the plan says to.
 5. **Documentation is blocking, per phase — not advisory.** Before each phase commit, run
    `python scripts/enforcement/check_doc_sync.py`; **any WARNING whose trigger file is in *this phase's*
@@ -406,6 +406,8 @@ verify OWNED paths clean (same-plan RESUME: dirty = the step-7 MESSY case -> BLO
 
 for each PHASE in dependency order:
 
+    re-run step 9's path:line and symbol spot-check on this phase's cites (a mismatch is a finding)
+
     step --phase <N> --title "<phase title>" --appetite <the phase's Appetite: minutes> (D11;
     T08-landed per the run-record note above — omit --appetite when the phase declares none; under `Profile: small` add item 3b's `--review-waived`) —
     `command_run.py line` shows `elapsed <m>/<appetite>`; past 2× it prints a standing order to
@@ -423,7 +425,7 @@ for each PHASE in dependency order:
                 execute step
                 if test fails: read error → fix → re-run (max 3 attempts)
 
-    run phase validation gate (bash checks from the plan, under the repo's own interpreter — a python without the suite's dependencies can skip its tests and read green)
+    run phase validation gate (bash checks from the plan, under the repo's own interpreter, its `.venv` python where it has one — a python without the suite's dependencies can skip its tests and read green)
     fix any gate failures → re-run
     run: python scripts/enforcement/check_doc_sync.py
     → any WARNING whose trigger file is in THIS phase's diff is BLOCKING: update the doc before commit
@@ -613,7 +615,7 @@ carve-out:** a diff touching secret-material paths (`.env` / `.env.*` **except `
 Doc-Sync-Matrix file every env-var change touches; without the exemption a routine env-var phase would be
 misread as secret-bearing — `secrets/`, key files) is reviewed
 **native-only** — secret contents never go to pool APIs; all other never-route classes get both layers.
-The orchestrator refutes/merges/adjudicates; fixups route per D2. Each wave's brief applies the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE, and each wave receipt closes in `/fabrik-review` § Reporting's order before its closing round is recorded. **Every wave round is stamped and closed like any other:** `python3 scripts/command_run.py dispatch --seats <n>` BEFORE its seats go out, `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept … --classes-new …` at its close — the D-186 tripwire is blind to a round that stamps and never closes, and the sibling reservation stands until its 25-minute expiry. **Under `Profile: small` the per-ticket
+The orchestrator refutes/merges/adjudicates; fixups route per D2. Each wave's brief applies the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE, and each wave receipt, once flipped `CONVERGED`, passes `python3 scripts/enforcement/check_review_coverage.py <the receipt>` before its closing round is recorded. **Every wave round is stamped and closed like any other:** `python3 scripts/command_run.py dispatch --seats <n>` BEFORE its seats go out, `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept … --classes-new …` at its close — the D-186 tripwire is blind to a round that stamps and never closes, and the sibling reservation stands until its 25-minute expiry. **Under `Profile: small` the per-ticket
 layer is `/fabrik-review-scoped`** — tests + gate + the light scoped round, its run record the artifact, NO
 per-ticket review file — and the floor above runs ONCE at D7 over the whole-plan diff into the single
 receipt; the rest of this section (docs converge with the ticket, fixups, 3-strikes) binds unchanged.
@@ -646,7 +648,7 @@ Board trustworthy. **Synced surfaces sync ONCE, at Finish:** a merge that lands 
 is idempotent and a project's older-but-unmodified copy passes its own gate until then
 (`check_synced_unmodified.py`); 2026-09-06 ran five forced syncs of 45 repos inside one plan. Touches are exclusively owned → a same-file collision between coders is a **contract
 violation → ERROR + re-dispatch**, never a merge-rule pick. Cross-ticket semantic incompatibility is
-caught by tests, not diffs: at each merge, re-run the producer tickets' Behavior-Contract tests + the consumer's seam tests on the integrated tree, against the step-8 baseline's NAMED red tests (a list, never a count — a swapped red keeps the count) — red → fixup routed to the **CONSUMER's coder** with both
+caught by tests, not diffs: at each merge, re-run the producer tickets' Behavior-Contract tests + the consumer's seam tests on the integrated tree, its red tests compared BY NAME with the same tests' reds on the tree before the merge (a list, never a count — a swapped red keeps the count) — red → fixup routed to the **CONSUMER's coder** with both
 contracts in scope. **Salvaged/stale branches are rebased onto the run's `BASE` branch — resolved by
 `git branch --show-current` per Before You Start step 8, never the literal `master` — before acceptance
 review** (conflicts → a fixup, never a silent resolution).

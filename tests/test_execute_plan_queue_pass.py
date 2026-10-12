@@ -26,7 +26,7 @@ def test_a_merged_sibling_lock_is_visible_to_the_overlap_scan() -> None:
     """Row 1790897638: committed locks travel with a merged branch, so 'invisible' holds only until the merge."""
     text = _norm()
     assert (
-        "A sibling AGENT's lock is invisible from here until the merge owner merges its branch"
+        "A sibling AGENT's lock is invisible from here until this tree's branch contains the merge of its branch"
         in text
     )
     assert "A sibling AGENT's lock is invisible from here and that is safe" not in text
@@ -52,7 +52,7 @@ def test_the_review_artifact_binds_every_phase_not_only_gui() -> None:
 def test_a_resumed_run_names_receipts_with_the_plan_prefix() -> None:
     """Rows 1790974389, 1790767055: earlier phases pass `step` through the plan-prefix form, not a waiver."""
     assert (
-        "A run resuming at phase N reaches the earlier phases' receipts through the plan-prefix form"
+        "which `step` reads from the record's `--surface` — so that run's `--surface` names the plan file"
         in _norm()
     )
 
@@ -61,7 +61,8 @@ def test_the_loop_names_the_profile_small_waiver_and_the_interpreter() -> None:
     """Rows 1790956193 and 1788820659, both in the Execution Loop block."""
     loop = _section("## Execution Loop", "## Dispatcher Mode")
     assert "under `Profile: small` add item 3b's `--review-waived`" in loop
-    assert "under the repo's own interpreter" in loop
+    assert "under the repo's own interpreter, its `.venv` python where it has one" in loop
+    assert "re-run step 9's path:line and symbol spot-check on this phase's cites" in loop
 
 
 def test_the_preflight_repeats_before_each_phase() -> None:
@@ -82,15 +83,16 @@ def test_d4_wave_brief_points_at_the_catalogue_and_closes_in_order() -> None:
         in d4
     )
     assert (
-        "receipt closes in `/fabrik-review` § Reporting's order before its closing round is recorded"
+        "passes `python3 scripts/enforcement/check_review_coverage.py <the receipt>` before its closing round is recorded"
         in d4
     )
 
 
 def test_d5_compares_named_reds_and_d7_points_at_the_pause() -> None:
     """Rows 1789674993 (named reds) and 1789739684 (the pause beside the terminal states)."""
-    assert "against the step-8 baseline's NAMED red tests (a list, never a count" in _section(
-        "### D5 — Merge protocol", "### D6"
+    assert (
+        "its red tests compared BY NAME with the same tests' reds on the tree before the merge"
+        in _section("### D5 — Merge protocol", "### D6")
     )
     assert "**A quota pause is not a block** — D2's Quota-pause terminal owns it." in _section(
         "### D7 — Final validation", "## Subagent Strategy"
