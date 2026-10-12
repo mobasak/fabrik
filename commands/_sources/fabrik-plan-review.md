@@ -301,7 +301,7 @@ slice `agent: "fabrik-researcher"` (contract: `/opt/fabrik/docs/reference/review
 slice EXECUTES every candidate and returns the command and output, and ONE ledger comes back. Read it into a file
 with `python3 scripts/review_loop_ledger.py read <the run's transcript dir> --pins <pins_dir> --out <scratch>/pass-<n>.json --box
 <box_minutes>`, re-run every `confirmed` candidate's check yourself before acting — CONFIRMED means you ran it —
-and close the round with `python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <own-fix; round 1: 0> --slices <name>:<verified>/<claims>,…` (§ Subagents below carries the dispatch stamp). Under the
+and close the round with `python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <own-fix; round 1: 0> --slices <name>:<verified>/<claims>,… --classes-swept <every class swept> --classes-new <classes first seen>` (§ Subagents below carries the dispatch stamp). Under the
 partition the three-seat floor stands down (D-208, D-218). Every later pass is a NEW `Workflow` call with `pass: <n>`, the next pass number (unbounded), and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json
 --ids <the confirmed ids>` — the round-1 seats re-verifying their OWN slices over the fix diff plus one hop, the
 tickets and sections whose tokens cite the edited step (D-335) — plus the hygiene script on the re-pin. When the

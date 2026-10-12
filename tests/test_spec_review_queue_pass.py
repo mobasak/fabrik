@@ -31,7 +31,7 @@ def test_no_command_caps_the_workflow_pass_number() -> None:
 def test_the_round_recipe_states_own_fix() -> None:
     """Row 1790713088: term-edit makes every delta round state --own-fix; the recipe omitted it."""
     assert (
-        "round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <own-fix; round 1: 0>"
+        "--own-fix <own-fix; round 1: 0> --slices <name>:<verified>/<claims>,… --classes-swept <every class swept>"
         in _norm()
     )
 
@@ -39,7 +39,10 @@ def test_the_round_recipe_states_own_fix() -> None:
 def test_phase_zero_points_at_the_flip_gates() -> None:
     """Rows 1789467454, 1789418890: the flipped-scratch-copy gate as a Phase 0 step."""
     p0 = _norm()[_norm().index("## Phase 0") : _norm().index("## Phase 1")]
-    assert "run term-edit's flip gates on a flipped SCRATCH copy before Pass 1" in p0
+    assert (
+        "**Flip gates, at Pass 1 and at the close:** run term-edit's flip gates on a flipped SCRATCH copy before Pass 1 and again at the close"
+        in p0
+    )
 
 
 def test_briefs_apply_the_probe_catalogue() -> None:

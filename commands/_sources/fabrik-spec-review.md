@@ -34,9 +34,9 @@ The spec under review is `$ARGUMENTS` (if empty, the `/fabrik-spec` design doc u
 and state which file, e.g. `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`). Scope = every external
 claim + cited URL, every fabrik-lib **vendor / enhance / build** verdict, every approach, every agreed
 requirement, and the `shape:` flags. Consult only the **design-shaping** `.windsurf/rules` (self-host auth
-default, vendor-from-fabrik-lib, the AI model-selection packs *if* it's an AI feature) — the full rules/invariant grounding is `/fabrik-plan-after-chat`'s job, not this pass's. 
+default, vendor-from-fabrik-lib, the AI model-selection packs *if* it's an AI feature) — the full rules/invariant grounding is `/fabrik-plan-after-chat`'s job, not this pass's.
 
-**Flip gates, before Pass 1:** run term-edit's flip gates on a flipped SCRATCH copy before Pass 1 and again at the close (its "Before Pass 1 and before every pin" paragraph) — a Status-reading gate skips a DRAFT, so the unflipped spec passes over nothing.
+**Flip gates, at Pass 1 and at the close:** run term-edit's flip gates on a flipped SCRATCH copy before Pass 1 and again at the close (its "Before Pass 1 and before every pin" paragraph) — a Status-reading gate skips a DRAFT, so the unflipped spec passes over nothing.
 
 ## Phase 1 — Adversarial grounding to a fixed point (the section partition)
 
@@ -236,7 +236,7 @@ returns the command and output, and ONE ledger comes back. Every brief applies t
 scripts/review_loop_ledger.py read <the run's transcript dir> --pins <pins_dir> --out <scratch>/pass-<n>.json --box <box_minutes>`,
 re-run every `confirmed` candidate's check yourself before you edit (CONFIRMED means you ran it — the raw
 fetch, the re-derived count, the resolved anchor), fix, and close the round with `python3 scripts/command_run.py
-round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <own-fix; round 1: 0> --slices <name>:<verified>/<claims>,…` (**§ Subagents** below carries the dispatch stamp). Under the partition the three-seat floor stands down (D-208, D-218). Every later pass is
+round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <own-fix; round 1: 0> --slices <name>:<verified>/<claims>,… --classes-swept <every class swept> --classes-new <classes first seen>` (**§ Subagents** below carries the dispatch stamp). Under the partition the three-seat floor stands down (D-208, D-218). Every later pass is
 a NEW `Workflow` call with `pass: <n>`, the next pass number (unbounded), and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next
 <scratch>/pass-<n>.json --ids <the confirmed ids>` — the round-1 seats re-verifying their OWN slices over the fix
 diff plus one hop (D-335), never a fresh seat sized by the fix; a researcher seat re-fetches only the facts on its
