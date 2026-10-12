@@ -11,7 +11,7 @@ shape:
   needs_database: true        # MULTI-TENANT: the middleware's OWN operational DB — instance<->org/user registry + per-tenant mapping. NOT CRM data (that stays in Tryton via the bridge).
   has_search_feature: false
   needs_cache: true           # per-tenant conversation buffer / short-lived session state (redis-main)
-  exposes_metrics: false      # no /metrics endpoint yet (flip true when added; avoids Prometheus 404 at apply)
+  exposes_metrics: true       # src/whatsapp_agent/main.py mounts /metrics (prometheus_client) — scraped INTERNALLY, see monitoring: (01M4RK95V7)
 expose:
   http: true
   internal_only: false        # the QR-connect dashboard needs an Authelia-gated Traefik route (whatsapp-agent.vps1.ocoron.com) so CRM users can reach it. The Evolution->middleware WEBHOOK stays INTERNAL (Evolution posts to http://whatsapp-agent:8007/webhook over fabrik-net, bypassing Traefik/Authelia).
@@ -57,6 +57,15 @@ health:
   timeout: 10s
   retries: 3
   disabled: false
+monitoring:
+  # INTERNAL scrape, not the public edge: the domain is Authelia-gated (is_admin_dashboard) and the hub
+  # emits no /metrics bypass of its own (_provision_authelia writes the bearer `^/api/` bypass + the
+  # two_factor rule only), so the default `<domain>:443` target would rest on vps1's hand-kept
+  # access_control rule 5 — a 302 to the portal there is `up` 0 forever and proactive-check.sh:147
+  # alerts every 15 min. The container is `whatsapp-agent` on the fabrik network, PORT 8007
+  # (compose.yaml:24,26; the webhook comment above uses the same DNS). Precedent: tryton-crm, site-provisioner.
+  target: whatsapp-agent:8007
+  scheme: http
 volumes: []
 companion_services: []
 backup:

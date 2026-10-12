@@ -75,7 +75,14 @@ def test_emits_server(project: Path) -> None:
 def test_rls_schema(project: Path) -> None:
     sql = (project / "server" / "db" / "schema.sql").read_text()
     # Applied as the OWNER, the whole file in one transaction (D-390).
-    assert 'psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql' in sql
+    assert (
+        'u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'
+        in sql
+    )
+    assert (
+        '"$DATABASE_URL_OWNER" -f db/schema.sql' not in sql
+    )  # never the raw variable (01M464NPPB)
+    assert "sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md" in sql  # defined inside the root shell
     assert 'psql "$DATABASE_URL"' not in sql
     assert "current_tenant_id" in sql
     assert "FORCE  ROW LEVEL SECURITY" in sql or "FORCE ROW LEVEL SECURITY" in sql

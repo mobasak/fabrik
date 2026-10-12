@@ -30,7 +30,7 @@ curl http://localhost:$PORT/health
 |----------|---------|-------------|
 | `PORT` | *(see .env.example)* | Service port. Auto-assigned by scaffold, registered in `PORTS.md`. |
 | `DATABASE_URL` | *(injected by `fabrik apply`)* | The app's PostgreSQL connection — the non-owner `<db>_app` role once the spec's `shape.database_url_app_role` is `true`. No default in code. |
-| `DATABASE_URL_OWNER` | *(injected by `fabrik apply`)* | The database OWNER, injected into `.env.owner` (root 0600; loaded only by the services that declare it — the audit-jobs companion, a `migrate` service — never the app; D-754). Only `db/schema.sql` (on the VPS, from `/opt/<name>`: `sudo sh -c 'set -a; . ./.env; . ./.env.owner; set +a; psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql'`; `pgurl`: Debug commands), migrations, runtime DDL and the audit-log retention/verification jobs use it. No default in code. |
+| `DATABASE_URL_OWNER` | *(injected by `fabrik apply`)* | The database OWNER, injected into `.env.owner` (root 0600; loaded only by the services that declare it — the audit-jobs companion, a `migrate` service — never the app; D-754). Only `db/schema.sql` (on the VPS, from `/opt/<name>`: `sudo sh -c "$(sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md)"'; set -a; . ./.env; . ./.env.owner; set +a; u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'` — the sed half defines `pgurl` (TROUBLESHOOTING § Debug Commands) inside the root shell), migrations, runtime DDL and the audit-log retention/verification jobs use it. No default in code. |
 
 <!-- Add project-specific required vars. Delete both DSN rows if not using a database. -->
 

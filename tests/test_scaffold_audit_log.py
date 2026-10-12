@@ -55,7 +55,9 @@ _SAAS_FAMILY = ("saas-skeleton", "static-site", "office-extension")
 _NODE_DB = ("node-api", "file-api")
 _NOTHING = ("desktop-app", "docusaurus", "file-worker-nodb")
 
-_HEADER = 'psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql'
+_HEADER = 'u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'
+_RAW_OWNER_PSQL = '"$DATABASE_URL_OWNER" -f db/schema.sql'
+_PGURL_DEFINED = "sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md"
 
 
 def _name(kind: str) -> str:
@@ -142,6 +144,8 @@ def test_python_backend_gets_module_table_revokes_header_env(
 
     sql = (project / schema_rel).read_text()
     assert _HEADER in sql
+    assert _RAW_OWNER_PSQL not in sql  # the raw variable never reaches psql (01M464NPPB)
+    assert _PGURL_DEFINED in sql  # pgurl is a shell function: the root shell must define it first
     table_at = sql.index("CREATE TABLE IF NOT EXISTS audit_log")
     for needle in (
         "current_database() || '_app'",
@@ -214,6 +218,8 @@ def test_node_type_gets_table_and_revokes_only(projects: dict[str, Path], kind: 
     project = projects[kind]
     sql = (project / "db" / "schema.sql").read_text()
     assert _HEADER in sql
+    assert _RAW_OWNER_PSQL not in sql  # the raw variable never reaches psql (01M464NPPB)
+    assert _PGURL_DEFINED in sql  # pgurl is a shell function: the root shell must define it first
     table_at = sql.index("CREATE TABLE IF NOT EXISTS audit_log")
     assert "current_database() || '_app'" in sql[table_at:]
     assert not (project / "libs" / "audit_log").exists()
@@ -351,7 +357,8 @@ def _roles(s: ScratchPg, db: str) -> tuple[str, str]:
 def _apply_as_header_says(
     s: ScratchPg, schema: Path, db: str, owner_pw: str
 ) -> subprocess.CompletedProcess:
-    """``psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql`` as the owner."""
+    """The emitted schema applies as the owner in one transaction (this test runs psql on a plain local
+    DSN; the header's pgurl form is pinned by ``_HEADER`` above)."""
     subprocess.run(
         ["docker", "cp", str(schema), f"{s.container}:/schema.sql"], check=True, timeout=60
     )
