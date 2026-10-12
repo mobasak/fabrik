@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:07:50.175260Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-60236d8b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RGG8VMJYQT0S2JDWWT3Q2Y",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Lusso Botanica: the operator approved the new 2027 catalogue and the new product photos for lussobotanica.com — please swap both on the site now."
+}
