@@ -79,11 +79,12 @@ def test_seat_isolation_names_every_root_the_tests_import_read_or_run() -> None:
 
 
 def test_own_fix_guards_helper_contracts_and_pinned_versions() -> None:
-    """Rows 1791830163, 1791830180, 1791831690."""
+    """Rows 1791833683, 1791830180, 1791831690; 1791830163 rests on the scoped source's own guard rule."""
     text = _norm(CAT)
-    assert "a guard the review's own fix adds goes into the very next brief with its escape variants, never a round later" in text
+    assert "Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its real shell)" in _section(text, "## Before the first pin", "## The brief's hunt lines")
     assert "a pure helper's own return contract, not only what its callers observe" in _section(text, "- Callers and consumers:", "- Parsers:")
-    assert "a `fabrik-researcher` seat, which checks it at the version the repo pins, never the latest docs" in _section(text, "- The premise:", "## Graders")
+    assert "a `fabrik-researcher` seat whose brief names the version the repo pins or deploys (its lockfile or spec line) and asks for the claim at that version" in _section(text, "- The premise:", "## Graders")
+    assert "an explicit ASK for its ESCAPE VARIANTS" in _norm(ROOT / "commands" / "_sources" / "fabrik-review-scoped.md")
     assert max(len(line) for line in CAT.read_text().splitlines()) <= 120
 
 

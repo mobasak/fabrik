@@ -5,17 +5,17 @@ never all of them — before the first pin and while writing the brief. Each is 
 or name in the brief why the shape does not have it.
 
 ## Before the first pin (the lead executes)
-- Run the changed artifact end to end when it can run, and check the END STATE a recipe exists to produce, not only
-  each step; run a README snippet, usage text or rewritten docstring instruction as a caller would, and probe each
-  exception a rewritten docstring says the function still raises.
+- Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its real shell), and
+  check the END STATE a recipe exists to produce, not only each step; run a README snippet, usage text or rewritten
+  docstring instruction as a caller would, and probe each exception a rewritten docstring says the function still
+  raises.
 - Trace the entry path: the first caller that reaches the fixed function; enumerate every call shape through a new
   branch and every input path of a shared reader; trace each rationale sentence's mechanism to the code, and execute
   every "X only when Y" claim the fix adds.
 - Enumerate the fix's input class whole (boundary, empty, unset, mandated, non-dict/non-string, every Unicode whitespace
   class, the real committed files' shapes counted by an independent parser) and probe it again before each delta; keep
-  an adversarial input list for the fix's own new edges, and a guard the review's own fix adds goes into the very next
-  brief with its escape variants, never a round later; enumerate each guard's ESCAPE VARIANTS in both directions — false
-  green and false red — committing the positive/negative probe list beside it.
+  an adversarial input list for the fix's own new edges; enumerate each guard's ESCAPE VARIANTS in both directions —
+  false green and false red — committing the positive/negative probe list beside it.
 - Name the defect's class and grep the whole class (every site, sibling guards, every scaffold type, recursively,
   vendored venvs and `.claude/worktrees` excluded) before patching one instance; diff sibling implementations side by
   side; port vendored code and prove parity by an executable diff over the original's edge cases.
@@ -66,10 +66,11 @@ or name in the brief why the shape does not have it.
 - The premise: the authoritative seat attacks the work item's premise and a ported heuristic's premise, not only the
   implementation; ask whether an existing mechanism or fragment already covers the class, and whether the check fits a
   boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to a
-  `fabrik-researcher` seat, which checks it at the version the repo pins, never the latest docs; a seat names the whole
-  input class of a finding it raises; a re-vendor brief hands the seats the lead's executed byte-identity result (the
-  diff command and its output) as a claim to attack — they re-run that command first, then spend on what byte identity
-  cannot show: the vendored copy's own header and every importer of it.
+  `fabrik-researcher` seat whose brief names the version the repo pins or deploys (its lockfile or spec line) and asks
+  for the claim at that version; a seat names the whole input class of a finding it raises; a re-vendor brief hands the
+  seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack — they re-run
+  that command first, then spend on what byte identity cannot show: the vendored copy's own header and every importer of
+  it.
 
 ## Graders
 - Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is absent
