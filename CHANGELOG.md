@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-doc-converge writes cross-repo paths plainly, reads escaped pipes, checks by-design rulings (2026-10-12)
+- Phase 2 writes another `/opt` repo's path as a backticked plain path, treats `\|` in a cell as content, and greps DECISIONS and the archive for a by-design ruling before raising a schema finding (D-781).
+
 ### Changed — the review probe catalogue runs emitted one-liners, checks helper contracts and pinned versions (2026-10-12)
 - An emitted one-liner runs as emitted under its real shell; a pure helper's own return contract is checked; an external quote's brief names the version the repo pins or deploys (D-779).
 

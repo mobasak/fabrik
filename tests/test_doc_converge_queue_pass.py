@@ -61,3 +61,12 @@ def test_a_code_defect_found_mid_converge_is_filed_and_described_as_is() -> None
         "never patched inside a doc converge; the doc states what the code does today and names the filed id"
         in p2
     )
+
+
+def test_phase_two_names_cross_repo_paths_escaped_pipes_and_by_design_rulings() -> None:
+    """Rows 1791829527, 1791828587, 1791829321 (D-781)."""
+    text = _norm()
+    p2 = text[text.index("## Phase 2") : text.index("## Phase 3")]
+    assert "A path in another `/opt` repo is written as a backticked plain path, never a markdown link — GitHub resolves a link's leading `/` against this repo's root" in p2
+    assert "A `\\|` inside a table cell is cell content (GFM), so a table-shape check splits on unescaped pipes only" in p2
+    assert "grep `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling on it" in p2

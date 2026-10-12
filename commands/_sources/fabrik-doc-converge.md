@@ -59,8 +59,11 @@ inspection.
   corrected to what is true.
 - **Shape discipline:** keep the seeding template's structure (it is consumer-contract-hardened);
   respect canonical-inventory boundaries (§7 lives in RESILIENCE — SERVICES/OPERATIONS link, never
-  copy; the Doc Sync Matrix rows bind).
-- **Code defects:** a CODE defect the converge uncovers is filed to its owner (a mail to the code's owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id.
+  copy; the Doc Sync Matrix rows bind). A path in another `/opt` repo is written as a backticked plain path, never
+  a markdown link — GitHub resolves a link's leading `/` against this repo's root. A `\|` inside a table cell is
+  cell content (GFM), so a table-shape check splits on unescaped pipes only.
+- **Code defects:** before a schema, missing-table or missing-feature finding is raised, grep
+  `docs/DECISIONS.md` and `docs/archive/` for a by-design ruling on it; a CODE defect the converge uncovers is filed to its owner (a mail to the code's owning session, or a backlog row), never patched inside a doc converge; the doc states what the code does today and names the filed id.
 - **Ripples:** a fix here may obligate a sibling doc (Doc Sync Matrix). A KEYED ripple lands as the
   MINIMAL MECHANICAL EDIT in this run's own commit — the SAME-change law; a mechanical row/link edit
   is not a second convergence, so the one-doc guardrail is untouched (and it is OUTSIDE the
