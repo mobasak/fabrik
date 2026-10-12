@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the /fabrik-task close accepts a receipt reviewed before the commit (2026-10-12)
 - kaizen's triage (mail 01M4N1K909, rows 1791317858, 1791470714, 1791116082, 1791099519, 1791465412, 1791074435): `--review` refused every receipt made with `review_receipt.py --init` and no `--range` (156 of 671 on disk), so a close then refused the receipt as undeclared. Check (d) now also accepts that working-tree Surface when the commit's diff over its paths rebuilds to the same bytes (untracked files included); `review_receipt.py --restamp <receipt>` re-anchors it after the review's last fix. A design note citing `path:N-M` or `path::symbol` now names that file at close, and a `--commit` value holding whitespace is refused with the fix (W-ebbedc88, D-750).
 
+### Changed — /fabrik-command-improve executes what a new sentence says a script does (2026-10-12)
+- PHASE 3: a sentence describing a script's, tool's or step's behaviour is executed on its own scenario before review and quoted as it prints, or the row is mailed to the script's beat. PHASE 5: the tests run in the commit's shell after the last edit, and the trailer and marks name only rows PHASE 4's seats found answered (D-759).
+
 ### Changed — the panel's ACCEPTED delta round is recorded as the next Pass (2026-10-12)
 - In /fabrik-spec-review and /fabrik-plan-review, the delta round an ACCEPTED panel concern re-opens is recorded as the next Pass with every earlier-stated slice re-stated, and an OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift (D-758).
 
