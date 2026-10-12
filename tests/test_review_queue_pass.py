@@ -161,9 +161,9 @@ def test_the_round_grammar_names_own_fix() -> None:
 
 def test_a_callers_plan_flip_follows_the_post_flip_gate_run() -> None:
     """Row 1791828832 (D-778): the reason is check_convergence's own skip."""
-    assert "A caller that flips its own plan's `Status` flips it only after that post-flip run is embedded" in _norm(SRC)
+    assert "A caller that flips its plan to `EXECUTED` flips it only after that post-flip run is embedded: a red post-flip run sends the receipt back to `IN-PROGRESS`" in _norm(SRC)
     conv = (ROOT / "scripts" / "enforcement" / "check_convergence.py").read_text()
-    assert "if _receipt_in_progress(rtext):\n            continue" in conv
+    assert re.search(r"if _receipt_in_progress\(rtext\):\s+continue", conv)
 
 
 def test_the_receipt_template_shows_the_gate_scope_line_the_gate_accepts_filled() -> None:

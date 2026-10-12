@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — /fabrik-review names --own-fix, the plan-flip order and the GATE-SCOPE line (2026-10-12)
-- The round grammar names `--own-fix`; a caller's plan `Status` flips after the receipt's post-flip gate run; the receipt template shows the GATE-SCOPE declaration (D-778).
+- The round grammar names `--own-fix`; a caller's `EXECUTED` plan flip follows the receipt's post-flip gate run; the receipt template shows the GATE-SCOPE declaration (D-778).
 
 ### Fixed — the plan-review grader pins the design-critique sentence D-758 extended (2026-10-12)
 - `tests/test_plan_review_recurring_rules.py` read the ACCEPTED bullet's delta-round sentence without the OSCILLATING-advisory clause D-758 added, so master was red; it now pins the sentence whole (D-777 records the /fabrik-task queue: one row held at the source's byte cap, four mailed to infra as code).
