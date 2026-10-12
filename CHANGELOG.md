@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docs_updater --adopt refuses to run in a linked worktree (2026-10-12)
+- `scripts/docs_updater.py`: `--adopt` writes the merge-owner row and owner stamps that belong to the main checkout; since `--single-window` disarms the session-count guard, a worktree agent could mint the owner row on its branch. It now refuses (exit 2) in a linked worktree before any write, with or without `--single-window` (W-e6acc9ac).
+
 ### Changed — rule packs say where the owner DSN lives after the owner split (2026-10-12)
 - `.windsurf/rules/core/30-ops.md`, `10-python.md`, `app-audit-log.md`: `DATABASE_URL_OWNER` is read only by a service that declares `.env.owner` in `env_file` (the audit-jobs companion, a `migrate` service), never by the app service or an in-app scheduler; `docker compose run --rm <svc> alembic upgrade head` names such a service; the `migrate` service bullet gains its `.env.owner` (fleet mail 01M4Q22F27, W-7ed355e6, D-754).
 

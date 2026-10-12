@@ -872,6 +872,14 @@ def _in_linked_worktree() -> bool:
     """True only in a linked worktree: its git dir differs from the common dir. Absolute paths on
     both sides, because a main checkout run from a subdirectory prints `--git-dir` absolute and
     `--git-common-dir` relative. Any git failure reads as a main checkout (today's walk)."""
+    return _linked_worktree_state() is True
+
+
+def _linked_worktree_state() -> bool | None:
+    """`_in_linked_worktree`'s answer, with None when git could not answer (a timeout, no git
+    binary, any other git failure) — for a caller that must fail CLOSED, `run_adopt`
+    (W-e6acc9ac). A directory that is not a git repository at all is False: it cannot be a
+    linked worktree."""
     try:
         proc = subprocess.run(
             ["git", "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"],
@@ -879,12 +887,15 @@ def _in_linked_worktree() -> bool:
             text=True,
             cwd=PROJECT_ROOT,
             timeout=15,
+            env={**os.environ, "LC_ALL": "C"},  # the stderr below is matched
         )
     except (OSError, subprocess.SubprocessError):
-        return False
+        return None
     lines = proc.stdout.splitlines()
-    if proc.returncode != 0 or len(lines) != 2:
+    if proc.returncode != 0 and "not a git repository" in proc.stderr:
         return False
+    if proc.returncode != 0 or len(lines) != 2:
+        return None
     return Path(lines[0]).resolve() != Path(lines[1]).resolve()
 
 
@@ -2433,8 +2444,9 @@ def run_adopt(
     synced to projects — a repo with an epics dir but no vendored copy is skipped
     here; the hub adopts those epics separately, from /opt/fabrik, with `python3
     /opt/fabrik/scripts/epic_order.py --assign <names>`), then regenerate the PLANS
-    block. Refuses (exit 2, one stderr line) on any name failing `_ADOPT_NAME_RE`, or
-    on a checkout only this session shares unless `single_window` overrides it.
+    block. Refuses (exit 2, one stderr line) on any name failing `_ADOPT_NAME_RE`, in a linked
+    worktree or wherever git cannot tell (W-e6acc9ac — `single_window` and `dry_run` do not lift
+    it), or on a checkout only this session shares unless `single_window` overrides it.
     Returns 3 only when a PRESENT epic_order.py genuinely refused the assignment
     (rc≠0) — never for an absent script. Idempotent: a re-run with the same names
     touches no byte and prints `(nothing to adopt)`.
@@ -2451,6 +2463,21 @@ def run_adopt(
         sys.stderr.write(
             f"docs_updater --adopt: invalid agent name(s) {bad!r} — must match "
             f"{_ADOPT_NAME_RE.pattern!r}\n"
+        )
+        return 2
+
+    # W-e6acc9ac: the owner row and the owner stamps belong to the main checkout; `--single-window`
+    # disarms the session guard below, so a linked worktree is refused here, first, either way.
+    state = _linked_worktree_state()
+    if state is not False:  # True, or None: git could not say — fail closed
+        why = (
+            "this is a linked worktree"
+            if state
+            else "git could not tell whether this is a linked worktree"
+        )
+        sys.stderr.write(
+            f"docs_updater --adopt: refused — {why}; run --adopt from the main "
+            "checkout, which owns the merge-owner row and the ledger\n"
         )
         return 2
 
