@@ -4,8 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed — /fabrik-task names a full review's receipt under MIRROR, and its critique sweeps parallel recipes (2026-10-12)
-- A receipt under `docs/development/reviews/` is not excluded at the close, so phase 2 names it when phase 0 picks the full review; the critique checks a host and a container leg of one step together (D-777).
+### Fixed — the plan-review grader pins the design-critique sentence D-758 extended (2026-10-12)
+- `tests/test_plan_review_recurring_rules.py` read the ACCEPTED bullet's delta-round sentence without the OSCILLATING-advisory clause D-758 added, so master was red; it now pins the sentence whole (D-777 records the /fabrik-task queue, held at the source's byte cap).
 
 ### Fixed — a merge request waits out an unreachable remote instead of being refused (2026-10-12)
 - `scripts/merge_request.py`: a fetch that times out or cannot reach the remote no longer refuses the request and asks the requester to re-send; the request stays claimed, nothing is replied, the run says DEFERRED, the next `merge` run retries it and requests on other remotes keep merging meanwhile, and the same outage after the merge stays resumable instead of parking the queue. A branch or base the reachable remote does not have is still refused (W-d0bbb94d, D-775).

@@ -91,8 +91,8 @@ Write six fields — **PROBLEM · APPROACH · DECISION (reversible?) · MIRROR �
 Before the seats go out: re-read `design.md` against the working tree; DECISION names its evidence and whether it
 is independent of the change; a shipped config is executed; the fixtures a grader borrows are listed with what
 each stubs; the existing suites run against a throwaway scratch build of a new refusal (not phase 3). This lane's brief also has each seat EXECUTE: replay the reported incident and the real corpus through the design; run each matcher,
-semantics or shell claim against the real tool under the live guard; sweep sibling write paths, the parallel recipes of the same step (a host leg and a container leg are one
-surface: a defect fixed in one is checked in the other) and the tests pinning a moved value; name each new guard's fail direction and any second approach the build cannot settle; execute one claim about
+semantics or shell claim against the real tool under the live guard; sweep sibling write paths and the tests
+pinning a moved value; name each new guard's fail direction and any second approach the build cannot settle; execute one claim about
 every external dependency. It pins the tree (a commit or `git archive` copy) and any live state file the design
 reads, names the unmerged branch owning a mirrored file, bars live-provider credentials (no `.env` loaded, no provider client built) and asks for small
 outputs. Wait for both in-turn: with stamped seats out, the Stop hook's run-record block stands down and will not hold you. A concern is ACCEPTED only after the tests are
@@ -119,9 +119,7 @@ most 7 (an 8th is the `behaviours` UPGRADE, *(v2)*) — and name every file the 
 the Behaviours' tests, deletions and a rename's both paths included, under line-start UPPERCASE
 `APPROACH:`/`MIRROR:` labels, before any line opening with a field word or a `#` (fenced or not),
 one bare repo-relative path per backtick pair (`a.py::f`, `a.py:120` and `a.py, b.py` match
-nothing; of receipts, only a `--review` one is exempt, so when phase 0 selects the full `/fabrik-review`
-its receipt — `docs/development/reviews/<date>-<scope>-review.md`, `review_receipt.py`'s default — is named
-under MIRROR too): *(v2)* a committed path missing from both
+nothing; of receipts, only a `--review` one is exempt): *(v2)* a committed path missing from both
 REFUSES `done` at close (v1 measures `--file` instead and only RECORDS); the remedy is
 `step --phase 2 --design-amend <path>` *(v2)*, append-only — it never overwrites a recorded field —
 and counted on the close as `design_amends`.

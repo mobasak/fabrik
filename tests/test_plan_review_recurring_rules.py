@@ -46,7 +46,8 @@ def test_the_panel_delta_round_shares_the_scope_growth_window() -> None:
     accepted = _between(_norm(FRAG / "design-critique.md"), "- `ACCEPTED`", "- `REJECTED`")
     assert (
         "(else the loop continues — that round is a delta round of the same loop, so its own-fix defects count "
-        "in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row); in "
+        "in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row); an "
+        "OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift; in "
         "`/fabrik-task`"
     ) in accepted
 
