@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-conformance-review checks a spot-run's target and bounds its re-sweeps (2026-10-12)
+- Spot-runs print their resolved DB/service target and read shared fixtures before calling a run read-only; class re-sweeps stay inside the inventory; `ROUTED(n)` says what it counts (D-768).
+
 ### Changed — /fabrik-command-improve reads what already governs a subject before writing (2026-10-12)
 - PHASE 3 names the reads (target intro and guardrails, included fragments, routing rules, a script's --help), runs a verb the agent is told to run end to end in a scratch repo, and runs recipes on real artifacts (D-767).
 
