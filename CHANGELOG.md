@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — corpus-weight names how to drop a registered surface's key; health-probe re-vendored (2026-10-12)
+- `scripts/enforcement/check_corpus_weight.py`: the `--reseed` line for a surface it could not measure and its `--check` twin now say the key is still a SURFACES entry, and the write line adds that retiring it from SURFACES is what drops it; a comment marks `_not_written_because`'s last return as unreachable while its three causes stay exhaustive (fleet mail 01M4P514GR, W-ed63cd68). `libs/health_probe/health_probe.py` re-vendored from fabrik-lib b1c06437 (3190a4d77), which turned master's `tests/test_scaffold_deploy_contract.py` green again.
+
 ### Fixed — the /fabrik-task close accepts a receipt reviewed before the commit (2026-10-12)
 - kaizen's triage (mail 01M4N1K909, rows 1791317858, 1791470714, 1791116082, 1791099519, 1791465412, 1791074435): `--review` refused every receipt made with `review_receipt.py --init` and no `--range` (156 of 671 on disk), so a close then refused the receipt as undeclared. Check (d) now also accepts that working-tree Surface when the commit's diff over its paths rebuilds to the same bytes (untracked files included); `review_receipt.py --restamp <receipt>` re-anchors it after the review's last fix. A design note citing `path:N-M` or `path::symbol` now names that file at close, and a `--commit` value holding whitespace is refused with the fix (W-ebbedc88, D-750).
 
