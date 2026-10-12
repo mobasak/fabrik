@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the /fabrik-task close accepts a receipt reviewed before the commit (2026-10-12)
 - kaizen's triage (mail 01M4N1K909, rows 1791317858, 1791470714, 1791116082, 1791099519, 1791465412, 1791074435): `--review` refused every receipt made with `review_receipt.py --init` and no `--range` (156 of 671 on disk), so a close then refused the receipt as undeclared. Check (d) now also accepts that working-tree Surface when the commit's diff over its paths rebuilds to the same bytes (untracked files included); `review_receipt.py --restamp <receipt>` re-anchors it after the review's last fix. A design note citing `path:N-M` or `path::symbol` now names that file at close, and a `--commit` value holding whitespace is refused with the fix (W-ebbedc88, D-750).
 
+### Changed — /fabrik-features gains a Scoped REFRESH mode and symbol-cited Planned rows (2026-10-12)
+- Planned rows cite symbols, not line numbers; REFRESH may run scoped to a plan or section, the code still its denominator; route rows cover every mode; known defects point at the backlog; Phase 3 names each population before counting (D-765).
+
 ### Changed — /fabrik-ui-design-review grounds IA on the built surface and follows cross-references (2026-10-12)
 - Form controls are checked against the template's Forms and Permissions UX sections; built menus ground IA claims; trimmed seats carry named axes; a cross-reference must resolve to the design it names; in-loop edits are not in-place-edit findings (D-764).
 
