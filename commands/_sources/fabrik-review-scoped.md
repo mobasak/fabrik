@@ -137,7 +137,7 @@ proportionate answer.
    each unit's readers and one refuter per unit EXECUTES every candidate, returning the command and its output.
    Read the pass into a file with `python3 scripts/review_loop_ledger.py read <the run's transcript dir> --pins <pins_dir> --out
    <scratch>/pass-<n>.json --box <box_minutes>` and re-run every `confirmed` check yourself before you fix.
-   **Every later pass is sized by the fragment's D5 sentence:** a NEW `Workflow` call with `pass: 2|3` carrying
+   **Every later pass is sized by the fragment's D5 sentence:** a NEW `Workflow` call with `pass: <n>`, the next pass number — no ceiling, carrying
    only the units whose ledger holds an open claim, each with `models:` the round-1 seats that raised its open claims and
    its `ledger` from `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json --ids <the confirmed ids>`
    (D-335); a unit with none is not re-dispatched, and the round-1 count is the ceiling. **The partition rule of

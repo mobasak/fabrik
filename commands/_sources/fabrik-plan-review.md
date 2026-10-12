@@ -301,10 +301,8 @@ slice `agent: "fabrik-researcher"` (contract: `/opt/fabrik/docs/reference/review
 slice EXECUTES every candidate and returns the command and output, and ONE ledger comes back. Read it into a file
 with `python3 scripts/review_loop_ledger.py read <the run's transcript dir> --pins <pins_dir> --out <scratch>/pass-<n>.json --box
 <box_minutes>`, re-run every `confirmed` candidate's check yourself before acting — CONFIRMED means you ran it —
-and close the round with `python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed
-<confirmed> --slices <name>:<verified>/<claims>,…` (the recipe in § Subagents below is the same one). Under the
-partition the three-seat floor stands down (D-208, D-218). Every later pass is a NEW `Workflow` call with
-`pass: 2|3` and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json
+and close the round with `python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <n> --slices <name>:<verified>/<claims>,…` (the recipe in § Subagents below is the same one). Under the
+partition the three-seat floor stands down (D-208, D-218). Every later pass is a NEW `Workflow` call with `pass: <n>`, the next pass number — no ceiling, and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json
 --ids <the confirmed ids>` — the round-1 seats re-verifying their OWN slices over the fix diff plus one hop, the
 tickets and sections whose tokens cite the edited step (D-335) — plus the hygiene script on the re-pin. When the
 `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. (This replaces the old GREENFIELD-monolith exemption: a monolith that

@@ -34,8 +34,7 @@ The spec under review is `$ARGUMENTS` (if empty, the `/fabrik-spec` design doc u
 and state which file, e.g. `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`). Scope = every external
 claim + cited URL, every fabrik-lib **vendor / enhance / build** verdict, every approach, every agreed
 requirement, and the `shape:` flags. Consult only the **design-shaping** `.windsurf/rules` (self-host auth
-default, vendor-from-fabrik-lib, the AI model-selection packs *if* it's an AI feature) — the full
-rules/invariant grounding is `/fabrik-plan-after-chat`'s job, not this pass's.
+default, vendor-from-fabrik-lib, the AI model-selection packs *if* it's an AI feature) — the full rules/invariant grounding is `/fabrik-plan-after-chat`'s job, not this pass's. Then run term-edit's flip gates on a flipped SCRATCH copy before Pass 1 (its "Before Pass 1" paragraph) — a Status-reading gate skips a DRAFT, so the unflipped spec passes over nothing.
 
 ## Phase 1 — Adversarial grounding to a fixed point (the section partition)
 
@@ -231,13 +230,13 @@ args: {pass: 1, surface, base_sha, digest, pins_dir, pin_manifest, scratch_dir, 
 `{name, files: [the spec], scope: "<the sections it owns>", models: ["opus"] | ["sonnet"], priority}` and a
 cited-fact slice `agent: "fabrik-researcher"` (contract: `/opt/fabrik/docs/reference/review-loop-workflow.md`): each slice's
 seat finds, one fresh refuter per slice EXECUTES every candidate (the live fetch, for a researcher slice) and
-returns the command and output, and ONE ledger comes back. Read it into a file with `python3
+returns the command and output, and ONE ledger comes back. Every brief applies the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE. Read it into a file with `python3
 scripts/review_loop_ledger.py read <the run's transcript dir> --pins <pins_dir> --out <scratch>/pass-<n>.json --box <box_minutes>`,
 re-run every `confirmed` candidate's check yourself before you edit (CONFIRMED means you ran it — the raw
 fetch, the re-derived count, the resolved anchor), fix, and close the round with `python3 scripts/command_run.py
-round --seats <n> --findings <found> --confirmed <confirmed> --slices <name>:<verified>/<claims>,…` (recipe in
+round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <n> --slices <name>:<verified>/<claims>,…` (recipe in
 **§ Subagents** below). Under the partition the three-seat floor stands down (D-208, D-218). Every later pass is
-a NEW `Workflow` call with `pass: 2|3` and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next
+a NEW `Workflow` call with `pass: <n>`, the next pass number — no ceiling, and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next
 <scratch>/pass-<n>.json --ids <the confirmed ids>` — the round-1 seats re-verifying their OWN slices over the fix
 diff plus one hop (D-335), never a fresh seat sized by the fix; a researcher seat re-fetches only the facts on its
 ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the
