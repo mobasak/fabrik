@@ -251,8 +251,8 @@ in the new text is the finding; for each row it finds answered, it returns the l
 
 ## PHASE 5 — Commit, naming what you answered
 
-Run the edit's tests — the queue-pass test plus every test file that names the edited source or fragment
-(`command grep -rl <its file name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the
+Run the edit's tests — the queue-pass test plus every test file that names the edited source or fragment, or a command that includes
+that fragment (`command grep -rl --include=*.py <each name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the
 source — after the last edit, in the shell that commits, so a refused write cannot carry a red grader into the commit. The trailer's `rows` and the `--mark-answered` list below name the same rows: only those PHASE 4's seats found answered in the new text.
 
 The commit is the PROVENANCE — immutable, and what a later reader (and axis 5, continuous

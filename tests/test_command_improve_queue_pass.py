@@ -58,5 +58,9 @@ def test_phase_three_runs_verbs_end_to_end_and_recipes_on_real_artifacts() -> No
 def test_phase_five_runs_every_test_that_names_the_edited_source() -> None:
     """Row 1791830357 (D-790): fabrik-task.md's size cap and verbatim pins sit in a test the queue-pass test is not."""
     text = re.sub(r"\s+", " ", SRC.read_text())
-    assert "the queue-pass test plus every test file that names the edited source or fragment (`command grep -rl <its file name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the source" in text
-    assert "SIZE_CAP" in (ROOT / "tests" / "test_fabrik_task_source.py").read_text()
+    assert "every test file that names the edited source or fragment, or a command that includes that fragment (`command grep -rl --include=*.py <each name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the source" in text
+    import subprocess
+
+    found = subprocess.run(["grep", "-rl", "--include=*.py", "fabrik-task.md", "tests/"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+    assert "tests/test_fabrik_task_source.py" in found
+    assert not [p for p in found if not p.endswith(".py")]
