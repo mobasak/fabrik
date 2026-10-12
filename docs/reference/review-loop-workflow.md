@@ -73,7 +73,7 @@ while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set, because that variable puts ever
 
 ## Fallback
 
-When the `Workflow` tool is absent from the session, or cannot load the script (a repo or checkout the sync has not reached, such as fabrik-lib), the seats go out through the `Agent` tool in one message
+When the `Workflow` tool is absent from the session, or cannot load the script (a repo or checkout the sync has not reached, such as fabrik-lib), or the operator did not invoke this run (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in one message
 with the same briefs and schemas, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) names `shape: agent-tool`. Both shapes are the
 same loop; the workflow is the one that keeps the lead's turns flat.
 

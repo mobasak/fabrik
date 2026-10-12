@@ -42,9 +42,10 @@ or name in the brief why the shape does not have it.
   claim; every gate grading the old name; every outbound sink a production-reaching test can touch; every actor
   touching an RLS table; placeholder resolution per consumer; repo-wide service lists and absence statements.
 - Parsers: the producer's real output contract first, then the parsing model before tokens; lossy cases (duplicate
-  keys, ordering, whitespace), regex/strip edges, the request-target grammar for URLs, comment and brace shapes for
-  config, the real interpreter (dash) and the parent commit as oracles; a generated file is parsed by its generator's
-  format, and a skip check reuses the consumer's own parser.
+  keys, ordering, whitespace), regex/strip edges (a regex redactor is also timed on a 100k-character input and probed
+  at its truncation edges), the request-target grammar for URLs, comment and brace shapes for config, the real
+  interpreter (dash) and the parent commit as oracles; a generated file is parsed by its generator's format, and a
+  skip check reuses the consumer's own parser.
 - Guards and rules: the guard's equivalence class (must fold, must not), what a replaced guard covered that its
   replacement does not, every exception subclass a new catch admits, false negatives classed plausible vs contrived,
   whether each matcher shortcut is covered by the general path, every rule an overriding sentence overrides (and every
@@ -70,7 +71,8 @@ or name in the brief why the shape does not have it.
   (an absence assertion over never-written state is vacuous); a grader EXECUTES an executable subject, through the
   real production adapter and the consumer's entry point (the command's output, as the gate passes files by name),
   never reads it; a premise guard asserts at the call site, not on constants; a prose grader asserts the whole
-  generated sentence, not a substring; a test-quality seat checks docstring claims against the scan.
+  generated sentence, not a substring; a test-quality seat checks docstring claims against the scan; a fix recipe
+  handed to a coder names one input it must leave unchanged and the test that holds it.
 - Each parser-output shape owes its own red; a config or regex grader is graded by running the tool on mutated inputs;
   a red branch of a new procedure step is executed as well as the green; a boundary fix tests both sides with the
   exact message; a numeric bound is derived in its comment and graded at both edges, with the determining input varied
@@ -91,8 +93,9 @@ or name in the brief why the shape does not have it.
 ## Prose and docs fixes
 - Read a fragment's scope sentences, and a rule already in a fragment is quoted in its own words and pointed at; a
   ported rule is re-derived against this command's machinery; a parser rule is stated positively, not as a terminator
-  list; a scoped exception beats a new section note; tool claims are written from the source, then checked against the
-  live corpus and the tool's real output variants.
+  list; a scoped exception beats a new section note; tool claims are written from the source (a sentence describing a
+  record format or a code string quotes the emit site's keys or the string verbatim), then checked against the live
+  corpus and the tool's real output variants.
 - After the edit: rewrap the whole paragraph by tool; re-read an inserted sentence with the one after it; a long-line
   replacement keeps its neighbours' opening clauses; re-read a cited range after rewording its citation; moved table
   rows are placed by computed position and checked by an inversion diff against base; sentences a test pins verbatim
@@ -120,7 +123,8 @@ or name in the brief why the shape does not have it.
   metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive copy by
   `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a
   `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo root
-  with the repo's own config; tests run by exact node id.
+  with the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the same
+  path); tests run by exact node id.
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word
@@ -135,10 +139,10 @@ or name in the brief why the shape does not have it.
 - Run `dispatch_headroom.py` before the pin, then stamp `command_run.py dispatch --seats <SEATS + one refuter per
   unit>` before the dispatching message — the stamp is an upper bound, closed by the round's `--seats`; a SEATS 0 on a
   box cap is an in-turn wait (re-run once a minute), and when the `Workflow` tool is absent or cannot load the script,
-  seats go out through the `Agent` tool and the close's `--evidence` names `shape: agent-tool`; while seats are out,
-  build the next fixes in a scratch copy, never the pinned files, and keep a timer running; write the Workflow args
-  JSON to scratch, and relaunch an interrupted pass as a NEW `Workflow` invocation carrying the ledger in `args` —
-  never `resumeFromRunId`.
+  or the operator did not invoke this run (the tool runs only on their explicit opt-in), seats go out through the
+  `Agent` tool and the close's `--evidence` names `shape: agent-tool`; while seats are out, build the next fixes in a
+  scratch copy, never the pinned files, and keep a timer running; write the Workflow args JSON to scratch, and
+  relaunch an interrupted pass as a NEW `Workflow` invocation carrying the ledger in `args` — never `resumeFromRunId`.
 - A round is recorded only after every candidate is read, each classed as a defect of THIS change, pre-existing or
   planned before it counts; `confirmed` counts DEFECTS, never checks passed, and a gate-caught defect counts; each
   brief embeds its ledger text; the closing-pass brief has every seat list each slice file it read, by path; a delta
