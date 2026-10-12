@@ -1011,3 +1011,30 @@ def test_v2_a_refused_terminal_amend_raises_no_loop_notice(run_dir: Path, tmp_pa
     assert r.returncode == 1 and "REFUSED" in r.stdout, r.stdout + r.stderr
     assert "ZERO rounds" not in r.stderr, r.stderr
     assert _rec(run_dir)["terminal"] == _START_TERMINAL
+
+
+def test_v2_a_design_that_cites_a_file_by_line_or_symbol_names_that_file(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """W-ebbedc88: a design note cites code as `path:N-M` or `path::symbol`; the citation names
+    the file, so the close admits its commit without a --design-amend."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py:1-3` and `src/b.py::helper`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "src/b.py", "def helper():\n    return 1\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", a, b)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rows(run_dir)[-1]["design_amends"] == "0"
+
+
+def test_v2_a_quoted_multi_sha_commit_value_names_the_fix(run_dir: Path, tmp_path: Path) -> None:
+    """W-ebbedc88: `--commit "$(cat commit.sha)"` over a two-line capture arrives as ONE value;
+    the refusal says --commit takes one sha per value."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "src/a.py", "x = 3\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", f"{a}\n{b}")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "takes one sha per value" in r.stdout, r.stdout
+    assert _rec(run_dir)["state"] == "running"

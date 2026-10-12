@@ -3985,8 +3985,15 @@ def _task_measure(
     sha, parents = _task_run_commit(rec, rp, sha_in)
     if sha is None:
         # The merge and the stale date SHARE this message: both answer the same question.
+        # A quoted multi-line capture (`--commit "$(cat commit.sha)"`) arrives as ONE value with
+        # whitespace inside; a sha never holds any (W-ebbedc88, kaizen 01M4N1K909 row 1791074435).
+        hint = (
+            " — the value holds whitespace: this close takes ONE sha, passed unquoted"
+            if any(ch.isspace() for ch in sha_in)
+            else ""
+        )
         return (
-            _refuse(f"REFUSED — fabrik-task: --commit {sha_in} is not this run's commit"),
+            _refuse(f"REFUSED — fabrik-task: --commit {sha_in} is not this run's commit{hint}"),
             "",
             False,
         )
@@ -4219,7 +4226,15 @@ def _task_close_v2(
         for c in shas:
             sha, parents = _task_run_commit(rec, rp, c)
             if sha is None:
-                return _refuse(f"REFUSED — fabrik-task: --commit {c} is not this run's commit"), {}
+                hint = (
+                    " — --commit takes one sha per value: unquote the substitution, "
+                    "`--commit $(cat …/commit.sha)`"
+                    if any(ch.isspace() for ch in c)
+                    else ""
+                )
+                return _refuse(
+                    f"REFUSED — fabrik-task: --commit {c} is not this run's commit{hint}"
+                ), {}
             base = f"{sha}~1" if parents else _TASK_EMPTY_TREE
             # (kind, source, destination) → the spine's (status, path, old_path); a modify row
             # has no old path (T03a-O7).

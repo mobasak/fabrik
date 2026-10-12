@@ -202,7 +202,7 @@ sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `do
 too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)):
 after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
 --range <base>..<that sha>` — the Surface line it writes is what check (d) reads (a re-tip after a fix commit takes a new `--scope`), run the full `/fabrik-review` into it (skipping its own `--init`) until `Status: CONVERGED`, then commit that receipt alone
-(outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`. When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a
+(outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`. Or review BEFORE the commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after the review's last fix — the receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88). When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a
 terminal it changed was restated with `--terminal-amend` before `--design`.
 
 ## UPGRADE — the one-way ratchet, available from phase 1

@@ -1198,13 +1198,13 @@ def _events(run_dir: Path) -> list[dict]:
     return out
 
 
-
 def _resume_artifact(repo: Path) -> str:
     """A handoff's successor must exist and carry `## RESUME` (mail 01M2ZEX6ZJ7S92GK5HCP2E4ZNX)."""
     art = repo / "docs" / "development" / "reviews" / "x.md"
     art.parent.mkdir(parents=True, exist_ok=True)
     art.write_text("# x\n\n## RESUME\n- one quiet round over the last fix diff\n", encoding="utf-8")
     return "docs/development/reviews/x.md"
+
 
 def _close_run(
     run_dir: Path,
@@ -1843,7 +1843,9 @@ def test_the_matrix_parser_reads_every_row_of_the_live_contract() -> None:
         # ("lowercase … is legacy-tolerated") and a bare token with no `/` is not a destination —
         # this set pinned the harvest defect until the whole-plan review (F5).
     }, sorted(toks)
-    assert len(toks) == 24  # 24: the LESSONS row's parenthetical `lessons-learnt.md` is prose, not a destination (F5)
+    assert (
+        len(toks) == 24
+    )  # 24: the LESSONS row's parenthetical `lessons-learnt.md` is prose, not a destination (F5)
     assert sum(1 for t in toks if t.endswith("/")) == 2
 
     at = next(i for i, ln in enumerate(lines) if ln.startswith("## Doc Sync Matrix"))
@@ -2634,10 +2636,13 @@ def test_the_matrix_harvest_takes_destinations_never_prose_and_matches_case() ->
     scored `0`). Prose in this matrix lives in parentheses; destinations never do. And exclusion
     is exact-case: `docs/changelog.md` is not `CHANGELOG.md`."""
     import importlib.util
+
     spec = importlib.util.spec_from_file_location("command_run_probe", _SCRIPT)
     cr = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cr)
-    toks = cr._doc_sync_tokens((_SCRIPT.resolve().parents[1] / "CLAUDE.md").read_text(encoding="utf-8"))
+    toks = cr._doc_sync_tokens(
+        (_SCRIPT.resolve().parents[1] / "CLAUDE.md").read_text(encoding="utf-8")
+    )
     assert "docs/LESSONS_LEARNT.md" in toks
     assert "lessons-learnt.md" not in toks, "a parenthetical aside was harvested as a destination"
     assert cr._task_excluded("CHANGELOG.md", {"CHANGELOG.md"})
@@ -2653,11 +2658,17 @@ def test_the_matrix_harvest_takes_destinations_never_prose_and_matches_case() ->
     # circular — the harvest drops exactly what the set drops, executed) and pin equality both ways.
     for p in ("CLAUDE.md", "templates/governance/CLAUDE.md"):
         text = (_SCRIPT.resolve().parents[1] / p).read_text("utf-8")
-        body = text[text.index("## Doc Sync Matrix"):]
+        body = text[text.index("## Doc Sync Matrix") :]
         body = body[: body.index("\n## ", 1)] if "\n## " in body[1:] else body
-        cells = [ln.split("|")[2] for ln in body.splitlines() if ln.startswith("| ") and ln.count("|") >= 3]
+        cells = [
+            ln.split("|")[2]
+            for ln in body.splitlines()
+            if ln.startswith("| ") and ln.count("|") >= 3
+        ]
         cells = [re.sub(r"\([^()]*\)", "", c) for c in cells[1:]]
-        roots = {m for c in cells for m in re.findall(r"`([^`/\s]+\.(?:md|example))`", c)}  # a doc, never a script
+        roots = {
+            m for c in cells for m in re.findall(r"`([^`/\s]+\.(?:md|example))`", c)
+        }  # a doc, never a script
         assert roots == cr._TASK_ROOT_DESTINATIONS, (p, sorted(roots ^ cr._TASK_ROOT_DESTINATIONS))
 
 
@@ -2677,16 +2688,44 @@ def test_the_refusal_names_the_first_row_that_fires_inside_each_tier(
     first row that fires wins"; rows 2-5 over 1/1b over 4b) is what the refusal TELLS the agent
     to re-read."""
     env = {"FABRIK_HUB_ROOT": str(hub)}
-    _seed_claude(repo, also={"scripts/enforcement/x.py": "x = 1\n", "src/a.py": "x = 1\n",
-                             "src/b.py": "x = 1\n", "src/c.py": "x = 1\n", "src/d.py": "x = 1\n"})
+    _seed_claude(
+        repo,
+        also={
+            "scripts/enforcement/x.py": "x = 1\n",
+            "src/a.py": "x = 1\n",
+            "src/b.py": "x = 1\n",
+            "src/c.py": "x = 1\n",
+            "src/d.py": "x = 1\n",
+        },
+    )
     four = ("--file", "src/a.py", "--file", "src/b.py", "--file", "src/c.py", "--file", "src/d.py")
     cases = (
         # `mechanism=yes` beside `oneway=yes` reads `oneway` — mechanism is no refusal arm (D-315)
-        (("--file", "src/a.py"), "decision=yes,heavy=no,mechanism=yes,oneway=yes,tradeoffs=no", "oneway →"),
-        (("--file", "src/a.py"), "decision=yes,heavy=no,mechanism=no,oneway=yes,tradeoffs=yes", "oneway →"),
-        (("--file", "scripts/enforcement/x.py"), "decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=yes", "tradeoffs →"),
-        (("--file", "scripts/enforcement/x.py"), "decision=yes,heavy=yes,mechanism=no,oneway=no,tradeoffs=no", "sync →"),
-        (("--file", "src/a.py"), "decision=no,heavy=yes,mechanism=no,oneway=no,tradeoffs=no", "heavy →"),
+        (
+            ("--file", "src/a.py"),
+            "decision=yes,heavy=no,mechanism=yes,oneway=yes,tradeoffs=no",
+            "oneway →",
+        ),
+        (
+            ("--file", "src/a.py"),
+            "decision=yes,heavy=no,mechanism=no,oneway=yes,tradeoffs=yes",
+            "oneway →",
+        ),
+        (
+            ("--file", "scripts/enforcement/x.py"),
+            "decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=yes",
+            "tradeoffs →",
+        ),
+        (
+            ("--file", "scripts/enforcement/x.py"),
+            "decision=yes,heavy=yes,mechanism=no,oneway=no,tradeoffs=no",
+            "sync →",
+        ),
+        (
+            ("--file", "src/a.py"),
+            "decision=no,heavy=yes,mechanism=no,oneway=no,tradeoffs=no",
+            "heavy →",
+        ),
         (four, "decision=yes,heavy=no,mechanism=yes,oneway=no,tradeoffs=no", "files"),
     )
     for files, declare, label in cases:
@@ -2705,7 +2744,10 @@ def test_a_rename_of_an_excluded_sync_hit_counts_its_source(
     A first cut renamed a non-member `scripts/enforcement/` file and set A counted the source
     regardless, so the mutant survived the guard that was written to kill it."""
     env = {"FABRIK_HUB_ROOT": str(hub)}
-    src, dst = "docs/reference/technology-stack-decision-guide.md", "docs/reference/renamed-guide.md"
+    src, dst = (
+        "docs/reference/technology-stack-decision-guide.md",
+        "docs/reference/renamed-guide.md",
+    )
     _seed_claude(repo, also={src: "# guide\n", "src/a.py": "x = 1\n"})
     r = _cr(run_dir, *_start("--file", "src/a.py", "--declare", _ALL_NO), cwd=repo, extra_env=env)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -2869,3 +2911,18 @@ def test_a_repo_the_hub_does_not_sync_refuses_an_upgrade_sync_claim_at_close(
     ok = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "the change")
     assert ok.returncode == 0, ok.stdout + ok.stderr
     assert "sync_test-unavailable" not in json.dumps(_rec(run_dir)), _rec(run_dir)
+
+
+def test_a_v1_commit_value_holding_whitespace_names_the_fix(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """W-ebbedc88: v1 takes ONE commit; a quoted value holding two shas is refused with a hint to
+    pass the single sha unquoted."""
+    _seed_claude(repo)
+    _start_task(run_dir, repo, hub, "src/a.py")
+    _write(repo, "src/a.py", "x = 2\n")
+    sha = _commit_all(repo, "the change")
+    r = _close_run(run_dir, repo, hub, "done", "--commit", f"{sha} {sha}", "--evidence", "green")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "this close takes ONE sha" in r.stdout, r.stdout
+    assert _rec(run_dir)["state"] == "running"

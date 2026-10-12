@@ -78,7 +78,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # D-747 (kaizen, 2026-10-12): 16326 -> 19497 for the second pass over the /fabrik-task queue (D-735): the
 # specific MEASURE, MIRROR, critique-brief, grader, review-sizing and receipt steps the first pass left open —
 # 53 feedback rows.
-SIZE_CAP = 19497
+# D-750 (infra, 2026-10-12): 19497 -> 19706 for the working-tree receipt route (W-ebbedc88): review before the
+# commit, `review_receipt.py --restamp` after the last fix, check (d) re-hashes the receipt's paths — 6 rows.
+SIZE_CAP = 19706
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
