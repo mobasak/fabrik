@@ -67,11 +67,19 @@ def test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim() -> None:
     """Row 1791769363 (D-776)."""
     premise = _section(_norm(CAT), "- The premise:", "## Graders")
     assert "a re-vendor brief hands the seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack" in premise
-    assert "the vendored copy's own header and every importer of it" in premise
+    assert "they re-run that command first, then spend on what byte identity cannot show: the vendored copy's own header and every importer of it" in premise
+
+
+def test_seat_isolation_names_every_root_the_tests_import_read_or_run() -> None:
+    """Rows 1791774523, 1791785471: the archive roots and the live repo."""
+    iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
+    assert "with every top-level path the tests import, read or run" in iso
+    assert "`templates/`, reads `.windsurf/` or runs `scripts/` by subprocess" in iso
+    assert "the live repo is the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a worktree" in iso
 
 
 def test_a_silent_refuter_is_already_retried_once_and_marked_failed() -> None:
-    """Row 1791826392 was rejected on this behaviour (D-696)."""
+    """Row 1791826392 (mailed): the workflow already retries; the ledger's `read` table is the gap."""
     js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text()
     assert "const retry = await refuteCall(r.slice, missing, '-retry')" in js
     assert "STILL UNANSWERED (refuter failed)" in js
