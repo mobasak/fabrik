@@ -119,8 +119,8 @@ proportionate answer.
    absence of recall. ⚠️ **A change that ships a GUARD, or states a RULE, owes every round's readers — round 1's first — and
    that INDEPENDENT reader the guard or rule by NAME and an explicit ASK for its ESCAPE VARIANTS** — the mutations,
    rewordings or behaviours that would defeat it and leave it standing verbatim — together with its MODEL BOUNDARY,
-   the inputs it is meant to judge, so a variant outside that boundary is RECORDED in round 1 instead of seeding
-   own-fix rounds. The ASK is the
+   the inputs it is meant to judge, so a variant outside that boundary is `RECORDED — by design (D-785)` in round 1
+   instead of seeding own-fix rounds. The ASK is the
    brief's; the ANSWER is the reader's, or `never the expected ANSWER` above forbids it. Measured twice: fabrik-lib closed a scoped run at round 6 with all ten classes
    swept and 0 findings, then dispatched one finder over the identical surface and got FOUR, one of
    them a third un-`else`d provider branch that SILENTLY DROPS a webhook (01M1ME3Y58P6ATSPX087QRVAZ4);

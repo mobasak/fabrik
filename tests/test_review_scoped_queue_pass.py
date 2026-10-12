@@ -98,7 +98,15 @@ def test_a_guard_brief_states_its_model_boundary() -> None:
     """Row 1791839280."""
     src = _norm(ROOT / "commands" / "_sources" / "fabrik-review-scoped.md")
     assert "an explicit ASK for its ESCAPE VARIANTS" in src
-    assert "together with its MODEL BOUNDARY, the inputs it is meant to judge, so a variant outside that boundary is RECORDED in round 1 instead of seeding own-fix rounds" in src
+    assert "together with its MODEL BOUNDARY, the inputs it is meant to judge, so a variant outside that boundary is `RECORDED — by design (D-785)` in round 1" in src
+    import sys
+
+    sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
+    try:
+        import check_review_coverage
+    finally:
+        sys.path.pop(0)
+    assert check_review_coverage.VERDICT.search("RECORDED — by design (D-785)")
 
 
 def test_a_silent_refuter_is_already_retried_once_and_marked_failed() -> None:
