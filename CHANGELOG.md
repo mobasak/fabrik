@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — a review seat can check the pinned copies from any directory (2026-10-12)
 - `scripts/review_loop_ledger.py pin` also writes `MANIFEST.pins.md5` with each copy's absolute path and prints its `pins_digest`, so `md5sum -c --quiet <pins_dir>/MANIFEST.pins.md5` verifies the pins from any cwd; `MANIFEST.md5` from the repo root remains the live-file check. `pin` refuses a newline in a path or in the pins dir and a root file named like a manifest; the subagents-core fragment and the review-loop reference name the new check (site-provisioner 01M4RNTM85, W-1008046c, D-780).
 
+### Changed — the mail contract: an author never acks its own send to a shared mailbox (2026-10-12)
+- `docs/reference/fabrik-mail.md` and CLAUDE.md say the ack is the addressee's act, so on the hub's shared `fabrik` mailbox a session never acks mail it sent itself; the intra-repo ruling names mail as the handoff between beats, and two dead `§ Addressing` references now point at the ADDRESSEE bullet (D-784).
+
 ### Changed — /fabrik-flows-review names its seat budget and bumps once per run (2026-10-12)
 - The dispatch line names `dispatch_headroom.py --units 8 --mechanical 2 --risky 2` (axes A–G plus E2), and a review run bumps the contract's version at its first edit and mints one row (D-783).
 
