@@ -317,7 +317,7 @@ Mutants red in a throwaway worktree for every clause (M-G7, M-G3, M-G4, M-G2b, M
 probe clause dropped, the strip dropped, the docker path round-tripping); restored tree green; 305 tests on the Phase
 A list; ruff and mypy clean. The review-scoped record is the artifact (`--review-waived` per Execution Contract 3b).
 
-## Phase B — the scaffold and the docs
+## Phase B — the scaffold and the docs — ✅ EXECUTED 2026-10-12 (2de2c1097; review fixes 1e93f89cf, 2b9aefffe, 67a843ccb, 7dd78e1c9, dbf0e5c13)
 Appetite: 90
 
 **Interfaces — Consumes** (Phase A): `OWNER_ENV_FILE` is the filename the compose block names; the merged view.
@@ -452,6 +452,34 @@ Steps:
 - **Given** a human applying `db/schema.sql` on the VPS, **When** they read the header, **Then** it sources both files under `sudo` in one line before the owner `psql` (spec § Personas)
 - **Given** a scaffolded database project, **When** its `.gitignore` is read, **Then** it lists `.env.owner` (spec § MIRROR)
 - **Given** an agent reading the lifecycle or configuration docs, **When** it looks up where the owner DSN lives, **Then** every sentence names `.env.owner`, the runbook's step 0 and the interpolation form that no longer works (spec § Documentation landing sites)
+
+**Phase B execution notes (2026-10-12):** the two D-441 request mails of step 5 are `01M4Q22F278ZQ1Y4BG7595CPCS`
+(infra — the five rule-pack sentences: `core/30-ops.md:161`, `:445`, `core/10-python.md:297`, `:305`,
+`core/app-audit-log.md:39-41` + `:180`) and `01M4Q22F4XA9MBG8RKQ76RQ7JR` (fabrik-lib — `app-audit-log/README.md:53-58`).
+Grader fix-ups found while running them: the clears-every-site fixture declares `.env.owner` on its `migrate` service
+(the canonical post-split repo — the mirror otherwise fires, correctly); the app service of the node-api, python-api-gpu
+and chrome-extension templates renders no `env_file` key at all, so G8/G9/G10 assert that NO other service lists the
+owner file instead of `== [".env"]`; the mirror fires only in a repo that has a compose file (an alembic-only fixture
+has no service to name). 409 tests on the Phase B list; seven mutants red in a throwaway worktree (which needed
+`<scratch>/fabrik-lib -> /opt/fabrik-lib` beside it: the scaffold resolves the module tree relative to the repo root).
+The `/fabrik-review-scoped` pass over 2de2c1097 (seven finders — a Sonnet and a Haiku per unit, Opus on the check unit —
+three refuters; 24 candidates, 21 confirmed by execution, 3 refuted: the gitignore claims compared the pin against the
+unrelated main checkout, the cited pack sections exist, `.env.local` is the scaffold's WSL dev file) found the check
+module's owner-consumer rule WIDER than its premise and the compose hand-off NARROWER than the mechanism, so Produces (ii)
+reads differently as built. Round 1 (1e93f89cf): inside an owner consumer a line clears only while it names no bare
+`DATABASE_URL` (`psql "$$DATABASE_URL"` in the block stays; the executed probe had returned `[]`); an unescaped
+`$DATABASE_URL_OWNER` anywhere in a compose file, or the key named in a service not loading `.env.owner`, is the
+`OWNER_HANDOFF_REMEDY` finding (the former `compose_block_spans` test pinned the opposite — it is G16 now); `./.env.owner`
+and the scalar form count (`posixpath.normpath`); the mirror stays silent on an unparseable compose and its text names
+the remedy; `run_check` appends ` reaches DATABASE_URL` to label patterns only; the loader also refuses the owner key in a
+companion's `env_overrides` (the partial renders them into `environment:`) — G16–G25. Round 2 (2b9aefffe): the hand-off
+is matched on the RAW line (a `--dbname` before it had fed the comment stripper), an odd run of `$` interpolates
+(`$$$DATABASE_URL_OWNER`), one finding per service (a folded `environment:` value had yielded two), and a consumer line
+defining a YAML anchor another service aliases stays (the range filter reads text, not the resolved graph) — G26–G29.
+Rounds 3–5 (67a843ccb, 7dd78e1c9, dbf0e5c13): the anchor rule moved from the finding's line to the BLOCK — a declaring block that defines a YAML anchor aliased outside it is no consumer range at all (the folded-anchor, `<<: *base` and aliased-psql shapes the Opus seat reproduced), and G17's neighbour is a flow-style service so a range widened by one at the end reds; round 4 made the alias end where an anchor name ends (`&cmd-`) and exempted every declaring block from "outside" (two consumers sharing an anchored `env_file` both stay consumers); round 5 iterated that exemption to a fixpoint so a share counts through any number of merge hops. The scope-growth stop (D-355) tripped at round 4 — from there each round confirmed only a defect inside the review's own fix text — so each closing pass re-verified the fixed set alone: 6 passes, 21 → 9 → 2 → 2 → 1 → 0. Recorded by design: a `labels:` value naming
+the key in a non-consumer is a finding (the module's raw-line rule), and a prisma/drizzle/django consumer's connection
+source is not scanned — the declaration is the evidence (backlog `W-94a3b4df`). Thirty mutants red across the
+phase and its five rounds; 461 tests on the Phase B list plus the loader's consumers. Appetite: 90 min planned, 182 min at the review's close — the overrun is the six-round review of the check module (a guard whose premise the first draft stated wider than its code), recorded as the lane's UPGRADE finding; the phase has no remaining step to re-plan.
 
 ## Phase C — the live check and Finish
 
