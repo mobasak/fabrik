@@ -92,8 +92,9 @@ Each verifier gets ONE brief and returns a compact report:
   status notes rather than declaring a renamed migration missing.
 - **Spot-RUN 1–2 of the plan's own test files** against a throwaway/ephemeral target. A plan's
   tests are the closest thing to its executable contract, and a stale green is worth nothing. Before the
-  run, print the database or service target the suite's seeder, provisioner or fixtures actually resolve — a
-  hardcoded name ignores the throwaway one and silently hits the shared target — and call a run read-only only
+  run, print the database or service target the suite's seeder, provisioner or fixtures actually resolve and
+  stop unless it is the throwaway one — a hardcoded name ignores the throwaway target and silently hits the shared
+  one — and call a run read-only only
   after reading its shared fixtures for writes (a fixture that deletes rows makes every test using it a write).
 - **Note supersessions**: a later plan may have deliberately replaced this behavior. That is
   SUPERSEDED, not NOT-IMPLEMENTED, and the successor must be named.
@@ -169,8 +170,8 @@ round AND a fully adjudicated checklist. One pass over the inventory is a first 
   wide→scoped→wide, because there is no diff and `review_rubric.py --changed` has nothing to read.
   Round 1 verifies every inventory row. Later rounds re-hunt the CLASSES: an adjudication that
   downgraded a verifier's CONFORMS is evidence that class was under-hunted, so re-sweep it across
-  rows that already passed — inside the inventory: an instance found outside it is recorded and routed to the
-  spec that owns it, never counted toward this run's convergence. The **closing round runs non-author verifiers** on the full inventory.
+  rows that already passed — inside the inventory: an instance found outside it is recorded and routed by PHASE 3's
+  table to its owning command (a work item or a mail), never counted toward this run's convergence. The **closing round runs non-author verifiers** on the full inventory.
 - **DONE requires all of:** the Termination contract's exit above — the closing round at `confirmed: 0 · fixed: 0 · unexecuted: 0` with every candidate adjudicated, every Checklist row adjudicated, the Pass Ledger in the fragment's grammar with `method: re-derivation` on the closing row — and, host-only, **every Inventory row terminal** (no `PENDING`).
 - **Every verdict evidence-anchored with FRESH runs.** A green from last week is not evidence —
   re-run it or mark the row PARTIAL and say why.
@@ -186,7 +187,8 @@ round AND a fully adjudicated checklist. One pass over the inventory is a first 
   (embed == fresh run) is the evidence-true state. A routed finding's terminal token is
   **`ROUTED(n)`** — first-class in the checklist vocabulary alongside CLEAN/FIXED/REFUTED; never
   write "FIXED via routing". `n` counts the work items and mails the row's findings were routed to,
-  pre-existing ones included; an operator gate is not a route (it stays open), and an id already counted under
+  pre-existing ones included; an operator gate is not a route — that row reads
+  `RECORDED — measured (operator gate: <work item or mail id>)` and is listed in OUTPUT's RESIDUAL — and an id already counted under
   another class is not counted again.
 
 ## OUTPUT
