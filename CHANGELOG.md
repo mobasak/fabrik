@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed — the plan-review grader pins the design-critique sentence D-758 extended (2026-10-12)
-- `tests/test_plan_review_recurring_rules.py` read the ACCEPTED bullet's delta-round sentence without the OSCILLATING-advisory clause D-758 added, so master was red; it now pins the sentence whole (D-777 records the /fabrik-task queue, held at the source's byte cap).
+- `tests/test_plan_review_recurring_rules.py` read the ACCEPTED bullet's delta-round sentence without the OSCILLATING-advisory clause D-758 added, so master was red; it now pins the sentence whole (D-777 records the /fabrik-task queue: one row held at the source's byte cap, four mailed to infra as code).
 
 ### Fixed — a merge request waits out an unreachable remote instead of being refused (2026-10-12)
 - `scripts/merge_request.py`: a fetch that times out or cannot reach the remote no longer refuses the request and asks the requester to re-send; the request stays claimed, nothing is replied, the run says DEFERRED, the next `merge` run retries it and requests on other remotes keep merging meanwhile, and the same outage after the merge stays resumable instead of parking the queue. A branch or base the reachable remote does not have is still refused (W-d0bbb94d, D-775).
