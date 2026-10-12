@@ -35,7 +35,7 @@ The contract under review is `$ARGUMENTS` (if empty, the current project's `docs
 state which file + its `Surface:` and `Design system:` header values). **It MUST be `Status: FROZEN`** — if it's
 still `DRAFT`, stop and route back to `/fabrik-ui-design` (you review a frozen artifact, you don't finish its
 authoring). Scope = every screen, every flow, every IA node, every per-screen component/state/field mapping,
-checked against its four binding sources, all read THIS session:
+checked against its four binding sources (a fifth, the built navigation, when the surface is already built — axis C), all read THIS session:
 - the **`/fabrik-spec` design doc** (the product's goal + core workflow — the tasks the UI must serve),
 - **`docs/data-contract.md`** (the FROZEN field dictionary — screens may render only these),
 - the **established design system** (`.windsurf/rules/core/ocoron-design-system.md` / `.windsurf/rules/core/tojlo-design-system.md` — a house brand only when the project declares it; a Tojlo mobile surface adds `.windsurf/rules/mobile-app/tojlo-mobile-design-system.md`) / (CREATE, any surface) the project's own
