@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-features gains a Scoped REFRESH mode and symbol-cited Planned rows (2026-10-12)
+- Planned rows cite symbols, not line numbers; a Scoped REFRESH names its denominator; route rows cover every mode; known defects point at the backlog; Phase 3 names each population before counting (D-765).
+
 ### Changed — /fabrik-ui-design-review grounds IA on the built surface and follows cross-references (2026-10-12)
 - Form controls are checked against the template's Forms and Permissions UX sections; built menus ground IA claims; trimmed seats carry named axes; a cross-reference must resolve to the design it names; in-loop edits are not in-place-edit findings (D-764).
 
