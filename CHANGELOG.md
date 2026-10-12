@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-deploy-verify stages a fresh comparator where every stub reads it (2026-10-12)
+- `commands/_sources/fabrik-deploy-verify.md`: the host leg stages the comparator beside the script with a stale copy removed and group/other write stripped, and stages a stub older than D-744 in a private clone layout; the container leg removes the last run's copy inside the container, creates `/app/scripts` and `/app/libs` as root, stops on a failed copy instead of hiding it, and runs the script by its absolute path; a `--header` `sites` count of 0 skips only the remote exec, and the hub still emits that site with `--unreachable` (fleet mail 01M4PKBYRV, fleet's W-82cff1ac, infra's W-4f902e2f, D-763).
+
 ### Fixed — corpus-weight names how to drop a registered surface's key; health-probe re-vendored (2026-10-12)
 - `scripts/enforcement/check_corpus_weight.py`: the `--reseed` line for a surface it could not measure and its `--check` twin now say the key is still a SURFACES entry, and the write line adds that retiring it from SURFACES is what drops it; a comment marks `_not_written_because`'s last return as unreachable while its three causes stay exhaustive (fleet mail 01M4P514GR, W-ed63cd68). `libs/health_probe/health_probe.py` re-vendored from fabrik-lib b1c06437 (3190a4d77), which turned master's `tests/test_scaffold_deploy_contract.py` green again.
 
