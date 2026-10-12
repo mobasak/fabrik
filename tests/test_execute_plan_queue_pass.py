@@ -122,4 +122,4 @@ def test_one_ticket_id_per_agent_task_line_is_what_the_parser_reads() -> None:
 def test_ruff_format_only_touches_files_formatted_at_baseline() -> None:
     """Row 1791842869 (D-793): the second verdict on the held ruff-format subject, edited."""
     text = re.sub(r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-execute-plan.md").read_text())
-    assert "Run `ruff format` only on files this phase changed that `ruff format --check` passed at the phase's baseline — never wholesale on a sibling's lane, even a granted one" in text
+    assert "Never run `ruff format` by hand beyond the plan's `## File Scope (owned paths)` — a wholesale format rewrites a sibling's lines nobody reviews; the bare gate run already formats only your staged and unpushed changes" in text
