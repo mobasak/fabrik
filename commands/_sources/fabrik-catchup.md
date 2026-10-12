@@ -20,7 +20,8 @@ fresh re-run of Phase 0 MEASURE raises zero new queue items** — every prior fi
 explicitly `BLOCKED`, or **accounted for** (these count on re-measure as named, not as new items, once this run's report names
 them: a candidate dead consumer reference and a genuinely undecidable reconcile downgraded per Phase 2 —
 both report-only, un-committed by design; an item ROUTED to whoever owns it — mailed to its beat, or a
-gate red or work item reported to its owning item or live sibling — with the mail id or owner named; and an
+gate red or work item reported to its owner (an open item or a live
+sibling) — with the mail id or owner named; and an
 item another session holds, named) — a genuine no-op re-measure **and** `python scripts/final_gate.py --check
 --json` reports `"status":"success"` **in this same run** — or reds only on checks a named owner holds (`GATE: failure (owned: <owner>)`). Executing one item can surface another (a doc
 converge can expose a fresher staleness elsewhere) — **the pass in which you executed any queue item is
@@ -77,7 +78,8 @@ audit's three probes would silently drop them:
    `docs/CONFIGURATION.md`, `docs/DEPLOYMENT.md`, `docs/FEATURES.md` — only the ones this
    `project.yaml::type` actually obligates). The code roots are the top-level directories
    `git ls-files -- '*.py' '*.ts' '*.tsx' '*.js' | grep / | cut -d/ -f1 | sort -u` prints, less `tests`,
-   `docs`, `templates`, a vendored `libs` and dot-directories — never a hand list (`tryton_modules/` and `sao-overlay/` sit outside `src app web lib scripts`). ≥14 days behind =
+   `docs`, `templates`, dot-directories and a `libs/` only when it is vendored (a first-party one
+   stays) — never a hand list (`tryton_modules/` and `sao-overlay/` sit outside `src app web lib scripts`). ≥14 days behind =
    a CANDIDATE: it is queued only when a spot check finds a claim in the doc that the code contradicts — a
    date-stale doc with no drift is named in the report, not queued.
 3. **Stub sentinels.** Run `python3 /opt/fabrik/scripts/fleet_doc_audit.py --repo .` and read its `stubs:`
@@ -109,9 +111,6 @@ audit's three probes would silently drop them:
    `grep -lE '"title": "(#|✅|~~|\*\*CLOSED)' .fabrik/work/W-*.json | xargs -r grep -LE '"status": "(done|dropped)"'`
    lists them. An owned one goes to its owner (`work.py drop` for a finished one, a retitle for a live one);
    an unowned one is dropped or retitled here — never close another owner's item.
-
-
-
 
 ## Phase 1 — QUEUE (worst-first, routed)
 
@@ -159,7 +158,7 @@ queue item once it is named in the report (retirement is the operator's call, ru
 ```
 CATCHUP: <project> — measured 7 probe classes, queued <N> items, executed <N>, blocked <N>, reported <N>
 RE-MEASURE: <clean (zero new items) | N new items found: <name them>>
-GATE: python scripts/final_gate.py --check --json → success|failure
+GATE: python scripts/final_gate.py --check --json → success|failure|failure (owned: <owner>)
 ```
 
 Next command: this run's fix queue IS the routing — each item already named its owning command
