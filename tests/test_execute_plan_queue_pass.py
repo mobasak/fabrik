@@ -91,8 +91,11 @@ def test_d4_wave_brief_points_at_the_catalogue_and_closes_in_order() -> None:
 def test_d5_compares_named_reds_and_d7_points_at_the_pause() -> None:
     """Rows 1789674993 (named reds) and 1789739684 (the pause beside the terminal states)."""
     assert (
-        "its red tests compared BY NAME with the same tests' reds on the tree before the merge"
+        "on the tree before the merge and on the integrated tree, their reds compared BY NAME"
         in _section("### D5 — Merge protocol", "### D6")
+    )
+    assert "a NEW red → fixup routed to the **CONSUMER's coder**" in _section(
+        "### D5 — Merge protocol", "### D6"
     )
     assert "**A quota pause is not a block** — D2's Quota-pause terminal owns it." in _section(
         "### D7 — Final validation", "## Subagent Strategy"
