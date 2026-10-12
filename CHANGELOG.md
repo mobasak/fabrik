@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped briefs a guard's model boundary with its escape variants (2026-10-12)
+- A GUARD's brief states the inputs it is meant to judge, so an escape variant outside them is RECORDED in round 1 instead of seeding own-fix rounds (D-785).
+
 ### Changed — the mail contract: an author never acks its own send to a shared mailbox (2026-10-12)
 - `docs/reference/fabrik-mail.md` and CLAUDE.md say the ack is the addressee's act, so on the hub's shared `fabrik` mailbox a session never acks mail it sent itself; the intra-repo ruling names mail as the handoff between beats, and two dead `§ Addressing` references now point at the ADDRESSEE bullet (D-784).
 
