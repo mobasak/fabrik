@@ -43,7 +43,7 @@ binding sources, all read THIS session:
 
 Treat every flow as unproven until re-walked. Run repeated passes until one demonstrably-thorough pass finds
 zero new gaps; the class ledger below persists across rounds — a round re-sweeps it, never re-scopes it.
-Dispatch one INDEPENDENT native seat per axis, every round (recipe in § Subagents; `--mechanical 2` — axes E (marker count) and F (line count) are the grep-able ones, the rest are judgement). **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186).
+Dispatch one INDEPENDENT native seat per axis, every round (recipe in § Subagents: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units 7 --mechanical 2` — one unit per axis A–G; axes E (marker count) and F (line count) are the grep-able ones, the rest are judgement). **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186).
 Then merge + **REFUTE** what you can disprove (quote the flow line / spec line / pack rule) before editing.
 
 **A) Success-Criterion tracing (both directions).** Every criterion → ≥1 covering flow; every flow → ≥1
@@ -128,7 +128,8 @@ closing round — identical hashes are the proof). Your say-so does not substitu
 - **Closing round at `confirmed: 0`:** the FROZEN contract stands. Add the attestation to its header —
   `Independently reviewed: v<N> — /fabrik-flows-review confirmed: 0 <YYYY-MM-DD>` — and report the Pass Ledger.
 - **You edited the contract:** editing a FROZEN artifact re-opens it — bump `Version`, re-freeze (the
-  closing round IS the re-freeze convergence). The bump is a Status-flip event: **mint its
+  closing round IS the re-freeze convergence). One bump and one row per review run: every round's edits land
+  under the version the closing round re-freezes, never a bump per round. The bump is a Status-flip event: **mint its
   `docs/DECISIONS.md` row staged in the same commit as the artifact** (the `/fabrik-flows` freeze law;
   classify at mint — plain row normally). Only then attest.
 - **A BLOCKING gap remains** (a criterion with no resolvable journey; a second actor whose journey cannot

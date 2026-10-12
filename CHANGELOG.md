@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-flows-review names its seat budget and bumps once per run (2026-10-12)
+- The dispatch line names `dispatch_headroom.py --units 7 --mechanical 2`, and a review run bumps the contract's version and mints its row once, at the closing re-freeze (D-783).
+
 ### Changed — the review probe catalogue reads a pinned line's comment before copying it (2026-10-12)
 - Before adding a sibling of a pinned or guarded line, the lead reads the comment on the line it copies (D-782).
 
