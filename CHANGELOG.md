@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review probe catalogue briefs own-fix guards at once, checks helper contracts and pinned versions (2026-10-12)
+- A guard the review's own fix adds goes into the very next brief with its escape variants; a pure helper's own return contract is checked; an external claim is checked at the version the repo pins (D-779).
+
 ### Fixed — docs_updater --adopt refuses to run in a linked worktree (2026-10-12)
 - `scripts/docs_updater.py`: `--adopt` writes the merge-owner row and owner stamps that belong to the main checkout; since `--single-window` disarms the session-count guard, a worktree agent could mint the owner row on its branch. It now refuses (exit 2) in a linked worktree before any write, with or without `--single-window` (W-e6acc9ac).
 

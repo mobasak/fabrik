@@ -11,10 +11,11 @@ or name in the brief why the shape does not have it.
 - Trace the entry path: the first caller that reaches the fixed function; enumerate every call shape through a new
   branch and every input path of a shared reader; trace each rationale sentence's mechanism to the code, and execute
   every "X only when Y" claim the fix adds.
-- Enumerate the fix's input class whole (boundary, empty, unset, mandated, non-dict/non-string, every Unicode
-  whitespace class, the real committed files' shapes counted by an independent parser) and probe it again before each
-  delta; keep an adversarial input list for the fix's own new edges; enumerate each guard's ESCAPE VARIANTS in both
-  directions — false green and false red — committing the positive/negative probe list beside it.
+- Enumerate the fix's input class whole (boundary, empty, unset, mandated, non-dict/non-string, every Unicode whitespace
+  class, the real committed files' shapes counted by an independent parser) and probe it again before each delta; keep
+  an adversarial input list for the fix's own new edges, and a guard the review's own fix adds goes into the very next
+  brief with its escape variants, never a round later; enumerate each guard's ESCAPE VARIANTS in both directions — false
+  green and false red — committing the positive/negative probe list beside it.
 - Name the defect's class and grep the whole class (every site, sibling guards, every scaffold type, recursively,
   vendored venvs and `.claude/worktrees` excluded) before patching one instance; diff sibling implementations side by
   side; port vendored code and prove parity by an executable diff over the original's edge cases.
@@ -37,10 +38,11 @@ or name in the brief why the shape does not have it.
 
 ## The brief's hunt lines (name the ones the shape has)
 - Callers and consumers: every caller of a changed exit code, output line or gated script; every consumer of a changed
-  prompt output, of import-time side effects, of a flipped Status (generated indexes) or of a renamed name (link
-  fields, hand-kept indexes); callers that use a normaliser's return value; the line that copies a template-emitted
-  claim; every gate grading the old name; every outbound sink a production-reaching test can touch; every actor
-  touching an RLS table; placeholder resolution per consumer; repo-wide service lists and absence statements.
+  prompt output, of import-time side effects, of a flipped Status (generated indexes) or of a renamed name (link fields,
+  hand-kept indexes); callers that use a normaliser's return value; a pure helper's own return contract, not only what
+  its callers observe; the line that copies a template-emitted claim; every gate grading the old name; every outbound
+  sink a production-reaching test can touch; every actor touching an RLS table; placeholder resolution per consumer;
+  repo-wide service lists and absence statements.
 - Parsers: the producer's real output contract first, then the parsing model before tokens; lossy cases (duplicate
   keys, ordering, whitespace), regex/strip edges (a regex redactor is also timed on a 100k-character input and probed
   at its truncation edges), the request-target grammar for URLs, comment and brace shapes for config, the real
@@ -63,11 +65,11 @@ or name in the brief why the shape does not have it.
   defects split between a hook and its generator.
 - The premise: the authoritative seat attacks the work item's premise and a ported heuristic's premise, not only the
   implementation; ask whether an existing mechanism or fragment already covers the class, and whether the check fits a
-  boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to
-  a `fabrik-researcher` seat; a seat names the whole input class of a finding it raises; a re-vendor brief hands
-  the seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack — they
-  re-run that command first, then spend on what byte identity cannot show: the vendored copy's own header and every
-  importer of it.
+  boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to a
+  `fabrik-researcher` seat, which checks it at the version the repo pins, never the latest docs; a seat names the whole
+  input class of a finding it raises; a re-vendor brief hands the seats the lead's executed byte-identity result (the
+  diff command and its output) as a claim to attack — they re-run that command first, then spend on what byte identity
+  cannot show: the vendored copy's own header and every importer of it.
 
 ## Graders
 - Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is absent
