@@ -121,3 +121,10 @@ def test_a_silent_refuter_is_already_retried_once_and_marked_failed() -> None:
     js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text()
     assert "const retry = await refuteCall(r.slice, missing, '-retry')" in js
     assert "STILL UNANSWERED (refuter failed)" in js
+
+
+def test_a_reimplemented_tool_is_checked_against_its_own_output() -> None:
+    """Row 1791844847: a fix modelling js-yaml's merge from memory took three rounds."""
+    text = _norm(CAT)
+    lead = text[text.index("## Before the first pin (the lead executes)") : text.index("- One mutant per clause")]
+    assert "or reimplement another tool's semantics (a YAML merge, a compose override), and prove parity by an executable diff against that tool's own output over its edge cases (for a merge: nesting, mixed types, cycles) before the fix lands, never a model from memory" in lead
