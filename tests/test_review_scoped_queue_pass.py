@@ -126,5 +126,5 @@ def test_a_silent_refuter_is_already_retried_once_and_marked_failed() -> None:
 def test_a_reimplemented_tool_is_checked_against_its_own_output() -> None:
     """Row 1791844847: a fix modelling js-yaml's merge from memory took three rounds."""
     text = _norm(CAT)
-    parsers = text[text.index("- Parsers:") : text.index("- Guards and rules:")]
-    assert "a fix that reimplements another tool's semantics (a YAML merge, a compose override) is run against that tool's own output on a fixture set in the round that lands it, never modelled from memory" in parsers
+    lead = text[text.index("## Before the first pin (the lead executes)") : text.index("- One mutant per clause")]
+    assert "or reimplement another tool's semantics (a YAML merge, a compose override), and prove parity by an executable diff against that tool's own output over its edge cases (for a merge: nesting, mixed types, cycles) before the fix lands, never a model from memory" in lead
