@@ -16,6 +16,12 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the /fabrik-task close accepts a receipt reviewed before the commit (2026-10-12)
 - kaizen's triage (mail 01M4N1K909, rows 1791317858, 1791470714, 1791116082, 1791099519, 1791465412, 1791074435): `--review` refused every receipt made with `review_receipt.py --init` and no `--range` (156 of 671 on disk), so a close then refused the receipt as undeclared. Check (d) now also accepts that working-tree Surface when the commit's diff over its paths rebuilds to the same bytes (untracked files included); `review_receipt.py --restamp <receipt>` re-anchors it after the review's last fix. A design note citing `path:N-M` or `path::symbol` now names that file at close, and a `--commit` value holding whitespace is refused with the fix (W-ebbedc88, D-750).
 
+### Changed — /fabrik-flows commits the DRAFT with its index rows at first write (2026-10-12)
+- An untracked `docs/flows.md` reds every full (Tier-2) gate run in a shared checkout, so the first write is committed with its `INDEX.md` and `docs/README.md` rows (D-772).
+
+### Changed — the certification NOT-QUIET line is shown in the exact form the grader accepts (2026-10-12)
+- `cert-execution` (service-test, user-test) gives ``ledger: **`NOT-QUIET (routes outstanding)`**`` as the declaration line and names the shapes `NOT_QUIET` refuses (D-771).
+
 ### Changed — /fabrik-release leads with a missing certification report and names its docs checks (2026-10-12)
 - A UI/service surface with no certification report is BLOCKED first; the dated-docs precondition says what its git-date and `Last Updated` checks each read, with a printed content tiebreak (D-770).
 
