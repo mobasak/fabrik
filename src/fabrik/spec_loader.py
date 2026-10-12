@@ -984,8 +984,10 @@ class Spec(BaseModel):
     def validate_no_owner_key_in_env(self):
         """An owner key never belongs in a spec's ``env:`` block (owner split, D-754): the compose
         templates render ``env:`` into EVERY service's ``environment:``, which would hand the app
-        the very key the split keeps in ``.env.owner``. The postgres registrar is the owner key's
-        only source; the deployer writes it to ``.env.owner`` and never to ``.env``."""
+        the very key the split keeps in ``.env.owner``. Nor in a companion's ``env_overrides``,
+        which the companion partial renders into that service's ``environment:`` the same way
+        (review of the split, round 1). The postgres registrar is the owner key's only source;
+        the deployer writes it to ``.env.owner`` and never to ``.env``."""
         owner_keys = sorted(k for k in self.env if k in OWNER_ENV_KEYS)
         if owner_keys:
             raise ValueError(
@@ -994,6 +996,17 @@ class Spec(BaseModel):
                 f"registrar injects it into {OWNER_ENV_FILE}, which only a service declaring that "
                 "file loads (remove the key from env:)"
             )
+        for companion in self.companion_services:
+            companion_keys = sorted(
+                k for k in (companion.env_overrides or {}) if k in OWNER_ENV_KEYS
+            )
+            if companion_keys:
+                raise ValueError(
+                    f"companion_services[{companion.id}].env_overrides must not set "
+                    f"{', '.join(companion_keys)} — the partial renders env_overrides into that "
+                    f"service's environment:, a literal the split keeps out of compose; set "
+                    f"owner_env: true instead, so the service loads {OWNER_ENV_FILE}"
+                )
         return self
 
 

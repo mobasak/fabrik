@@ -819,3 +819,36 @@ def test_spec_accepts_an_ordinary_env_key() -> None:
 
     spec = Spec.model_validate(_owner_split_spec({"FOO": "bar"}))
     assert spec.env == {"FOO": "bar"}
+
+
+def _companion(env_overrides: dict[str, str]) -> dict:
+    return {
+        "id": "audit-jobs",
+        "command": ["node", "jobs.js"],
+        "memory": "256M",
+        "env_overrides": env_overrides,
+    }
+
+
+def test_spec_refuses_an_owner_key_in_a_companion_env_overrides() -> None:
+    """G23 (owner split review, round 1 — scaffold-S1): the companion partial renders
+    `env_overrides` into that service's `environment:` verbatim, so an owner key there is the same
+    literal the split keeps out of compose — refused, naming `owner_env` as the way to load it."""
+    from pydantic import ValidationError
+
+    from fabrik.spec_loader import Spec
+
+    spec = _owner_split_spec({"FOO": "bar"})
+    spec["companion_services"] = [_companion({"DATABASE_URL_OWNER": "postgresql://o:p@h/db"})]
+    with pytest.raises(ValidationError) as exc:
+        Spec.model_validate(spec)
+    message = str(exc.value)
+    assert "audit-jobs" in message and "DATABASE_URL_OWNER" in message and "owner_env" in message
+
+
+def test_spec_accepts_an_ordinary_companion_env_override() -> None:
+    from fabrik.spec_loader import Spec
+
+    spec = _owner_split_spec({"FOO": "bar"})
+    spec["companion_services"] = [_companion({"JOB_INTERVAL": "60"})]
+    assert Spec.model_validate(spec).companion_services[0].env_overrides == {"JOB_INTERVAL": "60"}

@@ -213,7 +213,7 @@ def test_suppression_owner_as_real_connection_source_clears_every_site(tmp_path)
         "      - .env\n"
         "      - path: .env.owner\n"
         "        required: false\n"
-        '    command: sh -c "DATABASE_URL_OWNER=$DATABASE_URL_OWNER alembic upgrade head"\n'
+        "    command: alembic upgrade head\n"
         "  api:\n"
         "    environment:\n"
         "      DATABASE_URL: ${DATABASE_URL_OWNER}\n",
@@ -224,9 +224,10 @@ def test_suppression_owner_as_real_connection_source_clears_every_site(tmp_path)
     result = scan_repo(repo)
 
     # Owner split (D-754): every owner-sourced SITE still clears, the `migrate` service declaring
-    # `.env.owner` is the accepted owner consumer (its command line is suppressed) — except the compose
-    # `environment: DATABASE_URL: ${DATABASE_URL_OWNER}` hand-off on `api`, which compose interpolates
-    # from the project `.env`, where the owner key no longer lives; it is the ONE finding, with its remedy.
+    # `.env.owner` is the accepted owner consumer (its `alembic upgrade head` names no bare DATABASE_URL,
+    # so it clears) — except the compose `environment: DATABASE_URL: ${DATABASE_URL_OWNER}` hand-off on
+    # `api`, which compose interpolates from the project `.env`, where the owner key no longer lives; it
+    # is the ONE finding, with its remedy.
     assert [(f.path, f.pattern) for f in result.findings] == [
         ("compose.yaml", arc.OWNER_HANDOFF_REMEDY)
     ], result.findings
@@ -263,9 +264,12 @@ def test_suppression_never_applies_when_bare_database_url_also_named(tmp_path):
     assert result.findings[0].pattern == "psql invocation"
 
 
-def test_suppression_compose_block_spans_environment_and_command_not_just_one_line(tmp_path):
-    """A `migrate` service's own name-line never mentions DATABASE_URL_OWNER — the
-    suppression must look at the whole service block (its command), per spec wording."""
+def test_compose_command_interpolating_the_owner_key_is_the_handoff_finding(tmp_path):
+    """G16 (owner split review, round 1 — check-O5): `$DATABASE_URL_OWNER` in a `command:` is compose
+    interpolation from the project `.env`, which no longer holds the key — the same empty-value
+    hand-off as the `environment:` form, the same remedy, at the command line. The `migrate`
+    structural finding stays suppressed by the block's owner naming (that rule is unchanged); the
+    hand-off finding is what blocks. Before the split this shape was clean (findings == [])."""
     repo = tmp_path / "repo"
     _write(
         repo / "compose.yaml",
@@ -276,7 +280,59 @@ def test_suppression_compose_block_spans_environment_and_command_not_just_one_li
 
     result = scan_repo(repo)
 
-    assert result.findings == []
+    assert [(f.line, f.pattern) for f in result.findings] == [(3, arc.OWNER_HANDOFF_REMEDY)], (
+        result.findings
+    )
+
+
+def test_compose_owner_key_named_outside_an_owner_consumer_is_the_handoff_finding(tmp_path):
+    """G16b (check-O5): `$$DATABASE_URL_OWNER` is the literal the container's shell expands — but a
+    service that does not load `.env.owner` has no such variable after the split, so naming the key
+    there is the hand-off finding too (remedy: declare the file)."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "  migrate:\n"
+        "    env_file:\n"
+        "      - .env\n"
+        '    command: sh -c "psql $$DATABASE_URL_OWNER -f db/schema.sql"\n',
+    )
+
+    result = scan_repo(repo)
+
+    assert [(f.line, f.pattern) for f in result.findings] == [(5, arc.OWNER_HANDOFF_REMEDY)], (
+        result.findings
+    )
+
+
+def test_owner_consumer_with_the_escaped_owner_key_in_its_command_is_clean(tmp_path):
+    """G16c (check-O5): inside an owner consumer `$$DATABASE_URL_OWNER` reaches the container as the
+    literal, the shell expands it from `.env.owner` — no finding; the `$`-interpolated form in the same
+    place IS the hand-off (the structural owner-consumer rule never hides it)."""
+    repo = tmp_path / "repo"
+    consumer = (
+        "services:\n"
+        "  migrate:\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "      - path: .env.owner\n"
+        "        required: false\n"
+    )
+    _write(
+        repo / "compose.yaml",
+        consumer + '    command: sh -c "psql $$DATABASE_URL_OWNER -f db/schema.sql"\n',
+    )
+    assert scan_repo(repo).findings == []
+
+    _write(
+        repo / "compose.yaml",
+        consumer + '    command: sh -c "psql $DATABASE_URL_OWNER -f db/schema.sql"\n',
+    )
+    result = scan_repo(repo)
+    assert [(f.line, f.pattern) for f in result.findings] == [(7, arc.OWNER_HANDOFF_REMEDY)], (
+        result.findings
+    )
 
 
 def test_compose_environment_passthrough_is_not_a_finding_at_all(tmp_path):
@@ -620,6 +676,26 @@ def test_run_check_failure_format_is_path_line_pattern_reaches_database_url(tmp_
     assert "entrypoint.sh:1 psql invocation reaches DATABASE_URL" in result.failures
 
 
+def test_run_check_sentence_patterns_carry_no_reaches_suffix(tmp_path):
+    """G21 (owner split review, round 1 — check-O6): the two owner-split texts are sentences, so the
+    failure line is `<path>:<line> <sentence>` — never `… .env.owner reaches DATABASE_URL`; a label
+    pattern in the same run keeps its suffix."""
+    clone = _synced_clone(tmp_path)
+    _write(clone / "compose.yaml", "services:\n  migrate:\n    command: alembic upgrade head\n")
+    _write(
+        clone / "alembic" / "env.py",
+        "import os\nfrom alembic import context\nurl = os.environ['DATABASE_URL_OWNER']\n",
+    )
+
+    with patch.object(arc, "probe_app_role", return_value=[]):
+        result = run_check("mydb", clone)
+
+    assert f"alembic/env.py:3 {arc.NO_OWNER_CONSUMER}" in result.failures, result.failures
+    assert "compose.yaml:2 compose service named migrate reaches DATABASE_URL" in result.failures
+    assert not any(line.endswith(".env.owner reaches DATABASE_URL") for line in result.failures)
+    assert not any("there) reaches DATABASE_URL" in line for line in result.failures)
+
+
 # ── project_repo_dir / _db_name_for_spec (Behavior Contract row 4) ─────────── #
 
 
@@ -862,6 +938,170 @@ def test_owner_env_py_with_no_declaring_service_is_a_finding(tmp_path):
     assert [(f.path, f.line) for f in mirror] == [("alembic/env.py", 3)], result.findings
     others = sorted(f.pattern for f in result.findings if f.pattern != arc.NO_OWNER_CONSUMER)
     assert others == ["alembic upgrade/downgrade", "compose service named migrate"], result.findings
+
+
+def test_owner_consumer_block_keeps_a_bare_database_url_use_and_the_neighbour_service(tmp_path):
+    """G17 (owner split review, round 1 — check-S1/H2/O1/O3/O9, scaffold-S2/S3): inside an owner
+    consumer only a line naming NO bare DATABASE_URL clears — `alembic upgrade head` does, a
+    `psql "$$DATABASE_URL"` in the same block is the app role's connection and stays. The services
+    on either side of the block are outside it: their migration-tool lines (no bare DATABASE_URL,
+    so ONLY the range decides them) stay, one line before the block and two lines after it, so a
+    range widened at either end swallows one and reds (an off-by-one lands on a service-name line,
+    which carries no finding; the exact bounds were executed in review). A filter dropping every
+    line in the file reds on all three."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"  # 1
+        "  app:\n"  # 2
+        "    env_file:\n"  # 3
+        "      - .env\n"  # 4
+        "    command: alembic upgrade head\n"  # 5 — the line before the block: a non-consumer's tool line
+        "  migrate:\n"  # 6
+        "    env_file:\n"  # 7
+        "      - .env\n"  # 8
+        "      - path: .env.owner\n"  # 9
+        "        required: false\n"  # 10
+        "    command: alembic upgrade head\n"  # 11 — clears: no bare DATABASE_URL
+        "    healthcheck:\n"  # 12
+        '      test: sh -c \'psql "$$DATABASE_URL" -c "select 1"\'\n'  # 13 — stays: the app role's connection
+        "  worker:\n"  # 14 — the first line outside the block
+        "    command: npx prisma migrate deploy\n",  # 15 — a non-consumer's tool line
+    )
+    _write(
+        repo / "alembic" / "env.py",
+        "import os\nfrom alembic import context\nurl = os.environ['DATABASE_URL_OWNER']\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert sorted((f.line, f.pattern) for f in result.findings) == [
+        (5, "alembic upgrade/downgrade"),
+        (13, "psql invocation"),
+        (15, "prisma migrate/db push"),
+    ], result.findings
+
+
+@pytest.mark.parametrize(
+    "env_file_block",
+    [
+        "    env_file: .env.owner\n",
+        "    env_file:\n      - .env\n      - .env.owner\n",
+        "    env_file:\n      - .env\n      - ./.env.owner\n",
+        "    env_file:\n      - .env\n      - path: .env.owner\n        required: false\n",
+        "    env_file:\n      - .env\n      - path: ./.env.owner\n",
+    ],
+)
+def test_owner_consumer_declaration_is_recognised_in_every_compose_spelling(
+    tmp_path, env_file_block
+):
+    """G18 (check-O3/O7; core/45: a guard proven by one spelling is banned): the scalar form, the list
+    string, the long syntax, and `./`-prefixed paths all name the same file relative to the project
+    directory — each makes the service the owner consumer (G12's shape stays clean)."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n  migrate:\n" + env_file_block + "    command: alembic upgrade head\n",
+    )
+    _write(
+        repo / "alembic" / "env.py",
+        "import os\nfrom alembic import context\nurl = os.environ['DATABASE_URL_OWNER']\n",
+    )
+
+    assert scan_repo(repo).findings == [], env_file_block
+
+
+def test_owner_consumer_declaration_never_matches_another_file(tmp_path):
+    """G18b (check-O7, the mirror of G18): a parent-relative or absolute path is a DIFFERENT file —
+    the service is not the consumer, G13's three findings fire."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n  migrate:\n    env_file:\n      - ../.env.owner\n    command: alembic upgrade head\n",
+    )
+    _write(
+        repo / "alembic" / "env.py",
+        "import os\nfrom alembic import context\nurl = os.environ['DATABASE_URL_OWNER']\n",
+    )
+
+    patterns = sorted(f.pattern for f in scan_repo(repo).findings)
+    assert patterns == sorted(
+        [arc.NO_OWNER_CONSUMER, "alembic upgrade/downgrade", "compose service named migrate"]
+    ), patterns
+
+
+def test_mirror_reports_every_owner_site_of_the_alembic_env(tmp_path):
+    """G19 (check-O3 mutant 6): an env.py naming the owner key on two live lines is two mirror
+    findings, one per site — never only the first."""
+    repo = tmp_path / "repo"
+    _write(repo / "compose.yaml", "services:\n  app:\n    env_file:\n      - .env\n")
+    _write(
+        repo / "alembic" / "env.py",
+        "import os\nfrom alembic import context\n"
+        "url = os.environ['DATABASE_URL_OWNER']\n"
+        "fallback = os.getenv('DATABASE_URL_OWNER')\n",
+    )
+
+    mirror = [
+        (f.path, f.line) for f in scan_repo(repo).findings if f.pattern == arc.NO_OWNER_CONSUMER
+    ]
+    assert mirror == [("alembic/env.py", 3), ("alembic/env.py", 4)], mirror
+
+
+def test_mirror_stays_silent_when_the_compose_file_does_not_parse(tmp_path):
+    """G20 (check-O8): an unparseable compose file is its own finding and says nothing about which
+    services declare `.env.owner` — the mirror never asserts what cannot be known from it."""
+    repo = tmp_path / "repo"
+    _write(repo / "compose.yaml", "services:\n  app: [\n")
+    _write(
+        repo / "alembic" / "env.py",
+        "import os\nfrom alembic import context\nurl = os.environ['DATABASE_URL_OWNER']\n",
+    )
+
+    patterns = [f.pattern for f in scan_repo(repo).findings]
+    assert patterns == ["compose file unparseable"], patterns
+
+
+def test_mirror_counts_a_lowercase_settings_attribute_as_an_owner_site(tmp_path):
+    """G22 (check-O10, scaffold-S4 — the asymmetry pinned on purpose): `settings.database_url_owner`
+    reads the same environment variable through pydantic-settings, so it is an owner site for the
+    mirror; the compose-side classifier stays case-sensitive because a shell variable name is."""
+    repo = tmp_path / "repo"
+    _write(repo / "compose.yaml", "services:\n  app:\n    env_file:\n      - .env\n")
+    _write(
+        repo / "alembic" / "env.py",
+        "from alembic import context\nfrom app.config import settings\nurl = settings.database_url_owner\n",
+    )
+
+    mirror = [
+        (f.path, f.line) for f in scan_repo(repo).findings if f.pattern == arc.NO_OWNER_CONSUMER
+    ]
+    assert mirror == [("alembic/env.py", 3)], mirror
+
+
+def test_owner_consumer_environment_handoff_is_reported_once(tmp_path):
+    """G25 (brief hunt 6d): an owner consumer whose `environment:` ALSO interpolates the owner key is
+    the hand-off finding — the block rule never hides it, and the structural and line-level scans
+    report the one line ONCE."""
+    repo = tmp_path / "repo"
+    _write(
+        repo / "compose.yaml",
+        "services:\n"
+        "  migrate:\n"
+        "    env_file:\n"
+        "      - .env\n"
+        "      - path: .env.owner\n"
+        "        required: false\n"
+        "    environment:\n"
+        "      DATABASE_URL: ${DATABASE_URL_OWNER}\n"
+        "    command: alembic upgrade head\n",
+    )
+
+    result = scan_repo(repo)
+
+    assert [(f.line, f.pattern) for f in result.findings] == [(8, arc.OWNER_HANDOFF_REMEDY)], (
+        result.findings
+    )
 
 
 def test_owner_classification_requires_a_fullmatch_not_a_substring(tmp_path):

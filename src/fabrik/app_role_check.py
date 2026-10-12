@@ -50,13 +50,23 @@ passes 1, 2 and 3 (spec § Derivations D1):
   service would start on an EMPTY DSN — the finding's text IS the remedy
   (``OWNER_HANDOFF_REMEDY``: declare ``.env.owner`` in ``env_file`` and read the key from
   the environment, Alembic in ``env.py``; run it as ``docker compose run --rm <that
-  service>``, which replaces ``command``). A service whose ``env_file`` names
-  ``.env.owner`` is the accepted OWNER CONSUMER: its ``compose service named migrate``
-  finding and the migration-tool patterns inside its block are suppressed, the
-  connection source being its tool's own config, which the alembic ``env.py`` scan
-  covers. The mirror — an alembic env reading ``DATABASE_URL_OWNER`` while NO compose
-  service declares ``.env.owner`` (in a repo that has a compose file) — is the ``NO_OWNER_CONSUMER`` finding, because after
-  the split that env reads an empty value in every service. Anything else — a hardcoded DSN, a
+  service>``, which replaces ``command``). The same hand-off ANYWHERE in a compose file is the
+  same finding: an unescaped ``$DATABASE_URL_OWNER``/``${DATABASE_URL_OWNER}`` in a ``command:``
+  interpolates to the same empty value (``$$`` is the literal the container's shell expands
+  from ``env_file``, and clears), and a line naming the owner key in a service that does NOT
+  load ``.env.owner`` names a key no process there has (review of the owner split, round 1).
+  A service whose ``env_file`` names ``.env.owner`` (any spelling ``normpath`` reduces to it)
+  is the accepted OWNER CONSUMER: its ``compose service named migrate`` finding is skipped,
+  and a line finding inside its block is dropped ONLY while that line names no bare
+  ``DATABASE_URL`` — ``alembic upgrade head`` clears (the ``env.py`` scan checks alembic's
+  connection source on its own; a prisma/drizzle/django tool's config is NOT scanned, the
+  declaration is the evidence), while ``psql "$$DATABASE_URL"`` in the same block stays a
+  finding. The mirror — an alembic env reading ``DATABASE_URL_OWNER`` while NO compose
+  service declares ``.env.owner`` (in a repo whose compose file PARSES; an unparseable one is
+  its own finding) — is the ``NO_OWNER_CONSUMER`` finding, because after the split that env
+  reads an empty value in every service. It is repo-wide: ANY declaring service silences it,
+  the scaffold's audit-jobs companion included — it names the missing declaration, never which
+  service runs alembic (the runbook runs it from the declaring one). Anything else — a hardcoded DSN, a
   ``:-default`` fallback that can silently substitute a different value, or a
   value that merely CONTAINS the owner name as a substring — stays a finding.
   The ``DATABASE_URL:`` environment-mapping KEY itself is never counted as a
@@ -94,6 +104,7 @@ from __future__ import annotations
 import ast
 import fnmatch
 import os
+import posixpath
 import re
 import subprocess
 from dataclasses import dataclass
@@ -112,8 +123,12 @@ OWNER_HANDOFF_REMEDY = (
     "env.py); run it as docker compose run --rm <that service> ..."
 )
 NO_OWNER_CONSUMER = (
-    "alembic env.py reads DATABASE_URL_OWNER but no compose service loads .env.owner"
+    "alembic env.py reads DATABASE_URL_OWNER but no compose service loads .env.owner "
+    "(declare it on the service that runs alembic, and run it from there)"
 )
+# The two texts above are sentences; the label patterns below are not. `run_check` appends
+# ` reaches DATABASE_URL` only to a label (review of the owner split, round 1).
+_SENTENCE_PATTERNS = frozenset({OWNER_HANDOFF_REMEDY, NO_OWNER_CONSUMER})
 
 # ── What the scan walks / skips (spec § Derivations D1) ───────────────────── #
 
@@ -207,6 +222,15 @@ _COMMENT_RE = re.compile(r"(#|--|//).*$")
 # \b word run, so neither token ever matches inside the other's OWNER/bare form.
 _OWNER_TOKEN_RE = re.compile(r"\bDATABASE_URL_OWNER\b", re.IGNORECASE)
 _URL_TOKEN_RE = re.compile(r"\bDATABASE_URL\b", re.IGNORECASE)
+# Compose-level interpolation of the owner key: `$DATABASE_URL_OWNER` or `${DATABASE_URL_OWNER…}`
+# not preceded by another `$` (`$$` is compose's escape — the literal reaches the container, whose
+# shell expands it from `env_file`). Case-sensitive, like compose variable names. Compose fills
+# `${VAR}` from the shell and the project `.env` only — never from `env_file` — and the owner key
+# left `.env` with the split (D-754), so this form always interpolates to the empty string.
+_COMPOSE_OWNER_INTERP_RE = re.compile(
+    r"(?<!\$)\$(?:\{DATABASE_URL_OWNER\b[^}]*\}|DATABASE_URL_OWNER\b)"
+)
+_COMPOSE_OWNER_NAME_RE = re.compile(r"\bDATABASE_URL_OWNER\b")
 # `(\.\w+)*` covers a submodule import (`from alembic.op import ...`,
 # `from alembic.context import ...`) — acceptance review pass 2, O22.
 _ALEMBIC_IMPORT_RE = re.compile(
@@ -509,16 +533,24 @@ def _classify_database_url_env(value: str) -> str:
     return "override"
 
 
+def _is_owner_env_path(value: object) -> bool:
+    """``.env.owner`` under any spelling ``posixpath.normpath`` reduces to it (``./.env.owner``,
+    ``.//.env.owner``) — compose resolves ``env_file`` relative to the project directory, so these
+    name the same file; an absolute or parent-relative path is another file and never counts."""
+    return isinstance(value, str) and posixpath.normpath(value) == OWNER_ENV_FILE
+
+
 def _declares_owner_env_file(env_file: object) -> bool:
     """True when a service's ``env_file`` names ``.env.owner`` — the owner split's consumer
-    declaration (D-754): the plain string form or the long syntax's ``path:``."""
-    if isinstance(env_file, str):
-        return env_file == OWNER_ENV_FILE
+    declaration (D-754): the plain string form (a scalar or a list item) or the long syntax's
+    ``path:``."""
+    if _is_owner_env_path(env_file):
+        return True
     if isinstance(env_file, list):
         for item in env_file:
-            if isinstance(item, str) and item == OWNER_ENV_FILE:
+            if _is_owner_env_path(item):
                 return True
-            if isinstance(item, dict) and item.get("path") == OWNER_ENV_FILE:
+            if isinstance(item, dict) and _is_owner_env_path(item.get("path")):
                 return True
     return False
 
@@ -534,8 +566,7 @@ def _compose_services(text: str) -> dict[str, object] | None:
     return services if isinstance(services, dict) else None
 
 
-def _compose_declares_owner_file(text: str) -> bool:
-    services = _compose_services(text) or {}
+def _services_declare_owner_file(services: dict[str, object]) -> bool:
     return any(
         isinstance(cfg, dict) and _declares_owner_env_file(cfg.get("env_file"))
         for cfg in services.values()
@@ -543,9 +574,11 @@ def _compose_declares_owner_file(text: str) -> bool:
 
 
 def _owner_consumer_ranges(text: str) -> list[tuple[int, int]]:
-    """1-based inclusive line ranges of every service block that declares ``.env.owner`` — the
-    line scan's patterns are suppressed inside them (the service's tool reads the owner key from
-    its environment; its connection source is the tool's own config, scanned on its own)."""
+    """1-based inclusive line ranges of every service block that declares ``.env.owner`` — inside
+    them a line finding is dropped only while the line names no bare ``DATABASE_URL``
+    (:func:`_in_owner_consumer`): the tool reads the owner key from the environment the file
+    fills, so ``alembic upgrade head`` clears, while ``psql "$$DATABASE_URL"`` is still the app
+    role's connection and stays a finding."""
     services = _compose_services(text) or {}
     lines = text.splitlines()
     services_range = _services_block_range(lines)
@@ -564,7 +597,10 @@ def _owner_consumer_ranges(text: str) -> list[tuple[int, int]]:
 def _owner_token_lines(rel: Path, lines: list[str], inert: frozenset[int]) -> list[int]:
     """The 1-based lines of an alembic env whose live (non-comment, non-docstring) text names
     ``DATABASE_URL_OWNER`` — the sites ``NO_OWNER_CONSUMER`` reports when no compose service
-    declares ``.env.owner``."""
+    declares ``.env.owner``. Case-insensitive on purpose (``_OWNER_TOKEN_RE``): a pydantic
+    settings attribute ``settings.database_url_owner`` reads the same environment variable, so
+    it is the same owner site; the compose-side classifier stays case-sensitive because a
+    compose/shell variable name is."""
     markers = _comment_markers(rel)
     return [
         lineno
@@ -697,6 +733,31 @@ def _scan_compose_structure(rel: Path, text: str) -> list[Finding]:
     return findings
 
 
+def _in_owner_consumer(line: int, ranges: list[tuple[int, int]]) -> bool:
+    return any(s <= line <= e for s, e in ranges)
+
+
+def _compose_owner_handoff_lines(
+    rel: Path, lines: list[str], ranges: list[tuple[int, int]]
+) -> list[int]:
+    """The 1-based live lines of a compose file where the owner key is named but cannot be read
+    (the ``OWNER_HANDOFF_REMEDY`` sites): an unescaped compose interpolation of it anywhere — the
+    value is filled from the project ``.env``, which no longer holds the key — or any naming of
+    it in a service that does not load ``.env.owner`` (no process there has the key). Inside an
+    owner consumer the ``$$``-escaped form and a plain assignment clear."""
+    markers = _comment_markers(rel)
+    out: list[int] = []
+    for lineno, raw in enumerate(lines, start=1):
+        if _is_comment_line(raw, markers):
+            continue
+        live = _strip_comment(raw)
+        if _COMPOSE_OWNER_INTERP_RE.search(live) or (
+            _COMPOSE_OWNER_NAME_RE.search(live) and not _in_owner_consumer(lineno, ranges)
+        ):
+            out.append(lineno)
+    return out
+
+
 def _scan_file(rel: Path, text: str) -> list[Finding]:
     lines = text.splitlines()
     inert = _docstring_lines(rel, text)
@@ -704,13 +765,27 @@ def _scan_file(rel: Path, text: str) -> list[Finding]:
     if rel.name == "env.py" and _ALEMBIC_IMPORT_RE.search(text):
         findings.extend(_scan_alembic_env(rel, lines, inert))
     if _is_compose_file(rel.name):
-        # An owner consumer's block (a service declaring `.env.owner`, D-754) carries no line
-        # finding: its migration tool reads the owner key from the environment the file fills,
-        # and the tool's connection source is scanned on its own (the alembic env.py scan).
+        # An owner consumer's block (a service declaring `.env.owner`, D-754): a line finding is
+        # dropped only while the line names no bare DATABASE_URL — the tool reads the owner key
+        # from the environment the file fills (alembic's connection source is scanned on its own);
+        # a `psql "$$DATABASE_URL"` in the same block is the app role's connection and stays.
         ranges = _owner_consumer_ranges(text)
         if ranges:
-            findings = [f for f in findings if not any(s <= f.line <= e for s, e in ranges)]
+            findings = [
+                f
+                for f in findings
+                if not _in_owner_consumer(f.line, ranges)
+                or _URL_TOKEN_RE.search(_strip_env_key(lines[f.line - 1]))
+            ]
         findings.extend(_scan_compose_structure(rel, text))
+        # The owner-key hand-off outside `environment:` (a `command:` interpolation, a naming in a
+        # non-consumer) — one finding per line, never a second one where the structural scan
+        # already reported the same line.
+        posix = rel.as_posix()
+        seen = {(f.line, f.pattern) for f in findings}
+        for lineno in _compose_owner_handoff_lines(rel, lines, ranges):
+            if (lineno, OWNER_HANDOFF_REMEDY) not in seen:
+                findings.append(Finding(path=posix, line=lineno, pattern=OWNER_HANDOFF_REMEDY))
     return findings
 
 
@@ -751,9 +826,13 @@ def scan_repo(repo_dir: Path) -> ScanResult:
             files_scanned += 1
             findings.extend(_scan_file(rel, text))
             if _is_compose_file(rel.name):
-                compose_seen = True
-                if _compose_declares_owner_file(text):
-                    owner_declared = True
+                services = _compose_services(text)
+                # Only a compose file that PARSES can be asked which services it declares; an
+                # unparseable one is already its own finding and says nothing about `.env.owner`.
+                if services is not None:
+                    compose_seen = True
+                    if _services_declare_owner_file(services):
+                        owner_declared = True
             if rel.name == "env.py" and _ALEMBIC_IMPORT_RE.search(text):
                 lines = text.splitlines()
                 sites = _owner_token_lines(rel, lines, _docstring_lines(rel, text))
@@ -883,7 +962,8 @@ def run_check(db_name: str, repo_dir: Path, container: str = POSTGRES_CONTAINER)
         if result.files_scanned == 0:
             failures.append(f"scanned 0 files under {repo_dir}")
         for finding in result.findings:
-            failures.append(f"{finding.path}:{finding.line} {finding.pattern} reaches DATABASE_URL")
+            tail = "" if finding.pattern in _SENTENCE_PATTERNS else " reaches DATABASE_URL"
+            failures.append(f"{finding.path}:{finding.line} {finding.pattern}{tail}")
 
     return CheckResult(ok=not failures, failures=failures)
 
