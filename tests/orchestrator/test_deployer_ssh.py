@@ -1702,8 +1702,37 @@ class TestOwnerEnvSplit:
         assert env == {"DATABASE_URL": _APP_DSN, "DATABASE_URL_OWNER": _OWNER_DSN}
         assert mock_ssh.call_count == 2
         assert mock_ssh.call_args_list[1].args[0] == (
-            "sudo sh -c 'cat /opt/my-app/.env; echo; cat /opt/my-app/.env.owner'"
+            "sudo sh -c 'cat /opt/my-app/.env && echo && cat /opt/my-app/.env.owner'"
         )
+
+    def test_g2_a_failed_two_file_read_raises_never_returns_the_owner_half(self):
+        """Phase A review O1: the two-file read is chained with `&&`, so a failed `cat <env>` is a
+        non-zero exit the ssh driver raises on, which the reader turns into DeployError; a `;` chain
+        exits with the LAST cat's status and would have returned the owner keys alone as the merged
+        view (executed in review: rc 0 under `;`, rc 1 under `&&`). The fake PLAYS THE SHELL: it
+        raises only on the `&&` chain and returns the owner half with rc 0 for a `;` chain, so a `;`
+        spelling makes the reader return instead of raise (review O8); the issued command is
+        asserted too."""
+        cmds: list[str] = []
+
+        def ssh(cmd, timeout=10):
+            # The fake plays the SHELL: a `&&` chain whose first `cat` fails exits non-zero (the
+            # driver raises); a `;` chain would run on and print the owner half with rc 0.
+            cmds.append(cmd)
+            if len(cmds) == 1:
+                return "present\nowner\n"
+            if " && echo && " in cmd:
+                raise RuntimeError("SSH to 'vps1' failed (rc=1): cat: .env: Permission denied")
+            return f"\nDATABASE_URL_OWNER={_OWNER_DSN}\n"
+
+        with (
+            patch("fabrik.drivers.ssh.ssh", side_effect=ssh),
+            pytest.raises(DeployError, match="cannot read"),
+        ):
+            SSHDeployer().read_env(self._ctx())
+        assert len(cmds) == 2
+        assert cmds[1] == "sudo sh -c 'cat /opt/my-app/.env && echo && cat /opt/my-app/.env.owner'"
+        assert "; echo;" not in cmds[1] and "&& echo &&" in cmds[1]
 
     def test_g2_bare_present_answer_issues_todays_cat_exactly(self):
         with patch("fabrik.drivers.ssh.ssh", side_effect=["present\n", "A=1\n"]) as mock_ssh:
@@ -1809,10 +1838,31 @@ class TestOwnerEnvSplit:
             _read_env_file("/opt/my-app", lambda cmd, timeout=10: "nonsense\n")
         with pytest.raises(DeployError, match=r"/opt/my-app/\.env"):
             _read_env_file("/opt/my-app", lambda cmd, timeout=10: "")
+        # Phase A review O3: a second line that is not `owner`, or a third line, is refused — never
+        # read as "no owner file" (the real command prints exactly one or two lines).
+        for answer in ("present\nnonsense\n", "present\nowner\nextra\n", "present\n\nowner\n"):
+            with pytest.raises(DeployError, match="unexpected probe answer"):
+                _read_env_file("/opt/my-app", lambda cmd, timeout=10, a=answer: a)
+
+    def test_g6_probe_lines_are_stripped_so_crlf_and_trailing_spaces_still_parse(self):
+        """Phase A review O5: a `\\r\\n` or a trailing space on either probe line is whitespace,
+        not a different answer."""
+        from fabrik.orchestrator.deployer_ssh import _read_env_file
+
+        answers = iter(["present \r\nowner \r\n", "A=1\n\nDATABASE_URL_OWNER=o\n"])
+        cmds: list[str] = []
+
+        def ssh(cmd, timeout=10):
+            cmds.append(cmd)
+            return next(answers)
+
+        assert _read_env_file("/opt/my-app", ssh) == {"A": "1", "DATABASE_URL_OWNER": "o"}
+        assert cmds[1].endswith("&& cat /opt/my-app/.env.owner'")
 
     # G7 — every writer goes through the one writer: an existing `.env` carrying the owner key
     # ends up with the key in `.env.owner` (written first) and never in `.env`
     _MERGED = f"A=1\nDATABASE_URL_OWNER={_OWNER_DSN}\n"
+    _MERGED_DICT = {"A": "1", "DATABASE_URL_OWNER": _OWNER_DSN}
 
     @staticmethod
     def _owner_then_env(writes: list[tuple[str, str, str]]) -> None:
@@ -1847,7 +1897,7 @@ class TestOwnerEnvSplit:
         with (
             patch("fabrik.drivers.ssh.ssh", return_value=""),
             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
-            patch.object(SSHDeployer, "_build_env_content", return_value=self._MERGED),
+            patch.object(SSHDeployer, "_build_env", return_value=dict(self._MERGED_DICT)),
         ):
             SSHDeployer()._deploy_template(ctx, "my-app", None)
         self._owner_then_env([c.args for c in mock_write.call_args_list])
@@ -1862,7 +1912,7 @@ class TestOwnerEnvSplit:
                 side_effect=["exists", "", "", "a" * 40 + "\n", _VALID_GIT_COMPOSE, "", ""],
             ),
             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
-            patch.object(SSHDeployer, "_build_env_content", return_value=self._MERGED),
+            patch.object(SSHDeployer, "_build_env", return_value=dict(self._MERGED_DICT)),
         ):
             SSHDeployer()._deploy_git(ctx, "my-app", ctx.spec["source"], None)
         self._owner_then_env([c.args for c in mock_write.call_args_list])
@@ -1878,10 +1928,29 @@ class TestOwnerEnvSplit:
         with (
             patch("fabrik.drivers.ssh.ssh", return_value=""),
             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
-            patch.object(SSHDeployer, "_build_env_content", return_value=self._MERGED),
+            patch.object(SSHDeployer, "_build_env", return_value=dict(self._MERGED_DICT)),
         ):
             SSHDeployer()._deploy_docker(ctx, "my-app", ctx.spec["source"], None)
         self._owner_then_env([c.args for c in mock_write.call_args_list])
+
+    def test_g7_deploy_paths_write_a_newline_value_intact(self):
+        """Phase A review O2: the deploy paths hand the merged DICT to the writer — a value holding a
+        newline survives (the old format→parse round trip turned `a\\nb` into `"a`)."""
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "docker", "image": "nginx:latest", "image_port": 80},
+                "domain": "my-app.example.com",
+            }
+        )
+        with (
+            patch("fabrik.drivers.ssh.ssh", return_value=""),
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+            patch.object(SSHDeployer, "_build_env", return_value={"K": "a\nb", "Z": "1"}),
+        ):
+            SSHDeployer()._deploy_docker(ctx, "my-app", ctx.spec["source"], None)
+        (env_write,) = [c.args for c in mock_write.call_args_list if c.args[1] == ".env"]
+        assert env_write[2] == _format_env({"K": "a\nb", "Z": "1"})
 
     def test_g7_deploy_local_goes_through_the_split_writer(self):
         ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/srv/my-app"}})
@@ -1889,7 +1958,7 @@ class TestOwnerEnvSplit:
         with (
             patch("fabrik.drivers.ssh.ssh", side_effect=["exists", ""]),
             patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
-            patch.object(SSHDeployer, "_build_env_content", return_value=self._MERGED),
+            patch.object(SSHDeployer, "_build_env", return_value=dict(self._MERGED_DICT)),
         ):
             SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
         writes = [c.args for c in mock_write.call_args_list]

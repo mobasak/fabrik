@@ -816,9 +816,8 @@ class WatchdogConfig(BaseModel):
 
 # The owner DSN's home on the VPS (plan 2026-10-12-plan-1-owner-dsn-split, D-754): the keys the
 # deployer keeps OUT of ``/opt/<name>/.env`` and writes to ``/opt/<name>/.env.owner``, a file only
-# a compose service that declares it loads (the audit-jobs companion, a project's ``migrate``
-# service). One constant and one filename, defined here — the lowest layer — so the deployer, the
-# app-role check and this module's own ``env:`` validator spell them nowhere else. Reversal is
+# a compose service that declares it in ``env_file`` loads. One constant and one filename, defined
+# here — the lowest layer — so every consumer imports them and spells them nowhere else. Reversal is
 # ``OWNER_ENV_KEYS = ()`` plus the checked per-project deletion the spec's § Decisions taken names.
 OWNER_ENV_KEYS: tuple[str, ...] = ("DATABASE_URL_OWNER",)
 OWNER_ENV_FILE = ".env.owner"

@@ -517,12 +517,12 @@ class SSHDeployer:
         _assert_claude_cli_mounts(compose_content, ctx.spec)
 
         # Build .env from spec env + secrets (read-merge to preserve registrar-injected vars)
-        env_content = self._build_env_content(ctx, name, existing)
+        env = self._build_env(ctx, name, existing)
 
         # Write files to VPS
         _ssh(f"sudo mkdir -p /opt/{name}", timeout=10)
         _write_file_to_vps(name, "compose.yaml", compose_content)
-        _write_env_files(f"/opt/{name}", _parse_env(env_content), _env_writer_for(name))
+        _write_env_files(f"/opt/{name}", env, _env_writer_for(name))
 
         # Write additional rendered files (Dockerfile, etc.)
         for filename, content in rendered.items():
@@ -602,10 +602,8 @@ class SSHDeployer:
         _assert_claude_cli_mounts(compose_content, ctx.spec)
 
         # Write .env (read-merge to preserve registrar-injected vars).
-        env_content = self._build_env_content(
-            ctx, name, existing, overrides={"GIT_SHA": sha} if sha else None
-        )
-        _write_env_files(f"/opt/{name}", _parse_env(env_content), _env_writer_for(name))
+        env = self._build_env(ctx, name, existing, overrides={"GIT_SHA": sha} if sha else None)
+        _write_env_files(f"/opt/{name}", env, _env_writer_for(name))
 
         _ssh(f"cd /opt/{name} && sudo docker compose build", timeout=_BUILD_TIMEOUT)
         _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
@@ -643,11 +641,11 @@ class SSHDeployer:
             )
         _assert_claude_cli_mounts(compose_content, ctx.spec)
 
-        env_content = self._build_env_content(ctx, name, existing)
+        env = self._build_env(ctx, name, existing)
 
         _ssh(f"sudo mkdir -p /opt/{name}", timeout=10)
         _write_file_to_vps(name, "compose.yaml", compose_content)
-        _write_env_files(f"/opt/{name}", _parse_env(env_content), _env_writer_for(name))
+        _write_env_files(f"/opt/{name}", env, _env_writer_for(name))
         _compose_up(name, _health_disabled(spec), _ssh)
 
     def _deploy_local(
@@ -683,8 +681,8 @@ class SSHDeployer:
         # ``path``, so its .env is always read (absent → {}) — else the merge dropped every
         # registrar-injected key, DATABASE_URL_OWNER included (W-7ec31807).
         existing = existing or {"name": name, "path": path}
-        env_content = self._build_env_content(ctx, name, existing, app_path=path)
-        _write_env_files(path, _parse_env(env_content), _write_file_to_vps_path)
+        env = self._build_env(ctx, name, existing, app_path=path)
+        _write_env_files(path, env, _write_file_to_vps_path)
         _ssh(f"cd {path} && sudo docker compose up -d --wait", timeout=120)
 
     # ------------------------------------------------------------------
@@ -700,7 +698,21 @@ class SSHDeployer:
         *,
         overrides: dict[str, str] | None = None,
     ) -> str:
-        """Build .env content by merging spec env + secrets over existing vars.
+        """The formatted view of :meth:`_build_env` — kept for its readers and tests; the deploy
+        paths hand the DICT to :func:`_write_env_files`, never a string parsed back (the
+        format→parse round trip loses a value holding a newline — Phase A's review, O2)."""
+        return _format_env(self._build_env(ctx, name, existing, app_path, overrides=overrides))
+
+    def _build_env(
+        self,
+        ctx: DeploymentContext,
+        name: str,
+        existing: dict[str, Any] | None,
+        app_path: str | None = None,
+        *,
+        overrides: dict[str, str] | None = None,
+    ) -> dict[str, str]:
+        """Build the merged .env mapping — spec env + secrets over existing vars.
 
         Read-merge strategy: reads existing .env on VPS first (if any) to
         preserve registrar-injected vars (SENTRY_DSN, REDIS_URL, etc.) that
@@ -747,7 +759,7 @@ class SSHDeployer:
         for key, value in ctx.secrets.items():
             merged[key] = str(value)
 
-        return _format_env(merged)
+        return merged
 
 
 # ======================================================================
@@ -906,8 +918,11 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
     :meth:`SSHDeployer._build_env_content` (the deploy/redeploy merge). ONE probe and ONE
     read, as before the owner split: the probe answers ``present``/``absent`` for ``.env`` on
     its first line and ``owner`` on a second line when ``.env.owner`` exists; the read is then
-    today's ``sudo cat <env>`` alone, or ``sudo sh -c 'cat <env>; echo; cat <owner>'`` — the
-    ``echo`` is a SEPARATOR, because a plain two-file ``cat`` joins the last line of a ``.env``
+    today's ``sudo cat <env>`` alone, or ``sudo sh -c 'cat <env> && echo && cat <owner>'`` —
+    chained with ``&&`` so a failed read of EITHER file is a non-zero exit the ssh driver raises
+    on (a ``;`` chain exits with the LAST cat's status and would hand back the owner keys alone
+    as the merged view — executed in Phase A's review), and the ``echo`` is a SEPARATOR,
+    because a plain two-file ``cat`` joins the last line of a ``.env``
     that lacks a trailing newline onto the owner file's first line (executed at the design's
     approval panel: the owner key vanished from the parse and the owner DSN rode into
     ``REDIS_URL``'s value, which the next write would have put back into ``.env``). The owner
@@ -933,7 +948,7 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
         if first != "present" or len(lines) > 2 or (len(lines) == 2 and lines[1] != "owner"):
             raise DeployError(f"cannot read {env_path}: unexpected probe answer {probe[:40]!r}")
         if len(lines) == 2:
-            cat = f"cat {shlex.quote(env_path)}; echo; cat {shlex.quote(owner_path)}"
+            cat = f"cat {shlex.quote(env_path)} && echo && cat {shlex.quote(owner_path)}"
             content = _ssh(f"sudo sh -c {shlex.quote(cat)}", timeout=10)
         else:
             content = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)

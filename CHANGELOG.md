@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
   which writes the owner keys (`OWNER_ENV_KEYS`, today `DATABASE_URL_OWNER`) to `/opt/<name>/.env.owner` FIRST and `.env`
   without them, logging the move once; a project whose `.env` still carries the key gets it moved on its next apply or
   redeploy. `_read_env_file` returns the merged view in one probe (two lines) and one read — the two-file read is
-  SEPARATED (`cat <env>; echo; cat <owner>`), because a plain two-file `cat` joined lines when `.env` lacked a trailing
+  SEPARATED and fail-closed (`cat <env> && echo && cat <owner>`), because a plain two-file `cat` joined lines when `.env` lacked a trailing
   newline. `.env` and `.env.owner` are `chmod 0600` on the remote temp file before the `mv`. The constants live in
   `src/fabrik/spec_loader.py` (`OWNER_ENV_KEYS`, `OWNER_ENV_FILE`). Graders G1–G7 in
   `tests/orchestrator/test_deployer_ssh.py::TestOwnerEnvSplit`, each red-first; five mutants red in a throwaway worktree.
