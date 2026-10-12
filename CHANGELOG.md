@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve reads the executor, fan-out and branches before writing (2026-10-13)
+- PHASE 3 reads the target's fan-out paragraph, the section whose executor acts on the sentence, and every branch its subject binds (D-799).
+
 ### Changed — review loop: slices re-stated in remainder rounds, capped round 1 merges low-risk slices (2026-10-13)
 - A slice-partitioned scope-growth remainder round still re-states every slice; a known cap merges two low-risk slices; a fix outside the pin is pinned or named (D-798).
 

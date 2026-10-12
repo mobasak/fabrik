@@ -205,9 +205,13 @@ Three shapes are NOT yours to apply here, and each has a destination:
 **Read the command source whole before editing** — the overwhelming majority of "add a rule about X"
 edits belong INSIDE a section that already exists (CLAUDE.md § READ BEFORE YOU EDIT). An append that
 restates what the file already says creates two sources of truth in one document. Before a sentence is
-written, read what already governs its subject: the target's intro and guardrails (a new mode or term must
-not contradict them), the fragments it includes (§ Drive's consistency rule says where a shared rule lives), the target's own routing rules (state the overlap), and the --help and argument
-handling of any script the sentence works around (a mode may already cover the blind spot).
+written, read what already governs its subject: the target's intro and guardrails (a new mode or term
+must not contradict them), the fragments it includes (§ Drive's consistency rule says where a shared
+rule lives), the target's own routing rules (state the overlap), its fan-out paragraph and the section
+whose executor — lead, seat or fixer — acts on the sentence (place it where that reader looks, never
+contradicting who drives), every branch the sentence's subject can bind (a pronoun for "the review"
+binds each review the step can pick), and the --help and argument handling of any script the sentence
+works around (a mode may already cover the blind spot).
 
 **Commands are rules, not changelogs:** write the new text in the present tense as the rule, and
 DELETE what it replaces. The history lives in git.
