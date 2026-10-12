@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve reads what already governs a subject before writing (2026-10-12)
+- PHASE 3 names the reads (target intro and guardrails, included fragments, routing rules, a script's --help), runs verbs end to end in a scratch repo and recipes on real artifacts, and runs the assemble test after a frontmatter edit (D-767).
+
 ### Changed — /fabrik-plan-after-chat checks a new plan's citations and its rubric's source tree (2026-10-12)
 - New plan files are graded with `check_citations_resolve.py --doc` before the citation check; script-behaviour steps quote the function; spec-fed grounders start from the spec's anchors; the rubric runs from the tree holding the packs (D-766).
 
