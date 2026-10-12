@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the /fabrik-task close accepts a receipt reviewed before the commit (2026-10-12)
 - kaizen's triage (mail 01M4N1K909, rows 1791317858, 1791470714, 1791116082, 1791099519, 1791465412, 1791074435): `--review` refused every receipt made with `review_receipt.py --init` and no `--range` (156 of 671 on disk), so a close then refused the receipt as undeclared. Check (d) now also accepts that working-tree Surface when the commit's diff over its paths rebuilds to the same bytes (untracked files included); `review_receipt.py --restamp <receipt>` re-anchors it after the review's last fix. A design note citing `path:N-M` or `path::symbol` now names that file at close, and a `--commit` value holding whitespace is refused with the fix (W-ebbedc88, D-750).
 
+### Changed — /fabrik-conformance-review checks a spot-run's target and bounds its re-sweeps (2026-10-12)
+- Spot-runs print their resolved DB/service target and read shared fixtures before calling a run read-only; class re-sweeps stay inside the inventory; `ROUTED(n)` says what it counts (D-768).
+
 ### Changed — /fabrik-command-improve reads what already governs a subject before writing (2026-10-12)
 - PHASE 3 names the reads (target intro and guardrails, included fragments, routing rules, a script's --help), runs a verb the agent is told to run end to end in a scratch repo, and runs recipes on real artifacts (D-767).
 
