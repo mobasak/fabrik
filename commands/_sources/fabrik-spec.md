@@ -133,6 +133,11 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
 - **BLOCKING:** you may NOT present approaches (Phase 3) until every external dependency is either
   grounded-with-a-cited-source, OR recorded as a **named BLOCKING unknown with an explicit resolution step**.
   Never silently assume a vendor API behaves a certain way.
+- **An amendment that adds no external fact** satisfies this gate by saying so, naming the parent spec and its
+  last live verification: `This amendment adds no external facts beyond <parent spec path>, last verified live
+  <date>.` Keep the words `no external facts` together: `check_spec_convergence.py`'s pattern does not match "no
+  NEW external facts", and the spec then grades SILENT-1a.
+
 
 ### 1b — Internal capability: the fabrik-lib vendor→enhance→build ladder (+ shape-level infra)
 
@@ -273,7 +278,7 @@ build this — never pick an approach from training memory or first instinct:
 
 **Parallelism — UNCONDITIONAL, every run.** Ground with **one native `fabrik-researcher` seat PER DEPENDENCY/capability, run in parallel** (recipe in **§ Subagents** below): a serial grounding that could
 have been parallel is wasted wall-clock. Keep ≥1 native `fabrik-researcher` on Opus for the authoritative-source
-verify-sample; then **you** synthesize. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). A hard cap outranks the floor (D-189): when `dispatch_headroom.py` prints fewer `SEATS:`, dispatch that many, name the dependencies no seat grounded, and dispatch them when headroom returns. The vendor-ladder verdict (1b) and
+verify-sample; then **you** synthesize. A 1c (best-practice) seat is dispatched after the 1a facts it rests on are grounded or executed, and its brief carries them, so a recommended practice cannot rest on a mechanism those facts refute. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). A hard cap outranks the floor (D-189): when `dispatch_headroom.py` prints fewer `SEATS:`, dispatch that many, name the dependencies no seat grounded, and dispatch them when headroom returns. The vendor-ladder verdict (1b) and
 the design judgment stay yours.
 
 ## Phase 2 — Collaborative Q&A (pin intent)
@@ -433,7 +438,11 @@ spec's plan is drafted before it and approved with it).
   internal consistency (architecture matches features); scope (single buildable spec or decompose);
   ambiguity (pick one interpretation, make it explicit); and — Fabrik-specific — did any capability skip the
   vendor ladder? is any external claim ungrounded or from memory? does every backticked `path:line` resolve
-  (grep it)? Fix all before proceeding.
+  (grep it)? Then grade the DRAFT the way the CONVERGED flip will: copy it to scratch under its own filename,
+  set the copy's Status line to `CONVERGED`, and run `python3 scripts/enforcement/check_spec_convergence.py <the copy>` —
+  the script skips a DRAFT (`NOT-CONVERGED: <path> - a DRAFT is not graded`), and the copy prints the
+  `SILENT-1a`, `APPROACH-FLOOR` and `NO-INTAKE` findings `/fabrik-spec-review` would otherwise reach rounds later.
+  Fix all before proceeding.
 - After the self-review, go straight to Phase 6 — for a full-profile spec, the independent
   `/fabrik-spec-review` convergence runs BEFORE the user approves, so the user approves a hardened
   (CONVERGED) spec, never an unverified DRAFT. **Exception — a `Size: small` spec (above):** Phase 6 skips

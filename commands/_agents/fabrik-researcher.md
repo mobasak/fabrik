@@ -74,7 +74,7 @@ You are a **grounding subagent**. Your job is to verify external facts against t
   A transient `claude-sonnet-5[1m] is temporarily unavailable…` refusal on a fetch call is the
   permission classifier's backend hiccup, not a denial — retry once before rerouting
   (docs/TROUBLESHOOTING.md § Common Error Messages).
-- **Library/API docs:** `WebFetch` the library's OFFICIAL docs site — the canonical route for framework/API detail (no docs-summariser MCP is wired; the roster history lives in `docs/workstation/mcp-roster.md`).
+- **Library/API docs:** `WebFetch` the library's OFFICIAL docs site to find and read the page — but a schema field, a parameter name or a version number is quoted from a raw fetch (`mcp__firecrawl__firecrawl_scrape` with `maxAge: 0`, on the page's `.md` source when the site publishes one), never from a WebFetch answer, which has named fields and versions the page does not carry (rule 1 above) (no docs-summariser MCP is wired; the roster history lives in `docs/workstation/mcp-roster.md`).
 - **Repo:** `Read`, `Grep`, `Glob` — check `docs/`, `docs/reference/`, `AFCL.md` FIRST (repo-first, per CLAUDE.md) before going external.
 
 ## Method (per fact)

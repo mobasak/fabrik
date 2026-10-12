@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec grades its own DRAFT before handoff (2026-10-12)
+- Phase 5's self-review runs `check_spec_convergence.py` on a copy of the DRAFT flipped to CONVERGED; § 1a gives the wording an amendment with no external fact uses; § 1c seats carry the 1a facts; fabrik-researcher quotes schema fields and versions from a raw fetch (D-760).
+
 ### Changed — /fabrik-command-improve executes what a new sentence says a script does (2026-10-12)
 - PHASE 3: a sentence describing a script's, tool's or step's behaviour is executed on its own scenario before review and quoted as it prints, or the row is mailed to the script's beat. PHASE 5: the tests run in the commit's shell after the last edit, and the trailer and marks name only rows PHASE 4's seats found answered (D-759).
 
