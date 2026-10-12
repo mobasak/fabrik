@@ -136,8 +136,8 @@ Repeat until the Termination contract's closing round — `confirmed: 0` with th
 2. **Coverage** — every spec task has a flow; every flow's screens are in the inventory; every screen is reachable in the IA.
 3. **Minimal-click** — every flow is within its click budget (or the over-budget one is redesigned, not excused).
 4. **Consistency** — same task-type uses the same pattern across screens; states are complete; naming/microcopy follow the design system's voice; every id the contract mints (a rule, a note, a screen id)
-   is DEFINED once, for each prefix the contract uses: the lines that open with it (a heading, a list item, a table
-   row) repeat none — `grep -oE '^(#+ |- |\| )\**<prefix>-[0-9]+\b' docs/ui-design.md | grep -oE '<prefix>-[0-9]+' | sort |
+   is DEFINED once, for each prefix the contract uses: the lines that open with it (a heading, a list or numbered
+   item, a table row) repeat none — `grep -oE '^(#+ |- |[0-9]+\. |\| )\**<prefix>-[0-9]+\b' docs/ui-design.md | grep -oE '<prefix>-[0-9]+' | sort |
    uniq -d` prints
    nothing (a later citation of the id is a mention, not a definition).
 5. **Data-wired** — every screen's fields exist in `docs/data-contract.md`; no orphan field, no invented field; a displayed field

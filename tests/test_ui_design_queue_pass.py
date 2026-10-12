@@ -81,6 +81,7 @@ def test_the_uniqueness_recipe_counts_definitions_not_mentions(tmp_path: Path) -
 
     assert run(cited) == ""
     assert run(twice).split() == ["R-ui-12"]
+    assert run("1. **R-ui-20**: one\n2. **R-ui-20**: again\n").split() == ["R-ui-20"]
 
 
 def test_re_freeze_mode_skips_phase_seven_seeding_and_hand_off() -> None:
