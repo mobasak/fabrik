@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: specs/services/whatsapp-agent.yaml shape.exposes_metrics is false, but the app serves /metrics."
 }
