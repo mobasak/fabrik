@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-flows-review's renderer constants match its source (2026-10-13)
+- `commands/assemble_commands.py`: /fabrik-flows-review's term-edit AXES names all eight axes (it lacked E2, now `life-cycle arcs (UI types)`), /fabrik-flows' names its Phase-6 gate's eleven checks (it had six), and the flows-review EXTRA drops an Opus-axis sentence that rendered only inside the commented-out pool contract — the source states it since D-783. `tests/test_assemble_axes_match_source.py` grades every command whose source letters its axes against its AXES count (kaizen 01M4RXJYDW).
+
 ### Changed — /fabrik-task checks the design note's names at `--design`, and lists the tests that name a declared script (2026-10-13)
 - `step --phase 2 --design` on a lane-v2 run refuses, storing nothing, when a declared `--file` is not backticked in APPROACH or MIRROR, so the note is fixed before the build instead of amended after it. `start` and the stored design print the tracked test files naming each declared script (kaizen 01M4RNGC0H, D-796).
 
