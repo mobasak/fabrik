@@ -312,6 +312,10 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 ```json
 UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
 ```
+
+A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
+`GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>`,
+`<N>` the failing check's total findings (at least 1).
 """
 
 
