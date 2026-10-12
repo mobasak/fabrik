@@ -32,7 +32,8 @@ def test_phase_five_tests_before_the_commit_and_marks_only_covered_rows() -> Non
     p4 = _phase("## PHASE 4", "## PHASE 5")
     assert "for each row it finds answered, it returns the line that states the row's step" in p4
     p5 = _phase("## PHASE 5", "## Terminal")
-    run = p5.index("Run the edit's tests after the last edit, in the shell that commits")
+    run = p5.index("Run the edit's tests — the queue-pass test plus every test file that names the edited source")
+    assert "after the last edit, in the shell that commits" in p5
     assert run < p5.index("Agent-Role: primary") < p5.index("Then MARK the rows answered")
     assert "The trailer's `rows` and the `--mark-answered` list below name the same rows" in p5
 
@@ -52,3 +53,14 @@ def test_phase_three_runs_verbs_end_to_end_and_recipes_on_real_artifacts() -> No
     assert "or tells the agent to run one of its verbs is executed on the scenario the sentence states" in p3
     assert "is run on a real artifact the command produces and on two fleet ones as well as a synthetic file" in p3
     assert "a verb is run end to end in a scratch repo, never on the repo's own work store or mailbox" in p3
+
+
+def test_phase_five_runs_every_test_that_names_the_edited_source() -> None:
+    """Row 1791830357 (D-790): fabrik-task.md's size cap and verbatim pins sit in a test the queue-pass test is not."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    assert "every test file that names the edited source or fragment, or a command that includes that fragment (`command grep -rl --include=*.py <each name> tests/`), since a size cap or a sentence pinned verbatim is invisible from the source" in text
+    import subprocess
+
+    found = subprocess.run(["grep", "-rl", "--include=*.py", "fabrik-task.md", "tests/"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+    assert "tests/test_fabrik_task_source.py" in found
+    assert not [p for p in found if not p.endswith(".py")]
