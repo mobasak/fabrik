@@ -126,6 +126,9 @@ For each screen, one block that lets an agent build it without inventing anythin
   variant via the **shadcn MCP** (`mcp__shadcn__search_items_in_registries` / `view_items_in_registries`) so
   the contract names a component that really exists — not an invented one.
 - **Enriched states** — which of loading/empty/error/permission-denied/success/partial/disabled this screen shows.
+- **Form controls** — the screen's form controls, each following `design-system-template.md` § Forms and Inline
+  Editing (validation, inline editing), § Forms (Accessibility) under § Accessibility (Enriched) (labels,
+  `aria-describedby`, `aria-required`) and § Permissions UX (a control the user may not use).
 - **Data mapping** — which `docs/data-contract.md` entities/fields this screen reads or writes (GUI field ↔ the
   contract's DB column). A screen that shows a field not in the data contract is a defect — reconcile it there.
 
