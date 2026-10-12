@@ -64,7 +64,10 @@ or name in the brief why the shape does not have it.
 - The premise: the authoritative seat attacks the work item's premise and a ported heuristic's premise, not only the
   implementation; ask whether an existing mechanism or fragment already covers the class, and whether the check fits a
   boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to
-  a `fabrik-researcher` seat; a seat names the whole input class of a finding it raises.
+  a `fabrik-researcher` seat; a seat names the whole input class of a finding it raises; a re-vendor brief hands
+  the seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack — they
+  re-run that command first, then spend on what byte identity cannot show: the vendored copy's own header and every
+  importer of it.
 
 ## Graders
 - Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is absent
@@ -118,13 +121,16 @@ or name in the brief why the shape does not have it.
 ## Seat isolation
 - Seats copy the pin to scratch and assert its md5s first; tests run against an archive of the pinned SHA by the seat
   prompt's `PIN_IMPORT`/`PYTEST_PINS` recipe — the whole test tree archived so collection succeeds, the live repo's
-  `.venv` python (never `uv run`), no `.env` copied (a dummy on `.invalid` only for an import-failing variable); the
-  pins line follows the real layout and the digest is the pin authority. A SEAT never runs `git worktree add` (its
-  metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive copy by
+  `.venv` python (never `uv run`), no `.env` copied (a dummy on `.invalid` only for an import-failing variable). The
+  recipe names its roots by what the tests import, so the brief extends it to every top-level path the tests import,
+  read or run (a test that renders `templates/`, reads `.windsurf/` or runs `scripts/` by subprocess is a false red
+  without it) and names the live repo as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a
+  worktree. The pins line follows the real layout and the digest is the pin authority. A SEAT never runs `git worktree
+  add` (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive copy by
   `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a
-  `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo root
-  with the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the same
-  path); tests run by exact node id.
+  `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo root with
+  the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the same path);
+  tests run by exact node id.
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word
