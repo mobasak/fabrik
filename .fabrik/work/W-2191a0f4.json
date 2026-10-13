@@ -17,7 +17,8 @@
   "priority": 3,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "waits-w36571dff-plan"
   ],
   "title": "The hub's own container image (Dockerfile, compose.yaml, src/fabrik/health_app.py) has no deployer: no specs/services/*.yaml deploys it and no configs/ Gatus entry names it (0 of 69 specs, measured 2026-10-14 at the Coolify-verb-retirement spec, C2) — decide whether the image and its /health app are retired or given a consumer"
 }

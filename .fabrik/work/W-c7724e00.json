@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Re: pgurl findings shipped — re-taken byte-identical (fabrik-lib 8c287fbc); one more downgrade alias (requiressl) and a set -f grader gap"
 }
