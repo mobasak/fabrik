@@ -88,7 +88,8 @@ box: execute it, or name in the brief why the shape does not have it.
   minus that header, never the source's working file, where a sibling's uncommitted edit reads as drift — and the brief
   names the source's own regression test for the file at that SHA, run with its import path pointed at the copy (or says
   the source has none); they re-run that command and that test first, then spend on what byte identity cannot show: the
-  vendored copy's own header and every importer of it.
+  vendored copy's own header, every importer of it, and every name it reads from each module vendored beside it (its
+  `from … import` names and each `module.attr` use), each shown present in that module's copy.
 
 ## Graders
 - Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is absent

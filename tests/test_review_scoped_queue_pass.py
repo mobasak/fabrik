@@ -69,7 +69,8 @@ def test_command_run_is_cited_by_symbol_not_line() -> None:
 
 def test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim() -> None:
     """Row 1791769363 (D-776); rows 1791896579 and 1791905875: the identity diff reads the source's committed
-    blob, and the brief names the source's own regression test. Pinned in the premise bullet. Not seen: a brief
+    blob, and the brief names the source's own regression test; row 1791918689: byte identity holds while the
+    copy reads a name a module vendored beside it lacks. Pinned in the premise bullet. Not seen: a brief
     that names a test but never runs it; the seats' transcripts own that."""
     premise = _section(_norm(CAT), "- The premise:", "## Graders")
     assert (
@@ -80,7 +81,9 @@ def test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim() -> None:
         " header, never the source's working file, where a sibling's uncommitted edit reads as drift — and the brief"
         " names the source's own regression test for the file at that SHA, run with its import path pointed at the"
         " copy (or says the source has none); they re-run that command and that test first, then spend on what byte identity cannot show: the"
-        " vendored copy's own header and every importer of it" in premise
+        " vendored copy's own header, every importer of it, and every name it reads from each module vendored"
+        " beside it (its `from … import` names and each `module.attr` use), each shown present in that module's copy."
+        in premise
     )
 
 
