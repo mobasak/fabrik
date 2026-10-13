@@ -14,6 +14,11 @@ verdicts across six commands, 842 of them from the last four days, 31 ever answe
 
 ## Beat (default single-writer surfaces — soft ownership, hard addresses)
 
+Who receives mail about a path is named by `.fabrik/beat-owners.json` (D-818, D-825), the map
+`mail.py` reads for a mail's `map-owner:`; where this section and the map disagree on a path's mail
+owner, the map holds and this section is corrected, and where the map is silent, this section
+stands.
+
 - **The command-feedback queues** — every row of `~/.claude/state/command-feedback.jsonl`, all commands.
   `python3 scripts/command_feedback_report.py --queue <command>` lists one; `--depths` sizes them all.
 - **Ways-of-working mail** — findings and requests about a command's or a rule's WORDING, a workflow

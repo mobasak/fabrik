@@ -11,7 +11,13 @@ and fabrik-mail.
 
 ## Beat (default single-writer surfaces — soft ownership, hard addresses)
 
-- `commands/_sources/` + skills (render from merged master only)
+Who receives mail about a path is named by `.fabrik/beat-owners.json` (D-818, D-825), the map
+`mail.py` reads for a mail's `map-owner:`; where this section and the map disagree on a path's
+mail owner, the map holds and this section is corrected, and where the map is silent, this
+section stands.
+
+- `commands/_sources/` + skills (render from merged master only); mail citing these paths or
+  `.windsurf/rules/` is kaizen's by the map, and a rendering or check defect reaches you from kaizen
 - `.windsurf/rules/` packs · `scripts/enforcement/` · `.claude/hooks/` (all governance-sync
   trigger surfaces — know the blast radius BEFORE staging)
 - `~/.claude/bin` mesh (decider/sound/selfwatch — production; DR-backup after every change)
