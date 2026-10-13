@@ -144,12 +144,12 @@ Write `scripts/verify_prod_parity.py` to the seeded template's shape:
 - **`UNVERIFIABLE (<why>)` rows are emitted, never dropped** — they count in the denominator so shrinkage
   is visible. The store-type and static-type packs ship `UNVERIFIABLE` by default; a wrong check that
   silently passes is worse than a stated gap.
-- **A `--rows-from` merge trusts the leg files whole** (`_rows_for` concatenates them): a leg file reaches
-  CONFIRMED through which row ids appear, how many times each appears, which comparison keys a row carries, and
-  what its `match` holds — so the contract's `--verdict --rows-from` path checks each merged row against `ROWS` before
-  counting it (every id exactly once, with the keys its kind carries). The seeded template does not do this yet
-  (`_rows_for` only concatenates — fleet 01M4Q92620): add the check when the contract is written. A row carries
-  no site, so a leg's site is known only from the file it came in.
+- **A `--rows-from` merge checks the leg files before it counts them** (`_rows_for` calls `check_leg_rows`): a
+  leg file could otherwise reach CONFIRMED through which row ids appear, how many times each appears, which
+  comparison keys a row carries, and what its `match` holds — so every contract row appears exactly once, with the
+  three comparison keys all or none, a tri-state `match` and a known status, or the merge exits 64. A contract
+  frozen before the template had `check_leg_rows` merges its legs unchecked until a re-freeze copies the
+  template's check in. A row carries no site, so a leg's site is known only from the file it came in.
 - **The exclusion set is data** in the script (a list with the ruling's `D-NNN` beside it), applied to the
   DEV baseline, so the runner and a reader see what was excluded and why.
 - **Read-only against the target.** A row that would mutate the deployed service is written as

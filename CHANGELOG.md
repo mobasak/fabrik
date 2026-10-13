@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — deploy commands describe the checked leg-file merge (2026-10-13)
+- `commands/_sources/fabrik-deploy-checklist.md` Phase 2 said the parity template's `--rows-from` merge trusts the leg files whole and that "the seeded template does not do this yet"; since 74d159577 `_rows_for` calls `check_leg_rows`, so the bullet now states the check (every contract row exactly once, the comparison keys all or none, a tri-state `match`, a known status, else exit 64) and that a contract frozen before it merges unchecked until a re-freeze. `commands/_sources/fabrik-deploy-verify.md` Phase 6 step 2 gains the refused-merge branch (exit 64, no `VERDICT:` line: re-run the leg, never a product FAIL or a rollback), asked by fleet in 01M4TEEZYD. `tests/test_deploy_checklist_queue_pass.py` pins both sentences whole; its leg-file test had been red since 74d159577.
+
 ### Changed — the review probe catalogue: a range-cite grader checks both ends (2026-10-13)
 - `commands/_fragments/review-probe-catalogue.md` § Graders: a grader of a `path:N-M` cite asserts its first line AND its last line still hold the text the cite backs, so a range whose last line moved no longer passes on its first line alone (/fabrik-review-scoped row 1791914277). Grader: `tests/test_review_scoped_queue_pass.py::test_a_range_cite_grader_checks_both_ends` pins the whole bullet.
 

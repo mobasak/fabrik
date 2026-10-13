@@ -305,6 +305,10 @@ product.** Skipped only by Phase 0 step 4 (`NOT-RUN (no FROZEN contract)`).
    liveness row outside the denominator; `not obligated` — a `shape:` flag — is the only thing that removes a
    row; exit 1 (a DOWN) outranks 2 outranks 0 and never upgrades a verdict). **Never re-derive the verdict in
    prose from the row list**; a verdict you computed by reading is the retired rule wearing a table.
+   An exit 64 with no `VERDICT:` line is a REFUSED merge, not a verdict: its stderr lines name each miss by
+   row id, or by leg file where the file itself is malformed — re-run the leg that produced (or should have
+   produced) each named row from the contract at the deployed SHA and merge again; it is never a product
+   FAIL and never a rollback.
 3. Read every row's `{system, status, detail, expected, actual, match, compare_error}` with `.get()`
    (`compare_error` is present only when the comparator raised). Per row: `match True` → PASS (quote
    expected/actual); `False` → FAIL, route `/fabrik-review` (a code- or data-side defect — the deployed
