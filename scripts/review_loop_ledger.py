@@ -298,10 +298,14 @@ def _from_union(result: dict, ids: list[str]) -> dict[str, list]:
     found: dict[str, list[tuple[str, dict]]] = {}
     for n, s in enumerate(result["slices"]):
         if not isinstance(s, dict) or not isinstance(s.get("name"), str) or not s["name"]:
-            raise LedgerError(f"the run file's result slice {n + 1} has no name, so no slice owns its ids")
+            raise LedgerError(
+                f"the run file's result slice {n + 1} has no name, so no slice owns its ids"
+            )
         cands = s.get("candidates", [])
         if not isinstance(cands, list):
-            raise LedgerError(f"the run file's result slice {s['name']} has candidates that are not a list")
+            raise LedgerError(
+                f"the run file's result slice {s['name']} has candidates that are not a list"
+            )
         for c in cands:
             if isinstance(c, dict) and c.get("id") in ids:
                 found.setdefault(c["id"], []).append((s["name"], c))
@@ -311,10 +315,16 @@ def _from_union(result: dict, ids: list[str]) -> dict[str, list]:
     twice = [i for i in ids if len(found[i]) > 1]
     if twice:
         menu = "; ".join(
-            f"{i}: " + " · ".join(f"[slice {n}] {c.get('file')}:{c.get('line')} {str(c.get('claim'))[:80]!r}" for n, c in found[i])
+            f"{i}: "
+            + " · ".join(
+                f"[slice {n}] {c.get('file')}:{c.get('line')} {str(c.get('claim'))[:80]!r}"
+                for n, c in found[i]
+            )
             for i in twice
         )
-        raise LedgerError(f"id(s) the run file carries more than once, so they name no single claim — {menu}")
+        raise LedgerError(
+            f"id(s) the run file carries more than once, so they name no single claim — {menu}"
+        )
     slices: dict[str, list] = {}
     for i in ids:
         name, c = found[i][0]
@@ -380,13 +390,19 @@ def next_ledger(
     is to ignore stderr and drop an unverified slice; the closing round's `round --slices` re-statement is the
     counter."""
     ids = list(dict.fromkeys(ids))  # a repeated --ids entry is one claim (review round 1, A-S3)
-    slices = _from_union(result, ids) if result and isinstance(result.get("slices"), list) else _from_pass(doc, ids)
+    slices = (
+        _from_union(result, ids)
+        if result and isinstance(result.get("slices"), list)
+        else _from_pass(doc, ids)
+    )
     if args is None:
         return [{"name": n, "ledger": rows} for n, rows in slices.items()]
     named = [s.get("name") for s in args["slices"] if isinstance(s, dict)]
     dup = sorted({str(n) for n in named if named.count(n) > 1})
     if dup:
-        raise LedgerError(f"slice {', '.join(dup)} is named by more than one launch slice of --args")
+        raise LedgerError(
+            f"slice {', '.join(dup)} is named by more than one launch slice of --args"
+        )
     launch = {s.get("name"): s for s in args["slices"] if isinstance(s, dict)}
     absent = [n for n in slices if n not in launch]
     if absent:
@@ -396,10 +412,18 @@ def next_ledger(
     for n in slices:
         # the emitted slice is the next launch verbatim, so what the workflow would refuse is refused here
         files, models = launch[n].get("files"), launch[n].get("models", [])
-        if not isinstance(files, list) or not files or not all(isinstance(f, str) and f for f in files):
-            raise LedgerError(f"launch slice {n} in --args has no `files` list, so the next launch cannot read it")
+        if (
+            not isinstance(files, list)
+            or not files
+            or not all(isinstance(f, str) and f for f in files)
+        ):
+            raise LedgerError(
+                f"launch slice {n} in --args has no `files` list, so the next launch cannot read it"
+            )
         if not isinstance(models, list):
-            raise LedgerError(f"launch slice {n} in --args has `models` that are not a list: {models!r}")
+            raise LedgerError(
+                f"launch slice {n} in --args has `models` that are not a list: {models!r}"
+            )
     return [
         {"name": n, **{k: launch[n][k] for k in _SLICE_FIELDS if k in launch[n]}, "ledger": rows}
         for n, rows in slices.items()
@@ -409,7 +433,11 @@ def next_ledger(
 def carry_notes(args: dict, out: list[dict]) -> list[str]:
     """stderr for an --args emit: the launch slices not carried, and the stamp the next launch owes."""
     carried = {s["name"] for s in out}
-    left = [str(s.get("name")) for s in args["slices"] if isinstance(s, dict) and s.get("name") not in carried]
+    left = [
+        str(s.get("name"))
+        for s in args["slices"]
+        if isinstance(s, dict) and s.get("name") not in carried
+    ]
     finders = sum(len(s["models"]) if "models" in s else _DEFAULT_FINDERS for s in out)
     notes = [f"not carried: {', '.join(left)} — no id named this pass"] if left else []
     return notes + [
@@ -943,10 +971,14 @@ def main(argv: list[str] | None = None) -> int:
         else:
             try:
                 doc = json.loads(a.ledger.read_text())
-            except ValueError as exc:  # review round 1 A-S1: a torn pass file is a refusal, never a traceback
+            except (
+                ValueError
+            ) as exc:  # review round 1 A-S1: a torn pass file is a refusal, never a traceback
                 raise LedgerError(f"{a.ledger} is not JSON ({exc})") from None
             launch, result = load_args(a.launch) if a.launch else (None, None)
-            out = next_ledger(doc, [i.strip() for i in a.ids.split(",") if i.strip()], launch, result)
+            out = next_ledger(
+                doc, [i.strip() for i in a.ids.split(",") if i.strip()], launch, result
+            )
             for note in carry_notes(launch, out) if launch else []:
                 print(note, file=sys.stderr)
             print(json.dumps(out, ensure_ascii=False))

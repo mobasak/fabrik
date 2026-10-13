@@ -387,7 +387,14 @@ def test_next_keeps_a_hyphenated_slice_name_whole() -> None:
 
 
 def _union(cid: str, line: int, claim: str, seat: str = "sonnet") -> dict:
-    return {"id": cid, "file": "a.py", "line": line, "failure_class": "logic", "claim": claim, "seat": seat}
+    return {
+        "id": cid,
+        "file": "a.py",
+        "line": line,
+        "failure_class": "logic",
+        "claim": claim,
+        "seat": seat,
+    }
 
 
 def _run_file(tmp: Path) -> Path:
@@ -396,15 +403,29 @@ def _run_file(tmp: Path) -> Path:
     args = {
         "pass": 1,
         "slices": [
-            {"name": "A", "files": ["a.py"], "priority": "p-A", "models": ["sonnet", "haiku"], "scope": "s-A",
-             "ledger": [{"id": "A-OLD", "claim": "stale"}]},
-            {"name": "B", "files": ["b.py", "c.py"], "models": ["opus"], "agent": "fabrik-researcher"},
+            {
+                "name": "A",
+                "files": ["a.py"],
+                "priority": "p-A",
+                "models": ["sonnet", "haiku"],
+                "scope": "s-A",
+                "ledger": [{"id": "A-OLD", "claim": "stale"}],
+            },
+            {
+                "name": "B",
+                "files": ["b.py", "c.py"],
+                "models": ["opus"],
+                "agent": "fabrik-researcher",
+            },
             {"name": "C", "files": ["d.py"]},
         ],
     }
     result = {
         "slices": [
-            {"name": "A", "candidates": [_union("A-S1", 3, "first"), _union("A-S1#2", 40, "second", "haiku")]},
+            {
+                "name": "A",
+                "candidates": [_union("A-S1", 3, "first"), _union("A-S1#2", 40, "second", "haiku")],
+            },
             {"name": "B", "candidates": [_union("B-O1", 7, "bee", "opus")]},
             {"name": "C", "candidates": []},
         ]
@@ -432,7 +453,14 @@ def _pass_file(tmp: Path) -> Path:
 
 
 def test_next_args_resolves_the_verdicts_own_ids_and_emits_whole_slices(tmp_path: Path) -> None:
-    r = _tool("next", str(_pass_file(tmp_path)), "--ids", "A-S1,A-S1#2,B-O1", "--args", str(_run_file(tmp_path)))
+    r = _tool(
+        "next",
+        str(_pass_file(tmp_path)),
+        "--ids",
+        "A-S1,A-S1#2,B-O1",
+        "--args",
+        str(_run_file(tmp_path)),
+    )
     assert r.returncode == 0, r.stderr
     assert json.loads(r.stdout) == [
         {
@@ -459,7 +487,9 @@ def test_next_args_resolves_the_verdicts_own_ids_and_emits_whole_slices(tmp_path
     assert "DISPATCH: 3 finder(s) + 2 refuter(s) = stamp 5" in r.stderr, r.stderr
 
 
-def test_next_args_takes_a_bare_args_object_and_the_claims_from_the_pass_file(tmp_path: Path) -> None:
+def test_next_args_takes_a_bare_args_object_and_the_claims_from_the_pass_file(
+    tmp_path: Path,
+) -> None:
     bare = tmp_path / "args.json"
     bare.write_text(json.dumps(json.loads(_run_file(tmp_path).read_text())["args"]))
     r = _tool("next", str(_pass_file(tmp_path)), "--ids", "B-O1", "--args", str(bare))
@@ -473,7 +503,10 @@ def test_next_args_takes_a_bare_args_object_and_the_claims_from_the_pass_file(tm
             "ledger": [{"id": "B-O1", "file": "a.py", "line": 7, "claim": "bee"}],
         }
     ]
-    assert "not carried: A, C" in r.stderr and "DISPATCH: 1 finder(s) + 1 refuter(s) = stamp 2" in r.stderr
+    assert (
+        "not carried: A, C" in r.stderr
+        and "DISPATCH: 1 finder(s) + 1 refuter(s) = stamp 2" in r.stderr
+    )
 
 
 @pytest.mark.parametrize(
@@ -482,7 +515,13 @@ def test_next_args_takes_a_bare_args_object_and_the_claims_from_the_pass_file(tm
         ("{not json", "B-O1", "not JSON"),
         (json.dumps({"args": {"pass": 2}}), "B-O1", "slices"),
         (json.dumps([1, 2]), "B-O1", "slices"),
-        (json.dumps({"args": {"slices": [{"name": "A", "files": ["a.py"]}]}, "result": {"slices": []}}), "A-S1", "A-S1"),
+        (
+            json.dumps(
+                {"args": {"slices": [{"name": "A", "files": ["a.py"]}]}, "result": {"slices": []}}
+            ),
+            "A-S1",
+            "A-S1",
+        ),
         (json.dumps({"slices": [{"name": "A", "files": ["a.py"]}]}), "B-O1", "slice B"),
     ],
 )
@@ -496,7 +535,11 @@ def test_next_args_refuses_by_name(tmp_path: Path, body: str, ids: str, needle: 
 
 def _run_with(tmp: Path, result: object, slices: list | None = None) -> Path:
     p = tmp / "wf_custom.json"
-    launch = slices if slices is not None else [{"name": "A", "files": ["a.py"]}, {"name": "B", "files": ["b.py"]}]
+    launch = (
+        slices
+        if slices is not None
+        else [{"name": "A", "files": ["a.py"]}, {"name": "B", "files": ["b.py"]}]
+    )
     p.write_text(json.dumps({"args": {"slices": launch}, "result": result}))
     return p
 
@@ -505,9 +548,25 @@ def _run_with(tmp: Path, result: object, slices: list | None = None) -> Path:
     ("result", "ids", "needle"),
     [
         # review round 1 A-S2/A-H1/B-S2: one id carried by two different union rows names no single claim
-        ({"slices": [{"name": "A", "candidates": [_union("A-S1", 3, "x"), _union("A-S1", 9, "y")]}]}, "A-S1", "a.py:9"),
-        ({"slices": [{"name": "A", "candidates": [_union("A-S1", 3, "x")]},
-                     {"name": "B", "candidates": [_union("A-S1", 5, "z")]}]}, "A-S1", "a.py:5"),
+        (
+            {
+                "slices": [
+                    {"name": "A", "candidates": [_union("A-S1", 3, "x"), _union("A-S1", 9, "y")]}
+                ]
+            },
+            "A-S1",
+            "a.py:9",
+        ),
+        (
+            {
+                "slices": [
+                    {"name": "A", "candidates": [_union("A-S1", 3, "x")]},
+                    {"name": "B", "candidates": [_union("A-S1", 5, "z")]},
+                ]
+            },
+            "A-S1",
+            "a.py:5",
+        ),
         # A-S4/B-S1: a result slice with no name, or candidates that are not a list, is malformed — refused by name
         ({"slices": [{"candidates": [_union("A-S1", 3, "x")]}]}, "A-S1", "name"),
         ({"slices": [{"name": "A", "candidates": 7}]}, "A-S1", "candidates"),
@@ -516,7 +575,9 @@ def _run_with(tmp: Path, result: object, slices: list | None = None) -> Path:
 def test_next_args_refuses_an_ambiguous_or_malformed_union(
     tmp_path: Path, result: dict, ids: str, needle: str
 ) -> None:
-    r = _tool("next", str(_pass_file(tmp_path)), "--ids", ids, "--args", str(_run_with(tmp_path, result)))
+    r = _tool(
+        "next", str(_pass_file(tmp_path)), "--ids", ids, "--args", str(_run_with(tmp_path, result))
+    )
     assert r.returncode == 2 and needle in r.stderr and r.stdout == "", (r.returncode, r.stderr)
     assert "Traceback" not in r.stderr, r.stderr
 
@@ -532,9 +593,18 @@ def test_next_args_refuses_an_ambiguous_or_malformed_union(
         ([{"name": "A", "files": ["a.py"], "models": "sonnet"}], "models"),
     ],
 )
-def test_next_args_refuses_a_malformed_launch_slice(tmp_path: Path, slices: list, needle: str) -> None:
+def test_next_args_refuses_a_malformed_launch_slice(
+    tmp_path: Path, slices: list, needle: str
+) -> None:
     result = {"slices": [{"name": "A", "candidates": [_union("A-S1", 3, "x")]}]}
-    r = _tool("next", str(_pass_file(tmp_path)), "--ids", "A-S1", "--args", str(_run_with(tmp_path, result, slices)))
+    r = _tool(
+        "next",
+        str(_pass_file(tmp_path)),
+        "--ids",
+        "A-S1",
+        "--args",
+        str(_run_with(tmp_path, result, slices)),
+    )
     assert r.returncode == 2 and needle in r.stderr and r.stdout == "", (r.returncode, r.stderr)
 
 
@@ -544,7 +614,9 @@ def test_next_args_with_a_result_lacking_slices_reads_the_pass_file(tmp_path: Pa
     run = _run_with(tmp_path, {"pass": 1})
     ok = _tool("next", str(_pass_file(tmp_path)), "--ids", "B-O1", "--args", str(run))
     assert ok.returncode == 0, ok.stderr
-    assert json.loads(ok.stdout)[0]["ledger"] == [{"id": "B-O1", "file": "a.py", "line": 7, "claim": "bee"}]
+    assert json.loads(ok.stdout)[0]["ledger"] == [
+        {"id": "B-O1", "file": "a.py", "line": 7, "claim": "bee"}
+    ]
     amb = _tool("next", str(_pass_file(tmp_path)), "--ids", "A-S1", "--args", str(run))
     assert amb.returncode == 2 and "more than once" in amb.stderr, amb.stderr
 
@@ -554,7 +626,9 @@ def test_next_reads_each_id_once_and_refuses_an_unreadable_pass_file(tmp_path: P
     traceback."""
     r = _tool("next", str(_pass_file(tmp_path)), "--ids", "B-O1,B-O1")
     assert r.returncode == 0, r.stderr
-    assert json.loads(r.stdout) == [{"name": "B", "ledger": [{"id": "B-O1", "file": "a.py", "line": 7, "claim": "bee"}]}]
+    assert json.loads(r.stdout) == [
+        {"name": "B", "ledger": [{"id": "B-O1", "file": "a.py", "line": 7, "claim": "bee"}]}
+    ]
     bad = tmp_path / "torn.json"
     bad.write_text("{not json")
     t = _tool("next", str(bad), "--ids", "B-O1")

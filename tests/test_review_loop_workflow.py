@@ -1547,7 +1547,9 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
     assert src.count("const SEAT_ISOLATION = ") == 1
     assert src.count("${SEAT_ISOLATION}") == 2
     start = src.index("const SEAT_ISOLATION = ")
-    iso = src[start : src.index("\n", start)]  # the constant's own line, never BRIEF_IS_TASK below it
+    iso = src[
+        start : src.index("\n", start)
+    ]  # the constant's own line, never BRIEF_IS_TASK below it
     assert "archive -o into SCRATCH, ls-tree, show" in iso, (
         "the pin recipe's read-only git must stay legal"
     )
@@ -1708,7 +1710,10 @@ def test_workflow_base_pin_clause_replaces_git_archive() -> None:
         assert "skip their mkdir, ls-tree, git archive, tar and ROOTS steps" in prompts[label]
     _, _, plain = _harness(_ARGS, _QUIET)
     # BASE_PIN's own step, not the bare `chmod -R u+w` the refusal rule now names in every prompt (01M4DXXNYP)
-    assert "/bp/base" not in plain["find:S:sonnet"] and "chmod -R u+w SCRATCH/arch" not in plain["find:S:sonnet"]
+    assert (
+        "/bp/base" not in plain["find:S:sonnet"]
+        and "chmod -R u+w SCRATCH/arch" not in plain["find:S:sonnet"]
+    )
 
 
 def test_every_launcher_passes_a_pin_manifest() -> None:
@@ -1908,15 +1913,26 @@ def test_an_ambiguous_fold_says_so_instead_of_no_verdict() -> None:
     assert v["s-s1"]["verdict"] == "unverified" and "ambiguous" in v["s-s1"]["mechanism"], v["s-s1"]
 
 
-def test_every_seat_facing_text_carries_the_one_refusal_rule_and_the_precise_silence_hedge() -> None:
+def test_every_seat_facing_text_carries_the_one_refusal_rule_and_the_precise_silence_hedge() -> (
+    None
+):
     """intel 01M4DSCHTM (W-68f8f358): the refusal rule lived in SEAT_ISOLATION and the fabrik-reviewer House
     rules only, so an Agent-tool seat of another type, briefed from subagents-core, could still re-path after a
     refusal (01M4DNRQ5C). And scope-growth-exit said nothing prints when the loop is "simply converging", weaker
     than its own pack's "MERELY converging with no own-fix residue" (W-ad21a20f item 2)."""
-    core = " ".join((ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8").split())
+    core = " ".join(
+        (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8").split()
+    )
     # one contiguous span through the next sentence, as its two siblings above are (review A-S3)
-    assert f"for a seat with a shell, {REFUSAL_SHAPE}; {REFUSAL_CLASSIFIER}. The same brief bans" in core
-    exit_ = " ".join((ROOT / "commands" / "_fragments" / "scope-growth-exit.md").read_text(encoding="utf-8").split())
+    assert (
+        f"for a seat with a shell, {REFUSAL_SHAPE}; {REFUSAL_CLASSIFIER}. The same brief bans"
+        in core
+    )
+    exit_ = " ".join(
+        (ROOT / "commands" / "_fragments" / "scope-growth-exit.md")
+        .read_text(encoding="utf-8")
+        .split()
+    )
     assert (
         "nothing prints when the loop is MERELY converging with no own-fix residue (a falling count that is "
         "mostly own-fix DOES print the stop). So" in exit_
