@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review probe catalogue: a re-vendor identity diff reads the source's committed blob and runs its test (2026-10-13)
+- The re-vendor premise in `commands/_fragments/review-probe-catalogue.md` now says the lead's byte-identity diff reads the source's COMMITTED blob at the SHA the copy records (its `VENDORED-FROM` header, as `libs/health_probe/` carries; HEAD when it records none) against the copy minus that header, never the source's working file, where a sibling's uncommitted edit reads as drift. The brief also names the source's own regression test for the file at that SHA, run with its import path pointed at the copy, or says the source has none (/fabrik-review rows 1791896579, 1791905875). Grader: `tests/test_review_scoped_queue_pass.py::test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim`.
+
 ### Changed — /fabrik-review-scoped runs the lead leak check around every pass (2026-10-13)
 - The dispatch paragraph now says the lead runs the **Leak check** of `/fabrik-review` before every dispatch and after each pass returns, since a seat can write to the shared tree. Review-scoped dispatches three seats in round 1 and its claim-holders each later pass, and had no such check (row 1791896900; D-711 audit). The row's other half, a seat changing into its scratch directory in the same call, needed no edit: the review-loop seat brief and `fabrik-reviewer.md` already require absolute scratch paths. Grader: `tests/test_review_scoped_queue_pass.py::test_the_lead_runs_the_leak_check_around_every_scoped_pass`.
 
