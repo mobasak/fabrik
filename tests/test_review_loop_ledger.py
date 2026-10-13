@@ -233,6 +233,10 @@ def test_next_refuses_an_ambiguous_or_slice_less_id(tmp_path: Path) -> None:
     assert amb.returncode == 2 and "A-S1" in amb.stderr and "more than once" in amb.stderr, (
         amb.stderr
     )
+    # mail 01M4PHYNXJ: the refusal is the menu — every claim with its seat and file:line, and the exact path out
+    assert "a.py:1" in amb.stderr and "a.py:99" in amb.stderr, amb.stderr
+    assert "find:A:sonnet" in amb.stderr and "find:A:haiku" in amb.stderr, amb.stderr
+    assert "--args" in amb.stderr and amb.stdout == "", amb.stderr
     bare = _tool("next", str(out), "--ids", "nodash")
     assert bare.returncode == 2 and "nodash" in bare.stderr and "slice" in bare.stderr, bare.stderr
 
@@ -377,6 +381,258 @@ def test_next_keeps_a_hyphenated_slice_name_whole() -> None:
     }
     out = rl.next_ledger(doc, ["rule-grammar-O1", "rest-of-spec-S2"])
     assert sorted(s["name"] for s in out) == ["rest-of-spec", "rule-grammar"], out
+
+
+# --- next --args: the verdicts' own ids and whole slices (mail 01M4PHYNXJ) -----------------------------------
+
+
+def _union(cid: str, line: int, claim: str, seat: str = "sonnet") -> dict:
+    return {
+        "id": cid,
+        "file": "a.py",
+        "line": line,
+        "failure_class": "logic",
+        "claim": claim,
+        "seat": seat,
+    }
+
+
+def _run_file(tmp: Path) -> Path:
+    """A Workflow run file as the harness keeps it: the launch `args` and the `result` whose union candidates
+    carry the ids the verdicts use — `A-S1#2` is the workflow's own suffix for a second claim under `A-S1`."""
+    args = {
+        "pass": 1,
+        "slices": [
+            {
+                "name": "A",
+                "files": ["a.py"],
+                "priority": "p-A",
+                "models": ["sonnet", "haiku"],
+                "scope": "s-A",
+                "ledger": [{"id": "A-OLD", "claim": "stale"}],
+            },
+            {
+                "name": "B",
+                "files": ["b.py", "c.py"],
+                "models": ["opus"],
+                "agent": "fabrik-researcher",
+            },
+            {"name": "C", "files": ["d.py"]},
+        ],
+    }
+    result = {
+        "slices": [
+            {
+                "name": "A",
+                "candidates": [_union("A-S1", 3, "first"), _union("A-S1#2", 40, "second", "haiku")],
+            },
+            {"name": "B", "candidates": [_union("B-O1", 7, "bee", "opus")]},
+            {"name": "C", "candidates": []},
+        ]
+    }
+    p = tmp / "wf_run.json"
+    p.write_text(json.dumps({"runId": "wf_x", "args": args, "result": result}))
+    return p
+
+
+def _pass_file(tmp: Path) -> Path:
+    """The raw pass file `read` writes: both seats raised `A-S1`, so it names two claims here."""
+    p = tmp / "pass.json"
+    p.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {**_union("A-S1", 3, "first"), "seat": "find:A:sonnet"},
+                    {**_union("A-S1", 40, "second"), "seat": "find:A:haiku"},
+                    {**_union("B-O1", 7, "bee"), "seat": "find:B:opus"},
+                ]
+            }
+        )
+    )
+    return p
+
+
+def test_next_args_resolves_the_verdicts_own_ids_and_emits_whole_slices(tmp_path: Path) -> None:
+    r = _tool(
+        "next",
+        str(_pass_file(tmp_path)),
+        "--ids",
+        "A-S1,A-S1#2,B-O1",
+        "--args",
+        str(_run_file(tmp_path)),
+    )
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == [
+        {
+            "name": "A",
+            "files": ["a.py"],
+            "models": ["sonnet", "haiku"],
+            "scope": "s-A",
+            "priority": "p-A",
+            "ledger": [
+                {"id": "A-S1", "file": "a.py", "line": 3, "claim": "first"},
+                {"id": "A-S1#2", "file": "a.py", "line": 40, "claim": "second"},
+            ],
+        },
+        {
+            "name": "B",
+            "files": ["b.py", "c.py"],
+            "models": ["opus"],
+            "agent": "fabrik-researcher",
+            "ledger": [{"id": "B-O1", "file": "a.py", "line": 7, "claim": "bee"}],
+        },
+    ]
+    # a slice no id names is said, never silently dropped; the stamp is counted before launch
+    assert "not carried: C" in r.stderr, r.stderr
+    assert "DISPATCH: 3 finder(s) + 2 refuter(s) = stamp 5" in r.stderr, r.stderr
+
+
+def test_next_args_takes_a_bare_args_object_and_the_claims_from_the_pass_file(
+    tmp_path: Path,
+) -> None:
+    bare = tmp_path / "args.json"
+    bare.write_text(json.dumps(json.loads(_run_file(tmp_path).read_text())["args"]))
+    r = _tool("next", str(_pass_file(tmp_path)), "--ids", "B-O1", "--args", str(bare))
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == [
+        {
+            "name": "B",
+            "files": ["b.py", "c.py"],
+            "models": ["opus"],
+            "agent": "fabrik-researcher",
+            "ledger": [{"id": "B-O1", "file": "a.py", "line": 7, "claim": "bee"}],
+        }
+    ]
+    assert (
+        "not carried: A, C" in r.stderr
+        and "DISPATCH: 1 finder(s) + 1 refuter(s) = stamp 2" in r.stderr
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "ids", "needle"),
+    [
+        ("{not json", "B-O1", "not JSON"),
+        (json.dumps({"args": {"pass": 2}}), "B-O1", "slices"),
+        (json.dumps([1, 2]), "B-O1", "slices"),
+        (
+            json.dumps(
+                {"args": {"slices": [{"name": "A", "files": ["a.py"]}]}, "result": {"slices": []}}
+            ),
+            "A-S1",
+            "A-S1",
+        ),
+        (json.dumps({"slices": [{"name": "A", "files": ["a.py"]}]}), "B-O1", "slice B"),
+    ],
+)
+def test_next_args_refuses_by_name(tmp_path: Path, body: str, ids: str, needle: str) -> None:
+    bad = tmp_path / "bad.json"
+    bad.write_text(body)
+    r = _tool("next", str(_pass_file(tmp_path)), "--ids", ids, "--args", str(bad))
+    assert r.returncode == 2 and needle in r.stderr and r.stdout == "", (r.returncode, r.stderr)
+    assert "Traceback" not in r.stderr, r.stderr
+
+
+def _run_with(tmp: Path, result: object, slices: list | None = None) -> Path:
+    p = tmp / "wf_custom.json"
+    launch = (
+        slices
+        if slices is not None
+        else [{"name": "A", "files": ["a.py"]}, {"name": "B", "files": ["b.py"]}]
+    )
+    p.write_text(json.dumps({"args": {"slices": launch}, "result": result}))
+    return p
+
+
+@pytest.mark.parametrize(
+    ("result", "ids", "needle"),
+    [
+        # review round 1 A-S2/A-H1/B-S2: one id carried by two different union rows names no single claim
+        (
+            {
+                "slices": [
+                    {"name": "A", "candidates": [_union("A-S1", 3, "x"), _union("A-S1", 9, "y")]}
+                ]
+            },
+            "A-S1",
+            "a.py:9",
+        ),
+        (
+            {
+                "slices": [
+                    {"name": "A", "candidates": [_union("A-S1", 3, "x")]},
+                    {"name": "B", "candidates": [_union("A-S1", 5, "z")]},
+                ]
+            },
+            "A-S1",
+            "a.py:5",
+        ),
+        # A-S4/B-S1: a result slice with no name, or candidates that are not a list, is malformed — refused by name
+        ({"slices": [{"candidates": [_union("A-S1", 3, "x")]}]}, "A-S1", "name"),
+        ({"slices": [{"name": "A", "candidates": 7}]}, "A-S1", "candidates"),
+    ],
+)
+def test_next_args_refuses_an_ambiguous_or_malformed_union(
+    tmp_path: Path, result: dict, ids: str, needle: str
+) -> None:
+    r = _tool(
+        "next", str(_pass_file(tmp_path)), "--ids", ids, "--args", str(_run_with(tmp_path, result))
+    )
+    assert r.returncode == 2 and needle in r.stderr and r.stdout == "", (r.returncode, r.stderr)
+    assert "Traceback" not in r.stderr, r.stderr
+
+
+@pytest.mark.parametrize(
+    ("slices", "needle"),
+    [
+        # A-H2: two launch slices under one name — which files/models apply is unknowable
+        ([{"name": "A", "files": ["a.py"]}, {"name": "A", "files": ["z.py"]}], "slice A"),
+        # A-H4: a launch slice with no files would emit a slice the workflow refuses
+        ([{"name": "A", "priority": "p"}], "files"),
+        # B-S3: models that are not a list would print a stamp the workflow never dispatches
+        ([{"name": "A", "files": ["a.py"], "models": "sonnet"}], "models"),
+    ],
+)
+def test_next_args_refuses_a_malformed_launch_slice(
+    tmp_path: Path, slices: list, needle: str
+) -> None:
+    result = {"slices": [{"name": "A", "candidates": [_union("A-S1", 3, "x")]}]}
+    r = _tool(
+        "next",
+        str(_pass_file(tmp_path)),
+        "--ids",
+        "A-S1",
+        "--args",
+        str(_run_with(tmp_path, result, slices)),
+    )
+    assert r.returncode == 2 and needle in r.stderr and r.stdout == "", (r.returncode, r.stderr)
+
+
+def test_next_args_with_a_result_lacking_slices_reads_the_pass_file(tmp_path: Path) -> None:
+    """A-H3: a run file whose result holds no `slices` (a run that died mid-pass) resolves against the pass file,
+    where an ambiguous id still refuses."""
+    run = _run_with(tmp_path, {"pass": 1})
+    ok = _tool("next", str(_pass_file(tmp_path)), "--ids", "B-O1", "--args", str(run))
+    assert ok.returncode == 0, ok.stderr
+    assert json.loads(ok.stdout)[0]["ledger"] == [
+        {"id": "B-O1", "file": "a.py", "line": 7, "claim": "bee"}
+    ]
+    amb = _tool("next", str(_pass_file(tmp_path)), "--ids", "A-S1", "--args", str(run))
+    assert amb.returncode == 2 and "more than once" in amb.stderr, amb.stderr
+
+
+def test_next_reads_each_id_once_and_refuses_an_unreadable_pass_file(tmp_path: Path) -> None:
+    """A-S3: a repeated --ids entry is one ledger row; A-S1: a pass file that is not JSON is a refusal, never a
+    traceback."""
+    r = _tool("next", str(_pass_file(tmp_path)), "--ids", "B-O1,B-O1")
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == [
+        {"name": "B", "ledger": [{"id": "B-O1", "file": "a.py", "line": 7, "claim": "bee"}]}
+    ]
+    bad = tmp_path / "torn.json"
+    bad.write_text("{not json")
+    t = _tool("next", str(bad), "--ids", "B-O1")
+    assert t.returncode == 2 and "not JSON" in t.stderr and "Traceback" not in t.stderr, t.stderr
 
 
 # --- the pin verb and the post-pass re-check (kaizen 01M4CGJZAX) --------------------------------------------

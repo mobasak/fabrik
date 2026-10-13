@@ -1547,7 +1547,9 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
     assert src.count("const SEAT_ISOLATION = ") == 1
     assert src.count("${SEAT_ISOLATION}") == 2
     start = src.index("const SEAT_ISOLATION = ")
-    iso = src[start : src.index("\n", start)]  # the constant's own line, never BRIEF_IS_TASK below it
+    iso = src[
+        start : src.index("\n", start)
+    ]  # the constant's own line, never BRIEF_IS_TASK below it
     assert "archive -o into SCRATCH, ls-tree, show" in iso, (
         "the pin recipe's read-only git must stay legal"
     )
@@ -1708,7 +1710,10 @@ def test_workflow_base_pin_clause_replaces_git_archive() -> None:
         assert "skip their mkdir, ls-tree, git archive, tar and ROOTS steps" in prompts[label]
     _, _, plain = _harness(_ARGS, _QUIET)
     # BASE_PIN's own step, not the bare `chmod -R u+w` the refusal rule now names in every prompt (01M4DXXNYP)
-    assert "/bp/base" not in plain["find:S:sonnet"] and "chmod -R u+w SCRATCH/arch" not in plain["find:S:sonnet"]
+    assert (
+        "/bp/base" not in plain["find:S:sonnet"]
+        and "chmod -R u+w SCRATCH/arch" not in plain["find:S:sonnet"]
+    )
 
 
 def test_every_launcher_passes_a_pin_manifest() -> None:
@@ -1908,17 +1913,62 @@ def test_an_ambiguous_fold_says_so_instead_of_no_verdict() -> None:
     assert v["s-s1"]["verdict"] == "unverified" and "ambiguous" in v["s-s1"]["mechanism"], v["s-s1"]
 
 
-def test_every_seat_facing_text_carries_the_one_refusal_rule_and_the_precise_silence_hedge() -> None:
+def test_every_seat_facing_text_carries_the_one_refusal_rule_and_the_precise_silence_hedge() -> (
+    None
+):
     """intel 01M4DSCHTM (W-68f8f358): the refusal rule lived in SEAT_ISOLATION and the fabrik-reviewer House
     rules only, so an Agent-tool seat of another type, briefed from subagents-core, could still re-path after a
     refusal (01M4DNRQ5C). And scope-growth-exit said nothing prints when the loop is "simply converging", weaker
     than its own pack's "MERELY converging with no own-fix residue" (W-ad21a20f item 2)."""
-    core = " ".join((ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8").split())
+    core = " ".join(
+        (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8").split()
+    )
     # one contiguous span through the next sentence, as its two siblings above are (review A-S3)
-    assert f"for a seat with a shell, {REFUSAL_SHAPE}; {REFUSAL_CLASSIFIER}. The same brief bans" in core
-    exit_ = " ".join((ROOT / "commands" / "_fragments" / "scope-growth-exit.md").read_text(encoding="utf-8").split())
+    assert (
+        f"for a seat with a shell, {REFUSAL_SHAPE}; {REFUSAL_CLASSIFIER}. The same brief bans"
+        in core
+    )
+    exit_ = " ".join(
+        (ROOT / "commands" / "_fragments" / "scope-growth-exit.md")
+        .read_text(encoding="utf-8")
+        .split()
+    )
     assert (
         "nothing prints when the loop is MERELY converging with no own-fix residue (a falling count that is "
         "mostly own-fix DOES print the stop). So" in exit_
     )
     assert "simply converging" not in exit_
+
+
+def test_a_union_suffix_id_never_credits_the_bare_id() -> None:
+    """mail 01M4PHYNXJ (both design critiques executed it): `#` was a token splitter, so a seat reporting only
+    `S-S1#2` also re-verified `S-S1`, and a ledger holding both closed with `S-S1` never checked."""
+    args = {**_ARGS, "pass": 2}
+    args["slices"] = [
+        {
+            **_ARGS["slices"][0],
+            "ledger": [{"id": "S-S1", "claim": "c"}, {"id": "S-S1#2", "claim": "d"}],
+        }
+    ]
+    status = [{"id": "S-S1#2", "status": "NOW_FALSE", "command": "c", "output": "o"}]
+    out, _, _ = _harness(args, _two_finders([], ledger_status=status))
+    s = out["slices"][0]
+    assert s["closable"] is False, s["open"]
+    assert s["open"] == ["ledger claim S-S1 not re-verified by any seat"], s["open"]
+
+
+def test_the_launch_logs_its_dispatch_count_before_any_seat() -> None:
+    """mail 01M4PHYNXJ row 1791418327: the stamp is the finders plus one refuter per slice; the log names it, and
+    names it before the first seat starts — a one-model slice counts one finder."""
+    args = {
+        **_ARGS,
+        "slices": [
+            {"name": "S", "files": ["a.py", "b.py"], "priority": "p"},
+            {"name": "T", "files": ["c.py"], "priority": "p", "models": ["opus"]},
+        ],
+    }
+    _, log, _ = _harness(args, {})
+    line = "DISPATCH: 3 finder seat(s) over 2 slice(s) + up to 2 refuter(s) = stamp 5"
+    assert line in log, log
+    assert log.index(line) < log.index("AGENT CALLED"), log
+    assert "stays inside this stamp" in log, log
