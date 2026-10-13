@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — /fabrik-review names the closing method cell's literal token (2026-10-13)
-- § Reporting: the closing row's method cell opens with `method: re-derivation`, as the coverage gate's regex reads it (D-807).
+- § Reporting: write the closing row's method cell as `method: re-derivation`; the coverage gate's regex needs `method` followed by `re-deriv` with only punctuation between (D-807).
 
 ### Changed — /fabrik-spec names the as-built amendment route (2026-10-13)
 - The SKIP line routes an as-built revision of a CONVERGED spec to an amendment here (`Profile: delta`); a stale pin on /fabrik-plan-after-chat's sentence is repinned (D-806).

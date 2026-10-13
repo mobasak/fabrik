@@ -220,6 +220,6 @@ def test_the_closing_method_cell_rule_matches_the_gate() -> None:
     mod = importlib.util.module_from_spec(spec)
     sys.modules["crc_for_queue_pass"] = mod
     spec.loader.exec_module(mod)
-    assert "The closing row's method cell opens with the literal `method: re-derivation`" in _norm(SRC)
+    assert "Write the closing row's method cell as `method: re-derivation`" in _norm(SRC)
     assert mod._REDERIVATION_ROW.search("| Pass 3 | sonnet×1 | found: 0 | method: re-derivation — closing pass |")
     assert not mod._REDERIVATION_ROW.search("| Pass 3 | sonnet×1 | found: 0 | method: remainder pass — re-derivation |")
