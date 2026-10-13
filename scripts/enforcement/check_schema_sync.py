@@ -5,9 +5,15 @@
 When model/entity files change, schema.sql or migrations must be updated.
 
 Triggers on changes to:
-- src/**/models.py
-- src/**/entities.py
-- src/**/schemas.py (Pydantic models with DB fields)
+- a filename in MODEL_FILE_PATTERNS (src/**/models.py, src/**/entities.py, src/**/db/*.py, models/*.py)
+- any other non-test, non-migration .py whose staged content declares a table (`declares_table`) — W-62875be3,
+  iterative_image_editor 01M3WW5PFN: db.py / main.py / tenant_registry.py declared tables the filenames never saw
+
+A change is a change of the table STRUCTURE (`schema_signature`): the parsed DB classes' field statements and the
+module-level Table(...) calls, compared between HEAD and the index. A regex over diff lines (the fallback for a file
+that does not parse) fired on `class X(BaseModel)`, `class X(BaseHTTPMiddleware)` and re-wrapped columns — measured
+2026-10-13: 12 false would-fails for 1 true in the 5 newly admitted files' history, 5 more in filename-matched files —
+and a per-line rule loses a change on a wrapped call's continuation line or a column moved between adjacent classes.
 
 Enforces:
 - schema.sql updated, OR
@@ -19,6 +25,7 @@ Exit codes:
     1 - Fail (model changed without schema update)
 """
 
+import ast
 import os
 import re
 import subprocess
@@ -74,27 +81,125 @@ def get_staged_files() -> list[str]:
     return result.stdout.strip().split("\n") if result.stdout.strip() else []
 
 
+_ORM_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:sqlalchemy|sqlmodel|flask_sqlalchemy)\b", re.M)
+_TABLE_DECL = re.compile(
+    r"__tablename__\s*(?::[^=\n]+)?=|\bTable\s*\(\s*['\"]|\btable\s*=\s*True\b"
+    r"|class\s+\w+\s*\([^)]*\b\w+\.Model\s*[,)]"
+)
+_COLUMN_CALLS = {"Column", "mapped_column", "relationship"}
+_DB_BASES = {"Base", "DeclarativeBase", "SQLModel", "Model"}
+
+
+def _git_text(*args: str) -> str | None:
+    """stdout of a git command run at the repo root, or None when it fails (a path absent from that tree)."""
+    r = subprocess.run(["git", *args], capture_output=True, text=True, cwd=_repo_root())
+    return r.stdout if r.returncode == 0 else None
+
+
+def _is_test_or_migration(filepath: str) -> bool:
+    name = os.path.basename(filepath)
+    return (
+        filepath.startswith("tests/")
+        or "/tests/" in filepath
+        or name.startswith("test_")
+        or any(filepath.startswith(d) or ("/" + d) in filepath for d in MIGRATION_DIRS)
+    )
+
+
+def declares_table(text: str) -> bool:
+    """The source imports an ORM and declares a table: `__tablename__`, a `Table("…")` call, `table=True` or a class
+    on `<x>.Model`."""
+    return bool(_ORM_IMPORT.search(text) and _TABLE_DECL.search(text))
+
+
 def is_model_file(filepath: str) -> bool:
-    """Check if file is a model/entity file."""
-    return any(re.search(pattern, filepath) for pattern in MODEL_FILE_PATTERNS)
+    """A model file by name, or a non-test, non-migration .py whose staged content declares a table (the HEAD blob
+    when the path is deleted in the index)."""
+    if any(re.search(pattern, filepath) for pattern in MODEL_FILE_PATTERNS):
+        return True
+    if not filepath.endswith(".py") or _is_test_or_migration(filepath):
+        return False
+    text = _git_text("show", f":{filepath}")
+    if text is None:
+        text = _git_text("show", f"HEAD:{filepath}")
+    return text is not None and declares_table(text)
+
+
+def _call_name(node: ast.AST) -> str:
+    if isinstance(node, ast.Call):
+        f = node.func
+        return f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+    return ""
+
+
+def _base_name(node: ast.expr) -> str:
+    return node.attr if isinstance(node, ast.Attribute) else getattr(node, "id", "")
+
+
+def _is_db_class(cls: ast.ClassDef) -> bool:
+    if any(_base_name(b) in _DB_BASES for b in cls.bases):
+        return True
+    if any(
+        k.arg == "table" and isinstance(k.value, ast.Constant) and k.value.value is True
+        for k in cls.keywords
+    ):
+        return True
+    for stmt in cls.body:
+        targets = (
+            stmt.targets
+            if isinstance(stmt, ast.Assign)
+            else [stmt.target]
+            if isinstance(stmt, ast.AnnAssign)
+            else []
+        )
+        if any(getattr(x, "id", "") == "__tablename__" for x in targets):
+            return True
+        if (
+            isinstance(stmt, (ast.Assign, ast.AnnAssign))
+            and stmt.value is not None
+            and _call_name(stmt.value) in _COLUMN_CALLS
+        ):
+            return True
+    return False
+
+
+def schema_signature(text: str) -> list[str] | None:
+    """The table STRUCTURE a source declares, position- and format-free: every DB class (a DB base, `table=True`,
+    `__tablename__`, or a column call in its body — mixins included) as its name plus its body's assignments and
+    annotated assignments (methods excluded), and every module-level assignment of a `Table(...)` call. None when the
+    source does not parse.
+
+    COBRA (D-253): a change routed around a recognised DB class (a helper returning columns, a custom base alias with
+    no `__tablename__` and no column call) is invisible here — the cheapest dodge, and the regex never caught it either."""
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return None
+    out: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and _is_db_class(node):
+            fields = [ast.dump(s) for s in node.body if isinstance(s, (ast.Assign, ast.AnnAssign))]
+            out.append(node.name + ":" + "|".join(fields))
+        elif (
+            isinstance(node, (ast.Assign, ast.AnnAssign))
+            and node.value is not None
+            and _call_name(node.value) == "Table"
+        ):
+            out.append("table:" + ast.dump(node))
+    return out
 
 
 def has_db_changes(filepath: str) -> bool:
-    """Check if file contains actual DB model changes."""
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--cached", filepath],
-            capture_output=True,
-            text=True,
-        )
-        diff_content = result.stdout
-
-        for pattern in DB_FIELD_PATTERNS:
-            if re.search(pattern, diff_content):
-                return True
-    except (OSError, subprocess.SubprocessError):
-        pass
-    return False
+    """The table structure differs between HEAD and the index (a side absent from its tree is empty); a side that
+    does not parse falls back to the DB_FIELD_PATTERNS regex over the staged diff."""
+    old = _git_text("show", f"HEAD:{filepath}")
+    new = _git_text("show", f":{filepath}")
+    old_sig = schema_signature(old) if old is not None else []
+    new_sig = schema_signature(new) if new is not None else []
+    if old_sig is not None and new_sig is not None:
+        return old_sig != new_sig
+    diff = _git_text("diff", "--cached", "--", filepath) or ""
+    return any(re.search(pattern, diff) for pattern in DB_FIELD_PATTERNS)
 
 
 def schema_file_updated(staged_files: list[str]) -> bool:
