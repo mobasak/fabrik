@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — libs/health_probe re-vendored at fabrik-lib 0e44811c (2026-10-13)
+
+- `libs/health_probe/health_probe.py` and `fingerprint.py` now match fabrik-lib 0e44811c. `load_env`'s docstring now also names a truthy `PYTHON_DOTENV_DISABLED` as a reason it returns False and loads nothing (the hub's finding 01M4V9BKD2). No behaviour change. `tests/test_scaffold_deploy_contract.py`'s vendoring-header test passes again.
+
 ### Fixed — the scaffold parity stub's ".env loaded nothing" message names PYTHON_DOTENV_DISABLED (2026-10-13)
 
 - `templates/scaffold/scripts/verify_prod_parity.py:231` (infra 01M4V9BKHB): python-dotenv 1.2's `load_dotenv` also
