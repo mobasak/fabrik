@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve names a fragment's by-path consumers, not only its includes (2026-10-13)
+- PHASE 3's rule "a `_fragments/` edit names each `{{include:}}` consumer" now also names each source or fragment that names it (`command grep -rlw <its file name without .md> commands/_sources commands/_fragments`, which lists the includers too); the bound placeholders stay with the include consumers. The review probe catalogue is never included, so an include-only list found no consumers and missed the two review commands' pointer sentences. Answers `/fabrik-command-improve` row 1791892288; the grader reads PHASE 3 and runs the recipe.
+
 ### Changed — the review probe catalogue's pre-pin section reads as every pin, not only the first (2026-10-13)
 - `commands/_fragments/review-probe-catalogue.md`'s header now says its lines apply "before every pin, the first and each delta, and while writing every brief", and its pre-pin heading reads "Before the first pin, and again before each delta pin"; `/fabrik-review` (Phase 1) and `/fabrik-review-scoped` (step 5) point at it "Before every pin, the first and each delta, and in every brief". Two of the section's bullets already ran at each delta pin, so a lead going by the old heading or command sentence skipped them. Answers `/fabrik-review-scoped` row 1791890873; the grader `tests/test_review_scoped_queue_pass.py::test_the_pre_pin_section_reads_as_every_pin_not_only_the_first` checks the property over the catalogue and both commands (8 mutants killed).
 
