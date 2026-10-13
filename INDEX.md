@@ -30,6 +30,7 @@
 | **scripts/check_research_ledger.py** | Refuses a research ledger with an undispositioned fact (D-352); run by the `research-ledger-check` pre-commit hook. | The disposition grammar changes | Pre-commit |
 | **tests/test_research_ledger.py** | Graders for the research-ledger checker (each guard proven red on a copy). | The checker changes | pytest |
 | **docs/reference/research/2026-10-12-owner-dsn-split-ledger.md** | Every fact the three research seats of the owner-DSN split `/fabrik-spec` returned (Compose `env_file` list precedence and `required: false`, file-based secrets' ignored `mode`/`uid` without Swarm, libpq password files, the 12-factor/OWASP positions on env vars and the docker-group residual), one dispositioned row each (W-4e74ea9d). |
+| **docs/reference/research/2026-10-13-mail-routing-ledger.md** | Every fact the three research seats of the mail-routing `/fabrik-spec` (W-931b6837) returned (systemd path units, CODEOWNERS ownership files, ticket-routing practice), each dispositioned |
 | **docs/reference/research/2026-10-08-review-coverage-commit-scope-ledger.md** | Every fact the three research seats of the review-coverage commit-scope `/fabrik-spec` returned (range and path-quoting semantics, changed-files gating practice in pre-commit, lint-staged and diff-cover, commit attribution by trailers), one dispositioned row each (W-f847a317). |
 | **docs/reference/research/2026-10-02-coordinator-assignment-ledger.md** | Every fact the two research seats of the coordinator-assignment `/fabrik-spec` returned (Claude Code cross-session messaging: no idle field in ListAgents, `notify_when_idle` one-shot same-machine; push vs pull work distribution, the orchestrator-workers pattern, lease liveness), one dispositioned row each (D-512) |
 | **docs/reference/research/2026-09-29-saas-skeleton-legal-pages-ledger.md** | Every fact the research seats of the saas-skeleton legal-pages `/fabrik-spec` and its review returned (Paddle seller handbook, domain review and Refund Policy, KVKK Art. 10, Mesafeli Sözleşmeler md. 15, ICO and CNIL cookie guidance, Planet49, CCPA), 59 rows, each dispositioned — backs `docs/superpowers/specs/2026-09-29-saas-skeleton-legal-pages-design.md` |
@@ -1313,6 +1314,7 @@ docs/
 │       ├── 2026-10-06-postgresql-18-fleet-upgrade-design.md
 │       ├── 2026-10-06-rotation-capability-probe-design.md
 │       ├── 2026-10-06-worktree-venv-isolation-design.md
+│       ├── 2026-10-13-mail-routing-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
