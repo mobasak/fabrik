@@ -155,3 +155,11 @@ def test_a_shifted_cite_is_remapped_by_content_in_one_script() -> None:
     text = _norm(CAT)
     sweep = text[text.index("- Sweep:") : text.index("- Claims:")]
     assert "a `path:line` cite a merge or an edit shifted, remapped by CONTENT in one script over every doc that cites the file" in sweep
+
+
+def test_the_guard_or_rule_clause_defines_a_rule_and_names_its_cobra() -> None:
+    """W-a8361c19: 'states a RULE' was undefined, the clause had no cobra counter, and it miscited D-066."""
+    text = _norm(SRC)
+    assert "A change that ships a GUARD, or states a RULE (any sentence with must, never or owes), owes" in text
+    assert "Cobra: a brief can name variants nobody tests; the closing pass counts only variants a reader executed." in text
+    assert "D-066 named only the heavy command" not in text
