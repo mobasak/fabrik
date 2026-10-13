@@ -13,7 +13,7 @@
   },
   "next": "add tests with subprocess.run and httpx stubbed: NS parse, poll until an A record, timeout warning path, and the Host-header IP probe (verifier.py:164-256, :287-314)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
