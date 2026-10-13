@@ -48,7 +48,12 @@ box: execute it, or name in the brief why the shape does not have it.
 - Callers and consumers: every caller of a changed exit code, output line or gated script; every consumer of a changed
   prompt output, of import-time side effects, of a flipped Status (generated indexes) or of a renamed name (link fields,
   hand-kept indexes); callers that use a normaliser's return value; a pure helper's own return contract, not only what
-  its callers observe; the line that copies a template-emitted claim; every gate grading the old name; every outbound
+  its callers observe; the line that copies a template-emitted claim; every gate grading the old name; every reader of a
+  changed or vendored file's text that never imports it (a scaffold fold such as
+  `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and
+  the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob
+  that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by
+  `scripts/enforcement/check_synced_unmodified.py`), each hit that reads the file named in the brief; every outbound
   sink a production-reaching test can touch; every actor touching an RLS table; placeholder resolution per consumer;
   repo-wide service lists and absence statements.
 - Parsers: the producer's real output contract first, then the parsing model before tokens; lossy cases (duplicate
