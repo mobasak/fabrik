@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the review-loop floor and the subagents pack name execute-plan's Opus finder floor (2026-10-13)
 - The partition FLOOR rendered into `/fabrik-review` and `/fabrik-repo-review` (`commands/assemble_commands.py`) and `core/62-using-subagents.md`'s model-per-role line said "no Opus finder" bare, while D-813 made the corpus name `/fabrik-execute-plan`'s per-round Opus finder floor as its own rule. Both now say so (kaizen 01M4SYAGHQ).
 
+### Fixed — /fabrik-review-scoped cites D-118 for the closing-reader asymmetry, not D-066 (2026-10-13)
+- The clause pinned the closing-reader asymmetry on D-066, a finding-shape triage row; D-118 is the row that bound the independent-reader floor to the scoped command (W-a8361c19).
+
 ### Added — `command_run.py surface --add`: a running review widens its own Stop-hook exemption (2026-10-09)
 
 - A running review covers `(start, ∞)`, so its own edits were never the gap; a file last edited BEFORE its `start` that its `--surface` did not name stayed flagged by the sixth cause until `done`. `surface --add <path>` records such a path in a new `surface_adds` field (never in `surface`, the ledger's run dimension), and `.claude/hooks/final_gate_stop.py` `_surface_reviewed` reads it as one whole token (W-24ae7ecf). Refuses every record but a running review and every value that is not one repo path, rc 1 with nothing stored. Graders in `tests/test_command_run.py` and `tests/test_stop_hook_spontaneous_review.py`, seven mutants red.

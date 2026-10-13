@@ -114,9 +114,7 @@ proportionate answer.
    ⚠️ **The CLOSING pass owes ONE INDEPENDENT reader that actually RETURNED — a self-sweep may not
    close this loop.** Every other exit condition here is satisfiable by the orchestrator's own
    passes, and an orchestrator re-reading its own diff checks whether it did what it meant to; it
-   does not re-ask whether what it meant was right. This is D-066's asymmetry, and D-066 named only
-   the heavy command — so the light one inherited the artifact-lightness AND, by accident, the
-   absence of recall. ⚠️ **A change that ships a GUARD, or states a RULE, owes every round's readers — round 1's first — and
+   does not re-ask whether what it meant was right. Before D-118 that was the asymmetry between the two commands: the heavy one's every pass had independent finders, and the light one inherited the artifact-lightness AND, by accident, the absence of recall. ⚠️ **A change that ships a GUARD, or states a RULE, owes every round's readers — round 1's first — and
    that INDEPENDENT reader the guard or rule by NAME and an explicit ASK for its ESCAPE VARIANTS** — the mutations,
    rewordings or behaviours that would defeat it and leave it standing verbatim — together with its MODEL BOUNDARY,
    the inputs it is meant to judge, so a variant outside that boundary is `RECORDED — by design (D-785)` in round 1
