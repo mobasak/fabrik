@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_plan_tickets never-route covers the `scripts/final_gate*` filename FAMILY, not the hub's gate file alone (2026-10-13)
+
+- `scripts/enforcement/check_plan_tickets.py` (fabrik-lib finding 01M494TQ3E, SB-108, W-2e6c1b0b; D-824): `NEVER_ROUTE_PREFIXES`
+  named `scripts/final_gate.py` and `_covered_by` is component-literal containment, so a repo whose completion gate carries another
+  name — fabrik-lib's `scripts/final_gate_fabrik_lib.py`, vendored byte-identical — got no never-route cover and a `Complexity: simple`
+  ticket touching it passed the cross-check. `NEVER_ROUTE_FILE_FAMILIES = ("scripts/final_gate",)` beside the prefixes, and `_never_route`
+  answers True when the slash-stripped path starts with a family stem (the convention: a repo's completion gate lives at
+  `scripts/final_gate*` — 54 of 54 files on the box). Graders in `tests/enforcement/test_check_plan_tickets.py`, both watched red on base:
+  the six-shape unit test and an end-to-end pool-tier ticket touching the fabrik-lib gate asserting the exact ERROR. The per-spine
+  `Never-Route:` line keeps working for a gate named outside the family. Two pre-existing residuals recorded, not fixed here: the Stop
+  hook `.claude/hooks/final_gate_stop.py` is outside `scripts/`, and a `scripts//final_gate.py` spelling escapes `_norm_path`
+  (filed to infra, 01M4TQPCXT). Ships to the ~46 synced repos on merge; fabrik-lib re-vendors.
+
 ### Changed — the review probe catalogue: a brief names the readers that never import a changed file (2026-10-13)
 - The "Callers and consumers" hunt line in `commands/_fragments/review-probe-catalogue.md` now asks for every reader of a changed or vendored file's text that never imports it (a scaffold fold such as `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by `check_synced_unmodified.py`), each hit that reads the file named in the brief. A seat cannot infer a consumer it was never told exists (/fabrik-review row 1791891025). Grader: `tests/test_review_queue_pass.py::test_the_callers_hunt_line_names_readers_that_never_import_the_file`.
 
