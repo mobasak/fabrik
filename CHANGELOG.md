@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the parity-stub .env tests count the load the stub really makes (W-6dd44ffe) (2026-10-13)
+
+- `tests/test_parity_stub_loads_env.py`: the counting probe patched `libs.health_probe.health_probe.load_env`, but since D-744 the stub loads its health_probe copy BY FILE PATH as `_parity_health_probe`. It counted a module the stub never calls, so two tests read 0 loads and were red on master. It now counts at `dotenv.load_dotenv`, which every copy of `load_env` reaches whenever python-dotenv is installed (a declared dependency; without it the probe fails loudly at `import dotenv`). A stub that reloads on every row reads 3 loads and fails the test.
+
 ### Added — the gate warns when a data contract's Backing cell is not a legend token (fleet 01M4TGT7N4) (2026-10-13)
 
 - `scripts/enforcement/check_data_contract_legend.py` is a new Tier 1/2 warn-only gate row. Every Enum-registry `Backing` cell in a project's `docs/data-contract.md` must be one of the template legend's six tokens (`native` · `CHECK` · `app` · `doc` · `file` · `unconstrained`) in its whole-cell grammar (`token`, `token (note)`, `a / b`). Tables are read as GFM (a header and a delimiter row, fenced code skipped, escaped pipes kept). A contract's own differing legend is reported, never honoured. It exits 0 on every path. On 2026-10-13 it names 107 cells in 9 projects; the FAIL flip waits for their re-freeze. Graded by `tests/enforcement/test_check_data_contract_legend.py`, and `tests/test_scaffold_doc_seeding.py` now reads the template through the same reader and grammar. Canaries in `scripts/sysadmin/liveness_audit.py`.

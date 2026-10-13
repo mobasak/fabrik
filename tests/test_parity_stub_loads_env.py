@@ -38,13 +38,17 @@ def _project(tmp_path: Path) -> Path:
     return proj
 
 
+# Counts at python-dotenv, the seam every copy of `health_probe.load_env` reaches whenever
+# python-dotenv is installed (a declared dependency; `load_env` imports `load_dotenv` at call
+# time, and without it this probe fails loudly at `import dotenv`, never passes). The stub loads
+# its copy BY FILE PATH as `_parity_health_probe` (D-744), so patching
+# `libs.health_probe.health_probe` counted a module the stub never calls — 0.
 _COUNTING = """
 import importlib.util, os, sys
-sys.path.insert(0, sys.argv[2])
-from libs.health_probe import health_probe as h
+import dotenv
 calls = []
-real = h.load_env
-h.load_env = lambda *a, **k: (calls.append(a), real(*a, **k))[1]
+real = dotenv.load_dotenv
+dotenv.load_dotenv = lambda *a, **k: (calls.append(a), real(*a, **k))[1]
 spec = importlib.util.spec_from_file_location("stub", sys.argv[1])
 stub = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(stub)
