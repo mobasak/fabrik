@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pgurl counts `requiressl` as an ssl key and pins its own IFS (2026-10-14)
+
+- `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` + `CONFIGURATION_TEMPLATE.md` (fabrik-lib 01M4VB91YA): libpq 17
+  still honours the deprecated `requiressl`, which REWRITES sslmode — `?sslmode=verify-full&requiressl=0` connected at
+  `prefer` past the duplicate-key arm. The key count now runs inside the existing `for kv` loop over
+  `ssl|sslmode|requiressl` (the enumerated pairing arm is gone), and the loop pins `IFS=" "` inside the subshell —
+  the review found the new count read the CALLER's IFS, so a root shell after `IFS=:` let the duplicate through
+  (executed: rc 0 before, refused after, caller IFS untouched). Graders in `tests/test_scaffold_doc_seeding.py`:
+  three requiressl pairings refused, `requiressl=1` alone passes, the IFS loop under `IFS=:` and `IFS=`, and `set -f`
+  pinned by a glob that matches a file in the cwd (red with `set -f` removed). `scaffold.py` schema headers name
+  `requiressl`.
+
 ### Fixed — the scaffold parity stub's ".env loaded nothing" message names PYTHON_DOTENV_DISABLED (2026-10-13)
 
 - `templates/scaffold/scripts/verify_prod_parity.py:231` (infra 01M4V9BKHB): python-dotenv 1.2's `load_dotenv` also
