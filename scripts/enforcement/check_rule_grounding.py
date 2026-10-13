@@ -130,9 +130,15 @@ def _digest_rows(section: str) -> list[tuple[str, str]]:
     """(quote, cited-path) per data row; header/separator rows skipped.
 
     Columns are found by EXACT header names (01M3T5RK): the quote is `Quote` (or `Verbatim`), the
-    source `Source`; an unnamed quote is column 0 and an unnamed source the column after the quote.
-    Exact names only — a substring word list mis-picked `Pack`/`Where it binds` on 21 of 55 measured
-    digests, while these names moved 224 -> 252 of 473 rows to green and turned none red."""
+    source `Source`, and an unnamed source is the column after the quote. A header whose first cell is
+    exactly `#` makes column 0 a row label (W-62875be3, iterative_image_editor 01M3WW5PFN). An unnamed
+    quote is the column just before a named `Source` that sits past the label, the column just after a
+    `Source` at or before it, else the first non-label column. Exact names only — a substring word list
+    mis-picked `Pack`/`Where it binds` on 21 of 55 measured digests; and naming `Rule` as a quote header
+    would regress the digests where `rule` is a name column after the quote. Measured 2026-10-13 over
+    every digest under /opt/*/docs (251 digests, 2085 rows): the label rule changed 22 digests, all
+    `#`-led, and moved found quotes 938 -> 963; every green it removed was a row label (`C1`, `D-5`)
+    matching a substring of the cited file."""
     rows: list[tuple[str, str]] = []
     seen_table_rows = 0  # rows are classified by POSITION: 1st = header, 2nd = separator (01M1GSBZ)
     qcol, scol = 0, 1
@@ -148,8 +154,14 @@ def _digest_rows(section: str) -> list[tuple[str, str]]:
             named_q = _column(cells, "quote")
             if named_q is None:
                 named_q = _column(cells, "verbatim")
-            qcol = named_q if named_q is not None else (1 if _column(cells, "source") == 0 else 0)
             named_s = _column(cells, "source")
+            lead = 1 if cells[0] == "#" else 0
+            if named_q is not None:
+                qcol = named_q
+            elif named_s is None:
+                qcol = lead
+            else:
+                qcol = named_s - 1 if named_s > lead else named_s + 1
             scol = qcol + 1 if named_s is None else named_s
         if seen_table_rows <= 2:
             continue  # the header row and the |---| separator, whatever their first cell says

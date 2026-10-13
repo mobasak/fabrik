@@ -20,6 +20,16 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the testing pack's throwaway-guard checklist line says where the helper exists (2026-10-13)
 - `.windsurf/rules/core/45-testing-strategy.md`'s checklist mandated `require_throwaway(TEST_DATABASE_URL)` unconditionally, and `review_rubric.py` injects that line into the finders of every review whose diff touches a test file (the pack's globs), so repos without the scaffold-emitted `tests/conftest.py` got one refuted candidate per review. The line now scopes the helper as the pack's own table row does, and names the anchored predicate for the rest. Grader: `tests/test_rule_pack_scaffold_scope.py`, seen red on the old line (iterative_image_editor 01M3WW5PFN item 2, intel 01M4TCKDX5).
 
+### Fixed — check_schema_sync sees table-declaring modules by content and compares table structure, not diff lines (2026-10-13)
+
+- `scripts/enforcement/check_schema_sync.py`: a model file is one matching the filename patterns, or any non-test, non-migration `.py` whose staged content imports an ORM and declares a table (`declares_table`). A change is now a difference in `schema_signature`: the DB classes' field statements and module-level `Table(...)` calls, parsed and format-free, compared between HEAD and the index, with a deleted file read from HEAD. A file that does not parse keeps the old diff regex. Before, `db.py`/`main.py` modules were unguarded (iterative_image_editor 664b7016c added a table with no migration), and the regex failed commits for Pydantic `BaseModel` and `BaseHTTPMiddleware` classes and for re-wrapped columns. Replayed over every fleet model file's history (53 files, 84 commits without a schema or migration): would-fails 15 → 12, from 5 false fails removed and the real miss added (W-62875be3, iterative_image_editor 01M3WW5PFN).
+- `docs/workflows/FINAL_GATE_WORKFLOW.md` § check_schema_sync.py now describes what the check does.
+
+### Fixed — check_rule_grounding reads a numbered Constraints Digest's Rule column, not its row numbers (2026-10-13)
+
+- `scripts/enforcement/check_rule_grounding.py` `_digest_rows`: a header whose first cell is exactly `#` makes that column a row label. With no `Quote`/`Verbatim` header, the quote is the column next to a named `Source`. A `| # | Rule | Source | … |` digest used to grade `1`, `2`, `C1` as quotes: they were either not found, or a label matched a substring of the cited file, a false green hiding a misquote. Measured over every digest under /opt (251 digests, 2085 rows): 22 changed, all `#`-led, and found quotes went 938 → 963. No audited plan changed colour (iterative_image_editor 01M3WW5PFN, W-62875be3).
+- `commands/_fragments/grounding-rules.md` states the fallback the checker applies, and a test pins the sentence.
+
 ### Fixed — the review-loop floor and the subagents pack name execute-plan's Opus finder floor (2026-10-13)
 - The partition FLOOR rendered into `/fabrik-review` and `/fabrik-repo-review` (`commands/assemble_commands.py`) and `core/62-using-subagents.md`'s model-per-role line said "no Opus finder" bare, while D-813 made the corpus name `/fabrik-execute-plan`'s per-round Opus finder floor as its own rule. Both now say so (kaizen 01M4SYAGHQ).
 

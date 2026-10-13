@@ -145,3 +145,207 @@ def test_a_sql_migration_counts(  # youtube 01M180Z9: reproduced with 3 staged .
     assert c.migration_added(["migrations/044_add_consent.sql"])
     assert c.migration_added(["server/migrations/0002_users.sql"])
     assert not c.migration_added(["migrations/notes.md"])  # still no false positives
+
+
+# ── iterative_image_editor 01M3WW5PFN (W-62875be3): a table-declaring module is a model by CONTENT, and a change
+# is a change of the table STRUCTURE, never a regex over diff lines ─────────────────────────────────────────────
+import subprocess  # noqa: E402
+
+import pytest  # noqa: E402
+
+DB_PY = """from sqlalchemy import String
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from pydantic import BaseModel
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Broll(Base):
+    __tablename__ = "broll"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    provider: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+    )
+
+    def label(self) -> str:
+        return self.provider
+
+
+class Other(Base):
+    __tablename__ = "other"
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+
+class BrollOut(BaseModel):
+    provider: str
+"""
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+
+
+@pytest.fixture
+def repo(tmp_path, monkeypatch):
+    """A real repository: the gate reads the index and HEAD, so nothing short of git exercises it."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "t@example.invalid")
+    _git(tmp_path, "config", "user.name", "t")
+    (tmp_path / "src" / "media").mkdir(parents=True)
+    (tmp_path / "src" / "media" / "db.py").write_text(DB_PY, encoding="utf-8")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "base")
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def _stage(repo: Path, rel: str, text: str | None) -> int:
+    p = repo / rel
+    if text is None:
+        _git(repo, "rm", "-q", rel)
+    else:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding="utf-8")
+        _git(repo, "add", rel)
+    return c.main()
+
+
+def test_a_table_added_to_a_db_module_without_a_migration_fails(repo):
+    text = (
+        DB_PY
+        + '\n\nclass New(Base):\n    __tablename__ = "new"\n    id: Mapped[int] = mapped_column(primary_key=True)\n'
+    )
+    assert _stage(repo, "src/media/db.py", text) == 1
+
+
+def test_a_pydantic_class_in_a_table_declaring_module_passes(repo):
+    text = DB_PY + "\n\nclass BrollIn(BaseModel):\n    provider: str\n    note: str\n"
+    assert _stage(repo, "src/media/db.py", text) == 0
+
+
+def test_a_rewrapped_column_passes(repo):
+    text = DB_PY.replace(
+        "mapped_column(\n        String(20),\n        nullable=False,\n    )",
+        "mapped_column(String(20), nullable=False)",
+    )
+    assert text != DB_PY
+    assert _stage(repo, "src/media/db.py", text) == 0
+
+
+def test_a_type_change_on_a_wrapped_line_fails(repo):
+    text = DB_PY.replace("        String(20),\n", "        String(40),\n")
+    assert _stage(repo, "src/media/db.py", text) == 1
+
+
+def test_a_column_moved_between_adjacent_classes_fails(repo):
+    """Removed from one table and added, byte-identical, to the next — a whitespace-equal hunk, a real move."""
+    base = DB_PY.replace(
+        "    def label(self) -> str:\n        return self.provider\n\n\nclass Other(Base):\n",
+        "    def label(self) -> str:\n        return self.provider\n    extra: Mapped[str] = mapped_column(String(5))\n\n\nclass Other(Base):\n",
+    )
+    _stage(repo, "src/media/db.py", base)
+    _git(repo, "commit", "-q", "-m", "extra on broll")
+    moved = base.replace(
+        "    extra: Mapped[str] = mapped_column(String(5))\n\n\nclass Other(Base):\n",
+        "\n\nclass Other(Base):\n    extra: Mapped[str] = mapped_column(String(5))\n",
+    )
+    assert moved != base
+    assert _stage(repo, "src/media/db.py", moved) == 1
+
+
+def test_renaming_a_model_whose_table_name_derives_from_it_fails(repo):
+    """Flask-SQLAlchemy and SQLModel name the table after the class: the same fields under a new class name are a new
+    table."""
+    flask = "from flask_sqlalchemy import SQLAlchemy\ndb = SQLAlchemy()\n\n\nclass User(db.Model):\n    id = db.Column(db.Integer, primary_key=True)\n"
+    _stage(repo, "src/app/models.py", flask)
+    _git(repo, "commit", "-q", "-m", "user")
+    assert _stage(repo, "src/app/models.py", flask.replace("class User(", "class Account(")) == 1
+
+
+def test_table_args_gaining_an_index_fails(repo):
+    text = DB_PY.replace(
+        '    __tablename__ = "other"\n',
+        '    __tablename__ = "other"\n    __table_args__ = (Index("ix_other_id", "id"),)\n',
+    )
+    assert _stage(repo, "src/media/db.py", text) == 1
+
+
+def test_a_method_edit_inside_a_model_passes(repo):
+    text = DB_PY.replace("return self.provider", "return self.provider.upper()")
+    assert _stage(repo, "src/media/db.py", text) == 0
+
+
+def test_deleting_a_table_declaring_module_fails(repo):
+    assert _stage(repo, "src/media/db.py", None) == 1
+
+
+def test_a_test_file_declaring_a_table_is_not_admitted(repo):
+    assert _stage(repo, "tests/test_models.py", DB_PY) == 0
+
+
+def test_a_flask_style_model_in_models_py_still_fails(repo):
+    text = "from flask_sqlalchemy import SQLAlchemy\ndb = SQLAlchemy()\n\n\nclass User(db.Model):\n    id = db.Column(db.Integer, primary_key=True)\n"
+    assert _stage(repo, "src/app/models.py", text) == 1
+
+
+def test_an_unparseable_model_file_falls_back_to_the_diff_regex(repo):
+    broken = DB_PY + "\n\nclass Broken(Base:\n    x = Column(Integer)\n"
+    assert _stage(repo, "src/media/db.py", broken) == 1
+
+
+def test_declares_table_and_schema_signature_are_pure():
+    assert c.declares_table(DB_PY)
+    assert not c.declares_table(
+        "from pydantic import BaseModel\n\nclass X(BaseModel):\n    a: int\n"
+    )
+    assert not c.declares_table('__tablename__ = "x"\n')  # no ORM import
+    assert c.schema_signature(DB_PY) == c.schema_signature(
+        DB_PY.replace("        nullable=False,\n", "        nullable=False,  # kept\n")
+    )
+    assert c.schema_signature("def (:\n") is None
+
+
+def test_a_pure_rename_of_a_model_module_passes(repo):
+    """Review round 1 A-S3: HEAD has no blob at the new path, so the old side read as empty and a `git mv` with no
+    edit failed as a brand-new table; the rename source is the old side."""
+    _git(repo, "mv", "src/media/db.py", "src/media/orm.py")
+    assert c.main() == 0
+
+
+def test_a_rename_with_a_column_change_still_fails(repo):
+    _git(repo, "mv", "src/media/db.py", "src/media/orm.py")
+    text = DB_PY.replace("        String(20),\n", "        String(40),\n")
+    assert _stage(repo, "src/media/orm.py", text) == 1
+
+
+def test_a_model_class_inside_a_try_block_is_compared(repo):
+    """Review round 1 A-S2: only module-level statements were read, so a class under try/except was invisible."""
+    guarded = (
+        DB_PY
+        + '\n\ntry:\n    class Guarded(Base):\n        __tablename__ = "guarded"\n        id: Mapped[int] = mapped_column(primary_key=True)\nexcept ImportError:\n    pass\n'
+    )
+    _stage(repo, "src/media/db.py", guarded)
+    _git(repo, "commit", "-q", "-m", "guarded")
+    changed = guarded.replace(
+        '        __tablename__ = "guarded"\n',
+        '        __tablename__ = "guarded"\n        note: Mapped[str] = mapped_column(String(9))\n',
+    )
+    assert _stage(repo, "src/media/db.py", changed) == 1
+
+
+def test_a_per_app_tests_module_is_not_admitted(repo):
+    """Review round 1 A-S4: Django's per-app `tests.py` and a `conftest.py` are test files whatever their directory."""
+    assert _stage(repo, "src/app/tests.py", DB_PY) == 0
+    assert _stage(repo, "src/app/conftest.py", DB_PY) == 0
+
+
+def test_a_pure_rename_passes_when_git_lists_both_paths(repo):
+    """With `diff.renames=false` the staged list carries the old path as a deletion beside the new one; the rename
+    source's deletion is no change, or a `git mv` with no edit would still fail through the old path."""
+    _git(repo, "config", "diff.renames", "false")
+    _git(repo, "mv", "src/media/db.py", "src/media/orm.py")
+    assert "src/media/db.py" in c.get_staged_files()
+    assert c.main() == 0

@@ -680,17 +680,20 @@ part of the change under gate and legitimately omits every optional variable. It
 
 #### check_schema_sync.py
 
-**Purpose:** Ensures database models match schema.sql.
+**Purpose:** A staged change to a table's structure must ship with `schema.sql` or a new migration, and a migration
+that drops a table the frozen `docs/data-contract.md` still declares fails.
 
 **Validates:**
-- All models have corresponding schema
-- Schema includes all columns and indexes
-- Migration history is consistent
-- Data types match
+- A staged model file — by name (`MODEL_FILE_PATTERNS`), or any non-test, non-migration `.py` whose staged content
+  imports an ORM and declares a table (`declares_table`) — whose table STRUCTURE changed between HEAD and the index
+  (`schema_signature`: the DB classes' field statements and module-level `Table(...)` calls, format-free) needs a
+  staged `schema.sql` or migration (`.py`/`.sql`) at any depth; a file that does not parse falls back to a regex over
+  its staged diff.
+- A schema change without a staged data contract WARNs; a migration dropping a table the contract still declares FAILs.
 
 **Why this matters:**
-- Prevents database mismatches
-- Ensures reproducible deployments
+- A model module named anything but `models.py` was unguarded (iterative_image_editor 01M3WW5PFN, W-62875be3), and a
+  regex over diff lines failed commits for Pydantic classes and re-wrapped columns.
 
 #### check_openapi_sync.py
 

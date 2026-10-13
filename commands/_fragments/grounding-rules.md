@@ -12,7 +12,9 @@ Before the first architecture, tool, or dependency selection:
   anti-pattern relevant to this scope, **every row carrying a VERBATIM quote from the pack +
   `file:line`**: you cannot quote a line from a pack you did not open, which is the whole proof.
   Head the columns `Quote` (or `Verbatim`) and `Source` (a repo-relative `path:line` alone in its
-  cell); without those headers the checker reads the first column as the quote and the next as the source.
+  cell); without those headers the checker treats a leading `#` column as a row label and reads the column
+  just before `Source` as the quote (the column after it when `Source` comes first, the first other
+  column when no `Source` is named), and the column after the quote as the source when `Source` is not named.
   Put it under a `## Constraints Digest` heading, and give the table its `| Quote | Source |` header and
   `|---|---|` separator, because the checker takes the first two table lines as those. Each row then reads
   ``| <the pack's words> | `.windsurf/rules/<pack>.md:<line>` |``, with more columns after it if you like.
