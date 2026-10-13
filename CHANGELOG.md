@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_rule_grounding reads a numbered Constraints Digest's Rule column, not its row numbers (2026-10-13)
+
+- `scripts/enforcement/check_rule_grounding.py` `_digest_rows`: a header whose first cell is exactly `#` makes that column a row label. With no `Quote`/`Verbatim` header, the quote is the column next to a named `Source`. A `| # | Rule | Source | … |` digest used to grade `1`, `2`, `C1` as quotes: they were either not found, or a label matched a substring of the cited file, a false green hiding a misquote. Measured over every digest under /opt (251 digests, 2085 rows): 22 changed, all `#`-led, and found quotes went 938 → 963. No audited plan changed colour (iterative_image_editor 01M3WW5PFN, W-62875be3).
+- `commands/_fragments/grounding-rules.md` states the fallback the checker applies, and a test pins the sentence.
+
 ### Fixed — the review-loop floor and the subagents pack name execute-plan's Opus finder floor (2026-10-13)
 - The partition FLOOR rendered into `/fabrik-review` and `/fabrik-repo-review` (`commands/assemble_commands.py`) and `core/62-using-subagents.md`'s model-per-role line said "no Opus finder" bare, while D-813 made the corpus name `/fabrik-execute-plan`'s per-round Opus finder floor as its own rule. Both now say so (kaizen 01M4SYAGHQ).
 
