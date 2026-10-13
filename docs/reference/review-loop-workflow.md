@@ -31,7 +31,9 @@ Workflow({ scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js", ar
 
 The tool returns `async_launched`; the ledger arrives as one result — the lead waits for it with ONE bounded in-turn poll per pass, and when the result is truncated reads the run's `journal.jsonl` (one `result` row per completed agent), never the escaped task-output copy. **Each pass is its own invocation** — never
 `resumeFromRunId`: a resumed run re-runs every agent after the first fan-out (anthropics/claude-code #63102,
-#67488, #74599, #95076 at 2.1.27x).
+#67488, #74599, #95076 at 2.1.27x). The harness keeps every run's `args` and `result` whole in
+`<config dir>/projects/<project>/<session>/workflows/<runId>.json`; the lead copies that file into its scratch and
+builds the next pass from the copy (`next --args`) — no seat is ever pointed at the config dir.
 
 ## What comes back
 
@@ -67,7 +69,11 @@ API times a seat out; one refuter ran 59 minutes against a 12-minute box) and `N
 nothing. Re-run the command of every `confirmed` verdict on the pinned copy before writing a fix; treat `unverified`
 and every `gaps` entry as open; fix; record the round (`command_run.py round --slices …`) and name its stop and fix
 size in the receipt's Pass row; launch the next pass with `review_loop_ledger.py next <pass file> --ids <confirmed
-ids>` as its slices' ledgers, and restate every round-1 slice in that pass's `round --slices`, a verified one at its last `<verified>/<claims>`. The review closes on the pass that confirms zero, whatever its number — ≤ 3 passes is
+ids> --args <a scratch copy of the run file>` as its `slices` — with `--args` each slice comes whole (files, models,
+scope, priority and agent from the launch, its ledger replaced), each id resolves against the run's union
+candidates (the ids the verdicts carry, `A-S1#2` included), and stderr names the launch slices `not carried` and the
+`DISPATCH:` stamp for `command_run.py dispatch --seats`; without `--args` an id two raw claims share is refused with
+every claim listed (mail 01M4PHYNXJ) — and restate every round-1 slice in that pass's `round --slices`, a verified one at its last `<verified>/<claims>`. The review closes on the pass that confirms zero, whatever its number — ≤ 3 passes is
 a target, never a cap (D-355; D-339: `done` refuses a failing or vanished slice). `dispatch_headroom.py` refuses
 while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set, because that variable puts every seat on one model (D-357).
 

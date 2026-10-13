@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T06:41:40.725310Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-2f6f54dd",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "design one status set for the refuter VERDICT and the delta ledger_status enums in .claude/workflows/fabrik-review-loop.js, with closeCheck and review_loop_ledger read updated together",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "review-loop"
+  ],
+  "title": "review-loop verdict vocabulary: pre-existing vs this-diff, RECORDED and REFUTED-CONSISTENT ledger statuses (mail 01M4PHYNXJ rows 1790988067, 1790924798, 1790765164)"
+}

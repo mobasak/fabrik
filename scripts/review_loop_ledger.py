@@ -13,9 +13,14 @@ file, not its scrollback. So:
         compact table. Every seat carries its MINUTES, from its transcript's first and last timestamp — the
         Workflow API has no per-agent timeout, so an overrun is only ever visible here (`OVER BOX`; one refuter
         ran 59 minutes against a 12-minute box on 2026-09-23). A seat with no result row is `NO RESULT`.
-    review_loop_ledger.py next FILE --ids A-S1,B-S2
+    review_loop_ledger.py next FILE --ids A-S1,B-S2 [--args RUN_OR_ARGS]
         The next pass's `slices[].ledger` for exactly those confirmed ids, as objects grouped by slice (the id
-        prefix). An id the pass never raised is refused by name.
+        prefix). An id the pass never raised is refused by name; an id two raw claims share is refused with
+        every claim listed. With --args (mail 01M4PHYNXJ) — the run's `workflows/<runId>.json`, or a bare args
+        object — each slice is emitted whole (files, models, scope, priority, agent copied from the launch, its
+        ledger replaced), so stdout is the next launch's `slices`; a run file resolves each id against its
+        `result` union candidates, the ids the verdicts carry (`A-S1#2`), never a numbering of its own. stderr
+        names the launch slices not carried and the `DISPATCH:` stamp (finders + one refuter per slice).
     review_loop_ledger.py pin --pins-dir DIR [--from REF] [--base SHA] [--replace] FILE…
         Run from the repo root before a pass (kaizen 01M4CGJZAX): writes each FILE to DIR/<FILE> — from the
         working tree, or with --from from that commit (a committed range) — and makes every pin AND directory
@@ -265,7 +270,49 @@ def _slice_of(c: dict, cid: str) -> str:
     return cid.rsplit("-", 1)[0]
 
 
-def next_ledger(doc: dict, ids: list[str]) -> list[dict]:
+_SLICE_FIELDS = ("files", "models", "scope", "priority", "agent")
+_DEFAULT_FINDERS = 2  # the workflow's DEFAULT_MODELS: one Sonnet and one Haiku finder per slice
+
+
+def load_args(path: Path) -> tuple[dict, dict | None]:
+    """The launch args and, from a Workflow run file, its result. A run file is an object whose `args` key is an
+    object; anything else is read as the args themselves. Either way `slices` must be a list."""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise LedgerError(f"--args {path} is not JSON ({exc})") from None
+    run = isinstance(raw, dict) and isinstance(raw.get("args"), dict)
+    args = raw["args"] if run else raw
+    if not isinstance(args, dict) or not isinstance(args.get("slices"), list):
+        raise LedgerError(
+            f"--args {path} holds no `slices` list — pass the run's workflows/<runId>.json or the launch args"
+        )
+    result = raw.get("result") if run else None
+    return args, result if isinstance(result, dict) else None
+
+
+def _from_union(result: dict, ids: list[str]) -> dict[str, list]:
+    """Each id resolved against the run's union candidates — the ids the verdicts carry, suffix and all."""
+    found: dict[str, tuple[str, dict]] = {}
+    for s in result.get("slices") or []:
+        if not isinstance(s, dict):
+            continue
+        for c in s.get("candidates") or []:
+            if isinstance(c, dict) and c.get("id") in ids and c["id"] not in found:
+                found[c["id"]] = (str(s.get("name")), c)
+    missing = [i for i in ids if i not in found]
+    if missing:
+        raise LedgerError(f"id(s) the run's union candidates never carried: {', '.join(missing)}")
+    slices: dict[str, list] = {}
+    for i in ids:
+        name, c = found[i]
+        slices.setdefault(name, []).append(
+            {"id": i, "file": c.get("file"), "line": c.get("line"), "claim": c.get("claim")}
+        )
+    return slices
+
+
+def _from_pass(doc: dict, ids: list[str]) -> dict[str, list]:
     # a byte-identical repeat (a result row delivered twice) is ONE claim; only distinct claims sharing an id
     # are ambiguous (A-NEW1)
     by_id: dict[str, list] = {}
@@ -279,9 +326,22 @@ def next_ledger(doc: dict, ids: list[str]) -> list[dict]:
         raise LedgerError(f"id(s) this pass never raised: {', '.join(missing)}")
     twice = [i for i in ids if len(by_id[i]) > 1]
     if twice:
+        # The raw ids are not the verdicts' ids: the workflow absorbs a cross-seat twin and suffixes the rest
+        # (`A-S1#2`), so a number assigned here could name a different claim than the verdict did, and keeping
+        # the first could carry a refuted claim while the confirmed one is dropped (mail 01M4PHYNXJ, both
+        # design critiques). So the refusal stays — as the menu, with the exact path out.
+        menu = "; ".join(
+            f"{i}: "
+            + " · ".join(
+                f"[{c.get('seat')}] {c.get('file')}:{c.get('line')} {str(c.get('claim'))[:80]!r}"
+                for c in by_id[i]
+            )
+            for i in twice
+        )
         raise LedgerError(
-            f"id(s) raised more than once (by one seat or two), so they name no single claim: {', '.join(twice)} — "
-            "pass the claim by hand as {id, file, line, claim}"
+            f"id(s) raised more than once (by one seat or two), so they name no single claim — {menu} — pass "
+            "--args <the run's workflows/<runId>.json> to resolve the verdicts' own ids, or the claim by hand "
+            "as {id, file, line, claim}"
         )
     bare = [i for i in ids if "-" not in i or not i.split("-", 1)[0]]
     if bare:
@@ -294,7 +354,45 @@ def next_ledger(doc: dict, ids: list[str]) -> list[dict]:
         slices.setdefault(_slice_of(c, i), []).append(
             {"id": i, "file": c.get("file"), "line": c.get("line"), "claim": c.get("claim")}
         )
-    return [{"name": n, "ledger": rows} for n, rows in slices.items()]
+    return slices
+
+
+def next_ledger(
+    doc: dict, ids: list[str], args: dict | None = None, result: dict | None = None
+) -> list[dict]:
+    """The next launch's slices. With `args` every slice carries its launch fields and a REPLACED ledger; with a
+    run `result` the ids resolve against the union candidates.
+
+    COBRA (D-253): the cheapest way past the ambiguity refusal is to hand-pick a listed claim without reading the
+    verdict; the menu names `--args`, the cheaper exact path. The cheapest way past `not carried` (`carry_notes`)
+    is to ignore stderr and drop an unverified slice; the closing round's `round --slices` re-statement is the
+    counter."""
+    slices = _from_union(result, ids) if result and isinstance(result.get("slices"), list) else _from_pass(doc, ids)
+    if args is None:
+        return [{"name": n, "ledger": rows} for n, rows in slices.items()]
+    launch = {s.get("name"): s for s in args["slices"] if isinstance(s, dict)}
+    absent = [n for n in slices if n not in launch]
+    if absent:
+        raise LedgerError(
+            f"slice {', '.join(absent)} is in no launch slice of --args, so its files and models are unknown"
+        )
+    return [
+        {"name": n, **{k: launch[n][k] for k in _SLICE_FIELDS if k in launch[n]}, "ledger": rows}
+        for n, rows in slices.items()
+    ]
+
+
+def carry_notes(args: dict, out: list[dict]) -> list[str]:
+    """stderr for an --args emit: the launch slices not carried, and the stamp the next launch owes."""
+    carried = {s["name"] for s in out}
+    left = [str(s.get("name")) for s in args["slices"] if isinstance(s, dict) and s.get("name") not in carried]
+    finders = sum(
+        len(s["models"]) if isinstance(s.get("models"), list) else _DEFAULT_FINDERS for s in out
+    )
+    notes = [f"not carried: {', '.join(left)} — no id named this pass"] if left else []
+    return notes + [
+        f"DISPATCH: {finders} finder(s) + {len(out)} refuter(s) = stamp {finders + len(out)}"
+    ]
 
 
 _MANIFEST_NAMES = frozenset({"MANIFEST.md5", "MANIFEST.json", "MANIFEST.pins.md5"})
@@ -732,6 +830,12 @@ def main(argv: list[str] | None = None) -> int:
     n = sub.add_parser("next")
     n.add_argument("ledger", type=Path)
     n.add_argument("--ids", required=True, help="comma-separated confirmed candidate ids")
+    n.add_argument(
+        "--args",
+        dest="launch",
+        type=Path,
+        help="the run's workflows/<runId>.json, or the launch args: emit whole slices",
+    )
     p = sub.add_parser("pin")
     p.add_argument("--pins-dir", type=Path, required=True)
     p.add_argument(
@@ -816,12 +920,11 @@ def main(argv: list[str] | None = None) -> int:
                     return 4  # the pass stands; a seat's archive sits in the live tree, one `git add` from a commit
         else:
             doc = json.loads(a.ledger.read_text())
-            print(
-                json.dumps(
-                    next_ledger(doc, [i.strip() for i in a.ids.split(",") if i.strip()]),
-                    ensure_ascii=False,
-                )
-            )
+            launch, result = load_args(a.launch) if a.launch else (None, None)
+            out = next_ledger(doc, [i.strip() for i in a.ids.split(",") if i.strip()], launch, result)
+            for note in carry_notes(launch, out) if launch else []:
+                print(note, file=sys.stderr)
+            print(json.dumps(out, ensure_ascii=False))
     except (
         OSError
     ) as exc:  # FileNotFoundError, and any filesystem error a verb did not turn into its own

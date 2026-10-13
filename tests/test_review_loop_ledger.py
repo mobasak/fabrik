@@ -233,6 +233,10 @@ def test_next_refuses_an_ambiguous_or_slice_less_id(tmp_path: Path) -> None:
     assert amb.returncode == 2 and "A-S1" in amb.stderr and "more than once" in amb.stderr, (
         amb.stderr
     )
+    # mail 01M4PHYNXJ: the refusal is the menu — every claim with its seat and file:line, and the exact path out
+    assert "a.py:1" in amb.stderr and "a.py:99" in amb.stderr, amb.stderr
+    assert "find:A:sonnet" in amb.stderr and "find:A:haiku" in amb.stderr, amb.stderr
+    assert "--args" in amb.stderr and amb.stdout == "", amb.stderr
     bare = _tool("next", str(out), "--ids", "nodash")
     assert bare.returncode == 2 and "nodash" in bare.stderr and "slice" in bare.stderr, bare.stderr
 
@@ -377,6 +381,117 @@ def test_next_keeps_a_hyphenated_slice_name_whole() -> None:
     }
     out = rl.next_ledger(doc, ["rule-grammar-O1", "rest-of-spec-S2"])
     assert sorted(s["name"] for s in out) == ["rest-of-spec", "rule-grammar"], out
+
+
+# --- next --args: the verdicts' own ids and whole slices (mail 01M4PHYNXJ) -----------------------------------
+
+
+def _union(cid: str, line: int, claim: str, seat: str = "sonnet") -> dict:
+    return {"id": cid, "file": "a.py", "line": line, "failure_class": "logic", "claim": claim, "seat": seat}
+
+
+def _run_file(tmp: Path) -> Path:
+    """A Workflow run file as the harness keeps it: the launch `args` and the `result` whose union candidates
+    carry the ids the verdicts use — `A-S1#2` is the workflow's own suffix for a second claim under `A-S1`."""
+    args = {
+        "pass": 1,
+        "slices": [
+            {"name": "A", "files": ["a.py"], "priority": "p-A", "models": ["sonnet", "haiku"], "scope": "s-A",
+             "ledger": [{"id": "A-OLD", "claim": "stale"}]},
+            {"name": "B", "files": ["b.py", "c.py"], "models": ["opus"], "agent": "fabrik-researcher"},
+            {"name": "C", "files": ["d.py"]},
+        ],
+    }
+    result = {
+        "slices": [
+            {"name": "A", "candidates": [_union("A-S1", 3, "first"), _union("A-S1#2", 40, "second", "haiku")]},
+            {"name": "B", "candidates": [_union("B-O1", 7, "bee", "opus")]},
+            {"name": "C", "candidates": []},
+        ]
+    }
+    p = tmp / "wf_run.json"
+    p.write_text(json.dumps({"runId": "wf_x", "args": args, "result": result}))
+    return p
+
+
+def _pass_file(tmp: Path) -> Path:
+    """The raw pass file `read` writes: both seats raised `A-S1`, so it names two claims here."""
+    p = tmp / "pass.json"
+    p.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {**_union("A-S1", 3, "first"), "seat": "find:A:sonnet"},
+                    {**_union("A-S1", 40, "second"), "seat": "find:A:haiku"},
+                    {**_union("B-O1", 7, "bee"), "seat": "find:B:opus"},
+                ]
+            }
+        )
+    )
+    return p
+
+
+def test_next_args_resolves_the_verdicts_own_ids_and_emits_whole_slices(tmp_path: Path) -> None:
+    r = _tool("next", str(_pass_file(tmp_path)), "--ids", "A-S1,A-S1#2,B-O1", "--args", str(_run_file(tmp_path)))
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == [
+        {
+            "name": "A",
+            "files": ["a.py"],
+            "models": ["sonnet", "haiku"],
+            "scope": "s-A",
+            "priority": "p-A",
+            "ledger": [
+                {"id": "A-S1", "file": "a.py", "line": 3, "claim": "first"},
+                {"id": "A-S1#2", "file": "a.py", "line": 40, "claim": "second"},
+            ],
+        },
+        {
+            "name": "B",
+            "files": ["b.py", "c.py"],
+            "models": ["opus"],
+            "agent": "fabrik-researcher",
+            "ledger": [{"id": "B-O1", "file": "a.py", "line": 7, "claim": "bee"}],
+        },
+    ]
+    # a slice no id names is said, never silently dropped; the stamp is counted before launch
+    assert "not carried: C" in r.stderr, r.stderr
+    assert "DISPATCH: 3 finder(s) + 2 refuter(s) = stamp 5" in r.stderr, r.stderr
+
+
+def test_next_args_takes_a_bare_args_object_and_the_claims_from_the_pass_file(tmp_path: Path) -> None:
+    bare = tmp_path / "args.json"
+    bare.write_text(json.dumps(json.loads(_run_file(tmp_path).read_text())["args"]))
+    r = _tool("next", str(_pass_file(tmp_path)), "--ids", "B-O1", "--args", str(bare))
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout) == [
+        {
+            "name": "B",
+            "files": ["b.py", "c.py"],
+            "models": ["opus"],
+            "agent": "fabrik-researcher",
+            "ledger": [{"id": "B-O1", "file": "a.py", "line": 7, "claim": "bee"}],
+        }
+    ]
+    assert "not carried: A, C" in r.stderr and "DISPATCH: 1 finder(s) + 1 refuter(s) = stamp 2" in r.stderr
+
+
+@pytest.mark.parametrize(
+    ("body", "ids", "needle"),
+    [
+        ("{not json", "B-O1", "not JSON"),
+        (json.dumps({"args": {"pass": 2}}), "B-O1", "slices"),
+        (json.dumps([1, 2]), "B-O1", "slices"),
+        (json.dumps({"args": {"slices": [{"name": "A", "files": ["a.py"]}]}, "result": {"slices": []}}), "A-S1", "A-S1"),
+        (json.dumps({"slices": [{"name": "A", "files": ["a.py"]}]}), "B-O1", "slice B"),
+    ],
+)
+def test_next_args_refuses_by_name(tmp_path: Path, body: str, ids: str, needle: str) -> None:
+    bad = tmp_path / "bad.json"
+    bad.write_text(body)
+    r = _tool("next", str(_pass_file(tmp_path)), "--ids", ids, "--args", str(bad))
+    assert r.returncode == 2 and needle in r.stderr and r.stdout == "", (r.returncode, r.stderr)
+    assert "Traceback" not in r.stderr, r.stderr
 
 
 # --- the pin verb and the post-pass re-check (kaizen 01M4CGJZAX) --------------------------------------------

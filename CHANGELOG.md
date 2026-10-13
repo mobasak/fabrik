@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `review_loop_ledger.py next --args` builds the next pass from the run's own ids; `#` stops crediting a bare id (2026-10-13)
+
+- `scripts/review_loop_ledger.py next --args <run file | launch args>` emits each slice whole (files, models, scope, priority and agent from the launch; the ledger replaced), so stdout is the next launch's `slices`. A run file resolves each id against the run's union candidates, the ids the verdicts carry (`A-S1#2`). stderr names the launch slices `not carried` and the `DISPATCH:` stamp. Without `--args`, an id two raw claims share is still refused, now listing every claim with its seat and file:line. Keep-first was rejected: both design critiques showed it can carry a refuted claim and drop the confirmed one (mail 01M4PHYNXJ).
+- `.claude/workflows/fabrik-review-loop.js`: `closeCheck` treats `#` as an id character, so a seat reporting `S-S1#2` no longer also re-verifies `S-S1`. The launch logs its `DISPATCH:` count before any seat. The pin recipe says `-P` keeps an inherited PYTHONPATH ahead of the insert, while an editable install's `.pth` path lands after it.
+- `docs/reference/review-loop-workflow.md`: `next --args`, and where the harness keeps each run's args and result.
+
 ### Added — `command_run.py surface --add`: a running review widens its own Stop-hook exemption (2026-10-09)
 
 - A running review covers `(start, ∞)`, so its own edits were never the gap; a file last edited BEFORE its `start` that its `--surface` did not name stayed flagged by the sixth cause until `done`. `surface --add <path>` records such a path in a new `surface_adds` field (never in `surface`, the ledger's run dimension), and `.claude/hooks/final_gate_stop.py` `_surface_reviewed` reads it as one whole token (W-24ae7ecf). Refuses every record but a running review and every value that is not one repo path, rc 1 with nothing stored. Graders in `tests/test_command_run.py` and `tests/test_stop_hook_spontaneous_review.py`, seven mutants red.

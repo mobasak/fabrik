@@ -1922,3 +1922,37 @@ def test_every_seat_facing_text_carries_the_one_refusal_rule_and_the_precise_sil
         "mostly own-fix DOES print the stop). So" in exit_
     )
     assert "simply converging" not in exit_
+
+
+def test_a_union_suffix_id_never_credits_the_bare_id() -> None:
+    """mail 01M4PHYNXJ (both design critiques executed it): `#` was a token splitter, so a seat reporting only
+    `S-S1#2` also re-verified `S-S1`, and a ledger holding both closed with `S-S1` never checked."""
+    args = {**_ARGS, "pass": 2}
+    args["slices"] = [
+        {
+            **_ARGS["slices"][0],
+            "ledger": [{"id": "S-S1", "claim": "c"}, {"id": "S-S1#2", "claim": "d"}],
+        }
+    ]
+    status = [{"id": "S-S1#2", "status": "NOW_FALSE", "command": "c", "output": "o"}]
+    out, _, _ = _harness(args, _two_finders([], ledger_status=status))
+    s = out["slices"][0]
+    assert s["closable"] is False, s["open"]
+    assert s["open"] == ["ledger claim S-S1 not re-verified by any seat"], s["open"]
+
+
+def test_the_launch_logs_its_dispatch_count_before_any_seat() -> None:
+    """mail 01M4PHYNXJ row 1791418327: the stamp is the finders plus one refuter per slice; the log names it, and
+    names it before the first seat starts — a one-model slice counts one finder."""
+    args = {
+        **_ARGS,
+        "slices": [
+            {"name": "S", "files": ["a.py", "b.py"], "priority": "p"},
+            {"name": "T", "files": ["c.py"], "priority": "p", "models": ["opus"]},
+        ],
+    }
+    _, log, _ = _harness(args, {})
+    line = "DISPATCH: 3 finder seat(s) over 2 slice(s) + up to 2 refuter(s) = stamp 5"
+    assert line in log, log
+    assert log.index(line) < log.index("AGENT CALLED"), log
+    assert "stays inside this stamp" in log, log

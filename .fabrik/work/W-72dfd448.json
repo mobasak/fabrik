@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T06:41:40.555453Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-72dfd448",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure whether the Workflow agent() call takes a cwd or isolation option; if so launch finder and refuter seats in a fresh scratch dir, and have review_loop_ledger pin write a ready probe runner beside the pins",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "review-loop"
+  ],
+  "title": "review-loop seats: cwd and write isolation by construction (mail 01M4PHYNXJ rows 1791209046, 1791049341, 1791225410)"
+}
