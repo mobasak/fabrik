@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-spec names the as-built amendment route (2026-10-13)
 - The SKIP line routes an as-built revision of a CONVERGED spec to an amendment here (`Profile: delta`); a stale pin on /fabrik-plan-after-chat's sentence is repinned (D-806).
 
+### Fixed — the spec DB-name check no longer skips a spec that names a database it never asks for (2026-10-13)
+- `scripts/enforcement/check_spec_db_match.py` skipped every spec whose `shape.needs_database` was falsy before reading `depends`, so a spec naming `depends.postgres` (or `postgres_seed`, or `redis` without `needs_cache`) was green at commit while `fabrik apply` warns on it at deploy. It now prints `fabrik apply`'s own `depends_contradiction` clause per contradiction (5 live hub specs today), warn-only, after any blocking drift; the gate calls it `--quiet` and keeps the lines on a green run, and a non-mapping `depends` or `shape` no longer crashes the check (fleet 01M4F7NVDZ, D-805). Also moves the GATE row's `final_gate.py:N` cites in both CLAUDE.md contracts, which D-802 had shifted (reported red by kaizen).
+
 ### Fixed — /fabrik-flows-review's description names all eight axes (2026-10-13)
 - The frontmatter description adds life-cycle arcs (UI types) and discipline + exclusions and names G as cross-artifact truth, trimmed to stay under the 1024-character skill limit; /fabrik-ui-design-review's description gains its missing axis F; tests grade both (mail 01M4S7EX4S).
 

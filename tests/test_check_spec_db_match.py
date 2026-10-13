@@ -107,3 +107,64 @@ def test_skips_cleanly_when_no_specs_dir(tmp_path, monkeypatch):
     m = _load()
     monkeypatch.setattr(m, "SPECS_DIR", tmp_path / "nonexistent" / "services")
     assert m.main() == 0
+
+
+def test_a_named_dependency_with_its_flag_off_is_warned_not_skipped(tmp_path, monkeypatch, capsys):
+    """fleet 01M4F7NVDZ: the check `continue`d on a falsy `needs_database` BEFORE reading `depends`,
+    so a spec naming a store its registrar will never create was green at commit while `fabrik
+    apply` warns on it at deploy. The warning is apply's own `depends_contradiction` clause, so the
+    two readers cannot disagree; warn-only (exit 0)."""
+    m = _wire(
+        monkeypatch,
+        tmp_path,
+        "id: foo\nshape:\n  needs_database: false\ndepends:\n  postgres: foo_db\n"
+        "  postgres_seed: seed.sql\n  redis: '3'\n",
+        None,
+    )
+    assert m.main() == 0
+    out = capsys.readouterr().out
+    assert "⚠ foo: depends.postgres=foo_db, depends.postgres_seed=seed.sql names a store" in out
+    assert "⚠ foo: depends.redis=3 names a store this registrar will NOT create" in out
+    assert "false or absent" in out
+
+
+def test_an_absent_shape_is_a_contradiction_too_and_odd_shapes_never_crash(
+    tmp_path, monkeypatch, capsys
+):
+    """No `shape:` block at all is `absent` (apply reads raw YAML); a list `depends` or a scalar
+    `shape` is not a mapping and must not crash the whole check (review A-O7/A-S3)."""
+    m = _wire(monkeypatch, tmp_path, "id: foo\ndepends:\n  postgres: foo_db\n", None)
+    assert m.main() == 0
+    assert "⚠ foo: depends.postgres=foo_db" in capsys.readouterr().out
+    for odd in (
+        "id: foo\nshape: true\n",
+        "id: foo\nshape:\n  needs_database: true\ndepends: [x]\n",
+    ):
+        m = _wire(monkeypatch, tmp_path / str(len(odd)), odd, "PG_DATABASE=foo\n")
+        assert m.main() == 0
+
+
+def test_a_drift_prints_before_the_contradictions_and_quiet_hides_the_green_summary(
+    tmp_path, monkeypatch, capsys
+):
+    """Review A-O1: the gate shows the first lines of a red row, so the blocking drift comes first;
+    A-O5: `--quiet` (how the gate calls it) prints nothing on a clean run."""
+    m = _wire(
+        monkeypatch,
+        tmp_path,
+        "id: foo\nshape:\n  needs_database: true\n  needs_cache: false\n"
+        "depends:\n  postgres: foo_db\n  redis: '1'\n",
+        "PG_DATABASE=other\n",
+    )
+    assert m.main() == 1
+    out = capsys.readouterr().out
+    assert out.index("DRIFT") < out.index("⚠")
+    m = _wire(
+        monkeypatch,
+        tmp_path / "q",
+        "id: foo\nshape:\n  needs_database: true\ndepends:\n  postgres: foo_db\n",
+        "PG_DATABASE=foo_db\n",
+    )
+    monkeypatch.setattr("sys.argv", ["check_spec_db_match.py", "--quiet"])
+    assert m.main() == 0
+    assert capsys.readouterr().out == ""

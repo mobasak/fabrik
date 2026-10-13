@@ -2221,6 +2221,8 @@ def run_consistency_checks(
             run_optional_check(
                 "scripts/enforcement/check_spec_db_match.py",
                 "Spec <-> Project DB Name Match (Phase 1c)",
+                "--quiet",
+                advisory=True,  # keeps its ⚠ contradiction lines on a green run (01M4F7NVDZ)
             )
         )
         # Undeclared-import guard (ci-parity): the app source imports a package

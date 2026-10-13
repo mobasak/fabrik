@@ -142,11 +142,11 @@ T6_CLAIMS = (
     # claimed this grader proved the two copies identical when it asserted nothing about the
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
-    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3210-3216`)",
+    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3321-3327`)",
     "the rows that can never fail — `WARN_ONLY_CHECKS`, `:515-528` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    'a `status: "setup-error"` envelope (`:3191-3208` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
+    'a `status: "setup-error"` envelope (`:3302-3319` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -867,14 +867,14 @@ def test_the_templates_outcome_ii_points_at_the_lane_table_and_keeps_all_three()
 _GATE_CITES = {
     ":71": "PROJECT_ROOT = Path.cwd()",
     ":515-528": "WARN_ONLY_CHECKS: set[str] = {",
-    ":1306": "if tier == 3:",
-    ":1323": "return results",
-    ":1422": "return results",
-    "final_gate.py:1577-1587": "if (",
-    ":1245": "elif code == 5:",
-    ":1288": "if code != 0 and _PYTEST_EARLY_STOP in out:",
-    ":3191-3208": "missing = _toolchain_missing(PYTHON)",
-    ":3210-3216": "# Determine tier",
+    ":1329": "if tier == 3:",
+    ":1346": "return results",
+    ":1448": "return results",
+    "final_gate.py:1603-1613": "if (",
+    ":1268": "elif code == 5:",
+    ":1311": "if code != 0 and _PYTEST_EARLY_STOP in out:",
+    ":3302-3319": "missing = _toolchain_missing(PYTHON)",
+    ":3321-3327": "# Determine tier",
 }
 
 
