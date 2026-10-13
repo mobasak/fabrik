@@ -7526,13 +7526,39 @@ def test_wall_blocked_keeps_a_resume_seed_and_names_the_reopen(run_dir: Path) ->
     r3 = json.loads((run_dir / "s3.json").read_text(encoding="utf-8"))
     assert "wall" not in r3 and "resume_seed" not in r3
     assert "--wall" in out3.stderr, out3.stderr
-    # an ordinary BLOCKED case: nothing kept, nothing said
+    # the NOTE is a conditional: a vendor quota or a wall-mounted sensor in a legitimate reason
+    # also matches the broad hint, and the line must then read as ignorable (review code-S3)
+    assert "IF this close is the fleet quota wall" in out3.stderr, out3.stderr
+    assert "ignore this line" in out3.stderr, out3.stderr
+    # an ordinary BLOCKED case: nothing kept, nothing said — spelled the way agents spell it: a
+    # lowercase "red" is a test colour, never the RED band (the band name is upper-case only)
     _start(run_dir, sid="s4")
     out4 = _cr(
-        run_dir, "blocked", "--command", _PROBE, "--reason", "3 same-test failures", sid="s4"
+        run_dir,
+        "blocked",
+        "--command",
+        _PROBE,
+        "--reason",
+        "3 same-test failures — tests/test_x.py::t red thrice",
+        sid="s4",
     )
     r4 = json.loads((run_dir / "s4.json").read_text(encoding="utf-8"))
     assert "wall" not in r4 and "resume_seed" not in r4 and "--wall" not in out4.stderr
+    # `--wall` belongs to `blocked` alone — argparse refuses it on `done` (review tests-docs-S6)
+    _start(run_dir, sid="s6")
+    out6 = _cr(
+        run_dir,
+        "done",
+        "--command",
+        _PROBE,
+        "--wall",
+        "--evidence",
+        "e",
+        "--feedback",
+        _WALL_FB,
+        sid="s6",
+    )
+    assert out6.returncode == 2 and "unrecognized arguments: --wall" in out6.stderr, out6.stderr
     # nested: the child's wall close names the live parent and the resume order
     _start(run_dir, sid="s5")
     _cr(run_dir, "start", "--command", "fabrik-child", "--phases", "1", "--terminal", "t", sid="s5")
@@ -7680,7 +7706,8 @@ def test_start_resume_from_refuses_a_seed_that_is_not_a_wall_block(
     assert not (run_dir / "r1.json").exists(), "a refused start opens no record"
     big = tmp_path / "big.json"
     big.write_bytes(b"{" + b" " * (cr._RESUME_READ_CAP + 1) + b"}")
-    assert _try(big).returncode == 1
+    r = _try(big)
+    assert r.returncode == 1 and "REFUSED" in r.stdout and "seed cap" in r.stdout, r.stdout
     base = {
         "state": "blocked",
         "wall": True,
@@ -7894,6 +7921,65 @@ def test_resumed_close_row_names_resumed_from_and_the_gap(run_dir: Path) -> None
     assert row["resumed_from"] and row["resumed_from"]["session_id"] == "s1", row
     assert row["gap_s"] >= _GAP_S - 120 and row["rounds_before_resume"] == 1 and row["rounds"] == 2
     assert row["wall_s"] < 600, row  # this sitting only — the gap is not wall-clock
+    # the run_close EVENTS carry the pair as scalars under their own names — `wall` on the wall
+    # close, `resumed_from_start` on the resumed one; `resumed_from` (the dict) stays on the record
+    # and the ledger row (review tests-docs-S1: one name, two shapes across two streams)
+    closes = [e for e in _events(run_dir, "s1") if e.get("event") == "run_close"]
+    assert closes[0]["wall"] == "quota" and closes[0]["resumed_from_start"] == "", closes[0]
+    assert (
+        closes[-1]["wall"] == ""
+        and closes[-1]["resumed_from_start"] == row["resumed_from"]["started_at"]
+    ), closes[-1]
+    assert "resumed_from" not in closes[-1], closes[-1]
+
+
+def test_wall_blocked_warns_and_proceeds_when_the_seed_cannot_be_kept(run_dir: Path) -> None:
+    """The fail direction of the wall close (review tests-docs-S3): when `<state>/seeds/` cannot be
+    written the close WARNS on stderr and PROCEEDS — at the wall every tool is held, and a refused
+    close would leave the record `running` with the Stop hook blocking every turn after the lift —
+    and the record file itself is the seed the reopen order names and `start --resume-from` accepts."""
+    _start(run_dir, sid="s7")
+    (run_dir / "seeds").write_text("not a directory", encoding="utf-8")  # mkdir → FileExistsError
+    out = _cr(run_dir, "blocked", "--command", _PROBE, "--wall", "--reason", "quota wall", sid="s7")
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "WARNING — the quota-wall seed could not be kept" in out.stderr, out.stderr
+    rec_path = run_dir / "s7.json"
+    assert f"--resume-from {rec_path}" in out.stdout, out.stdout
+    rec = json.loads(rec_path.read_text(encoding="utf-8"))
+    assert rec["state"] == "blocked" and rec["wall"] is True and "resume_seed" not in rec, rec
+    (run_dir / "seeds").unlink()
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "5",
+        "--resume-from",
+        str(rec_path),
+        sid="s8",
+    )
+    assert r.returncode == 0 and "RESUMED: from" in r.stdout, r.stdout + r.stderr
+    assert (
+        json.loads((run_dir / "s8.json").read_text(encoding="utf-8"))["resumed_from"]["session_id"]
+        == "s7"
+    )
+
+
+def test_since_label_names_the_origin_of_a_resumed_run() -> None:
+    """Review code-S1: the phase-review refusal's human cutoff and the gate it describes
+    (`_phase_review_exists(since=origin_epoch or started_epoch)`) read the SAME clock — a resumed
+    run's label names the pre-wall origin, never this sitting's start two hours later."""
+    cr = _load("command_run_since_label", _SCRIPT)
+    now = time.time()
+    origin, sitting = now - 7200, now - 60
+    label = cr._since_label({"origin_epoch": origin, "started_epoch": sitting})
+    assert time.strftime("%H:%M:%S", time.localtime(origin)) in label, label
+    assert time.strftime("%H:%M:%S", time.localtime(sitting)) not in label, label
+    assert cr._since_label({"started_epoch": sitting}).endswith(
+        f"({time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(sitting))})"
+    )
+    assert cr._since_label({}) == ""
 
 
 def test_resumed_task_appetite_counts_active_time_not_the_gap(

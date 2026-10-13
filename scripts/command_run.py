@@ -1107,8 +1107,10 @@ def _phase_review_exists(
 def _since_label(rec: dict[str, Any]) -> str:
     """The phase-form clause of the refusal: the time bound with the record's start as a local
     timestamp (zone named), or NO clause when the record carries no finite start — a bound that
-    is not in force is not stated (review round 2)."""
-    ts = _finite_ts(rec.get("started_epoch"))
+    is not in force is not stated (review round 2). The start it names is the one the gate binds
+    on: the ORIGIN of a resumed run (W-28f260c3 review code-S1 — the label read this sitting's
+    clock while `_phase_review_exists(since=…)` accepted a pre-wall artifact)."""
+    ts = _finite_ts(rec.get("origin_epoch") or rec.get("started_epoch"))
     if ts is None:
         return ""
     stamp = time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(ts))
@@ -1284,7 +1286,11 @@ AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
 # pasted it without the flag; `_WALL_HINT` only prints a NOTE naming the flag — a missed match is
 # SILENT otherwise, which is the fail direction this trio exists to close.
 _WALL_REASON = re.compile(r"quota wall|fleet quota exhausted|fleet-exhausted", re.I)
-_WALL_HINT = re.compile(r"quota|exhaust|\bwall\b|\bRED\b", re.I)
+# `RED` is the band name and upper-case only: under re.I a lowercase "red" — "tests red thrice",
+# the commonest sanctioned BLOCKED wording — drew the NOTE on every three-failures close (review
+# code-S3). The other alternatives stay broad on purpose: a vendor quota or a "wall-mounted" sensor
+# in a reason costs one self-qualifying stderr line; a missed fleet wall costs the run.
+_WALL_HINT = re.compile(r"quota|exhaust|\bwall\b|(?-i:\bRED\b)", re.I)
 # Carried from the seed as-is. NOT carried, by name: `started_at`/`started_epoch` (this
 # sitting's clock — budget, appetite, tokens and wall_s count ACTIVE time; the original start
 # rides beside it as `origin_epoch`/`origin_started_at` + `gap_s`), `dispatch` (a per-round
@@ -6082,8 +6088,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         elif _WALL_HINT.search(_reason_text):
             sys.stderr.write(
                 "[command_run] NOTE — this reason reads like the quota wall but --wall was not "
-                "passed: no resume seed is kept. A wall close is `blocked --wall --reason '…'`, "
-                "which keeps the record for `start --resume-from`.\n"
+                "passed, so no resume seed is kept. IF this close is the fleet quota wall, close with "
+                "`blocked --wall --reason '…'` instead — it keeps the record for `start --resume-from`; "
+                "if it is one of the three BLOCKED cases, ignore this line.\n"
             )
     if isinstance(rec.get("dispatch"), dict):  # a closed run reserves nothing — say so, don't pop
         rec["dispatch"] = dict(rec["dispatch"], seats=0, released=True, ts=time.time())
@@ -6278,9 +6285,12 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "evidence_hash": _evidence_hash(args.evidence if args.cmd == "done" else args.reason),
             "resume": getattr(args, "resume", "") or "",
             "resume_copy": rec.get("resume_copy", "") if args.cmd == "handoff" else "",
-            # the quota-wall pair rides the event stream too (W-28f260c3)
+            # the quota-wall pair rides the event stream too (W-28f260c3). The event field is a
+            # SCALAR under its own name: `resumed_from` on the record and the ledger row is the
+            # dict (session_id, started_at, blocked_at, reason, seed, rounds); one name with two
+            # shapes across the two streams was review tests-docs-S1
             "wall": "quota" if _wall else "",
-            "resumed_from": str((rec.get("resumed_from") or {}).get("started_at") or ""),
+            "resumed_from_start": str((rec.get("resumed_from") or {}).get("started_at") or ""),
             # Kaizen's `Filed (spec/mail)` column has read "-" on every row since the 2026-08-12
             # baseline because nothing ever measured it. These three fields make it countable: the
             # verdict, which beats were routed to, and a HASH of the line (never the prose - the

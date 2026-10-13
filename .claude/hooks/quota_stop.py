@@ -643,9 +643,9 @@ def _reason(tool: str, sid: str | None = None) -> str:
         else "<your sid>"
     )
     return (
-        f"FLEET QUOTA EXHAUSTED — no account left to rotate to (the tick's fleet-exhausted stamp is "
-        f"set). {tool} is held. STOP GRACEFULLY NOW: commit your own work with explicit pathspecs "
-        "(`git commit -m '<msg>' -- <paths>` — SINGLE-QUOTE the message: a quoted newline is data, but `$(…)`/heredoc and a backtick in double quotes stay refused), `git push`, close your run record (`command_run.py done`, or `blocked --wall --reason '…'` — it keeps a seed for `start --resume-from`), "
+        f"FLEET QUOTA EXHAUSTED — no account left to rotate to. {tool} is held. STOP GRACEFULLY NOW: "
+        "commit your own work with explicit pathspecs "
+        "(`git commit -m '<msg>' -- <paths>` — SINGLE-QUOTE the message: a quoted newline is data, but `$(…)`/heredoc and a backtick in double quotes stay refused), `git push`, close your run record (`command_run.py done` — or `blocked --wall`, resumable by `start --resume-from`), "
         "then end the turn — no new edits, no new phases. Reads, git, command_run.py, mail.py, "
         "thread_anchor.py, the self-watch arm and TaskStop stay allowed. The hold lifts when the tick sees relief, "
         "and the lift WAKES every session whose self-watch is armed (a RESUME line naming where it left "
