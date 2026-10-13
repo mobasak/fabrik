@@ -768,6 +768,29 @@ def test_the_hold_text_orders_the_self_watch_arm():
     assert len(with_sid) < 1000, len(with_sid)
 
 
+def test_reason_names_the_wall_block_and_the_resume_verb():
+    """W-28f260c3 (sp3 01M49B2E91): the wall text told a held session to close its run record and
+    named no way back, so the successor record lost its rounds, design and commit window. The
+    clause now names the wall close (`blocked --wall`, which keeps a seed) and the reopen
+    (`start --resume-from`) — inside the one-message length pin above, with every other pinned
+    phrase intact."""
+    reason = hook._reason("Bash")
+    assert "blocked --wall" in reason, reason
+    assert "start --resume-from" in reason, reason
+    assert "command_run.py done" in reason, "the done close is still named"
+    # the pins the clause must not displace
+    assert "git commit -m '<msg>' -- <paths>" in reason
+    assert "ARM the self-watch" in reason and "selfwatch_arm.sh" in reason
+    # the one-message pin measured where it is TIGHTEST — the arm order interpolates the sid, and
+    # `_reason`'s own validator admits 80 chars: a 7-char `abc-123` read 966 while an 80-char sid
+    # read 1039 (review code-S2); a real 36-char UUID sits between. Every admitted sid must fit.
+    uuid_sid = "1970a0ff-baa3-401b-ba52-fb0c5de43261"
+    for sid in (uuid_sid, "a" * 80):
+        with_sid = hook.decide("Edit", None, stamp_exists=True, tick_age_s=10.0, sid=sid)[1]
+        assert f"selfwatch_arm.sh {sid}" in with_sid
+        assert len(with_sid) < 1000, (len(sid), len(with_sid))
+
+
 def test_the_hold_text_refuses_a_malformed_sid():
     """The sid is interpolated into the arm order the agent will copy verbatim — a payload sid
     carrying a quote, a space or a newline must fall back to the placeholder, never break the
