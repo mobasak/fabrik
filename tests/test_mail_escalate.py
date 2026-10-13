@@ -808,7 +808,9 @@ def test_the_hub_is_its_mailbox_name_not_the_checkouts_folder_name(env, monkeypa
     assert len(mailed) == 1 and "01HUBWORKTREEHUBWORKTREEHU" in mailed[0]
     assert owners == ["someproject"], "the hub must never be told as an ordinary owner"
     today = me._dt.date.today().isoformat()
-    assert me._owners_done(today), "the hub's own row must not keep the roll-call open"
+    assert me._owners_done(today, me.collect_obligations(env)), (
+        "the hub's own row must not keep the roll-call open"
+    )
 
 
 def test_a_repo_whose_display_name_reads_as_the_hub_keeps_the_roll_call_open(
@@ -821,4 +823,66 @@ def test_a_repo_whose_display_name_reads_as_the_hub_keeps_the_roll_call_open(
     monkeypatch.setattr(me, "_deliver_to_agent", lambda body: True)
     monkeypatch.setattr(me, "_deliver_one_owner", lambda repo, body: False)  # its delivery fails
     assert me.main() == 0
-    assert not me._owners_done(me._dt.date.today().isoformat()), "an untold owner must be retried"
+    assert not me._owners_done(me._dt.date.today().isoformat(), me.collect_obligations(env)), (
+        "an untold owner must be retried"
+    )
+
+
+def test_digest_names_the_map_owner_beside_the_addressee(env):
+    p = _msg(env, "fabrik", "01M4TA00000000000000000001", agent="intel", ts=_old_ts(5))
+    text = p.read_text(encoding="utf-8").replace(
+        "agent: intel\n", "agent: intel\nmap-owner: infra · v1 · a → s\n"
+    )
+    p.write_text(text, encoding="utf-8")
+    q = _msg(env, "fabrik", "01M4TA00000000000000000002", agent="infra", ts=_old_ts(5))
+    q.write_text(
+        q.read_text(encoding="utf-8").replace(
+            "agent: infra\n", "agent: infra\nmap-owner: infra · v1\n"
+        ),
+        encoding="utf-8",
+    )
+    rows = me.build_digest(me.collect_obligations(env)).splitlines()
+    by_id = {r.split(" · ")[0]: r for r in rows if r.startswith("01M4")}
+    assert by_id["01M4TA00000000000000000001"].endswith("· map: infra")
+    assert "map:" not in by_id["01M4TA00000000000000000002"]
+
+
+def test_one_run_scans_the_mailboxes_once(env, monkeypatch, capsys):
+    """The owner roll-call and the send read ONE scan (W-ef8cffc6). Two scans of a live store could
+    disagree: the roll-call judged a list that the digest and the owner leg then did not send."""
+    _msg(env, "someproject", "01SCANONCESCANONCESCANONCE", ts=_old_ts(9))
+    real = me.collect_obligations
+    calls: list = []
+    monkeypatch.setattr(me, "collect_obligations", lambda root: calls.append(root) or real(root))
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: True)
+    monkeypatch.setattr(me, "_deliver_one_owner", lambda repo, body: True)
+    today = me._dt.date.today().isoformat()
+    me._stamp(me.DAY_STAMP, today, "operator")
+    me._stamp(me.DAY_STAMP_AGENT, today, "agent")
+    assert me.main() == 0  # both day stamps set, the owner still untold: the sending path
+    assert len(calls) == 1, f"the sending path scanned {len(calls)} times"
+    calls.clear()
+    assert me.main() == 0  # every leg told: the suppressed path (one scan before the fix too;
+    assert "already sent today" in capsys.readouterr().out  # a no-regression check, not the guard)
+    assert len(calls) == 1, f"the suppressed path scanned {len(calls)} times"
+
+
+def test_a_scan_that_raises_is_reported_not_a_traceback(env, monkeypatch, capsys):
+    """The run's one scan is guarded: a parse bug in the store prints a WARNING and exits 0 (the
+    module's fail-soft contract), so the cron logs a line it can grep instead of a traceback, and nothing is stamped (W-ef8cffc6 review)."""
+
+    def boom(root):
+        raise RuntimeError("bad header")
+
+    monkeypatch.setattr(me, "collect_obligations", boom)
+    assert me.main() == 0
+    out = capsys.readouterr().out
+    assert "WARNING — scan raised RuntimeError: bad header" in out
+    assert not me.DAY_STAMP.exists() and not me.DAY_STAMP_AGENT.exists()
+    assert "0 aged obligations" not in out, "a failed scan must never read as a healthy day"
+    today = me._dt.date.today().isoformat()
+    me._stamp(me.DAY_STAMP, today, "operator")
+    me._stamp(me.DAY_STAMP_AGENT, today, "agent")
+    assert me.main() == 0  # both stamps set: an empty list would read as "already sent"
+    assert "already sent" not in capsys.readouterr().out

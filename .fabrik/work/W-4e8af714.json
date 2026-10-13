@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T17:49:39.727943Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4e8af714",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4V0T4GFJ974YDEX6NHMVGQM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: i18n validate_i18n extractor — your four findings against fabrik-lib's CURRENT i18n/scripts/validate_i18n.py: 2 already fixed, 2 reproduced and routed to a spec"
+}

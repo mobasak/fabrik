@@ -121,5 +121,26 @@ def test_one_ticket_id_per_agent_task_line_is_what_the_parser_reads() -> None:
 
 def test_ruff_format_only_touches_files_formatted_at_baseline() -> None:
     """Row 1791842869 (D-793): the second verdict on the held ruff-format subject, edited."""
-    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-execute-plan.md").read_text())
-    assert "Never run `ruff format` by hand beyond the plan's `## File Scope (owned paths)` — a wholesale format rewrites a sibling's lines nobody reviews; the bare gate run already formats only your staged and unpushed changes" in text
+    text = re.sub(
+        r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-execute-plan.md").read_text()
+    )
+    assert (
+        "Never run `ruff format` by hand beyond the plan's `## File Scope (owned paths)` — a wholesale format rewrites a sibling's lines nobody reviews; the bare gate run already formats only your staged and unpushed changes"
+        in text
+    )
+
+
+def test_vendoring_copies_the_committed_blob_at_the_pinned_sha() -> None:
+    """Row 1791898318 (D-711 audit: MISFILED): the review catalogue's re-vendor rule reaches review waves only, and this
+    command's own vendoring steps never said which bytes to copy, so a sibling's uncommitted edit in fabrik-lib could
+    ship. Pinned whole inside § When Vendoring step 1, and "working file" may appear there only as the thing never read.
+    Not seen: a later step that contradicts it; the review wave's identity diff owns a copy taken from the working tree."""
+    vendoring = _section("## When Vendoring", "## Plan Status Tracking")
+    sentence = (
+        "1. Copy the files as the plan specifies, each read from fabrik-lib's COMMITTED blob — `git -C /opt/fabrik-lib"
+        " show <sha>:<its path in fabrik-lib>`, at the SHA the plan names or else `git -C /opt/fabrik-lib rev-parse"
+        " --short=8 HEAD` — never its working file, where a sibling's uncommitted edit would ship; record that SHA as a"
+        " `Vendored-From: fabrik-lib@<sha>` trailer on the task's commit 2. Fix internal imports:"
+    )
+    assert sentence in vendoring
+    assert vendoring.count("working file") == 1

@@ -124,7 +124,9 @@ UNACKED, never unaddressed), archive strands (claimed, never resolved), and stra
 `*.md.resolving*` windows (mtime-aged, and FILTERED on the window's own `ack:` — a window IS the
 message) — and delivers at most once per LEG per LOCAL calendar day, each leg stamping only after
 ITS OWN successful send (see the three-leg note below). Oldest ≤20
-rows (`id · repo · sender · age · agent`), plain-text sanitized; the `+K more (total)` count
+rows (`id · repo · sender · age · agent`, plus `· map: <owner>` when the message's `map-owner:`
+header names an owner other than the addressee — the mail-routing map, `docs/reference/fabrik-mail.md`
+§ Routing), plain-text sanitized; the `+K more (total)` count
 line always survives. Failure is fail-soft: exit 0, loud in the log, retried ≤6 h later by the
 no-stamp rule.
 

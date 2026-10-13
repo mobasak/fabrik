@@ -82,9 +82,13 @@ box: execute it, or name in the brief why the shape does not have it.
   boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to a
   `fabrik-researcher` seat whose brief names the version the repo pins or deploys (its lockfile or spec line) and asks
   for the claim at that version; a seat names the whole input class of a finding it raises; a re-vendor brief hands the
-  seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack — they re-run
-  that command first, then spend on what byte identity cannot show: the vendored copy's own header and every importer of
-  it.
+  seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack — the diff reads
+  the source's COMMITTED blob at the SHA the copy records (a `VENDORED-FROM` header, else the `Vendored-From:` trailer
+  of the commit that vendored it; HEAD when neither does: `git -C <source> show <sha>:<source path>`) against the copy
+  minus that header, never the source's working file, where a sibling's uncommitted edit reads as drift — and the brief
+  names the source's own regression test for the file at that SHA, run with its import path pointed at the copy (or says
+  the source has none); they re-run that command and that test first, then spend on what byte identity cannot show: the
+  vendored copy's own header and every importer of it.
 
 ## Graders
 - Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is absent
@@ -93,7 +97,8 @@ box: execute it, or name in the brief why the shape does not have it.
   never reads it; a premise guard asserts at the call site, not on constants; a prose grader asserts the whole
   generated sentence, not a substring, and one for MOVED text (a sentence, clause, bullet or row), added in the edit
   that moves it, also fails when the text sits at its old position; a test-quality seat checks docstring claims
-  against the scan; a fix recipe handed to a coder names one input it must leave unchanged and the test that holds it.
+  against the scan; a fix recipe handed to a coder names one input it must leave unchanged and the test that holds it;
+  a grader of a `path:N-M` cite asserts its first line AND its last line still hold the text the cite backs.
 - Each parser-output shape owes its own red; a config or regex grader is graded by running the tool on mutated inputs;
   a red branch of a new procedure step is executed as well as the green; a boundary fix tests both sides with the
   exact message; a numeric bound is derived in its comment and graded at both edges, with the determining input varied
@@ -151,9 +156,14 @@ box: execute it, or name in the brief why the shape does not have it.
   a worktree. The pins line follows the real layout and the digest is the pin authority. A SEAT never runs `git
   worktree add` (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive
   copy by `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree,
-  never a `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo
-  root with the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the
-  same path); tests run by exact node id. A script a seat runs is run from its archive copy with every path argument
+  never a `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. A seat test that reads git
+  history runs in `git clone --shared --no-checkout <live repo> <scratch>/clone` at the pass's base SHA with the pins
+  laid over it, and that test's red-on-revert overlays the revert on the clone: the clone reads the shared objects and
+  writes nothing to the shared `.git`, but its only local branch is the live checkout's and every other is
+  `origin/*`, so a test that inspects branch, worktree or stash state runs in the lead's throwaway worktree. Ruff
+  and mypy run from the repo root with the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy
+  `--config-file` with the same path); tests run by exact node id. A script a seat runs is run from its archive
+  copy with every path argument
   under scratch (a script may treat any argument as a write path), and the pin carries the changed files' one-hop
   callees that are repo files (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink
   or outside the repo root).

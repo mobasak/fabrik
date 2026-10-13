@@ -172,7 +172,10 @@ valid one-off advice is rejected with `HELD:<subject>` first in the reason, then
 quote and why that text is not wrong. Before rejecting, search earlier reject reasons for the subject (the
 queue's `held (all time):` line lists the held tags once any exist): a subject already held is a recurrence and
 is edited, never re-rejected — `--reject` warns on one but still writes it. An Opus seat audits the advice set
-for misfiled text defects before any advice is rejected.
+for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command
+reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it
+loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites the
+command's current text).
 
 Three shapes are NOT yours to apply here, and each has a destination:
 
@@ -230,14 +233,16 @@ branch of that function, for every shape the sentence covers; a rule adapted fro
 is pointed at, or quoted in its own words and routes, never narrowed in paraphrase; a `_fragments/` edit names each `{{include:}}`
 consumer with its bound placeholders, and each source or fragment that names it (`command grep -rlw <its file name
 without .md> commands/_sources commands/_fragments`, which lists the includers too;
-`test_a_fragment_edit_names_its_by_path_consumers_too` runs it), and must be obeyable in each. A sentence that describes what a script, tool or another step DOES — its output or advisory, every finding
-string it classifies, an edge case such as an empty input or a quiet round, a recipe — or tells the agent to run
-one of its verbs is executed on the scenario the sentence states before PHASE 4's review and quoted as it prints
-(a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites, and is run on a
-real artifact the command produces and on two fleet ones as well as a synthetic file; a verb is run end to end in
-a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped in the hub and
-dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the script
-(`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line.
+`test_a_fragment_edit_names_its_by_path_consumers_too` runs it), and must be obeyable in each. A rule the edit adds
+is checked before PHASE 4's pin on the edit's own grader and sentence, which obey it, and on the case that raised
+it, which it must flag. A sentence that describes what a script, tool or another step DOES — its output or
+advisory, every finding string it classifies, an edge case such as an empty input or a quiet round, a recipe — or
+tells the agent to run one of its verbs is executed on the scenario the sentence states before PHASE 4's review and
+quoted as it prints (a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites,
+and is run on a real artifact the command produces and on two fleet ones as well as a synthetic file; a verb is run
+end to end in a scratch repo, never on the repo's own work store or mailbox; a mechanism name it cites is grepped
+in the hub and dropped when nothing matches); when no recipe runs, the row is mailed to the beat that owns the
+script (`docs/reference/agents/`) instead of worded, and its mail id goes in the FEEDBACK line.
 
 Then, **from the main master checkout only** — a worktree renders nothing and runs `--check` alone, since a
 render from a worktree PRUNES master-only commands box-wide, and infra renders at merge:

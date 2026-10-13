@@ -142,11 +142,11 @@ T6_CLAIMS = (
     # claimed this grader proved the two copies identical when it asserted nothing about the
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
-    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3336-3342`)",
+    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3345-3351`)",
     "the rows that can never fail — `WARN_ONLY_CHECKS`, `:543-556` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    'a `status: "setup-error"` envelope (`:3317-3334` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
+    'a `status: "setup-error"` envelope (`:3326-3343` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -180,6 +180,9 @@ T6_CLAIMS = (
     "more than 5 points of runway — GREEN",
     "5 points or fewer",
     "RED: commit, push, close your run record",
+    # W-28f260c3 (D-826): the RED clause names the quota-wall close and its reopen, so an agent
+    # closing at the wall keeps a resume seed instead of losing the run (fleet 01M4V5P329).
+    "`blocked --wall` keeps a seed so `start --resume-from <seed>` reopens the run",
     "COMPACTION IS CONDITIONAL",
     "follow it with a real `unset GIT_INDEX_FILE`",
     "never `cp <scratch>/<file> <file>`",
@@ -873,8 +876,8 @@ _GATE_CITES = {
     "final_gate.py:1621-1631": "if (",
     ":1288": "elif code == 5:",
     ":1331": "if code != 0 and _PYTEST_EARLY_STOP in out:",
-    ":3317-3334": "missing = _toolchain_missing(PYTHON)",
-    ":3336-3342": "# Determine tier",
+    ":3326-3343": "missing = _toolchain_missing(PYTHON)",
+    ":3345-3351": "# Determine tier",
 }
 
 

@@ -461,3 +461,43 @@ def test_a_missing_or_old_resolver_is_a_silent_no_op(tmp_path: Path) -> None:
             [sys.executable, str(HOOK)], capture_output=True, text=True, timeout=30, env=env
         )
         assert r.returncode == 0 and r.stdout == "", (body, r.stdout, r.stderr)
+
+
+def test_every_charter_beat_points_at_the_mail_routing_map() -> None:
+    """The mail-routing spec (§ The refusal prose; D-818, D-825) has kaizen reword each charter's beat section to point
+    at `.fabrik/beat-owners.json`. The sentence is scoped to MAIL (the map names a mail's owner; it does not move write
+    ownership, D-627) and opens each Beat section as live text. The map cites charter lines as its rules' sources, so
+    each cited range must still start on the text it backs: an insertion above it would silently stale the citation.
+    Not seen: a beat list that drifts from the map; `check_beat_owners.py` owns path ownership."""
+    import json as _json
+    import re as _re
+
+    line = (
+        "Who receives mail about a path is named by `.fabrik/beat-owners.json` (D-818, D-825), the map `mail.py` reads"
+        " for a mail's `map-owner:`; where this section and the map disagree on a path's mail owner, the map holds and"
+        " this section is corrected, and where the map is silent, this section stands."
+    )
+    for name in ("infra", "fleet", "intel", "kaizen"):
+        live = _re.sub(r"<!--.*?-->", "", (AGENTS_DIR / f"{name}.md").read_text(), flags=_re.S)
+        after = live.split("## Beat (", 1)[1].split("\n", 1)[1]
+        first_paragraph = _re.sub(r"\s+", " ", after.strip().split("\n\n", 1)[0])
+        assert first_paragraph == line, name
+    expected = {
+        "fleet.md:18-24": ("- `specs/services/*.yaml`", "infra's (it is the governance-sync"),
+        "intel.md:84-86": ("- **Floater**", "you found beyond the fix back to them"),
+    }
+    rules = _json.loads((REPO / ".fabrik" / "beat-owners.json").read_text())["rules"]
+    cited = {
+        c
+        for r in rules
+        for c in _re.findall(
+            r"\b(?:infra|fleet|intel|kaizen)\.md:\d+(?:-\d+)?", r.get("source", "")
+        )
+    }
+    assert cited == set(expected), cited
+    for cite, (start, end) in expected.items():
+        name, rng = cite.split(":")
+        first, last = (int(n) for n in rng.split("-"))
+        lines = (AGENTS_DIR / name).read_text().splitlines()
+        assert lines[first - 1].startswith(start), cite
+        assert end in lines[last - 1], cite

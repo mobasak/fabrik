@@ -1,6 +1,6 @@
 # Plan — route hub and fabrik-lib mail to the owning agent (W-931b6837)
 
-Status: CONVERGED
+Status: EXECUTED 2026-10-13
 Profile: small
 **Owner:** infra
 
@@ -105,6 +105,8 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 
 ## Phase A — the map, the matcher, the trail and send
 
+✅ EXECUTED 2026-10-13 (uncommitted — this plan commits ONCE at Phase C step 7; governance-sync paths)
+
 Appetite: 150
 
 **Interfaces — Produces** (`spec § The delta` D1, D2, D3, the D7 send path):
@@ -198,6 +200,8 @@ Appetite: 150
 
 ## Phase B — read, claim, escalation, report
 
+✅ EXECUTED 2026-10-13 (uncommitted — one commit at Phase C step 7); the tie-break deferred to W-a28ece0d by step 1
+
 Appetite: 100
 
 **Interfaces — Produces** (`spec § The delta` D4, D5, D6):
@@ -259,6 +263,8 @@ Appetite: 100
 
 ## Phase C — fabrik-lib request, docs, Finish
 
+✅ EXECUTED 2026-10-13 (the one commit of this plan)
+
 Appetite: 90
 
 **Interfaces — Produces** (`spec § The delta` D7, D8, `spec § Documentation landing sites`):
@@ -268,7 +274,7 @@ Appetite: 90
   - two follow-ups that never block the switch: re-vendor `mail.py`, and validate `--to-agent` against its three-name roster.
 - **Docs:**
   - `docs/reference/fabrik-mail.md` § Routing: the map, precedence, the switches, the trail, the `map-owner:` header, markers, the tie-break sidecar, `route-report`, and the measure;
-  - `docs/workstation/fabrik-mail.md`: the escalation cron's tie-break step;
+  - `docs/workstation/fabrik-mail.md`: the escalation cron's tie-break step (deferred with the tie-break to W-a28ece0d by Phase B step 1; the digest's `· map:` field is documented instead);
   - `docs/workstation/hooks-index.md`: the `mail_notify.py` row;
   - `docs/reference/work-tracking.md`: only if `mail.py`'s AFTER-EDIT coupling shows it stale;
   - `docs/workflows/FINAL_GATE_WORKFLOW.md`: the new check's row (the `final_gate.py` AFTER-EDIT);
@@ -572,6 +578,28 @@ scripts/sysadmin/mail_escalate.py:2:# AFTER-EDIT: docs/workstation/fabrik-mail.m
 $ python3 -c "import json;d=json.load(open('/opt/fabrik-lib/.fabrik/module-owners.json'));print(list(d['owners']))"
 ['fabrik-lib-dev1', 'fabrik-lib-dev2', 'fabrik-lib-sentinel']
 ```
+
+**Phase A — execution evidence (2026-10-13).**
+- Tests: `tests/test_mail_routing.py` — the first 30 written red first (27 red before the code; the 3 green ones pin today's refusals); the reviews' regression tests and Phase B bring it to 69 (`pytest --collect-only`, 2026-10-13); the mail suites `test_mail_routing.py test_mail_addressing.py test_mail.py test_mail_structure.py` pass, except `test_kaizen_sends_one_addressed_obligation_per_beat`, red at HEAD before this plan (it greps `kaizen_collect_v2.py` for a loop a90b35a3b rewrote) and boarded as W-d1e6573a.
+- Red on revert, in a throwaway worktree: the plan's step-5 mutants 13 of 14 red; the 14th ("auto-address when the map file is missing") is equivalent — with no map `owner_of` returns no owner, so nothing can be auto-addressed; every review fix after that was proven red the same way (12 of 12, then 1 of 1 per later fix).
+- The live map: `python3 scripts/enforcement/check_beat_owners.py` → `map OK`, `unowned: 4883 of 5968 tracked` (the unowned mass is `.fabrik/` work items, `docs/` and `tests/`, which kaizen's § A assigns to no beat).
+- The scoped review: 7 passes, confirmed 19 → 2 → 2 → 1 → 1 → 1 → 0 (two pass-1 candidates refuted: a topic owner may advise, spec D2).
+- **The pilot (Phase C step 2, run here because a backtest of the rule runs before the rule is relied on):** hub mail of the last 30 days, non-reply, with a first reply from a hub agent read from every mailbox: 481. Placeable by cited paths: 49; mixed 11; topic-only 8; unmapped 413. Map owner = first replier: 32 of 49 (65%); sender's addressee = first replier on the same placeable, addressed mails: 45 of 49 (92%). Below the 50-mail floor and below the sender, so `switches.auto_address` stays false. The misses: 8 of 17 are kaizen-owned wording files answered by infra (kaizen joined 2026-10-06, inside the window).
+- Appetite: Phase A ran 186 of its 150 minutes, so Phase B step 1's deferral fires: the Haiku tie-break moves to a follow-up work item.
+
+**Phase B — execution evidence (2026-10-13).**
+- Step 1: Phase A ran 186 of its 150 minutes, so the tie-break (its Interfaces bullet, B4, B1's `→ haiku:` case and step 5's three tie-break mutants) moved to W-a28ece0d.
+- Tests red first (8 new tests red before the code); green: `test_mail_routing.py test_mail_notify.py test_mail_escalate.py test_mail_who.py test_mail_items.py test_mail_addressing.py test_mail_structure.py test_mail.py` — 409 passed, 1 failed, the same pre-existing W-d1e6573a red.
+- Step 4, the hook on one 23-message inbox snapshot, 20 runs each, `time.perf_counter_ns()` around one subprocess: before median 31.4 ms (rerun 35.5 ms), after 31.5 ms — no rise.
+- Red on revert: 8 of 8 initial mutants, then every review fix (14 of 14 after the fixtures were strengthened, then 1 of 1).
+- The scoped review: 3 passes, confirmed 16 → 1 → 0.
+
+**Phase C — execution evidence (2026-10-13).**
+- Docs: `docs/reference/fabrik-mail.md` § Routing, `docs/workstation/fabrik-mail.md`, `docs/workstation/hooks-index.md`, `docs/workflows/FINAL_GATE_WORKFLOW.md`, INDEX rows, CHANGELOG; `check_doc_sync.py` exit 0; their scoped review confirmed 11 → 2 → 0 (and fixed two code defects it surfaced: `route-report` now counts only path-derived owners, and a topic is the exact `topic "` prefix).
+- The fabrik-lib request: mail 01M4V1N3EJEWAQFN5G17ZA113Y to `fabrik-lib-sentinel` — the switch's one precondition is the sentinel's agreement; re-vendoring and roster validation are follow-ups.
+- The pilot: Phase A's evidence above (map 32 of 49, sender 45 of 49, 49 below the 50-mail floor) — `switches.auto_address` ships false.
+- The Finish `/fabrik-review`: `docs/development/reviews/2026-10-13-plan-1-mail-routing-review.md`, confirmed 3 → 0 over 2 passes.
+- The stale lock `.fabrik/plan-locks/2026-09-06-plan-1-session-history-retention.json` is removed here: fleet reported that plan executed and released `docs/workstation/hooks-index.md` to this plan (2026-10-13).
 
 ## Self-audit
 
