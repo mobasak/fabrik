@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the run-record section yields to a step a command names before it (2026-10-14)
+- `commands/_fragments/run-record.md` (35 includers): its heading says the record is the command's FIRST act, which overrode `/fabrik-review-scoped`'s "classify the surface FIRST" two lines above it. Its first line now says a step the command names as running before the record runs first, and when that step routes to another command, that command's record replaces this one. Work item W-ae8fd45b; grader `tests/test_review_scoped_queue_pass.py::test_the_run_record_section_yields_to_a_step_named_before_it`.
+
 ### Changed — a review brief states what to report, never the value the lead expects (2026-10-14)
 - `commands/_fragments/review-probe-catalogue.md` § Loop bookkeeping: each brief states what the seat must report (a count, a verdict, an output), never the value the lead expects. /fabrik-review reached no line saying so; only /fabrik-review-scoped carried it. Answers /fabrik-review row 1791931043; grader `tests/test_review_scoped_queue_pass.py::test_a_brief_states_the_count_to_report_never_the_expected_one`.
 
