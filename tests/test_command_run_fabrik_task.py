@@ -257,7 +257,9 @@ def test_lane_flags_are_refused_under_any_other_command(run_dir: Path, repo: Pat
     )
     assert clean.returncode == 0, clean.stdout + clean.stderr
     lines = clean.stdout.splitlines()
-    assert len(lines) == 1 and lines[0].startswith("RUN: /fabrik-review"), clean.stdout
+    # the pinned line, then the run's scratch dir (kaizen 01M4V0B03B) — no lane lines for a non-task run
+    assert len(lines) == 2 and lines[0].startswith("RUN: /fabrik-review"), clean.stdout
+    assert lines[1].startswith("SCRATCH: "), clean.stdout
     rec = _rec(run_dir)
     assert "declared" not in rec and "design" not in rec
 

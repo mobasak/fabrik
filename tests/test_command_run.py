@@ -1015,6 +1015,8 @@ def test_record_shape_and_pinned_line_are_unchanged_by_events(run_dir: Path) -> 
         "agent",
         "surface",
         "account",
+        # the run's persistent scratch dir (kaizen 01M4V0B03B) — under COMMAND_RUN_DIR in tests
+        "scratch",
     }, sorted(rec)
     assert rec["state"] == "running"
     assert _cr(run_dir, "line").stdout.rstrip("\n") == (
