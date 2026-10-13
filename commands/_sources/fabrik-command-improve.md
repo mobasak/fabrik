@@ -228,7 +228,9 @@ one sentence.
 **Check the claim, not the prose.** A sentence naming what a gate or script reads is checked against every
 branch of that function, for every shape the sentence covers; a rule adapted from `CLAUDE.md` or a fragment
 is pointed at, or quoted in its own words and routes, never narrowed in paraphrase; a `_fragments/` edit names each `{{include:}}`
-consumer and its bound placeholders, and must be obeyable in each. A sentence that describes what a script, tool or another step DOES — its output or advisory, every finding
+consumer with its bound placeholders, and each source or fragment that names it (`command grep -rlw <its file name
+without .md> commands/_sources commands/_fragments`, which lists the includers too;
+`test_a_fragment_edit_names_its_by_path_consumers_too` runs it), and must be obeyable in each. A sentence that describes what a script, tool or another step DOES — its output or advisory, every finding
 string it classifies, an edge case such as an empty input or a quiet round, a recipe — or tells the agent to run
 one of its verbs is executed on the scenario the sentence states before PHASE 4's review and quoted as it prints
 (a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites, and is run on a
