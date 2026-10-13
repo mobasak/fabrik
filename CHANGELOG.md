@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review fills the checklist before the in-progress gate run (2026-10-13)
+- § Reporting: fill every Coverage Checklist and Pass Ledger row before the close order; the in-progress run skips both checkers and an untracked receipt is skipped until staged (D-812).
+
 ### Changed — /fabrik-task checks plan locks before the design is recorded (2026-10-13)
 - The plan-lock check runs before phase 2's `--design` over every backticked path and again at phase 3 for amended paths and new locks (D-811).
 
