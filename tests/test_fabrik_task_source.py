@@ -86,9 +86,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # inits its receipt with `--range` and commits it alone (row 1791845646).
 # D-803 (kaizen, 2026-10-13): 19873 -> 19930 — phase 3 never runs a formatter by hand beyond the declared paths
 # (row 1791848436: a package-wide ruff format rewrote 8 untouched files).
-# D-811 (kaizen, 2026-10-13): 19930 -> 19931 — the plan-lock check moves from phase 3 to before phase 2's
-# `--design` and covers APPROACH paths (row 1791868540).
-SIZE_CAP = 19931
+# D-811 (kaizen, 2026-10-13): 19930 -> 20060 — the plan-lock check runs before phase 2's `--design` over every
+# backticked path and again at phase 3 for amended paths and new locks (row 1791868540).
+SIZE_CAP = 20060
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")

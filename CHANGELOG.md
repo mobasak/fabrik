@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — /fabrik-task checks plan locks before the design is recorded (2026-10-13)
-- The plan-lock check moves from phase 3 to before phase 2's `--design` and covers the APPROACH paths (D-811).
+- The plan-lock check runs before phase 2's `--design` over every backticked path and again at phase 3 for amended paths and new locks (D-811).
 
 ### Fixed — a headless `claude -p` child no longer gets the work queue's claim orders (2026-10-13)
 - `scripts/work.py` gains `_print_mode()`: a labelled headless run, or one whose nearest `claude` ancestor runs with `-p`/`--print`, keeps only its own claims' `continue`/`release` subjects in `queue --stop` (else a bare null, `reason: print-mode`) and only its own-claim lines in the prompt block, and a `-p` claude is never counted as a present worker. A child a project's code spawns inherits its parent's entrypoint, so only its own argv tells it apart; in iterative_image_editor the Stop hook's "claim W-…" order turned 3 of 14 strict-JSON drafts into prose (01M4PAJWV1, D-809). The suite pins the labels and the proc root in `tests/conftest.py`, so it grades the same under a `-p` dispatcher.
