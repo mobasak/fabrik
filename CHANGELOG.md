@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the scaffold parity stub's ".env loaded nothing" message names PYTHON_DOTENV_DISABLED (2026-10-13)
+
+- `templates/scaffold/scripts/verify_prod_parity.py:231` (infra 01M4V9BKHB): python-dotenv 1.2's `load_dotenv` also
+  returns False when `PYTHON_DOTENV_DISABLED` is truthy, so the message's two causes ("sets no variable, or python-dotenv
+  is not installed") sent an operator after a package that was installed; the third cause is named. Grader
+  `tests/test_parity_stub_loads_env.py::test_a_disabled_dotenv_is_reported_as_the_third_cause` runs the stub against a
+  real `.env` under `PYTHON_DOTENV_DISABLED=1`: nothing reaches `os.environ` and the message names the variable;
+  the control run without the switch loads both variables, and `PYTHON_DOTENV_DISABLED=0` loads them too (the message
+  names the five values python-dotenv reads — 1/true/t/yes/y — never "set"); skipped below python-dotenv 1.2.
+
+### Added — unit tests for the verifier's authoritative DNS wait and resolved-IP health probe; the probe keeps the URL's port (2026-10-13)
+
+- `tests/orchestrator/test_verifier.py` (W-2178bedc, from the W-1996f86b review): `DeploymentVerifier._wait_for_dns`
+  (B19 — the zone's authoritative NS asked via `dig` so a resolver's negative cache cannot hide a live record) and
+  `_check_health`'s resolved-IP branch (connect to the IP, send the domain as the Host header) only ever ran as live
+  network calls, and the file's autouse stub hides the former from every test. Five tests run the real method with
+  `subprocess.run` and `shutil.which` replaced by a recording fake that pins every `dig` argv AND its kwargs
+  (captured output, text, a 10 s cap, `check=False`): the zone NS argv, the first-server poll, the public-resolver
+  fallback on a timed-out or failed NS lookup, CNAME lines skipped with a timed-out and a failed poll survived, and
+  a 3 s budget giving up after exactly two polls at the 5 s cadence (a zero budget polls nothing). Five more pin
+  `_check_health`'s IP branch through a patched `httpx.get`: the URL with its port, path, query and fragment kept,
+  the Host header, verify/redirect flags, the non-200 retry-then-raise contract, a retried transport error with its
+  retry sleep, the http:// refusal, and the fallback to `urlopen` when no Host header is given.
+- `src/fabrik/orchestrator/verifier.py` (Fixed, found by the review's seats — H2): the IP probe rebuilt the netloc from
+  the bare IP, so a health URL on `:8443` was probed on 443; the port is kept.
+
+### Fixed — the canonical `pgurl` refuses a duplicate ssl/sslmode key and a non-postgres DSN (2026-10-13)
+
+- `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md:107` and `CONFIGURATION_TEMPLATE.md:204`, byte-identical (fabrik-lib
+  01M4TP1W, both executed against psql 16): renaming every `ssl=` to `sslmode=` let `?sslmode=require&ssl=disable` reach
+  libpq as two `sslmode` keys, of which it keeps the LAST silently — a TLS downgrade with no error; and a value such as
+  `-o/<file>` passed the no-whitespace check and reached root's `psql` as an option (psql truncates the file before it
+  connects). pgurl now refuses more than one ssl/sslmode key before the rename, refuses a percent-encoded query KEY
+  (libpq decodes keys, so `%73slmode=` is a second sslmode — review pgurl-O1), and accepts only a DSN that rewrites to
+  `postgres://` or `postgresql://` (a lowercase `+driver` is stripped; an upper-case or malformed one is refused rather than
+  printed unchanged — pgurl-S1/O6); refuses a raw `?` in the user:password part (libpq reads the text before the first
+  `@` as credentials, so a `?` there hid the real query from both checks — pgurl-O8; encode it as `%3F`); the
+  whitespace/quote check runs first so a still-quoted line is told the real cause;
+  `sslcert`/`sslkey`/`sslrootcert` stay legitimate. Grader red-first in
+  `tests/test_scaffold_doc_seeding.py::test_pgurl_rewrites_a_driver_dsn_for_libpq` (eighteen refusal shapes, seven new pass
+  shapes; the scaffold's two schema headers restate the refusals). The /fabrik-review-scoped loop confirmed 11 → 2 → 0.
 ### Fixed — the parity-stub .env tests count the load the stub really makes (W-6dd44ffe) (2026-10-13)
 
 - `tests/test_parity_stub_loads_env.py`: the counting probe patched `libs.health_probe.health_probe.load_env`, but since D-744 the stub loads its health_probe copy BY FILE PATH as `_parity_health_probe`. It counted a module the stub never calls, so two tests read 0 loads and were red on master. It now counts at `dotenv.load_dotenv`, which every copy of `load_env` reaches whenever python-dotenv is installed (a declared dependency; without it the probe fails loudly at `import dotenv`). A stub that reloads on every row reads 3 loads and fails the test.
@@ -70,22 +111,6 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — /fabrik-command-improve checks a rule it adds on the edit itself and on its origin case (2026-10-13)
 - PHASE 3 now says a rule the edit adds is checked before PHASE 4's pin on the edit's own grader and sentence, which obey it, and on the case that raised it, which it must flag. The catalogue's moved-text rule (403ab35e) was drafted with a section-scoped grader, the weakness that rule names, and its review's round 1 caught it before the commit (row 1791896044, a recurrence of the held apply-rule-to-origin-case). Grader: `tests/test_command_improve_queue_pass.py::test_phase_three_checks_an_added_rule_on_the_edit_and_its_origin_case`.
-
-### Fixed — the canonical `pgurl` refuses a duplicate ssl/sslmode key and a non-postgres DSN (2026-10-13)
-
-- `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md:107` and `CONFIGURATION_TEMPLATE.md:204`, byte-identical (fabrik-lib
-  01M4TP1W, both executed against psql 16): renaming every `ssl=` to `sslmode=` let `?sslmode=require&ssl=disable` reach
-  libpq as two `sslmode` keys, of which it keeps the LAST silently — a TLS downgrade with no error; and a value such as
-  `-o/<file>` passed the no-whitespace check and reached root's `psql` as an option (psql truncates the file before it
-  connects). pgurl now refuses more than one ssl/sslmode key before the rename, refuses a percent-encoded query KEY
-  (libpq decodes keys, so `%73slmode=` is a second sslmode — review pgurl-O1), and accepts only a DSN that rewrites to
-  `postgres://` or `postgresql://` (a lowercase `+driver` is stripped; an upper-case or malformed one is refused rather than
-  printed unchanged — pgurl-S1/O6); refuses a raw `?` in the user:password part (libpq reads the text before the first
-  `@` as credentials, so a `?` there hid the real query from both checks — pgurl-O8; encode it as `%3F`); the
-  whitespace/quote check runs first so a still-quoted line is told the real cause;
-  `sslcert`/`sslkey`/`sslrootcert` stay legitimate. Grader red-first in
-  `tests/test_scaffold_doc_seeding.py::test_pgurl_rewrites_a_driver_dsn_for_libpq` (eighteen refusal shapes, seven new pass
-  shapes; the scaffold's two schema headers restate the refusals). The /fabrik-review-scoped loop confirmed 11 → 2 → 0.
 
 ### Added — a run closed at the quota wall is resumed, not restarted: `blocked --wall` keeps a seed, `start --resume-from` carries it (2026-10-13)
 

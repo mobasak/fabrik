@@ -297,9 +297,11 @@ class DeploymentVerifier:
                     import httpx  # lazy — keeps import cost off the common path
 
                     sp = urlsplit(url)
-                    ip_url = urlunsplit(
-                        (sp.scheme, resolved_ip or "", sp.path, sp.query, sp.fragment)
-                    )
+                    # keep an explicit :port — rebuilding the netloc from the bare IP silently probed
+                    # 443 for a health URL on 8443 (W-2178bedc review H2); dig answers A records,
+                    # so the IP is IPv4 and needs no brackets
+                    netloc = f"{resolved_ip}:{sp.port}" if sp.port else (resolved_ip or "")
+                    ip_url = urlunsplit((sp.scheme, netloc, sp.path, sp.query, sp.fragment))
                     resp = httpx.get(
                         ip_url,
                         headers={"Host": host_header or ""},
