@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the wip-backup cron no longer stash-restores every dirty tree on the box (2026-10-13)
+
+- `scripts/wip_backup.sh`: both backup pushes now pass `--no-verify`. pre-commit's pre-push stage stashes and restores every unstaged file, so each 15-minute run rewrote every dirty working tree it pushed from, once per push (`/tmp/wip-backup.log`: 27 stash cycles over 14 runs that stashed, 13 of them two). The script also sets `GIT_OPTIONAL_LOCKS=0`: its `git status` had rewritten each tree's real index under `index.lock`, racing a live agent's `git add`. That is now guarded by `test_a_run_never_rewrites_the_real_index`. Cron's umask left the hub's files at mode 664, which tripped `verify_prod_parity.py`'s writable-by-others guard in two contract tests, and an edit landing inside the stash window could be lost. Guarded by `tests/test_wip_backup.py::test_backup_pushes_never_run_the_repos_pre_push_hook`, which failed with the hook running twice on the old script.
+- `tests/test_wip_backup.py::test_failed_push_to_a_bad_remote_logs_the_plain_failure_line` now pushes to a missing local path. `https://127.0.0.1:1` hangs into the 5 s timeout on a box whose loopback TCP is wedged, so the test graded the network and failed on HEAD too.
+- `docs/workstation/wip-backup-safety-net.md`: the "safe around live agents" paragraph now states the `--no-verify`.
+
 ### Changed — libs/health_probe re-vendored at fabrik-lib 09bf9236 (2026-10-13)
 
 - `libs/health_probe/health_probe.py` and `fingerprint.py` now match fabrik-lib 09bf9236 (fabrik-lib reply 01M4TG4MKN). `load_env`'s docstring and comment now say when a NUL byte in `.env` raises and when it does not, so `load_env` must not be used to validate a `.env`. No behaviour change. `tests/test_scaffold_deploy_contract.py::test_hub_copy_differs_from_fabrik_lib_only_by_the_vendoring_header` had been red since fabrik-lib moved; it passes again.

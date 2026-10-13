@@ -60,6 +60,11 @@ unset GIT_CONFIG_PARAMETERS
 export GIT_CONFIG_COUNT=2
 export GIT_CONFIG_KEY_0=core.fsync GIT_CONFIG_VALUE_0=objects,reference
 export GIT_CONFIG_KEY_1=core.fsyncMethod GIT_CONFIG_VALUE_1=batch
+# Optional locks OFF: `git status` otherwise refreshes stat data and rewrites the REAL index under
+# index.lock, so this cron raced every live agent's `git add` ("index.lock: File exists") and broke
+# the "never touches the real index" promise above (tests/test_wip_backup.py::
+# test_a_run_never_rewrites_the_real_index).
+export GIT_OPTIONAL_LOCKS=0
 # Round 9 acceptance finding 1 [H]: bounds every `git push` below so a
 # network stall can never cost a local snapshot or wedge a later repo in
 # this run under the cron's own `flock -n`. Overridable only for tests (a
@@ -613,7 +618,7 @@ for repo in "$ROOT"/*/; do
             # (offline/auth?)", never "timed out"). Capture the real code
             # via `cmd || rc=$?` instead, which sees cmd's own status.
             wt_push_rc=0
-            timeout "$WIP_BACKUP_PUSH_TIMEOUT" git push -q --force origin "${wt_refspecs[@]}" 2>/dev/null || wt_push_rc=$?
+            timeout "$WIP_BACKUP_PUSH_TIMEOUT" git push -q --no-verify --force origin "${wt_refspecs[@]}" 2>/dev/null || wt_push_rc=$?
             if [ "$wt_push_rc" -ne 0 ]; then
                 if [ "$wt_push_rc" -eq 124 ]; then
                     # Round 10 acceptance finding 3 [L]: a timeout is not
@@ -669,6 +674,10 @@ for repo in "$ROOT"/*/; do
     git update-ref "refs/wip/bak-$ts" "$commit"
 
     # Off-box: push the rolling ref (force — it's a backup ref, never a branch).
+    # --no-verify on BOTH backup pushes: pre-commit's pre-push stage stashes and restores every
+    # unstaged file, so a hooked push here rewrote each dirty tree on the box every run (cron's
+    # umask left the hub's files at 664; an edit inside the window is lost). Backup refs carry
+    # nothing a push hook checks (tests/test_wip_backup.py::test_backup_pushes_never_run_the_repos_pre_push_hook).
     # Round 9 acceptance finding 1 [H]: bounded for the same reason as the
     # worktree push above — an unbounded network call here would wedge
     # every LATER repo in this run under the cron's own `flock -n`.
@@ -676,7 +685,7 @@ for repo in "$ROOT"/*/; do
         # Round 11 acceptance finding 1 [M]: same dead-branch bug as the
         # worktree push above — `cmd || rc=$?` captures the real code.
         main_push_rc=0
-        timeout "$WIP_BACKUP_PUSH_TIMEOUT" git push -q --force origin "refs/wip/autobackup:refs/wip/autobackup" 2>/dev/null || main_push_rc=$?
+        timeout "$WIP_BACKUP_PUSH_TIMEOUT" git push -q --no-verify --force origin "refs/wip/autobackup:refs/wip/autobackup" 2>/dev/null || main_push_rc=$?
         if [ "$main_push_rc" -ne 0 ]; then
             if [ "$main_push_rc" -eq 124 ]; then
                 echo "$LOG_PREFIX push timed out after ${WIP_BACKUP_PUSH_TIMEOUT}s for $repo_real — local snapshot kept"
