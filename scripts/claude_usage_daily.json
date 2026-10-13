@@ -788,14 +788,20 @@
       "claude-haiku-5-5": 672344
     },
     "2026-10-12": {
-      "claude-opus-5-5": 874928684,
-      "claude-fable-5-1": 355435608,
-      "claude-haiku-4-5-20251001": 79592270,
-      "claude-sonnet-5": 112493548
+      "claude-opus-5-5": 2509417678,
+      "claude-fable-5-1": 547820200,
+      "claude-haiku-4-5-20251001": 169090584,
+      "claude-sonnet-5": 332712740
+    },
+    "2026-10-13": {
+      "claude-opus-5-5": 1134871222,
+      "claude-fable-5-1": 5161546,
+      "claude-haiku-4-5-20251001": 101314537,
+      "claude-sonnet-5": 204287575
     }
   },
   "source": "/home/ozgur/.claude/.claude-manager/usage-history.json",
-  "merged_at": "2026-10-12T19:50:35+03:00",
+  "merged_at": "2026-10-13T06:02:13+03:00",
   "source_by_day": {
     "2026-05-13": "extension",
     "2026-05-14": "extension",
@@ -945,20 +951,21 @@
     "2026-10-09": "transcripts",
     "2026-10-10": "transcripts",
     "2026-10-11": "transcripts",
-    "2026-10-12": "transcripts"
+    "2026-10-12": "transcripts",
+    "2026-10-13": "transcripts"
   },
   "_discrepancy": {
     "2026-08-29": {
       "extension": 9114327083,
-      "transcripts": 6033360423
+      "transcripts": 5225997647
     },
     "2026-08-30": {
       "extension": 5690264053,
-      "transcripts": 3781135436
+      "transcripts": 3692232027
     },
     "2026-08-31": {
       "extension": 5722954580,
-      "transcripts": 3750472729
+      "transcripts": 3703244212
     },
     "2026-09-01": {
       "extension": 1589061808,
@@ -966,15 +973,15 @@
     },
     "2026-09-02": {
       "extension": 9047971726,
-      "transcripts": 7295445560
+      "transcripts": 6729186541
     },
     "2026-09-03": {
       "extension": 7905971878,
-      "transcripts": 7790999793
+      "transcripts": 7342418829
     },
     "2026-09-04": {
       "extension": 1164249864,
-      "transcripts": 2240261408
+      "transcripts": 2131255857
     }
   },
   "transcript_source": "/home/ozgur/.claude/projects",
@@ -982,8 +989,8 @@
   "collector_version": 3,
   "_unusable": {},
   "_added": 0,
-  "_total_days": 149,
-  "_transcript_added": 0,
+  "_total_days": 150,
+  "_transcript_added": 1,
   "_transcript_refreshed": 1,
   "extension_source_present": true,
   "extension_last_day": "2026-09-04"
