@@ -1,7 +1,7 @@
 # W-24ae7ecf — command_run.py surface --add widens a running review's exemption
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = 85424b5523e1fe831f1bc6e1c280eb101d8a4c3c; range tip 85424b5523e1fe831f1bc6e1c280eb101d8a4c3c; `git diff 095766919..85424b552 -- CHANGELOG.md .claude/hooks/final_gate_stop.py docs/reference/command-run-protocol.md docs/workstation/hooks-index.md scripts/command_run.py tests/test_command_run.py tests/test_stop_hook_spontaneous_review.py` md5 f5fe97e0f379bec4cdf7866d364dbb2c (68821 bytes)
+**Surface:** `git rev-parse HEAD` = 191ae9aa87296a9998ae96880ec8ed3f4719dc14; range tip 191ae9aa87296a9998ae96880ec8ed3f4719dc14; `git diff 095766919..191ae9aa8 -- CHANGELOG.md .claude/hooks/final_gate_stop.py docs/reference/command-run-protocol.md docs/workstation/hooks-index.md scripts/command_run.py tests/test_command_run.py tests/test_stop_hook_spontaneous_review.py` md5 dd02144680125764a99e3fb1d643d96b (69646 bytes)
 **Command:** /fabrik-review · **Changed:** `CHANGELOG.md`, `.claude/hooks/final_gate_stop.py`, `docs/reference/command-run-protocol.md`, `docs/workstation/hooks-index.md`, `scripts/command_run.py`, `tests/test_command_run.py`, `tests/test_stop_hook_spontaneous_review.py`
 
 ## Coverage Checklist
