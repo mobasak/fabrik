@@ -462,7 +462,7 @@ def test_driver_dsn_grader_catches_the_fail_open_shapes(tmp_path, monkeypatch):
         assert got is flagged, (text, got)
 
 
-def test_pgurl_rewrites_a_driver_dsn_for_libpq():
+def test_pgurl_rewrites_a_driver_dsn_for_libpq(tmp_path):
     """Both seeded pgurl copies, run by POSIX sh (dash), yield a libpq URI and refuse an empty DSN."""
     import subprocess
 
@@ -544,7 +544,7 @@ def test_pgurl_rewrites_a_driver_dsn_for_libpq():
         assert r.stdout.strip() == good, (good, r.stdout)
     # fabrik-lib 01M4TP1W (2026-10-13), both executed against psql 16: (a) libpq keeps the LAST of duplicate
     # sslmode keys silently, so `?sslmode=require&ssl=disable` renamed blindly connects WITHOUT TLS — more than
-    # one ssl/sslmode key is refused before the rename; (b) the recipe has no `--` before "$u", so a value
+    # one ssl/sslmode key (requiressl since 01M4VB91YA) is refused before the rename; (b) the recipe has no `--` before "$u", so a value
     # `-o/etc/<file>` reaches root's psql as an option (psql truncates the file before connecting) — only a
     # postgres://, postgresql:// or +driver form is accepted. Fail-closed hardening: whoever writes .env.owner
     # is already root, but a refused line beats a silent downgrade or a truncated file.
@@ -576,6 +576,12 @@ def test_pgurl_rewrites_a_driver_dsn_for_libpq():
         # a still-quoted or space-wrapped line is told the REAL cause — the quote arm runs before the scheme arm (pgurl-O5)
         ("'postgresql://o:p@h/d'", "whitespace, a quote or a backslash"),
         (" postgresql://o:p@h/d", "whitespace, a quote or a backslash"),
+        # fabrik-lib 01M4VB91YA (2026-10-14), executed against libpq 17 (psycopg2 parse_dsn): `requiressl` is a
+        # deprecated alias that REWRITES sslmode — `?sslmode=verify-full&requiressl=0` resolves to `prefer`, so the
+        # pairing is counted like a second sslmode; a lone `requiressl=1` (= require) is not a downgrade and passes.
+        ("postgresql://u@h/d?sslmode=require&requiressl=0", "more than one ssl"),
+        ("postgresql://u@h/d?requiressl=0&sslmode=verify-full", "more than one ssl"),
+        ("postgresql://u@h/d?requiressl=1&ssl=require", "more than one ssl"),
     ):
         r = subprocess.run(
             ["sh", "-c", definition + '\nu=$(pgurl "$1") && echo RAN', "sh", bad],
@@ -587,6 +593,52 @@ def test_pgurl_rewrites_a_driver_dsn_for_libpq():
             r.stdout,
             r.stderr,
         )
+    # The key count word-splits the query with the CALLER's IFS (review pg2-O1, 2026-10-14): a root shell that
+    # ran `IFS=:` earlier let `?sslmode=require&ssl=disable` through as one word, rc 0 — the subshell pins
+    # IFS to a space for its own loop. Executed red on the unpinned line (RAN under IFS=: and under IFS='').
+    for ifs_prefix in ("IFS=:\n", "IFS=\n"):
+        r = subprocess.run(
+            [
+                "sh",
+                "-c",
+                ifs_prefix + definition + '\nu=$(pgurl "$1") && echo RAN',
+                "sh",
+                "postgresql://u@h/d?sslmode=require&ssl=disable",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert r.returncode != 0 and "RAN" not in r.stdout and "more than one ssl" in r.stderr, (
+            ifs_prefix,
+            r.stdout,
+            r.stderr,
+        )
+    # `set -f` pinned (fabrik-lib 01M4VB91YA finding b): the query is word-split unquoted, so without `set -f` a
+    # key glob that matches a FILE in the cwd is replaced by the filename before the %-key arm reads it — a file
+    # named `x73slmode=disable` turns `[%x]73slmode=disable` into a plain key and the %-arm never fires. libpq
+    # itself rejects that DSN (`invalid percent-encoded token`), so `set -f` is defence in depth, pinned here:
+    # executed red with `set -f; ` removed from the line (the glob expands, rc 0, RAN).
+    globdir = tmp_path / "globcwd"
+    globdir.mkdir()
+    (globdir / "x73slmode=disable").write_text("")
+    r = subprocess.run(
+        [
+            "sh",
+            "-c",
+            definition + '\nu=$(pgurl "$1") && echo RAN',
+            "sh",
+            "postgresql://u@h/d?sslmode=require&[%x]73slmode=disable",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=globdir,
+    )
+    assert (
+        r.returncode != 0 and "RAN" not in r.stdout and "percent-encoded query KEY" in r.stderr
+    ), (
+        r.stdout,
+        r.stderr,
+    )
 
 
 def test_readme_template_carries_every_section_the_readme_gate_requires():

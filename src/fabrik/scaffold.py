@@ -2222,7 +2222,7 @@ _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (Postgr
 -- (the sed half defines pgurl — docs/TROUBLESHOOTING.md § Debug Commands — INSIDE the root shell, where a function pasted
 -- in your own shell does not exist; pgurl rewrites a postgresql+asyncpg:// DSN for libpq and refuses an empty one,
 -- one carrying whitespace, a quote or a backslash, one that does not rewrite to postgres:// or postgresql://, and
--- a duplicate ssl/sslmode key, a percent-encoded query key or a raw ? in the user:password part — a hand-edited
+-- a duplicate ssl/sslmode/requiressl key, a percent-encoded query key or a raw ? in the user:password part — a hand-edited
 -- or still-quoted line fails closed, never psql.
 -- Never psql the raw variable.)
 -- (Fabrik runs NO automatic migrations — you apply this yourself.) Keep BEGIN/COMMIT
@@ -3611,7 +3611,7 @@ _SCHEMA_APPLY_HEADER = (
     "-- (the sed half defines pgurl — docs/TROUBLESHOOTING.md § Debug Commands — INSIDE the root shell, where a\n"
     "-- function pasted in your own shell does not exist; pgurl rewrites a postgresql+asyncpg:// DSN for libpq\n"
     "-- and refuses an empty one, one carrying whitespace, a quote or a backslash, one that does not rewrite\n"
-    "-- to postgres:// or postgresql://, a duplicate ssl/sslmode key, a percent-encoded query key or a raw ? in\n"
+    "-- to postgres:// or postgresql://, a duplicate ssl/sslmode/requiressl key, a percent-encoded query key or a raw ? in\n"
     "-- the user:password part: a hand-edited or\n"
     "-- still-quoted line fails closed. Never psql the raw variable.)\n"
     "-- Never through DATABASE_URL: that is the app's non-owner role, which cannot CREATE.\n"
