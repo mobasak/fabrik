@@ -75,10 +75,10 @@ def test_emits_server(project: Path) -> None:
 def test_rls_schema(project: Path) -> None:
     sql = (project / "server" / "db" / "schema.sql").read_text()
     # Applied as the OWNER, the whole file in one transaction (D-390).
+    assert 'u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql' in sql
     assert (
-        'u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'
-        in sql
-    )
+        ". ./.env" not in sql
+    )  # read as data, never sourced as shell code (fabrik-lib 01M4TGJ1CV)
     assert (
         '"$DATABASE_URL_OWNER" -f db/schema.sql' not in sql
     )  # never the raw variable (01M464NPPB)
@@ -216,3 +216,46 @@ def test_required_files_include_server() -> None:
     assert "server/requirements.txt" in required
     assert "server/Dockerfile" in required
     assert "server/db/schema.sql" in required
+
+
+@requires_fabrik_env
+def test_rls_schema_recipe_executes_without_sourcing(project: Path, tmp_path: Path) -> None:
+    """review 2026-10-13 (S1/O1, S2/O2): the saas header is a plain Python string, so its recipe once rendered `${v%"}`
+    — a shell syntax error — while the text pin above stayed green. The EMITTED recipe is now executed under `sh`
+    (minus `sudo`) with a stub `psql` and a hostile `.env.owner`, like the audit-log grader does for
+    `_SCHEMA_APPLY_HEADER`: the hostile line never runs, psql receives the rewritten DSN."""
+    import os
+    import re
+    import subprocess
+
+    sql = (project / "server" / "db" / "schema.sql").read_text()
+    m = re.search(r"^--   sudo (sh -c .+)$", sql, re.M)
+    assert m, sql[:1200]
+    recipe = m.group(1)
+    assert ".env.owner" in recipe and "__OWNER_ENV_FILE__" not in recipe, recipe
+    run = tmp_path / "run"
+    for d in ("docs", "db", "bin"):
+        (run / d).mkdir(parents=True)
+    tmpl = (
+        Path(__file__).resolve().parents[1] / "templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md"
+    )
+    pgurl_line = next(ln for ln in tmpl.read_text().splitlines() if ln.startswith("pgurl() "))
+    (run / "docs/TROUBLESHOOTING.md").write_text(pgurl_line + "\n")
+    (run / "db/schema.sql").write_text("-- schema\n")
+    stub = run / "bin/psql"
+    stub.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > psql-argv.txt\n')
+    stub.chmod(0o755)
+    (run / ".env").write_text("APP=1\n")
+    (run / ".env.owner").write_text(
+        "X=$(touch marker-executed)\nNOTE=it's a test\n"
+        'DATABASE_URL_OWNER="postgresql+asyncpg://owner:pw@postgres-main:5432/appdb"\n'
+    )
+    env = {**os.environ, "PATH": f"{run / 'bin'}:{os.environ['PATH']}"}
+    r = subprocess.run(recipe, shell=True, cwd=run, env=env, capture_output=True, text=True)
+    assert r.returncode == 0, (r.returncode, r.stderr, recipe)
+    assert not (run / "marker-executed").exists()
+    argv = (run / "psql-argv.txt").read_text().splitlines()
+    assert "postgresql://owner:pw@postgres-main:5432/appdb" in argv and argv[-2:] == [
+        "-f",
+        "db/schema.sql",
+    ], argv

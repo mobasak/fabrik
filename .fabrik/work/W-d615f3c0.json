@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:06:40.306069Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-d615f3c0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4FASD9AN091Q7AWCVFZAR4K",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: test_sync_worktree_adoption settings.json pin — DONE (5f2488d53)"
+}

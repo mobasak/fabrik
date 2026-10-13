@@ -98,8 +98,9 @@ docker compose logs <service-name> --tail=100
 # ?sslmode= (a boolean ssl=true/false is not a libpq sslmode: write require/disable)
 # (other asyncpg-only query keys, e.g. prepared_statement_cache_size, still need removing by hand).
 # Define it first; `u=$(pgurl ...) &&` stops on an empty or unset variable instead of psql falling back
-# to the local default database.
-pgurl() ( [ -n "$1" ] || { echo "pgurl: empty DSN" >&2; exit 1; }; b=${1%%\?*}; q=${1#"$b"}; printf '%s%s\n' "$(printf %s "$b" | sed 's#^\(postgres[a-z]*\)+[a-z0-9_]*://#\1://#')" "$(printf %s "$q" | sed 's/\([?&]\)ssl=/\1sslmode=/g')" )
+# to the local default database — and on a DSN carrying whitespace, a quote or a backslash (a hand-edited or
+# still-quoted .env line fails CLOSED here instead of reaching psql mangled).
+pgurl() ( [ -n "$1" ] || { echo "pgurl: empty DSN" >&2; exit 1; }; case $1 in *[[:space:]]*|*\"*|*\'*|*\\*) echo "pgurl: DSN carries whitespace, a quote or a backslash — fix the .env line, never psql it" >&2; exit 1;; esac; b=${1%%\?*}; q=${1#"$b"}; printf '%s%s\n' "$(printf %s "$b" | sed 's#^\(postgres[a-z]*\)+[a-z0-9_]*://#\1://#')" "$(printf %s "$q" | sed 's/\([?&]\)ssl=/\1sslmode=/g')" )
 u=$(pgurl "$DATABASE_URL") && psql "$u" -c "SELECT 1"
 
 # Port check

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — mail routing: one ownership map, applied at send (plan 2026-10-13-plan-1, D-820) (2026-10-13)
+- `.fabrik/beat-owners.json`, the hub's ownership map, validated by the new gate check `scripts/enforcement/check_beat_owners.py` (unknown owner, missing source, malformed/dead pattern, a rule shadowed by another owner, a beat covering every tracked file, unknown switch; reports `unowned: N of M tracked`; self-skips where the map is absent).
+- `scripts/mail.py`: `owner_of` (cited hub paths, last match wins, gitignore-style segments; a project's own files never count), a `map-owner:` header on every hub-bound send, an advisory when an explicit address differs, `--to-agent map`, a `routed:` trail on every re-route with `route --reason`, `list` markers (`→ map:`, `→ mixed:`, `→ unmapped`, `(map)`), a claim advisory, and `mail.py route-report --days N`. Automatic addressing (`switches.auto_address`) and the fabrik-lib leg (`switches.fabrik_lib_address`) ship OFF.
+- `.claude/hooks/mail_notify.py` shows the header's marker; `scripts/sysadmin/mail_escalate.py`'s digest names the map owner. The Haiku tie-break is deferred to W-a28ece0d.
+
 ### Changed — the review probe catalogue: a history-reading seat test runs in a shared clone (2026-10-13)
 - § Seat isolation now says a seat test that reads git history runs in `git clone --shared --no-checkout <live repo> <scratch>/clone` at the pass's base SHA with the pins laid over it, and that test's red-on-revert overlays the revert on the clone, as its own sentence after the existing ban on `git worktree add`; the clone's only local branch is the live checkout's and every other is `origin/*`, so a test that inspects branch, worktree or stash state runs in the lead's throwaway worktree. A `git archive` pin has no history, so such a test had no sanctioned route (row 1791910374, a recurrence of the held `gitdir-shim-recipe`). The D-711 audit ran the clone: it reads the shared objects through `objects/info/alternates` and wrote nothing to the shared `.git`. Grader: `tests/test_review_queue_pass.py::test_a_seat_reads_git_history_from_a_shared_clone_not_a_worktree`.
 
@@ -21,6 +26,19 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — /fabrik-command-improve checks a rule it adds on the edit itself and on its origin case (2026-10-13)
 - PHASE 3 now says a rule the edit adds is checked before PHASE 4's pin on the edit's own grader and sentence, which obey it, and on the case that raised it, which it must flag. The catalogue's moved-text rule (403ab35e) was drafted with a section-scoped grader, the weakness that rule names, and its review's round 1 caught it before the commit (row 1791896044, a recurrence of the held apply-rule-to-origin-case). Grader: `tests/test_command_improve_queue_pass.py::test_phase_three_checks_an_added_rule_on_the_edit_and_its_origin_case`.
+
+### Fixed — check_plan_tickets never-route covers the `scripts/final_gate*` filename FAMILY, not the hub's gate file alone (2026-10-13)
+
+- `scripts/enforcement/check_plan_tickets.py` (fabrik-lib finding 01M494TQ3E, SB-108, W-2e6c1b0b; D-824): `NEVER_ROUTE_PREFIXES`
+  named `scripts/final_gate.py` and `_covered_by` is component-literal containment, so a repo whose completion gate carries another
+  name — fabrik-lib's `scripts/final_gate_fabrik_lib.py`, vendored byte-identical — got no never-route cover and a `Complexity: simple`
+  ticket touching it passed the cross-check. `NEVER_ROUTE_FILE_FAMILIES = ("scripts/final_gate",)` beside the prefixes, and `_never_route`
+  answers True when the slash-stripped path starts with a family stem (the convention: a repo's completion gate lives at
+  `scripts/final_gate*` — 54 of 54 files on the box). Graders in `tests/enforcement/test_check_plan_tickets.py`, both watched red on base:
+  the six-shape unit test and an end-to-end pool-tier ticket touching the fabrik-lib gate asserting the exact ERROR. The per-spine
+  `Never-Route:` line keeps working for a gate named outside the family. Two pre-existing residuals recorded, not fixed here: the Stop
+  hook `.claude/hooks/final_gate_stop.py` is outside `scripts/`, and a `scripts//final_gate.py` spelling escapes `_norm_path`
+  (filed to infra, 01M4TQPCXT). Ships to the ~46 synced repos on merge; fabrik-lib re-vendors.
 
 ### Changed — the review probe catalogue: a brief names the readers that never import a changed file (2026-10-13)
 - The "Callers and consumers" hunt line in `commands/_fragments/review-probe-catalogue.md` now asks for every reader of a changed or vendored file's text that never imports it (a scaffold fold such as `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by `check_synced_unmodified.py`), each hit that reads the file named in the brief. A seat cannot infer a consumer it was never told exists (/fabrik-review row 1791891025). Grader: `tests/test_review_queue_pass.py::test_the_callers_hunt_line_names_readers_that_never_import_the_file`.
@@ -46,6 +64,16 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the testing pack's throwaway-guard checklist line says where the helper exists (2026-10-13)
 - `.windsurf/rules/core/45-testing-strategy.md`'s checklist mandated `require_throwaway(TEST_DATABASE_URL)` unconditionally, and `review_rubric.py` injects that line into the finders of every review whose diff touches a test file (the pack's globs), so repos without the scaffold-emitted `tests/conftest.py` got one refuted candidate per review. The line now scopes the helper as the pack's own table row does, and names the anchored predicate for the rest. Grader: `tests/test_rule_pack_scaffold_scope.py`, seen red on the old line (iterative_image_editor 01M3WW5PFN item 2, intel 01M4TCKDX5).
+
+### Fixed — check_schema_sync sees table-declaring modules by content and compares table structure, not diff lines (2026-10-13)
+
+- `scripts/enforcement/check_schema_sync.py`: a model file is one matching the filename patterns, or any non-test, non-migration `.py` whose staged content imports an ORM and declares a table (`declares_table`). A change is now a difference in `schema_signature`: the DB classes' field statements and module-level `Table(...)` calls, parsed and format-free, compared between HEAD and the index, with a deleted file read from HEAD. A file that does not parse keeps the old diff regex. Before, `db.py`/`main.py` modules were unguarded (iterative_image_editor 664b7016c added a table with no migration), and the regex failed commits for Pydantic `BaseModel` and `BaseHTTPMiddleware` classes and for re-wrapped columns. Replayed over every fleet model file's history (53 files, 84 commits without a schema or migration): would-fails 15 → 12, from 5 false fails removed and the real miss added (W-62875be3, iterative_image_editor 01M3WW5PFN).
+- `docs/workflows/FINAL_GATE_WORKFLOW.md` § check_schema_sync.py now describes what the check does.
+
+### Fixed — check_rule_grounding reads a numbered Constraints Digest's Rule column, not its row numbers (2026-10-13)
+
+- `scripts/enforcement/check_rule_grounding.py` `_digest_rows`: a header whose first cell is exactly `#` makes that column a row label. With no `Quote`/`Verbatim` header, the quote is the column next to a named `Source`. A `| # | Rule | Source | … |` digest used to grade `1`, `2`, `C1` as quotes: they were either not found, or a label matched a substring of the cited file, a false green hiding a misquote. Measured over every digest under /opt (251 digests, 2085 rows): 22 changed, all `#`-led, and found quotes went 938 → 963. No audited plan changed colour (iterative_image_editor 01M3WW5PFN, W-62875be3).
+- `commands/_fragments/grounding-rules.md` states the fallback the checker applies, and a test pins the sentence.
 
 ### Fixed — the review-loop floor and the subagents pack name execute-plan's Opus finder floor (2026-10-13)
 - The partition FLOOR rendered into `/fabrik-review` and `/fabrik-repo-review` (`commands/assemble_commands.py`) and `core/62-using-subagents.md`'s model-per-role line said "no Opus finder" bare, while D-813 made the corpus name `/fabrik-execute-plan`'s per-round Opus finder floor as its own rule. Both now say so (kaizen 01M4SYAGHQ).
@@ -269,6 +297,38 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — /fabrik-review answers its feedback queue in one pass (2026-10-12)
 - Phase 1 points at the review probe catalogue; a failed or `NO RESULT` refuter's candidates are executed by the lead, and the FAILED-seat re-dispatch names finders; the delta brief names its must-read files; `next`'s rows merge into `args.slices` by name; the close stages before its IN-PROGRESS gate. Every command, fragment and contract that states the Agent-tool fallback now also takes it for a run the operator did not invoke. The catalogue gains redactor timing, what a fix recipe leaves unchanged, quoting code from its emit site and linting a copy with the repo's config (D-752).
+
+### Fixed — the vendored GlitchTip init takes the first NON-BLANK DSN, and its comments stop citing files a scaffolded repo lacks (2026-10-13)
+
+- `templates/scaffold/python/glitchtip_init.py` (whatsapp-agent findings 01M4SQZBMTN6DF9KX1B5FYVNF0 and 01M4SNBHR007MHT6Y40R9BEJBE,
+  routed by infra; work items W-6e6bd030 and W-13c59547): `(SENTRY_DSN or GLITCHTIP_DSN or "").strip()` let a whitespace-only `SENTRY_DSN` win before stripping, so a
+  valid `GLITCHTIP_DSN` was ignored and monitoring stayed off — it now uses `_first_set` (first non-blank after stripping), graded by
+  `test_blank_sentry_dsn_falls_through_to_glitchtip_dsn` (red on the old line). The three cross-repo citations a vendored copy cannot
+  resolve (the hub's grader, site-provisioner's drill test, `api/main.py`) carry the `HUB NOTE` marker the `_release()` docstring
+  already uses, and the two sentry-sdk-internals claims name the version they were measured on (2.68.1) and what 2.64.0 does instead
+  (gates on `has_logs_enabled()` / `has_metrics_enabled()` — no leak on either). Every repo that vendors the template inherits the text.
+
+### Fixed — The five specs apply's depends-contradiction warning named now say what their stores are (2026-10-13)
+
+`check_spec_db_match.py` (ab9d3cf21, D-805) warned on five specs whose `depends.postgres` named a database the Postgres registrar would never create because `shape.needs_database` was false or absent. Grounded in each project's own code and docs, not the live store: **job-agent** persists to SQLite (its `project.yaml` says so; `compose.yaml` carries `DATABASE_URL` commented out) — `depends.postgres: jobagent` and the required `DATABASE_URL` are gone and the spec carries the `shape:` block its `project.yaml` already had; **proposal-creator**, **trading-core** and **triggered-content-orchestration** are PostgreSQL-backed (`/opt/proposal-creator/src/db/database.py`, trading-core's `docs/CONFIGURATION.md` § State, `/opt/triggered-content-orchestration/src/shared/config.py` + its `alembic.ini`) — each gains a `shape:` block with `needs_database: true` (trading-core also `needs_cache: true`, its `REDIS_URL`), `depends.postgres` pinned to the registrar's derived name (D-410; the name their `.env.example` declares), and `DATABASE_URL` removed from `secrets.required` because the registrar injects it and a required DSN is otherwise INVENTED (`_warn_fabricated_secrets`); **proxy** drops `depends.postgres: main` — the shared legacy database D-410 forbids, for a service whose own `DB_*` env is the contract and which has not run on vps1 since 2026-05-31. Four of the five were shapeless (W-989653a7's population, the plan-vs-apply class, which stays open): `fabrik plan` and `fabrik apply` now read the same flags for them. Decision row D-822.
+
+### Fixed — the schema-apply one-liner reads the owner DSN instead of sourcing the env files as root shell code (2026-10-13)
+
+- `src/fabrik/scaffold.py` (`_SCHEMA_APPLY_HEADER`, the saas `db/schema.sql` header), `templates/scaffold/docs/CONFIGURATION_TEMPLATE.md`,
+  `docs/CONFIGURATION.md` (fabrik-lib finding in 01M4TGJ1CVT4XEHDH6AQZ1M6JF): the recipe ran `set -a; . ./.env; . ./.env.owner;
+  set +a` under `sudo sh -c` — the env files executed as SHELL CODE, as root: a value `X="$(touch f)"` ran, and a value with
+  an apostrophe aborted the line before psql (both reproduced under dash). The recipe now reads the ONE key it needs —
+  `v=$(sed -n "s/^DATABASE_URL_OWNER=//p" ./.env.owner | tail -n 1)`, the wrapping quotes `_format_env` may add stripped —
+  and hands it to `pgurl`; nothing is sourced. Executed grader `test_schema_apply_recipe_reads_the_owner_key_without_sourcing_the_env_files`
+  (tests/test_scaffold_audit_log.py) runs the header's own recipe under `sh` with a stub `psql` and a hostile `.env.owner`:
+  the hostile line does not run, the apostrophe does not abort, psql receives the libpq-rewritten DSN, a missing key is
+  refused before psql; HEAD's recipe fails both ways. The emitted saas schema's recipe is executed by its own grader too
+  (`test_rls_schema_recipe_executes_without_sourcing`) — the review caught the saas header rendering `${v%"}` without its
+  backslash (a plain string, not an f-string) while the text pin stayed green. `pgurl` — seeded TWICE, byte-identical, in
+  `TROUBLESHOOTING_TEMPLATE.md` and `CONFIGURATION_TEMPLATE.md` (the review's pass 2 caught the second copy left behind;
+  `tests/test_scaffold_doc_seeding.py` holds the two together and now executes each refusal alternative alone) — now also
+  refuses a DSN carrying whitespace, a quote or a backslash, so a hand-edited or still-escaped `.env` line fails closed at the
+  one boundary instead of reaching psql mangled. The text pins (`_HEADER`, saas test) follow; `. ./.env` is asserted absent.
 
 ### Changed — the data-contract template's Enum-registry `Backing` legend is a closed, measured token list (2026-10-13)
 

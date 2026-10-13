@@ -30,7 +30,7 @@ curl http://localhost:$PORT/health
 |----------|---------|-------------|
 | `PORT` | *(see .env.example)* | Service port. Auto-assigned by scaffold, registered in `PORTS.md`. |
 | `DATABASE_URL` | *(injected by `fabrik apply`)* | The app's PostgreSQL connection — the non-owner `<db>_app` role once the spec's `shape.database_url_app_role` is `true`. No default in code. |
-| `DATABASE_URL_OWNER` | *(injected by `fabrik apply`)* | The database OWNER, injected into `.env.owner` (root 0600; loaded only by the services that declare it — the audit-jobs companion, a `migrate` service — never the app; D-754). Only `db/schema.sql` (on the VPS, from `/opt/<name>`: `sudo sh -c "$(sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md)"'; set -a; . ./.env; . ./.env.owner; set +a; u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'` — the sed half defines `pgurl` (TROUBLESHOOTING § Debug Commands) inside the root shell), migrations, runtime DDL and the audit-log retention/verification jobs use it. No default in code. |
+| `DATABASE_URL_OWNER` | *(injected by `fabrik apply`)* | The database OWNER, injected into `.env.owner` (root 0600; loaded only by the services that declare it — the audit-jobs companion, a `migrate` service — never the app; D-754). Only `db/schema.sql` (on the VPS, from `/opt/<name>`: `sudo sh -c "$(sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md)"'; v=$(sed -n "s/^DATABASE_URL_OWNER=//p" ./.env.owner | tail -n 1); v=${v%\"}; v=${v#\"}; u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'` — the sed half defines `pgurl` (TROUBLESHOOTING § Debug Commands) inside the root shell; the recipe READS the one key it needs and never sources the env files as shell code), migrations, runtime DDL and the audit-log retention/verification jobs use it. No default in code. |
 
 <!-- Add project-specific required vars. Delete both DSN rows if not using a database. -->
 
@@ -194,8 +194,10 @@ cat PORTS.md
 # ?sslmode= (a boolean ssl=true/false is not a libpq sslmode: write require/disable)
 # (other asyncpg-only query keys, e.g. prepared_statement_cache_size, still need removing by hand).
 # Define it first; `u=$(pgurl ...) &&` stops on an empty or unset variable instead of psql falling back
-# to the local default database.
-pgurl() ( [ -n "$1" ] || { echo "pgurl: empty DSN" >&2; exit 1; }; b=${1%%\?*}; q=${1#"$b"}; printf '%s%s\n' "$(printf %s "$b" | sed 's#^\(postgres[a-z]*\)+[a-z0-9_]*://#\1://#')" "$(printf %s "$q" | sed 's/\([?&]\)ssl=/\1sslmode=/g')" )
+# to the local default database — and on a DSN carrying whitespace, a quote or a backslash (a hand-edited or
+# still-quoted .env line fails CLOSED here instead of reaching psql mangled). Byte-identical to the copy in
+# TROUBLESHOOTING.md § Debug Commands (tests/test_scaffold_doc_seeding.py holds the two together).
+pgurl() ( [ -n "$1" ] || { echo "pgurl: empty DSN" >&2; exit 1; }; case $1 in *[[:space:]]*|*\"*|*\'*|*\\*) echo "pgurl: DSN carries whitespace, a quote or a backslash — fix the .env line, never psql it" >&2; exit 1;; esac; b=${1%%\?*}; q=${1#"$b"}; printf '%s%s\n' "$(printf %s "$b" | sed 's#^\(postgres[a-z]*\)+[a-z0-9_]*://#\1://#')" "$(printf %s "$q" | sed 's/\([?&]\)ssl=/\1sslmode=/g')" )
 u=$(pgurl "$DATABASE_URL") && psql "$u"  # Test DB connection
 lsof -i :$PORT                  # Check port availability
 grep -vE '^#|^$' .env      # Show active env vars

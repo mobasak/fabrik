@@ -1,6 +1,6 @@
 # Mail routing to the right agent — hub and fabrik-lib
 
-Status: DRAFT
+Status: CONVERGED
 Size: small (≈330 lines, 5 files)
 
 Work item: W-931b6837 · Owner: infra · Seams: D-815 · Inputs: kaizen mails 01M4TC3JVN (measurements) and 01M4TCHD5Y (ownership-map draft, five seams settled) · Research ledger: `docs/reference/research/2026-10-13-mail-routing-ledger.md`
@@ -15,13 +15,13 @@ Work item: W-931b6837 · Owner: infra · Seams: D-815 · Inputs: kaizen mails 01
 | Hub receiving agents (infra, fleet, intel, kaizen) | mail for their beat reaches them; mail not for them is visibly someone else's | read the `→ map:` owner shown by `list`/notify/claim; when they re-route, `route()` records why |
 | Project sending agents (~46 synced repos) | to know who owns what before they send | read the send-time advisory; correct `--to-agent` or keep it |
 | fabrik-lib agents (`fabrik-lib-sentinel`, `fabrik-lib-dev1`, `fabrik-lib-dev2`) | module mail reaches the module owner | the sentinel agrees to the fabrik-lib leg (D7) before it is switched on |
-| kaizen | the beats written once; feedback verdicts stay its own | owns the map's WORDING and reruns the pilot against it (D5) |
+| kaizen | the beats written once; feedback verdicts stay its own | owns the map's WORDING and reviews the build's pilot numbers before `auto_address` is switched on (§ Lifecycle step 2) |
 | infra | the map's CODE: loader, validator, trail, send/read/claim markers, the cron tie-break | builds and maintains every mechanism here |
 | Automated: the Haiku tie-break (`claude -p`, one call per path-less unclaimed mail, inside `mail_escalate.py`) | a map-only rubric | returns one agent name or `none`; never a message id |
 | Automated: `mail_escalate.py` (cron, every 6 h, hub-only) | the map's owner for unclaimed mail | names the owner on stale mail; runs the tie-break; writes the sidecar |
 | Automated: `mail_notify.py` hook (fleet-synced, fail-open) | shows unread mail per session | shows the `map-owner:` header's `→ map: <owner>` beside the addressee (reads the header only, no import, no model) |
 
-**The primary loop, counted (STEP BUDGET = 5):** (1) a project agent sends a finding citing `scripts/sysadmin/dispatch_headroom.py`, addressed to intel; (2) `mail.py send` prints *"the ownership map names infra for scripts/sysadmin/dispatch_headroom.py"* and the sender re-sends to infra — or keeps intel; (3) the mail lands in `/opt/fabrik-mail/fabrik/inbox`; (4) every agent's prompt banner and `mail.py list` show `→ map: infra` beside the addressee — `list --agent infra` lists it for infra too — and `mail.py claim` by a non-owner prints the same advisory; (5) the owning agent claims it. Every feature below traces to one of these steps or to the measure that decides when step 4 may become a move.
+**The primary loop, counted (STEP BUDGET = 5):** (1) a project agent sends a finding citing `scripts/sysadmin/dispatch_headroom.py`, addressed to intel; (2) `mail.py send` delivers it to intel as addressed and prints *"advisory: the ownership map names infra (scripts/sysadmin/dispatch_headroom.py → …)"*; the sender sends nothing again, because a second send would deliver it twice, and next time may address `--to-agent map`; (3) the mail lands in `/opt/fabrik-mail/fabrik/inbox`; (4) every agent's prompt banner and `mail.py list` show `→ map: infra` beside the addressee — `list --agent infra` lists it for infra too — and `mail.py claim` by a non-owner prints the same advisory; (5) the owning agent claims it. Every feature below traces to one of these steps or to the measure that decides when step 4 may become a move.
 
 ## Goal
 
@@ -81,7 +81,7 @@ A Haiku tie-break runs only inside the existing 6-hourly escalation cron, for un
 
 **Principle (D-818, sharpened in review round 1): the map is applied once, at send, by construction.**
 - `send` computes the owner and writes it into the new message as a `map-owner:` header.
-- Every later touchpoint reads that header and never recomputes: `list`, `claim`, the notify hook and the escalation cron. So the fleet-synced notify hook keeps its rule of never importing `mail.py` and pays no lookup per prompt. Only the `list` CLI also stats the tie-break sidecar (D6).
+- Every later touchpoint reads that header and never recomputes: `list`, `claim`, the notify hook and the escalation cron. So the fleet-synced notify hook keeps its rule of never importing `mail.py` and pays no lookup per prompt. Only the `list` CLI and the escalation cron, which writes it, read the tie-break sidecar (D6); the per-prompt hook never does.
 - A message sent before this ships (or by a not-yet-synced copy) carries no header and is shown as today.
 
 **D1 — Routing trail.** `route()` (`scripts/mail.py:1756`) appends one header line per re-route and keeps the earlier ones:
@@ -108,18 +108,21 @@ A Haiku tie-break runs only inside the existing 6-hourly escalation cron, for un
   - It refuses (exit 1): an owner outside `HUB_BEATS`; a rule missing `owner` or `source`; a malformed pattern; a `paths` pattern matching no tracked file (`git ls-files`); a rule fully shadowed by a later rule with a different owner; and an unknown switch.
   - It reports (advisory) the tracked hub paths no rule owns, with the count and its denominator.
   - It self-skips where the map does not exist (every project repo).
-- **Loader:** one stdlib function in `scripts/mail.py`, `owner_of(text, mailbox="fabrik") -> Routing`, a named tuple `(owner, owners, reason, map_version)`. It never calls a model.
-  - **Cited paths:** backticked tokens and `path:line` tokens (with `:line` stripped) that name an existing FILE under the mailbox's repo root. The root is `_opt_root()/fabrik` (`scripts/mail.py:317`), so tests point it at a scratch tree. Directories, bare basenames that are not repo paths, and missing files are ignored.
+- **Loader:** one stdlib function in `scripts/mail.py`, `owner_of(text, mailbox="fabrik", from_repo="fabrik") -> Routing`, a named tuple `(owner, owners, reason, map_version)`. It never calls a model.
+  - **Cited paths:** backticked tokens and `path:line` tokens (with `:line` stripped) that name an existing FILE under the mailbox's repo root. The root is `_opt_root()/fabrik` (`scripts/mail.py:317`), so tests point it at a scratch tree. An absolute token under `_opt_root()/fabrik/` counts for every sender, read as the path below that root. Directories, bare basenames that are not repo paths, and missing files are ignored.
+  - **A sender outside the hub:** `send` passes `from_repo` = the sending repo, `_current_repo()` (`scripts/mail.py:951`), never the free-text `--from` lane. When it is not `fabrik`, a relative cited path counts only when it does not exist in the sender's own repo (`_opt_root()/<from_repo>`) or its copy there is byte-identical to the hub's, which is a synced file. So a project's own `CLAUDE.md`, `README.md` or `src/…` is never attributed to a hub beat.
   - **Owned paths:** cited paths that some rule matches; unowned cited paths are ignored.
   - **Result:** `owner` is set when every owned path maps to one owner, with `reason` = `<path> → <rule source>`. With several owners it is `None`, and `owners` lists them.
   - **No owned path:** a Subject topic match to exactly one owner gives `owner` with `reason` = `topic "<phrase>"`, but such an owner is advisory-only and never auto-addresses (01M4TCHD5Y § D.3).
   - **Missing or invalid map:** `Routing(None, [], "", "")`. A `map_version` of `""` means "no map", distinct from "unmapped".
 - **The refusal prose** at `scripts/mail.py:1083-1089` stays as written, with one added line pointing at `.fabrik/beat-owners.json` as the authority. kaizen rewords each charter's beat section to point at the map (01M4TCHD5Y § SYSTEMIC).
 
-**D3 — Send (`mail.py send`, deterministic, no model).** `send` first records whether `--to-agent` was given explicitly, before thread inheritance fills it (`scripts/mail.py:1060-1067`). Then:
+**D3 — Send (`mail.py send`, deterministic, no model).** `send` first records whether `--to-agent` was given explicitly — `explicit = bool(to_agent)` right after its normalisation at `scripts/mail.py:901` (which turns a missing value into `""`) and before thread inheritance fills it (`:1060-1067`). Then:
 - **(a) Automatic address:** with `switches.auto_address` true, a hub-bound send that today's refusal would refuse — no explicit `--to-agent`, no `--broadcast`, and not a thread reply (`is_thread_reply`, `scripts/mail.py:1050`; a reply is exempt from the refusal today and stays untouched) — is addressed to `owner_of`'s owner, but only when that owner came from owned paths, not a topic. It writes `routed: … · map · - → <owner> · ownership map (<reason>)` and prints `addressed to <owner> by the ownership map (<reason>)` to stderr. Otherwise today's refusal (`scripts/mail.py:1079-1091`) stands. This is the operator's "assigned … automatically" applied where the map is certain.
 - **(b) Advisory:** an EXPLICIT `--to-agent` that differs from a single map owner prints `advisory: the ownership map names <owner> (<reason>); delivered to <to-agent> as addressed` to stderr and delivers as addressed. An inherited address prints nothing.
-- **(c) The `map-owner:` header** on every hub-bound message when a map exists: `map-owner: <owner | mixed:<a>,<b> | unmapped> · v<map_version> · <reason>`, sanitised like D1.
+- **(c) The `map-owner:` header** on every hub-bound message whose `Routing` has a non-empty `map_version` (a readable map and no fault in the routing step): `map-owner: <owner | mixed:<a>,<b> | unmapped> · v<map_version> · <reason>`, sanitised like D1.
+- **(d) `--to-agent map`:** an explicit `--to-agent map` addresses the send to `owner_of`'s paths-derived owner whatever `auto_address` reads, writes `routed: … · map · map → <owner> · ownership map (<reason>)`, and is refused, naming the owners or `unmapped`, when there is no single paths-derived owner. A sender can use the map today, before the switch is on. It is accepted before the `HUB_BEATS` check (`scripts/mail.py:1040`). `map` is a hub-mailbox name only: `--to-agent map` to any other mailbox is refused, because that check is scoped to the hub and would otherwise deliver a literal `agent: map`.
+- **(e) Fail-open:** the whole routing step — extraction, the map read and the matcher — runs inside one guard. Any exception yields `Routing(None, [], "", "")` and today's behaviour, so a matcher fault can never block a send that today's code delivers, in any of the ~46 synced repos. `--to-agent map`, which today's code does not know, is then refused as having no owner.
 - **Where the map is read:** a project's synced `mail.py` reads the hub map at `_opt_root()/fabrik/.fabrik/beat-owners.json` when it exists, and skips every step silently when it does not (off-box, or a sync-excluded repo).
 
 **D4 — Read and claim, from the header only.**
@@ -130,8 +133,8 @@ A Haiku tie-break runs only inside the existing 6-hourly escalation cron, for un
 - Nothing here writes to a message file, so nothing can race `claim`.
 
 **D5 — The measure, and when a mis-addressed mail may be moved automatically.**
-- **The measure:** the rerouting rate (tr-8), computed from the D1 trail and the D3c header. For mail whose `map-owner:` differed from the addressee, the share re-routed to the map owner and the share re-routed elsewhere; and for all hub mail, the sender-address re-route rate (≈10% today, 01M4TC3JVN).
-- **The report:** `mail.py route-report --days N` prints these with their numerators and denominators. kaizen reruns its 141-mail pilot against the map before `auto_address` is switched on.
+- **The measure:** the rerouting rate (tr-8), computed from the D1 trail and the D3c header. For mail whose `map-owner:` differed from the addressee, the share re-routed to the map owner and the share re-routed elsewhere; and for all hub mail, the sender-address re-route rate (≈10% today, 01M4TC3JVN). Because a map owner can simply claim `(map)` mail without calling `route`, the report also counts who ANSWERED: the first reply carrying `from-agent:`, compared with the map owner and with the first addressee; replies are found in EVERY mailbox (`_mail_root()/*/{inbox,archive}`), because a hub agent's reply to a project lands in that project's mailbox (`scripts/mail.py:1111`); the first reply is the earliest one whose `re:` names the message. That is what kaizen measured.
+- **The report:** `mail.py route-report --days N` prints these with their numerators and denominators. Before `auto_address` is switched on, the build replays kaizen's pilot over the live archive (plan Phase C step 2): for hub mail of the last 30 days that has a reply carrying `from-agent:` (replies are found in EVERY mailbox (`_mail_root()/*/{inbox,archive}`), because a hub agent's reply to a project lands in that project's mailbox (`scripts/mail.py:1111`); the first reply is the earliest one whose `re:` names the message), it compares `owner_of`'s paths-derived owner and the sender's addressee each against the agent who first replied. D3a acts on UNADDRESSED mail, which has no replier to compare with, so placement accuracy on addressed mail is the proxy; the proxy favours the sender, whose addressee is the agent shown the mail, so a map that matches or beats the sender has passed a test biased against it.
 - **The gate** (D-818's wording): auto-moving explicitly mis-addressed project mail is boarded once the map's re-route rate is below 10% AND below the sender's own, over at least 50 such mails. It is a separate operator gate, and this spec does not build it.
 - **Cobra (D-253):** the cheapest way to look good is to stamp every mail with a confident label, so no confidence is stored or measured; only receivers' re-routes are (tr-11).
 
@@ -141,6 +144,7 @@ A Haiku tie-break runs only inside the existing 6-hourly escalation cron, for un
 - **Rubric:** the map file. **Output:** one token validated against `HUB_BEATS ∪ {none}`; anything else reads `none`.
 - **Where it lands:** the sidecar `_mail_root()/fabrik/.routing/<id>.json` as `{"suggested", "by": "haiku", "map_version", "at"}`. `list` shows it as `→ haiku: <owner>`; the per-prompt hook does not read sidecars.
 - **Never:** a message id from model output (it comes from the file name), a write to the message file, or a move.
+- **Deferrable:** decided once, at the start of plan Phase B: if Phase A overran its appetite, the whole tie-break — this section's tie-break bullets, the sidecar store, V7 and V5's `→ haiku:` marker — moves to a follow-up work item and the build ships without it; `→ haiku:` then never appears.
 
 **D7 — fabrik-lib leg: built switched off, requested, and gated on the sentinel's sign-off.**
 - **The rule (D-815, 01M4TCHD5Y § C):** with the map's `switches.fabrik_lib_address` true, a send to the `fabrik-lib` mailbox with no `--to-agent` gets an owner when its cited modules all belong to ONE owner in `_opt_root()/fabrik-lib/.fabrik/module-owners.json` (live: `/opt/fabrik-lib/…`; read in place, never copied; tests point `FABRIK_OPT_ROOT` at a scratch tree).
@@ -148,7 +152,7 @@ A Haiku tie-break runs only inside the existing 6-hourly escalation cron, for un
   - The message gets that owner as `agent:` plus a `routed: … · map …` line.
   - It is addressed at send, by construction: no second writer on the inbox, no race with `claim`, and the sentinel's bare arm still sees it.
   - Several owners or none leave it for the sentinel.
-- **Before the switch is turned on, the sentinel must:** (1) agree in its own ledger (kaizen's 01M4TCHSPX carries the numbers); (2) re-vendor `mail.py` for its own sessions' sends; (3) validate `--to-agent` against its three-name roster.
+- **The switch's one precondition:** the sentinel agrees in its own ledger (kaizen's 01M4TCHSPX carries the numbers). Addressing happens in the SENDER's hub-synced `mail.py`, so fabrik-lib's own copy plays no part in it. Two follow-ups ride the same request and never block the switch: re-vendor `mail.py` for the sentinel's own sends, and validate `--to-agent` against its three-name roster.
 - **Delivery:** the hub sends this as a request to `fabrik-lib-sentinel` and never edits fabrik-lib (CLAUDE.md HARD STOP, cross-repo).
 
 **D8 — Feedback and kaizen items.**
@@ -167,7 +171,8 @@ A Haiku tie-break runs only inside the existing 6-hourly escalation cron, for un
 - **New sidecar store:** `_mail_root()/fabrik/.routing/<id>.json`, written only by `mail_escalate.py`'s tie-break (D6).
 - **New CLI:**
   - `mail.py route … --reason <text>` (optional; the trail records `(no reason)` without it, so every existing documented `route` call keeps working);
-  - `mail.py route-report --days N`.
+  - `mail.py route-report --days N`;
+  - `mail.py send --to-agent map` (D3d). **Mirror:** `map` becomes a reserved addressee name on the hub mailbox; it is not in `HUB_BEATS`, so no real agent is shadowed.
 - **Behaviour change — `send`:**
   - With `auto_address` on, a hub send with no addressee that the map places by owned paths is ADDRESSED instead of refused. **Mirror:** a test relying on that refusal for a single-owner body sees a delivered mail; the switch ships off, so the existing refusal tests stand.
   - An explicit mismatched `--to-agent` gets a stderr advisory. **Mirror:** a caller reading send's stderr as errors sees a non-error line; stdout (the path) is unchanged.
@@ -201,7 +206,7 @@ A Haiku tie-break runs only inside the existing 6-hourly escalation cron, for un
 
 - **Adoption, in order:**
   1. The map, validator, trail, read-time markers and send-time advisory land together. They are safe from day one because they only add information.
-  2. kaizen reruns its 141-mail pilot against the map. `switches.auto_address` (D3a, automatic addressing of unaddressed hub mail) is set true in the map when the map agrees with the actual replier at least as often as the sender's 91% on the mails it can place.
+  2. The build replays kaizen's pilot over the live archive (plan Phase C step 2, D5). The build's commit ships `switches.auto_address` false either way. Its reply hands kaizen the numbers; when the map agrees with the replier at least as often as the sender does over at least 50 mails it can place, and kaizen's review finds no reason against, the hub sets the switch true in a separate one-line map commit.
   3. `switches.fabrik_lib_address` is set true when the sentinel records its agreement (D7).
   4. kaizen rewords the charters in the same week.
 - **Growth:**
@@ -284,13 +289,18 @@ Rows applied:
   - `None` plus the owner list for a mixed citation;
   - unowned paths, directories and missing files ignored;
   - a Subject topic giving an advisory-only owner;
-  - `map_version` `""` for a missing or invalid map.
+  - `map_version` `""` for a missing or invalid map;
+  - from a non-hub sender, a cited path that exists in the sender's repo with different bytes is ignored, while a byte-identical (synced) one counts;
+  - an absolute `_opt_root()/fabrik/…` token counts for a hub and a non-hub sender alike.
 - **V4 — send:**
   - with `auto_address` false, an unaddressed hub send is refused as today;
   - with it true, one the map places by paths is delivered to the owner with a `routed: … · map …` line and the stderr note, while a topic-only or mixed one is still refused;
   - an explicit mismatched address delivers as addressed with the advisory, and an inherited one prints nothing;
   - every hub-bound message carries `map-owner:`;
-  - with no map file, there is no header and behaviour is today's.
+  - with no map file, there is no header and behaviour is today's;
+  - `--to-agent map` addresses a paths-placed send with the switch off, and is refused for a topic-only, mixed or unmapped one;
+  - a matcher that raises leaves send's behaviour exactly as today's, with no header, and refuses `--to-agent map`;
+  - `--to-agent map` to a non-hub mailbox is refused.
 - **V5 — read and claim:**
   - `list` shows `→ map:`, `→ mixed:` and `→ unmapped` from the header, `→ haiku: <owner>` from a tie-break sidecar, and nothing for a message without either;
   - `list --agent X` includes X's map-owned mail marked `(map)`;
@@ -302,7 +312,7 @@ Rows applied:
   - accepts only `HUB_BEATS ∪ {none}`, so any other output reads `none`;
   - at most 10 calls per run, each with a 60 s timeout;
   - the sidecar carries `map_version`, and the message file is untouched.
-- **V8 — `route-report`:** computes each rate with its numerator and denominator from a fixture inbox and archive.
+- **V8 — `route-report`:** computes each rate with its numerator and denominator from a fixture inbox and archive, including the share answered by the map owner and by the first addressee, from each first reply's `from-agent:`.
 - **V9 — fabrik-lib leg:** with `fabrik_lib_address` true and a scratch module map, an unaddressed single-owner module mail is addressed to that owner, a multi-owner one is left unaddressed, and an addressed one is untouched; with it false, nothing changes.
 
 ## Cost
@@ -320,7 +330,7 @@ Running cost:
 
 ## Open unknowns
 
-- **U1 — the pilot result against the map (kaizen).** It gates D3a's switch-on. It is the adoption criterion, not a design blocker.
+- **U1 — the pilot result against the map.** It gates D3a's switch-on; it is measured in the build (plan Phase C step 2) and reviewed by kaizen before the switch commit. It is the adoption criterion, not a design blocker.
 - **U2 — the fabrik-lib sentinel's agreement.** It gates D7; kaizen's 01M4TCHSPX carries the numbers.
 - **U3 — resolved in review round 1.** The hook reads the `map-owner:` header its own parser already reads, so it gains no import and no lookup. The baseline, 30–80 ms per run over 47 messages including interpreter start-up, is unchanged by construction.
 
@@ -329,7 +339,7 @@ Running cost:
 - The five hub seams are D-815 (kaizen; ledger rows, charter lines and an Opus + Fable panel).
 - The map is JSON at `.fabrik/beat-owners.json` (not YAML, not under `docs/`), so stdlib readers in fleet-synced `mail.py` can load it.
 - The map is applied once at send (the `map-owner:` header) and only read afterwards, so the fleet-synced notify hook never imports `mail.py`. This refines D-818, whose row names the touchpoints as "send, list, the notify hook, claim and the 6-hourly escalation cron": after plan-review round 1 the map is applied at send and the others read its result. The approval row records the refinement. The switches live in the map, not in senders' environments.
-- Approach D (D-818), the judge panel 3–0 in round 2. Unaddressed mail is assigned automatically where the map is certain (D3a, after the pilot). Explicitly addressed mail is never moved; its map owner is shown, and auto-moving it is a later gate with a measured threshold (D5).
+- Approach D (D-818), the judge panel 3–0 in round 2. Unaddressed mail is assigned automatically where the map is certain (D3a, after the in-build pilot), and any sender may ask for the map's owner with `--to-agent map` from day one. Explicitly addressed mail is never moved; its map owner is shown, and auto-moving it is a later gate with a measured threshold (D5).
 - The fabrik-lib leg ADDRESSES unaddressed mail, which is not a move, and only with the sentinel's agreement.
 
 ## Intake Inventory
@@ -341,7 +351,7 @@ Running cost:
 | I2 | "… and in fabrik-lib" / "fabrik-lib has 3 agents and their work must be routed like this too" | IN | D7 |
 | I3 | "… mails/kaizen/feedbacks" — feedback verdicts | IN | D8 |
 | I4 | kaizen items — kaizen's code relays | IN | D8 + send-time advisory |
-| I5 | "we need it asap" | IN | Size: small; no new process; markers and advisory ship first, D3a after kaizen's pilot |
+| I5 | "we need it asap" | IN | Size: small; no new process; markers, advisory and `--to-agent map` ship first; D3a is switched on by a one-line map commit once the in-build pilot passes and kaizen has reviewed it |
 | I6 | the operator's original proposal, a Haiku agent (01M4TC3JVN) | IN, CHANGED | D6: tie-break only, inside the existing cron, after measuring 64% vs 91% |
 | I7 | kaizen step 1, "A routing trail" | IN | D1 |
 | I8 | kaizen step 2, "One canonical ownership map" | IN | D2 |

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:38:17.897074Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-fc3182bf",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TF0HAT9928Y5QW0VTXWBGS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: 45-testing-strategy:226 mandates require_throwaway unconditionally — FIXED on worktree-kaizen (merge request 01M4TEZY16)"
+}

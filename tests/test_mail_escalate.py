@@ -822,3 +822,22 @@ def test_a_repo_whose_display_name_reads_as_the_hub_keeps_the_roll_call_open(
     monkeypatch.setattr(me, "_deliver_one_owner", lambda repo, body: False)  # its delivery fails
     assert me.main() == 0
     assert not me._owners_done(me._dt.date.today().isoformat()), "an untold owner must be retried"
+
+
+def test_digest_names_the_map_owner_beside_the_addressee(env):
+    p = _msg(env, "fabrik", "01M4TA00000000000000000001", agent="intel", ts=_old_ts(5))
+    text = p.read_text(encoding="utf-8").replace(
+        "agent: intel\n", "agent: intel\nmap-owner: infra · v1 · a → s\n"
+    )
+    p.write_text(text, encoding="utf-8")
+    q = _msg(env, "fabrik", "01M4TA00000000000000000002", agent="infra", ts=_old_ts(5))
+    q.write_text(
+        q.read_text(encoding="utf-8").replace(
+            "agent: infra\n", "agent: infra\nmap-owner: infra · v1\n"
+        ),
+        encoding="utf-8",
+    )
+    rows = me.build_digest(me.collect_obligations(env)).splitlines()
+    by_id = {r.split(" · ")[0]: r for r in rows if r.startswith("01M4")}
+    assert by_id["01M4TA00000000000000000001"].endswith("· map: infra")
+    assert "map:" not in by_id["01M4TA00000000000000000002"]

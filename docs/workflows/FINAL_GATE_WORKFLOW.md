@@ -203,6 +203,7 @@ second declaration could drift from the first (T12.8, 01M23CRZZ).
 - **No Host Ports on Traefik Services** - `check_no_host_ports.py`
 - **Full Traefik Label Set (§7)** - `check_traefik_labels.py`
 - **Spec <-> Project DB Name Match (Phase 1c)** - `check_spec_db_match.py`
+- **Mail Ownership Map (beat-owners.json)** - `check_beat_owners.py`
 - **Undeclared Imports (requirements.txt)** - `check_undeclared_imports.py`
 - **Fabrik-Synced Files Unmodified** - `check_synced_unmodified.py`
 
@@ -451,6 +452,7 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `scripts/docs_updater.py` — Documentation Drift (Tier 3; ADVISORY row)
 - `check_certification_coverage.py` — Certification Coverage (advisory; board mix-up BLOCKS) (every tier; ADVISORY row)
 - `check_citations_resolve.py` — Citations resolve (path:line lands) (every tier; advisory — `warn_only`, never blocks)
+- `check_beat_owners.py` — Mail Ownership Map (beat-owners.json) (Tier 1/2; BLOCKING)
 - `check_command_corpus.py` — Command Corpus (references resolve — BLOCKING) (Tier 2; ADVISORY row)
 - `check_convergence.py` — Convergence Evidence (plans + reviews) (every tier; BLOCKING)
 - `check_corpus_weight.py` — Corpus Weight (byte ratchet) (Tier 1/2; advisory — `warn_only`, never blocks)
@@ -680,17 +682,20 @@ part of the change under gate and legitimately omits every optional variable. It
 
 #### check_schema_sync.py
 
-**Purpose:** Ensures database models match schema.sql.
+**Purpose:** A staged change to a table's structure must ship with `schema.sql` or a new migration, and a migration
+that drops a table the frozen `docs/data-contract.md` still declares fails.
 
 **Validates:**
-- All models have corresponding schema
-- Schema includes all columns and indexes
-- Migration history is consistent
-- Data types match
+- A staged model file — by name (`MODEL_FILE_PATTERNS`), or any non-test, non-migration `.py` whose staged content
+  imports an ORM and declares a table (`declares_table`) — whose table STRUCTURE changed between HEAD and the index
+  (`schema_signature`: the DB classes' field statements and module-level `Table(...)` calls, format-free) needs a
+  staged `schema.sql` or migration (`.py`/`.sql`) at any depth; a file that does not parse falls back to a regex over
+  its staged diff.
+- A schema change without a staged data contract WARNs; a migration dropping a table the contract still declares FAILs.
 
 **Why this matters:**
-- Prevents database mismatches
-- Ensures reproducible deployments
+- A model module named anything but `models.py` was unguarded (iterative_image_editor 01M3WW5PFN, W-62875be3), and a
+  regex over diff lines failed commits for Pydantic classes and re-wrapped columns.
 
 #### check_openapi_sync.py
 
@@ -1119,6 +1124,7 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/enforcement/check_beat_owners.py`
 - `scripts/enforcement/check_changelog.py`
 - `scripts/enforcement/check_compose_services.py`
 - `scripts/enforcement/check_configuration_md.py`

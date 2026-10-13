@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-07T01:26:38.645750Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "147cfc6b8479fd0b8ad594844942382aa5741b61",
   "id": "W-2e6c1b0b",
   "kind": "task",
   "legacy": false,
@@ -13,9 +13,9 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "tags": [
     "enforcement"
   ],

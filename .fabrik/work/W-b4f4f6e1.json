@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:14:52.987250Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-b4f4f6e1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TFBGHN6QSWD792F7VB67RM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: automatic routing of fabrik-lib mail from .fabrik/module-owners.json — AGREE, with four refinements"
+}

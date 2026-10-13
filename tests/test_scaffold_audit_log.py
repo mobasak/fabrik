@@ -55,9 +55,12 @@ _SAAS_FAMILY = ("saas-skeleton", "static-site", "office-extension")
 _NODE_DB = ("node-api", "file-api")
 _NOTHING = ("desktop-app", "docusaurus", "file-worker-nodb")
 
-_HEADER = 'u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'
+_HEADER = 'u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'
 _RAW_OWNER_PSQL = '"$DATABASE_URL_OWNER" -f db/schema.sql'
 _PGURL_DEFINED = "sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md"
+_SOURCES_ENV = (
+    ". ./.env"  # fabrik-lib 01M4TGJ1CV: the recipe must never source the env files as shell code
+)
 
 
 def _name(kind: str) -> str:
@@ -146,6 +149,9 @@ def test_python_backend_gets_module_table_revokes_header_env(
     assert _HEADER in sql
     assert _RAW_OWNER_PSQL not in sql  # the raw variable never reaches psql (01M464NPPB)
     assert _PGURL_DEFINED in sql  # pgurl is a shell function: the root shell must define it first
+    assert (
+        _SOURCES_ENV not in sql
+    )  # the env files are read as data, never sourced (fabrik-lib 01M4TGJ1CV)
     table_at = sql.index("CREATE TABLE IF NOT EXISTS audit_log")
     for needle in (
         "current_database() || '_app'",
@@ -220,6 +226,9 @@ def test_node_type_gets_table_and_revokes_only(projects: dict[str, Path], kind: 
     assert _HEADER in sql
     assert _RAW_OWNER_PSQL not in sql  # the raw variable never reaches psql (01M464NPPB)
     assert _PGURL_DEFINED in sql  # pgurl is a shell function: the root shell must define it first
+    assert (
+        _SOURCES_ENV not in sql
+    )  # the env files are read as data, never sourced (fabrik-lib 01M4TGJ1CV)
     table_at = sql.index("CREATE TABLE IF NOT EXISTS audit_log")
     assert "current_database() || '_app'" in sql[table_at:]
     assert not (project / "libs" / "audit_log").exists()
@@ -742,3 +751,76 @@ def test_scaffolded_gitignore_lists_the_owner_env_file(
     `.env.owner` would show as untracked there and in every clone."""
     lines = (projects[kind] / ".gitignore").read_text().splitlines()
     assert ".env" in lines and ".env.owner" in lines, lines[:12]
+
+
+def test_schema_apply_recipe_reads_the_owner_key_without_sourcing_the_env_files(tmp_path):
+    """fabrik-lib finding in 01M4TGJ1CV (2026-10-13): `. ./.env; . ./.env.owner` ran the env files as SHELL CODE, as
+    root — a value `X="$(touch f)"` executed, a value with an apostrophe aborted the line before psql. The recipe
+    printed by `_SCHEMA_APPLY_HEADER` now reads the one key it needs. EXECUTED here under `sh` (minus `sudo`) with a
+    stub `psql` on PATH and a hostile `.env.owner`: the hostile line must not run, the apostrophe must not abort, and
+    psql must receive the libpq-rewritten DSN; a missing key is refused before psql; a quoted value is unwrapped."""
+    import os
+    import re
+    import subprocess
+
+    header = scaffold._SCHEMA_APPLY_HEADER
+    m = re.search(r"^--   sudo (sh -c .+)$", header, re.M)
+    assert m, header
+    recipe = m.group(1)
+    proj = tmp_path / "proj"
+    (proj / "docs").mkdir(parents=True)
+    (proj / "db").mkdir()
+    (proj / "bin").mkdir()
+    pgurl_line = next(
+        ln
+        for ln in (
+            Path(__file__).resolve().parents[1]
+            / "templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md"
+        )
+        .read_text()
+        .splitlines()
+        if ln.startswith("pgurl() ")
+    )
+    (proj / "docs/TROUBLESHOOTING.md").write_text(pgurl_line + "\n")
+    (proj / "db/schema.sql").write_text("-- schema\n")
+    stub = proj / "bin/psql"
+    stub.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > psql-argv.txt\n')
+    stub.chmod(0o755)
+    env = {**os.environ, "PATH": f"{proj / 'bin'}:{os.environ['PATH']}"}
+    (proj / ".env").write_text(
+        "APP=1\n"
+    )  # present, so a revert to the sourcing recipe fails for the HOSTILE reason
+    owner = proj / scaffold.OWNER_ENV_FILE
+    owner.write_text(
+        "X=$(touch marker-executed)\n"
+        "NOTE=it's a test\n"
+        'DATABASE_URL_OWNER="postgresql+asyncpg://owner:pw@postgres-main:5432/appdb"\n'
+        "TRAILING=1\n"
+    )
+    r = subprocess.run(recipe, shell=True, cwd=proj, env=env, capture_output=True, text=True)
+    assert r.returncode == 0, (r.returncode, r.stderr)
+    assert not (proj / "marker-executed").exists(), "a value was executed as shell code"
+    argv = (proj / "psql-argv.txt").read_text().splitlines()
+    assert "postgresql://owner:pw@postgres-main:5432/appdb" in argv, (
+        argv
+    )  # +asyncpg stripped, quotes unwrapped
+    assert argv[-2:] == ["-f", "db/schema.sql"], argv
+    # a missing key, and every hand-edited or still-escaped shape, is refused by pgurl BEFORE psql runs (review
+    # 2026-10-13 S3/S4/O4/O5): the value never reaches psql mangled
+    for shape, line in (
+        ("missing key", "OTHER=1\n"),
+        ("comment tail", 'DATABASE_URL_OWNER="postgresql://o:p@h/d" # note\n'),
+        ("single quotes", "DATABASE_URL_OWNER='postgresql://o:p@h/d'\n"),
+        ("escaped quote inside", 'DATABASE_URL_OWNER="postgresql://o:p\\"x@h/d"\n'),
+        # a _format_env-escaped backslash with NO quote beside it: the one shape only the backslash
+        # alternative of pgurl's case pattern refuses (pass-2 O7 — the mutant that drops `|*\\*` survived)
+        ("escaped backslash alone", 'DATABASE_URL_OWNER="postgresql://o:p\\\\x@h/d"\n'),
+        ("CRLF", "DATABASE_URL_OWNER=postgresql://o:p@h/d\r\n"),
+        ("export prefix", "export DATABASE_URL_OWNER=postgresql://o:p@h/d\n"),
+    ):
+        (proj / "psql-argv.txt").unlink(missing_ok=True)
+        owner.write_text(line)
+        r = subprocess.run(recipe, shell=True, cwd=proj, env=env, capture_output=True, text=True)
+        assert r.returncode != 0, (shape, r.returncode, r.stderr)
+        assert not (proj / "psql-argv.txt").exists(), (shape, "psql ran")
+        assert "pgurl:" in r.stderr, (shape, r.stderr)
