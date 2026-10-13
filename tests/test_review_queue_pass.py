@@ -231,3 +231,4 @@ def test_the_checklist_is_filled_before_the_in_progress_gate_run() -> None:
     fill = "Fill every Coverage Checklist and Pass Ledger row before the close: the IN-PROGRESS run below skips both convergence checkers"
     assert fill in text
     assert text.index(fill) < text.index("Close in this ORDER: stage your own files")
+    assert "an untracked receipt is skipped outright until it is staged, whatever its Status" in text
