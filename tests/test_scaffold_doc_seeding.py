@@ -502,6 +502,25 @@ def test_pgurl_rewrites_a_driver_dsn_for_libpq():
         ["sh", "-c", definition + '\nu=$(pgurl "") && echo RAN'], capture_output=True, text=True
     )
     assert empty.returncode != 0 and "RAN" not in empty.stdout
+    # A DSN carrying whitespace, a quote or a backslash — a hand-edited or still-quoted .env line — is refused
+    # before psql (review 2026-10-13 S3/O4/O6), each alternative of the case pattern exercised alone; a
+    # legitimate DSN with URL-encoding, a `#` in the password or a query string is not.
+    for bad in (
+        "postgresql://o:p@h/d # note",
+        'postgresql://o:p@h/d"',
+        "'postgresql://o:p@h/d'",
+        "postgresql://o:p\\x@h/d",
+        "postgresql://o:p@h/d\r",
+    ):
+        r = subprocess.run(
+            ["sh", "-c", definition + '\nu=$(pgurl "$1") && echo RAN', "sh", bad], capture_output=True, text=True
+        )
+        assert r.returncode != 0 and "RAN" not in r.stdout and "pgurl:" in r.stderr, (bad, r.stdout, r.stderr)
+    for good in ("postgresql://o:p%40w%23x@h/d?sslmode=require", "postgresql://o:p#x@h/d"):
+        r = subprocess.run(
+            ["sh", "-c", definition + '\npgurl "$1"', "sh", good], capture_output=True, text=True, check=True
+        )
+        assert r.stdout.strip() == good, (good, r.stdout)
 
 
 def test_readme_template_carries_every_section_the_readme_gate_requires():
@@ -531,3 +550,142 @@ def test_readme_template_carries_every_section_the_readme_gate_requires():
     missing = [s for s in required if s.startswith("## ") and s not in headings]
     assert missing == [], f"template lacks the gate's required section(s): {missing}"
     assert "## Quick Start" in headings
+
+
+_BACKING_TOKENS = ("native", "CHECK", "app", "doc", "file", "unconstrained")
+
+
+def _legend_tokens(text: str) -> list[str]:
+    """The tokens the template's Backing legend defines — STRUCTURAL: the quote lines right after the bold legend header,
+    each ` · `-separated item shaped 'token (definition)' with the token backticked. An item of another shape fails LOUDLY (an assert), never
+    reads a wrong span silently; the measurement prose that once followed the list is not part of it."""
+    import re
+
+    lines = text.splitlines()
+    i = next(k for k, ln in enumerate(lines) if ln.startswith("> **Backing legend"))
+    block: list[str] = []
+    for ln in lines[
+        i + 1 :
+    ]:  # the quote paragraph right after the header; an item may wrap onto the next line
+        if ln.strip() == ">" or not ln.startswith("> "):
+            break
+        block.append(ln[2:])
+    assert block, "no legend definition lines after the bold header"
+    tokens: list[str] = []
+    for item in " ".join(block).split(" · "):
+        m = re.match(r"^`([A-Za-z_]+)` \(", item.strip())
+        assert m, f"legend item is not `token` (definition): {item[:60]!r}"
+        tokens.append(m.group(1))
+    return tokens
+
+
+def _backing_cell_ok(cell: str, tokens: list[str]) -> bool:
+    """The legend's grammar, WHOLE-cell (`re.fullmatch`): `token`, `token (note)`, `a / b`. A token may wear a BALANCED
+    markdown wrapper — backticks, `**`, `*`, or none, the same on both sides (round 2: `[`*]*` on each side let
+    `` `native`` and `native**` through) — and a note is a non-empty `(…)` with no parenthesis inside, optionally wrapped in a BALANCED `*…*`
+    (round 2: a greedy dot-star note swallowed ` / invented` tails). Nothing else may follow, so `app-enforced`,
+    `native, CHECK`, `native bespoke junk`, `native (a) / bespoke` and a bare `<placeholder>` are all refused."""
+    import re
+
+    alt = "|".join(re.escape(x) for x in tokens)
+    tok = rf"(?:`(?:{alt})`|\*\*(?:{alt})\*\*|\*(?:{alt})\*|(?:{alt}))"
+    body = r"[^()]*[^()\s][^()]*"  # at least one non-blank character, no parenthesis (rounds 3-4)
+    note = rf"(?:\*\({body}\)\*|\({body}\))"  # balanced `*(…)*` or bare `(…)`
+    part = rf"{tok}(?:\s{note})?"
+    return re.fullmatch(rf"{part}(?:\s/\s{part})*", cell) is not None
+
+
+def test_data_contract_template_backing_legend_is_closed_and_its_rows_and_checklist_obey_it():
+    """kaizen 01M4F92G6V (2026-10-13): the registry's `Backing` column had a two-word legend hidden in prose and no
+    check; most frozen contracts used tokens it never named. The template now states a CLOSED legend; this grader
+    binds the three places that name it — the legend lines, the example rows and the FREEZE CHECKLIST box — so they
+    cannot drift, and keeps the whole-cell grammar executable (round 1 of its review: a prefix match let
+    `app-enforced` through, a placeholder exemption let anything through, the checklist compare was a prefix)."""
+    import re
+
+    text = (REPO_ROOT / "templates" / "scaffold" / "docs" / "data-contract-template.md").read_text(
+        encoding="utf-8"
+    )
+    legend = _legend_tokens(text)
+    assert legend == list(_BACKING_TOKENS), legend
+    # the example rows obey the grammar — every table row of the registry section, backticked Enum cell or not
+    in_reg = header = False
+    rows: list[str] = []
+    for ln in text.splitlines():
+        if ln.startswith("## Enum registry"):
+            in_reg, header = True, False
+            continue
+        if ln.startswith("## "):
+            in_reg = False
+        if not in_reg or not ln.startswith("|"):
+            continue
+        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if len(cells) >= 3 and cells[0].lower() == "enum":
+            header = True
+            continue
+        if header and not set(cells[0]) <= set("-: "):
+            rows.append(cells[1])
+    assert len(rows) == 2 and all(_backing_cell_ok(r, legend) for r in rows), rows
+    # the grammar: legitimate shapes seen in frozen contracts pass …
+    for good in (
+        "native",
+        "**CHECK**",
+        "doc (unenforced)",
+        "native (PG enum)",
+        "CHECK *(SHIPPED mig 086/087, §R1)*",
+        "file (config/a.yaml / Zod)",
+        "native / CHECK",
+        "app (no DB CHECK) / doc",
+    ):
+        assert _backing_cell_ok(good, legend), good
+    # … and invented or malformed cells fail — the prefix-match class round 1 found
+    for bad in (
+        "app-enforced",
+        "app-enforced, no DB CHECK",
+        "native bespoke junk",
+        "native, CHECK",
+        "app.foo",
+        "`contracts/` bespoke ⇒ Nautilus at runtime",
+        "Tryton Selection",
+        "jsonb value (§R3)",
+        "<anything at all>",
+        "",
+        # round 2: unbalanced wrappers and a note hiding an invented tail
+        "`native",
+        "native**",
+        "*native",
+        "`native`*",
+        "native (a) / bespoke junk",
+        "CHECK (a) / <x> (b)",
+        "native (a (b))",
+        # round 3: the note's own wrapper must be balanced, and a note must say something
+        "native (a)*",
+        "native *(a)",
+        "native ()",
+        "native *()*",
+        "native ( )",
+        "native *(  )*",
+    ):
+        assert not _backing_cell_ok(bad, legend), bad
+    for good in ("`CHECK`", "**native**", "*doc* (unenforced)", "CHECK (a) / `app` (b)"):
+        assert _backing_cell_ok(good, legend), good
+    # the FREEZE CHECKLIST box lists exactly the legend's tokens, in order (full equality, not a prefix)
+    lines = text.splitlines()
+    i = next(k for k, ln in enumerate(lines) if "is a legend token" in ln)
+    box = lines[i]
+    for nxt in lines[i + 1 :]:
+        if not nxt.startswith("      "):
+            break
+        box += " " + nxt.strip()
+    listed = re.findall(
+        r"`([A-Za-z_]+)`", box.split("legend token", 1)[1].split(" — optionally")[0]
+    )
+    assert listed == legend, (listed, legend)
+    # the parser fails loudly on a malformed legend, never silently
+    broken = text.replace("`doc` (documented only", "doc (documented only", 1)
+    try:
+        _legend_tokens(broken)
+    except AssertionError as exc:
+        assert "legend item is not" in str(exc)
+    else:  # pragma: no cover — the assertion above is the behaviour under test
+        raise AssertionError("a malformed legend item was parsed silently")

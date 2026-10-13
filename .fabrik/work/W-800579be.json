@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: check_synced_unmodified.py reports a false \"Fabrik-synced files modified locally\" red inside a linked worktree after a hub re-sync, although nobody edited a synced file."
 }

@@ -9,6 +9,31 @@ All notable changes to this project will be documented in this file.
 - `scripts/kilo-benchmarks/tests/golden/known_collapses.json`: a `kind: artifact` entry for `scripts/kilo_openrouter_routes_final.json`. Its floor is the collapsed shape ai-model-catalog has delivered since 2026-09-07: seven categories, all empty, plus `generated_at`. This is the engine-run-2026-08-18 collapse the `OPENROUTER_ROUTES` markers already carry (D-430, D-554, D-567). In a checkout holding that ignored artifact, `test_golden_parity.py` failed 9 tests; it now passes 103 with 2 skipped. A shape other than the floor still fails, and a full recovery reports `KNOWN COLLAPSE HEALED` (infra 01M4TDF3MK).
 - `test_known_collapses_are_announced_not_silent` also accepts the oracle's `KNOWN COLLAPSE unobservable here (absent-by-gitignore)` line. A checkout without the artifact (CI, a fresh worktree) now announces the collapse instead of failing.
 
+### Changed — the review probe catalogue: a brief names the readers that never import a changed file (2026-10-13)
+- The "Callers and consumers" hunt line in `commands/_fragments/review-probe-catalogue.md` now asks for every reader of a changed or vendored file's text that never imports it (a scaffold fold such as `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by `check_synced_unmodified.py`), each hit that reads the file named in the brief. A seat cannot infer a consumer it was never told exists (/fabrik-review row 1791891025). Grader: `tests/test_review_queue_pass.py::test_the_callers_hunt_line_names_readers_that_never_import_the_file`.
+
+### Changed — the review probe catalogue: a grader for moved text also fails at its old position (2026-10-13)
+- `commands/_fragments/review-probe-catalogue.md` § Graders now says a prose grader for MOVED text (a sentence, clause, bullet or row), added in the edit that moves it, also fails when the text sits at its old position. A grader pinned to a section that still contained the old paragraph passed a fold-back mutant in the 2026-10-13 surface-add review (f481f1a4d; row 1791894842). /fabrik-review, /fabrik-review-scoped, /fabrik-execute-plan, /fabrik-docs-review and /fabrik-spec-review point at the catalogue by its hub path. Grader: `tests/test_review_scoped_queue_pass.py::test_the_graders_section_pins_moved_texts_old_position`.
+
+### Changed — the two review commands name `surface --add` for a file edited before `start` (2026-10-13)
+- `/fabrik-review` (its own paragraph after the run-record block) and `/fabrik-review-scoped` (step 1) now say that a file the run comes to cover, last edited before `start`, outside every earlier covered window and not named by `--surface`, is added with `python3 scripts/command_run.py surface --add <path>`. No command named the verb; among the reference docs only `docs/reference/command-run-protocol.md` and `docs/workstation/hooks-index.md` did (intel finding 01M4TJJDG2). The sentence also says the verb widens the top record only, so it is refused under a nested non-review `start`. Grader: `tests/test_review_scoped_queue_pass.py::test_both_review_commands_name_surface_add_for_a_pre_start_file` pins the sentence in both sections and runs the verb's `--help`.
+
+### Changed — /fabrik-command-improve names a fragment's by-path consumers, not only its includes (2026-10-13)
+- PHASE 3's rule "a `_fragments/` edit names each `{{include:}}` consumer" now also names each source or fragment that names it (`command grep -rlw <its file name without .md> commands/_sources commands/_fragments`, which lists the includers too); the bound placeholders stay with the include consumers. The review probe catalogue is never included, so an include-only list found no consumers and missed the two review commands' pointer sentences. Answers `/fabrik-command-improve` row 1791892288; the grader reads PHASE 3 and runs the recipe.
+
+### Changed — the review probe catalogue's pre-pin section reads as every pin, not only the first (2026-10-13)
+- `commands/_fragments/review-probe-catalogue.md`'s header now says its lines apply "before every pin, the first and each delta, and while writing every brief", and its pre-pin heading reads "Before the first pin, and again before each delta pin"; `/fabrik-review` (Phase 1) and `/fabrik-review-scoped` (step 5) point at it "Before every pin, the first and each delta, and in every brief". Two of the section's bullets already ran at each delta pin, so a lead going by the old heading or command sentence skipped them. Answers `/fabrik-review-scoped` row 1791890873; the grader `tests/test_review_scoped_queue_pass.py::test_the_pre_pin_section_reads_as_every_pin_not_only_the_first` checks the property over the catalogue and both commands (8 mutants killed).
+
+### Changed — the review probe catalogue reads an injected or rendered line back through its tool (2026-10-13)
+- `commands/_fragments/review-probe-catalogue.md` § Before the first pin, which `/fabrik-review` and `/fabrik-review-scoped` point at, has a bullet of its own: a line another tool injects or renders is read back whole through that tool's output after the edit and before each delta pin (a pack line in `review_rubric.py --changed`, a fragment's rendered consumers, a template's emitted file), and a line the change leaves emitted by no invocation is named in the brief as dropped. The old fragment-render clause folds into it. Answers `/fabrik-review` row 1791889493; the grader `tests/test_review_queue_pass.py::test_an_injected_line_is_read_back_through_its_consumer` asserts the whole sentence inside its section (a review seat's 8 mutants all killed).
+
+### Fixed — a stale worktree copy no longer reds check_synced_unmodified as "you edited" (2026-10-13)
+- `scripts/sync_enforcement_to_projects.py`: the worktree resync refreshes a ledger-gap copy (one Claude Code copied at worktree creation, so no ledger row) when its non-empty bytes are a version hub HEAD's history published at that file's own source path (`_is_published_version`); unknown bytes, an emptied file, another path's content and a ledger-mismatch edit stay WARN'd and preserved. Measured before the fix: 83 of 214 project worktrees red over 281 files, none a real edit (whatsapp-agent 01M4RQV6DA, W-800579be).
+- `scripts/enforcement/check_synced_unmodified.py`: inside a linked worktree the red also names the stale-copy remedy per file (`cp <main>/<rel> <rel>` when the main checkout matches the lock, else re-run the sync); the verdict is unchanged.
+
+### Fixed — the testing pack's throwaway-guard checklist line says where the helper exists (2026-10-13)
+- `.windsurf/rules/core/45-testing-strategy.md`'s checklist mandated `require_throwaway(TEST_DATABASE_URL)` unconditionally, and `review_rubric.py` injects that line into the finders of every review whose diff touches a test file (the pack's globs), so repos without the scaffold-emitted `tests/conftest.py` got one refuted candidate per review. The line now scopes the helper as the pack's own table row does, and names the anchored predicate for the rest. Grader: `tests/test_rule_pack_scaffold_scope.py`, seen red on the old line (iterative_image_editor 01M3WW5PFN item 2, intel 01M4TCKDX5).
+
 ### Fixed — check_schema_sync sees table-declaring modules by content and compares table structure, not diff lines (2026-10-13)
 
 - `scripts/enforcement/check_schema_sync.py`: a model file is one matching the filename patterns, or any non-test, non-migration `.py` whose staged content imports an ORM and declares a table (`declares_table`). A change is now a difference in `schema_signature`: the DB classes' field statements and module-level `Table(...)` calls, parsed and format-free, compared between HEAD and the index, with a deleted file read from HEAD. A file that does not parse keeps the old diff regex. Before, `db.py`/`main.py` modules were unguarded (iterative_image_editor 664b7016c added a table with no migration), and the regex failed commits for Pydantic `BaseModel` and `BaseHTTPMiddleware` classes and for re-wrapped columns. Replayed over every fleet model file's history (53 files, 84 commits without a schema or migration): would-fails 15 → 12, from 5 false fails removed and the real miss added (W-62875be3, iterative_image_editor 01M3WW5PFN).
@@ -241,6 +266,75 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — /fabrik-review answers its feedback queue in one pass (2026-10-12)
 - Phase 1 points at the review probe catalogue; a failed or `NO RESULT` refuter's candidates are executed by the lead, and the FAILED-seat re-dispatch names finders; the delta brief names its must-read files; `next`'s rows merge into `args.slices` by name; the close stages before its IN-PROGRESS gate. Every command, fragment and contract that states the Agent-tool fallback now also takes it for a run the operator did not invoke. The catalogue gains redactor timing, what a fix recipe leaves unchanged, quoting code from its emit site and linting a copy with the repo's config (D-752).
+
+### Fixed — the vendored GlitchTip init takes the first NON-BLANK DSN, and its comments stop citing files a scaffolded repo lacks (2026-10-13)
+
+- `templates/scaffold/python/glitchtip_init.py` (whatsapp-agent findings 01M4SQZBMTN6DF9KX1B5FYVNF0 and 01M4SNBHR007MHT6Y40R9BEJBE,
+  routed by infra): `(SENTRY_DSN or GLITCHTIP_DSN or "").strip()` let a whitespace-only `SENTRY_DSN` win before stripping, so a
+  valid `GLITCHTIP_DSN` was ignored and monitoring stayed off — it now uses `_first_set` (first non-blank after stripping), graded by
+  `test_blank_sentry_dsn_falls_through_to_glitchtip_dsn` (red on the old line). The three cross-repo citations a vendored copy cannot
+  resolve (the hub's grader, site-provisioner's drill test, `api/main.py`) carry the `HUB NOTE` marker the `_release()` docstring
+  already uses, and the two sentry-sdk-internals claims name the version they were measured on (2.68.1) and what 2.64.0 does instead
+  (gates on `has_logs_enabled()` / `has_metrics_enabled()` — no leak on either). Every repo that vendors the template inherits the text.
+
+### Fixed — The five specs apply's depends-contradiction warning named now say what their stores are (2026-10-13)
+
+`check_spec_db_match.py` (ab9d3cf21, D-805) warned on five specs whose `depends.postgres` named a database the Postgres registrar would never create because `shape.needs_database` was false or absent. Grounded in each project's own code and docs, not the live store: **job-agent** persists to SQLite (its `project.yaml` says so; `compose.yaml` carries `DATABASE_URL` commented out) — `depends.postgres: jobagent` and the required `DATABASE_URL` are gone and the spec carries the `shape:` block its `project.yaml` already had; **proposal-creator**, **trading-core** and **triggered-content-orchestration** are PostgreSQL-backed (`src/db/database.py`, `docs/CONFIGURATION.md` § State, `src/shared/config.py` + `alembic.ini`) — each gains a `shape:` block with `needs_database: true` (trading-core also `needs_cache: true`, its `REDIS_URL`), `depends.postgres` pinned to the registrar's derived name (D-410; the name their `.env.example` declares), and `DATABASE_URL` removed from `secrets.required` because the registrar injects it and a required DSN is otherwise INVENTED (`_warn_fabricated_secrets`); **proxy** drops `depends.postgres: main` — the shared legacy database D-410 forbids, for a service whose own `DB_*` env is the contract and which has not run on vps1 since 2026-05-31. Four of the five were shapeless (W-989653a7's population, the plan-vs-apply class, which stays open): `fabrik plan` and `fabrik apply` now read the same flags for them. Decision row D-822.
+
+### Fixed — the schema-apply one-liner reads the owner DSN instead of sourcing the env files as root shell code (2026-10-13)
+
+- `src/fabrik/scaffold.py` (`_SCHEMA_APPLY_HEADER`, the saas `db/schema.sql` header), `templates/scaffold/docs/CONFIGURATION_TEMPLATE.md`,
+  `docs/CONFIGURATION.md` (fabrik-lib finding in 01M4TGJ1CVT4XEHDH6AQZ1M6JF): the recipe ran `set -a; . ./.env; . ./.env.owner;
+  set +a` under `sudo sh -c` — the env files executed as SHELL CODE, as root: a value `X="$(touch f)"` ran, and a value with
+  an apostrophe aborted the line before psql (both reproduced under dash). The recipe now reads the ONE key it needs —
+  `v=$(sed -n "s/^DATABASE_URL_OWNER=//p" ./.env.owner | tail -n 1)`, the wrapping quotes `_format_env` may add stripped —
+  and hands it to `pgurl`; nothing is sourced. Executed grader `test_schema_apply_recipe_reads_the_owner_key_without_sourcing_the_env_files`
+  (tests/test_scaffold_audit_log.py) runs the header's own recipe under `sh` with a stub `psql` and a hostile `.env.owner`:
+  the hostile line does not run, the apostrophe does not abort, psql receives the libpq-rewritten DSN, a missing key is
+  refused before psql; HEAD's recipe fails both ways. The emitted saas schema's recipe is executed by its own grader too
+  (`test_rls_schema_recipe_executes_without_sourcing`) — the review caught the saas header rendering `${v%"}` without its
+  backslash (a plain string, not an f-string) while the text pin stayed green. `pgurl` — seeded TWICE, byte-identical, in
+  `TROUBLESHOOTING_TEMPLATE.md` and `CONFIGURATION_TEMPLATE.md` (the review's pass 2 caught the second copy left behind;
+  `tests/test_scaffold_doc_seeding.py` holds the two together and now executes each refusal alternative alone) — now also
+  refuses a DSN carrying whitespace, a quote or a backslash, so a hand-edited or still-escaped `.env` line fails closed at the
+  one boundary instead of reaching psql mangled. The text pins (`_HEADER`, saas test) follow; `. ./.env` is asserted absent.
+
+### Changed — the data-contract template's Enum-registry `Backing` legend is a closed, measured token list (2026-10-13)
+
+- `templates/scaffold/docs/data-contract-template.md` (kaizen finding 01M4F92G6VG2GMR96X1095JKEJ, /fabrik-data-contract
+  queue row 1791336541): the legend named only `native` / `CHECK`, in prose, and nothing read it. Measured over every
+  `/opt/*/docs/data-contract.md` with registry rows (20 contracts, 288 rows — every table row, backticked Enum cell or
+  not): 193 rows sit outside that pair, with vocabulary the projects had to invent (`app-enforced`, `doc (unenforced)`,
+  `file (Zod, …)`, `Tryton Selection`, `jsonb value`, `PG CHECK constraint`, `unconstrained`), so a checker on the old
+  legend would have flagged two rows in three. The legend is now an explicit CLOSED list — `native` · `CHECK` · `app` ·
+  `doc` · `file` · `unconstrained` — with the whole-cell grammar `token`, `token (note)` or `a / b`; 106 of the 288 rows
+  fall outside it today, every one expressible with an existing token plus a note (`CHECK (v6.11)`, `app (Tryton
+  Selection …)`, `unconstrained (jsonb …)`), none needing a seventh token — so the enforcement half must begin as WARN.
+  The `type` column now says how an `app`/`doc`/`file`/`unconstrained`-backed field is typed (its real SQL type plus a
+  registry pointer, never `chk:<x>`), the example row shows the note form, and the FREEZE CHECKLIST carries the box.
+  Grader `test_data_contract_template_backing_legend_is_closed_and_its_rows_and_checklist_obey_it`
+  (tests/test_scaffold_doc_seeding.py) binds the legend lines, the example rows and the checklist box (structural
+  parse, whole-cell `re.fullmatch`, full-list equality, loud failure on a malformed legend) — its first cut, a prefix
+  match with a placeholder exemption, let `app-enforced` and `<anything>` through and was caught by the review. The
+  enforcement half (a gate check over each project's contract; the command text) is requested from infra by mail.
+
+### Fixed — the parity template's `--rows-from` merge checks the leg files instead of trusting them whole (2026-10-13)
+
+- `templates/scaffold/scripts/verify_prod_parity.py` (kaizen finding 01M4Q92620J5NJG87SS9ADVFD7, the leg-file threat
+  model D-769 named): `_rows_for` concatenated every `--rows-from` file with `merged.extend(json.loads(...))`, so a
+  stale, truncated, doubled or re-serialised leg could reach CONFIRMED through four silent axes — which row ids appear,
+  how many times each appears, which comparison keys a row carries, and what `match` holds (`verdict()` tests `match`
+  by identity, so a string `"true"` sat in the denominator and was counted nowhere). New `check_leg_rows` names the axis
+  it refuses — every contract row (`ROWS`, by function name) exactly once, the three comparison keys all or none, a
+  tri-state `match`, the vendored status alphabet, row objects only — and the merge exits 64 (EX_USAGE, the flag-typo
+  exit) with the misses on stderr and no `VERDICT:` line, never a verdict. Cobra check in the docstring: a hand-written
+  complete leg still passes; the counter-measure is the runner producing the legs itself. Graders in
+  `tests/test_deploy_verify_verdict.py` (each axis red-first; the CLI path) and the two scaffold tests re-cut onto a
+  contract that declares the rows they merge. The review moved the id convention from prose to code: `run_rows`
+  applies the merge's per-row rules (`_row_defects`) and the function-name rule where a row is MADE, so a misnamed
+  or hand-built row reads UNVERIFIABLE on the first `--json` run instead of refusing every later merge; `self_check`
+  flags a function listed twice in `ROWS`; an unhashable status or a deeply nested file is a refusal, not a traceback. `docs/reference/deployment-verification.md` names the refusal. The three
+  projects carrying an authored copy (site-provisioner, tryton-crm, web-ecommerce-factory) are mailed the patch (D-441).
 
 ### Fixed — the scaffold's CI pair installs sqlfluff and lints every tracked `.sql` like the gate does (2026-10-12)
 

@@ -157,17 +157,26 @@ def test_catalogue_holds_the_two_recurring_probes() -> None:
 def test_a_guard_a_fix_adds_is_briefed_in_the_next_round() -> None:
     """Row 1791838673 (D-787): the catalogue both review commands read."""
     cat = _norm(ROOT / "commands" / "_fragments" / "review-probe-catalogue.md")
-    assert "a guard a fix adds goes into every brief from that next one on, by name, with its escape variants (quote styles, unreadable values, globbed paths) and its model boundary" in cat
+    assert (
+        "a guard a fix adds goes into every brief from that next one on, by name, with its escape variants (quote styles, unreadable values, globbed paths) and its model boundary"
+        in cat
+    )
 
 
 def test_the_round_grammar_names_own_fix() -> None:
     """Row 1791764618 (D-778)."""
-    assert "--own-fix <how many of those confirmed defects lie in text this review added in an earlier round>" in _norm(SRC)
+    assert (
+        "--own-fix <how many of those confirmed defects lie in text this review added in an earlier round>"
+        in _norm(SRC)
+    )
 
 
 def test_a_callers_plan_flip_follows_the_post_flip_gate_run() -> None:
     """Row 1791828832 (D-778): the reason is check_convergence's own skip."""
-    assert "A caller that flips its plan to `EXECUTED` flips it only after that post-flip run is embedded: a red post-flip run sends the receipt back to `IN-PROGRESS`" in _norm(SRC)
+    assert (
+        "A caller that flips its plan to `EXECUTED` flips it only after that post-flip run is embedded: a red post-flip run sends the receipt back to `IN-PROGRESS`"
+        in _norm(SRC)
+    )
     conv = (ROOT / "scripts" / "enforcement" / "check_convergence.py").read_text()
     assert re.search(r"if _receipt_in_progress\(rtext\):\s+continue", conv)
 
@@ -184,29 +193,46 @@ def test_the_receipt_template_shows_the_gate_scope_line_the_gate_accepts_filled(
     tmpl = (ROOT / "scripts" / "review_receipt.py").read_text()
     line = "`GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>`"
     assert line in tmpl
-    pats = [v for v in vars(check_convergence).values() if isinstance(v, re.Pattern) and "GATE-SCOPE" in v.pattern]
+    pats = [
+        v
+        for v in vars(check_convergence).values()
+        if isinstance(v, re.Pattern) and "GATE-SCOPE" in v.pattern
+    ]
     assert len(pats) == 1
     assert not pats[0].search(line)
-    assert pats[0].search(line.replace("<failing check>", "docs-links").replace("<N>", "3").replace("<command>", "grep x"))
+    assert pats[0].search(
+        line.replace("<failing check>", "docs-links")
+        .replace("<N>", "3")
+        .replace("<command>", "grep x")
+    )
 
 
 def test_a_scope_growth_remainder_round_restates_every_slice() -> None:
     """Row 1791847183: the exit's re-verify step never said the remainder round still re-states every slice."""
     text = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
-    assert "re-verify the fixed set alone (in a slice-partitioned loop, its `round --slices` still re-states every earlier slice;" in text
+    assert (
+        "re-verify the fixed set alone (in a slice-partitioned loop, its `round --slices` still re-states every earlier slice;"
+        in text
+    )
 
 
 def test_a_capped_round_one_merges_low_risk_slices() -> None:
     """Row 1791847121: a box cap dropped a slice to one finder and cost a second wave."""
     text = _norm(CAT)
     remainder = text[text.index("- Remainder rounds:") : text.index("- Route-up and close:")]
-    assert "or, when the cap is known before round 1, merge two low-risk slices so the riskiest keeps both finders" in remainder
+    assert (
+        "or, when the cap is known before round 1, merge two low-risk slices so the riskiest keeps both finders"
+        in remainder
+    )
 
 
 def test_a_fix_outside_the_pin_is_pinned_or_named() -> None:
     """Row 1791844045: a CHANGELOG fix outside the pins was re-raised from the base copy."""
     text = _norm(CAT)
-    assert "a ledger row whose fix landed in a file outside the pin (a CHANGELOG or ledger hunk) has that file pinned next pass, or the brief names it" in text
+    assert (
+        "a ledger row whose fix landed in a file outside the pin (a CHANGELOG or ledger hunk) has that file pinned next pass, or the brief names it"
+        in text
+    )
 
 
 def test_the_closing_method_cell_rule_matches_the_gate() -> None:
@@ -221,8 +247,12 @@ def test_the_closing_method_cell_rule_matches_the_gate() -> None:
     sys.modules["crc_for_queue_pass"] = mod
     spec.loader.exec_module(mod)
     assert "Write the closing row's method cell as `method: re-derivation`" in _norm(SRC)
-    assert mod._REDERIVATION_ROW.search("| Pass 3 | sonnet×1 | found: 0 | method: re-derivation — closing pass |")
-    assert not mod._REDERIVATION_ROW.search("| Pass 3 | sonnet×1 | found: 0 | method: remainder pass — re-derivation |")
+    assert mod._REDERIVATION_ROW.search(
+        "| Pass 3 | sonnet×1 | found: 0 | method: re-derivation — closing pass |"
+    )
+    assert not mod._REDERIVATION_ROW.search(
+        "| Pass 3 | sonnet×1 | found: 0 | method: remainder pass — re-derivation |"
+    )
 
 
 def test_the_checklist_is_filled_before_the_in_progress_gate_run() -> None:
@@ -231,4 +261,41 @@ def test_the_checklist_is_filled_before_the_in_progress_gate_run() -> None:
     fill = "Fill every Coverage Checklist and Pass Ledger row before the close: the IN-PROGRESS run below skips both convergence checkers"
     assert fill in text
     assert text.index(fill) < text.index("Close in this ORDER: stage your own files")
-    assert "an untracked receipt is skipped outright until it is staged, whatever its Status" in text
+    assert (
+        "an untracked receipt is skipped outright until it is staged, whatever its Status" in text
+    )
+
+
+def test_an_injected_line_is_read_back_through_its_consumer() -> None:
+    """Row 1791889493: a pointer fix to a pack line read green in the source and red in review_rubric.py's output."""
+    pre_pin = _section(_norm(CAT), "## Before the first pin", "## ")
+    rule = (
+        "- A line another tool injects or renders, changed or with a rendering the change alters, is read back"
+        " whole through that tool's output after the edit and before each delta pin, under an invocation that"
+        " emits it — a pack line in `review_rubric.py --changed <a path its globs hit>`, a fragment edit's"
+        " consumers rendered to a temp dir, a template's emitted file — never in its source alone; a line the"
+        " change leaves emitted by no invocation (a pack line with no mandate keyword, a section under a"
+        " conditional heading) is named in the brief as dropped."
+    )
+    assert pre_pin.count(rule) == 1
+    assert "render a fragment edit's consumers to a temp dir and read each" not in _norm(CAT)
+
+
+def test_the_callers_hunt_line_names_readers_that_never_import_the_file() -> None:
+    """Row 1791891025: a seat cannot infer a consumer it was never told exists, and a scaffold fold or drift checker
+    reads a file's TEXT without importing it, so no importer grep finds it. The class sits in the general Callers and
+    consumers hunt line (any changed or vendored file, not only a re-vendor), with the recipe that finds the readers
+    and who names them. Pinned as the contiguous span between its neighbours inside that bullet, so a truncated,
+    qualified or relocated clause reds. Cheapest bypass: a brief that names the class but lists no reader; the seat
+    reading that brief owns it, not this pin."""
+    callers = _section(_norm(CAT), "- Callers and consumers:", "- Parsers:")
+    assert (
+        "every gate grading the old name; every reader of a changed or vendored file's text that never imports it (a"
+        " scaffold fold such as `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by"
+        " the lead grepping the hub and the fleet repos for the file's path, basename and directory and reading"
+        " `scripts/fabrik_synced_manifest.py` for a glob that covers it (a covered file is also read through each"
+        " project's `.fabrik/synced.lock` by `scripts/enforcement/check_synced_unmodified.py`), each hit that reads the"
+        " file named in the brief; every outbound sink" in callers
+    )
+    # the round-1 draft put it in the re-vendor premise; neither wording may remain anywhere else
+    assert _norm(CAT).count("that never imports it") == 1

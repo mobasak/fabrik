@@ -23,6 +23,8 @@ python3 scripts/command_run.py start --command fabrik-review --phases 5 \
 
 A routed-up review names the trigger in its surface: `--surface "ROUTED-UP: step 1 — <the trigger> · <the diff range>"` — the ledger's only positive witness that `/fabrik-review-scoped`'s route-up fired (no code detects a route-up — the record carries it only because the caller writes that surface string); its `done` then reaches back to the previous covered window's close (the `REVIEW_FAMILY` branch of `_close` in `scripts/command_run.py`), which is what covers the pre-`start` edits.
 
+While the record runs, a file you come to cover that was last edited before `start`, outside every earlier covered window, and not named by `--surface` is added with `python3 scripts/command_run.py surface --add <path>`: a running review's window opens at its `start`. The verb widens the TOP record only, so it is refused under a nested non-review `start` (every refusal: `docs/reference/command-run-protocol.md`).
+
 Then, for the whole run: `step --phase <N> --title "<the phase title>"` on entering each phase, and
 **one `round` call per Phase-4 pass** —
 `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <this pass's RAW candidate count> --confirmed <the candidates you EXECUTED and reproduced> --own-fix <how many of those confirmed defects lie in
@@ -142,7 +144,7 @@ that a change re-exposes are in scope).
 
 ## Phase 1 — Independent finders (recall)
 
-Before the first pin and in every brief, apply the lines of
+Before every pin, the first and each delta, and in every brief, apply the lines of
 `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE (not installed — the hub
 path resolves from every repo): the probes, hunt lines, grader, prose-fix, isolation and bookkeeping steps earlier
 runs found missing.

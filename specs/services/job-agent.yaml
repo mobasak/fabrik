@@ -7,16 +7,30 @@ source:
   type: local
   path: /opt/job-agent
 
+# shape: mirrors /opt/job-agent/project.yaml (a chrome-extension whose server/ backend is what
+# deploys). needs_database stays FALSE — the backend persists to SQLite (project.yaml says the
+# same), compose.yaml carries DATABASE_URL commented out, and nothing on postgres-main was ever
+# created for it: the former `depends.postgres: jobagent` + required DATABASE_URL named a store
+# no registrar would create (apply's depends-contradiction warning, D-805; disposition D-822).
+# has_persistent_data: true (python-api default false) mirrors project.yaml too — the SQLite file is
+# on-disk state under /opt/job-agent, which is what the Backrest registrar covers.
+shape:
+  kind: service
+  is_public: false
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: true
+  needs_database: false
+  has_search_feature: false
+  needs_cache: false
+  exposes_metrics: false
+
 env:
   PORT: "8011"
   LOG_LEVEL: INFO
 
 secrets:
-  required:
-    - DATABASE_URL
-
-depends:
-  postgres: jobagent
+  required: []
 
 resources:
   limits:

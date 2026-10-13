@@ -24,6 +24,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shlex
+import subprocess
 import sys
 from pathlib import Path
 
@@ -80,6 +82,35 @@ def _retired_vendored_dirs() -> tuple[str, ...]:
         return ()
 
 
+def _main_checkout(project_root: Path) -> Path | None:
+    """The main checkout when `project_root` is a LINKED worktree (its git-dir differs from the
+    shared git-common-dir), else None. A submodule has a `.git` FILE too, so the file's shape is
+    never the test. Any git failure reads as "not a linked worktree"."""
+    try:
+        out = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(project_root),
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-dir",
+                "--git-common-dir",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    lines = out.stdout.splitlines()
+    if out.returncode != 0 or len(lines) < 2:
+        return None
+    git_dir, common = Path(lines[0]).resolve(), Path(lines[1]).resolve()
+    return None if git_dir == common else common.parent
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify Fabrik-synced files are unmodified.")
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
@@ -110,6 +141,7 @@ def main() -> int:
         (d[0] if isinstance(d, tuple) else d).rstrip("/") + "/" for d in _retired_vendored_dirs()
     )
     drifted: list[str] = []
+    changed: list[str] = []  # differs or deleted — the stale-worktree remedy's subjects
     for rel, distributed_hash in lock.items():
         if rel in seeded:
             continue
@@ -124,8 +156,10 @@ def main() -> int:
             continue
         if not dest.exists():
             drifted.append(f"{rel} — DELETED locally (a Fabrik-synced file must exist)")
+            changed.append(rel)
         elif _md5(dest) != distributed_hash:
             drifted.append(rel)
+            changed.append(rel)
 
     if drifted:
         print(
@@ -138,6 +172,23 @@ def main() -> int:
         print("You edited a synced copy (it differs from what was distributed to this")
         print("project). Revert it (the next sync restores it), or make the change in")
         print("/opt/fabrik/<path> + re-sync if it's correct for ALL projects. Never fork here.")
+        main_checkout = _main_checkout(project_root)
+        if main_checkout is not None and changed:
+            # W-800579be: in a linked worktree the copy may be STALE instead — the sync never
+            # overwrites a worktree file it cannot prove it wrote, while the main checkout's
+            # fresh lock lands here. The gate stays red (a stale rule is still a stale rule);
+            # only the remedy is named honestly.
+            print()
+            print("This is a linked worktree: if you edited nothing, a copy may be STALE (the hub")
+            print("re-synced the main checkout after this worktree was made). Re-copy it:")
+            for rel in sorted(changed):
+                src = main_checkout / rel
+                if src.is_file() and _md5(src) == lock[rel]:
+                    print(f"   cp {shlex.quote(str(src))} {shlex.quote(rel)}")
+                else:
+                    print(
+                        f"   {rel}: the main checkout does not match the lock either — re-run the sync"
+                    )
         return 1
 
     print(f"✓ all {len(lock)} Fabrik-synced files match what was distributed ({LOCK_REL})")

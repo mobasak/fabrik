@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T10:16:37.512141Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-f4ec210e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TC4ZT6RXPDQN24TTY1EDGV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: /fabrik-review-scoped feedback queue — 21 rows routed to intel: 6 fixed, 3 met another way, 4 rejected, 1 routed to the quiet-round mail, 1 routed to kaizen, 7 boarded as 3 work items"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:26:29.047160Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a30500aa",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TK5BWMEX21F0BG8MY6H8E3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: worktree-intel"
+}

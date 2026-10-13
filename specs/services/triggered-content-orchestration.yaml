@@ -7,17 +7,35 @@ source:
   type: local
   path: /opt/triggered-content-orchestration
 
+# shape: python-api defaults plus needs_database — the app is PostgreSQL-backed
+# (/opt/triggered-content-orchestration/src/shared/config.py database_url() requires DATABASE_URL
+# or DB_HOST; alembic.ini at the repo root). The registrar creates the database named by
+# depends.postgres and injects DATABASE_URL, so the key left secrets.required (a required DSN is
+# INVENTED when absent — orchestrator/__init__.py _warn_fabricated_secrets). Disposition of apply's
+# depends-contradiction warning (D-805): D-822.
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: false
+  needs_database: true
+  has_search_feature: false
+  needs_cache: false
+  exposes_metrics: false
+
 env:
   PORT: "8025"
   LOG_LEVEL: INFO
 
 secrets:
   required:
-    - DATABASE_URL
     - KILO_API_KEY
 
 depends:
-  postgres: tco
+  # The registrar's derived name (D-410) — and the DB_NAME the project's own .env.example
+  # declares, which check_spec_db_match.py compares against.
+  postgres: triggered_content_orchestration
 
 resources:
   limits:

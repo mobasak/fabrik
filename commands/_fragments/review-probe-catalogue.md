@@ -1,14 +1,19 @@
 # Review probe catalogue
 
-The probes earlier review runs found missing, by when they apply. Read the lines that match the change's SHAPE —
-never all of them — before the first pin and while writing the brief. Each is a step, not a check box: execute it,
-or name in the brief why the shape does not have it.
+The probes earlier review runs found missing, by when they apply. Read the lines that match the change's SHAPE — never
+all of them — before every pin, the first and each delta, and while writing every brief. Each is a step, not a check
+box: execute it, or name in the brief why the shape does not have it.
 
-## Before the first pin (the lead executes)
+## Before the first pin, and again before each delta pin (the lead executes)
 - Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its real shell), and
   check the END STATE a recipe exists to produce, not only each step; run a README snippet, usage text or rewritten
   docstring instruction as a caller would, and probe each exception a rewritten docstring says the function still
   raises.
+- A line another tool injects or renders, changed or with a rendering the change alters, is read back whole through
+  that tool's output after the edit and before each delta pin, under an invocation that emits it — a pack line in
+  `review_rubric.py --changed <a path its globs hit>`, a fragment edit's consumers rendered to a temp dir, a
+  template's emitted file — never in its source alone; a line the change leaves emitted by no invocation (a pack
+  line with no mandate keyword, a section under a conditional heading) is named in the brief as dropped.
 - Trace the entry path: the first caller that reaches the fixed function; enumerate every call shape through a new
   branch and every input path of a shared reader; trace each rationale sentence's mechanism to the code, and execute
   every "X only when Y" claim the fix adds.
@@ -37,13 +42,18 @@ or name in the brief why the shape does not have it.
   with the dependencies available; before a counted bar or a spend scale changes, drive it over the real series and
   the unit cost.
 - Grep the docs and ledgers for a by-design rule on the subject; resolve an integrity-check exemption against its real
-  target; render a fragment edit's consumers to a temp dir and read each.
+  target.
 
 ## The brief's hunt lines (name the ones the shape has)
 - Callers and consumers: every caller of a changed exit code, output line or gated script; every consumer of a changed
   prompt output, of import-time side effects, of a flipped Status (generated indexes) or of a renamed name (link fields,
   hand-kept indexes); callers that use a normaliser's return value; a pure helper's own return contract, not only what
-  its callers observe; the line that copies a template-emitted claim; every gate grading the old name; every outbound
+  its callers observe; the line that copies a template-emitted claim; every gate grading the old name; every reader of a
+  changed or vendored file's text that never imports it (a scaffold fold such as
+  `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and
+  the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob
+  that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by
+  `scripts/enforcement/check_synced_unmodified.py`), each hit that reads the file named in the brief; every outbound
   sink a production-reaching test can touch; every actor touching an RLS table; placeholder resolution per consumer;
   repo-wide service lists and absence statements.
 - Parsers: the producer's real output contract first, then the parsing model before tokens; lossy cases (duplicate
@@ -81,8 +91,9 @@ or name in the brief why the shape does not have it.
   (an absence assertion over never-written state is vacuous); a grader EXECUTES an executable subject, through the
   real production adapter and the consumer's entry point (the command's output, as the gate passes files by name),
   never reads it; a premise guard asserts at the call site, not on constants; a prose grader asserts the whole
-  generated sentence, not a substring; a test-quality seat checks docstring claims against the scan; a fix recipe
-  handed to a coder names one input it must leave unchanged and the test that holds it.
+  generated sentence, not a substring, and one for MOVED text (a sentence, clause, bullet or row), added in the edit
+  that moves it, also fails when the text sits at its old position; a test-quality seat checks docstring claims
+  against the scan; a fix recipe handed to a coder names one input it must leave unchanged and the test that holds it.
 - Each parser-output shape owes its own red; a config or regex grader is graded by running the tool on mutated inputs;
   a red branch of a new procedure step is executed as well as the green; a boundary fix tests both sides with the
   exact message; a numeric bound is derived in its comment and graded at both edges, with the determining input varied

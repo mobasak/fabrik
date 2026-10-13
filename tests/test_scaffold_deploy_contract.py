@@ -396,18 +396,40 @@ def test_a_leg_that_could_not_run_is_emitted_unverifiable_not_dropped(tmp_path: 
     assert "no ssh to vps1" in rows[0]["detail"] and rows[0]["detail"].startswith("UNVERIFIABLE")
 
 
-def test_verdict_merges_row_files_from_several_legs(tmp_path: Path) -> None:
-    """`--verdict --rows-from a.json b.json` applies the algebra to the UNION of the legs' rows."""
-    proj = tmp_path / "proj"
+_XY_CONTRACT = (
+    'def x() -> dict[str, Any]:\n    return liveness_row("x", True, "")\n\n\n'
+    'def y() -> dict[str, Any]:\n    return liveness_row("y", True, "")\n\n\n'
+    "ROWS: list[Callable[[], dict[str, Any]]] = [x, y]"
+)
+
+
+def _frozen_xy_stub(proj: Path) -> Path:
+    """The seeded stub, FROZEN, with a contract declaring rows `x` and `y` — `--rows-from` refuses a row the
+    contract does not declare and a merge missing one (kaizen D-769), so leg files for x and y need a
+    contract that names them. The merge never RUNS x and y — only their names matter here; the leg files
+    carry whatever rows the test needs."""
     (proj / "scripts").mkdir(parents=True)
     stub = proj / "scripts" / "verify_prod_parity.py"
     src = TEMPLATE.read_text().replace(
         "# Status: DRAFT · Version: v0 · Date: —",
         "# Status: FROZEN · Version: v1 · Date: 2026-09-02",
     )
-    stub.write_text(src)
+    assert src.count(_ROWS_LINE) == 1
+    stub.write_text(src.replace(_ROWS_LINE, _XY_CONTRACT))
+    return stub
+
+
+_ROWS_LINE = "ROWS: list[Callable[[], dict[str, Any]]] = [l0_health_probe_vendored]"
+
+
+def test_verdict_merges_row_files_from_several_legs(tmp_path: Path) -> None:
+    """`--verdict --rows-from a.json b.json` applies the algebra to the legs' rows CONCATENATED — every
+    contract row exactly once across the files (a doubled or missing row is refused, never merged)."""
+    proj = tmp_path / "proj"
+    stub = _frozen_xy_stub(proj)
     a = tmp_path / "a.json"
     b = tmp_path / "b.json"
+    b_ok = tmp_path / "b_ok.json"
     a.write_text(
         json.dumps(
             [
@@ -436,24 +458,25 @@ def test_verdict_merges_row_files_from_several_legs(tmp_path: Path) -> None:
             ]
         )
     )
-    ok = _run_as_documented(stub, "--verdict", "--rows-from", str(a), cwd=proj)
-    assert ok.returncode == 0 and "VERDICT: CONFIRMED" in ok.stdout, ok.stdout
+    b_ok.write_text(json.dumps([{"system": "y", "status": "OK", "detail": "pong"}]))
+    ok = _run_as_documented(stub, "--verdict", "--rows-from", str(a), str(b_ok), cwd=proj)
+    assert ok.returncode == 0 and "VERDICT: CONFIRMED" in ok.stdout, (ok.stdout, ok.stderr)
     both = _run_as_documented(stub, "--verdict", "--rows-from", str(a), str(b), cwd=proj)
     assert both.returncode == 2 and "1 disagree" in both.stdout and " of 2 " in both.stdout, (
         both.stdout
     )
+    # one leg alone is NOT a merge: the contract's `y` is missing — refused, never a verdict (D-769)
+    alone = _run_as_documented(stub, "--verdict", "--rows-from", str(a), cwd=proj)
+    assert alone.returncode == 64 and "'y': missing" in alone.stderr, (alone.stdout, alone.stderr)
+    assert "VERDICT:" not in alone.stdout
 
 
 def test_not_obligated_set_is_wired_into_the_cli_verdict(tmp_path: Path) -> None:
     """The stub declares `NOT_OBLIGATED` and `--verdict` must apply it — tryton-crm had to add the wiring
     by hand because the seeded `main()` never passed it."""
     proj = tmp_path / "proj"
-    (proj / "scripts").mkdir(parents=True)
-    stub = proj / "scripts" / "verify_prod_parity.py"
-    src = TEMPLATE.read_text().replace(
-        "# Status: DRAFT · Version: v0 · Date: —",
-        "# Status: FROZEN · Version: v1 · Date: 2026-09-02",
-    )
+    stub = _frozen_xy_stub(proj)
+    src = stub.read_text()
     src = src.replace(
         "NOT_OBLIGATED: frozenset[str] = frozenset()",
         'NOT_OBLIGATED: frozenset[str] = frozenset({"x"})',
