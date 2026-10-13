@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:38:43.655342Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7ad7c633",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one clause beside COORDINATOR ASSIGNMENT: a headless session (labels or a -p claude ancestor) keeps only its own continue/release subjects, else a bare null reason print-mode; prompt block shrinks to own claims",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "hooks-index.md coordinator-cause entry: add the print-mode exemption (work.py _print_mode, D-809) once the session-history-retention plan lock releases the file"
+}

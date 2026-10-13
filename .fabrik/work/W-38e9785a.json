@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: The work-queue Stop hook (and the claim it orders) fires inside headless `claude -p` child sessions that a project's own code spawns. In iterative_image_editor the catalogue copy engine (src/catalog/copy_engine.py, `claude -p` asked for strict JSON) got prose back instead: \"I'm not claiming W-"
 }
