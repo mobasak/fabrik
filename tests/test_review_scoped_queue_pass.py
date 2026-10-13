@@ -87,6 +87,19 @@ def test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim() -> None:
     )
 
 
+def test_a_dependency_claim_is_checked_against_the_dependencys_own_case_set() -> None:
+    """/fabrik-review row 1791925061, recurring held subject guard-key-aliases-from-the-target-library (row
+    1791919154): a guard and a docs sentence were checked against the cases the author named, not the aliases and
+    branches the dependency itself has. Bounded to the claim's keys; docs plus a probe where no source is readable."""
+    premise = _section(_norm(CAT), "- The premise:", "## Graders")
+    assert (
+        "asks for the claim at that version; a claim about what a dependency accepts or does (a guard over its keys, a"
+        " docs sentence about its behaviour) is checked against every case the dependency defines for the keys or"
+        " behaviour the claim covers — each branch and alias in its source at that version, else its versioned"
+        " reference docs plus an executed probe — never only the cases the author listed;"
+    ) in premise
+
+
 def test_seat_isolation_names_every_root_the_tests_import_read_or_run() -> None:
     """Rows 1791774523, 1791785471: the archive roots and the live repo."""
     iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
