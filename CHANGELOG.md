@@ -81,6 +81,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the kaizen hand-off grader reads MAIL_BEATS from the AST (W-d1e6573a) (2026-10-13)
 - `tests/test_mail_addressing.py::test_kaizen_sends_one_addressed_obligation_per_beat` was red on master since a90b35a3b (D-646) replaced the literal beat loop with `MAIL_BEATS`. It now reads the tuple and the send loop from the AST: the tuple holds infra, fleet and kaizen, the send passes `--to-agent` with the loop's beat, and no `--broadcast`/`--ack` appears anywhere in the loop — a flag appended after the argv list included.
 
+### Changed — a dependency claim is checked against the dependency's own cases (2026-10-14)
+- `commands/_fragments/review-probe-catalogue.md` premise bullet: a claim about what a dependency accepts or does (a guard over its keys, a docs sentence about its behaviour) is checked against every case the dependency defines for the keys or behaviour the claim covers — each branch and alias in its source at that version, else its versioned reference docs plus an executed probe — never only the cases the author listed. Answers /fabrik-review row 1791925061, a recurrence of the held subject from /fabrik-review-scoped row 1791919154 (libpq `requiressl`). Grader: `tests/test_review_scoped_queue_pass.py::test_a_dependency_claim_is_checked_against_the_dependencys_own_case_set`.
+
 ### Changed — a re-vendor brief checks the names the copy reads from its siblings (2026-10-13)
 - `commands/_fragments/review-probe-catalogue.md` premise bullet: what byte identity cannot show now also includes every name the vendored copy reads from each module vendored beside it (its `from … import` names and each `module.attr` use), each shown present in that module's copy — the copy can be byte-identical and still read a name a sibling lacks (/fabrik-task row 1791918689). Grader: the existing `test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim` pins the extended sentence.
 

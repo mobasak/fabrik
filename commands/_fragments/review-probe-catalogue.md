@@ -81,7 +81,11 @@ box: execute it, or name in the brief why the shape does not have it.
   implementation; ask whether an existing mechanism or fragment already covers the class, and whether the check fits a
   boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to a
   `fabrik-researcher` seat whose brief names the version the repo pins or deploys (its lockfile or spec line) and asks
-  for the claim at that version; a seat names the whole input class of a finding it raises; a re-vendor brief hands the
+  for the claim at that version; a claim about what a dependency accepts or does (a guard over its keys, a docs sentence
+  about its behaviour) is checked against every case the dependency defines for the keys or behaviour the claim covers
+  — each branch and alias in its source at that version, else its versioned reference docs plus an executed probe —
+  never only the cases the author listed; a seat names the whole input class of a finding it raises; a re-vendor brief
+  hands the
   seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack — the diff reads
   the source's COMMITTED blob at the SHA the copy records (a `VENDORED-FROM` header, else the `Vendored-From:` trailer
   of the commit that vendored it; HEAD when neither does: `git -C <source> show <sha>:<source path>`) against the copy
