@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — final_gate reads git's path lists from stdout only, NUL-split (2026-10-13)
+- `scripts/final_gate.py` parsed `run_cmd`'s merged stdout+stderr as file lists, so a git warning or `fatal:` line became a "filename" (the sqlfluff leg linted it, fleet 01M4RVW43D), and its `--name-only` reads were not `-z`, so a path holding a tab, a quote or a non-ASCII byte entered the gate's scope C-quoted as a name no file has (W-5c688a41). One helper, `_git_names`, now reads every path list (the staged, changed, writable, unpublished, added and untracked sets, the json/yaml/sql listings and the test-dir listing) from stdout alone with `-z`, or None when git fails. The GATE row's `final_gate.py:N` cites in both CLAUDE.md contracts move with the shifted lines.
+
 ### Changed — /fabrik-review fills the checklist before the in-progress gate run (2026-10-13)
 - § Reporting: fill every Coverage Checklist and Pass Ledger row before the close order; the in-progress run skips both checkers and an untracked receipt is skipped until staged (D-812).
 

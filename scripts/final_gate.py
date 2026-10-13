@@ -318,6 +318,8 @@ def run_cmd(
             cwd=cwd or PROJECT_ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",  # display text: a tool echoing a non-UTF-8 name must not crash the gate
             timeout=timeout,
             env=env,
         )
@@ -327,6 +329,32 @@ def run_cmd(
         return RC_TIMEOUT, f"Command timed out after {timeout}s"
     except FileNotFoundError:
         return 1, f"Command not found: {cmd[0]}"
+
+
+def _git_names(args: list[str], timeout: int | None = None) -> list[str] | None:
+    """The paths a git command lists, read from STDOUT ONLY and split on NUL (`-z` is added after the
+    subcommand). `run_cmd` merges stderr into its output — right for display, wrong for parsing: a
+    git warning or `fatal:` line became a "filename" (the sqlfluff leg linted it, fleet 01M4RVW43D),
+    and a `--name-only` read without `-z` C-quotes a path holding a tab, a quote or a non-ASCII byte,
+    so the gate scoped a name no file has (W-5c688a41). None when git fails or cannot run."""
+    env = os.environ.copy()
+    env["PROJECT_ROOT"] = str(PROJECT_ROOT)
+    try:
+        result = subprocess.run(
+            ["git", args[0], "-z", *args[1:]],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="surrogateescape",  # -z hands over raw bytes: any name round-trips, never raises
+            timeout=timeout or TIMEOUTS["default"],
+            env=env,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+    if result.returncode != 0:
+        return None
+    return [p for p in result.stdout.split("\0") if p]
 
 
 # ── TEST_DATABASE_URL for the pytest leg (W-e93160e3, mail 01M3S2A3) ──────────────────────────
@@ -1155,19 +1183,11 @@ def _uninvoked_test_dirs() -> list[str]:
     # `Path(".").glob("*/**/tests")` and died with OSError(ENOMEM) walking a repo that
     # carries a large untracked `vault/`. Tracked files are also the right SET: an
     # untracked scratch suite is nobody's contract.
-    try:
-        res = subprocess.run(
-            ["git", "ls-files", "*/test_*.py", "*/tests/*.py"],
-            capture_output=True,
-            text=True,
-            timeout=20,
-        )
-    except Exception:
-        return []
-    if res.returncode != 0:
+    listed = _git_names(["ls-files", "*/test_*.py", "*/tests/*.py"], timeout=20)
+    if listed is None:
         return []
     dirs = set()
-    for line in res.stdout.splitlines():
+    for line in listed:
         d = str(Path(line).parent)
         if d == "tests" or d.startswith("tests/"):
             continue  # the leg DOES invoke this one
@@ -1376,11 +1396,10 @@ def run_static_checks(
     # --- JSON validation (Tier 1 + Tier 2) ---
     import json
 
-    code, out = run_cmd(["git", "ls-files", "-z", "--", "*.json"])
     json_ok = True
     json_errors = []
-    if code == 0 and out:
-        files = [f for f in out.split("\0") if f]
+    files = _git_names(["ls-files", "--", "*.json"]) or []
+    if files:
         for f in files:
             path = PROJECT_ROOT / f
             if path.exists():
@@ -1395,8 +1414,7 @@ def run_static_checks(
     results.append(("check json", json_ok, "\n".join(json_errors)))
 
     # --- YAML validation (Tier 1 + Tier 2) ---
-    code, out = run_cmd(["git", "ls-files", "-z", "--", "*.yaml", "*.yml"])
-    yaml_files = [f for f in out.split("\0") if f] if code == 0 else []
+    yaml_files = _git_names(["ls-files", "--", "*.yaml", "*.yml"]) or []
     yaml_ok = True
     yaml_errors = []
     if yaml_files:
@@ -1638,9 +1656,11 @@ def run_static_checks(
 
     # SQLFluff (skip if no .sql files changed)
     if not changed or _has_extension(changed, ".sql"):
-        code, out = run_cmd(["git", "ls-files", "-z", "--", "*.sql"])
-        sql_files = [f for f in out.split("\0") if f]
-        if sql_files:
+        sql_files = _git_names(["ls-files", "--", "*.sql"])
+        if sql_files is None:
+            # git could not list them: say so, never a green "(no .sql files)" (review A-O3)
+            results.append(("sqlfluff-lint (NOT RUN — git ls-files failed)", True, ""))
+        elif sql_files:
             code, out = run_cmd(
                 [PYTHON, "-m", "sqlfluff", "lint", "--dialect", "postgres"] + sql_files,
                 timeout=TIMEOUTS["sqlfluff"],
@@ -2803,10 +2823,7 @@ def get_staged_files() -> set[str]:
     files (picking up gate autofixes) without sweeping unrelated, concurrently
     edited files into the commit. See stage_changes().
     """
-    code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
-    if code != 0 or not out:
-        return set()
-    return {f for f in out.strip().split("\n") if f}
+    return set(_git_names(["diff", "--name-only", "--cached"]) or [])
 
 
 def stage_changes(paths: set[str] | None = None) -> tuple[bool, str]:
@@ -2922,25 +2939,23 @@ def _unpublished_files() -> set[str]:
     refs = _published_refs()
     if not refs:
         return set()
-    code, out = run_cmd(
-        ["git", "log", "--format=", "--name-only", "--diff-merges=remerge", "HEAD", "--not", *refs]
+    logged = _git_names(
+        ["log", "--format=", "--name-only", "--diff-merges=remerge", "HEAD", "--not", *refs]
     )
     base = _diff_base()
-    if code != 0:
+    if logged is None:
         # a git that rejects --diff-merges (< 2.36) must not silently empty the scope: fall back
         # to the previous `base...HEAD` diff, wider but never blind (review A-S3)
-        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"]) if base else (1, "")
-        return {f for f in out.split("\n") if f.strip()} if code == 0 else set()
-    touched = {f for f in out.split("\n") if f.strip()}
+        wide = _git_names(["diff", "--name-only", f"{base}...HEAD"]) if base else None
+        return set(wide or [])
+    touched = set(logged)
     # NET change only: a file the session's own commits created and deleted again (or edited and
     # reverted) is not something it publishes — keep what differs from a boundary commit (A-S2)
     code, bnd = run_cmd(["git", "rev-list", "--boundary", "HEAD", "--not", *refs])
     net: set[str] = set()
     for line in bnd.split("\n") if code == 0 else []:
         if line.startswith("-"):
-            c, d = run_cmd(["git", "diff", "--name-only", line[1:].strip(), "HEAD"])
-            if c == 0:
-                net.update(f for f in d.split("\n") if f.strip())
+            net.update(_git_names(["diff", "--name-only", line[1:].strip(), "HEAD"]) or [])
     return touched & net
 
 
@@ -2965,13 +2980,9 @@ def get_changed_files() -> set[str]:
     # Committed but not yet published (the session's own commits) — see _unpublished_files.
     changed.update(_unpublished_files())
     # Staged changes (includes staged-NEW files — the authored path for new files)
-    code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
-    if code == 0 and out:
-        changed.update(f for f in out.strip().split("\n") if f)
+    changed.update(_git_names(["diff", "--name-only", "--cached"]) or [])
     # Unstaged changes (modifications to tracked files)
-    code, out = run_cmd(["git", "diff", "--name-only"])
-    if code == 0 and out:
-        changed.update(f for f in out.strip().split("\n") if f)
+    changed.update(_git_names(["diff", "--name-only"]) or [])
     return changed
 
 
@@ -2993,9 +3004,7 @@ def get_writable_files() -> set[str]:
     time. `--fix-all` opts back into fixing the whole change set for a solo tree.
     """
     writable: set[str] = set(_unpublished_files())
-    code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
-    if code == 0 and out:
-        writable.update(f for f in out.strip().split("\n") if f)
+    writable.update(_git_names(["diff", "--name-only", "--cached"]) or [])
     return writable
 
 
@@ -3013,12 +3022,12 @@ def _warn_untracked_sources(emit: bool = True) -> str | None:
     the caller passes emit=False and routes the message into the JSON `warnings` array
     instead (a bare print there would corrupt the JSON stream agents parse).
     """
-    code, out = run_cmd(["git", "ls-files", "--others", "--exclude-standard"])
-    if code != 0 or not out:
+    others = _git_names(["ls-files", "--others", "--exclude-standard"])
+    if not others:
         return None
     src = [
         f
-        for f in out.strip().split("\n")
+        for f in others
         # The gate's own scannable surface: lint/fix targets (_FIXABLE_TEXT_EXTS) + node/sql sources.
         if f.endswith((".py", ".js", ".ts", ".tsx", ".sql", ".sh", ".md", ".yaml", ".yml", ".json"))
     ]
@@ -3076,9 +3085,8 @@ def _added_files() -> set[str]:
 
     def _new(args: list[str]) -> set[str]:
         # -z: git's own bytes, never C-quoted (a quoted name split on tabs stored escapes, A-S4)
-        code, out = run_cmd(["git", "diff", "-z", "--name-status", "--diff-filter=AR", *args])
         found: set[str] = set()
-        tokens = out.split("\0") if code == 0 else []
+        tokens = _git_names(["diff", "--name-status", "--diff-filter=AR", *args]) or []
         i = 0
         while i < len(tokens):
             status = tokens[i].strip()
@@ -3294,6 +3302,13 @@ def run_iteration(
 
 def main() -> int:
     """Run the final gate checks with iteration loop."""
+    # a path `_git_names` read from raw bytes may hold a surrogate escape; printing it must never
+    # crash the gate (review A-O4) — the gate's own streams escape what they cannot encode
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="backslashreplace")
+        except (AttributeError, ValueError):
+            pass
     args = parse_args()
 
     # transdoc 1.2: fail SETUP loudly instead of returning a tree verdict the
