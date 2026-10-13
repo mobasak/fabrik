@@ -33,6 +33,7 @@ def _env(tmp_path: Path, agent: str | None = None) -> dict[str, str]:
         "FABRIK_MAIL_ROOT": str(tmp_path / "tmp" / "mail"),
         "COMMAND_RUN_DIR": str(tmp_path / "tmp" / "state" / "command-runs"),
         "AGENT_IDENTITY_FILE": str(tmp_path / "tmp" / "identity.jsonl"),
+        "FABRIK_WORK_PROC": os.environ.get("FABRIK_WORK_PROC", ""),  # conftest pin
     }
     if agent is not None:
         env["CLAUDE_AGENT"] = agent
@@ -456,3 +457,263 @@ def test_under_autonomy_the_merge_rung_fingerprint_names_its_first_waiting_item(
     assert out["action"] == "merge", out
     fp = out["fp"]
     assert fp.startswith("rung:merge:W-") and fp[len("rung:merge:") :] in _owned(repo, "w1"), out
+
+
+# --- print mode: a headless `claude -p` session takes no new work (iie 01M4PAJWV1) ---------------
+
+_VSCODE_ARGV = (
+    "/x/native-binary/claude",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--input-format",
+    "stream-json",
+    "--max-thinking-tokens",
+    "31999",
+    "--permission-prompt-tool",
+    "stdio",
+)
+
+
+def _work():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("work_print_mode", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _fake_chain(
+    tmp_path: Path, *argvs: tuple[str, ...], exe: str | None = None
+) -> tuple[Path, int]:
+    """A fake proc root holding a parent chain: argvs[0] is the direct parent, each next one its
+    parent. Returns (root, the direct parent's pid)."""
+    root = tmp_path / "fakeproc"
+    root.mkdir(parents=True, exist_ok=True)
+    pids = list(range(500, 500 + len(argvs)))
+    for i, (pid, argv) in enumerate(zip(pids, argvs, strict=True)):
+        d = root / str(pid)
+        d.mkdir()
+        (d / "cmdline").write_bytes(b"\0".join(a.encode() for a in argv) + b"\0")
+        ppid = pids[i + 1] if i + 1 < len(pids) else 1
+        (d / "stat").write_text(f"{pid} (x y) S {ppid} 0 0\n", encoding="utf-8")
+        if exe and i == len(argvs) - 1:
+            os.symlink(exe, d / "exe")
+    return root, pids[0]
+
+
+def test_print_mode_reads_the_nearest_claude_ancestor(tmp_path, monkeypatch):
+    w = _work()
+    for env_name in ("FABRIK_HEADLESS", "CLAUDE_MESH_HEADLESS"):
+        monkeypatch.delenv(env_name, raising=False)
+    for flag in ("-p", "--print"):
+        root, ppid = _fake_chain(
+            tmp_path / flag.strip("-"), ("bash", "-c", "x"), ("/usr/bin/claude", flag, "do it")
+        )
+        monkeypatch.setenv("FABRIK_WORK_PROC", str(root))
+        monkeypatch.setattr(w.os, "getppid", lambda p=ppid: p)
+        assert w._print_mode() is True, flag
+    # the resolved native binary (`…/claude/versions/2.1.296`) is found through exe
+    root, ppid = _fake_chain(
+        tmp_path / "native",
+        ("sh", "-c", "x"),
+        ("/home/u/.local/share/claude/versions/2.1.296", "-p", "q"),
+        exe="/home/u/.local/share/claude/versions/2.1.296",
+    )
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(root))
+    monkeypatch.setattr(w.os, "getppid", lambda: ppid)
+    assert w._print_mode() is True
+    # a real process: work.py's parent is a `claude` whose argv holds -p
+    out = subprocess.run(
+        [
+            "bash",
+            "-c",
+            f'exec -a claude bash -c "{sys.executable} -c \\"import importlib.util as u; '
+            f"s=u.spec_from_file_location('w','{SCRIPT}'); m=u.module_from_spec(s); "
+            f's.loader.exec_module(m); print(m._print_mode())\\"; true" -p',
+        ],
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin")},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert out.stdout.strip() == "True", out
+
+
+def test_print_mode_is_false_for_interactive_missing_or_unreadable(tmp_path, monkeypatch):
+    w = _work()
+    for env_name in ("FABRIK_HEADLESS", "CLAUDE_MESH_HEADLESS"):
+        monkeypatch.delenv(env_name, raising=False)
+    cases = {
+        "vscode": [("bash", "-c", "x"), _VSCODE_ARGV],  # `--permission-prompt-tool` holds b"-p"
+        "after-dashdash": [("bash",), ("claude", "--", "-p")],
+        "no-claude": [("bash",), ("sshd",), ("init",)],
+        "decoy": [("bash",), ("claude", "--print-config", "-pv")],
+    }
+    for name, chain in cases.items():
+        root, ppid = _fake_chain(tmp_path / name, *chain)
+        monkeypatch.setenv("FABRIK_WORK_PROC", str(root))
+        monkeypatch.setattr(w.os, "getppid", lambda p=ppid: p)
+        assert w._print_mode() is False, name
+    # a parent with no readable cmdline, and an unreadable root
+    root, ppid = _fake_chain(tmp_path / "nocmd", ("bash",), ("claude", "-p"))
+    (root / str(ppid + 1) / "cmdline").unlink()
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(root))
+    monkeypatch.setattr(w.os, "getppid", lambda: ppid)
+    assert w._print_mode() is False
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "does-not-exist"))
+    assert w._print_mode() is False
+
+
+def test_print_mode_honours_the_headless_labels(tmp_path, monkeypatch):
+    w = _work()
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "noproc"))
+    for env_name in ("FABRIK_HEADLESS", "CLAUDE_MESH_HEADLESS"):
+        monkeypatch.delenv("FABRIK_HEADLESS", raising=False)
+        monkeypatch.delenv("CLAUDE_MESH_HEADLESS", raising=False)
+        assert w._print_mode() is False
+        monkeypatch.setenv(env_name, "1")
+        assert w._print_mode() is True, env_name
+
+
+def _autonomy(repo: Path) -> None:
+    cfg = repo / ".fabrik" / "work" / "config.json"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    data["autonomy"] = True
+    cfg.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def test_queue_stop_in_print_mode_keeps_only_own_claim_subjects(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    _autonomy(repo)
+    queued = _add(repo, env, "task", "for coord")
+    _assign(repo, env, queued, "coord")
+    assert run(["commit-items"], env, repo).returncode == 0
+    interactive = _stop(repo, env)
+    assert interactive["action"], interactive  # the ladder orders work in a window
+    headless = {**env, "FABRIK_HEADLESS": "1"}
+    bare = _stop(repo, headless)
+    assert bare["action"] is None and bare.get("reason") == "print-mode", bare
+    assert "candidates" not in bare, bare  # a null action carrying candidates still blocks
+    mine = _add(repo, env, "task", "held by this session")
+    assert run(["claim", mine, "--session", SID], env, repo).returncode == 0
+    assert run(["commit-items"], env, repo).returncode == 0
+    held = _stop(repo, headless)
+    acts = {c["action"] for c in held.get("candidates") or [held]}
+    assert acts <= {"continue", "release"} and held["action"] in ("continue", "release"), held
+
+
+def test_prompt_block_in_print_mode_keeps_only_own_claims(tmp_path, monkeypatch):
+    env, repo, _ = _setup(tmp_path)
+    free = _add(repo, env, "task", "free")
+    mine = _add(repo, env, "task", "mine")
+    assert run(["claim", mine, "--session", SID], env, repo).returncode == 0
+    w = _work()
+    monkeypatch.setenv("FABRIK_WORK_PROC", env["FABRIK_WORK_PROC"])
+    monkeypatch.delenv("FABRIK_HEADLESS", raising=False)
+    monkeypatch.delenv("CLAUDE_MESH_HEADLESS", raising=False)
+    full = w.prompt_block(repo, SID)
+    assert f"your claim — {mine}" in full and "ready" in full, full
+    monkeypatch.setenv("FABRIK_HEADLESS", "1")
+    lines = w.prompt_block(repo, SID).splitlines()
+    assert lines and all("your claim" in ln for ln in lines), lines
+    assert free not in "\n".join(lines)
+
+
+def test_a_print_mode_claude_is_not_a_present_worker(tmp_path):
+    env, repo, trees = _setup(tmp_path, workers=("w1",), present=("w1",))
+    proc = Path(env["FABRIK_WORK_PROC"])
+    entry = next(d for d in proc.iterdir() if (d / "comm").read_text().strip() == "claude")
+    (entry / "cmdline").write_bytes(b"claude\0-p\0copy this\0")
+    for n in range(4):
+        _add(repo, env, "task", f"t{n}")
+    applied = run(["triage", "--apply"], env, repo)
+    assert applied.returncode == 0, applied.stderr
+    owners = {i.get("owner", "") for i in _items(repo).values()}
+    assert "w1" not in owners, "a claude -p child in w1's tree is not a present worker"
+
+
+def _proc_entry(root: Path, pid: int, argv: tuple[str, ...] | None, ppid: int) -> None:
+    d = root / str(pid)
+    d.mkdir(parents=True)
+    if argv is not None:
+        (d / "cmdline").write_bytes(b"\0".join(a.encode() for a in argv) + b"\0")
+    (d / "stat").write_text(f"{pid} (x) S {ppid} 0 0\n", encoding="utf-8")
+
+
+def test_print_mode_walk_edges_from_review(tmp_path, monkeypatch):
+    """Review round 1: pid 1 is inspected (a container's `claude -p` entrypoint), an unreadable
+    intermediate is climbed past, and only claude's own cli.js counts as claude."""
+    w = _work()
+    for env_name in ("FABRIK_HEADLESS", "CLAUDE_MESH_HEADLESS"):
+        monkeypatch.delenv(env_name, raising=False)
+    cases = {
+        "pid1-claude-p": ([(50, ("bash",), 1), (1, ("claude", "-p", "x"), 0)], 50, True),
+        "unreadable-middle": ([(60, None, 61), (61, ("claude", "-p"), 1)], 60, True),
+        "claude-cli-js": (
+            [(70, ("node", "/n/lib/@anthropic-ai/claude-code/cli.js", "-p"), 1)],
+            70,
+            True,
+        ),
+        "worktree-cli-js": (
+            [
+                (90, ("node", "/p/.claude/worktrees/w1/node_modules/x/cli.js", "-p", "1"), 91),
+                (91, _VSCODE_ARGV, 1),
+            ],
+            90,
+            False,
+        ),
+        "foreign-cli-js": (
+            [(80, ("node", "tools/cli.js", "-p", "8080"), 81), (81, _VSCODE_ARGV, 1)],
+            80,
+            False,
+        ),
+    }
+    for name, (entries, ppid, want) in cases.items():
+        root = tmp_path / name
+        for pid, argv, parent in entries:
+            _proc_entry(root, pid, argv, parent)
+        monkeypatch.setenv("FABRIK_WORK_PROC", str(root))
+        monkeypatch.setattr(w.os, "getppid", lambda p=ppid: p)
+        assert w._print_mode() is want, name
+
+
+def test_print_mode_stop_keeps_identity_and_errors():
+    w = _work()
+    out = w._print_mode_stop({"agent": "a", "role": "worker", "action": None, "error": "boom"})
+    assert out["agent"] == "a" and out["role"] == "worker" and out["error"] == "boom", out
+    assert out["action"] is None and "candidates" not in out, out
+
+
+def test_queue_stop_under_a_real_claude_p_parent_is_null(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    _autonomy(repo)
+    _assign(repo, env, _add(repo, env, "task", "for coord"), "coord")
+    assert run(["commit-items"], env, repo).returncode == 0
+    env = {k: v for k, v in env.items() if k != "FABRIK_WORK_PROC"}  # the real /proc
+    cmd = f"{sys.executable} {SCRIPT} queue --stop --session {SID} --cwd {repo}; true"
+    out = subprocess.run(
+        ["bash", "-c", f'exec -a claude bash -c "{cmd}" -p'],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    got = json.loads(out.stdout.strip().splitlines()[0])
+    assert got["action"] is None and got["reason"] == "print-mode", (got, out.stderr)
+
+
+def test_prompt_block_in_print_mode_keeps_the_more_claims_line(tmp_path, monkeypatch):
+    env, repo, _ = _setup(tmp_path)
+    w = _work()
+    for n in range(w.PROMPT_CLAIM_LINES + 2):
+        item = _add(repo, env, "task", f"mine {n}")
+        assert run(["claim", item, "--session", SID], env, repo).returncode == 0
+    monkeypatch.setenv("FABRIK_WORK_PROC", env["FABRIK_WORK_PROC"])
+    monkeypatch.setenv("FABRIK_HEADLESS", "1")
+    lines = w.prompt_block(repo, SID).splitlines()
+    assert any(ln.startswith("work: … and ") for ln in lines), lines
+    assert sum(ln.startswith("work: your claim — ") for ln in lines) == w.PROMPT_CLAIM_LINES

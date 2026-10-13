@@ -32,7 +32,12 @@ def run(args: list[str], stdin: str = "", env_dir: Path | None = None) -> tuple[
         input=stdin,
         capture_output=True,
         text=True,
-        env={"THREAD_ANCHOR_DIR": str(env_dir)} if env_dir else None,
+        env={
+            "THREAD_ANCHOR_DIR": str(env_dir),
+            "FABRIK_WORK_PROC": os.environ.get("FABRIK_WORK_PROC", ""),  # conftest pin
+        }
+        if env_dir
+        else None,
     )
     return proc.returncode, proc.stdout
 
@@ -225,6 +230,7 @@ def _env(tmp_path: Path) -> dict[str, str]:
         "COMMAND_RUN_DIR": str(tmp_path / "runs"),
         # hermetic: the prompt block's obligation lines never read the real mailbox
         "FABRIK_MAIL_ROOT": str(tmp_path / "tmp" / "mail"),
+        "FABRIK_WORK_PROC": os.environ.get("FABRIK_WORK_PROC", ""),  # conftest pin
         "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_AUTHOR_NAME": "t",
         "GIT_AUTHOR_EMAIL": "t@example.invalid",

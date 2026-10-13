@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a headless `claude -p` child no longer gets the work queue's claim orders (2026-10-13)
+- `scripts/work.py` gains `_print_mode()`: a labelled headless run, or one whose nearest `claude` ancestor runs with `-p`/`--print`, keeps only its own claims' `continue`/`release` subjects in `queue --stop` (else a bare null, `reason: print-mode`) and only its own-claim lines in the prompt block, and a `-p` claude is never counted as a present worker. A child a project's code spawns inherits its parent's entrypoint, so only its own argv tells it apart; in iterative_image_editor the Stop hook's "claim W-…" order turned 3 of 14 strict-JSON drafts into prose (01M4PAJWV1, D-809). The suite pins the labels and the proc root in `tests/conftest.py`, so it grades the same under a `-p` dispatcher.
+
 ### Changed — review probes remap a shifted cite by content in one script (2026-10-13)
 - The Sweep line remaps a `path:line` cite a merge or edit shifted by the symbol the prose names, never by hand (D-810).
 
