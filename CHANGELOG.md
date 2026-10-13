@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — a run closed at the quota wall is resumed, not restarted: `blocked --wall` keeps a seed, `start --resume-from` carries it (2026-10-13)
+
+- `scripts/command_run.py`, `.claude/hooks/quota_stop.py` (infra W-28f260c3 from sp3 01M49B2E91 / W-746e8b5a; D-826): the wall
+  text told a held session to close its run record and named no way back; the session's next `start` overwrote the record, so the successor's
+  quiet round read as "round 1 is the full pass" (the closing pass recorded twice, the class ledger restarted) and `done --commit` refused
+  every pre-wall commit (the SIZE declaration, design and amends had to be re-recorded by hand). `blocked --wall` (or the hook's own phrase in
+  `--reason`) marks the record and keeps a JSON seed under `<state>/seeds/`; `start --resume-from <seed>` carries rounds, classes, declaration,
+  design, amends, phase, terminal, `surface_adds`, `waived_reviews` and `phase_marks`, keeps the record's OWN start clock, and carries the
+  original as `origin_epoch`/`origin_started_at` + `gap_s`: the commit binding and the review windows read the origin, budget and appetite read
+  active time, the ledger rows pair (`wall: quota` on the wall row; `resumed_from`, `gap_s`, `rounds_before_resume` on the resumed row). Eight
+  bad seed shapes are refused (nested walls resume the parent first); a seed write failure warns and the close proceeds. The wall text and
+  CLAUDE.md's RED clause name both verbs; `docs/reference/command-run-protocol.md` documents them; the run_close event carries
+  `wall` and `resumed_from_start` (docs/workstation/kaizen-event-stream.md). Seven graders red-first in `tests/test_command_run.py`
+  and `tests/test_quota_stop_hook.py`; the phase-4 /fabrik-review (11 → 9 confirmed → 0 over 2 passes) fixed the phase-review
+  refusal's cutoff label to the origin clock, made the RED hint case-sensitive with a conditional NOTE, and shortened the hook text
+  so every admitted sid (up to 80 chars) stays under the one-message pin. Ships to the ~46 synced repos on merge; fabrik-lib re-vendors.
+
 ### Fixed — check_plan_tickets never-route covers the `scripts/final_gate*` filename FAMILY, not the hub's gate file alone (2026-10-13)
 
 - `scripts/enforcement/check_plan_tickets.py` (fabrik-lib finding 01M494TQ3E, SB-108, W-2e6c1b0b; D-824): `NEVER_ROUTE_PREFIXES`
