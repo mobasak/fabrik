@@ -762,10 +762,10 @@ def test_pin_from_a_ref_and_dirty_marker(tmp_path: Path) -> None:
     got = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p1"), "--from", "HEAD", "a.py")
     assert got.returncode == 0, got.stderr
     assert (tmp_path / "p1" / "a.py").read_text() == "A = 1\n"
-    assert "DIRTY" not in got.stdout
+    assert "DIRTY" not in got.stderr
     wt = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p2"), "a.py", "sub/b.py")
     assert wt.returncode == 0, wt.stderr
-    assert "DIRTY a.py" in wt.stdout and "DIRTY sub/b.py" not in wt.stdout, wt.stdout
+    assert "DIRTY a.py" in wt.stderr and "DIRTY sub/b.py" not in wt.stderr, wt.stderr
     assert json.loads((tmp_path / "p2" / "MANIFEST.json").read_text())["source"] == "working-tree"
     assert json.loads((tmp_path / "p1" / "MANIFEST.json").read_text())["source"] != "working-tree"
 
@@ -898,7 +898,7 @@ def test_pin_base_skips_an_absolute_link_and_names_it(tmp_path: Path) -> None:
     got = _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py")
     assert got.returncode == 0, got.stderr
     frag = json.loads(got.stdout.splitlines()[-1])
-    assert frag["base_skipped"] == ["vault"] and "SKIPPED vault" in got.stdout, (frag, got.stdout)
+    assert frag["base_skipped"] == ["vault"] and "SKIPPED vault" in got.stderr, (frag, got.stderr)
     assert (Path(frag["base_pin_dir"]) / "a.py").is_file()
     assert not (Path(frag["base_pin_dir"]) / "vault").exists()
 
@@ -1249,7 +1249,7 @@ def test_pin_writes_the_change_diff_from_its_basis(tmp_path: Path) -> None:
     ref = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p2"), "--from", "HEAD", "a.py")
     assert "-A = 1\n+A = 2" in (tmp_path / "p2" / "change.diff").read_text(), ref.stdout
     based = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p3"), "--base", "HEAD~1", "a.py")
-    assert based.returncode == 0 and "UNCHANGED" not in based.stdout, based.stdout
+    assert based.returncode == 0 and "UNCHANGED" not in based.stderr, based.stderr
     assert "+A = 2" in (tmp_path / "p3" / "change.diff").read_text(), "--base wins over HEAD"
 
 
@@ -1260,7 +1260,7 @@ def test_pin_names_an_unchanged_pin_and_reserves_change_diff(tmp_path: Path) -> 
     (repo / "a.py").write_text("A = 2\n")
     got = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p1"), "a.py", "sub/b.py")
     assert got.returncode == 0, got.stderr
-    assert "UNCHANGED sub/b.py" in got.stdout and "UNCHANGED a.py" not in got.stdout, got.stdout
+    assert "UNCHANGED sub/b.py" in got.stderr and "UNCHANGED a.py" not in got.stderr, got.stderr
     assert json.loads(got.stdout.splitlines()[-1])["unchanged"] == ["sub/b.py"]
     (repo / "change.diff").write_text("x\n")
     out = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p2"), "change.diff")
@@ -1316,3 +1316,19 @@ def test_next_refuses_a_pass_file_read_before_the_workflow_ended(tmp_path: Path)
     (tmp_path / "x").mkdir()
     assert _tool("read", str(_run_dir(tmp_path / "x")), "--out", str(old)).returncode == 0
     assert _tool("next", str(old), "--ids", "A-S1").returncode == 0
+
+
+def test_pin_stdout_is_the_fragment_alone(tmp_path: Path) -> None:
+    """kaizen 01M4V6VQ8V (/fabrik-review row 1791913338): DIRTY and UNCHANGED lines printed on stdout ahead of the
+    JSON, so a caller could not hand stdout to a Workflow launch whole. Advisories go to stderr; stdout is ONE JSON
+    document."""
+    repo = _repo(tmp_path)
+    (repo / "a.py").write_text("A = 2\n")
+    got = _tool_in(
+        repo, "pin", "--pins-dir", str(tmp_path / "p"), "--base", "HEAD", "a.py", "sub/b.py"
+    )
+    assert got.returncode == 0, got.stderr
+    frag = json.loads(got.stdout)
+    assert frag["pins_dir"] == str(tmp_path / "p"), frag
+    assert frag["dirty"] == ["a.py"] and frag["unchanged"] == ["sub/b.py"], frag
+    assert "DIRTY a.py" in got.stderr and "UNCHANGED sub/b.py" in got.stderr, got.stderr
