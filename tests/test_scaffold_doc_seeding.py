@@ -482,10 +482,22 @@ def test_pgurl_rewrites_a_driver_dsn_for_libpq():
         "postgresql+asyncpg://shop@10.99.0.1:5432/shop?ssl=require": (
             "postgresql://shop@10.99.0.1:5432/shop?sslmode=require"
         ),
-        "postgresql+psycopg://u@h/d?application_name=x&ssl=prefer&ssl=disable": (
-            "postgresql://u@h/d?application_name=x&sslmode=prefer&sslmode=disable"
+        "postgresql+psycopg://u@h/d?application_name=x&ssl=prefer": (
+            "postgresql://u@h/d?application_name=x&sslmode=prefer"
         ),
+        # sslcert/sslkey/sslrootcert are not ssl= — only the bare key is renamed
+        "postgresql://u@h/d?sslcert=c&sslkey=k&ssl=require": "postgresql://u@h/d?sslcert=c&sslkey=k&sslmode=require",
         "postgres+asyncpg://u@h/d": "postgres://u@h/d",
+        "postgres://u@h/d?ssl=require": "postgres://u@h/d?sslmode=require",  # the plain postgres scheme
+        # a percent-encoded VALUE and a glob stay as written (set -f: no pathname expansion of the query)
+        "postgresql://u@h/d?application_name=my%20app&sslmode=require": (
+            "postgresql://u@h/d?application_name=my%20app&sslmode=require"
+        ),
+        "postgresql://u@h/d?application_name=a*b&ssl=require": "postgresql://u@h/d?application_name=a*b&sslmode=require",
+        # an ENCODED `?` in the password is fine — only the raw character splits the DSN (review pgurl-O8)
+        "postgresql://u:p%3Fx@h/d?ssl=require": "postgresql://u:p%3Fx@h/d?sslmode=require",
+        # no userinfo, an `@` in a query value: libpq reads no credentials here and neither does pgurl
+        "postgresql://h/d?application_name=a@b&ssl=require": "postgresql://h/d?application_name=a@b&sslmode=require",
         "postgresql+asyncpg:///db?host=/var/run/postgresql": "postgresql:///db?host=/var/run/postgresql",
         "postgresql://u:a&ssl=x@h/my&ssl=db": "postgresql://u:a&ssl=x@h/my&ssl=db",
         "postgresql://u:p+asyncpg@h/d": "postgresql://u:p+asyncpg@h/d",
@@ -508,19 +520,73 @@ def test_pgurl_rewrites_a_driver_dsn_for_libpq():
     for bad in (
         "postgresql://o:p@h/d # note",
         'postgresql://o:p@h/d"',
-        "'postgresql://o:p@h/d'",
+        "postgresql://o:p'x@h/d",  # the quote AFTER the scheme: the quote arm, never the scheme arm
         "postgresql://o:p\\x@h/d",
         "postgresql://o:p@h/d\r",
     ):
         r = subprocess.run(
-            ["sh", "-c", definition + '\nu=$(pgurl "$1") && echo RAN', "sh", bad], capture_output=True, text=True
+            ["sh", "-c", definition + '\nu=$(pgurl "$1") && echo RAN', "sh", bad],
+            capture_output=True,
+            text=True,
         )
-        assert r.returncode != 0 and "RAN" not in r.stdout and "pgurl:" in r.stderr, (bad, r.stdout, r.stderr)
+        assert r.returncode != 0 and "RAN" not in r.stdout and "pgurl:" in r.stderr, (
+            bad,
+            r.stdout,
+            r.stderr,
+        )
     for good in ("postgresql://o:p%40w%23x@h/d?sslmode=require", "postgresql://o:p#x@h/d"):
         r = subprocess.run(
-            ["sh", "-c", definition + '\npgurl "$1"', "sh", good], capture_output=True, text=True, check=True
+            ["sh", "-c", definition + '\npgurl "$1"', "sh", good],
+            capture_output=True,
+            text=True,
+            check=True,
         )
         assert r.stdout.strip() == good, (good, r.stdout)
+    # fabrik-lib 01M4TP1W (2026-10-13), both executed against psql 16: (a) libpq keeps the LAST of duplicate
+    # sslmode keys silently, so `?sslmode=require&ssl=disable` renamed blindly connects WITHOUT TLS — more than
+    # one ssl/sslmode key is refused before the rename; (b) the recipe has no `--` before "$u", so a value
+    # `-o/etc/<file>` reaches root's psql as an option (psql truncates the file before connecting) — only a
+    # postgres://, postgresql:// or +driver form is accepted. Fail-closed hardening: whoever writes .env.owner
+    # is already root, but a refused line beats a silent downgrade or a truncated file.
+    for bad, needle in (
+        ("postgresql://u@h/d?sslmode=require&ssl=disable", "more than one ssl"),
+        ("postgresql://u@h/d?ssl=require&sslmode=disable", "more than one ssl"),
+        ("postgresql://u@h/d?ssl=prefer&ssl=disable", "more than one ssl"),
+        ("postgresql://u@h/d?sslmode=require&x=1&sslmode=disable", "more than one ssl"),
+        ("-o/etc/passwd", "not a postgres DSN"),
+        ("mysql://u@h/d", "not a postgres DSN"),
+        ("u@h/d?sslmode=require", "not a postgres DSN"),
+        ("POSTGRESQL://u@h/d", "not a postgres DSN"),
+        # a +driver the rewrite cannot strip is refused, never printed unchanged (review pgurl-S1/O6):
+        # upper-case, a second `+`, a `.`/`-`, an empty driver
+        ("postgresql+AsyncPG://u@h/d?ssl=require", "not a postgres DSN"),
+        ("postgresql+asyncpg+x://u@h/d", "not a postgres DSN"),
+        ("postgresql+psycopg.3://u@h/d", "not a postgres DSN"),
+        ("postgres+://u@h/d", "not a postgres DSN"),
+        # libpq percent-decodes query KEYS: `%73slmode` IS sslmode, so the duplicate check alone is blind (pgurl-O1)
+        ("postgresql://u@h/d?sslmode=require&%73slmode=disable", "percent-encoded query KEY"),
+        ("postgresql://u@h/d?ssl%6dode=disable&sslmode=require", "percent-encoded query KEY"),
+        # a raw `?` in the password: libpq scans for `@` first, so ITS query starts later than pgurl's split —
+        # the hidden second sslmode would pass both checks (review pgurl-O8, executed: rc 0 before this arm)
+        (
+            "postgresql://u:p?x=y@h/d?%73slmode=disable&sslmode=require",
+            "a ? in the user:password part",
+        ),
+        ("postgresql://u:p?@h/d?sslmode=require", "a ? in the user:password part"),
+        # a still-quoted or space-wrapped line is told the REAL cause — the quote arm runs before the scheme arm (pgurl-O5)
+        ("'postgresql://o:p@h/d'", "whitespace, a quote or a backslash"),
+        (" postgresql://o:p@h/d", "whitespace, a quote or a backslash"),
+    ):
+        r = subprocess.run(
+            ["sh", "-c", definition + '\nu=$(pgurl "$1") && echo RAN', "sh", bad],
+            capture_output=True,
+            text=True,
+        )
+        assert r.returncode != 0 and "RAN" not in r.stdout and needle in r.stderr, (
+            bad,
+            r.stdout,
+            r.stderr,
+        )
 
 
 def test_readme_template_carries_every_section_the_readme_gate_requires():
