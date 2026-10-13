@@ -115,31 +115,34 @@ or name in the brief why the shape does not have it.
   terms against the section it cites.
 - Claims: every factual sentence of an edited paragraph re-derived, every newly rendered table cell included, and a
   corrected fact stated at the original claim's scope; every clause on a count-fixed line, and every reworded README
-  claim, checked against the code lines it names; a count cites the command (with its range — the brief hands the seat
-  that exact command) and the line that holds it, a measured count names its population, a closing brief names each
-  figure's source and the record's own round trend, a live value is a timestamped snapshot; a code snippet in prose is
-  a checkable claim; an evidence block in a report or receipt pastes the artifact's section whole and names the file
-  it was copied from, by path and md5 (one that elides is a claim, not evidence); an unverified hand-derived
-  enumeration is deleted.
+  claim, checked against the code lines it names, and a sentence describing a matcher or regex executed over its input
+  space (punctuation, underscore, empty) before the pin; a count cites the command (with its range — the brief hands
+  the seat that exact command) and the line that holds it, a measured count names its population, a closing brief
+  names each figure's source and the record's own round trend, a live value is a timestamped snapshot; a code snippet
+  in prose is a checkable claim; an evidence block in a report or receipt pastes the artifact's section whole and
+  names the file it was copied from, by path and md5 (one that elides is a claim, not evidence); an unverified
+  hand-derived enumeration is deleted.
 - A site a round re-opened, a bullet wrong two rounds running, or a mechanism the fix added and a round broke, is
   rewritten or deleted whole, never patched again.
 
 ## Seat isolation
-- Seats copy the pin to scratch and assert its md5s first; tests run against an archive of the pinned SHA by the seat
+- The brief names the fix as `git show <sha>` — each sha when the fix spans several commits — or a pathspec-scoped
+  diff, never a bare range on a branch others commit to (a range carries every sibling commit landed in it). Seats
+  copy the pin to scratch and assert its md5s first; tests run against an archive of the pinned SHA by the seat
   prompt's `PIN_IMPORT`/`PYTEST_PINS` recipe — the whole test tree archived so collection succeeds, the live repo's
   `.venv` python (never `uv run`), no `.env` copied (a dummy on `.invalid` only for an import-failing variable). The
   recipe names its roots by what the tests import, so the brief extends it to every top-level path the tests import,
   read or run (a test that renders `templates/`, reads `.windsurf/` or runs `scripts/` by subprocess is a false red
-  without it) and names the live repo as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a
-  worktree. The pins line follows the real layout and the digest is the pin authority. A SEAT never runs `git worktree
-  add` (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive copy by
-  `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a
-  `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo root with
-  the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the same path);
-  tests run by exact node id. A script a seat runs is run from its archive copy with every path argument under scratch
-  (a script may treat any argument as a write path), and the pin carries the changed files' one-hop callees that are
-  repo files (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo
-  root).
+  without it) and names the live repo as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from
+  a worktree. The pins line follows the real layout and the digest is the pin authority. A SEAT never runs `git
+  worktree add` (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive
+  copy by `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree,
+  never a `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo
+  root with the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the
+  same path); tests run by exact node id. A script a seat runs is run from its archive copy with every path argument
+  under scratch (a script may treat any argument as a write path), and the pin carries the changed files' one-hop
+  callees that are repo files (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink
+  or outside the repo root).
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word

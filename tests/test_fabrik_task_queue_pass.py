@@ -129,3 +129,10 @@ def test_phase_four_names_the_committed_work_receipt_up_front() -> None:
     text = " ".join((ROOT / "commands" / "_sources" / "fabrik-task.md").read_text().split())
     review = text[text.index("Invoke the review phase 0 already picked") : text.index("Give its seat briefs")]
     assert "A full `/fabrik-review` over committed work inits its receipt with `--range <base>..<tip>`, committed alone (phase 5); a scoped one needs none." in review
+
+
+def test_phase_three_formats_the_declared_paths_only() -> None:
+    """Row 1791848436: a package-wide formatter run rewrote eight files nobody declared."""
+    text = " ".join((ROOT / "commands" / "_sources" / "fabrik-task.md").read_text().split())
+    build = text[text.index("## Phase 3 — BUILD") : text.index("## Phase 4 — REVIEW")]
+    assert "Never run a formatter by hand beyond the declared paths." in build

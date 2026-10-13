@@ -128,3 +128,16 @@ def test_a_reimplemented_tool_is_checked_against_its_own_output() -> None:
     text = _norm(CAT)
     lead = text[text.index("## Before the first pin (the lead executes)") : text.index("- One mutant per clause")]
     assert "or reimplement another tool's semantics (a YAML merge, a compose override), and prove parity by an executable diff against that tool's own output over its edge cases (for a merge: nesting, mixed types, cycles) before the fix lands, never a model from memory" in lead
+
+
+def test_a_matcher_sentence_is_executed_over_its_input_space() -> None:
+    """Row 1791851271: two own-fix rounds came from a sentence about a regex nobody ran."""
+    text = _norm(CAT)
+    claims = text[text.index("- Claims:") : text.index("- A site a round re-opened")]
+    assert "a sentence describing a matcher or regex executed over its input space (punctuation, underscore, empty) before the pin" in claims
+
+
+def test_a_brief_names_the_fix_by_sha_never_a_bare_range() -> None:
+    """Row 1791852611: a two-dot range over a shared branch carried another item's 1278 lines."""
+    text = _norm(CAT)
+    assert "The brief names the fix as `git show <sha>` — each sha when the fix spans several commits — or a pathspec-scoped diff, never a bare range on a branch others commit to" in text

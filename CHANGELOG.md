@@ -7,6 +7,15 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the spec DB-name check no longer skips a spec that names a database it never asks for (2026-10-13)
 - `scripts/enforcement/check_spec_db_match.py` skipped every spec whose `shape.needs_database` was falsy before reading `depends`, so a spec naming `depends.postgres` (or `postgres_seed`, or `redis` without `needs_cache`) was green at commit while `fabrik apply` warns on it at deploy. It now prints `fabrik apply`'s own `depends_contradiction` clause per contradiction (5 live hub specs today), warn-only, after any blocking drift; the gate calls it `--quiet` and keeps the lines on a green run, and a non-mapping `depends` or `shape` no longer crashes the check (fleet 01M4F7NVDZ, D-805). Also moves the GATE row's `final_gate.py:N` cites in both CLAUDE.md contracts, which D-802 had shifted (reported red by kaizen).
 
+### Fixed — /fabrik-flows-review's description names all eight axes (2026-10-13)
+- The frontmatter description adds life-cycle arcs (UI types) and discipline + exclusions and names G as cross-artifact truth, trimmed to stay under the 1024-character skill limit; /fabrik-ui-design-review's description gains its missing axis F; tests grade both (mail 01M4S7EX4S).
+
+### Changed — review probes run a matcher sentence over its inputs; briefs name a fix by sha (2026-10-13)
+- A sentence describing a matcher is executed over its input space before the pin; a brief names the fix by `git show <sha>` (each sha of a multi-commit fix), never a bare range (D-804).
+
+### Changed — /fabrik-task formats the declared paths only (2026-10-13)
+- Phase 3 never runs a formatter by hand beyond the declared paths; the size cap grows by that sentence (D-803).
+
 ### Changed — /fabrik-command-improve reads the executor, fan-out and branches before writing (2026-10-13)
 - PHASE 3 reads the target's fan-out paragraph, the section whose executor acts on the sentence, and every branch its subject binds (D-799).
 
