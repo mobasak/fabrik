@@ -84,7 +84,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # (review A-S4/B-S1: a `*.md` glob read as direct children only and hid the exception).
 # D-797 (kaizen, 2026-10-13): 19729 -> 19873 — phase 4 says up front that a nested full review over committed work
 # inits its receipt with `--range` and commits it alone (row 1791845646).
-SIZE_CAP = 19873
+# D-803 (kaizen, 2026-10-13): 19873 -> 19918 — phase 3 runs a formatter on the declared paths only
+# (row 1791848436: a package-wide ruff format rewrote 8 untouched files).
+SIZE_CAP = 19918
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")

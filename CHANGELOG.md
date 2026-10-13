@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task formats the declared paths only (2026-10-13)
+- Phase 3 runs a formatter on the declared paths only; the size cap grows by that sentence (D-803).
+
 ### Changed — /fabrik-command-improve reads the executor, fan-out and branches before writing (2026-10-13)
 - PHASE 3 reads the target's fan-out paragraph, the section whose executor acts on the sentence, and every branch its subject binds (D-799).
 

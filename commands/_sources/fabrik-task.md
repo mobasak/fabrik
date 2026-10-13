@@ -152,7 +152,7 @@ measures each in order; a sync-path run (D7) commits ONCE, after phase 4, in the
 (`done` refuses more outside a worktree; `blocked`/`handoff` only note it). At v1 that one
 commit also carries phase 5's ledgers, so nothing is committed before phase 5. Each grader names its input domain
 and borrowed fixtures, EXECUTES an executable subject, runs hermetic (box env stripped, e.g. `env -u DATABASE_URL`) on production's transport and is red on base
-by its named assertion; every guard and threshold edge the change adds is mutated. The gate helpers a new call shape must satisfy are read
+by its named assertion; every guard and threshold edge the change adds is mutated. A formatter runs on the declared paths only. The gate helpers a new call shape must satisfy are read
 first, a removed duplicate is guarded behaviourally, never by text shape, a new threshold is derived in its
 comment, and a probe worktree carries the built dist a test reads at import.
 
