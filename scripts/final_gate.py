@@ -820,23 +820,19 @@ def fix_trailing_whitespace(files: list[str]) -> tuple[bool, str, int]:
         if not path.exists():
             continue
         try:
-            content = path.read_text(encoding="utf-8")
-            # Preserve line endings (LF or CRLF) while stripping trailing whitespace
-            lines = content.splitlines(keepends=True)
-            fixed_lines = []
-            for line in lines:
-                # Strip trailing whitespace but preserve the line ending
-                if line.endswith("\r\n"):
-                    fixed_lines.append(line[:-2].rstrip() + "\r\n")
-                elif line.endswith("\n"):
-                    fixed_lines.append(line[:-1].rstrip() + "\n")
-                elif line.endswith("\r"):
-                    fixed_lines.append(line[:-1].rstrip() + "\r")
-                else:
-                    fixed_lines.append(line.rstrip())  # Last line without newline
-            fixed = "".join(fixed_lines)
+            # newline="" both ways: a plain read_text() translates "\r\n" to "\n", so the
+            # "preserves CRLF" promise was never kept and every fixed CRLF file came back LF
+            with open(path, encoding="utf-8", newline="") as fh:
+                content = fh.read()
+            # Lines end at "\n" ONLY and trailing whitespace is ASCII space and tab: Python's
+            # `splitlines()` also splits on U+2028/U+2029/\x0b/\x0c/\x85 and `rstrip()` strips
+            # them (and NBSP) — the fixer deleted a U+2028 a test exists to carry (01M4EPDF7F).
+            # Line terminators are \r\n, \n and a bare \r (classic Mac) — never U+2028 & co.
+            parts = re.split(r"(\r\n|\n|\r)", content)
+            fixed = "".join(part if i % 2 else part.rstrip(" \t") for i, part in enumerate(parts))
             if fixed != content:
-                path.write_text(fixed, encoding="utf-8")
+                with open(path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(fixed)
                 files_fixed += 1
         except UnicodeDecodeError:
             continue  # Skip binary/non-UTF8 files
@@ -860,12 +856,20 @@ def fix_end_of_files(files: list[str]) -> tuple[bool, str, int]:
         if not path.exists():
             continue
         try:
-            content = path.read_text(encoding="utf-8")
+            with open(path, encoding="utf-8", newline="") as fh:  # see fix_trailing_whitespace
+                content = fh.read()
             # Check if file already ends with a newline
             if content and not content.endswith("\n"):
                 # Preserve line ending style: use CRLF if file contains CRLF, else LF
-                newline = "\r\n" if "\r\n" in content else "\n"
-                path.write_text(content + newline, encoding="utf-8")
+                newline = (
+                    "\r\n"
+                    if "\r\n" in content
+                    else "\r"
+                    if "\r" in content and "\n" not in content
+                    else "\n"
+                )
+                with open(path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(content + newline)
                 files_fixed += 1
         except UnicodeDecodeError:
             continue  # Skip binary/non-UTF8 files
@@ -2865,6 +2869,50 @@ def _diff_base() -> str | None:
     return None
 
 
+def _unpublished_files() -> set[str]:
+    """Files touched by commits on HEAD that are on NO published ref — this session's own work.
+
+    fleet 01M4EPDF7F: `{_diff_base()}...HEAD` is "what differs from the upstream", and a worktree
+    branch fast-forwarded onto origin/master carried 199 sibling commits inside it, so a bare run
+    auto-fixed two files no fleet commit touched (one fix deleted a U+2028 a test exists to carry).
+    A commit already on the upstream, the linked worktree's base or origin/master|main is
+    somebody's published work, never this session's to rewrite. `--diff-merges=remerge` keeps a
+    merge commit's conflict resolutions (what the session authored there) and nothing else.
+    """
+    refs: list[str] = []
+    for cmd in (
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+        None,
+        ["git", "rev-parse", "--verify", "--quiet", "origin/master"],
+        ["git", "rev-parse", "--verify", "--quiet", "origin/main"],
+    ):
+        code, out = run_cmd(cmd) if cmd else (0, _linked_worktree_base())
+        if code == 0 and out.strip():
+            refs.append(out.strip().splitlines()[0])
+    if not refs:
+        return set()
+    code, out = run_cmd(
+        ["git", "log", "--format=", "--name-only", "--diff-merges=remerge", "HEAD", "--not", *refs]
+    )
+    base = _diff_base()
+    if code != 0:
+        # a git that rejects --diff-merges (< 2.36) must not silently empty the scope: fall back
+        # to the previous `base...HEAD` diff, wider but never blind (review A-S3)
+        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"]) if base else (1, "")
+        return {f for f in out.split("\n") if f.strip()} if code == 0 else set()
+    touched = {f for f in out.split("\n") if f.strip()}
+    # NET change only: a file the session's own commits created and deleted again (or edited and
+    # reverted) is not something it publishes — keep what differs from a boundary commit (A-S2)
+    code, bnd = run_cmd(["git", "rev-list", "--boundary", "HEAD", "--not", *refs])
+    net: set[str] = set()
+    for line in bnd.split("\n") if code == 0 else []:
+        if line.startswith("-"):
+            c, d = run_cmd(["git", "diff", "--name-only", line[1:].strip(), "HEAD"])
+            if c == 0:
+                net.update(f for f in d.split("\n") if f.strip())
+    return touched & net
+
+
 def get_changed_files() -> set[str]:
     """Get set of changed file paths from git.
 
@@ -2883,12 +2931,8 @@ def get_changed_files() -> set[str]:
     session's gate and was one bare run away from being auto-staged into its commit.
     """
     changed: set[str] = set()
-    # Committed but not yet pushed (the session's own commits) — see _diff_base.
-    base = _diff_base()
-    if base:
-        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"])
-        if code == 0 and out:
-            changed.update(f for f in out.strip().split("\n") if f)
+    # Committed but not yet published (the session's own commits) — see _unpublished_files.
+    changed.update(_unpublished_files())
     # Staged changes (includes staged-NEW files — the authored path for new files)
     code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
     if code == 0 and out:
@@ -2917,12 +2961,7 @@ def get_writable_files() -> set[str]:
     contract stages explicit paths anyway, so an authored file is in the writable scope by gate
     time. `--fix-all` opts back into fixing the whole change set for a solo tree.
     """
-    writable: set[str] = set()
-    base = _diff_base()
-    if base:
-        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"])
-        if code == 0 and out:
-            writable.update(f for f in out.strip().split("\n") if f)
+    writable: set[str] = set(_unpublished_files())
     code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
     if code == 0 and out:
         writable.update(f for f in out.strip().split("\n") if f)
