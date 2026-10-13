@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec names the as-built amendment route (2026-10-13)
+- The SKIP line routes an as-built revision of a CONVERGED spec to an amendment here (`Profile: delta`); a stale pin on /fabrik-plan-after-chat's sentence is repinned (D-806).
+
 ### Fixed — /fabrik-flows-review's description names all eight axes (2026-10-13)
 - The frontmatter description adds life-cycle arcs (UI types) and discipline + exclusions and names G as cross-artifact truth, trimmed to stay under the 1024-character skill limit; /fabrik-ui-design-review's description gains its missing axis F; tests grade both (mail 01M4S7EX4S).
 
