@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review probes read a compose overlay through its merged render (2026-10-13)
+- The Surfaces hunt line renders `docker compose -f <base> -f <overlay> config`, where precedence and port exposure show (D-808).
+
 ### Fixed — four synced rule texts now say what the code does (2026-10-13)
 - `core/40-documentation.md` § B no longer calls all of `docs/reference/**` hub-owned: it names the files and dirs `fabrik_synced_manifest.py` distributes, so a project's own reference docs stop reading as forbidden (web-ecommerce-factory 01M4179ZWW). `core/self-healing.md` gains ladder row 11, the hub's postgres allocation registry-drift heal, with a shared claim and a `heal_failed` refusal routed to their real metrics (fleet 01M3YEY98R). `core/55-observability.md` says the logentry allowlist narrows, not closes, the log channel and names the residuals the scaffold's ruff `G001`–`G004` cannot see (fleet 01M4EWXXK5). `check_review_coverage.py`'s comments stop restating the RECORDED meanings and its stale `check_convergence.py` line cites (01M4F2HKK8).
 
