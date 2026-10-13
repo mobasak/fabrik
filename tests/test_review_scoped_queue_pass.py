@@ -295,3 +295,27 @@ def test_the_graders_section_pins_moved_texts_old_position() -> None:
         " that moves it, also fails when the text sits at its old position; a test-quality seat checks docstring"
         " claims against the scan;" in graders
     )
+
+
+def test_the_lead_runs_the_leak_check_around_every_scoped_pass() -> None:
+    """Row 1791896900 (D-711 audit: MISFILED): review-scoped dispatches seats each pass but carried no lead leak check,
+    which /fabrik-review has. Pinned inside step 5's dispatch text, before the POOL OFF comment, and the target bullet
+    is pinned with its body, so the sentence moved into inactive text or the bullet emptied reds. The row's other half
+    (a seat cds into scratch in the same call) needs no edit: the SEAT_ISOLATION brief and fabrik-reviewer.md already
+    require absolute scratch paths. Not seen: the lead skipping the check; the seats' transcripts own that."""
+    sentence = (
+        "The lead runs the **Leak check** of `/fabrik-review` (its bullet of that name) before every dispatch and after"
+        " each pass returns, since a seat can write to the shared tree."
+    )
+    scoped = _norm(SRC)
+    # live text only: a comment wrapped around the sentence in place would keep it inside the section
+    live = re.sub(r"<!--.*?-->", "", scoped)
+    assert sentence in _section(live, "**The partition rule of", "6. **Gate + close:**")
+    assert scoped.count(sentence) == 1
+    # live text only: an HTML comment around the bullet would leave the pointer aimed at inactive text
+    review = re.sub(r"<!--.*?-->", "", _norm(ROOT / "commands" / "_sources" / "fabrik-review.md"))
+    assert (
+        "- **Leak check — the lead, before EVERY dispatch and after the pass returns:** a tree baseline (`git diff HEAD |"
+        " md5sum`, not the PIN digest) plus `git rev-parse HEAD`, `git status --porcelain --ignored` and `git stash list`"
+        in _section(review, "- **The seats (native", "- **Every finder brief carries")
+    )

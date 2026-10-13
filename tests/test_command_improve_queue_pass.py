@@ -134,3 +134,17 @@ def test_a_fragment_edit_names_its_by_path_consumers_too() -> None:
     assert (
         "commands/_sources/fabrik-user-test.md" in coverage
     )  # an includer: {{include:term-coverage}}
+
+
+def test_phase_three_checks_an_added_rule_on_the_edit_and_its_origin_case() -> None:
+    """Row 1791896044, a recurrence of the held apply-rule-to-origin-case: the catalogue's moved-text rule (403ab35e)
+    was drafted with a section-scoped grader, the weakness that rule names, and its review's round 1 caught it before
+    the commit. Pinned as the whole sentence between its neighbours in PHASE 3, so the sentence deleted, moved, or
+    qualified inside the span reds. Not seen: a qualifier or contradicting line elsewhere in PHASE 3 or in another
+    section, and an edit that cites the sentence without running the check — the review seats own that."""
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    assert (
+        "and must be obeyable in each. A rule the edit adds is checked before PHASE 4's pin on the edit's own grader and"
+        " sentence, which obey it, and on the case that raised it, which it must flag. A sentence that describes"
+        in p3
+    )
