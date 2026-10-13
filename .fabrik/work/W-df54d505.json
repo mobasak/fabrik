@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:36:41.750640Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-df54d505",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide: work.py add --dedup-title returning the existing open id, vs a per-repo catchup lock; measure sibling-catchup collisions first",
+  "note": "duplicate of W-a584e1e0 (the mail item mail.py claim created for 01M4Q3AZ0N); root cause and next step: decide: work.py add --dedup-title returning the existing open id, vs a per-repo catchup lock; measure sibling-catchup collisions first",
+  "owner": "",
+  "priority": 3,
+  "status": "dropped",
+  "title": "Two sibling /fabrik-catchup runs can execute the same fresh finding: work.py add never dedups, so add-then-claim mints two items (kaizen 01M4Q3AZ0N)"
+}

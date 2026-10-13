@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: wontfix",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-plan-review queue — 3 recurring verdicts ask to change the closing-pass DESIGN (whole-plan re-read after a scope-growth stop); a review-loop design question, routed to you as a proposal"
 }

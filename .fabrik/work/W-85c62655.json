@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:21:35.235104Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-85c62655",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4NJ2NXZEDKGYFC4PD7D6DZA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "UPDATE to 01M4NHSE7J (lussobotanica quote form): the operator chose info@lussobotanica.com as their own mailbox (\"we will have info@lussobotanica.com we will stop using lussobotanica@ocoron.com\"). MAIL_TO and the send_email destination are now info@lussobotanica.com (worker/wrangler.toml, commit on"
+}

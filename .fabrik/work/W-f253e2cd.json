@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Relay request to iterative_image_editor (iie1 / session iterative-image-editor-7c): the BHD photo manifest they asked for in 01M3ZYYFAV0Y7HYH1B8W0Y475C is ready."
 }

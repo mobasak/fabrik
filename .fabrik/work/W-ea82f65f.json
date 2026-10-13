@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:36:22.346582Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ea82f65f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EWXXK5ZQX7VGT4G3PVHNH0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "core/55-observability.md:253 still says the logentry allowlist \"closes\" the log channel; the module says narrowed, NOT closed"
+}

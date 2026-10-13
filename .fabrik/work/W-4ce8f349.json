@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:35:23.199826Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4ce8f349",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: carry the closed record's blocked_reason forward on start (like covered, :4576-4588) as previous_blocked_reason and print it in status; red test blocked→start→status",
+  "note": "duplicate of W-a9a364a5 (the mail item mail.py claim created for 01M4FAAA26); root cause and next step: /fabrik-task: carry the closed record's blocked_reason forward on start (like covered, :4576-4588) as previous_blocked_reason and print it in status; red test blocked→start→status",
+  "owner": "",
+  "priority": 2,
+  "status": "dropped",
+  "title": "command_run.py: blocked --reason is written but never read back, and the next start overwrites it (01M4FAAA26)"
+}
