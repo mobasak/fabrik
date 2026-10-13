@@ -794,15 +794,15 @@
       "claude-sonnet-5": 332712740
     },
     "2026-10-13": {
-      "claude-opus-5-5": 3615910154,
+      "claude-opus-5-5": 3633637626,
       "claude-fable-5-1": 236031205,
-      "claude-haiku-4-5-20251001": 248575994,
-      "claude-sonnet-5": 552585027,
-      "claude-haiku-5-5": 4143555
+      "claude-haiku-4-5-20251001": 254024410,
+      "claude-sonnet-5": 559415314,
+      "claude-haiku-5-5": 4376209
     }
   },
   "source": "/home/ozgur/.claude/.claude-manager/usage-history.json",
-  "merged_at": "2026-10-13T16:41:43+03:00",
+  "merged_at": "2026-10-13T17:57:00+03:00",
   "source_by_day": {
     "2026-05-13": "extension",
     "2026-05-14": "extension",
