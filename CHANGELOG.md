@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — execute-plan's Opus floor named beside D-344; plan-review splits a half-blocked plan (2026-10-13)
+- subagents-core keeps `/fabrik-execute-plan`'s per-round Opus finder floor; /fabrik-plan-review splits a plan whose later phases wait on a cross-agent blocker (D-813).
+
 ### Changed — /fabrik-review fills the checklist before the in-progress gate run (2026-10-13)
 - § Reporting: fill every Coverage Checklist and Pass Ledger row before the close order; the in-progress run skips both checkers and an untracked receipt is skipped until staged (D-812).
 

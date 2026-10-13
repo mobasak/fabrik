@@ -44,3 +44,11 @@ def test_the_advisory_the_clause_expects_is_what_command_run_prints() -> None:
     assert (
         mod.convergence_warning([3, 0, 4]) == ""
     )  # below the heuristic's minimum rounds it stays silent
+
+
+def test_the_opus_floor_and_the_half_blocked_split_are_stated() -> None:
+    """Mail 01M3VSFP9D (fabrik-lib): D-344's 'no Opus finder' hid execute-plan's floor; a half-blocked plan had no split rule."""
+    core = " ".join((ROOT / "commands" / "_fragments" / "subagents-core.md").read_text().split())
+    assert "`/fabrik-execute-plan`'s per-round Opus finder floor, once at D7 under `Profile: small`, is its own rule and still stands" in core
+    plan = " ".join((ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text().split())
+    assert "When only LATER phases wait on it, SPLIT the plan: the unblocked phases converge and execute as their own plan" in plan

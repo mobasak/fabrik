@@ -404,7 +404,7 @@ A residual phrased **"resolve with <other AI> / confirm with the user / decide a
 **DEFECT, not a residual** — it is a deferred question. Either get the answer now, or rewrite it into a
 self-service step with the default baked in. A genuine cross-AI / infra / credential dependency the executor
 cannot satisfy alone is a **named BLOCKING unknown → stop at `DRAFT`** until resolved with its owner; it never
-rides into `CONVERGED` as an "open" item. (This is the lesson from a real run: a plan converged with
+rides into `CONVERGED` as an "open" item. When only LATER phases wait on it, SPLIT the plan: the unblocked phases converge and execute as their own plan, and the rest stays a `DRAFT` plan naming the blocker. (This is the lesson from a real run: a plan converged with
 "[OPEN → resolve the DSN with the coding-selection AI at Phase C start]", and execution dutifully halted mid-run
 to ask — when the answer was self-service all along. Ask before, or make it self-service; never defer.)
 
