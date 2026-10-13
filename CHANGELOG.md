@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review probe catalogue's pre-pin section reads as every pin, not only the first (2026-10-13)
+- `commands/_fragments/review-probe-catalogue.md`'s header now says its lines apply "before every pin, the first and each delta, and while writing every brief", and its pre-pin heading reads "Before the first pin, and again before each delta pin"; `/fabrik-review` (Phase 1) and `/fabrik-review-scoped` (step 5) point at it "Before every pin, the first and each delta, and in every brief". Two of the section's bullets already ran at each delta pin, so a lead going by the old heading or command sentence skipped them. Answers `/fabrik-review-scoped` row 1791890873; the grader `tests/test_review_scoped_queue_pass.py::test_the_pre_pin_section_reads_as_every_pin_not_only_the_first` checks the property over the catalogue and both commands (8 mutants killed).
+
 ### Changed — the review probe catalogue reads an injected or rendered line back through its tool (2026-10-13)
 - `commands/_fragments/review-probe-catalogue.md` § Before the first pin, which `/fabrik-review` and `/fabrik-review-scoped` point at, has a bullet of its own: a line another tool injects or renders is read back whole through that tool's output after the edit and before each delta pin (a pack line in `review_rubric.py --changed`, a fragment's rendered consumers, a template's emitted file), and a line the change leaves emitted by no invocation is named in the brief as dropped. The old fragment-render clause folds into it. Answers `/fabrik-review` row 1791889493; the grader `tests/test_review_queue_pass.py::test_an_injected_line_is_read_back_through_its_consumer` asserts the whole sentence inside its section (a review seat's 8 mutants all killed).
 

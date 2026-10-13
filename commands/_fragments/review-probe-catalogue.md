@@ -1,10 +1,10 @@
 # Review probe catalogue
 
-The probes earlier review runs found missing, by when they apply. Read the lines that match the change's SHAPE —
-never all of them — before the first pin and while writing the brief. Each is a step, not a check box: execute it,
-or name in the brief why the shape does not have it.
+The probes earlier review runs found missing, by when they apply. Read the lines that match the change's SHAPE — never
+all of them — before every pin, the first and each delta, and while writing every brief. Each is a step, not a check
+box: execute it, or name in the brief why the shape does not have it.
 
-## Before the first pin (the lead executes)
+## Before the first pin, and again before each delta pin (the lead executes)
 - Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its real shell), and
   check the END STATE a recipe exists to produce, not only each step; run a README snippet, usage text or rewritten
   docstring instruction as a caller would, and probe each exception a rewritten docstring says the function still
