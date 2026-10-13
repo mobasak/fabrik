@@ -45,6 +45,15 @@ All notable changes to this project will be documented in this file.
   `sslcert`/`sslkey`/`sslrootcert` stay legitimate. Grader red-first in
   `tests/test_scaffold_doc_seeding.py::test_pgurl_rewrites_a_driver_dsn_for_libpq` (eighteen refusal shapes, seven new pass
   shapes; the scaffold's two schema headers restate the refusals). The /fabrik-review-scoped loop confirmed 11 → 2 → 0.
+### Fixed — the parity-stub .env tests count the load the stub really makes (W-6dd44ffe) (2026-10-13)
+
+- `tests/test_parity_stub_loads_env.py`: the counting probe patched `libs.health_probe.health_probe.load_env`, but since D-744 the stub loads its health_probe copy BY FILE PATH as `_parity_health_probe`. It counted a module the stub never calls, so two tests read 0 loads and were red on master. It now counts at `dotenv.load_dotenv`, which every copy of `load_env` reaches whenever python-dotenv is installed (a declared dependency; without it the probe fails loudly at `import dotenv`). A stub that reloads on every row reads 3 loads and fails the test.
+
+### Added — the gate warns when a data contract's Backing cell is not a legend token (fleet 01M4TGT7N4) (2026-10-13)
+
+- `scripts/enforcement/check_data_contract_legend.py` is a new Tier 1/2 warn-only gate row. Every Enum-registry `Backing` cell in a project's `docs/data-contract.md` must be one of the template legend's six tokens (`native` · `CHECK` · `app` · `doc` · `file` · `unconstrained`) in its whole-cell grammar (`token`, `token (note)`, `a / b`). Tables are read as GFM (a header and a delimiter row, fenced code skipped, escaped pipes kept). A contract's own differing legend is reported, never honoured. It exits 0 on every path. On 2026-10-13 it names 107 cells in 9 projects; the FAIL flip waits for their re-freeze. Graded by `tests/enforcement/test_check_data_contract_legend.py`, and `tests/test_scaffold_doc_seeding.py` now reads the template through the same reader and grammar. Canaries in `scripts/sysadmin/liveness_audit.py`.
+- `commands/_sources/fabrik-data-contract.md` names the six tokens and the grammar.
+- Two reds on master from 04413b533 are fixed. `check_beat_owners` had no canary (`tests/test_gate_check_canaries.py`), and `docs/workflows/FINAL_GATE_WORKFLOW.md`'s GATE-COUNTS was one row behind (`tests/test_final_gate_tier_counts.py`). The counts are re-measured by instrumented execution: 38 / 58 / 22. `check_beat_owners.py`'s docstring opens with a complete sentence, because the capability catalog takes its first line.
 
 ### Fixed — the wip-backup cron no longer stash-restores every dirty tree on the box (2026-10-13)
 

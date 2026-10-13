@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md, docs/reference/fabrik-mail.md
-"""Validate the hub's mail ownership map, ``.fabrik/beat-owners.json`` (spec
-docs/superpowers/specs/2026-10-13-mail-routing-design.md § The delta D2).
+"""Validate the hub's mail ownership map, ``.fabrik/beat-owners.json``.
+
+Spec: docs/superpowers/specs/2026-10-13-mail-routing-design.md § The delta D2.
 
 The map is read by every sender's synced ``scripts/mail.py``, so a broken map routes
 mail wrongly box-wide. Refused (exit 1), one line per defect:

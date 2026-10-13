@@ -618,47 +618,22 @@ def test_readme_template_carries_every_section_the_readme_gate_requires():
     assert "## Quick Start" in headings
 
 
-_BACKING_TOKENS = ("native", "CHECK", "app", "doc", "file", "unconstrained")
+# ONE grammar: the gate's own check is the reader, so the template and the gate cannot drift
+# (design critique 2026-10-13 — a private copy here and a stricter one in the check disagreed).
+sys.path.insert(0, str(REPO_ROOT / "scripts" / "enforcement"))
+import check_data_contract_legend as _legend  # noqa: E402
+
+_BACKING_TOKENS = _legend.LEGEND_TOKENS
 
 
 def _legend_tokens(text: str) -> list[str]:
-    """The tokens the template's Backing legend defines — STRUCTURAL: the quote lines right after the bold legend header,
-    each ` · `-separated item shaped 'token (definition)' with the token backticked. An item of another shape fails LOUDLY (an assert), never
-    reads a wrong span silently; the measurement prose that once followed the list is not part of it."""
-    import re
-
-    lines = text.splitlines()
-    i = next(k for k, ln in enumerate(lines) if ln.startswith("> **Backing legend"))
-    block: list[str] = []
-    for ln in lines[
-        i + 1 :
-    ]:  # the quote paragraph right after the header; an item may wrap onto the next line
-        if ln.strip() == ">" or not ln.startswith("> "):
-            break
-        block.append(ln[2:])
-    assert block, "no legend definition lines after the bold header"
-    tokens: list[str] = []
-    for item in " ".join(block).split(" · "):
-        m = re.match(r"^`([A-Za-z_]+)` \(", item.strip())
-        assert m, f"legend item is not `token` (definition): {item[:60]!r}"
-        tokens.append(m.group(1))
+    tokens = _legend.legend_tokens(text)
+    assert tokens is not None, "no bold Backing legend header"
     return tokens
 
 
 def _backing_cell_ok(cell: str, tokens: list[str]) -> bool:
-    """The legend's grammar, WHOLE-cell (`re.fullmatch`): `token`, `token (note)`, `a / b`. A token may wear a BALANCED
-    markdown wrapper — backticks, `**`, `*`, or none, the same on both sides (round 2: `[`*]*` on each side let
-    `` `native`` and `native**` through) — and a note is a non-empty `(…)` with no parenthesis inside, optionally wrapped in a BALANCED `*…*`
-    (round 2: a greedy dot-star note swallowed ` / invented` tails). Nothing else may follow, so `app-enforced`,
-    `native, CHECK`, `native bespoke junk`, `native (a) / bespoke` and a bare `<placeholder>` are all refused."""
-    import re
-
-    alt = "|".join(re.escape(x) for x in tokens)
-    tok = rf"(?:`(?:{alt})`|\*\*(?:{alt})\*\*|\*(?:{alt})\*|(?:{alt}))"
-    body = r"[^()]*[^()\s][^()]*"  # at least one non-blank character, no parenthesis (rounds 3-4)
-    note = rf"(?:\*\({body}\)\*|\({body}\))"  # balanced `*(…)*` or bare `(…)`
-    part = rf"{tok}(?:\s{note})?"
-    return re.fullmatch(rf"{part}(?:\s/\s{part})*", cell) is not None
+    return _legend.backing_cell_ok(cell, tokens)
 
 
 def test_data_contract_template_backing_legend_is_closed_and_its_rows_and_checklist_obey_it():
@@ -675,22 +650,9 @@ def test_data_contract_template_backing_legend_is_closed_and_its_rows_and_checkl
     legend = _legend_tokens(text)
     assert legend == list(_BACKING_TOKENS), legend
     # the example rows obey the grammar — every table row of the registry section, backticked Enum cell or not
-    in_reg = header = False
-    rows: list[str] = []
-    for ln in text.splitlines():
-        if ln.startswith("## Enum registry"):
-            in_reg, header = True, False
-            continue
-        if ln.startswith("## "):
-            in_reg = False
-        if not in_reg or not ln.startswith("|"):
-            continue
-        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
-        if len(cells) >= 3 and cells[0].lower() == "enum":
-            header = True
-            continue
-        if header and not set(cells[0]) <= set("-: "):
-            rows.append(cells[1])
+    has_section, registry = _legend.registry_rows(text)
+    assert has_section and registry is not None, "the template's registry table is not recognised"
+    rows = [backing for _enum, backing in registry]
     assert len(rows) == 2 and all(_backing_cell_ok(r, legend) for r in rows), rows
     # the grammar: legitimate shapes seen in frozen contracts pass …
     for good in (
@@ -751,7 +713,7 @@ def test_data_contract_template_backing_legend_is_closed_and_its_rows_and_checkl
     broken = text.replace("`doc` (documented only", "doc (documented only", 1)
     try:
         _legend_tokens(broken)
-    except AssertionError as exc:
+    except ValueError as exc:
         assert "legend item is not" in str(exc)
     else:  # pragma: no cover — the assertion above is the behaviour under test
         raise AssertionError("a malformed legend item was parsed silently")

@@ -1681,6 +1681,29 @@ CANARIES: dict[str, dict[str, Any]] = {
         "speaks": "stale pin",
         "expect": "flows.md's header pins data-contract.md@v1 while data-contract.md's own header is at v2 (a stale pin)",
     },
+    "check_beat_owners": {
+        "form": "cwd",
+        "git": "add",  # the dead-pattern and catch-all tests read `git ls-files`
+        "args": ["--root", "{fixture}"],
+        "base": {"README.md": "x\n"},
+        "clean": {".fabrik/beat-owners.json": '{"version": 1, "rules": []}\n'},
+        "files": {
+            ".fabrik/beat-owners.json": '{"version": 1, "rules": [{"owner": "nobody", "source": "D-1"}]}\n'
+        },
+        "expect": "a mail-ownership rule naming an owner that is not a hub beat",
+    },
+    "check_data_contract_legend": {
+        "form": "cwd",
+        "warn_only": "check_data_contract_legend.main() returns 0 on every path — a top-level `except Exception` guard prints the error as a WARN line",
+        "clean": {
+            "docs/data-contract.md": "# Data Contract\n\n## Enum registry\n\n| Enum | Backing | Allowed values |\n|---|---|---|\n| `status` | native | a, b |\n"
+        },
+        "files": {
+            "docs/data-contract.md": "# Data Contract\n\n## Enum registry\n\n| Enum | Backing | Allowed values |\n|---|---|---|\n| `status` | app-enforced | a, b |\n"
+        },
+        "speaks": "not legend tokens",
+        "expect": "an Enum-registry Backing cell `app-enforced` is not one of the template's six legend tokens",
+    },
     "check_pack_reachability": {
         "form": "cwd",
         "timeout": 90,
