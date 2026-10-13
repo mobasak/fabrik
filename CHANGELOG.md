@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the template's RED clause names the quota-wall close; the GATE-row cites follow final_gate.py (2026-10-13)
+
+- `templates/governance/CLAUDE.md`: the quota RED clause now names `blocked --wall` and `start --resume-from <seed>`, as the hub CLAUDE.md does since W-28f260c3 (D-826; fleet 01M4V5P329). Without it, a project agent that closes at the RED band reads no verb and closes with a plain `blocked`, which keeps no seed.
+- `CLAUDE.md` + `templates/governance/CLAUDE.md`: the GATE row's setup-error and tier cites move to `:3326-3343` and `:3345-3351`. Commit 04413b533 inserted the beat-owners check at final_gate.py:2245, which shifted them. `tests/test_governance_template_split.py` had been red on master since then; it now passes and pins the new RED wording in both contracts.
+
 ### Fixed — mail_escalate scans the mailboxes once per run (W-ef8cffc6) (2026-10-13)
 
 - `scripts/sysadmin/mail_escalate.py`: `main()` scans once and hands that list to `_owners_done()`, which used to scan again, so the owner roll-call and the send could judge two different lists of a live store. Guarded by `tests/test_mail_escalate.py::test_one_run_scans_the_mailboxes_once` (its sending-path assertion is the one that fails on the old code). A scan that raises now prints a WARNING and exits 0 (the module's fail-soft contract) instead of a traceback (`test_a_scan_that_raises_is_reported_not_a_traceback`).
