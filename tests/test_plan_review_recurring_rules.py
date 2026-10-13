@@ -45,7 +45,9 @@ def test_the_panel_delta_round_shares_the_scope_growth_window() -> None:
     """panel-delta-scope-growth (3 rows): one loop, one window; the backlog exit only once the stop fired."""
     accepted = _between(_norm(FRAG / "design-critique.md"), "- `ACCEPTED`", "- `REJECTED`")
     assert (
-        "(else the loop continues — that round is a delta round of the same loop, so its own-fix defects count "
+        "(else the next commit sets each document the flip touched back to what it read before the flip, with a "
+        "`docs/DECISIONS.md` row superseding the flip's row, and the loop continues — that round is a delta round "
+        "of the same loop, so its own-fix defects count "
         "in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row); an "
         "OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift; in "
         "`/fabrik-task`"
