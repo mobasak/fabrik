@@ -1012,7 +1012,12 @@ def test_final_gate_filename_family_is_never_route() -> None:
     assert cpt._never_route("scripts/final_gate")
     assert not cpt._never_route("scripts/other.py")
     assert not cpt._never_route("src/final_gate.py")
-    assert cpt.NEVER_ROUTE_FILE_FAMILIES == ("scripts/final_gate",)
+    # The accepted over-match, pinned so a future word-boundary change is a deliberate test edit
+    # (review 2026-10-13 tests-S2): the stem is a character prefix, not a component.
+    assert cpt._never_route("scripts/final_gatekeeper.md")
+    # Membership, not the exact tuple (review check-S3/tests-S3): a second family stem added later
+    # must not red this grader while every behavioural assertion above still holds.
+    assert "scripts/final_gate" in cpt.NEVER_ROUTE_FILE_FAMILIES
 
 
 def test_pool_tier_ticket_touching_a_family_gate_errors(tmp_path: Path) -> None:

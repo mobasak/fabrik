@@ -682,7 +682,10 @@ def _path_covers(entry: str, path: str) -> bool:
 def _never_route(p: str) -> bool:
     """Bidirectional: a Touches entry that IS, is UNDER, or COVERS a never-route
     path is never-route (a `scripts/` or slash-less `scripts` dir entry owns
-    scripts/enforcement/ too)."""
+    scripts/enforcement/ too) — and a FOURTH relation, filename FAMILY: an entry whose
+    slash-stripped path STARTS WITH a `NEVER_ROUTE_FILE_FAMILIES` stem (character-level,
+    not component-bounded — `scripts/final_gate_fabrik_lib.py`, and by accepted over-match
+    `scripts/final_gatekeeper.md` too)."""
     if p == _ENV_EXEMPT:
         return False
     if p == ".env" or p.startswith(".env."):
