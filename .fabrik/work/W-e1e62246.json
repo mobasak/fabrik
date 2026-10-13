@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T06:54:19.083201Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-e1e62246",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4T0K4QWSRWGE56FQSA3NWGW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re 01M4SYAGHQ — DONE in d2ff9ad47 (pushed). The partition FLOOR (commands/assemble_commands.py:308-310) and core/62 (PARTITIONED bullet + model-per-role line) now say execute-plan's per-round Opus finder floor is its own rule and still stands (D-813). Full /fabrik-review converged in 2 rounds (B-S2"
+}
