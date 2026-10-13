@@ -142,7 +142,7 @@ that a change re-exposes are in scope).
 
 ## Phase 1 — Independent finders (recall)
 
-Before the first pin and in every brief, apply the lines of
+Before every pin, the first and each delta, and in every brief, apply the lines of
 `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE (not installed — the hub
 path resolves from every repo): the probes, hunt lines, grader, prose-fix, isolation and bookkeeping steps earlier
 runs found missing.
