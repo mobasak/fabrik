@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "review_loop_ledger.py pin mixes advisory lines into the JSON on stdout, so a Workflow brief cannot take its output whole — /fabrik-review row 1791913338"
 }

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T22:01:36.076383Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b48c1153",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TQPCXT6A1WX5WZSV2851N9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: check_plan_tickets.py `_norm_path` (:600-642) collapses `/./` and a `./` prefix but NOT a doubled slash, so a Touches entry spelled `scripts//final_gate.py` reaches `_never_route` unnormalised and is never-route under NEITHER the containment rule nor the filename-family rule fleet is adding fo"
+}
