@@ -52,6 +52,22 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-command-improve checks a rule it adds on the edit itself and on its origin case (2026-10-13)
 - PHASE 3 now says a rule the edit adds is checked before PHASE 4's pin on the edit's own grader and sentence, which obey it, and on the case that raised it, which it must flag. The catalogue's moved-text rule (403ab35e) was drafted with a section-scoped grader, the weakness that rule names, and its review's round 1 caught it before the commit (row 1791896044, a recurrence of the held apply-rule-to-origin-case). Grader: `tests/test_command_improve_queue_pass.py::test_phase_three_checks_an_added_rule_on_the_edit_and_its_origin_case`.
 
+### Fixed — the canonical `pgurl` refuses a duplicate ssl/sslmode key and a non-postgres DSN (2026-10-13)
+
+- `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md:107` and `CONFIGURATION_TEMPLATE.md:204`, byte-identical (fabrik-lib
+  01M4TP1W, both executed against psql 16): renaming every `ssl=` to `sslmode=` let `?sslmode=require&ssl=disable` reach
+  libpq as two `sslmode` keys, of which it keeps the LAST silently — a TLS downgrade with no error; and a value such as
+  `-o/<file>` passed the no-whitespace check and reached root's `psql` as an option (psql truncates the file before it
+  connects). pgurl now refuses more than one ssl/sslmode key before the rename, refuses a percent-encoded query KEY
+  (libpq decodes keys, so `%73slmode=` is a second sslmode — review pgurl-O1), and accepts only a DSN that rewrites to
+  `postgres://` or `postgresql://` (a lowercase `+driver` is stripped; an upper-case or malformed one is refused rather than
+  printed unchanged — pgurl-S1/O6); refuses a raw `?` in the user:password part (libpq reads the text before the first
+  `@` as credentials, so a `?` there hid the real query from both checks — pgurl-O8; encode it as `%3F`); the
+  whitespace/quote check runs first so a still-quoted line is told the real cause;
+  `sslcert`/`sslkey`/`sslrootcert` stay legitimate. Grader red-first in
+  `tests/test_scaffold_doc_seeding.py::test_pgurl_rewrites_a_driver_dsn_for_libpq` (eighteen refusal shapes, seven new pass
+  shapes; the scaffold's two schema headers restate the refusals). The /fabrik-review-scoped loop confirmed 11 → 2 → 0.
+
 ### Added — a run closed at the quota wall is resumed, not restarted: `blocked --wall` keeps a seed, `start --resume-from` carries it (2026-10-13)
 
 - `scripts/command_run.py`, `.claude/hooks/quota_stop.py` (infra W-28f260c3 from sp3 01M49B2E91 / W-746e8b5a; D-826): the wall

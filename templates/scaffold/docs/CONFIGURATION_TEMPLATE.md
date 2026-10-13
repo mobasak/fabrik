@@ -195,9 +195,14 @@ cat PORTS.md
 # (other asyncpg-only query keys, e.g. prepared_statement_cache_size, still need removing by hand).
 # Define it first; `u=$(pgurl ...) &&` stops on an empty or unset variable instead of psql falling back
 # to the local default database — and on a DSN carrying whitespace, a quote or a backslash (a hand-edited or
-# still-quoted .env line fails CLOSED here instead of reaching psql mangled). Byte-identical to the copy in
+# still-quoted .env line fails CLOSED here instead of reaching psql mangled), on a value that does not rewrite to a
+# postgres:// or postgresql:// URI (a `-o/<file>` would reach root's psql as an option; an upper-case or malformed
+# +driver would reach it un-rewritten — fabrik-lib 01M4TP1W), on more than one ssl/sslmode key (libpq keeps the LAST
+# silently: `?sslmode=require&ssl=disable` would drop TLS), on a percent-encoded query KEY (libpq decodes keys, so
+# `%73slmode=disable` is a second sslmode) and on a raw `?` in the user:password part (libpq reads the text before
+# the first `@` as credentials, so a `?` there would hide the real query from these checks — encode it as %3F). Byte-identical to the copy in
 # TROUBLESHOOTING.md § Debug Commands (tests/test_scaffold_doc_seeding.py holds the two together).
-pgurl() ( [ -n "$1" ] || { echo "pgurl: empty DSN" >&2; exit 1; }; case $1 in *[[:space:]]*|*\"*|*\'*|*\\*) echo "pgurl: DSN carries whitespace, a quote or a backslash — fix the .env line, never psql it" >&2; exit 1;; esac; b=${1%%\?*}; q=${1#"$b"}; printf '%s%s\n' "$(printf %s "$b" | sed 's#^\(postgres[a-z]*\)+[a-z0-9_]*://#\1://#')" "$(printf %s "$q" | sed 's/\([?&]\)ssl=/\1sslmode=/g')" )
+pgurl() ( [ -n "$1" ] || { echo "pgurl: empty DSN" >&2; exit 1; }; set -f; case $1 in *[[:space:]]*|*\"*|*\'*|*\\*) echo "pgurl: DSN carries whitespace, a quote or a backslash — fix the .env line, never psql it" >&2; exit 1;; esac; a=${1#*://}; case ${a%%/*} in *@*) case ${a%%@*} in *\?*) echo "pgurl: a ? in the user:password part — percent-encode it as %3F, or libpq and this check split the DSN differently" >&2; exit 1;; esac;; esac; b=${1%%\?*}; q=${1#"$b"}; for kv in $(printf %s "${q#\?}" | tr '&' ' '); do case ${kv%%=*} in *%*) echo "pgurl: a percent-encoded query KEY ($kv) — libpq decodes keys, so it could hide a second sslmode; write keys plain" >&2; exit 1;; esac; done; case $q in *[?\&]ssl=*[?\&]ssl=*|*[?\&]ssl=*[?\&]sslmode=*|*[?\&]sslmode=*[?\&]ssl=*|*[?\&]sslmode=*[?\&]sslmode=*) echo "pgurl: more than one ssl/sslmode key — libpq keeps the LAST one silently; keep exactly one" >&2; exit 1;; esac; s=$(printf %s "$b" | sed 's#^\(postgres[a-z]*\)+[a-z0-9_][a-z0-9_]*://#\1://#'); case $s in postgres://*|postgresql://*) ;; *) echo "pgurl: not a postgres DSN (postgres://, postgresql:// or a lowercase +driver form such as postgresql+asyncpg://) — fix the .env line, never psql it" >&2; exit 1;; esac; printf '%s%s\n' "$s" "$(printf %s "$q" | sed 's/\([?&]\)ssl=/\1sslmode=/g')" )
 u=$(pgurl "$DATABASE_URL") && psql "$u"  # Test DB connection
 lsof -i :$PORT                  # Check port availability
 grep -vE '^#|^$' .env      # Show active env vars
