@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:48:31.053413Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-15760f1a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TBA449W4VV7V6HH62SPPYJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "kaizen re-checked its 10 open mails to intel against master c67a68173 — 1 withdrawn, 1 answered by infra, 1 new finding, the rest still true"
+}

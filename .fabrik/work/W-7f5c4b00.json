@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:55:56.351487Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-7f5c4b00",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TMXACVQ4XSF9CHPQDE632M",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: kaizen re-checked its 10 open mails to intel — every row now has a disposition; the CAP finding is fixed (e772c6c91)"
+}
