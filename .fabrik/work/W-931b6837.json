@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "hub mail auto-routing — kaizen's research for the feature you build after W-800579be (operator: \"we need it asap\")"
 }

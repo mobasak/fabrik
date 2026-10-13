@@ -243,6 +243,25 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-review answers its feedback queue in one pass (2026-10-12)
 - Phase 1 points at the review probe catalogue; a failed or `NO RESULT` refuter's candidates are executed by the lead, and the FAILED-seat re-dispatch names finders; the delta brief names its must-read files; `next`'s rows merge into `args.slices` by name; the close stages before its IN-PROGRESS gate. Every command, fragment and contract that states the Agent-tool fallback now also takes it for a run the operator did not invoke. The catalogue gains redactor timing, what a fix recipe leaves unchanged, quoting code from its emit site and linting a copy with the repo's config (D-752).
 
+### Changed — the data-contract template's Enum-registry `Backing` legend is a closed, measured token list (2026-10-13)
+
+- `templates/scaffold/docs/data-contract-template.md` (kaizen finding 01M4F92G6VG2GMR96X1095JKEJ, /fabrik-data-contract
+  queue row 1791336541): the legend named only `native` / `CHECK`, in prose, and nothing read it. Measured over every
+  `/opt/*/docs/data-contract.md` with registry rows (20 contracts, 288 rows — every table row, backticked Enum cell or
+  not): 193 rows sit outside that pair, with vocabulary the projects had to invent (`app-enforced`, `doc (unenforced)`,
+  `file (Zod, …)`, `Tryton Selection`, `jsonb value`, `PG CHECK constraint`, `unconstrained`), so a checker on the old
+  legend would have flagged two rows in three. The legend is now an explicit CLOSED list — `native` · `CHECK` · `app` ·
+  `doc` · `file` · `unconstrained` — with the whole-cell grammar `token`, `token (note)` or `a / b`; 106 of the 288 rows
+  fall outside it today, every one expressible with an existing token plus a note (`CHECK (v6.11)`, `app (Tryton
+  Selection …)`, `unconstrained (jsonb …)`), none needing a seventh token — so the enforcement half must begin as WARN.
+  The `type` column now says how an `app`/`doc`/`file`/`unconstrained`-backed field is typed (its real SQL type plus a
+  registry pointer, never `chk:<x>`), the example row shows the note form, and the FREEZE CHECKLIST carries the box.
+  Grader `test_data_contract_template_backing_legend_is_closed_and_its_rows_and_checklist_obey_it`
+  (tests/test_scaffold_doc_seeding.py) binds the legend lines, the example rows and the checklist box (structural
+  parse, whole-cell `re.fullmatch`, full-list equality, loud failure on a malformed legend) — its first cut, a prefix
+  match with a placeholder exemption, let `app-enforced` and `<anything>` through and was caught by the review. The
+  enforcement half (a gate check over each project's contract; the command text) is requested from infra by mail.
+
 ### Fixed — the parity template's `--rows-from` merge checks the leg files instead of trusting them whole (2026-10-13)
 
 - `templates/scaffold/scripts/verify_prod_parity.py` (kaizen finding 01M4Q92620J5NJG87SS9ADVFD7, the leg-file threat

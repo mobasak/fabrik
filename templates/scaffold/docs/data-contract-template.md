@@ -30,6 +30,7 @@
 > `PII` ∈ `none | personal | sensitive` (sensitive = KVKK Art. 6 / GDPR Art. 9); an operator/actor audit identifier (`changed_by`, `reviewed_by`, set from the app user) is `personal`.
 > `references` = the `entity.column` a FK points at, or `—`. A GUI field folded into a **jsonb key** is written `column.jsonkey` in the DB-column cell.
 > `type` = a SQL type, or `enum:<x>` (native PG enum) / `chk:<x>` (CHECK-constraint-backed enum) — both draw their values from the Enum registry below.
+> A field whose registry row is `app`-, `doc`-, `file`- or `unconstrained`-backed keeps its REAL SQL type (`varchar`, `text`) plus the pointer `(enum — see registry: <x>)` — never `chk:<x>`, which would overstate enforcement the database does not provide.
 
 ### Entity: `<entity_name>`   (depends on: `<entity>`, …)
 
@@ -59,11 +60,21 @@
 
 > Register BOTH native PG enums (`enum:<x>`) and CHECK-constraint value sets (`chk:<x>`) — real schemas use CHECK
 > far more often than native enums. Note the backing so a migration to native later is unambiguous.
+>
+> **Backing legend — a CLOSED list; a row's `Backing` is one token, optionally `token (note)` or `a / b`:**
+> `native` (a PG enum type) · `CHECK` (a CHECK constraint) · `app` (application code alone validates — an ORM selection,
+> a Python `Literal`/`Enum`, a Zod or pydantic schema; no DB rule) · `doc` (documented only — nothing validates) ·
+> `file` (a data file read at runtime — YAML, JSON; name the file in the note) · `unconstrained` (free text or a jsonb
+> value today; say in the note what should own it)
+>
+> An invented token is a FREEZE miss. A set the list cannot name is `unconstrained (<what it really is>)` until the
+> legend grows — here in the template, never in one contract. The grammar, whole-cell: `token`, `token (note)`,
+> `a / b`; a note may hold anything, including `/`.
 
 | Enum | Backing | Allowed values |
 |---|---|---|
 | `plan_status` | native | `trialing` \| `active` \| `past_due` \| `canceled` |
-| `<enum_name>` | native / CHECK | `<v1>` \| `<v2>` |
+| `<enum_name>` | CHECK (`<migration or constraint name>`) | `<v1>` \| `<v2>` |
 
 ---
 
@@ -83,7 +94,10 @@
 - [ ] Every GUI/form field maps to a DB column (no orphans in either direction)
 - [ ] Every field has `type` + `req` + `PII` class
 - [ ] Every FK `references` resolves to a real `entity.column`; `depends on` order has no cycle
-- [ ] Every `enum:<x>`-typed field's values ⊆ the Enum registry
+- [ ] Every `enum:<x>`-, `chk:<x>`-typed or registry-pointing field names a registered enum, and its values ⊆ that
+      row's Allowed values
+- [ ] Every Enum registry row's `Backing` is a legend token — `native` · `CHECK` · `app` · `doc` · `file` ·
+      `unconstrained` — optionally `token (note)` or `a / b`; no invented token
 - [ ] House rules applied to new fields; existing violations flagged `⚠ non-standard: <what>` (grandfathered, not migrated)
 - [ ] A retention row exists for every `personal`/`sensitive` category
 - [ ] `Status: FROZEN`, `Version` bumped
