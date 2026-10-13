@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — unit tests for the verifier's authoritative DNS wait and resolved-IP health probe; the probe keeps the URL's port (2026-10-13)
+
+- `tests/orchestrator/test_verifier.py` (W-2178bedc, from the W-1996f86b review): `DeploymentVerifier._wait_for_dns`
+  (B19 — the zone's authoritative NS asked via `dig` so a resolver's negative cache cannot hide a live record) and
+  `_check_health`'s resolved-IP branch (connect to the IP, send the domain as the Host header) only ever ran as live
+  network calls, and the file's autouse stub hides the former from every test. Five tests run the real method with
+  `subprocess.run` and `shutil.which` replaced by a recording fake that pins every `dig` argv AND its kwargs
+  (captured output, text, a 10 s cap, `check=False`): the zone NS argv, the first-server poll, the public-resolver
+  fallback on a timed-out or failed NS lookup, CNAME lines skipped with a timed-out and a failed poll survived, and
+  a 3 s budget giving up after exactly two polls at the 5 s cadence (a zero budget polls nothing). Five more pin
+  `_check_health`'s IP branch through a patched `httpx.get`: the URL with its port, path, query and fragment kept,
+  the Host header, verify/redirect flags, the non-200 retry-then-raise contract, a retried transport error with its
+  retry sleep, the http:// refusal, and the fallback to `urlopen` when no Host header is given.
+- `src/fabrik/orchestrator/verifier.py` (Fixed, found by the review's seats — H2): the IP probe rebuilt the netloc from
+  the bare IP, so a health URL on `:8443` was probed on 443; the port is kept.
+
 ### Fixed — the canonical `pgurl` refuses a duplicate ssl/sslmode key and a non-postgres DSN (2026-10-13)
 
 - `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md:107` and `CONFIGURATION_TEMPLATE.md:204`, byte-identical (fabrik-lib
