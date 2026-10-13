@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-13T03:12:26.454134Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "679a7881ae57250fd33c81404f5c7c5750bc7c35",
   "id": "W-23e8a0ba",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "fabrik-plan-review / fabrik-execute-plan disagree on the Opus finder at the small-profile Finish review, and plan-review has no rule for a half-blocked plan"
 }
