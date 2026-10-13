@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped runs the lead leak check around every pass (2026-10-13)
+- The dispatch paragraph now says the lead runs the **Leak check** of `/fabrik-review` before every dispatch and after each pass returns, since a seat can write to the shared tree. Review-scoped dispatches three seats in round 1 and its claim-holders each later pass, and had no such check (row 1791896900; D-711 audit). The row's other half, a seat changing into its scratch directory in the same call, needed no edit: the review-loop seat brief and `fabrik-reviewer.md` already require absolute scratch paths. Grader: `tests/test_review_scoped_queue_pass.py::test_the_lead_runs_the_leak_check_around_every_scoped_pass`.
+
 ### Changed — /fabrik-command-improve checks a rule it adds on the edit itself and on its origin case (2026-10-13)
 - PHASE 3 now says a rule the edit adds is checked before PHASE 4's pin on the edit's own grader and sentence, which obey it, and on the case that raised it, which it must flag. The catalogue's moved-text rule (403ab35e) was drafted with a section-scoped grader, the weakness that rule names, and its review's round 1 caught it before the commit (row 1791896044, a recurrence of the held apply-rule-to-origin-case). Grader: `tests/test_command_improve_queue_pass.py::test_phase_three_checks_an_added_rule_on_the_edit_and_its_origin_case`.
 
