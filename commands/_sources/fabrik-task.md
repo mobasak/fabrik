@@ -98,7 +98,7 @@ reads, names the unmerged branch owning a mirrored file, bars live-provider cred
 outputs. Wait for both in-turn: with stamped seats out, the Stop hook's run-record block stands down and will not hold you. A concern is ACCEPTED only after the tests are
 grepped for every line it touches; an optional one adding behaviour only when provable inside the declared files,
 else filed to its owner; a later executed review finding may override it, recorded in the D-row with the drift noted. Then, before this
-call: re-read `design.md`; each Behaviour names its test; every touched path is bare in
+call: read the plan locks (no CLI does: each `*.json` in `.fabrik/plan-locks/` with `status: active`) — a declared path or one backticked in APPROACH/MIRROR inside another lock's `owned_paths` is a STOP, and so is an ACTIVE lock whose `owned_paths` is empty or absent (it matches nothing and passes everything); re-read `design.md`; each Behaviour names its test; every touched path is bare in
 backticks under `APPROACH:`/`MIRROR:`; `--design` lands ONCE. Record them:
 
 ```bash
@@ -144,8 +144,7 @@ escape makes `check_decisions_unique.py` read a 7-cell row.
 
 ## Phase 3 — BUILD
 
-**Plan locks first** — no CLI reads them: each `*.json` in `.fabrik/plan-locks/` with `status: active`.
-A declared path inside another lock's `owned_paths` is a STOP; so is an ACTIVE lock whose `owned_paths` is empty or absent — that matches nothing and passes everything. Then the change and its grader, red-first per FIX
+Re-run phase 2's plan-lock check first: a `--design-amend` path or a lock taken since is the same STOP. The change and its grader, red-first per FIX
 DIRECTIVE 4; a shared-append file goes through § EXIT's private-index recipe, never the working file.
 One commit carries it at v1; *(v2)* several may, SPACE-separated — `done --commit shaA shaB …`
 measures each in order; a sync-path run (D7) commits ONCE, after phase 4, in the main checkout

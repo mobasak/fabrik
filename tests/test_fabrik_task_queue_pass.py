@@ -136,3 +136,13 @@ def test_phase_three_formats_the_declared_paths_only() -> None:
     text = " ".join((ROOT / "commands" / "_sources" / "fabrik-task.md").read_text().split())
     build = text[text.index("## Phase 3 — BUILD") : text.index("## Phase 4 — REVIEW")]
     assert "Never run a formatter by hand beyond the declared paths." in build
+
+
+def test_the_plan_lock_check_runs_before_the_design_is_recorded() -> None:
+    """Row 1791868540: the lock check sat in phase 3, after --design had recorded a locked APPROACH path."""
+    text = " ".join((ROOT / "commands" / "_sources" / "fabrik-task.md").read_text().split())
+    design = text[text.index("## Phase 2") : text.index("```bash python3 scripts/command_run.py step --phase 2")]
+    assert "read the plan locks (no CLI does: each `*.json` in `.fabrik/plan-locks/` with `status: active`)" in design
+    assert "a declared path or one backticked in APPROACH/MIRROR inside another lock's `owned_paths` is a STOP" in design
+    build = text[text.index("## Phase 3 — BUILD") : text.index("## Phase 4 — REVIEW")]
+    assert "Re-run phase 2's plan-lock check first: a `--design-amend` path or a lock taken since is the same STOP." in build
