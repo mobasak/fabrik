@@ -158,7 +158,7 @@ def test_a_shifted_cite_is_remapped_by_content_in_one_script() -> None:
 
 
 def test_the_closing_reader_clause_cites_d118_not_d066() -> None:
-    """W-a8361c19 residual 5: the clause said D-066 named only the heavy command; D-066 names both, D-118 is the asymmetry."""
+    """W-a8361c19 residual 5: the clause pinned the asymmetry on D-066 (a finding-shape triage row); D-118 bound independent recall here."""
     text = _norm(SRC)
     assert "Before D-118 that was the asymmetry between the two commands" in text
     assert "D-066 named only the heavy command" not in text
