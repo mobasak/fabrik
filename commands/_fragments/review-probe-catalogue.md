@@ -65,7 +65,8 @@ or name in the brief why the shape does not have it.
 - Surfaces: every connection a guarded module opens; every field a new serializer emits; argparse edges of a new flag;
   machine-parsed section markers; a literal pipe inside a table cell; a moved reference and which sentence branch
   reaches it; each mechanism claim at every lane or version it names; `git check-ignore` on the bare directory;
-  defects split between a hook and its generator.
+  defects split between a hook and its generator; a changed compose overlay read through its merged render (`docker
+  compose -f <base> -f <overlay> config`), where precedence and port exposure show.
 - The premise: the authoritative seat attacks the work item's premise and a ported heuristic's premise, not only the
   implementation; ask whether an existing mechanism or fragment already covers the class, and whether the check fits a
   boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to a

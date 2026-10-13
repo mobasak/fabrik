@@ -141,3 +141,10 @@ def test_a_brief_names_the_fix_by_sha_never_a_bare_range() -> None:
     """Row 1791852611: a two-dot range over a shared branch carried another item's 1278 lines."""
     text = _norm(CAT)
     assert "The brief names the fix as `git show <sha>` — each sha when the fix spans several commits — or a pathspec-scoped diff, never a bare range on a branch others commit to" in text
+
+
+def test_a_compose_overlay_is_read_through_its_merged_render() -> None:
+    """Row 1791860340: precedence and port exposure only show in the merged compose render."""
+    text = _norm(CAT)
+    surfaces = text[text.index("- Surfaces:") : text.index("- The premise:")]
+    assert "a changed compose overlay read through its merged render (`docker compose -f <base> -f <overlay> config`)" in surfaces

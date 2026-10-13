@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review probes read a compose overlay through its merged render (2026-10-13)
+- The Surfaces hunt line renders `docker compose -f <base> -f <overlay> config`, where precedence and port exposure show (D-808).
+
 ### Changed — /fabrik-review names the closing method cell's literal token (2026-10-13)
 - § Reporting: write the closing row's method cell as `method: re-derivation`; the coverage gate's regex needs `method` followed by `re-deriv` with only punctuation between (D-807).
 
