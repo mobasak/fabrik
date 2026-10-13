@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "45-testing-strategy checklist line 226 still mandates require_throwaway unconditionally — the FLOOR rubric injects it into repos that never vendored it (iterative_image_editor 01M3WW5PFN, item 2)"
 }
