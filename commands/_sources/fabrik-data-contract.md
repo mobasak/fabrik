@@ -139,7 +139,7 @@ project-level and light). Per section:
   identifier (`changed_by`, `reviewed_by`, set from the app user) is `personal`. `references` = the
   `entity.column` a FK points at, or `—`. A GUI field folded into a jsonb key is written `column.jsonkey`.
 - **Enum registry** — the template's `Enum | Backing | Allowed values` table: one row per enum (bare name in
-  `Enum`; `native`/`CHECK` in `Backing`; values in `Allowed values`). In the per-entity `type` column an enum
+  `Enum`; in `Backing` one of the template legend's six tokens `native` · `CHECK` · `app` · `doc` · `file` · `unconstrained`, whole-cell `token`, `token (note)` or `a / b` — `check_data_contract_legend.py` WARNs on any other cell; values in `Allowed values`). In the per-entity `type` column an enum
   field is written `enum:<x>` (native PG enum) or `chk:<x>` (CHECK-constraint-backed) — real schemas encode most
   enums as CHECK, so register both. An enum-typed field's values MUST come only from here — this is what stops
   agents inventing status variants.

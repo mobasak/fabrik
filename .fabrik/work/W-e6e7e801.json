@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T20:51:30.144363Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e6e7e801",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TJJDC385ZZBXGNB1F4JFZ2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "check_schema_sync passes a model change with only a schema.sql touch in a repo that tracks alembic — site-provisioner shipped 20 columns no migration ever created"
+}

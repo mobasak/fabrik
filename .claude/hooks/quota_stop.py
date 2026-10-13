@@ -469,7 +469,9 @@ def _mask_quoted(command: str, commit_body: bool = False) -> str:
             out.append(ch)
             i += 1
         elif ch == "\n":
-            out.append("x" if commit_body else ch)  # a quoted newline is the multi-line veto — except inside a git commit's quoted -m body (either quote: data to the shell)
+            out.append(
+                "x" if commit_body else ch
+            )  # a quoted newline is the multi-line veto — except inside a git commit's quoted -m body (either quote: data to the shell)
             i += 1
         elif quote == '"' and ch == "\\" and i + 1 < n:
             # an escaped $ ` " or \ is a literal, not an expansion — but an escaped NEWLINE is a
@@ -591,7 +593,11 @@ def decide(
     if tool == "Bash":
         # the vetoes read the MASKED line (operators only); the allow-list reads the RAW line,
         # because the leading command word is never quoted in a command we would allow.
-        masked = _mask_quoted(command, commit_body=command.lstrip().startswith("git commit ")) if command is not None else ""
+        masked = (
+            _mask_quoted(command, commit_body=command.lstrip().startswith("git commit "))
+            if command is not None
+            else ""
+        )
         if (
             command is not None
             and not _UNSAFE_SHELL.search(masked)
@@ -629,11 +635,17 @@ def _reason(tool: str, sid: str | None = None) -> str:
     """The one message every held session reads. It carries the LITERAL session id in the arm
     order when the payload names one — CLAUDE.md's arm rule needs a literal sid (an empty arg
     exits the watch as you arm it), and the relief wake reaches ONLY an armed watch."""
-    who = sid if isinstance(sid, str) and 0 < len(sid) <= 80 and all((c.isascii() and c.isalnum()) or c in "._-" for c in sid) else "<your sid>"
+    who = (
+        sid
+        if isinstance(sid, str)
+        and 0 < len(sid) <= 80
+        and all((c.isascii() and c.isalnum()) or c in "._-" for c in sid)
+        else "<your sid>"
+    )
     return (
-        f"FLEET QUOTA EXHAUSTED — no account left to rotate to (the tick's fleet-exhausted stamp is "
-        f"set). {tool} is held. STOP GRACEFULLY NOW: commit your own work with explicit pathspecs "
-        "(`git commit -m '<msg>' -- <paths>` — SINGLE-QUOTE the message: a quoted newline is data, but `$(…)`/heredoc and a backtick in double quotes stay refused), `git push`, close your run record (`command_run.py done|blocked`), "
+        f"FLEET QUOTA EXHAUSTED — no account left to rotate to. {tool} is held. STOP GRACEFULLY NOW: "
+        "commit your own work with explicit pathspecs "
+        "(`git commit -m '<msg>' -- <paths>` — SINGLE-QUOTE the message: a quoted newline is data, but `$(…)`/heredoc and a backtick in double quotes stay refused), `git push`, close your run record (`command_run.py done` — or `blocked --wall`, resumable by `start --resume-from`), "
         "then end the turn — no new edits, no new phases. Reads, git, command_run.py, mail.py, "
         "thread_anchor.py, the self-watch arm and TaskStop stay allowed. The hold lifts when the tick sees relief, "
         "and the lift WAKES every session whose self-watch is armed (a RESUME line naming where it left "

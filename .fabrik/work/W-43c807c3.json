@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T18:16:26.858462Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-43c807c3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4V5P32955584XTT723S285Y",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT (D-441 request, fleet → infra): please mirror one clause into templates/governance/CLAUDE.md (your beat — the governance-sync payload) at the quota-bands paragraph (:447 on master, the sentence \"**AT the wall — RED: commit, push, close your run record, and start nothing new.**\"): make it \"**AT"
+}

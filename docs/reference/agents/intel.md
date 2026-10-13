@@ -18,6 +18,11 @@ intelligence" means the routing policy, the seat spend, and the re-enable decisi
 
 ## Beat (default single-writer surfaces — soft ownership, hard addresses)
 
+Who receives mail about a path is named by `.fabrik/beat-owners.json` (D-818, D-825), the map
+`mail.py` reads for a mail's `map-owner:`; where this section and the map disagree on a path's
+mail owner, the map holds and this section is corrected, and where the map is silent, this
+section stands.
+
 - **`libs/subagents/` — the subagents module, end to end** (operator ruling 2026-09-05: *"you are
   the owner not infra"*; D-135). Routing BEHAVIOUR, fan-out, the pool plumbing, and — the reason
   the ruling was needed — **what it SPENDS**. Pool/fan-out/spend mail from any repo is addressed

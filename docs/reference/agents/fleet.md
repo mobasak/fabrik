@@ -10,6 +10,11 @@ lives on the fleet," and the monitoring that proves it stays alive.
 
 ## Beat (default single-writer surfaces — soft ownership, hard addresses)
 
+Who receives mail about a path is named by `.fabrik/beat-owners.json` (D-818, D-825), the map
+`mail.py` reads for a mail's `map-owner:`; where this section and the map disagree on a path's
+mail owner, the map holds and this section is corrected, and where the map is silent, this
+section stands.
+
 - `specs/services/*.yaml` (the canonical `shape:` contracts)
 - `fabrik apply` / `redeploy` execution (hub-side; trigger-don't-execute for projects)
 - Monitoring/Authelia/Gatus/Prometheus wiring · VPS topology (vps1 hub + vps2/vps3 spokes)

@@ -94,6 +94,32 @@ def _sanitize_subject(s: str) -> str:
     return s.replace(_DELIM, "[delim]")[:_SUBJECT_CAP]
 
 
+# The hub's beats, as `scripts/mail.py::HUB_BEATS` names them — copied, because this hook must
+# import nothing (tests/test_mail_notify.py pins the two tuples equal). A token that is not one
+# of them shows nothing, so a forged or stale header can never present an invented owner.
+_HUB_BEATS = ("infra", "fleet", "intel", "kaizen")
+
+
+def _map_marker(fm: dict) -> str:
+    """The `map-owner:` header's marker (mail routing, spec D4): ` → map: <owner>` when it
+    names an owner other than the addressee, ` → mixed: a,b` or ` → unmapped` as written. The
+    header is written once by `mail.py send`; this only reads it, imports nothing and looks up
+    nothing. A token that is not a hub beat (or a `mixed:` list of distinct beats) shows
+    nothing."""
+    token = fm.get("map-owner", "").split(" · ", 1)[0].strip()
+    if token == "unmapped":
+        return " → unmapped"
+    if token.startswith("mixed:"):
+        parts = token[len("mixed:") :].split(",")
+        ok = (
+            len(parts) > 1 and len(set(parts)) == len(parts) and all(p in _HUB_BEATS for p in parts)
+        )
+        return f" → mixed: {','.join(parts)}" if ok else ""
+    if token in _HUB_BEATS and token != fm.get("agent", ""):
+        return f" → map: {token}"
+    return ""
+
+
 def _summaries(inbox: Path, cap: int = _FLOOD_CAP) -> list[str]:
     if not inbox.is_dir():
         return []
@@ -121,7 +147,7 @@ def _summaries(inbox: Path, cap: int = _FLOOD_CAP) -> list[str]:
         subject = _sanitize_subject(_first_body_line(text))
         # bracket the validated fields so a subject containing ` · ` can't masquerade
         # as a metadata field; the subject is free untrusted text at the end.
-        out.append(f"{_DELIM} [{frm}] [{kind}] {subject}")
+        out.append(f"{_DELIM} [{frm}] [{kind}] {subject}{_map_marker(fm)}")
     remaining = len(files) - scanned
     if remaining > 0:
         out.append(f"+{remaining} more — run `python scripts/mail.py list`")

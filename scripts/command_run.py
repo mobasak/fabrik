@@ -49,6 +49,7 @@ import argparse
 import calendar
 import collections
 import contextlib
+import copy
 import datetime as dt
 import fcntl
 import hashlib
@@ -1106,8 +1107,10 @@ def _phase_review_exists(
 def _since_label(rec: dict[str, Any]) -> str:
     """The phase-form clause of the refusal: the time bound with the record's start as a local
     timestamp (zone named), or NO clause when the record carries no finite start — a bound that
-    is not in force is not stated (review round 2)."""
-    ts = _finite_ts(rec.get("started_epoch"))
+    is not in force is not stated (review round 2). The start it names is the one the gate binds
+    on: the ORIGIN of a resumed run (W-28f260c3 review code-S1 — the label read this sitting's
+    clock while `_phase_review_exists(since=…)` accepted a pre-wall artifact)."""
+    ts = _finite_ts(rec.get("origin_epoch") or rec.get("started_epoch"))
     if ts is None:
         return ""
     stamp = time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(ts))
@@ -1272,6 +1275,62 @@ def _now() -> str:
 # the two (closing review C-3: this was the fourth hand-kept copy). The coroner's `died`/
 # `expired` are deliberately NOT here — a reaped run covered nothing.
 AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
+
+# ── the quota-wall resume (W-28f260c3, sp3 01M49B2E91) ──────────────────────────────────────
+# A record closed at the fleet quota wall was TERMINAL: the session's next `start` overwrote it,
+# so the successor lost the round and class ledgers, the design, the SIZE declaration and the
+# start clock — its quiet round read as "round 1 is the full pass" and `done --commit` refused
+# every pre-wall commit. `blocked --wall` keeps a JSON seed of the closed record under
+# `<state>/seeds/`; `start --resume-from <seed>` carries it forward. The explicit flag is the
+# gate; `_WALL_REASON` catches the hook's own phrase (quota_stop.py `_reason`) for an agent who
+# pasted it without the flag; `_WALL_HINT` only prints a NOTE naming the flag — a missed match is
+# SILENT otherwise, which is the fail direction this trio exists to close.
+_WALL_REASON = re.compile(r"quota wall|fleet quota exhausted|fleet-exhausted", re.I)
+# `RED` is the band name and upper-case only: under re.I a lowercase "red" — "tests red thrice",
+# the commonest sanctioned BLOCKED wording — drew the NOTE on every three-failures close (review
+# code-S3). The other alternatives stay broad on purpose: a vendor quota or a "wall-mounted" sensor
+# in a reason costs one self-qualifying stderr line; a missed fleet wall costs the run.
+_WALL_HINT = re.compile(r"quota|exhaust|\bwall\b|(?-i:\bRED\b)", re.I)
+# Carried from the seed as-is. NOT carried, by name: `started_at`/`started_epoch` (this
+# sitting's clock — budget, appetite, tokens and wall_s count ACTIVE time; the original start
+# rides beside it as `origin_epoch`/`origin_started_at` + `gap_s`), `dispatch` (a per-round
+# reservation siblings subtract for 25 min — stale by construction), `stack` (rebuilt from the
+# live record), `covered`/`first_review_reach`/`event_seq`/`session_id`/`repo_root`/`agent`/
+# `account` (the session's), `state`/`wall`/`blocked_reason`/`resume`/`resume_copy`/
+# `resume_seed`/`usage`/`feedback`/`feedback_to`/`feedback_text`/`closed_by`/`evidence`/
+# `nested`/`child_closed_ts` (the closed sitting's own).
+_RESUME_CARRY = (
+    "phases",
+    "phase",
+    "phase_title",
+    "terminal",
+    "terminal_amends",
+    "surface",
+    "rounds",
+    "classes",
+    "declared",
+    "design",
+    "design_amends",
+    "budget_min",
+    "surface_adds",
+    "waived_reviews",
+    "phase_marks",
+)
+
+
+def _effective_start(rec: dict[str, Any]) -> float | None:
+    """The start every ELAPSED-time reader uses: the original start shifted by the quota-wall
+    gap(s), so budget, appetite and the lane's appetite breaker count active time only. For a
+    record that was never resumed this is `started_epoch` unchanged. The COMMIT binding and the
+    review windows read `origin_epoch or started_epoch` instead — a pre-wall commit or phase review
+    still counts, whatever the gap."""
+    origin = _finite_ts(rec.get("origin_epoch"))
+    started = origin if origin is not None else _finite_ts(rec.get("started_epoch"))
+    if started is None:
+        return None
+    gap = _finite_ts(rec.get("gap_s"))
+    return started + (gap if gap is not None and gap > 0 else 0.0)
+
 
 # The commands whose closed window reaches back to the previous covered window's close: a review
 # reviews the session's work SINCE the last run, so that span is covered by its contract.
@@ -2520,8 +2579,9 @@ def _iter_lines_backwards(path: Path, max_bytes: int):
 
 
 def _minutes_used(rec: dict[str, Any]) -> int:
-    """Whole minutes since the record's start (0 when the start epoch is unreadable)."""
-    started = rec.get("started_epoch") or 0.0
+    """Whole ACTIVE minutes since the record's start (0 when the start epoch is unreadable) — the
+    quota-wall gap of a resumed run is not time spent (`_effective_start`)."""
+    started = _effective_start(rec) or 0.0
     try:
         return max(0, int((time.time() - float(started)) // 60)) if started else 0
     except (TypeError, ValueError):
@@ -2900,6 +2960,15 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="ID",
         help="/fabrik-task only (lane v2): the lane-refusal id a /fabrik-spec DOWNGRADE handed back",
     )
+    p.add_argument(
+        "--resume-from",
+        default=None,
+        metavar="SEED",
+        help="reopen a run closed at the quota wall from the JSON seed its `blocked --wall` kept "
+        "(or the session's own blocked record file): rounds, classes, design, declaration, "
+        "phase and terminal are carried; the original start rides beside this sitting's clock "
+        "as the commit window (W-28f260c3). Never with --file/--declare — the SIZE gate ran once.",
+    )
 
     p = sub.add_parser(
         "surface",
@@ -3085,6 +3154,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
     )
     p.add_argument("--reason", required=True)
+    p.add_argument(
+        "--wall",
+        action="store_true",
+        help="this close is the fleet QUOTA WALL, not one of the three BLOCKED cases: the record is "
+        "marked and a JSON seed of it is kept under <state>/seeds/ for `start --resume-from` "
+        "(W-28f260c3). The hook's own phrase in --reason implies it; a quota-shaped reason "
+        "without the flag gets a NOTE, never a seed.",
+    )
     p.add_argument("--commit", default=None, nargs="+", metavar="SHA", help=_TASK_COMMIT_HELP)
     p.add_argument(
         "--feedback",
@@ -3439,7 +3516,8 @@ def _appetite_segment(rec: dict[str, Any], now: float) -> str:
             return seg
     d = rec.get("declared")
     if (rec.get("command") or "") == _TASK_COMMAND and isinstance(d, dict) and d.get("gate") == 2:
-        got = _over(rec.get("started_epoch"), d.get("appetite"), now)
+        # active time: a run resumed after the quota wall never counts the gap (W-28f260c3)
+        got = _over(_effective_start(rec), d.get("appetite"), now)
         if got is not None:
             mins, past = got
             seg = f" · elapsed {mins}/{d['appetite']}"
@@ -4135,7 +4213,9 @@ def _task_run_commit(rec: dict[str, Any], rp: Path, sha_in: str) -> tuple[str | 
             ok = len(parents) <= 1
     if ok:
         ct = _task_git(rp, "log", "-1", "--format=%ct", sha_in)
-        started = _finite_ts(rec.get("started_epoch"))
+        # the ORIGINAL start on a run resumed after the quota wall: a pre-wall commit is this
+        # run's commit (W-28f260c3); `origin_epoch` is absent on a never-resumed record
+        started = _finite_ts(rec.get("origin_epoch") or rec.get("started_epoch"))
         raw = ct.stdout.strip()
         if ct.returncode != 0:
             if _git_unusable():
@@ -4420,7 +4500,9 @@ def _task_close_v2(
         if not root:
             raise RuntimeError("no repo_root on record")
         rp = Path(root)
-        started = _finite_ts(rec.get("started_epoch"))
+        # the lane's appetite breaker reads ACTIVE time — the quota-wall gap of a resumed run is
+        # not time spent (W-28f260c3); the commit binding below reads the original start itself
+        started = _effective_start(rec)
         if started is None:
             raise RuntimeError("no started_epoch on record")
         resolved: list[str] = []
@@ -4525,7 +4607,7 @@ def _task_close_v2(
     return 0, fields
 
 
-def _keep_resume_seed(sid: str, data: bytes) -> str:
+def _keep_resume_seed(sid: str, data: bytes, *, tag: str = "", ext: str = ".md") -> str:
     """Write a handoff's `--resume` artifact — the bytes the close validated — to `<state dir>/seeds/`
     and return the copy's absolute path, or a `REFUSED — …` line (intel 01M4EDB9TC). The successor must outlive
     what wrote it: a /fabrik-task UPGRADE seed sits in the session's scratch, which dies with the
@@ -4539,7 +4621,10 @@ def _keep_resume_seed(sid: str, data: bytes) -> str:
     seeds = _state_dir().resolve() / "seeds"
     tmp: Path | None = None
     try:
-        copy = seeds / f"{_safe_sid(sid)}-{hashlib.sha256(data).hexdigest()[:16]}.md"
+        # handoff keeps its `.md` seed under the unchanged name; a quota-wall `blocked` keeps a
+        # `-wall-…json` copy of the record beside it (W-28f260c3) — store readers glob `*.json`
+        # non-recursively on the store dir, so nothing under seeds/ is ever read as a record
+        copy = seeds / f"{_safe_sid(sid)}{tag}-{hashlib.sha256(data).hexdigest()[:16]}{ext}"
         seeds.mkdir(parents=True, exist_ok=True)
         tmp = copy.with_name(f"{copy.name}.{os.getpid()}.tmp")
         tmp.write_bytes(data)
@@ -4694,8 +4779,87 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # REFUSED `--command /fabrik-task --file a.py`, which the same binding closes.
         _cmd = _norm_command(args.command)
         _declared: dict[str, Any] | None = None
+        _seed: dict[str, Any] | None = None
+        _seed_path = str(getattr(args, "resume_from", "") or "").strip()
+        if _seed_path:
+            # ── the quota-wall resume (W-28f260c3): the seed is read as handoff reads its artifact —
+            # a regular file, bounded, every refusal its own line, nothing on disk touched ────────
+            if (
+                getattr(args, "file", None)
+                or str(getattr(args, "declare", "") or "").strip()
+                or any(
+                    getattr(args, a, None) is not None
+                    for a in ("appetite", "why", "from_downgrade")
+                )
+            ):
+                return _refuse(
+                    "REFUSED — start --resume-from: the declaration is carried from the seed (the SIZE "
+                    "gate ran once) — drop --file/--declare/--appetite/--why/--from-downgrade"
+                )
+            sp = Path(_seed_path)
+            why = ""
+            raw = b""
+            try:
+                if not sp.is_file():
+                    why = "is not a regular file"
+                else:
+                    with sp.open("rb") as fh:
+                        raw = fh.read(_RESUME_READ_CAP + 1)
+            except Exception as exc:  # noqa: BLE001 — every failure refuses; none may reach main's rc 0
+                why = f"cannot be read ({type(exc).__name__})"
+            if not why and len(raw) > _RESUME_READ_CAP:
+                why = f"exceeds the {_RESUME_READ_CAP:,}-byte seed cap"
+            if not why:
+                try:
+                    loaded = json.loads(raw.decode("utf-8", errors="replace"))
+                except ValueError:
+                    loaded = None
+                if not isinstance(loaded, dict):
+                    why = "is not a JSON record"
+                elif loaded.get("state") != "blocked":
+                    why = f"is not a blocked record (state {loaded.get('state')!r})"
+                elif loaded.get("wall") is not True:
+                    why = "was not closed at the quota wall (no `wall` mark — `blocked --wall` keeps one)"
+                elif _norm_command(str(loaded.get("command") or "")) != _cmd:
+                    why = f"belongs to /{loaded.get('command')}, not /{_cmd}"
+                else:
+                    _seed = loaded
+            if why:
+                return _refuse(f"REFUSED — start --resume-from {_seed_path} {why}")
+            # nested order: a child seed needs its parent LIVE; a parent seed cannot open under a live run
+            _stack_cmds = [str(c) for c in (_seed.get("stack_commands") or []) if c]
+            _live = rec if rec.get("state") == "running" else None
+            if _stack_cmds and (
+                _live is None
+                or _norm_command(str(_live.get("command") or "")) != _norm_command(_stack_cmds[-1])
+            ):
+                return _refuse(
+                    f"REFUSED — start --resume-from: this seed was nested under /{_stack_cmds[-1]} — "
+                    "resume the parent first (its own `--resume-from` seed), then this one"
+                )
+            if not _stack_cmds and _live is not None:
+                return _refuse(
+                    f"REFUSED — start --resume-from: /{_live.get('command')} is live in this session; a "
+                    "wall-blocked run is resumed before its children — close or finish the live run first"
+                )
+            if _seed.get("declared") is not None:
+                _declared = dict(_seed["declared"])
+        elif (
+            rec.get("state") == "blocked"
+            and rec.get("wall") is True
+            and _norm_command(str(rec.get("command") or "")) == _cmd
+        ):
+            # the forgotten flag is the common case: say where the seed is, then open as asked
+            sys.stderr.write(
+                f"[command_run] NOTE — this session's /{_cmd} record was closed at the quota wall; "
+                f"a plain `start` restarts it from zero. To carry its rounds, design and commit "
+                f"window: start --command {_cmd} --phases {rec.get('phases')} --resume-from "
+                f"{rec.get('resume_seed') or _record_path(sid)}\n"
+            )
         try:
-            if _cmd != _TASK_COMMAND:
+            if _seed is not None:
+                pass  # the declaration is carried; neither the lane gate nor the flag guards run
+            elif _cmd != _TASK_COMMAND:
                 if getattr(args, "file", None) or str(getattr(args, "declare", "") or "").strip():
                     return _refuse("REFUSED — --file/--declare belong to --command fabrik-task")
                 if _cmd in _SURFACE_REQUIRED_V2 and not str(args.surface or "").strip():
@@ -4812,6 +4976,64 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # OTHER command's record would change the record shape in ~46 repos for no reader.
         if _declared is not None:
             new["declared"] = _declared
+        if _seed is not None:
+            # ── carry the wall-blocked sitting forward (W-28f260c3). The record's own clock is THIS
+            # sitting's; the original start rides beside it, and the gap is what active-time readers
+            # subtract. `--phases`/`--terminal`/`--surface` yield to the seed (a NOTE, an amend, a
+            # fallback — never a refusal: the command text's verbatim start line carries the
+            # ORIGINAL terminal, which a mid-run amend may have moved).
+            for key in _RESUME_CARRY:
+                if key in _seed:
+                    new[key] = copy.deepcopy(_seed[key])
+            if args.phases and new.get("phases") != max(1, args.phases):
+                sys.stderr.write(
+                    f"[command_run] NOTE — --phases {args.phases} ignored: the seed's {new.get('phases')} "
+                    "phase(s) are carried\n"
+                )
+            _seed_terminal = str(_seed.get("terminal") or "")
+            _given = (args.terminal or "").strip()
+            _known = {_seed_terminal, *(str(t) for t in (_seed.get("terminal_amends") or []))}
+            if _given and _given not in _known:
+                _prev_t = new.get("terminal_amends")
+                new["terminal_amends"] = (_prev_t if isinstance(_prev_t, list) else []) + [
+                    _seed_terminal
+                ]
+                new["terminal"] = _given
+                sys.stderr.write(
+                    "[command_run] NOTE — --terminal differs from the seed's: recorded as a terminal amend\n"
+                )
+            if (args.surface or "").strip():
+                new["surface"] = args.surface.strip()
+            _paused = _finite_ts(_seed.get("updated_ts"))
+            _now_ts = time.time()
+            _gap_prev = _finite_ts(_seed.get("gap_s")) or 0.0
+            new["origin_epoch"] = _finite_ts(_seed.get("origin_epoch")) or _finite_ts(
+                _seed.get("started_epoch")
+            )
+            new["origin_started_at"] = str(
+                _seed.get("origin_started_at") or _seed.get("started_at") or ""
+            )
+            new["gap_s"] = max(0.0, _gap_prev) + (
+                max(0.0, _now_ts - _paused) if _paused is not None else 0.0
+            )
+            # the open phase mark ends at the wall and re-opens now: a phase's appetite never counts the gap
+            _marks = [m for m in (new.get("phase_marks") or []) if isinstance(m, dict)]
+            if _marks and "ended" not in _marks[-1]:
+                _reopen_mark = dict(_marks[-1])
+                _marks[-1]["ended"] = _paused if _paused is not None else _now_ts
+                _reopen_mark.pop("ended", None)
+                _reopen_mark["started"] = _now_ts
+                _marks.append(_reopen_mark)
+            if _marks:
+                new["phase_marks"] = _marks
+            new["resumed_from"] = {
+                "session_id": str(_seed.get("session_id") or ""),
+                "started_at": str(_seed.get("started_at") or ""),
+                "blocked_at": str(_seed.get("updated_at") or ""),
+                "reason": str(_seed.get("blocked_reason") or "")[:200],
+                "seed": _seed_path,
+                "rounds": len(_seed.get("rounds") or []),
+            }
         # The `start` verb's join window is the WHOLE store, so the anchor is cleared —
         # never this record's own start (that would exclude every candidate landing
         # microseconds earlier, and `started_at` is second-truncated so WHICH ones would
@@ -4831,11 +5053,25 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _touch(new)
         fields["persisted"] = save(sid, new)
         print(pinned_line(new))
+        if _seed is not None:
+            _rf = new.get("resumed_from") or {}
+            print(
+                f"RESUMED: from {_seed_path} · rounds {len(new.get('rounds') or [])} · phase "
+                f"{new.get('phase')}/{new.get('phases')} · commit window from "
+                f"{new.get('origin_started_at')} · gap {int((new.get('gap_s') or 0) // 60)} min"
+                + (
+                    " · the seed's session is not this one — its scratch directory belongs to a dead "
+                    "session"
+                    if _rf.get("session_id") and _rf.get("session_id") != sid
+                    else ""
+                )
+            )
         if _declared is not None:
             # The record's own `started_at` (`%Y-%m-%dT%H:%M:%S%z`) keys phase 2's scratch
             # directory. Printing it is what lets the agent PASTE the id rather than retype a
-            # timestamp with a `%z` offset in it.
-            print(f"RECORD: {new['started_at']}")
+            # timestamp with a `%z` offset in it. A resumed run prints the ORIGINAL key: that is
+            # where its design.md and commit.sha already live (W-28f260c3).
+            print(f"RECORD: {new.get('origin_started_at') or new['started_at']}")
             # D12 / W-25318990: say which lane admitted the run and, at v2, the commit that set
             # the switch — who may change `.fabrik/lane.json` is answered by its history.
             if _declared.get("gate") == 2:
@@ -4888,7 +5124,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                     str(rec.get("repo_root") or ""),
                     n,
                     plan_stem=_plan_stem(rec),
-                    since=_finite_ts(rec.get("started_epoch")),
+                    since=_finite_ts(rec.get("origin_epoch") or rec.get("started_epoch")),
                 )
             ),
             0,
@@ -5544,7 +5780,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # mtime binding is DECLARATIVE evidence (adjudicated round 33): os.utime forgery is
         # trivial and out of scope on a single-operator box — this is self-discipline, not a
         # security boundary; the same residual class as BLOCKED-section sincerity.
-        started_epoch = rec.get("started_epoch") or 0.0
+        # the ORIGINAL start on a run resumed after the quota wall: a pre-wall review artifact
+        # still counts (W-28f260c3)
+        started_epoch = rec.get("origin_epoch") or rec.get("started_epoch") or 0.0
         if not started_epoch:
             # legacy record without the numeric field: parse WITH the offset the string
             # carries (round 33: truncating %z re-interpreted the wall clock in the close
@@ -5839,6 +6077,21 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(msg)
         return 1
     rec["state"] = args.cmd
+    # the quota wall (W-28f260c3): the flag is the gate, the hook's own phrase implies it, and a
+    # quota-shaped reason WITHOUT either gets a NOTE — a silent miss here is a lost run
+    _wall = False
+    if args.cmd == "blocked":
+        _reason_text = str(getattr(args, "reason", "") or "")
+        _wall = bool(getattr(args, "wall", False)) or bool(_WALL_REASON.search(_reason_text))
+        if _wall:
+            rec["wall"] = True
+        elif _WALL_HINT.search(_reason_text):
+            sys.stderr.write(
+                "[command_run] NOTE — this reason reads like the quota wall but --wall was not "
+                "passed, so no resume seed is kept. IF this close is the fleet quota wall, close with "
+                "`blocked --wall --reason '…'` instead — it keeps the record for `start --resume-from`; "
+                "if it is one of the three BLOCKED cases, ignore this line.\n"
+            )
     if isinstance(rec.get("dispatch"), dict):  # a closed run reserves nothing — say so, don't pop
         rec["dispatch"] = dict(rec["dispatch"], seats=0, released=True, ts=time.time())
     # `closed_by` is ADDITIVE and never read by an existing consumer (the Stop hook keys
@@ -6032,6 +6285,12 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "evidence_hash": _evidence_hash(args.evidence if args.cmd == "done" else args.reason),
             "resume": getattr(args, "resume", "") or "",
             "resume_copy": rec.get("resume_copy", "") if args.cmd == "handoff" else "",
+            # the quota-wall pair rides the event stream too (W-28f260c3). The event field is a
+            # SCALAR under its own name: `resumed_from` on the record and the ledger row is the
+            # dict (session_id, started_at, blocked_at, reason, seed, rounds); one name with two
+            # shapes across the two streams was review tests-docs-S1
+            "wall": "quota" if _wall else "",
+            "resumed_from_start": str((rec.get("resumed_from") or {}).get("started_at") or ""),
             # Kaizen's `Filed (spec/mail)` column has read "-" on every row since the 2026-08-12
             # baseline because nothing ever measured it. These three fields make it countable: the
             # verdict, which beats were routed to, and a HASH of the line (never the prose - the
@@ -6093,6 +6352,15 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "state": args.cmd,
             "wall_s": round(_wall_s, 1),
             "rounds": len(rec.get("rounds") or []),
+            # the quota-wall pair (W-28f260c3): a wall close writes THIS sitting's row with
+            # `wall: quota`; the resumed run's close writes its own sitting's wall_s and names the
+            # seed it came from, the gap it never counted and the rounds it carried — a reader that
+            # sums rows per command subtracts on `resumed_from` instead of counting the first
+            # sitting twice. Tokens never span sessions (the transcript is this sid's).
+            "wall": "quota" if _wall else "",
+            "resumed_from": dict(rec.get("resumed_from") or {}) or "",
+            "gap_s": round(float(_finite_ts(rec.get("gap_s")) or 0.0), 1),
+            "rounds_before_resume": _int0((rec.get("resumed_from") or {}).get("rounds")),
             # a non-dict round keeps its slot as null, like `confirmed` below and `_trend_series`
             # (W-1bba6b75): a raise here was swallowed by main()'s fail-soft and left the record
             # `running` for good, the Stop hook blocking every turn
@@ -6131,6 +6399,33 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # a restored parent must keep ascending from where the nested run left off.
         parent["event_seq"] = rec.get("event_seq")
         _touch(parent)
+    _reopen: str = ""
+    if _wall:
+        # ── the quota-wall seed (W-28f260c3): the CLOSED record minus its parked parent, plus the
+        # parent chain by command so `start --resume-from` can refuse an inverted nest. Kept BEFORE
+        # the save so the record names it; a copy that cannot be written WARNS and the close
+        # proceeds — at the wall every tool is held and a refused close would leave the record
+        # `running`, the Stop hook blocking every turn after the lift (handoff's refusal is the
+        # inverse case: a voluntary close that can wait). The session's own record file stays a
+        # valid seed until the next `start` overwrites it.
+        _seed_rec = {k: v for k, v in rec.items() if k != "stack"}
+        # from the RECORD's stack (`stack` above already popped the parent off its copy)
+        _seed_rec["stack_commands"] = [
+            str(fr.get("command") or "") for fr in (rec.get("stack") or []) if isinstance(fr, dict)
+        ]
+        _kept_seed = _keep_resume_seed(
+            sid, json.dumps(_seed_rec, indent=2).encode("utf-8"), tag="-wall", ext=".json"
+        )
+        if _kept_seed.startswith("/"):
+            rec["resume_seed"] = _kept_seed
+            _reopen = _kept_seed
+        else:
+            sys.stderr.write(
+                f"[command_run] WARNING — the quota-wall seed could not be kept ({_kept_seed[:160]}); "
+                f"the record file itself is the seed until this session's next start: "
+                f"{_record_path(sid)}\n"
+            )
+            _reopen = str(_record_path(sid))
     fields["persisted"] = save(sid, parent if parent is not None else rec)
     if not fields["persisted"]:
         # The record on disk still says `running`: the Stop hook keeps blocking and a retry of
@@ -6154,8 +6449,25 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             _append_ledger_row(_lp, _pending_row)
         except OSError as exc:  # the ledger never blocks a close; the record still carries it
             sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")
+    if rec.get("resumed_from"):
+        _rf = rec.get("resumed_from") or {}
+        print(
+            f"[command_run] NOTE — resumed run: rounds {_int0(_rf.get('rounds'))} carried from the "
+            f"wall-blocked sitting ({_rf.get('started_at')}); wall-clock and tokens below are THIS "
+            f"sitting's — the first sitting has its own ledger row (wall: quota)"
+        )
     if _fb_line is not None:
         print(_fb_line)
+    if _reopen:
+        print(
+            f"wall: the run is kept — reopen it after the lift with: start --command "
+            f"{rec.get('command')} --phases {rec.get('phases')} --resume-from {_reopen}"
+        )
+        if parent is not None:
+            print(
+                f"wall: the parent /{parent.get('command')} is live — close it too with `blocked --wall`; "
+                "after the lift resume the PARENT first, then this run"
+            )
     if parent is not None:
         print(f"{args.cmd.upper()} /{closed.get('command')} — resuming:")
         print(pinned_line(parent))

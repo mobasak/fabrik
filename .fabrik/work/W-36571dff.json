@@ -13,7 +13,7 @@
   },
   "next": "/fabrik-spec for Phase 11-2: per verb, rebase on the SSH deploy model or retire it (and every doc and hint that recommends it, e.g. cli.py:1457 audit-registrars -> reconcile-all); spec-chain because it changes the public CLI contract of several verbs",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [

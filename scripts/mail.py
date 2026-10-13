@@ -38,6 +38,7 @@ import importlib.util
 import io
 import json
 import os
+import posixpath
 import re as _re
 import stat
 import subprocess
@@ -48,6 +49,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
+from typing import NamedTuple, cast
 
 # --- constants ---------------------------------------------------------------
 # Crockford base32, ASCII-ascending so lexical order == numeric value order.
@@ -514,6 +516,7 @@ def _frontmatter(
     hops: int = 0,
     agent: str = "",
     from_agent: str = "",
+    extra: tuple[str, ...] = (),
 ) -> str:
     # `agent` is the INTRA-mailbox addressee (see _safe_agent); `from-agent` is the
     # SENDER's role, which a reply is addressed back to (01M3PT248G7A). Each is emitted
@@ -521,6 +524,8 @@ def _frontmatter(
     # every legacy reader (`_parse` takes any `key: value` line) is unaffected.
     agent_line = f"agent: {agent}\n" if agent else ""
     agent_line += f"from-agent: {from_agent}\n" if from_agent else ""
+    # routing lines (`routed:`, `map-owner:`) — each already one sanitised header line
+    agent_line += "".join(f"{ln}\n" for ln in extra)
     return (
         "---\n"
         f"id: {mid}\n"
@@ -564,6 +569,333 @@ def _safe_agent(name: str) -> str:
     if not _SAFE_NAME.fullmatch(name) or name in (".", ".."):
         raise MailRefusedError(f"unsafe agent {name!r}: a plain role name ([A-Za-z0-9._-])")
     return name
+
+
+# --- ownership map (spec 2026-10-13-mail-routing-design § The delta D1-D3, D7) ---------------
+# ONE hub map, `.fabrik/beat-owners.json`, read from the hub checkout under `_opt_root()` by
+# every sender's synced copy of this file. It is applied ONCE, at send: the result is written
+# into the message as a `map-owner:` header and every later reader shows that header. Nothing
+# here ever calls a model, and nothing here can make a send fail that today's code delivers —
+# `send` wraps the whole step in one guard (D3e).
+# ⚠️ COBRA (D-253): the cheapest way to look accurate is to stamp every mail with a confident
+# owner, so no confidence is stored; the measure is receivers' re-routes and who answered
+# (`route-report`), and `auto_address` stays off until kaizen has reviewed the replay.
+class Routing(NamedTuple):
+    owner: str | None
+    owners: list[str]
+    reason: str
+    map_version: str
+
+
+_NO_ROUTING = Routing(None, [], "", "")
+_UNSET_MAP = object()  # owner_of's "not supplied" — None already means "the caller found no map"
+_MAP_REL = Path(".fabrik") / "beat-owners.json"
+_LIB_MAP_REL = Path(".fabrik") / "module-owners.json"
+MAP_SWITCHES = ("auto_address", "fabrik_lib_address")
+_ROUTING_CAP = 200  # a header value, never a paragraph
+_BACKTICKED = _re.compile(r"`([^`\n]+)`")
+_PATH_LINE = _re.compile(r"(?<![\w.~/-])((?:/|[\w.-]+/)[\w./-]*[\w-])(?::\d+(?:-\d+)?)")
+_LINE_SUFFIX = _re.compile(r":\d+(?:-\d+)?$")
+
+
+def _glob_re(pattern: str) -> _re.Pattern[str]:
+    """A gitignore-style segment glob as an anchored regex: `*` and `?` stop at `/`, `**`
+    crosses it only as a WHOLE segment (``a/**/b``, ``a/**``, ``**/b``; inside a segment it
+    is `*`), ``[!…]`` negates a class, and a leading `/` only anchors (every pattern holding a
+    `/` is anchored anyway). Stdlib `fnmatch` is not used because its `*` crosses `/`
+    (executed: ``fnmatch('scripts/sysadmin/x.py', 'scripts/*.py')`` is True). Raises
+    ``re.error`` on a pattern the translation cannot compile (the validator's "malformed
+    pattern")."""
+    pattern = pattern.lstrip("/")
+    out, i = [], 0
+    while i < len(pattern):
+        whole = (i == 0 or pattern[i - 1] == "/") and pattern.startswith("**", i)
+        if whole and pattern.startswith("**/", i):
+            out.append("(?:.*/)?")
+            i += 3
+        elif whole and i + 2 == len(pattern):
+            out.append(".*")
+            i += 2
+        elif pattern.startswith("**", i):
+            out.append("[^/]*")
+            i += 2
+        elif pattern[i] == "*":
+            out.append("[^/]*")
+            i += 1
+        elif pattern[i] == "?":
+            out.append("[^/]")
+            i += 1
+        elif pattern[i] == "[":
+            close = pattern.find("]", i + 1)
+            if close == -1:
+                raise _re.error(f"unterminated character class in {pattern!r}")
+            body = pattern[i + 1 : close].replace("\\", "\\\\")
+            out.append("[^" + body[1:] + "]" if body.startswith("!") else "[" + body + "]")
+            i = close + 1
+        else:
+            out.append(_re.escape(pattern[i]))
+            i += 1
+    return _re.compile("".join(out))
+
+
+def _pattern_matches(pattern: str, rel: str) -> bool:
+    """One map pattern against one repo-relative POSIX path. A trailing `/` is a directory
+    prefix; a pattern with no `/` matches a file NAME anywhere; anything else is anchored at
+    the repo root. A pattern that is only slashes matches nothing — the root anchor alone
+    must never become a catch-all."""
+    if not pattern.strip("/"):
+        return False
+    if pattern.endswith("/"):
+        return rel.startswith(pattern) or bool(_glob_re(pattern + "**").fullmatch(rel))
+    if "/" not in pattern:
+        return bool(_glob_re(pattern).fullmatch(rel.rsplit("/", 1)[-1]))
+    return bool(_glob_re(pattern).fullmatch(rel))
+
+
+def _hub_root() -> Path:
+    return _opt_root() / "fabrik"
+
+
+def _load_map() -> dict | None:
+    """The hub map, or None when it is missing, unreadable or the wrong shape — every caller
+    then behaves exactly as before the map existed."""
+    try:
+        data = json.loads((_hub_root() / _MAP_REL).read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return None
+    if not isinstance(data, dict) or type(data.get("version")) is not int:
+        return None
+    rules = data.get("rules")
+    if not isinstance(rules, list) or not all(_rule_shape_ok(r) for r in rules):
+        return None
+    return data
+
+
+def _str_list(value: object) -> bool:
+    """Absent, or a list of non-empty strings — a bare string would iterate as characters."""
+    return value is None or (
+        isinstance(value, list) and all(isinstance(v, str) and v for v in value)
+    )
+
+
+def _rule_shape_ok(rule: object) -> bool:
+    """The shape every reader of a rule relies on; the validator names each failure."""
+    return (
+        isinstance(rule, dict)
+        and rule.get("owner") in HUB_BEATS
+        and _str_list(rule.get("paths"))
+        and _str_list(rule.get("topics"))
+        and isinstance(rule.get("source", ""), str)
+    )
+
+
+def map_switch(name: str) -> bool:
+    """A switch from the hub map; False when the map is absent or invalid."""
+    data = _load_map()
+    switches = data.get("switches") if data else None
+    return isinstance(switches, dict) and switches.get(name) is True
+
+
+def _sanitise(value: str) -> str:
+    """One header-safe line: every boundary ``str.splitlines()`` recognises becomes a space
+    (the set `_parse` splits on, so a value can never start a header line), `·` is removed,
+    whitespace collapses, and the value is capped at 200 characters."""
+    flat = " ".join(str(value).splitlines()).replace("·", " ")
+    return " ".join(flat.split())[:_ROUTING_CAP]
+
+
+def _routed_line(by: str, frm: str, to: str, reason: str) -> str:
+    return (
+        f"routed: {datetime.now(UTC).isoformat()} · {_sanitise(by) or '-'} · "
+        f"{_sanitise(frm) or '-'} → {_sanitise(to) or '-'} · {_sanitise(reason) or '(no reason)'}"
+    )
+
+
+def _routed_lines(text: str) -> list[str]:
+    """The `routed:` trail, read from the RAW header lines — `_parse` keeps only the last of
+    a repeated key, so the trail can never be read through it."""
+    if not text.startswith("---\n"):
+        return []
+    end = text.find("\n---", 4)
+    return [ln for ln in text[4:end].splitlines() if ln.startswith("routed:")] if end != -1 else []
+
+
+def _cited_tokens(text: str) -> list[str]:
+    """Backticked tokens and `path:line` tokens, each with any `:line[-line]` suffix
+    stripped, in order of appearance, de-duplicated."""
+    seen: dict[str, None] = {}
+    for tok in [*_BACKTICKED.findall(text), *_PATH_LINE.findall(text)]:
+        tok = _LINE_SUFFIX.sub("", tok.strip())
+        if tok:
+            seen.setdefault(tok, None)
+    return list(seen)
+
+
+def _rel_under(token: str) -> str | None:
+    """`token` as a repo-relative POSIX path, or None when it is absolute or climbs out."""
+    if not token or token.startswith("/") or ".." in token.split("/"):
+        return None
+    rel = posixpath.normpath(token)  # `a/./b`, `a//b`, `./a` → the path the rules match
+    return None if rel in (".", "") else rel
+
+
+def _cited_hub_files(text: str, from_repo: str) -> list[str]:
+    """Repo-relative hub paths the text cites that name an existing FILE in the hub. An
+    absolute token under the hub root counts for every sender. From a sender outside the hub,
+    a relative token counts only when the sender's own repo has no such file, or has a
+    byte-identical copy (a synced file) — so a project's own `CLAUDE.md` or `src/…` is never
+    attributed to a hub beat (spec D2)."""
+    hub = _hub_root()
+    hub_prefix = str(hub).rstrip("/") + "/"
+    sender = _opt_root() / from_repo if from_repo and from_repo != "fabrik" else None
+    out: list[str] = []
+    for tok in _cited_tokens(text):
+        absolute = tok.startswith(hub_prefix)
+        rel = _rel_under(tok[len(hub_prefix) :] if absolute else tok)
+        if rel is None or rel in out:
+            continue
+        target = hub / rel
+        if not target.is_file():
+            continue
+        if sender is not None and not absolute:
+            own = sender / rel
+            if own.is_file() and own.read_bytes() != target.read_bytes():
+                continue
+        out.append(rel)
+    return out
+
+
+def _subject(text: str) -> str:
+    """The body's `Subject:` line (case-insensitive key), or "" — topics read nothing else."""
+    for line in text.splitlines():
+        if line.lower().startswith("subject:"):
+            return line.split(":", 1)[1].strip().lower()
+    return ""
+
+
+def _lib_owner_of(text: str) -> Routing:
+    """fabrik-lib's module owner (D7), read in place from its own module map: a cited path
+    under `_opt_root()/fabrik-lib/<module>/…`, or a backticked bare token equal to a module."""
+    lib = _opt_root() / "fabrik-lib"
+    try:
+        owners_map = json.loads((lib / _LIB_MAP_REL).read_text(encoding="utf-8"))["owners"]
+    except (OSError, ValueError, KeyError, TypeError, RecursionError):
+        return _NO_ROUTING
+    if not isinstance(owners_map, dict):
+        return _NO_ROUTING
+    # only a SAFE role name may become an `agent:` header (an owner key holding a line break
+    # would otherwise forge frontmatter); a malformed entry is skipped, never trusted
+    module_owner = {
+        m: who
+        for who, mods in owners_map.items()
+        if isinstance(who, str) and _SAFE_NAME.fullmatch(who) and isinstance(mods, list)
+        for m in mods
+        if isinstance(m, str)
+    }
+    prefix = str(lib).rstrip("/") + "/"
+    found: dict[str, str] = {}
+    for tok in _cited_tokens(text):
+        module = tok[len(prefix) :].split("/", 1)[0] if tok.startswith(prefix) else tok
+        if module in module_owner:
+            found.setdefault(module, module_owner[module])
+    owners = sorted(set(found.values()))
+    if len(owners) == 1:
+        module = next(iter(found))
+        return Routing(owners[0], owners, f"module {module}", "module-owners")
+    return Routing(None, owners, "", "module-owners")
+
+
+def owner_of(
+    text: str,
+    mailbox: str = "fabrik",
+    from_repo: str = "fabrik",
+    *,
+    map_data: object = _UNSET_MAP,
+) -> Routing:
+    """The map's owner for a message body (spec D2). Deterministic and model-free.
+
+    `owner` is set when every OWNED cited path maps to one owner (the LAST matching rule wins,
+    CODEOWNERS-style), with `reason` = ``<path> → <rule source>``; with several owners it is
+    None and `owners` lists them. With no owned path, a Subject topic matching exactly one
+    owner gives an ADVISORY owner whose reason starts ``topic`` — never used to address mail.
+    A missing or invalid map gives ``Routing(None, [], "", "")``: `map_version` "" means no
+    map, distinct from an unmapped message. ``map_data`` is the result of a `_load_map` call the
+    caller already made — a map, or None for "no map" — so one send reads the file once and its
+    owner and switches agree; leave it out and owner_of reads the map itself."""
+    if mailbox == "fabrik-lib":
+        return _lib_owner_of(text)
+    data = _load_map() if map_data is _UNSET_MAP else cast("dict | None", map_data)
+    if data is None:
+        return _NO_ROUTING
+    version = str(data["version"])
+    rules = data["rules"]
+    owned: dict[str, tuple[str, str]] = {}
+    for rel in _cited_hub_files(text, from_repo):
+        winner = None
+        for rule in rules:
+            if any(_pattern_matches(p, rel) for p in rule.get("paths") or ()):
+                winner = (rule["owner"], str(rule.get("source", "")))
+        if winner:
+            owned[rel] = winner
+    owners = sorted({o for o, _ in owned.values()})
+    if len(owners) == 1:
+        rel, (owner, source) = next(iter(owned.items()))
+        return Routing(owner, owners, f"{rel} → {source}", version)
+    if owners:
+        return Routing(None, owners, "", version)
+    subject = _subject(text)
+    hits: dict[str, str] = {}
+    for rule in rules if subject else ():
+        for phrase in rule.get("topics") or ():
+            if isinstance(phrase, str) and phrase and phrase.lower() in subject:
+                hits.setdefault(rule["owner"], phrase)
+    if len(hits) == 1:
+        owner, phrase = next(iter(hits.items()))
+        return Routing(owner, [owner], f'topic "{phrase}"', version)
+    return Routing(None, sorted(hits), "", version)
+
+
+def _map_owner_header(r: Routing) -> str:
+    who = r.owner or (f"mixed:{','.join(r.owners)}" if len(r.owners) > 1 else "unmapped")
+    head = f"map-owner: {_sanitise(who)} · v{_sanitise(r.map_version)}"
+    return f"{head} · {_sanitise(r.reason)}" if _sanitise(r.reason) else head
+
+
+def _is_topic_reason(reason: str) -> bool:
+    """True for the reason `owner_of` writes for a Subject-topic owner — the exact `topic "`
+    prefix, so a PATH whose name starts with "topic" is never mistaken for one."""
+    return reason.startswith('topic "')
+
+
+def _paths_owner(r: Routing) -> str | None:
+    """The owner when it came from owned PATHS — a topic owner never addresses mail."""
+    return r.owner if r.owner and not _is_topic_reason(r.reason) else None
+
+
+def _header_owner(fm: dict) -> str:
+    """The owner token of a message's `map-owner:` header — a hub beat, ``mixed:a,b`` of hub
+    beats, or ``unmapped`` — or "" for no header or a token that is none of those (a forged or
+    damaged header shows nothing, never an invented owner). Read-only: the map is applied at
+    send; every later reader shows its result (spec D4)."""
+    token = str(fm.get("map-owner", "")).split(" · ", 1)[0].strip()
+    if token in HUB_BEATS or token == "unmapped":
+        return token
+    if token.startswith("mixed:"):
+        parts = token[len("mixed:") :].split(",")
+        if len(parts) > 1 and len(set(parts)) == len(parts) and all(p in HUB_BEATS for p in parts):
+            return token
+    return ""
+
+
+def _map_note(fm: dict) -> str:
+    """`→ map: <owner>` when the header names an owner other than the addressee, `→ mixed: …`
+    or `→ unmapped` as written, else "" (spec D4)."""
+    token = _header_owner(fm)
+    if token in HUB_BEATS:
+        return "" if token == (fm.get("agent") or "") else f"→ map: {token}"
+    if token.startswith("mixed:"):
+        return f"→ mixed: {token[len('mixed:') :]}"
+    return "→ unmapped" if token == "unmapped" else ""
 
 
 def _ts_epoch(ts: str) -> float | None:
@@ -899,6 +1231,14 @@ def send(
     _safe_name(to, "recipient")
     _safe_name(frm, "sender")
     to_agent = _safe_agent(to_agent or "")
+    # Recorded AFTER the normalisation above (which turns a missing value into ""), BEFORE
+    # thread inheritance fills it below: only a sender's own address earns the D3b advisory.
+    explicit = bool(to_agent)
+    if to_agent == "map" and to != "fabrik":
+        raise MailRefusedError(
+            "--to-agent map is a hub-mailbox name only (the ownership map is the hub's); "
+            "address this mailbox's own role"
+        )
     if ack and ack not in ("required", "no"):  # vocabulary check subsumes any separator
         # P3-1: `ack` is the SECOND raw-interpolated frontmatter value (the CLI
         # constrains it by argparse choices; the library path did not). A line
@@ -1036,7 +1376,29 @@ def send(
     # a credential leak is diagnosed as a leak on the FIRST attempt, never masked by an
     # addressing nag) and AFTER parent resolution (a --re reply with a resolvable parent is
     # thread-anchored and exempt). Checks the EFFECTIVE ack, post-ACK_BY_KIND default.
+    routing = _NO_ROUTING
+    routed: list[str] = []
     if to == "fabrik":
+        # D3e: ONE guard around the whole routing step — a fault anywhere in it (the map
+        # read, extraction, the matcher) leaves today's behaviour, never a failed send.
+        auto_address = False
+        try:
+            hub_map = _load_map()
+            routing = owner_of(body, "fabrik", sending_repo, map_data=hub_map)
+            switches = hub_map.get("switches") if hub_map else None
+            auto_address = isinstance(switches, dict) and switches.get("auto_address") is True
+        except Exception:  # noqa: BLE001 — fail-open by contract (spec D3e)
+            routing = _NO_ROUTING
+        if to_agent == "map":
+            owner = _paths_owner(routing)
+            if owner is None:
+                named = ",".join(routing.owners) if routing.owners else "unmapped"
+                raise MailRefusedError(
+                    f"--to-agent map: the ownership map names no single owner by cited paths "
+                    f"({named}) — address a beat yourself"
+                )
+            to_agent = owner
+            routed.append(_routed_line("map", "map", owner, f"ownership map ({routing.reason})"))
         if to_agent and to_agent not in HUB_BEATS:
             raise MailRefusedError(
                 f"unknown hub beat {to_agent!r} — a typo'd beat hides mail from every "
@@ -1077,6 +1439,15 @@ def send(
                 "can never be acked; address it (--to-agent) or drop the ack (--ack no)"
             )
         if not to_agent and not broadcast and not is_thread_reply:
+            owner = _paths_owner(routing)
+            if owner and auto_address:
+                to_agent = owner
+                routed.append(_routed_line("map", "", owner, f"ownership map ({routing.reason})"))
+                print(
+                    f"mail.py: addressed to {owner} by the ownership map ({routing.reason})",
+                    file=sys.stderr,
+                )
+        if not to_agent and not broadcast and not is_thread_reply:
             raise MailRefusedError(
                 "unaddressed hub-bound send — the fabrik mailbox is shared by FOUR agents, "
                 "so name the owner:\n"
@@ -1087,8 +1458,32 @@ def send(
                 "  --to-agent intel  (models · benchmarks · flywheel · the review loop)\n"
                 "  --to-agent kaizen (FEEDBACK verdicts · a command's or rule's WORDING · "
                 "ways of working — the feedback loop)\n"
-                "  genuinely all-agents → --broadcast (with --ack no)"
+                "  genuinely all-agents → --broadcast (with --ack no)\n"
+                "  the authority for who owns which path: .fabrik/beat-owners.json "
+                "(or --to-agent map to address by it)"
             )
+        if explicit and not routed and routing.owner and routing.owner != to_agent:
+            print(
+                f"advisory: the ownership map names {routing.owner} ({routing.reason}); "
+                f"delivered to {to_agent} as addressed",
+                file=sys.stderr,
+            )
+        if routing.map_version:
+            routed.append(_map_owner_header(routing))
+    elif to == "fabrik-lib" and not to_agent:
+        # D7: addressed at send, by construction — no second writer on the inbox, no race
+        # with `claim`. Several owners or none leave the mail for the sentinel's bare arm.
+        try:
+            lib = (
+                owner_of(body, "fabrik-lib", sending_repo)
+                if map_switch("fabrik_lib_address")
+                else _NO_ROUTING
+            )
+        except Exception:  # noqa: BLE001 — fail-open by contract (spec D3e)
+            lib = _NO_ROUTING
+        if lib.owner and _SAFE_NAME.fullmatch(lib.owner):
+            to_agent = lib.owner
+            routed.append(_routed_line("map", "", lib.owner, f"module map ({lib.reason})"))
     # AFTER every refusal, BEFORE minting: a hint must never change whether a
     # message is accepted, and must never fire for a send that was going to be
     # refused anyway. Threading onto an existing report is the sender's choice.
@@ -1107,6 +1502,7 @@ def send(
         hops=hops,
         agent=to_agent,
         from_agent=_sender_role(),
+        extra=tuple(routed),
     )
     return _publish(_mail_root() / to / "inbox", mid, content)
 
@@ -1738,8 +2134,23 @@ def claim(msg_id: str, repo: str) -> Path:
     mr = _merge_request_at(src)
     if mr is not None:  # refused BEFORE the rename: the message stays in the inbox
         _refuse_non_addressee(msg_id, mr[0], "claim")
+    if repo == "fabrik":
+        # spec D4: advise a claimer who is not the map's single owner, then claim anyway — the
+        # rename below stays the only lock, and nothing here writes to the message
+        try:
+            owner = _header_owner(_parse(src.read_text(encoding="utf-8", errors="replace")) or {})
+        except OSError:
+            owner = ""
+    else:
+        owner = ""
     dst.parent.mkdir(parents=True, exist_ok=True)
     os.rename(src, dst)  # FileNotFoundError if already claimed — the race lock
+    me = _caller_agent() if owner in HUB_BEATS else ""
+    if me and me != owner:  # only after the rename WON — a loser never says it claimed
+        print(
+            f"advisory: the ownership map names {owner} for {msg_id}; claimed by {me} anyway",
+            file=sys.stderr,
+        )
     return dst
 
 
@@ -1753,7 +2164,9 @@ def _append_ack_line(dst: Path, repo: str, disposition: str, extra: str = "") ->
         fh.write(f"\nacked-by: {repo} · ts: {_now_iso()}{extra} · disposition: {disposition}\n")
 
 
-def route(msg_id: str, to_agent: str, repo: str | None = None) -> Path:
+def route(
+    msg_id: str, to_agent: str, repo: str | None = None, *, reason: str | None = None
+) -> Path:
     """Set (or clear) the intra-mailbox addressee on a message ALREADY in the inbox.
 
     ``--to-agent`` only existed at SEND time, so the hub's shared ``fabrik`` mailbox had no
@@ -1773,6 +2186,11 @@ def route(msg_id: str, to_agent: str, repo: str | None = None) -> Path:
     and the rewrite lands via ``os.replace`` so a reader never observes a half-written
     message. The inbox is the only legal target — an ARCHIVED message is settled history
     and re-routing it would rewrite the audit trail.
+
+    Every call that CHANGES the addressee appends one `routed:` trail line (spec D1) and keeps
+    the earlier ones: who moved it (`_caller_agent()`), from whom to whom, and the optional
+    ``reason`` sanitised to one line — the trail `route-report` measures. A call naming the
+    addressee the message already has writes nothing, its reason included.
     """
     _safe_id(msg_id)
     repo = repo or _current_repo()
@@ -1793,10 +2211,18 @@ def route(msg_id: str, to_agent: str, repo: str | None = None) -> Path:
             f"{msg_id}: not in {repo}/inbox — route only re-addresses live mail "
             f"(an archived message is settled history)"
         ) from exc
-    if _parse(text) is None:
+    fm = _parse(text)
+    if fm is None:
         raise MailRefusedError(f"{msg_id}: malformed frontmatter — refusing to rewrite it")
+    previous = fm.get("agent", "")
+    if previous == agent:
+        return path  # nothing moves, so nothing is rewritten and no trail line is written
     end = text.find("\n---", 4)
     header = [ln for ln in text[4:end].splitlines() if not ln.startswith("agent:")]
+    by = _caller_agent()
+    # `map` in the by-field is the send-time map's own mark; route_report excludes it, so a
+    # caller who happens to be named `map` is recorded under another token
+    header.append(_routed_line("agent-map" if by == "map" else by, previous, agent, reason or ""))
     if agent:
         header.append(f"agent: {agent}")
     rebuilt = "---\n" + "".join(f"{ln}\n" for ln in header) + text[end + 1 :]
@@ -1804,7 +2230,14 @@ def route(msg_id: str, to_agent: str, repo: str | None = None) -> Path:
         raise MailRefusedError(f"{msg_id}: rewrite would corrupt the frontmatter — aborted")
     tmp = path.with_suffix(f".md.routing.{os.getpid()}")
     tmp.write_text(rebuilt, encoding="utf-8")
+    claimed = _mail_root() / repo / "archive" / f"{msg_id}.md"
+    if not path.exists() or claimed.exists():  # a claim won the race: never resurrect it
+        tmp.unlink(missing_ok=True)
+        raise MailRefusedError(f"{msg_id}: claimed while it was being routed — not re-addressed")
     os.replace(tmp, path)
+    if claimed.exists():  # the claim landed between the check and the replace
+        path.unlink(missing_ok=True)
+        raise MailRefusedError(f"{msg_id}: claimed while it was being routed — not re-addressed")
     return path
 
 
@@ -2242,6 +2675,101 @@ def _mailbox_names() -> list[str]:
         return []
 
 
+def _trail_moves(text: str) -> list[tuple[str, str, str]]:
+    """(by, from, to) per `routed:` line; "-" reads as no addressee."""
+    out = []
+    for line in _routed_lines(text):
+        parts = line[len("routed:") :].split(" · ")
+        if len(parts) >= 3 and " → " in parts[2]:
+            frm, to = (x.strip() for x in parts[2].split(" → ", 1))
+            out.append((parts[1].strip(), "" if frm == "-" else frm, "" if to == "-" else to))
+    return out
+
+
+def route_report(days: int = 30) -> list[str]:
+    """The routing measure (spec D5), every rate with its numerator and denominator.
+
+    Population: hub-mailbox messages (inbox and archive, dotfiles skipped) sent in the last
+    ``days`` days, replies excluded. A RE-ROUTE is a trail line written by `route` that moves
+    an ADDRESSED message (the send-time map's own lines, ``by`` = ``map``, and a first address
+    given to unaddressed mail are not re-routes). The FIRST addressee is the `from` of the first
+    re-route, else the current `agent:`. Answers are read from EVERY mailbox, because a hub
+    agent's reply to a project lands in the project's mailbox: the first answer is the earliest
+    reply (by its own `ts`; a reply with no readable `ts` is skipped) whose `re:` names the
+    message and which carries `from-agent:`. Only a PATH-derived owner counts as the map's: a
+    `map-owner:` whose reason is a topic only advised. Whether a re-routed message reached the map owner
+    is judged by its LAST move. ⚠️ COBRA (D-253): nothing here scores the map's confidence —
+    only receivers' re-routes and who answered are counted."""
+    root = _mail_root()
+    cutoff = datetime.now(UTC).timestamp() - days * 86400
+    hub: list[tuple[dict, str]] = []
+    first_answer: dict[str, tuple[float, str]] = {}
+    boxes = (
+        sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith("."))
+        if root.is_dir()
+        else []
+    )
+    for box in boxes:
+        for sub in ("inbox", "archive"):
+            folder = box / sub
+            for f in sorted(folder.glob("*.md")) if folder.is_dir() else ():
+                if f.name.startswith("."):
+                    continue
+                try:
+                    text = f.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                fm = _parse(text)
+                if fm is None:
+                    continue
+                ts = _ts_epoch(fm.get("ts", ""))
+                parent, who = fm.get("re", ""), fm.get("from-agent", "")
+                if fm.get("kind") == "reply":
+                    if parent and who and ts is not None:
+                        if parent not in first_answer or ts < first_answer[parent][0]:
+                            first_answer[parent] = (ts, who)
+                elif box.name == "fabrik" and ts is not None and ts >= cutoff:
+                    hub.append((fm, text))
+    addressed = moved = owned = differed = to_owner = elsewhere = kept = 0
+    answered = by_owner = by_first = 0
+    for fm, text in hub:
+        moves = [m for m in _trail_moves(text) if m[0] != "map" and m[1]]
+        first = moves[0][1] if moves else (fm.get("agent") or "")
+        if not first:
+            continue  # unaddressed or broadcast: no sender address to measure
+        addressed += 1
+        moved += bool(moves)
+        owner = _header_owner(fm)
+        reason = str(fm.get("map-owner", "")).split(" · ", 2)[2:]
+        if owner not in HUB_BEATS or (reason and _is_topic_reason(reason[0])):
+            continue  # the measure judges the PATH map; a topic owner only ever advises
+        owned += 1
+        if first == owner:
+            continue
+        differed += 1
+        if not moves:
+            kept += 1
+        elif moves[-1][2] == owner:
+            to_owner += 1
+        else:
+            elsewhere += 1
+        answer = first_answer.get(fm.get("id", ""))
+        if answer:
+            answered += 1
+            by_owner += answer[1] == owner
+            by_first += answer[1] == first
+    return [
+        f"hub mail, last {days} days: {len(hub)} (replies excluded), {addressed} addressed",
+        f"map differed from the first addressee: {differed} of {owned}",
+        f"  re-routed to the map owner: {to_owner} of {differed}",
+        f"  re-routed elsewhere: {elsewhere} of {differed}",
+        f"  kept: {kept} of {differed}",
+        f"  first reply from the map owner: {by_owner} of {answered}",
+        f"  first reply from the first addressee: {by_first} of {answered}",
+        f"re-routed by a receiver (addressed hub mail): {moved} of {addressed}",
+    ]
+
+
 def list_msgs(repo: str, agent: str | None = None) -> list[dict]:
     """List a repo's inbox (quarantining any malformed file), newest sort last.
 
@@ -2271,8 +2799,14 @@ def list_msgs(repo: str, agent: str | None = None) -> list[dict]:
         if fm is None:
             _quarantine(inbox, f)
             continue
-        if agent and (fm.get("agent") or "") not in ("", agent):
-            continue  # addressed to a DIFFERENT role — unaddressed always passes
+        fm["map_note"] = _map_note(fm)
+        if agent:
+            addressee = fm.get("agent") or ""
+            by_map = _header_owner(fm) == agent and addressee != agent
+            if addressee not in ("", agent) and not by_map:
+                continue  # addressed to a DIFFERENT role — unaddressed always passes
+            if by_map:
+                fm["map_match"] = True  # the map names this role: marked `(map)` (D4)
         out.append(fm)
     return out
 
@@ -2409,7 +2943,8 @@ def main(argv: list[str] | None = None) -> int:
     p_send.add_argument(
         "--to-agent",
         dest="to_agent",
-        help="intra-mailbox addressee ROLE (infra/fleet/intel/kaizen) — a filter, never a lock",
+        help="intra-mailbox addressee ROLE (infra/fleet/intel/kaizen) — a filter, never a lock; "
+        "`map` addresses a hub send to the ownership map's owner of its cited paths",
     )
     p_send.add_argument(
         "--broadcast",
@@ -2470,6 +3005,15 @@ def main(argv: list[str] | None = None) -> int:
         help="role (infra/fleet/intel/kaizen); omit or pass '' to CLEAR the addressee",
     )
     p_route.add_argument("--repo")
+    p_route.add_argument(
+        "--reason",
+        help="why it moves — recorded on the message's `routed:` trail line (optional)",
+    )
+
+    p_rr = sub.add_parser(
+        "route-report", help="read-only: the routing measure, each rate with its denominator"
+    )
+    p_rr.add_argument("--days", type=int, default=30)
 
     p_req = sub.add_parser("requeue", help="move a claimed message back to inbox")
     p_req.add_argument("id")
@@ -2584,9 +3128,11 @@ def main(argv: list[str] | None = None) -> int:
             who = args.agent or os.environ.get("CLAUDE_AGENT") or None
             for fm in list_msgs(args.repo or _current_repo(), agent=who):
                 to_who = f" · @{fm['agent']}" if fm.get("agent") else ""
+                note = f" {fm['map_note']}" if fm.get("map_note") else ""
+                mark = " (map)" if fm.get("map_match") else ""
                 print(
                     f"{fm['id']} · {fm.get('from', '?')} · {fm.get('kind', '?')} · "
-                    f"ack={fm.get('ack', '?')}{to_who}"
+                    f"ack={fm.get('ack', '?')}{to_who}{note}{mark}"
                 )
         elif args.cmd == "sweep":
             n = sweep(days=args.days, repo=args.repo)
@@ -2610,8 +3156,11 @@ def main(argv: list[str] | None = None) -> int:
             print(dst)
             _note_mail_ack(args.id, repo, args.disposition)
         elif args.cmd == "route":
-            path = route(args.id, args.to_agent, repo=args.repo)
+            path = route(args.id, args.to_agent, repo=args.repo, reason=args.reason)
             print(f"{path} · @{args.to_agent}" if args.to_agent else f"{path} · addressee cleared")
+        elif args.cmd == "route-report":
+            for line in route_report(days=args.days):
+                print(line)
         elif args.cmd == "requeue":
             repo = args.repo or _current_repo()
             dst = requeue(args.id, repo)

@@ -45,7 +45,10 @@ def test_the_catalogue_sections_hold_their_probes() -> None:
     prose = _section(cat, "## Prose and docs fixes", "## Seat isolation")
     assert "re-read an inserted sentence with the one after it" in prose
     iso = _section(cat, "## Seat isolation", "## Loop bookkeeping")
-    assert "A SEAT never runs `git worktree add` (its metadata lands in the shared `.git`)" in iso
+    assert (
+        "A SEAT never runs `git worktree add` on the live repo (its metadata lands in the shared `.git`)"
+        in iso
+    )
     assert "never `resumeFromRunId`" in _section(cat, "## Loop bookkeeping", None)
     loop = _section(cat, "## Loop bookkeeping", None)
     assert "`confirmed` counts DEFECTS, never checks passed" in loop
@@ -68,16 +71,36 @@ def test_command_run_is_cited_by_symbol_not_line() -> None:
 
 
 def test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim() -> None:
-    """Row 1791769363 (D-776)."""
+    """Row 1791769363 (D-776); rows 1791896579 and 1791905875: the identity diff reads the source's committed
+    blob, and the brief names the source's own regression test; row 1791918689: byte identity holds while the
+    copy reads a name a module vendored beside it lacks. Pinned in the premise bullet. Not seen: a brief
+    that names a test but never runs it; the seats' transcripts own that."""
     premise = _section(_norm(CAT), "- The premise:", "## Graders")
     assert (
-        "a re-vendor brief hands the seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack"
+        "a re-vendor brief hands the seats the lead's executed byte-identity result (the diff command and its output) as"
+        " a claim to attack — the diff reads the source's COMMITTED blob at the SHA the copy records (a `VENDORED-FROM`"
+        " header, else the `Vendored-From:` trailer of the commit that vendored it; HEAD when neither does: `git -C"
+        " <source> show <sha>:<source path>`) against the copy minus that"
+        " header, never the source's working file, where a sibling's uncommitted edit reads as drift — and the brief"
+        " names the source's own regression test for the file at that SHA, run with its import path pointed at the"
+        " copy (or says the source has none); they re-run that command and that test first, then spend on what byte identity cannot show: the"
+        " vendored copy's own header, every importer of it, and every name it reads from each module vendored"
+        " beside it (its `from … import` names and each `module.attr` use), each shown present in that module's copy."
         in premise
     )
+
+
+def test_a_dependency_claim_is_checked_against_the_dependencys_own_case_set() -> None:
+    """/fabrik-review row 1791925061, recurring held subject guard-key-aliases-from-the-target-library (row
+    1791919154): a guard and a docs sentence were checked against the cases the author named, not the aliases and
+    branches the dependency itself has. Bounded to the claim's keys; docs plus a probe where no source is readable."""
+    premise = _section(_norm(CAT), "- The premise:", "## Graders")
     assert (
-        "they re-run that command first, then spend on what byte identity cannot show: the vendored copy's own header and every importer of it"
-        in premise
-    )
+        "asks for the claim at that version; a claim about what a dependency accepts or does (a guard over its keys, a"
+        " docs sentence about its behaviour) is checked against every case the dependency defines for the keys or"
+        " behaviour the claim covers — each branch and alias in its source at that version, else its versioned"
+        " reference docs plus an executed probe — never only the cases the author listed;"
+    ) in premise
 
 
 def test_seat_isolation_names_every_root_the_tests_import_read_or_run() -> None:
@@ -211,6 +234,23 @@ def test_a_shifted_cite_is_remapped_by_content_in_one_script() -> None:
     )
 
 
+def test_a_range_cite_grader_checks_both_ends() -> None:
+    """Row 1791914277: a grader that checks a cited range's first line alone passes when its last line moved."""
+    text = _norm(CAT)
+    bullet = _section(text, "- Grade the PROPERTY", "- Each parser-output shape").strip()
+    assert bullet == (
+        "- Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is"
+        " absent (an absence assertion over never-written state is vacuous); a grader EXECUTES an executable subject,"
+        " through the real production adapter and the consumer's entry point (the command's output, as the gate passes"
+        " files by name), never reads it; a premise guard asserts at the call site, not on constants; a prose grader"
+        " asserts the whole generated sentence, not a substring, and one for MOVED text (a sentence, clause, bullet or"
+        " row), added in the edit that moves it, also fails when the text sits at its old position; a test-quality seat"
+        " checks docstring claims against the scan; a fix recipe handed to a coder names one input it must leave"
+        " unchanged and the test that holds it; a grader of a `path:N-M` cite asserts its first line AND its last line"
+        " still hold the text the cite backs."
+    )
+
+
 def test_the_closing_reader_clause_cites_d118_not_d066() -> None:
     """W-a8361c19 residual 5: the clause pinned the asymmetry on D-066 (a finding-shape triage row); D-118 bound independent recall here."""
     text = _norm(SRC)
@@ -294,4 +334,28 @@ def test_the_graders_section_pins_moved_texts_old_position() -> None:
         " sentence, not a substring, and one for MOVED text (a sentence, clause, bullet or row), added in the edit"
         " that moves it, also fails when the text sits at its old position; a test-quality seat checks docstring"
         " claims against the scan;" in graders
+    )
+
+
+def test_the_lead_runs_the_leak_check_around_every_scoped_pass() -> None:
+    """Row 1791896900 (D-711 audit: MISFILED): review-scoped dispatches seats each pass but carried no lead leak check,
+    which /fabrik-review has. Pinned inside step 5's dispatch text, before the POOL OFF comment, and the target bullet
+    is pinned with its body, so the sentence moved into inactive text or the bullet emptied reds. The row's other half
+    (a seat cds into scratch in the same call) needs no edit: the SEAT_ISOLATION brief and fabrik-reviewer.md already
+    require absolute scratch paths. Not seen: the lead skipping the check; the seats' transcripts own that."""
+    sentence = (
+        "The lead runs the **Leak check** of `/fabrik-review` (its bullet of that name) before every dispatch and after"
+        " each pass returns, since a seat can write to the shared tree."
+    )
+    scoped = _norm(SRC)
+    # live text only: a comment wrapped around the sentence in place would keep it inside the section
+    live = re.sub(r"<!--.*?-->", "", scoped)
+    assert sentence in _section(live, "**The partition rule of", "6. **Gate + close:**")
+    assert scoped.count(sentence) == 1
+    # live text only: an HTML comment around the bullet would leave the pointer aimed at inactive text
+    review = re.sub(r"<!--.*?-->", "", _norm(ROOT / "commands" / "_sources" / "fabrik-review.md"))
+    assert (
+        "- **Leak check — the lead, before EVERY dispatch and after the pass returns:** a tree baseline (`git diff HEAD |"
+        " md5sum`, not the PIN digest) plus `git rev-parse HEAD`, `git status --porcelain --ignored` and `git stash list`"
+        in _section(review, "- **The seats (native", "- **Every finder brief carries")
     )

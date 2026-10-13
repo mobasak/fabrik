@@ -81,10 +81,19 @@ box: execute it, or name in the brief why the shape does not have it.
   implementation; ask whether an existing mechanism or fragment already covers the class, and whether the check fits a
   boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to a
   `fabrik-researcher` seat whose brief names the version the repo pins or deploys (its lockfile or spec line) and asks
-  for the claim at that version; a seat names the whole input class of a finding it raises; a re-vendor brief hands the
-  seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack — they re-run
-  that command first, then spend on what byte identity cannot show: the vendored copy's own header and every importer of
-  it.
+  for the claim at that version; a claim about what a dependency accepts or does (a guard over its keys, a docs sentence
+  about its behaviour) is checked against every case the dependency defines for the keys or behaviour the claim covers
+  — each branch and alias in its source at that version, else its versioned reference docs plus an executed probe —
+  never only the cases the author listed; a seat names the whole input class of a finding it raises; a re-vendor brief
+  hands the
+  seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack — the diff reads
+  the source's COMMITTED blob at the SHA the copy records (a `VENDORED-FROM` header, else the `Vendored-From:` trailer
+  of the commit that vendored it; HEAD when neither does: `git -C <source> show <sha>:<source path>`) against the copy
+  minus that header, never the source's working file, where a sibling's uncommitted edit reads as drift — and the brief
+  names the source's own regression test for the file at that SHA, run with its import path pointed at the copy (or says
+  the source has none); they re-run that command and that test first, then spend on what byte identity cannot show: the
+  vendored copy's own header, every importer of it, and every name it reads from each module vendored beside it (its
+  `from … import` names and each `module.attr` use), each shown present in that module's copy.
 
 ## Graders
 - Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is absent
@@ -93,7 +102,8 @@ box: execute it, or name in the brief why the shape does not have it.
   never reads it; a premise guard asserts at the call site, not on constants; a prose grader asserts the whole
   generated sentence, not a substring, and one for MOVED text (a sentence, clause, bullet or row), added in the edit
   that moves it, also fails when the text sits at its old position; a test-quality seat checks docstring claims
-  against the scan; a fix recipe handed to a coder names one input it must leave unchanged and the test that holds it.
+  against the scan; a fix recipe handed to a coder names one input it must leave unchanged and the test that holds it;
+  a grader of a `path:N-M` cite asserts its first line AND its last line still hold the text the cite backs.
 - Each parser-output shape owes its own red; a config or regex grader is graded by running the tool on mutated inputs;
   a red branch of a new procedure step is executed as well as the green; a boundary fix tests both sides with the
   exact message; a numeric bound is derived in its comment and graded at both edges, with the determining input varied
@@ -149,14 +159,21 @@ box: execute it, or name in the brief why the shape does not have it.
   read or run (a test that renders `templates/`, reads `.windsurf/` or runs `scripts/` by subprocess is a false red
   without it) and names the live repo as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from
   a worktree. The pins line follows the real layout and the digest is the pin authority. A SEAT never runs `git
-  worktree add` (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive
-  copy by `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree,
-  never a `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo
-  root with the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the
-  same path); tests run by exact node id. A script a seat runs is run from its archive copy with every path argument
-  under scratch (a script may treat any argument as a write path), and the pin carries the changed files' one-hop
-  callees that are repo files (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink
-  or outside the repo root).
+  worktree add` on the live repo (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert
+  on its archive copy by `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's
+  throwaway worktree, never a `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. A seat test
+  that reads git history runs in a clone the seat makes with `git -C <scratch> clone --shared --no-checkout <live
+  checkout> clone`, checks out at `git -C <scratch>/clone checkout -q <the pass's base SHA>` (until then its status
+  reads every file deleted), with its push to `origin` disabled at once (`git -C <scratch>/clone config
+  remote.origin.pushurl /nonexistent.invalid`: `origin` is the live repo, so a push writes its `.git`; no other remote
+  is ever pushed to) and the pins laid over it, committed in the clone when the test reads HEAD, a diff or the status;
+  that test's red-on-revert overlays the revert on the clone. Branch, worktree and stash state the test creates lands
+  in the clone's own `.git`; only a test that reads the live checkout's own branches, worktrees or stash runs in the
+  lead's throwaway worktree. Ruff and mypy run from the repo root with the repo's own config (on a copy: ruff
+  `--config <repo>/pyproject.toml`, mypy `--config-file` with the same path); tests run by exact node id. A script a
+  seat runs is run from its archive copy with every path argument under scratch (a script may treat any argument as a
+  write path), and the pin carries the changed files' one-hop callees that are repo files (`review_loop_ledger.py pin`
+  refuses the whole list when one path is missing, a symlink or outside the repo root).
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word

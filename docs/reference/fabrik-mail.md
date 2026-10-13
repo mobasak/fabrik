@@ -129,6 +129,9 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   refuses a malformed or archived message, and lands via `os.replace` so no reader sees a half-written
   file. Measured 2026-08-23 before the verb existed: 24 of 28 live hub messages had no addressee, and
   ownership lived in body prose (`[infra→fleet]` subject prefixes) that no filter can read.
+  Who owns which path is the ownership map's (§ Routing — the ownership map below); `route` may
+  carry `--reason <text>`, recorded on the message's routing trail when the call changes the
+  addressee (a call naming the addressee it already has writes nothing).
 - **Duplicate reports are HINTED, never refused.** `send` compares the new subject against the
   recipient's open inbox and, on a strong overlap, prints the id of the already-open message so you
   can `--re` onto it instead. It never blocks: a cross-repo defect was reported nine times by six
@@ -170,6 +173,49 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
 - **Malformed → quarantine.** A file whose frontmatter won't parse is moved to `<repo>/malformed/`
   (the hook surfaces nothing); the digest reports `N quarantined` — the CUMULATIVE count of files parked in `<repo>/malformed/` (nothing empties that dir; clear it by hand once the corruption is diagnosed, or the daily alert keeps firing) — so a broken intended-required
   message is still visible to the operator.
+
+## Routing — the ownership map
+
+One hub map, `.fabrik/beat-owners.json`, says which beat owns which hub path (spec
+`docs/superpowers/specs/2026-10-13-mail-routing-design.md`; seams D-815, approach D-818,
+approval D-820). It is applied ONCE, at send, and every later reader shows its result.
+
+- **The map.** Rules run general → specific and the LAST matching rule wins for a path. A pattern's
+  `*` stays inside one path segment and `**` crosses segments only as a whole segment (`a/**/b`,
+  `a/**`, `**/b`; inside a segment it is `*`); a pattern with no `/` matches a file name
+  anywhere; a trailing `/` is a directory prefix. `topics` match the body's `Subject:` line and
+  only ever ADVISE: with no owned path, a single topic match fills the header with reason
+  `topic "…"` and every reader shows it, but it never addresses mail and `route-report` does
+  not count it as the map's. `switches.auto_address` and `switches.fabrik_lib_address` ship
+  `false`. `scripts/enforcement/check_beat_owners.py` (a gate check) refuses an unknown owner, a
+  rule without `source`, a malformed or dead pattern, a rule fully shadowed by later rules of
+  another owner, a beat whose rules cover every tracked file, and an unknown switch; it reports the unowned count with its denominator.
+- **At send** (hub-bound only): the cited paths — backticked tokens and `dir/…/file:line` tokens
+  (a bare root-level `file:line` needs backticks) that name a real hub file — decide the owner. From a project, a path the project has with
+  DIFFERENT bytes is the project's own and is ignored. When the map loads, the message gains
+  `map-owner: <owner | mixed:a,b | unmapped> · v<map version>[ · <reason>]`, plus a `routed:`
+  line when the map itself addressed it. An explicit
+  `--to-agent` that differs from the map prints an advisory and delivers as addressed.
+  **`--to-agent map`** addresses the send to the map's owner of its cited paths, and is refused
+  when there is none. With `switches.auto_address` on, an unaddressed send the map places by
+  paths is addressed instead of refused. Any fault in this step leaves send exactly as it was.
+- **The trail.** Every re-route that changes the addressee appends
+  `routed: <UTC> · <by> · <from> → <to> · <reason>`, and earlier lines stay.
+- **Reading.** `list` shows `→ map: <owner>` (when it differs from the addressee),
+  `→ mixed: …` or `→ unmapped`; `list --agent X` also lists mail whose map owner is X, marked
+  `(map)` — still a filter, never a lock. `claim` by a non-owner prints an advisory and claims.
+  The notify hook shows the same marker from the header; it does not import `mail.py`.
+- **The measure.** `mail.py route-report --days N` prints, each with its denominator: how often
+  the map differed from the first addressee, of those how many were re-routed to the map owner,
+  elsewhere, or kept (judged by the last move), and of those differing messages who answered
+  first (the earliest reply carrying `from-agent:`, read from every mailbox); plus the
+  receivers' re-route rate of addressed hub mail.
+  The send-time map's own trail lines and a first address given to unaddressed mail are not
+  re-routes. `auto_address` is switched on by a one-line map commit only
+  after kaizen reviews that the map beats the sender (spec § Lifecycle).
+- **fabrik-lib.** With `switches.fabrik_lib_address` on, an unaddressed send to `fabrik-lib`
+  whose cited modules all belong to one owner in fabrik-lib's `.fabrik/module-owners.json` is
+  addressed to that owner; it is off until the sentinel agrees.
 
 ## Kinds + the ack contract
 
@@ -383,7 +429,8 @@ escalates), archive strands (claimed, no `acked-by:` line), and stranded `*.md.r
 windows (mtime-aged). **Delivered on THREE legs:** `libs.alerting.send_alert` (Telegram, the
 operator — the fleet list); the `fabrik` inbox addressed to `infra` (`--kind finding --ack no`,
 since 2026-09-15) — only the HUB's own rows plus a fleet-total line (D-388); and each OTHER repo's
-own inbox with its own rows (D-310). The mailbox legs are what make this a loop rather than a
+own inbox with its own rows (D-310). A row whose `map-owner:` header names an owner other than
+the addressee ends `· map: <owner>`. The mailbox legs are what make this a loop rather than a
 dashboard: every obligation reaches the agent that can discharge it. **Each leg carries its OWN day-stamp and is retried independently** — a single shared stamp let a success on one leg suppress another for the whole day, which inverted the point of having independent legs. Plain-text sanitized rows,
 oldest ≤20 + an always-surviving total. Install + override mechanics (operator-owned):
 `docs/workstation/fabrik-mail.md` § Escalation digest.
@@ -395,6 +442,7 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/enforcement/check_beat_owners.py`
 - `scripts/mail.py`
 - `scripts/sysadmin/mail_escalate.py`
 <!-- END related-scripts -->

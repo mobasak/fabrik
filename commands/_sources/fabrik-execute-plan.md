@@ -1079,7 +1079,10 @@ The design spec may indicate that some phases are independent (e.g., "Phases A, 
 
 ## When Vendoring (Copying fabrik-lib Modules)
 
-1. Copy the files as the plan specifies
+1. Copy the files as the plan specifies, each read from fabrik-lib's COMMITTED blob — `git -C /opt/fabrik-lib
+   show <sha>:<its path in fabrik-lib>`, at the SHA the plan names or else `git -C /opt/fabrik-lib rev-parse
+   --short=8 HEAD` — never its working file, where a sibling's uncommitted edit would ship; record that SHA as a
+   `Vendored-From: fabrik-lib@<sha>` trailer on the task's commit
 2. Fix internal imports: `from module_name import X` → `from libs.module_name import X`
 3. Add `__init__.py` if the source module doesn't have one
 4. Verify: `python -c "from libs.X import Y"` — must exit 0

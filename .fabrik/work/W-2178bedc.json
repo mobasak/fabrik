@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-03T09:12:04.507647Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "fef97b6457738e3618904768b055b655e8582760",
   "id": "W-2178bedc",
   "kind": "task",
   "legacy": false,
@@ -13,9 +13,9 @@
   },
   "next": "add tests with subprocess.run and httpx stubbed: NS parse, poll until an A record, timeout warning path, and the Host-header IP probe (verifier.py:164-256, :287-314)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],

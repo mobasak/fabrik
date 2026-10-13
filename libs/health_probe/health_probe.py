@@ -1,4 +1,4 @@
-# VENDORED-FROM fabrik-lib health-probe/health_probe.py @ b1c06437 — byte-identical below this 3-line header; re-vendor, never edit
+# VENDORED-FROM fabrik-lib health-probe/health_probe.py @ 0e44811c — byte-identical below this 3-line header; re-vendor, never edit
 # ruff: noqa
 # fmt: off
 #!/usr/bin/env python3
@@ -68,11 +68,21 @@ def load_env(path: Optional[str] = None) -> bool:
     vendored ``libs/health_probe/`` copy still finds the project-root ``.env`` (under
     ``python -c``, a REPL or a tracer it searches the current directory instead — pass
     ``path`` to be explicit). Returns whether a file was loaded: ``False`` when no ``.env``
-    was found, and ``False`` (loading nothing) when python-dotenv is not installed. Once any
+    was found, ``False`` (loading nothing) when python-dotenv is not installed, and ``False``
+    (loading nothing, even from an existing file) when ``PYTHON_DOTENV_DISABLED`` is one of
+    ``1``, ``true``, ``t``, ``yes`` or ``y`` in any case, which python-dotenv honours (1.2.x;
+    other values such as ``on`` or ``enabled`` leave loading ON). Once any
     ``load_env()`` call has run, ``cli()`` does not search again. An unreadable or
     non-UTF-8 file raises (``OSError`` / ``UnicodeDecodeError``) from here before any key is
-    set; a NUL byte in a key or value raises ``ValueError`` part-way, with the keys above
-    that line, if any, already set. ``cli()`` reports either on stderr and carries on.
+    set. python-dotenv parses the whole file first, keeps each key's LAST value in
+    first-appearance order, then sets the keys one by one; a key or value that is actually
+    SET and contains a NUL byte raises ``ValueError`` part-way. The keys already set are those
+    first seen before the bad one, not strictly the lines above it: a key redefined below the
+    bad line holds its below-the-line value. A NUL that is never set raises nothing: a key
+    already in the real environment is skipped (``override=False``), and a NUL value that a
+    later line redefines cleanly is replaced before any key is set. So this does not detect a
+    NUL byte reliably; do not use it to validate a ``.env``. ``cli()`` reports either error on
+    stderr and carries on.
     """
     global _ENV_LOAD_CALLED
     _ENV_LOAD_CALLED = True
@@ -630,7 +640,8 @@ def cli(
             # A broken .env is a config problem, not an outage: never exit 1 for it.
             print(f"health_probe: .env not loaded ({type(exc).__name__})", file=sys.stderr)  # no message: it can quote a .env byte
         except ValueError as exc:
-            # os.environ refuses a NUL byte mid-load: the keys above the bad line, if any, are set.
+            # os.environ refuses a NUL byte mid-load: keys first seen before the bad one are set,
+            # each with its LAST value (python-dotenv's order); see load_env for when none is raised.
             print(f"health_probe: .env load stopped part-way ({type(exc).__name__})", file=sys.stderr)  # no message: it can quote a .env byte
     critical = critical or set()
     ap = argparse.ArgumentParser(description=description)

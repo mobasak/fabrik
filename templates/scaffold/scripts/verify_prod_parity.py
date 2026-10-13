@@ -228,8 +228,9 @@ def _health_probe() -> Any | None:
         else:
             if not loaded:
                 print(
-                    "verify_prod_parity: .env loaded nothing (it sets no variable, or python-dotenv "
-                    "is not installed), so rows that read it see only the real environment",
+                    "verify_prod_parity: .env loaded nothing (it sets no variable, python-dotenv is not "
+                    "installed, or PYTHON_DOTENV_DISABLED is truthy — 1/true/t/yes/y), so rows that read it "
+                    "see only the real environment",
                     file=sys.stderr,
                 )
     return health_probe

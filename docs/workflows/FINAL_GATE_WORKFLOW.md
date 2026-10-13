@@ -143,7 +143,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 **Runs in:** All tiers (1, 2, 3) and modes (except `--sync`), with tier-specific check sets:
 
-<!-- GATE-COUNTS: tier1=36 tier2=56 tier3=22 every-tier=14 -->
+<!-- GATE-COUNTS: tier1=38 tier2=58 tier3=22 every-tier=14 -->
 ⚠️ The counts below are declared ONCE in the HTML comment above and asserted against instrumented
 execution by `tests/test_final_gate_tier_counts.py` — a new registration that does not update it
 fails the author's own gate run. Do not re-count by hand; do not restate the numbers anywhere a
@@ -165,7 +165,7 @@ second declaration could drift from the first (T12.8, 01M23CRZZ).
 
 **Purpose:** Fast showstoppers only (syntax, secrets, schema sync, doc sync)
 
-**Phase 3: Repo Consistency (36 checks)** — the results list of `run_consistency_checks(tier=1, changed_files=set())` (stub `run_optional_check` and `run_cmd`, count the rows; at tier 1 the call count is the same 36); fourteen run unconditionally outside the `if tier in (1, 2):` block — among them `check_convergence.py`, `check_review_coverage.py`, `check_review_hygiene.py` and `check_plan_lock_release.py`. **The 20 CHECK ROWS bulleted below carry the Tier-1 notes (a 21st bullet, the flip-gate invocation matrix, documents a command-side gate battery, not a `run_consistency_checks` row); four of them (Convergence Evidence, Coverage Checklist, Plan-lock release, Review hygiene) are unconditional rows also bulleted under Tier 3, where the remaining ten are named.** Four Tier-1/2-only rows carry no note here and are listed only under § Enforcement Scripts: Frozen Chain (`check_frozen_chain.py`), Decision Ledger (`check_decisions_unique.py`), Doc-Script Links and Doc-Script Coverage (`render_doc_script_links.py`)
+**Phase 3: Repo Consistency (38 checks)** — the results list of `run_consistency_checks(tier=1, changed_files=set())` (stub `run_optional_check` and `run_cmd`, count the rows; at tier 1 the call count is the same 38); fourteen run unconditionally outside the `if tier in (1, 2):` block — among them `check_convergence.py`, `check_review_coverage.py`, `check_review_hygiene.py` and `check_plan_lock_release.py`. **The 20 CHECK ROWS bulleted below carry the Tier-1 notes (a 21st bullet, the flip-gate invocation matrix, documents a command-side gate battery, not a `run_consistency_checks` row); four of them (Convergence Evidence, Coverage Checklist, Plan-lock release, Review hygiene) are unconditional rows also bulleted under Tier 3, where the remaining ten are named.** Five Tier-1/2-only rows carry no note here and are listed only under § Enforcement Scripts: Frozen Chain (`check_frozen_chain.py`), Data Contract Backing Legend (`check_data_contract_legend.py`), Decision Ledger (`check_decisions_unique.py`), Doc-Script Links and Doc-Script Coverage (`render_doc_script_links.py`)
 - **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally; the CLOSING-ROW rule (D-206): once a NON-ARCHIVED plan-set spine carries any `| Pass …` / `| Round …` table row with a `confirmed:` counter — anywhere in the file, no `## Pass Ledger` heading required — a CONVERGED or EXECUTED flip whose LAST such row does not read `confirmed: 0` is refused (`_check_spine_set` is reached from both claim paths; an `archived/` spine returns unchecked; `_PASS_ROW` — indented rows included, blockquoted excluded; fences stripped, code spans masked, HTML comments blanked, in that order; the row's last `confirmed:` token counts; `_closing_row_fail` is the single function the flip check calls and the one any fleet census must call). The canonical closing row is `term-coverage`'s five-counter run `found: F, new: N, confirmed: C, fixed: X, unexecuted: U`; the rule reads only the LAST `confirmed:` token — `new:` is prose it never parses
 - **Coverage Checklist (reviews)** - `check_review_coverage.py` — runs every tier, unconditionally; blocking scope: the working tree (an untracked draft is skipped with a NOTE), a running review record's own receipts, and review artifacts in commits not yet in an integration ref, merges read by combined diff — the refs are the main checkout's branch and its configured upstream in a linked worktree, the configured upstream in a main checkout, else origin/master or origin/main (`--base` overrides). With no such ref at all the scan has no unintegrated leg (the working tree and running receipts only), with no NOTE; a shallow clone or a git failure drops that leg too, with one NOTE. Named residuals, not closed: push-then-gate in a main checkout (a `git push -u` to a new branch included), `Status: IN-PROGRESS`, and deliberate local ref or config rewrites (W-f847a317, D-715); what may ENTER a delta round's `confirmed:` is the fragments' bounded-hop rule (`term-edit`/`term-coverage`, D-230: inside the previous round's hunks or a live contradiction they created — pre-existing one hop out is RECORDED with a destination), and the grader reads the counter the fragments define
 - **Plan-lock release** - `check_plan_lock_release.py` — runs every tier, unconditionally (advisory `warn_only=True`): reports a `.fabrik/plan-locks/<id>.json` left NON-TERMINAL (`active`/`paused`/`blocked`) after its plan finished. Every-tier ON PURPOSE — `--lean` is the mode agents run while a lock is live. Doc: [plan-lock-lifecycle.md](../reference/plan-lock-lifecycle.md)
@@ -203,6 +203,7 @@ second declaration could drift from the first (T12.8, 01M23CRZZ).
 - **No Host Ports on Traefik Services** - `check_no_host_ports.py`
 - **Full Traefik Label Set (§7)** - `check_traefik_labels.py`
 - **Spec <-> Project DB Name Match (Phase 1c)** - `check_spec_db_match.py`
+- **Mail Ownership Map (beat-owners.json)** - `check_beat_owners.py`
 - **Undeclared Imports (requirements.txt)** - `check_undeclared_imports.py`
 - **Fabrik-Synced Files Unmodified** - `check_synced_unmodified.py`
 
@@ -241,7 +242,7 @@ Cobra: a repo keeps its DB suite out of the gate by never adding the key; the ad
 
 The arming condition is a conjunction — `tests/` exists AND (`.fabrik/run-pytest` OR a workflow names pytest) AND (the sentinel OR an empty diff OR a `src/`/`tests/`/`scripts/` change), `final_gate.py:1487-1497` — cite it, never paraphrase it (a paraphrase drifted once, D-284).
 
-**Phase 3: Repo Consistency** — inherits **35** of the 36 Tier-1 checks above — every one but the lean-only `INDEX.md ↔ new docs (untracked, this run)` row (fourteen run unconditionally outside the `tier in (1, 2)` block) — **plus 19 Tier-2-only checks** — 14 with notes below, plus the hub-conditional `epic_order --check` bullet the "20 where …" clause adds; five more run with no note: User-Level Hooks Registered (`scripts/sysadmin/install_user_hooks.py`), Rule-pack reachability (`check_pack_reachability.py`), Command Corpus [BLOCKING] (`check_command_corpus.py`), Ticket Breadth (`check_ticket_breadth.py`), MCP Scope (.mcp.json ⊆ ruling) (`check_mcp_scope.py`, hub-only — 1c22b3de1) — (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [ADVISORY row] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, Phase Tests [ADVISORY row, plan-window] and Work items (sync); 20 where `scripts/epic_order.py` exists — the hub-conditional `epic_order --check` row below), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **56 checks total** on this hub with an empty changed set (the results list of `run_consistency_checks(tier=2, changed_files=set())`). Three of the 56 are not `run_optional_check` rows — `epic_order --check`, Work items (sync) and the Kilo CLI Health Check — so a probe that counts CALLS rather than the results list answers 53; neither is changed-set-gated; only `epic_order --check` is gated on file existence at all (`_epic_order_row` returns no row where `scripts/epic_order.py` is absent, so a project's Tier-2 total is 54), while the Kilo row is appended on every `tier >= 2` run and degrades to the green SKIP row `Kilo CLI Health Check (NOT PRESENT)` when its script is missing — listed in `skipped_checks` and ⚠ `--json` warnings. A REAL changed set gives FEWER, not more (53 for a one-`.md` diff, 54 for a one-`.py` diff): every `if not changed or …` predicate is satisfied by an empty set. (Counts are verified by INSTRUMENTED EXECUTION — stub `run_optional_check`/`run_cmd` and count `run_consistency_checks(tier=…)`'s results list with `changed_files=set()`: tier 1 → 36, tier 2 → 56, tier 3 → 22; by `run_optional_check` calls alone the same runs read 36 / 52 / 20 — never by eyeballing call sites and never by `path:line` ranges, which drift on every insertion; `tests/test_final_gate_tier_counts.py` asserts the declaration.)
+**Phase 3: Repo Consistency** — inherits **37** of the 38 Tier-1 checks above — every one but the lean-only `INDEX.md ↔ new docs (untracked, this run)` row (fourteen run unconditionally outside the `tier in (1, 2)` block) — **plus 19 Tier-2-only checks** — 14 with notes below, plus the hub-conditional `epic_order --check` bullet the "20 where …" clause adds; five more run with no note: User-Level Hooks Registered (`scripts/sysadmin/install_user_hooks.py`), Rule-pack reachability (`check_pack_reachability.py`), Command Corpus [BLOCKING] (`check_command_corpus.py`), Ticket Breadth (`check_ticket_breadth.py`), MCP Scope (.mcp.json ⊆ ruling) (`check_mcp_scope.py`, hub-only — 1c22b3de1) — (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [ADVISORY row] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, Phase Tests [ADVISORY row, plan-window] and Work items (sync); 20 where `scripts/epic_order.py` exists — the hub-conditional `epic_order --check` row below), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **58 checks total** on this hub with an empty changed set (the results list of `run_consistency_checks(tier=2, changed_files=set())`). Three of the 58 are not `run_optional_check` rows — `epic_order --check`, Work items (sync) and the Kilo CLI Health Check — so a probe that counts CALLS rather than the results list answers 55; neither is changed-set-gated; only `epic_order --check` is gated on file existence at all (`_epic_order_row` returns no row where `scripts/epic_order.py` is absent, so a project's Tier-2 total is 56), while the Kilo row is appended on every `tier >= 2` run and degrades to the green SKIP row `Kilo CLI Health Check (NOT PRESENT)` when its script is missing — listed in `skipped_checks` and ⚠ `--json` warnings. A REAL changed set gives FEWER, not more (56 for a one-`.md` diff, 57 for a one-`.py` diff): every `if not changed or …` predicate is satisfied by an empty set. (Counts are verified by INSTRUMENTED EXECUTION — stub `run_optional_check`/`run_cmd` and count `run_consistency_checks(tier=…)`'s results list with `changed_files=set()`: tier 1 → 38, tier 2 → 58, tier 3 → 22; by `run_optional_check` calls alone the same runs read 38 / 55 / 20 — never by eyeballing call sites and never by `path:line` ranges, which drift on every insertion; `tests/test_final_gate_tier_counts.py` asserts the declaration.)
 
 **The Tier-2-only checks:**
 - **Phase Tests (plan-window)** - `check_phase_tests.py` *(ADVISORY row)*
@@ -451,9 +452,11 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `scripts/docs_updater.py` — Documentation Drift (Tier 3; ADVISORY row)
 - `check_certification_coverage.py` — Certification Coverage (advisory; board mix-up BLOCKS) (every tier; ADVISORY row)
 - `check_citations_resolve.py` — Citations resolve (path:line lands) (every tier; advisory — `warn_only`, never blocks)
+- `check_beat_owners.py` — Mail Ownership Map (beat-owners.json) (Tier 1/2; BLOCKING)
 - `check_command_corpus.py` — Command Corpus (references resolve — BLOCKING) (Tier 2; ADVISORY row)
 - `check_convergence.py` — Convergence Evidence (plans + reviews) (every tier; BLOCKING)
 - `check_corpus_weight.py` — Corpus Weight (byte ratchet) (Tier 1/2; advisory — `warn_only`, never blocks)
+- `check_data_contract_legend.py` — Data Contract Backing Legend (Tier 1/2; advisory — `warn_only`, never blocks): every Enum-registry `Backing` cell in `docs/data-contract.md` is one of the template legend's six tokens in its whole-cell grammar; a contract's own differing legend is reported, never honoured
 - `check_decisions_unique.py` — Decision Ledger (unique ids) (Tier 1/2; BLOCKING)
 - `check_doc_index.py` — INDEX.md ↔ docs tree drift (Tier 2; BLOCKING)
 - `check_doc_index.py --untracked-only` — INDEX.md ↔ new docs (untracked, this run) (Tier 1; advisory — `warn_only`, never blocks)
@@ -689,11 +692,19 @@ that drops a table the frozen `docs/data-contract.md` still declares fails.
   (`schema_signature`: the DB classes' field statements and module-level `Table(...)` calls, format-free) needs a
   staged `schema.sql` or migration (`.py`/`.sql`) at any depth; a file that does not parse falls back to a regex over
   its staged diff.
+- Where a migration directory in the index is an ANCESTOR of the model (`MIGRATION_DIRS` under the model's own path,
+  the repo root included; vendored trees such as `node_modules/` excluded), `schema.sql` is not enough: the model
+  needs a staged added, modified or renamed-in migration under THAT directory (`env.py`, `__init__.py`, `script.py.mako` do not
+  count), or the check FAILs naming it. A model no migration dir governs, in a repo that tracks one elsewhere,
+  passes on `schema.sql` with a WARN naming those dirs, whatever other migration the commit stages. A repo with no
+  migration dir keeps the plain rule.
 - A schema change without a staged data contract WARNs; a migration dropping a table the contract still declares FAILs.
 
 **Why this matters:**
 - A model module named anything but `models.py` was unguarded (iterative_image_editor 01M3WW5PFN, W-62875be3), and a
   regex over diff lines failed commits for Pydantic classes and re-wrapped columns.
+- site-provisioner 7da4149 passed on `schema.sql` alone while its database applies Alembic migrations; 20 columns
+  the code wrote were never created until 5ce52f2 (intel 01M4TJJDC3).
 
 #### check_openapi_sync.py
 
@@ -1122,6 +1133,7 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/enforcement/check_beat_owners.py`
 - `scripts/enforcement/check_changelog.py`
 - `scripts/enforcement/check_compose_services.py`
 - `scripts/enforcement/check_configuration_md.py`

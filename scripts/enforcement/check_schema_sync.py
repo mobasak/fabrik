@@ -66,19 +66,20 @@ DB_FIELD_PATTERNS = [
 
 
 def get_staged_files() -> list[str]:
-    """Get list of staged files."""
+    """Get list of staged files — ``-z``, because plain output QUOTES a non-ASCII path and no later check
+    could then resolve it (the whole gate passed silently)."""
     result = subprocess.run(
-        ["git", "diff", "--name-only", "--cached", "HEAD"],
+        ["git", "diff", "--name-only", "--cached", "-z", "HEAD"],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
         result = subprocess.run(
-            ["git", "diff", "--name-only", "--cached"],
+            ["git", "diff", "--name-only", "--cached", "-z"],
             capture_output=True,
             text=True,
         )
-    return result.stdout.strip().split("\n") if result.stdout.strip() else []
+    return [f for f in result.stdout.split("\0") if f]
 
 
 _ORM_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:sqlalchemy|sqlmodel|flask_sqlalchemy)\b", re.M)
@@ -349,6 +350,51 @@ def warn_if_data_contract_stale(staged_files: list[str]) -> None:
     print("    Re-run /fabrik-data-contract (bump Version) if fields/enums changed; ignore if not.")
 
 
+# intel 01M4TJJDC3: where a project applies its schema through migrations, schema.sql is documentation —
+# only a NEW migration under that project's own migration dir changes the database (site-provisioner
+# 7da4149 passed on schema.sql alone; 5ce52f2 later added 20 columns no migration had created).
+_VENDORED_SEGMENTS = ("node_modules/", ".venv/", "site-packages/", "vendor/", "_vendor/")
+_NOT_A_MIGRATION = ("env.py", "__init__.py", "script.py.mako")
+
+
+def _migration_roots() -> dict[str, set[str]]:
+    """``{root: {migration dirs}}`` for every migration dir in the INDEX (``git ls-files``, run at the repo
+    root). A root is the prefix before a MIGRATION_DIRS match ("" or ending in "/"), taken over EVERY
+    matching entry, so ``db/migrations/x.py`` yields both "" (``migrations/``) and "db/" (``db/migrations/``).
+    A root inside a vendored tree (``node_modules/`` and the like) is not a project's. Git failing → {}
+    (today's rule — unreachable in practice: an empty staged list returns before this runs)."""
+    out = _git_text("ls-files", "-z") or ""
+    roots: dict[str, set[str]] = {}
+    for path in filter(None, out.split("\0")):
+        anchored = "/" + path
+        for d in MIGRATION_DIRS:
+            at = anchored.find("/" + d)
+            while at >= 0:
+                root = anchored[1 : at + 1]
+                if not any(("/" + v) in ("/" + root) for v in _VENDORED_SEGMENTS):
+                    roots.setdefault(root, set()).add(root + d)
+                at = anchored.find("/" + d, at + 1)
+    return roots
+
+
+def _governing(model: str, roots: dict[str, set[str]]) -> set[str]:
+    """The migration dirs whose root is an ancestor of ``model`` (the repo root "" governs every path)."""
+    return {d for root, dirs in roots.items() if model.startswith(root) for d in dirs}
+
+
+def _added_migrations() -> list[str]:
+    """Staged ADDED, MODIFIED or RENAMED-IN files (a rename lists its new path), minus migration plumbing
+    (``env.py`` and the like). An edit counts: amending a not-yet-shipped migration in the same feature is
+    common (seo 42d7000, site-provisioner 1a7de0f), and the gate cannot tell it from an edit to an applied
+    one — that dodge is named in the D-row, not graded here."""
+    out = _git_text("diff", "--cached", "--name-only", "--diff-filter=AMR", "-z") or ""
+    return [
+        f
+        for f in filter(None, out.split("\0"))
+        if f.endswith((".py", ".sql")) and os.path.basename(f) not in _NOT_A_MIGRATION
+    ]
+
+
 def main() -> int:
     """Check schema synchronization."""
     staged_files = get_staged_files()
@@ -368,8 +414,42 @@ def main() -> int:
     if not model_files_with_db_changes:
         return 0
 
+    roots = _migration_roots()
+    added = _added_migrations()
+    governed = {f: _governing(f, roots) for f in model_files_with_db_changes}
+    unmigrated = {
+        f: dirs
+        for f, dirs in governed.items()
+        if dirs and not any(a.startswith(d) for a in added for d in dirs)
+    }
+    if unmigrated:
+        print("ERROR: Database model changes detected without a new migration.")
+        print("")
+        print("These models live under a project that applies its schema through migrations, so")
+        print(
+            "schema.sql alone never reaches the database — add a migration that creates the change:"
+        )
+        for f, dirs in list(unmigrated.items())[:5]:
+            print(f"  - {f}  (migrations: {', '.join(sorted(dirs))})")
+        print("")
+        print("A dead migration dir? Remove it in the same commit and schema.sql suffices again.")
+        return 1
+    ungoverned = [f for f, dirs in governed.items() if not dirs]
+    if not ungoverned:
+        return 0  # every changed model has a new migration under its own dir
+
     if schema_file_updated(staged_files) or migration_added(staged_files):
-        # Schema kept in sync — pass silently (no benign chatter for advisory=True to forward).
+        # Schema kept in sync — pass silently (no benign chatter for advisory=True to forward),
+        # unless the repo applies migrations elsewhere: no staged migration can be an ungoverned
+        # model's own (any migration dir is a root), so schema.sql may be all that reached it.
+        if roots:
+            mig_dirs = sorted({d for ds in roots.values() for d in ds})
+            print(
+                "WARN: model change passed with no migration under its own project, but this repo "
+                "tracks migrations in "
+                f"{', '.join(mig_dirs[:5])} — if those apply this model's tables, add a migration: "
+                + ", ".join(ungoverned[:5])
+            )
         return 0
 
     print("ERROR: Database model changes detected without schema update.")

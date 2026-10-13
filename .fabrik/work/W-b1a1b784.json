@@ -14,9 +14,9 @@
   },
   "next": "/fabrik-execute-plan docs/development/plans/2026-10-12-plan-1-owner-dsn-split.md",
   "next_at": "2026-10-12T01:57:48.837311Z",
-  "note": "",
+  "note": "superseded",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "/fabrik-execute-plan docs/development/plans/2026-10-12-plan-1-owner-dsn-split.md"
 }
