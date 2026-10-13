@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the schema-apply one-liner reads the owner DSN instead of sourcing the env files as root shell code (2026-10-13)
+
+- `src/fabrik/scaffold.py` (`_SCHEMA_APPLY_HEADER`, the saas `db/schema.sql` header), `templates/scaffold/docs/CONFIGURATION_TEMPLATE.md`,
+  `docs/CONFIGURATION.md` (fabrik-lib finding in 01M4TGJ1CVT4XEHDH6AQZ1M6JF): the recipe ran `set -a; . ./.env; . ./.env.owner;
+  set +a` under `sudo sh -c` — the env files executed as SHELL CODE, as root: a value `X="$(touch f)"` ran, and a value with
+  an apostrophe aborted the line before psql (both reproduced under dash). The recipe now reads the ONE key it needs —
+  `v=$(sed -n "s/^DATABASE_URL_OWNER=//p" ./.env.owner | tail -n 1)`, the wrapping quotes `_format_env` may add stripped —
+  and hands it to `pgurl`; nothing is sourced. Executed grader `test_schema_apply_recipe_reads_the_owner_key_without_sourcing_the_env_files`
+  (tests/test_scaffold_audit_log.py) runs the header's own recipe under `sh` with a stub `psql` and a hostile `.env.owner`:
+  the hostile line does not run, the apostrophe does not abort, psql receives the libpq-rewritten DSN, a missing key is
+  refused before psql; HEAD's recipe fails both ways. The emitted saas schema's recipe is executed by its own grader too
+  (`test_rls_schema_recipe_executes_without_sourcing`) — the review caught the saas header rendering `${v%"}` without its
+  backslash (a plain string, not an f-string) while the text pin stayed green. `pgurl` — seeded TWICE, byte-identical, in
+  `TROUBLESHOOTING_TEMPLATE.md` and `CONFIGURATION_TEMPLATE.md` (the review's pass 2 caught the second copy left behind;
+  `tests/test_scaffold_doc_seeding.py` holds the two together and now executes each refusal alternative alone) — now also
+  refuses a DSN carrying whitespace, a quote or a backslash, so a hand-edited or still-escaped `.env` line fails closed at the
+  one boundary instead of reaching psql mangled. The text pins (`_HEADER`, saas test) follow; `. ./.env` is asserted absent.
+
 ### Changed — the data-contract template's Enum-registry `Backing` legend is a closed, measured token list (2026-10-13)
 
 - `templates/scaffold/docs/data-contract-template.md` (kaizen finding 01M4F92G6VG2GMR96X1095JKEJ, /fabrik-data-contract

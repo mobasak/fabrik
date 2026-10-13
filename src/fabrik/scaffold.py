@@ -2216,10 +2216,12 @@ _SAAS_SCHEMA_SQL = """-- schema.sql — multi-tenant schema for __NAME__ (Postgr
 -- Per .windsurf/rules/saas/95-multi-tenant-saas.md (RLS) + core/75-workers-jobs.md (queue).
 -- Apply once after the DB is provisioned, as the database OWNER (the WHOLE file is one
 -- transaction; any error aborts it). On the VPS the owner DSN lives in /opt/<name>/__OWNER_ENV_FILE__
--- (root 0600) beside .env, so source both under sudo, in ONE line, from /opt/<name>:
---   sudo sh -c "$(sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md)"'; set -a; . ./.env; . ./__OWNER_ENV_FILE__; set +a; u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'
+-- (root 0600) beside .env. Read that ONE key under sudo — never `source` the files: they are data, not shell
+-- code, and sourcing them as root runs a `$(…)` value and aborts on an apostrophe (fabrik-lib 01M4TGJ1CV):
+--   sudo sh -c "$(sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md)"'; v=$(sed -n "s/^DATABASE_URL_OWNER=//p" ./__OWNER_ENV_FILE__ | tail -n 1); v=${v%\\"}; v=${v#\\"}; u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'
 -- (the sed half defines pgurl — docs/TROUBLESHOOTING.md § Debug Commands — INSIDE the root shell, where a function pasted
--- in your own shell does not exist; pgurl rewrites a postgresql+asyncpg:// DSN for libpq and refuses an empty one.
+-- in your own shell does not exist; pgurl rewrites a postgresql+asyncpg:// DSN for libpq and refuses an empty one,
+-- or one carrying whitespace, a quote or a backslash — a hand-edited or still-quoted line fails closed, never psql.
 -- Never psql the raw variable.)
 -- (Fabrik runs NO automatic migrations — you apply this yourself.) Keep BEGIN/COMMIT
 -- out of this file: an inner COMMIT would end psql -1's transaction early.
@@ -3598,14 +3600,16 @@ APP_AUDIT_LOG_DIR = FABRIK_LIB_DIR / "app-audit-log"
 # top-level BEGIN/COMMIT: an inner COMMIT would end ``-1``'s transaction early.
 _SCHEMA_APPLY_HEADER = (
     "-- Apply as the database OWNER (the WHOLE file is one transaction; any error aborts it).\n"
-    f"-- On the VPS the owner DSN lives in /opt/<name>/{OWNER_ENV_FILE} (root 0600) beside .env — source\n"
-    "-- both under sudo, in ONE line, from /opt/<name>:\n"
+    f"-- On the VPS the owner DSN lives in /opt/<name>/{OWNER_ENV_FILE} (root 0600) beside .env. Read that ONE\n"
+    "-- key under sudo, in ONE line, from /opt/<name> — never `source` the env files: they are data, not shell\n"
+    "-- code, and sourcing them as root runs a `$(…)` value and aborts on an apostrophe (fabrik-lib 01M4TGJ1CV):\n"
     "--   sudo sh -c \"$(sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md)\"'; "
-    f"set -a; . ./.env; . ./{OWNER_ENV_FILE}; set +a; "
-    'u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql\'\n'
+    f'v=$(sed -n "s/^DATABASE_URL_OWNER=//p" ./{OWNER_ENV_FILE} | tail -n 1); v=${{v%\\"}}; v=${{v#\\"}}; '
+    'u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql\'\n'
     "-- (the sed half defines pgurl — docs/TROUBLESHOOTING.md § Debug Commands — INSIDE the root shell, where a\n"
     "-- function pasted in your own shell does not exist; pgurl rewrites a postgresql+asyncpg:// DSN for libpq\n"
-    "-- and refuses an empty one. Never psql the raw variable.)\n"
+    "-- and refuses an empty one, or one carrying whitespace, a quote or a backslash: a hand-edited or\n"
+    "-- still-quoted line fails closed. Never psql the raw variable.)\n"
     "-- Never through DATABASE_URL: that is the app's non-owner role, which cannot CREATE.\n"
     "-- Keep BEGIN/COMMIT out of this file — an inner COMMIT would end psql -1's transaction.\n"
 )
