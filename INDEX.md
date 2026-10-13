@@ -380,6 +380,7 @@ docs/
 │   │   │   ├── T05-upgrade-runbook.md
 │   │   │   └── T06-integration.md
 │   │   ├── 2026-10-06-plan-1-worktree-venv-isolation.md
+│   │   ├── 2026-10-13-plan-1-mail-routing.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
