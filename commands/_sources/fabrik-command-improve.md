@@ -172,7 +172,10 @@ valid one-off advice is rejected with `HELD:<subject>` first in the reason, then
 quote and why that text is not wrong. Before rejecting, search earlier reject reasons for the subject (the
 queue's `held (all time):` line lists the held tags once any exist): a subject already held is a recurrence and
 is edited, never re-rejected — `--reject` warns on one but still writes it. An Opus seat audits the advice set
-for misfiled text defects before any advice is rejected.
+for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command
+reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it
+loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites the
+command's current text).
 
 Three shapes are NOT yours to apply here, and each has a destination:
 
