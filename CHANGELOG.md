@@ -153,6 +153,26 @@ All notable changes to this project will be documented in this file.
   hook `.claude/hooks/final_gate_stop.py` is outside `scripts/`, and a `scripts//final_gate.py` spelling escapes `_norm_path`
   (filed to infra, 01M4TQPCXT). Ships to the ~46 synced repos on merge; fabrik-lib re-vendors.
 
+### Changed — the review-loop workflow re-seats a dead finder, fails an empty one, and makes a closing pass execute its claims (2026-10-13)
+
+- `.claude/workflows/fabrik-review-loop.js`:
+  - A finder that returns null or throws is re-seated once (`find:<slice>:<model>:retry`, its own scratch dir), inside the dispatch stamp (W-b36e2a4a).
+  - A finder that brought nothing back fails (no coverage statement, no candidate, no ledger row; 2 of 6707 real seats). A ledger row re-verifies its claim only with a command and an output. A `recorded: true` ledger claim is report-only and never reaches the refuter (01M4Q4D8VP, 01M4PPW8D8).
+  - The seat head now says every claim in a seat's ledger is re-executed, an earlier refutation included, so a quiet round 1's closing pass has a recipe (the Opus + Fable panel's answer).
+  - The seat recipe archives every top-level path the tests import, read or run, overlays every pinned file of the run with one program, and requires a grep to name a file operand. A relative `pins_dir`, `scratch_dir` or `base_pin_dir` is refused before any seat runs (kaizen 01M4PNBVJ1, 01M4RM8CYR, 01M4RMKM28, 01M4RVAWG3, 01M4PY7AG9, 01M4PVPY8J).
+- `docs/reference/review-loop-workflow.md` describes the args, the retry, the failed-seat and closable rules, and the ledger rows.
+
+### Changed — review_loop_ledger.py tells a running workflow from a dead seat, and pin writes the change's diff (2026-10-13)
+
+- `read` checks the workflow's run file, `<session>/workflows/<runId>.json`, which the harness writes only when the workflow ends (2412 of 2412 runs on the box had one). With no run file yet, a seat without a result prints `RUNNING`, not `NO RESULT`, and the read exits 5 with the run dir's idle minutes. A run file that does not parse, or one with an unended status, also exits 5. An ended run prints the workflow's own verdict: `closable`, and a `SLICE DROPPED`, `REFUTER FAILED` or `SEAT FAILED` line per recorded failure. `next` refuses a pass file read before the workflow ended. (kaizen 01M4PNBVJ1 rows 1791748866, 1791217578, 1790292451, 1791033713; 01M4RMKM28 row 1791826392; 01M4PY7AG9 row 1791410439.)
+- `pin` writes `change.diff`: one `git diff --no-index` per pinned file, from `--base`, else HEAD, else `<ref>^` (a root commit diffs from /dev/null). Its path and md5 go in the args fragment. It prints `UNCHANGED <file>` for a pin equal to that basis, refuses a `--base` that is no commit, and reserves the name `change.diff`. (01M4PNBVJ1 rows 1791099162, 1791481582; 01M4RM8CYR row 1791827197.)
+- `docs/reference/review-loop-workflow.md` and `/fabrik-review-scoped` step 5 describe both.
+
+### Fixed — Kilo golden parity tolerates the collapsed OpenRouter routes artifact as a known collapse (2026-10-13)
+
+- `scripts/kilo-benchmarks/tests/golden/known_collapses.json`: a `kind: artifact` entry for `scripts/kilo_openrouter_routes_final.json`. Its floor is the collapsed shape ai-model-catalog has delivered since 2026-09-07: seven categories, all empty, plus `generated_at`. This is the engine-run-2026-08-18 collapse the `OPENROUTER_ROUTES` markers already carry (D-430, D-554, D-567). In a checkout holding that ignored artifact, `test_golden_parity.py` failed 9 tests; it now passes 103 with 2 skipped. A shape other than the floor still fails, and a full recovery reports `KNOWN COLLAPSE HEALED` (infra 01M4TDF3MK).
+- `test_known_collapses_are_announced_not_silent` also accepts the oracle's `KNOWN COLLAPSE unobservable here (absent-by-gitignore)` line. A checkout without the artifact (CI, a fresh worktree) now announces the collapse instead of failing.
+
 ### Changed — the review probe catalogue: a brief names the readers that never import a changed file (2026-10-13)
 - The "Callers and consumers" hunt line in `commands/_fragments/review-probe-catalogue.md` now asks for every reader of a changed or vendored file's text that never imports it (a scaffold fold such as `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by `check_synced_unmodified.py`), each hit that reads the file named in the brief. A seat cannot infer a consumer it was never told exists (/fabrik-review row 1791891025). Grader: `tests/test_review_queue_pass.py::test_the_callers_hunt_line_names_readers_that_never_import_the_file`.
 

@@ -18,10 +18,12 @@ from __future__ import annotations
 import importlib.util
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 # read at IMPORT (collection) time: proves the fleet guard is installed before collection
 _MODULE_LEVEL_POPEN = subprocess.Popen
+REPO = Path(__file__).resolve().parents[1]
 _REAL_LOCK_DIR = Path(f"/tmp/claude-sound-locks-{os.getuid()}")
 
 
@@ -430,16 +432,67 @@ def test_the_resolvers_refuse_the_live_dirs_under_pytest_without_the_pin(tmp_pat
         "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
         "print(m._selfwatch_lock_dir()); print(m._rotate_state_dir())\n"
     )
-    env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_SOUND_LOCKDIR", "ROTATE_STATE_DIR")}
+    env = {
+        k: v for k, v in os.environ.items() if k not in ("CLAUDE_SOUND_LOCKDIR", "ROTATE_STATE_DIR")
+    }
     env["PYTEST_CURRENT_TEST"] = "tests/some_copy.py::t (call)"
     env["TMPDIR"] = str(tmp_path)
-    out = subprocess.run(["python3", "-c", probe], env=env, capture_output=True, text=True, check=True)
+    out = subprocess.run(
+        ["python3", "-c", probe], env=env, capture_output=True, text=True, check=True
+    )
     lock, state = out.stdout.splitlines()
     assert Path(lock).resolve() != _REAL_LOCK_DIR.resolve(), lock
     assert Path(state).resolve() != (Path.home() / ".claude" / "state").resolve(), state
     assert Path(lock).parent == tmp_path and Path(state).parent == tmp_path, (lock, state)
     # outside pytest the live defaults are untouched — the tick's own resolution
     env.pop("PYTEST_CURRENT_TEST")
-    out = subprocess.run(["python3", "-c", probe], env=env, capture_output=True, text=True, check=True)
+    out = subprocess.run(
+        ["python3", "-c", probe], env=env, capture_output=True, text=True, check=True
+    )
     lock, state = out.stdout.splitlines()
-    assert Path(lock) == _REAL_LOCK_DIR and Path(state) == Path.home() / ".claude" / "state", (lock, state)
+    assert Path(lock) == _REAL_LOCK_DIR and Path(state) == Path.home() / ".claude" / "state", (
+        lock,
+        state,
+    )
+
+
+def test_dispatch_headroom_sees_the_default_cap():
+    """The cap the module froze at import is the default: no session value reached it."""
+    spec = importlib.util.spec_from_file_location(
+        "dispatch_headroom_cap_probe", REPO / "scripts" / "sysadmin" / "dispatch_headroom.py"
+    )
+    assert spec and spec.loader
+    dh = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dh)
+    assert dh.CONCURRENCY_CAP == 20, dh.CONCURRENCY_CAP
+    for name in ("CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS", "CLAUDE_CODE_SUBAGENT_MODEL_FORCE"):
+        assert name not in os.environ, name
+
+
+def test_the_sessions_subagent_knobs_never_reach_the_suite():
+    """kaizen 01M4TBA449: dispatch_headroom reads CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS at import and
+    CLAUDE_CODE_SUBAGENT_MODEL_FORCE per call, so a session that set either turned 17-38 of its tests red.
+    Run with both SET, through the real conftest chain, so the grader goes red without the scrub whatever the
+    shell that runs the suite exports (review A-O1: an in-process check passes in a clean shell regardless)."""
+    # review A-O4: an inherited PYTEST_ADDOPTS (`--collect-only`, `-k`) would let the child exit 0 unrun
+    env = {k: v for k, v in os.environ.items() if k != "PYTEST_ADDOPTS"}
+    env.update(
+        {"CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "2", "CLAUDE_CODE_SUBAGENT_MODEL_FORCE": "haiku"}
+    )
+    r = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            f"{Path(__file__).resolve()}::test_dispatch_headroom_sees_the_default_cap",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
+        cwd=str(REPO),
+    )
+    assert r.returncode == 0 and "1 passed" in r.stdout, r.stdout[-1500:]

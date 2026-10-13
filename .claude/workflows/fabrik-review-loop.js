@@ -40,7 +40,7 @@
 //     passes is a target, not a cap (operator ruling 2026-09-23).
 //
 // ARGS (all strings unless noted; the command source builds them — see /opt/fabrik/docs/reference/review-loop-workflow.md — hub-only, so cited hub-absolute):
-//   pass: 1|2|3 · surface · base_sha · digest · pins_dir · scratch_dir · brief (the dispatcher's shared text:
+//   pass: 1, 2, 3, … (unbounded) · surface · base_sha · digest · pins_dir · scratch_dir · brief (the dispatcher's shared text:
 //   hunt classes, lessons, house rules) · slices: [{ name, files: [..], priority, scope?, models?, agent?,
 //   ledger?: [ { id, file, line, claim } | "<the claim as one string>" ] }] (ledger present on pass ≥ 2; any other
 //   row shape is REFUSED before a seat is dispatched; `models` is one to three distinct of opus|sonnet|haiku,
@@ -51,7 +51,8 @@
 //   tree `pin --base` wrote; seats copy it instead of running git archive)
 // RETURNS one ledger: { pass, closable, pinned, slices: [{ name, files, seats: [{ model, files_read, raised, failed (null, or no
 //   slice file in files_read) }],
-//   gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], verdicts: [..], refuter: { retried, failed,
+//   gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], recorded: [..] (candidates on a
+//   `recorded: true` ledger claim, never refuted), verdicts: [..], refuter: { retried, failed,
 //   unanswered, reason }, closable, open: [..] }], dropped_seats (failed finders), failed_refuters }
 
 export const meta = {
@@ -163,6 +164,14 @@ args.slices.forEach((s, i) => {
   }
 })
 for (const s of args.slices) Object.assign(s, { ledger: normalizeLedger(s) }, normalizeSeats(s))
+// kaizen 01M4PNBVJ1 row 1791149709: every seat's paths are built from these, and the shell returns to the LIVE
+// checkout before every call, so a relative one lands a seat's probes in the live tree. The script has no
+// filesystem, so creating the dirs stays the lead's; `review_loop_ledger.py pin` writes the pins absolute.
+for (const key of ['pins_dir', 'scratch_dir', 'base_pin_dir']) {
+  const v = args[key]
+  if (key === 'base_pin_dir' && (v === undefined || v === null || v === '')) continue
+  if (typeof v !== 'string' || !v.startsWith('/')) throw new Error(`${key} must be an absolute path — got ${JSON.stringify(v)}: every seat builds its paths from it and runs from the live checkout`)
+}
 
 // kaizen 01M4CGJZAX: a workflow script has no filesystem, so the lead's `review_loop_ledger.py pin` writes the
 // pins (read-only) and hands back `pin_manifest`; a launch without it, or with a slice file it does not hold, is
@@ -195,7 +204,7 @@ const pinned = true
 {
   const finders = args.slices.reduce((n, s) => n + s.models.length, 0)
   const n = args.slices.length
-  log(`DISPATCH: ${finders} finder seat(s) over ${n} slice(s) + up to ${n} refuter(s) = stamp ${finders + n}; a refuter retry runs after its slice's first refuter ends and stays inside this stamp`)
+  log(`DISPATCH: ${finders} finder seat(s) over ${n} slice(s) + up to ${n} refuter(s) = stamp ${finders + n}; a finder or refuter retry runs after the seat it replaces ends and stays inside this stamp`)
 }
 
 function ledgerLine(c) {
@@ -210,21 +219,22 @@ function ledgerLine(c) {
 const BASE_PIN = args.base_pin_dir
   ? `A read-only copy of the WHOLE base commit is at ${args.base_pin_dir}, written by the lead: in place of the archive and tar steps below — skip their mkdir, ls-tree, git archive, tar and ROOTS steps entirely: the copy is already the whole commit — run \`cp -r ${args.base_pin_dir} SCRATCH/arch\` with SCRATCH/arch not yet created, then, as its own command, \`chmod -R u+w SCRATCH/arch\` — the copy keeps the read-only bits, so without the chmod overlaying a pin fails and you would run the BASE bytes, not the pin. `
   : ''
-const PIN_IMPORT = `${BASE_PIN}To IMPORT a pinned module, never put the pins dir on sys.path alone: it holds only the slice's files, so an installed package from the live checkout wins and you execute the wrong code. Instead, from your working directory (the live repo, read only), build an archive copy with ONE git command per Bash call — never a git command inside \`$( )\`, a loop, a pipe or an \`&&\` chain, and literal paths in every command — git, tar or python alike — never a \`$VAR\` (the worktree-isolation guard of a linked worktree refuses those shapes): run \`mkdir -p SCRATCH/arch\`, then \`git archive -o SCRATCH/arch.tar ${args.base_sha} ROOTS\`, then \`tar -xf SCRATCH/arch.tar -C SCRATCH/arch\`, with ROOTS every top-level directory and root module file the code imports (e.g. \`src edit_products.py\`), listed from \`git ls-tree --name-only ${args.base_sha}\` run ALONE first — never one package such as src/media_edit (a package that imports a sibling package or a root module fails with ModuleNotFoundError in a one-package archive) — and when unsure, the whole commit (\`git archive -o SCRATCH/arch.tar ${args.base_sha}\` with no paths): over-inclusion is safe and SCRATCH your own scratch dir — git archive only reads the repo and tar -C writes only inside SCRATCH — then overlay the pinned files onto SCRATCH/arch, put the directory that HOLDS the top-level import name on sys.path (SCRATCH/arch/src for \`import fabrik\`; SCRATCH/arch when src/ is itself a package, as in \`import src.copy\`) at the index of the first entry ending in site-packages or dist-packages, or at the end when there is none — never at index 0, where a package named like a standard-library module (a src/copy/) shadows the stdlib; run every probe as \`python -P -B\` (without -P the working directory, the live repo, sits ahead of your entry and its code wins; -B writes no bytecode) — -P drops ONLY the working directory: a PYTHONPATH in your environment still sits ahead of your entry, so drop its entries from sys.path in the program; an editable install's .pth path lands after site-packages, so your entry already beats it, and an editable finder on sys.meta_path answers only for a name the archive lacks, so archive the whole package — the repo's .venv python when it has one — and, when ROOTS holds src/fabrik, \`os.environ["FABRIK_ROOT"]="SCRATCH/arch"\` in the program's leading line below (a hub module resolves its write root at import, so a probe run from the live repo writes that checkout's data/). Set the scratch home INSIDE the program, never in front of the command, where the guard refuses it in every spelling: begin the \`-c\` program with \`import os,site; os.environ["PYTHONUSERBASE"]=site.getuserbase(); os.environ["HOME"]="SCRATCH/home"; os.environ["TMPDIR"]="SCRATCH/tmp"\` (mkdir both) — the user base first, so a child process the probe starts keeps your --user packages — and run a script file as \`python -P -B -c '<that line>; import runpy,sys; sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0], run_name="__main__")' <script> <args>\`; a home set this way also reaches any git a probe starts, which the guard cannot see, so never write a .gitconfig into SCRATCH/home; check each overlaid file with \`cmp\` against its pin (a batched copy can silently not land); and print the module's \`__file__\` beside every result: a path outside SCRATCH means you ran the live tree, not the pin. The archive is ${args.base_sha} plus YOUR slice's pins, so a file outside your slice is at its ${args.base_sha} bytes: a later fix to it is invisible to you, and a result that rests on such a file says so. In a project repo the fleet-synced scripts and rule packs (\`scripts/enforcement/\`, \`.windsurf/rules/\`) are gitignored, so neither \`git archive\` nor \`git show <sha>:\` reaches them: a slice file is still read from its pin, but a synced dependency outside the slice is copied from the live disk into SCRATCH/arch, named UNPINNED in your notes, and a result resting on it reported unverifiable against the pins.`
-const SEAT_ISOLATION = ` ISOLATION (seats have damaged live trees, and once deleted every session's skills by rmtree under the home directory): create, modify or delete NOTHING outside SCRATCH — not $HOME (\`Path.home()\`, \`~\`, \`expanduser\`), not the live checkout, not /tmp outside SCRATCH; a probe that needs a home-relative or installed-corpus path must set HOME, TMPDIR and the module's path constants to SCRATCH first (the tests' monkeypatch pattern; \`tempfile\` writes under TMPDIR, /tmp by default), never act on the real one — the recipe's PYTHONUSERBASE line only READS the real user base, so your --user packages still import. On a refused command: a refusal that names a shape or a path (a \`seat guard (…)\` line, the worktree guard's shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by \`cp -r\` then \`chmod -R u+w\`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries. The shell returns to the LIVE checkout before every Bash call, so every path a command, script or env var writes or runs is ABSOLUTE under SCRATCH — a relative path is safe only after a cd to an absolute SCRATCH path inside the SAME call or program; a git verb that WRITES (init, add, commit, checkout, reset, stash, restore) runs only as \`git -C <absolute scratch repo>\`, and a probe or test whose code runs git passes cwd=<absolute scratch repo> — the read-only git the pin recipe names (archive -o into SCRATCH, ls-tree, show) may run from the live repo; never \`pkill\`, \`killall\` or kill by pattern — start a background probe only inside a python program (Popen) and stop it by that handle, or bound it with \`timeout\`; never start a background process from Bash yourself (no \`&\`, no run_in_background) — a slow call the harness backgrounds on its own is not yours to stop; a command whose output may be large (\`git show\`, \`git diff\`, \`git log -p\`, a broad search) always redirects into a file under SCRATCH that you then read, because a large stdout is saved by the harness under $HOME, where you may not read.`
+const PIN_IMPORT = `${BASE_PIN}To IMPORT a pinned module, never put the pins dir on sys.path alone: it holds only the pinned files, so an installed package from the live checkout wins and you execute the wrong code. Instead, from your working directory (the live repo, read only), build an archive copy with ONE git command per Bash call — never a git command inside \`$( )\`, a loop, a pipe or an \`&&\` chain, and literal paths in every command — git, tar or python alike — never a \`$VAR\` (the worktree-isolation guard of a linked worktree refuses those shapes): run \`mkdir -p SCRATCH/arch\`, then \`git archive -o SCRATCH/arch.tar ${args.base_sha} ROOTS\`, then \`tar -xf SCRATCH/arch.tar -C SCRATCH/arch\`, with ROOTS every top-level path the code or its tests import, read or run (e.g. \`src edit_products.py templates\` — a test that reads \`templates/\` or \`.windsurf/\`, or runs \`scripts/\` by subprocess, needs that root too), listed from \`git ls-tree --name-only ${args.base_sha}\` run ALONE first — never one package such as src/media_edit (a package that imports a sibling package or a root module fails with ModuleNotFoundError in a one-package archive) — and when unsure, the whole commit (\`git archive -o SCRATCH/arch.tar ${args.base_sha}\` with no paths): over-inclusion is safe and SCRATCH your own scratch dir — git archive only reads the repo and tar -C writes only inside SCRATCH — then overlay EVERY pinned file of the run onto SCRATCH/arch — each path in the pins dir's MANIFEST.md5, not only your slice's (a slice's tests may import another slice's module) — with ONE program: \`python -P -B -c 'import hashlib,os,pathlib,shutil; A="SCRATCH/arch"; L=[l.split("  ",1) for l in pathlib.Path("${args.pins_dir}/MANIFEST.md5").read_text().splitlines()]; [(os.makedirs(os.path.dirname(A+"/"+f),exist_ok=True), shutil.copyfile("${args.pins_dir}/"+f, A+"/"+f)) for m,f in L]; print("overlaid", len(L), "md5 mismatch", [f for m,f in L if hashlib.md5(pathlib.Path(A+"/"+f).read_bytes()).hexdigest()!=m])'\` (MANIFEST.md5 lists no manifest file and no change.diff, so neither lands in the archive), put the directory that HOLDS the top-level import name on sys.path (SCRATCH/arch/src for \`import fabrik\`; SCRATCH/arch when src/ is itself a package, as in \`import src.copy\`) at the index of the first entry ending in site-packages or dist-packages, or at the end when there is none — never at index 0, where a package named like a standard-library module (a src/copy/) shadows the stdlib; run every probe as \`python -P -B\` (without -P the working directory, the live repo, sits ahead of your entry and its code wins; -B writes no bytecode) — -P drops ONLY the working directory: a PYTHONPATH in your environment still sits ahead of your entry, so drop its entries from sys.path in the program; an editable install's .pth path lands after site-packages, so your entry already beats it, and an editable finder on sys.meta_path answers only for a name the archive lacks, so archive the whole package — the repo's .venv python when it has one — and, when ROOTS holds src/fabrik, \`os.environ["FABRIK_ROOT"]="SCRATCH/arch"\` in the program's leading line below (a hub module resolves its write root at import, so a probe run from the live repo writes that checkout's data/). Set the scratch home INSIDE the program, never in front of the command, where the guard refuses it in every spelling: begin the \`-c\` program with \`import os,site; os.environ["PYTHONUSERBASE"]=site.getuserbase(); os.environ["HOME"]="SCRATCH/home"; os.environ["TMPDIR"]="SCRATCH/tmp"\` (mkdir both) — the user base first, so a child process the probe starts keeps your --user packages — and run a script file as \`python -P -B -c '<that line>; import runpy,sys; sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0], run_name="__main__")' <script> <args>\`; a home set this way also reaches any git a probe starts, which the guard cannot see, so never write a .gitconfig into SCRATCH/home; check each overlaid file with \`cmp\` against its pin (a batched copy can silently not land); and print the module's \`__file__\` beside every result: a path outside SCRATCH means you ran the live tree, not the pin. The archive is ${args.base_sha} plus the run's pins, so a file outside the run's pins is at its ${args.base_sha} bytes: a later fix to it is invisible to you, and a result that rests on such a file says so. In a project repo the fleet-synced scripts and rule packs (\`scripts/enforcement/\`, \`.windsurf/rules/\`) are gitignored, so neither \`git archive\` nor \`git show <sha>:\` reaches them: a slice file is still read from its pin, but a synced dependency outside the slice is copied from the live disk into SCRATCH/arch, named UNPINNED in your notes, and a result resting on it reported unverifiable against the pins.`
+const SEAT_ISOLATION = ` ISOLATION (seats have damaged live trees, and once deleted every session's skills by rmtree under the home directory): create, modify or delete NOTHING outside SCRATCH — not $HOME (\`Path.home()\`, \`~\`, \`expanduser\`), not the live checkout, not /tmp outside SCRATCH; a probe that needs a home-relative or installed-corpus path must set HOME, TMPDIR and the module's path constants to SCRATCH first (the tests' monkeypatch pattern; \`tempfile\` writes under TMPDIR, /tmp by default), never act on the real one — the recipe's PYTHONUSERBASE line only READS the real user base, so your --user packages still import. On a refused command: a refusal that names a shape or a path (a \`seat guard (…)\` line, the worktree guard's shapes) is a rule: fix the named shape, every path still under your scratch dir, never re-send it unchanged; a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command into the same destination under your scratch dir (the pinned or base copy, by \`cp -r\` then \`chmod -R u+w\`, when the brief names one), else mark that check unverified — never a different destination — and say in MACHINERY which command was refused how many times of how many tries. The shell returns to the LIVE checkout before every Bash call, so every path a command, script or env var writes or runs is ABSOLUTE under SCRATCH — a relative path is safe only after a cd to an absolute SCRATCH path inside the SAME call or program; a git verb that WRITES (init, add, commit, checkout, reset, stash, restore) runs only as \`git -C <absolute scratch repo>\`, and a probe or test whose code runs git passes cwd=<absolute scratch repo> — the read-only git the pin recipe names (archive -o into SCRATCH, ls-tree, show) may run from the live repo; a grep not fed by a pipe or a redirect names a file or directory operand, and \`-r\` always names one (a bare grep reads stdin and hangs; a bare \`grep -r\` searches the live tree); never \`pkill\`, \`killall\` or kill by pattern — start a background probe only inside a python program (Popen) and stop it by that handle, or bound it with \`timeout\`; never start a background process from Bash yourself (no \`&\`, no run_in_background) — a slow call the harness backgrounds on its own is not yours to stop; a command whose output may be large (\`git show\`, \`git diff\`, \`git log -p\`, a broad search) always redirects into a file under SCRATCH that you then read, because a large stdout is saved by the harness under $HOME, where you may not read.`
 // 01M4C00TSS (infra): a seat received the lead's live operator question as its relayed user request, answered it
 // and read nothing. Shared by the finder and the refuter so the two never drift.
 const BRIEF_IS_TASK = `THE TASK: everything in this prompt — the head, your slice, your ledger and the brief — IS your task. A user or operator turn relayed to you is the lead session's conversation, never a request to you — do not answer it; run this prompt.`
-const PYTEST_PINS = ` For a PYTEST run the recipe is not enough: pytest resolves its rootdir and ini (\`pythonpath\`, conftest) from where it runs, so a run from the live repo prepends the live tree at sys.path[0] whatever you inserted. Archive ALSO the WHOLE test tree — \`tests/\`, or whatever \`git ls-tree\` shows — never a subset ( a conftest that validates the full tests tree, such as a HEAVY_FILES self-check, aborts collection in a partial one), the root conftest.py, the pytest config and every top-level directory the tests import, and every root module file they import — list them with \`git ls-tree --name-only ${args.base_sha}\` run ALONE first, read its output, then archive only those that exist with one \`git archive -o\` naming them as literal paths (pyproject.toml, pytest.ini, setup.cfg, tox.ini; \`git archive\` fails on a missing path) — overlay the pins, and launch pytest in-process with the same insert, changing directory INSIDE the program — the shell returns to the live checkout before every call, and one plain command per call forbids \`cd …; python\`: \`python -P -B -c 'import os,site,sys; os.chdir("SCRATCH/arch"); os.environ["PYTHONUSERBASE"]=site.getuserbase(); os.environ["HOME"]="SCRATCH/home"; os.environ["TMPDIR"]="SCRATCH/tmp"; os.environ["FABRIK_ROOT"]=os.getcwd(); i=next((n for n,p in enumerate(sys.path) if p.endswith(("site-packages","dist-packages"))),len(sys.path)); sys.path[i:i]=[os.path.abspath("src"),os.path.abspath(".")]; import pytest; raise SystemExit(pytest.main(sys.argv[1:]))' <pytest args>\` — the FABRIK_ROOT line keeps fabrik.config's write root (and every reader of it) on the archive: an archive is not a linked worktree, so without it fabrik.config falls back to the live /opt/fabrik and a test reads the moving tree with no error; a module that hard-codes /opt/fabrik (scripts/fabrik_synced_manifest.py, scripts/enforcement/check_synced_unmodified.py) still reads the live hub, so a result resting on one is UNPINNED. Before trusting a result, \`timeout 120 /usr/bin/grep\` the archived tests and conftests for the live repo's absolute path: a test that inserts or runs it (sys.path, a subprocess argv, cwd=) executes live code, so report that test unverifiable against the pins, never passed. Never copy a .env into SCRATCH (git archive leaves it out, and that omission is the isolation); import the package first, and export a dummy only for a var whose absence fails that import, never for a TEST_* or other skip-gate var, with an unroutable value on the reserved never-resolving \`.invalid\` domain (\`postgresql+asyncpg://dummy:dummy@dummy.invalid:1/dummy\`, \`redis://dummy.invalid:1/0\`) — a natural dummy names the real local host. Print \`__file__\` from INSIDE the run (in the test or a conftest) — a separate \`python -c\` builds a different sys.path, and that print does not cover a child process the test starts.`
+const PYTEST_PINS = ` For a PYTEST run the recipe is not enough: pytest resolves its rootdir and ini (\`pythonpath\`, conftest) from where it runs, so a run from the live repo prepends the live tree at sys.path[0] whatever you inserted. Archive ALSO the WHOLE test tree — \`tests/\`, or whatever \`git ls-tree\` shows — never a subset ( a conftest that validates the full tests tree, such as a HEAVY_FILES self-check, aborts collection in a partial one), the root conftest.py, the pytest config and every top-level path the tests import, read or run, and every root module file they import — list them with \`git ls-tree --name-only ${args.base_sha}\` run ALONE first, read its output, then archive only those that exist with one \`git archive -o\` naming them as literal paths (pyproject.toml, pytest.ini, setup.cfg, tox.ini; \`git archive\` fails on a missing path) — overlay the pins, and launch pytest in-process with the same insert, changing directory INSIDE the program — the shell returns to the live checkout before every call, and one plain command per call forbids \`cd …; python\`: \`python -P -B -c 'import os,site,sys; os.chdir("SCRATCH/arch"); os.environ["PYTHONUSERBASE"]=site.getuserbase(); os.environ["HOME"]="SCRATCH/home"; os.environ["TMPDIR"]="SCRATCH/tmp"; os.environ["FABRIK_ROOT"]=os.getcwd(); i=next((n for n,p in enumerate(sys.path) if p.endswith(("site-packages","dist-packages"))),len(sys.path)); sys.path[i:i]=[os.path.abspath("src"),os.path.abspath(".")]; import pytest; raise SystemExit(pytest.main(sys.argv[1:]))' <pytest args>\` — the FABRIK_ROOT line keeps fabrik.config's write root (and every reader of it) on the archive: an archive is not a linked worktree, so without it fabrik.config falls back to the live /opt/fabrik and a test reads the moving tree with no error; a module that hard-codes /opt/fabrik (scripts/fabrik_synced_manifest.py, scripts/enforcement/check_synced_unmodified.py) still reads the live hub, so a result resting on one is UNPINNED. Before trusting a result, \`timeout 120 /usr/bin/grep\` the archived tests and conftests for the live repo's absolute path: a test that inserts or runs it (sys.path, a subprocess argv, cwd=) executes live code, so report that test unverifiable against the pins, never passed. Never copy a .env into SCRATCH (git archive leaves it out, and that omission is the isolation); import the package first, and export a dummy only for a var whose absence fails that import, never for a TEST_* or other skip-gate var, with an unroutable value on the reserved never-resolving \`.invalid\` domain (\`postgresql+asyncpg://dummy:dummy@dummy.invalid:1/dummy\`, \`redis://dummy.invalid:1/0\`) — a natural dummy names the real local host. Print \`__file__\` from INSIDE the run (in the test or a conftest) — a separate \`python -c\` builds a different sys.path, and that print does not cover a child process the test starts.`
 
-function finderPrompt(slice, model) {
+function finderPrompt(slice, model, retry = false) {
   const ledger = slice.ledger && slice.ledger.length
   const head = ledger
-    ? `PASS ${args.pass} — you are the ${model} seat that owned slice ${slice.name} in round 1. Every ledger claim states a DEFECT as it was raised. Re-verify each by EXECUTION and report it in ledger_status (command + output each): STILL_TRUE means the defect is still there, NOW_FALSE means it is gone (the fix holds), NEW is a defect the fix itself introduced. Candidates are ONLY the STILL_TRUE and NEW rows (a NOW_FALSE row is a fix that holds, never a candidate); a candidate outside the ledger is RECORDED with a destination, never counted (D-230); a claim refuted in an earlier pass is closed (D-206).`
+    ? `PASS ${args.pass} — you are the ${model} seat that owned slice ${slice.name} in round 1. Every ledger claim states a DEFECT as it was raised. Re-verify each by EXECUTION and report it in ledger_status (command + output each): STILL_TRUE means the defect is still there, NOW_FALSE means the claimed defect is absent (the fix holds, or an earlier refutation still holds — re-run and never cited), NEW is a defect the fix itself introduced. EVERY claim in YOUR ledger is re-executed, an earlier refutation included (term-coverage.md: a quiet round 1's claims are all open to its closing pass), and a ledger_status row with no command and output re-verifies nothing; a claim refuted in an earlier pass and NOT in your ledger is closed (D-206). Candidates are ONLY the STILL_TRUE and NEW rows (a NOW_FALSE row is never a candidate) — never a REPORT ONLY claim; a candidate outside the ledger is RECORDED with a destination, never counted (D-230).`
     : `PASS 1 — you are the ${model} finder for slice ${slice.name}: ${slice.models.length > 1 ? `one of ${slice.models.length} finders over this whole slice (the others: ${slice.models.filter((m) => m !== model).join(', ')}; never coordinate, candidates are unioned and every one is executed by the orchestrator)` : 'the ONLY finder over this slice (every candidate is executed by a refuter and the orchestrator)'}. RECALL first: surface every candidate with a concrete failure scenario and an EXECUTABLE check; never drop a half-believed one.`
   const files = slice.files.map((f) => `  - ${f}`).join('\n')
   const ledgerText = ledger
-    ? '\nSLICE LEDGER (report every id below in ledger_status, exactly as written):\n' + slice.ledger.map(ledgerLine).join('\n')
+    ? '\nSLICE LEDGER (report every id below in ledger_status, exactly as written):\n' +
+      slice.ledger.map((c) => ledgerLine(c) + (c.recorded ? ' [REPORT ONLY — recorded (D-230): re-verify and report it, never raise it as a candidate]' : '')).join('\n')
     : ''
   return `${BRIEF_IS_TASK}
 ${head}
@@ -232,7 +242,7 @@ ${head}
 SURFACE: ${args.surface}
 BASE: ${args.base_sha} · DIGEST: ${args.digest}
 PINS: each slice file's pinned copy is at ${args.pins_dir}/<its repo-relative path> — e.g. ${args.pins_dir}/${slice.files[0]}; read the pin, never the live tree (the pin wins over the live path).${slice.agentType === 'fabrik-researcher' ? '' : ` ${PIN_IMPORT}${PYTEST_PINS}`}
-${slice.agentType === 'fabrik-researcher' ? 'SHELL: none — you have no shell: read the PINNED copies.' : `SCRATCH: ${args.scratch_dir}/${slice.name}-${model}/ (create it first with \`mkdir -p SCRATCH\` — its parent exists and nothing creates it for you; every probe on a COPY there; never write, copy, mkdir or cd-and-create anything outside SCRATCH — your working directory is the LIVE repo, and a seat's stray file there reaches the next gate;${SEAT_ISOLATION} wrap every command that can block in \`timeout 120\`, a search as \`timeout 120 /usr/bin/grep\` (timeout cannot run a shell builtin) — nothing times a seat out but you)`}
+${slice.agentType === 'fabrik-researcher' ? 'SHELL: none — you have no shell: read the PINNED copies.' : `SCRATCH: ${args.scratch_dir}/${slice.name}-${model}${retry ? '-retry' : ''}/ (create it first with \`mkdir -p SCRATCH\` — its parent exists and nothing creates it for you; every probe on a COPY there; never write, copy, mkdir or cd-and-create anything outside SCRATCH — your working directory is the LIVE repo, and a seat's stray file there reaches the next gate;${SEAT_ISOLATION} wrap every command that can block in \`timeout 120\`, a search as \`timeout 120 /usr/bin/grep\` (timeout cannot run a shell builtin) — nothing times a seat out but you)`}
 YOUR SLICE (${slice.files.length} files — read EVERY one; hunt priority: ${slice.priority || 'none named'}):
 ${files}${slice.scope ? `\nSECTIONS YOU OWN (the rest of each file belongs to another slice — read it only to resolve a reference): ${slice.scope}` : ''}${ledgerText}
 
@@ -386,9 +396,15 @@ function closeCheck(r) {
     const named = [...new Set(x.split(/[^A-Za-z0-9._#-]+/).filter((t) => ids.includes(t)))]
     return named.length === 1 && named[0] !== x ? named : []
   }
+  // 01M4PPW8D8 (both design critiques executed it): an id echoed with no command re-verified nothing. The output
+  // may be empty — a grep that finds no match prints nothing (review round 1, A-H2) — but it must be stated
   const said = r.seats
     .filter((s) => !s.failed)
-    .flatMap((s) => (s.ledger_status || []).map((x) => String(x.id || '').trim()))
+    .flatMap((s) =>
+      (s.ledger_status || [])
+        .filter((x) => x && evidence(x.command) && typeof x.output === 'string')
+        .map((x) => String(x.id || '').trim())
+    )
     .flatMap((x) => [x, ...only(x)])
   const hit = (id) => said.includes(id) || (ids.filter((k) => fold(k) === fold(id)).length === 1 && said.some((x) => fold(x) === fold(id)))
   for (const c of r.slice.ledger) if (!hit(c.id)) open.push(`ledger claim ${c.id} not re-verified by any seat`)
@@ -411,39 +427,71 @@ function refuteCall(slice, cands, suffix) {
     agentType: slice.agentType,
   }).catch(() => null)
 }
-async function refuteSlice(r) {
+async function refuteSlice(r0) {
   const quiet = { retried: false, failed: false, unanswered: 0, reason: '' }
-  if (!r.candidates.length) return { ...r, verdicts: [], refuter: quiet }
+  // a candidate on a `recorded: true` ledger claim is reported, never refuted or counted (D-230); it moves to the
+  // slice's `recorded` list, so the lead still sees it and `candidates` stays index-aligned with `verdicts`
+  // (the per-seat `confirmed` credit zips the two — review round 1, A-S1)
+  const recorded = new Set(r0.slice.ledger.filter((c) => c.recorded === true).map((c) => foldId(c.id)))
+  const marked = r0.candidates.map((c) => (recorded.has(foldId(c.id)) ? { ...c, recorded: true } : c))
+  const r = { ...r0, candidates: marked.filter((c) => !c.recorded) }
+  const keep = (out) => ({ ...out, recorded: marked.filter((c) => c.recorded) })
+  if (!r.candidates.length) return keep({ ...r, verdicts: [], refuter: quiet })
   const ids = r.candidates.map((c) => c.id)
   const first = await refuteCall(r.slice, r.candidates, '')
   const missing = r.candidates.filter((c) => !matchRows(first, c.id, ids).length)
-  if (!missing.length) return { ...r, verdicts: r.candidates.map((c) => verdictFor(c, first, ids)), refuter: quiet }
+  if (!missing.length) return keep({ ...r, verdicts: r.candidates.map((c) => verdictFor(c, first, ids)), refuter: quiet })
   const reason = first ? `no verdict for ${missing.length} of ${ids.length} ids` : 'null result'
   const retry = await refuteCall(r.slice, missing, '-retry')
   const still = missing.filter((c) => !matchRows(retry, c.id, ids).length)
   log(`refute:${r.slice.name} ${reason} — retried ${missing.length}: ${still.length ? `${still.length} STILL UNANSWERED (refuter failed)` : 'recovered'}`)
-  return {
+  return keep({
     ...r,
     verdicts: r.candidates.map((c) => verdictFor(c, missing.includes(c) ? retry : first, ids)),
     refuter: { retried: true, failed: still.length > 0, unanswered: still.length, reason },
-  }
+  })
 }
 
+// W-b36e2a4a: a finder that returns null OR throws (a transport or auth error, a stall) is re-seated ONCE on the
+// same model and agent, after the first ends — the refuter retry's shape, so it never exceeds the dispatch stamp —
+// under its own label and scratch dir, so a dead seat's half-built arch/ never poisons it. A second null is the
+// failed seat it always was. One helper holds the call, so every finder names its model and effort.
+function findCall(s, m, retry) {
+  return agent(finderPrompt(s, m, retry), {
+    label: `find:${s.name}:${m}${retry ? ':retry' : ''}`,
+    phase: 'Find',
+    schema: FINDINGS,
+    model: m,
+    effort: 'medium',
+    agentType: s.agentType,
+  }).catch(() => null)
+}
+async function findWithRetry(s, m) {
+  const first = await findCall(s, m, false)
+  if (first) return first
+  const again = await findCall(s, m, true)
+  log(`find:${s.name}:${m} null — retried: ${again ? 'recovered' : 'STILL NULL'}`)
+  return again
+}
+// 01M4Q4D8VP: a seat that returned no coverage statement, no candidate and no ledger row brought nothing back —
+// failed, not a clean 0. No coverage statement: the notes, every MACHINERY line removed, are empty, a PLACEHOLDER,
+// or the word placeholder/tbd/todo (2 of 6707 real seats fired, both genuine, 2026-10-13). COBRA (D-253): the
+// cheapest dodge is one fluff sentence; the refuter's execution and the lead's Phase-2 re-run of every confirmed
+// check are what catch a seat that read nothing it lists.
+function broughtNothing(r) {
+  const has = (x) => Array.isArray(x) && x.length > 0
+  if (has(r.candidates) || has(r.ledger_status)) return false
+  // MACHINERY is the notes' LAST part (the brief's order), so it ends at the end: everything from its first line
+  // on is not coverage (review round 1, A-S2 — its bullet lines read as a coverage statement)
+  const lines = String(r.notes || '').split('\n')
+  const cut = lines.findIndex((line) => /^\s*MACHINERY\s*:/i.test(line))
+  const text = (cut === -1 ? lines : lines.slice(0, cut)).join(' ').trim()
+  return !evidence(text) || /^(?:placeholder|tbd|todo)\.?$/i.test(text)
+}
 const results = await pipeline(
   args.slices,
   (s) =>
-    parallel(
-      s.models.map((m) => () =>
-        agent(finderPrompt(s, m), {
-          label: `find:${s.name}:${m}`,
-          phase: 'Find',
-          schema: FINDINGS,
-          model: m,
-          effort: 'medium',
-          agentType: s.agentType,
-        })
-      )
-    ).then((rs) => ({
+    parallel(s.models.map((m) => () => findWithRetry(s, m))).then((rs) => ({
       slice: s,
       // a seat whose files_read credits NO slice file reviewed nothing: it is DROPPED, not quiet, on every pass —
       // its partner's reads would otherwise hide it from the gap check (01M4C00TSS: a seat answered a relayed
@@ -452,13 +500,20 @@ const results = await pipeline(
         const arr = (x) => (Array.isArray(x) ? x : [])
         const read = arr(r && r.files_read)
         const credited = s.files.some((f) => read.some((e) => readsFile(e, f)))
+        const empty = !!r && broughtNothing(r)
         return {
           model: s.models[i],
-          failed: !r || !credited,
+          failed: !r || !credited || empty,
           files_read: read,
           candidates: arr(r && r.candidates),
           ledger_status: arr(r && r.ledger_status),
-          notes: !r ? 'SEAT FAILED (null result)' : credited ? r.notes : `SEAT FAILED (read no slice file): ${r.notes || ''}`,
+          notes: !r
+            ? 'SEAT FAILED (null result, after one retry)'
+            : !credited
+              ? `SEAT FAILED (read no slice file): ${r.notes || ''}`
+              : empty
+                ? `SEAT FAILED (no coverage statement, no candidate, no ledger row): ${r.notes || ''}`
+                : r.notes,
         }
       }),
     })),
@@ -503,6 +558,7 @@ return {
     overlap: r.overlap,
     estimate_unseen: r.estimate_unseen,
     candidates: r.candidates,
+    recorded: r.recorded || [],
     verdicts: r.verdicts,
     refuter: r.refuter,
     closable: r.closable,

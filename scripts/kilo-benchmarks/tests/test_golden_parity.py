@@ -1739,12 +1739,19 @@ def _registered(kind: str) -> list[str]:
 
 
 def test_known_collapses_are_announced_not_silent(monkeypatch, capsys):
-    """A registered collapse is excused from drift, never from the report."""
+    """A registered collapse is excused from drift, never from the report. A gitignored artifact
+    absent from this checkout is reported as unobservable instead (infra 01M4TDF3MK: the routes
+    JSON is registered, and a fresh worktree or CI clone does not hold it)."""
     monkeypatch.delenv("ORACLE_REQUIRE_LOCAL_ARTIFACTS", raising=False)
     known, _ = cg.load_known_collapses()
     assert cg.verify() == 0
     err = capsys.readouterr().err
-    missing = [k for k in known if f"KNOWN COLLAPSE (filed {known[k]['filed']}): {k}" not in err]
+    missing = [
+        k
+        for k in known
+        if f"KNOWN COLLAPSE (filed {known[k]['filed']}): {k}" not in err
+        and f"KNOWN COLLAPSE unobservable here (absent-by-gitignore): {k}" not in err
+    ]
     assert not missing, f"registered but not announced: {missing}"
 
 
