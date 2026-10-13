@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the gate formats and lints new Python outside scripts/ and src/, and honours each repo's ruff exclude (2026-10-13)
+- `scripts/final_gate.py`: a `.py` the session adds anywhere — a file-worker's `worker/`, a `server/` or `api/` — now gets the same ruff format and check as code under the lint roots; modified pre-existing files there stay with the repo-wide lint ratchet. Every gate ruff call passes `--force-exclude`, so a file the repo's own `[tool.ruff] exclude` lists is never linted or reformatted (fleet 01M4F5F2WM, D-802).
+
 ### Fixed — the completion gate's auto-fixers touch only this session's own commits, and keep U+2028 and CRLF (2026-10-13)
 - `scripts/final_gate.py`: the fixer and read scopes took `upstream...HEAD`, so a worktree branch fast-forwarded onto master carried every sibling commit into a bare run's auto-fix (fleet 01M4EPDF7F: two sibling files rewritten). They now take the files of commits on no published ref (upstream, the worktree's base, origin/master|main; a merge contributes only its conflict resolutions). The trailing-whitespace fixer splits on `\n` only and strips only space and tab — `splitlines()`/`rstrip()` had deleted a U+2028 a test carries — and both fixers read and write with `newline=""`, so a CRLF file is no longer silently rewritten to LF.
 

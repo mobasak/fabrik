@@ -355,3 +355,107 @@ def test_a_git_that_refuses_the_log_falls_back_to_the_diff_base(tmp_path, monkey
     monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
     monkeypatch.setattr(final_gate, "run_cmd", old_git)
     assert final_gate.get_writable_files() == {"mine.py"}
+
+
+def _published_repo(tmp_path):
+    origin = tmp_path / "origin.git"
+    _g(tmp_path, "init", "-q", "--bare", "-b", "master", str(origin))
+    repo = tmp_path / "repo"
+    _g(tmp_path, "clone", "-q", str(origin), str(repo))
+    (repo / "worker").mkdir()
+    (repo / "worker" / "old.py").write_text("x=1\n")  # pre-existing format debt
+    _g(repo, "add", "worker/old.py")
+    _g(repo, "commit", "-qm", "base")
+    _g(repo, "push", "-q", "origin", "HEAD:master")
+    return repo
+
+
+def test_a_python_file_added_outside_the_lint_roots_is_selected(tmp_path, monkeypatch):
+    """fleet 01M4F5F2WM: a file-worker's worker/*.py was never ruffed. A file the session ADDS
+    carries no debt, so it gets the roots' treatment; a modified pre-existing file does not
+    (its lint stays the repo-wide ratchet's)."""
+    repo = _published_repo(tmp_path)
+    (repo / "worker" / "new.py").write_text("y=2\n")
+    (repo / "worker" / "old.py").write_text("x=3\n")
+    _g(repo, "add", "worker/new.py", "worker/old.py")
+    _g(repo, "commit", "-qm", "add new, edit old")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    assert final_gate._changed_python({"worker/new.py", "worker/old.py"}) == ["worker/new.py"]
+    (repo / "worker" / "staged.py").write_text("z=1\n")
+    _g(repo, "add", "worker/staged.py")
+    assert "worker/staged.py" in final_gate._changed_python({"worker/staged.py"})
+
+
+def test_every_ruff_leg_honours_the_repos_exclude(tmp_path, monkeypatch):
+    """A file named on the ruff command line bypasses `[tool.ruff] exclude` unless
+    `--force-exclude` is passed (executed by both design critiques)."""
+    repo = _published_repo(tmp_path)
+    (repo / "pyproject.toml").write_text('[tool.ruff]\nextend-exclude = ["gen"]\n')
+    (repo / "gen").mkdir()
+    (repo / "gen" / "x.py").write_text("import os\nx=1\n")
+    _g(repo, "add", "pyproject.toml", "gen/x.py")
+    _g(repo, "commit", "-qm", "generated")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    rows = final_gate.run_format_check({"gen/x.py"})
+    assert all(ok for _, ok, _ in rows), rows
+    seen = []
+    real = final_gate.run_cmd
+
+    def spy(cmd, *a, **k):
+        if cmd and cmd[0] == final_gate.RUFF:
+            seen.append(cmd)
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(final_gate, "run_cmd", spy)
+    final_gate.run_formatting_fixes(tier=2, changed_files={"gen/x.py"})
+    assert seen and all("--force-exclude" in c for c in seen), seen
+    assert (repo / "gen" / "x.py").read_text() == "import os\nx=1\n"  # never reformatted
+
+
+def test_a_file_moved_out_of_the_lint_roots_stays_ruffed(tmp_path, monkeypatch):
+    """Review A-S1: `scripts/x.py -> worker/x.py` (status R) silently left every ruff leg; a
+    rename whose source was under the roots keeps its coverage. A rename of a flat-layout file
+    adds no new enforcement, and an intent-to-add (`git add -N`) new file counts as added."""
+    repo = _published_repo(tmp_path)
+    (repo / "scripts").mkdir()
+    (repo / "scripts" / "tool.py").write_text("t = 1\n")
+    _g(repo, "add", "scripts/tool.py")
+    _g(repo, "commit", "-qm", "tool")
+    _g(repo, "push", "-q", "origin", "HEAD:master")
+    _g(repo, "mv", "scripts/tool.py", "worker/tool.py")
+    _g(repo, "mv", "worker/old.py", "worker/older.py")
+    (repo / "worker" / "ita.py").write_text("i=1\n")
+    _g(repo, "add", "-N", "worker/ita.py")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    got = final_gate._changed_python({"worker/tool.py", "worker/older.py", "worker/ita.py"})
+    assert got == ["worker/ita.py", "worker/tool.py"]
+
+
+def test_a_leg_whose_every_file_is_excluded_says_it_did_not_run(tmp_path, monkeypatch):
+    """Review A-S2: with every file excluded by the repo's ruff config, a plain PASS asserted a
+    check that never ran; the row carries a `(NOT RUN` skip marker instead."""
+    repo = _published_repo(tmp_path)
+    (repo / "pyproject.toml").write_text('[tool.ruff]\nextend-exclude = ["gen"]\n')
+    (repo / "gen").mkdir()
+    (repo / "gen" / "x.py").write_text("x = 1\n")
+    _g(repo, "add", "pyproject.toml", "gen/x.py")
+    _g(repo, "commit", "-qm", "generated")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    names = [n for n, ok, _ in final_gate.run_format_check({"gen/x.py"}) if ok]
+    assert any("(NOT RUN" in n for n in names), names
+
+
+def test_an_added_file_with_a_quoted_name_is_read_verbatim(tmp_path, monkeypatch):
+    """Review A-S4: `--name-status` C-quotes a path holding a quote, tab or non-ASCII byte, so a
+    tab-split stored the escaped text; `-z` gives git's own bytes."""
+    repo = _published_repo(tmp_path)
+    name = 'worker/we"ird ü.py'
+    (repo / name).write_text("q = 1\n")
+    _g(repo, "add", name)
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    assert name in final_gate._added_files()
