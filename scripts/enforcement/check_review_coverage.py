@@ -18,7 +18,8 @@ integration there), `Status: IN-PROGRESS`, or a deliberate local act on refs or 
 (`--set-upstream-to`, a main checkout's `git push -u`, `git update-ref`).
 
 A changed reviews/*.md containing a "Coverage Checklist" table:
-  -> every checklist row must carry a verdict: CLEAN / FIXED / REFUTED.
+  -> every checklist row must carry a verdict: CLEAN / FIXED / REFUTED / ROUTED, or a
+     parenthesised RECORDED — <disposition> (the VERDICT regex below).
   -> zero UNCHECKED rows. (There is NO cap-stop / "Declared residual" bypass —
      the Termination contract has no round ceiling; the only pause is a
      per-finding 3-attempts BLOCKED escalation. A prior docstring advertised a
@@ -63,13 +64,15 @@ COMMAND_MARK = re.compile(r"/fabrik-(?:repo-)?review\b")  # noqa: F841 — retir
 # ROUTE-not-fix had no honest terminal token — authors were forced to write
 # "FIXED(n, via routing)" to parse. A routed finding is adjudicated, not open.
 # RECORDED (D6/D-206): the three residual dispositions plus the hygiene adjudication are
-# VERDICTS, not missing ones — a candidate executed and kept on purpose, one that could not be
-# executed, one that makes no code or doc claim, and a hygiene hit adjudicated false. The reason
+# VERDICTS, not missing ones (by design, unexecuted, measured, hygiene false positive). What each
+# means is `commands/_sources/fabrik-review.md` § Phase 2's to define, never restated here — this
+# regex only checks the spelling, and any parenthesised reason passes. The reason
 # is PARENTHESISED, never colon-delimited: a colon form would spell the `unexecuted: 3` counter
 # token the ledger rules refuse, so the two vocabularies can never collide. The trailing `\(` is
 # what keeps `RECORDED` alone (no reason) a non-verdict.
-# ⚠️ MIRROR: `check_convergence.py` imports this name (`:429`/`:439`) and grades its own checklist
-# rows with it at `:477` — the widening reaches that gate on the same sync, where a RECORDED row
+# ⚠️ MIRROR: `check_convergence.py` imports this name (its relative import and the
+# direct-script fallback) and grades its own checklist rows with it (the `noverdict` line) —
+# the widening reaches that gate on the same sync, where a RECORDED row
 # likewise stops being a `noverdict` row. That is intended (T03 carries the note); nothing else
 # reads this pattern's groups, so the added alternative is deliberately NON-capturing.
 VERDICT = re.compile(

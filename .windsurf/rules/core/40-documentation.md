@@ -42,7 +42,7 @@ The canonical doc set is the **type-aware registry** (`scripts/enforcement/_doc_
 
 ### B. Fabrik-hub-owned — do NOT edit locally (centrally synced, overwritten every sync)
 
-`CLAUDE.md` · `AGENTS.md` · `agents-fabrik*.md` · `.windsurf/rules/**` · `docs/reference/**` — including `docs/reference/opt-project-catalog.md` (the /opt inventory — **read** it to wire to a sibling project instead of rebuilding; Fabrik regenerates it via `sync_projects.py`). These are gate-protected byte-identical by `check_synced_unmodified`.
+`CLAUDE.md` · `AGENTS.md` · `agents-fabrik*.md` · `.windsurf/rules/**` · and under `docs/` ONLY what `scripts/fabrik_synced_manifest.py` distributes: its `REFERENCE_DOCS` files — among them `docs/reference/opt-project-catalog.md` (the /opt inventory — **read** it to wire to a sibling project instead of rebuilding; Fabrik regenerates it via `sync_projects.py`) — and the `docs/reference/kilo/` and `docs/reference/MD/` directories of its `GOVERNANCE_DIRS`. Any other `docs/reference/*.md` is this project's own to write. These are gate-protected byte-identical by `check_synced_unmodified` (the project's `.fabrik/synced.lock` lists every one).
 
 > Retired (do not create): `docs/API_REFERENCE.md` (→ `QUICKSTART` + the live `/docs` endpoint), `docs/DATABASE_SCHEMA.md` (→ `db/schema.sql` + `docs/data-contract.md`), `docs/DOCS_INDEX.md` (→ `docs/README.md`).
 
