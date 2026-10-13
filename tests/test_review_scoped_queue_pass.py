@@ -242,3 +242,40 @@ def test_the_pre_pin_section_reads_as_every_pin_not_only_the_first() -> None:
             "Before every pin, the first and each delta, and in every brief, apply the lines of"
             in _norm(path)
         )
+
+
+def test_both_review_commands_name_surface_add_for_a_pre_start_file() -> None:
+    """Intel 01M4TJJDG2: a running review's window opens at its `start`, so a file last edited before it, outside
+    every earlier covered window and not named by `--surface`, is the case `command_run.py surface --add` exists for,
+    and neither command said so. The sentence is pinned inside the section that opens the scope (review-scoped step
+    1; fabrik-review between its `start` block and "Then, for the whole run:"), and the verb is RUN, so a renamed flag
+    reds here. Cheapest bypass: `--help` keeps `--add` while the verb stops storing anything. This grader cannot see
+    that; the behaviour is owned by `tests/test_command_run.py::test_surface_add_refuses_every_record_but_a_running_review`
+    and `tests/test_stop_hook_spontaneous_review.py::test_a_running_review_widened_mid_run_exempts_a_pre_start_file_it_came_to_cover`."""
+    import subprocess
+    import sys
+
+    sentence = (
+        "While the record runs, a file you come to cover that was last edited before `start`, outside every earlier "
+        "covered window, and not named by `--surface` is added with `python3 scripts/command_run.py surface --add "
+        "<path>`: a running review's window opens at its `start`. The verb widens the TOP record only, so it is "
+        "refused under a nested non-review `start` (every refusal: `docs/reference/command-run-protocol.md`)."
+    )
+    scoped = _norm(SRC)
+    assert sentence in _section(scoped, "1. **Scope = this session's own work:**", "2. **Arm:**")
+    review = _norm(ROOT / "commands" / "_sources" / "fabrik-review.md")
+    assert sentence in _section(
+        review, '--surface "<what this run is OVER', "Then, for the whole run:"
+    )
+    # its own paragraph, never folded back into the routed-up one (round 2, NEW-1)
+    assert (
+        "\n\nWhile the record runs, a file you come to cover"
+        in (ROOT / "commands" / "_sources" / "fabrik-review.md").read_text()
+    )
+    out = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "command_run.py"), "surface", "--help"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+    )
+    assert out.returncode == 0 and "--add" in out.stdout, out.stderr

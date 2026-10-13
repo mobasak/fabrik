@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the two review commands name `surface --add` for a file edited before `start` (2026-10-13)
+- `/fabrik-review` (its own paragraph after the run-record block) and `/fabrik-review-scoped` (step 1) now say that a file the run comes to cover, last edited before `start`, outside every earlier covered window and not named by `--surface`, is added with `python3 scripts/command_run.py surface --add <path>`. No command named the verb; among the reference docs only `docs/reference/command-run-protocol.md` and `docs/workstation/hooks-index.md` did (intel finding 01M4TJJDG2). The sentence also says the verb widens the top record only, so it is refused under a nested non-review `start`. Grader: `tests/test_review_scoped_queue_pass.py::test_both_review_commands_name_surface_add_for_a_pre_start_file` pins the sentence in both sections and runs the verb's `--help`.
+
 ### Changed — /fabrik-command-improve names a fragment's by-path consumers, not only its includes (2026-10-13)
 - PHASE 3's rule "a `_fragments/` edit names each `{{include:}}` consumer" now also names each source or fragment that names it (`command grep -rlw <its file name without .md> commands/_sources commands/_fragments`, which lists the includers too); the bound placeholders stay with the include consumers. The review probe catalogue is never included, so an include-only list found no consumers and missed the two review commands' pointer sentences. Answers `/fabrik-command-improve` row 1791892288; the grader reads PHASE 3 and runs the recipe.
 

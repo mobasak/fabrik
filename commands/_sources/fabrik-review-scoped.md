@@ -28,7 +28,7 @@ proportionate answer.
    trailer-INDISTINGUISHABLE, so when ownership is ambiguous scope to the uncommitted diff you
    KNOW is yours and say so), or
    `$ARGUMENTS` when given. List the files (the route-up classification already ran BEFORE the
-   record — above; a trigger that only shows itself now still routes up the same way). **Invoked per phase/ticket by a `Profile: small` plan**
+   record — above; a trigger that only shows itself now still routes up the same way). While the record runs, a file you come to cover that was last edited before `start`, outside every earlier covered window, and not named by `--surface` is added with `python3 scripts/command_run.py surface --add <path>`: a running review's window opens at its `start`. The verb widens the TOP record only, so it is refused under a nested non-review `start` (every refusal: `docs/reference/command-run-protocol.md`). **Invoked per phase/ticket by a `Profile: small` plan**
    (`/fabrik-execute-plan`): step 1's trigger is SATISFIED by the plan's Finish `/fabrik-review` over the
    whole-plan diff — record `ROUTED-TO-FINISH: <trigger>` in the round ledger and continue the light pass
    here; never open the heavy command per ticket on THIS trigger. Step 5 still applies unchanged, and its
