@@ -51,18 +51,30 @@ def test_the_injected_rubric_carries_the_predicate_the_table_row_states() -> Non
     injects mandate lines, never the Banned Patterns table row, so the checklist line carries the
     predicate itself — byte-equal to the table row's copy, observed through review_rubric.py."""
     pack = PACK.read_text(encoding="utf-8")
-    table_row = next(ln for ln in pack.splitlines() if ln.startswith("| Destructive test (DROP SCHEMA"))
+    table_row = next(
+        ln for ln in pack.splitlines() if ln.startswith("| Destructive test (DROP SCHEMA")
+    )
     assert PREDICATE in table_row
     out = subprocess.run(
-        [sys.executable, str(RULES.parents[1] / "scripts" / "review_rubric.py"), "--changed", "tests/x.py"],
-        capture_output=True, text=True, cwd=RULES.parents[1], check=True,
+        [
+            sys.executable,
+            str(RULES.parents[1] / "scripts" / "review_rubric.py"),
+            "--changed",
+            "tests/x.py",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=RULES.parents[1],
+        check=True,
     ).stdout
     injected = [ln for ln in out.splitlines() if ln.startswith("- [") and "require_throwaway" in ln]
     assert len(injected) == 1 and PREDICATE in injected[0]
 
 
 def test_the_predicate_fires_on_the_old_line_and_not_on_prose() -> None:
-    old = "- [ ] Destructive DB tests call `require_throwaway(TEST_DATABASE_URL)` before connecting."
+    old = (
+        "- [ ] Destructive DB tests call `require_throwaway(TEST_DATABASE_URL)` before connecting."
+    )
     comment = "# The default MUST end in _test — the require_throwaway guard (below) refuses"
     assert unscoped_checklist_lines(old) == [old]
     assert unscoped_checklist_lines(comment) == []
