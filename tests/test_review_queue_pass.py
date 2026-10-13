@@ -207,3 +207,19 @@ def test_a_fix_outside_the_pin_is_pinned_or_named() -> None:
     """Row 1791844045: a CHANGELOG fix outside the pins was re-raised from the base copy."""
     text = _norm(CAT)
     assert "a ledger row whose fix landed in a file outside the pin (a CHANGELOG or ledger hunk) has that file pinned next pass, or the brief names it" in text
+
+
+def test_the_closing_method_cell_rule_matches_the_gate() -> None:
+    """Row 1791860808: a closing cell worded 'method: remainder pass — re-derivation' failed the coverage gate."""
+    import importlib.util
+    import sys
+
+    path = ROOT / "scripts" / "enforcement" / "check_review_coverage.py"
+    spec = importlib.util.spec_from_file_location("crc_for_queue_pass", path)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["crc_for_queue_pass"] = mod
+    spec.loader.exec_module(mod)
+    assert "The closing row's method cell opens with the literal `method: re-derivation`" in _norm(SRC)
+    assert mod._REDERIVATION_ROW.search("| Pass 3 | sonnet×1 | found: 0 | method: re-derivation — closing pass |")
+    assert not mod._REDERIVATION_ROW.search("| Pass 3 | sonnet×1 | found: 0 | method: remainder pass — re-derivation |")
