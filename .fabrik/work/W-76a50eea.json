@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:23:00.608446Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-76a50eea",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4F92G4FCG9N2S8DK45SSPXP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "/fabrik-data-contract feedback queue — 2 verdict(s) that need CODE in your beat (kaizen D-711 triage)"
+}

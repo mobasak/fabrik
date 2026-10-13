@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:56.125694Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-be4cef65",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RJDMSPA2C998XEK3VV4CNJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "docs_updater --adopt stamps owners onto STRATEGIC_BACKLOG template placeholder rows."
+}
