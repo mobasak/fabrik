@@ -2216,3 +2216,32 @@ def test_a_machinery_block_is_not_a_coverage_statement() -> None:
 def test_the_args_comment_states_no_pass_ceiling() -> None:
     """01M4PVPY8J: D-756 removed the pass ceiling from four command sources; the script's comment was the last copy."""
     assert "pass: 1|2|3" not in _script() and "pass: 1, 2, 3, … (unbounded)" in _script()
+
+
+def test_every_seat_is_told_how_to_run_a_git_history_test() -> None:
+    """kaizen 01M4V37VFT (/fabrik-review row 1791910374): an archive carries no history, so a test that runs git log,
+    blame or rev-parse failed falsely, and the seat prompt named no route; it now names the catalogue's shared clone,
+    with its push URL disabled and the pins committed in it, and only a test reading the LIVE checkout's own refs is
+    reported unverifiable (both design critiques executed the clone)."""
+    _, _, prompts = _harness(
+        _ARGS, {"find:S:sonnet": {**_FULL_READ, "candidates": [_cand("S-S1", 3)]}}
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        assert "A test that reads git HISTORY (log, blame, rev-parse of an older commit)" in p, (
+            label
+        )
+        assert (
+            "git -C SCRATCH clone --shared --no-checkout" in p and "remote.origin.pushurl" in p
+        ), label
+        assert (
+            f"git -C SCRATCH/clone checkout {_ARGS['base_sha']}" in p
+            and "git -C SCRATCH/clone add -A" in p
+            and "commit -q --allow-empty -m pins" in p
+        ), label
+        assert "writes nothing to the shared" in p and "lands in the clone's own" in p, label
+        assert "only a test that reads the LIVE checkout's own branches" in p, label
+        assert "(init, clone, add, commit" in p, (
+            label,
+            "a clone is a writing verb, in the -C form",
+        )

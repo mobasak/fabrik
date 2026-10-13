@@ -29,9 +29,12 @@ file, not its scrollback. So:
         read-only (with the directory writable, `sed -i` renames over a 0444 pin). Writes DIR/MANIFEST.md5
         (md5sum format, repo-relative: the live-file check from the repo root), DIR/MANIFEST.pins.md5 (the
         copies by absolute path: checks the pins from any cwd) and DIR/MANIFEST.json, and with --base extracts that whole commit read-only into
-        DIR.base. Writes DIR/change.diff from a basis to the pins (`_change_diff`) and prints `UNCHANGED <file>`
-        for a pin equal to that basis. Prints `DIRTY <file>` for a working-tree pin that is not HEAD's bytes, then the Workflow args
-        fragment — `pins_dir`, `pin_manifest`, `digest` (the md5 of MANIFEST.md5), `pins_digest` (of MANIFEST.pins.md5) and `base_pin_dir` — and the
+        DIR.base. Writes DIR/change.diff from a basis to the pins (`_change_diff`). On STDERR it prints `UNCHANGED
+        <file>` for a pin equal to that basis, `DIRTY <file>` for a working-tree pin that is not HEAD's bytes and
+        `SKIPPED <member>` for a base member it leaves out; STDOUT is the Workflow args fragment alone, one JSON
+        document — `pins_dir`, `pin_manifest`, `digest` (the md5 of MANIFEST.md5), `pins_digest` (of MANIFEST.pins.md5),
+        `change_diff`, `change_diff_md5`, `basis`, `unchanged`, `dirty` and, with --base, `base_pin_dir` and
+        `base_skipped` (the advisory lines' lists are in the JSON too, for a caller that reads stdout alone) — and the
         workflow refuses a slice file the manifest lacks before any seat runs. A used DIR is refused: each pass
         gets a NEW one (`--replace` re-pins on purpose). A workflow script has no filesystem, so the pins are
         the lead's verb, never the script's.
@@ -1124,18 +1127,24 @@ def main(argv: list[str] | None = None) -> int:
         if a.cmd == "pin":
             pins = Path(os.path.abspath(a.pins_dir))
             frag, dirty = pin(a.files, pins, Path.cwd(), ref=a.ref, base=a.base, replace=a.replace)
+            frag["dirty"] = dirty  # in the JSON too, so a caller reading stdout alone still sees it
             for f in dirty:
                 print(
-                    f"DIRTY {f} — the pin is the working tree's bytes, not HEAD's (pass --from <sha> for a commit)"
+                    f"DIRTY {f} — the pin is the working tree's bytes, not HEAD's (pass --from <sha> for a commit)",
+                    file=sys.stderr,
                 )
             for f in frag.get("unchanged", []):
                 print(
-                    f"UNCHANGED {f} — the pin equals {frag['basis']} (a context file, or a change not made yet)"
+                    f"UNCHANGED {f} — the pin equals {frag['basis']} (a context file, or a change not made yet)",
+                    file=sys.stderr,
                 )
             for f in frag.get("base_skipped", []):
                 print(
-                    f"SKIPPED {f} — the base tree leaves out a member the safe extract refuses (an absolute link)"
+                    f"SKIPPED {f} — the base tree leaves out a member the safe extract refuses (an absolute link)",
+                    file=sys.stderr,
                 )
+            # stdout is the fragment ALONE, so a caller can hand it to a launch whole; every advisory above went to
+            # stderr, as `next`'s carry notes do (kaizen 01M4V6VQ8V, row 1791913338)
             print(json.dumps(frag, ensure_ascii=False))
         elif a.cmd == "read":
             doc = read_run(a.run, a.box)

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review_loop_ledger.py pin's stdout is the JSON fragment alone, and seats get a route for git-history tests (2026-10-14)
+
+- `scripts/review_loop_ledger.py pin` prints its DIRTY, UNCHANGED and SKIPPED advisories on stderr. Stdout is the args fragment alone, one JSON document, which now also carries `dirty`, so a caller can hand stdout to a Workflow launch whole (kaizen 01M4V6VQ8V, /fabrik-review row 1791913338).
+- `.claude/workflows/fabrik-review-loop.js`: a seat whose test reads git history runs it in a shared clone of the live checkout (`git -C SCRATCH clone --shared --no-checkout …`). The clone's push URL is disabled, because its origin is the live repo. It is checked out at the base SHA with the pins overlaid, and the pins are committed when the test reads HEAD, a diff or the status. Branch, worktree and stash state a test creates stays in the clone, so only a test reading the live checkout's own refs is unverifiable. `clone` joins the seat rules' write-verb list (kaizen 01M4V37VFT, row 1791910374; both design critiques executed the clone).
+- `docs/reference/review-loop-workflow.md` says where pin's output goes.
+
 ### Changed — the review-loop workflow re-seats a dead finder, fails an empty one, and makes a closing pass execute its claims (2026-10-13)
 
 - `.claude/workflows/fabrik-review-loop.js`:
