@@ -4,8 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — /fabrik-review-scoped's guard-or-rule clause defines a rule and names its cobra (2026-10-13)
-- A RULE is any sentence with must, never or owes; the closing pass counts only variants a reader executed; a wrong D-066 citation is dropped (W-a8361c19).
+### Fixed — /fabrik-review-scoped cites D-118 for the closing-reader asymmetry, not D-066 (2026-10-13)
+- The clause said D-066 named only the heavy command; D-066 names both commands, and D-118 is the row that bound the independent-reader floor to the scoped one (W-a8361c19).
 
 ### Changed — execute-plan's Opus floor named beside D-344; plan-review splits a half-blocked plan (2026-10-13)
 - subagents-core keeps `/fabrik-execute-plan`'s per-round Opus finder floor; /fabrik-plan-review splits a plan whose later phases wait on a cross-agent blocker (D-813).

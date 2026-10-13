@@ -114,12 +114,11 @@ proportionate answer.
    ⚠️ **The CLOSING pass owes ONE INDEPENDENT reader that actually RETURNED — a self-sweep may not
    close this loop.** Every other exit condition here is satisfiable by the orchestrator's own
    passes, and an orchestrator re-reading its own diff checks whether it did what it meant to; it
-   does not re-ask whether what it meant was right. That is the asymmetry between the two commands: the heavy one seats independent finders, and the light one inherited the artifact-lightness AND, by accident, the
-   absence of recall. ⚠️ **A change that ships a GUARD, or states a RULE (any sentence with must, never or owes), owes every round's readers — round 1's first — and
+   does not re-ask whether what it meant was right. Before D-118 that was the asymmetry between the two commands: the heavy one's every pass had independent finders, and the light one inherited the artifact-lightness AND, by accident, the absence of recall. ⚠️ **A change that ships a GUARD, or states a RULE, owes every round's readers — round 1's first — and
    that INDEPENDENT reader the guard or rule by NAME and an explicit ASK for its ESCAPE VARIANTS** — the mutations,
    rewordings or behaviours that would defeat it and leave it standing verbatim — together with its MODEL BOUNDARY,
    the inputs it is meant to judge, so a variant outside that boundary is `RECORDED — by design (D-785)` in round 1
-   instead of seeding own-fix rounds. Cobra: a brief can name variants nobody tests; the closing pass counts only variants a reader executed. The ASK is the
+   instead of seeding own-fix rounds. The ASK is the
    brief's; the ANSWER is the reader's, or `never the expected ANSWER` above forbids it. Measured twice: fabrik-lib closed a scoped run at round 6 with all ten classes
    swept and 0 findings, then dispatched one finder over the identical surface and got FOUR, one of
    them a third un-`else`d provider branch that SILENTLY DROPS a webhook (01M1ME3Y58P6ATSPX087QRVAZ4);
