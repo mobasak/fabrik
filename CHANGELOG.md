@@ -107,6 +107,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the kaizen hand-off grader reads MAIL_BEATS from the AST (W-d1e6573a) (2026-10-13)
 - `tests/test_mail_addressing.py::test_kaizen_sends_one_addressed_obligation_per_beat` was red on master since a90b35a3b (D-646) replaced the literal beat loop with `MAIL_BEATS`. It now reads the tuple and the send loop from the AST: the tuple holds infra, fleet and kaizen, the send passes `--to-agent` with the loop's beat, and no `--broadcast`/`--ack` appears anywhere in the loop — a flag appended after the argv list included.
 
+### Changed — a review brief states what to report, never the value the lead expects (2026-10-14)
+- `commands/_fragments/review-probe-catalogue.md` § Loop bookkeeping: each brief states what the seat must report (a count, a verdict, an output), never the value the lead expects. /fabrik-review reached no line saying so; only /fabrik-review-scoped carried it. Answers /fabrik-review row 1791931043; grader `tests/test_review_scoped_queue_pass.py::test_a_brief_states_the_count_to_report_never_the_expected_one`.
+
 ### Fixed — a design-gate delta round that confirms a defect takes CONVERGED back (2026-10-14)
 - `commands/_fragments/design-critique.md` ACCEPTED bullet: spec-review and plan-review flip `CONVERGED` with its D-row before the panel's ACCEPTED fold, and the text only said CONVERGED "stands" if the fold's delta round confirms 0. Now, when it does not, the next commit sets each document the flip touched back to what it read before the flip, with a `docs/DECISIONS.md` row superseding the flip's row. Found by an Opus audit while answering /fabrik-spec row 1791930659; graders in `tests/test_design_critique_fragment.py` and `tests/test_plan_review_recurring_rules.py`.
 

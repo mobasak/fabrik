@@ -195,7 +195,8 @@ box: execute it, or name in the brief why the shape does not have it.
   relaunch an interrupted pass as a NEW `Workflow` invocation carrying the ledger in `args` — never `resumeFromRunId`.
 - A round is recorded only after every candidate is read, each classed as a defect of THIS change, pre-existing or
   planned before it counts; `confirmed` counts DEFECTS, never checks passed, and a gate-caught defect counts; each brief
-  embeds its ledger text; the closing-pass brief has every seat list each slice file it read, by path; a delta brief
+  embeds its ledger text and states what the seat must report (a count, a verdict, an output), never the value the
+  lead expects; the closing-pass brief has every seat list each slice file it read, by path; a delta brief
   lists the exact mutant ids executed, reads a unified diff, and checks ROUTED claims for routing only; a one-hop edit
   found mid-fix is named in the next brief, and a guard a fix adds goes into every brief from that next one on, by name,
   with its escape variants (quote styles, unreadable values, globbed paths) and its model boundary; stale pre-existing
