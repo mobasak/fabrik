@@ -328,3 +328,14 @@ def test_a_seat_reads_git_history_from_a_shared_clone_not_a_worktree() -> None:
         " red-on-revert overlays"
         " the revert on its archive copy" in iso
     )
+
+
+def test_the_scope_paragraph_says_where_round_zero_and_rule_five_bind() -> None:
+    """W-eaa66f83: term-coverage's scope paragraph said every obligation 'binds all five consumers alike' while round
+    zero (:16) runs before round one and every re-dispatch of a consumer that runs delta rounds, which a certification
+    gauntlet runs only where its own text names one, and rule (5) governs only a fix to a checker or a gate."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
+    assert (
+        "binds all five consumers alike, while round zero binds only a consumer that runs delta rounds — before its round"
+        " one and before every re-dispatch — and rule (5) only a fix to a checker or a gate."
+    ) in text

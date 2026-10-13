@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — term-coverage says which consumers round zero and rule (5) bind (2026-10-14)
+- `commands/_fragments/term-coverage.md` scope paragraph said every obligation binds all five consumers alike, while round zero runs only for a consumer that runs delta rounds (before its round one and every re-dispatch) and rule (5) governs only a fix to a checker or a gate; the two certification gauntlets and the conformance review run neither. It now says so. W-eaa66f83.
+
 ### Fixed — term-edit's pin clause no longer reads as licensing an edit while seats run (2026-10-14)
 - `commands/_fragments/term-edit.md` pin obligation (2): "(the seats read the pin; you edit the working tree)" read as allowing edits during the seat window, against `subagents-core.md`'s "While seats are out you do not edit the pinned files" in 14 of its 17 includers. It now says you edit the working tree once every seat has returned and you have read the pass. W-975b3652; an Opus + Fable panel split (parity vs reword), settled by the rule against copying a fragment's rule into another.
 
