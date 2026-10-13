@@ -30,6 +30,14 @@ ENTRIES = {
     "UserPromptSubmit": [
         f"python3 {HUB}/scripts/sysadmin/selfwatch_check.py",
         f"python3 {HUB}/scripts/sysadmin/user_hook_gate.py {HUB}/.claude/hooks/mcp_watch.py",
+        # D-736 / C.1.3: the ROTATE advisory. Per-prompt by REGISTRATION, not by behaviour: the
+        # script stamps the 100 MB step it last advised per session (under an flock) and prints
+        # only when a NEW step is crossed, so its fire rate is bounded by steps, not prompts — one
+        # line per 100 MB per session, by construction. The SessionStart comment below records the
+        # measurement that rejected the bare per-prompt shape for scratch_sweep; this hook was not
+        # separately measured — the stamp is the counter-measure to that shape, not a claim that
+        # the measurement was repeated here (review 2026-10-11, wiring-docs-S2).
+        f"python3 {HUB}/scripts/sysadmin/transcript_size_check.py",
     ],
     "PreToolUse": [
         f"python3 {HUB}/scripts/sysadmin/user_hook_gate.py {HUB}/.claude/hooks/quota_stop.py",

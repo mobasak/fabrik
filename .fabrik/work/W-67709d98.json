@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:57.155425Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-67709d98",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Q83S1ZBFQVFC584F98T4EA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "/fabrik-conformance-review feedback — dispatch_headroom.py could say who holds the seats and for how long (kaizen D-711 triage)"
+}

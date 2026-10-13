@@ -23,7 +23,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -289,3 +291,125 @@ def test_boot_hook_prints_installer_stderr_only_on_failure(tmp_path):
 
     failed = _run('echo "boom: foreign hook present" >&2; exit 1')
     assert "boom: foreign hook present" in failed.stderr
+
+
+def test_append_writes_unlocked_when_the_state_dir_cannot_be_created(tmp_path):
+    """W-e1b1052e: `_allocate` already fails OPEN when the reservation dir cannot be made (nobody
+    can reserve, so no id is stolen from a holder that does not exist); `_append_row` instead
+    reported "could not take the lock" — the lock-TIMEOUT message — and refused, so an unwritable
+    HOME blocked every append. It now writes the row and says it was not reserved."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    home = tmp_path / "ro-home"
+    home.mkdir()
+    home.chmod(0o555)  # ~/.claude/state cannot be created
+    try:
+        r = subprocess.run(
+            [
+                sys.executable,
+                str(REPO / "scripts" / "decisions.py"),
+                "--append",
+                str(repo),
+                "--when",
+                "2026-10-11",
+                "--who",
+                "t",
+                "--what",
+                "w",
+                "--why",
+                "y",
+                "--where",
+                "x",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env={**os.environ, "HOME": str(home)},
+        )
+    finally:
+        home.chmod(0o755)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "D-002"
+    assert "not reserved" in r.stderr
+    assert "| D-002 |" in (repo / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
+
+
+def test_append_writes_unlocked_when_the_state_dir_is_read_only(tmp_path):
+    """The other unreachable-store shape: the dir exists but cannot be written, so the lock file
+    cannot be opened. `_locked` used to report that as a TIMEOUT (refused); it is now "store
+    unreachable" (written, not reserved), while a real timeout still refuses."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    home = tmp_path / "home"
+    store = home / ".claude" / "state" / "decision-ids"
+    store.mkdir(parents=True)
+    store.chmod(0o555)
+    try:
+        r = subprocess.run(
+            [
+                sys.executable,
+                str(REPO / "scripts" / "decisions.py"),
+                "--append",
+                str(repo),
+                "--when",
+                "2026-10-11",
+                "--who",
+                "t",
+                "--what",
+                "w",
+                "--why",
+                "y",
+                "--where",
+                "x",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env={**os.environ, "HOME": str(home)},
+        )
+    finally:
+        store.chmod(0o755)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "D-002" and "not reserved" in r.stderr
+
+
+def test_concurrent_unlocked_appends_get_distinct_ids_and_keep_every_row(tmp_path):
+    """With the store unreachable there is no reservation lock, so the ledger's own flock
+    serializes the read-modify-write: eight concurrent appends keep eight distinct rows."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    home = tmp_path / "ro-home"
+    home.mkdir()
+    home.chmod(0o555)
+
+    def one(i: int) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(REPO / "scripts" / "decisions.py"),
+                "--append",
+                str(repo),
+                "--when=w",
+                "--who=w",
+                f"--what=row {i}",
+                "--why=y",
+                "--where=x",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env={**os.environ, "HOME": str(home)},
+        )
+
+    try:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(one, range(8)))
+    finally:
+        home.chmod(0o755)
+    assert all(r.returncode == 0 for r in results), [r.stderr for r in results]
+    ids = sorted(r.stdout.strip() for r in results)
+    assert len(set(ids)) == 8, ids
+    text = (repo / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
+    assert all(f"row {i}" in text for i in range(8))

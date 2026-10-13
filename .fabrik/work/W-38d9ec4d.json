@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:20:52.425175Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-38d9ec4d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RX0VZ9EV9CDXMN0468T6WK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: Done, as you proposed — templates/scaffold/docs/PROJECT_README_TEMPLATE.md carries a pointer-only `## Quick Start` between Requirements and Documentation (\"See [docs/QUICKSTART.md](docs/QUICKSTART.md) — the five-minute run, dev and VPS.\"), and tests/test_scaffold_doc_seeding.py gains `test_rea"
+}

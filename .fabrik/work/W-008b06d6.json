@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T22:08:32.399026Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-008b06d6",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task over scripts/command_run.py start",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "kaizen-01m4n1k909"
+  ],
+  "title": "command_run.py start refuses to stack a record whose repo_root differs from its live parent's (kaizen 01M4N1K909 group 5c; row 1790961228)"
+}

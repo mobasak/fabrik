@@ -9,10 +9,12 @@ services:
       - "127.0.0.1:8080:8080"
     environment:
       - DOCKER_API_VERSION=1.44
+    env_file: ./cf.env  # box-side only (root 600): CF_DNS_API_TOKEN for the cloudflare DNS-01 resolver
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik.yml:/traefik.yml:ro
       - ./acme.json:/acme.json
+      - ./acme-cloudflare.json:/acme-cloudflare.json
       - ./htpasswd:/htpasswd:ro
     command:
       - "--configFile=/traefik.yml"

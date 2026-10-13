@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:47:48.993767Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d33f03cd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RNRXQJFV2NKX4FFT4R02XQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the README template and the README gate disagree. /opt/fabrik/templates/scaffold/docs/PROJECT_README_TEMPLATE.md has no \"## Quick Start\" section; its headings are Overview, Tech Stack, Requirements and Documentation. scripts/enforcement/check_readme_md.py:27-32 requires \"## Quick Start\". A /fa"
+}

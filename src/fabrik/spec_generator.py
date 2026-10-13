@@ -150,10 +150,11 @@ def audit_jobs_companion(name: str, project_type: str) -> CompanionService | Non
 
     ``None`` for a type whose backend schedules the jobs itself (the saas family) or has
     no Python backend. No ``env_overrides``: the jobs read ``DATABASE_URL_OWNER``
-    themselves, from the project ``.env`` the companion loads through ``env_file`` — the
+    themselves, from ``/opt/<name>/.env.owner``, which the companion alone loads through
+    ``env_file`` (``owner_env=True`` — the long syntax with ``required: false``, D-754) — the
     committed compose the scaffolder writes and the companion partial both carry it,
     because ``DATABASE_URL_OWNER`` exists nowhere else (compose ``environment:`` never
-    holds it).
+    holds it, and the project ``.env`` no longer does).
     """
     module = AUDIT_JOBS_MODULES.get(project_type)
     if module is None:
@@ -162,6 +163,7 @@ def audit_jobs_companion(name: str, project_type: str) -> CompanionService | Non
         id=f"{name}-audit-jobs",
         command=["python", "-m", module.format(pkg=name.replace("-", "_"))],
         memory=AUDIT_JOBS_COMPANION_MEMORY,
+        owner_env=True,
     )
 
 

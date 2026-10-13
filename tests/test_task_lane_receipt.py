@@ -587,7 +587,8 @@ def test_a_short_last_commit_is_compared_in_full(repo: Repo) -> None:
 
 
 def test_a_receipt_made_without_range_is_refused_by_check_d(repo: Repo) -> None:
-    """No ``range tip`` on the Surface line: the receipt reviewed the working tree, not the run."""
+    """A range-form line with its tip cut is neither form check (d) reads — `git diff A..B` is not
+    the working-tree `git diff HEAD` a receipt made without --range carries (W-ebbedc88)."""
     line = next(ln for ln in repo.text().splitlines() if ln.startswith("**Surface:**"))
     bare = line.replace(f"; range tip {repo.last}", "")
     assert bare != line
@@ -659,3 +660,228 @@ def test_an_ambiguous_short_sha_is_refused_never_guessed(repo: Repo) -> None:
     reasons = _check(repo, REL, [prefix])
     _only(reasons, "d")
     assert prefix in reasons[0] and "None" in reasons[0], reasons
+
+
+# ── a receipt made WITHOUT --range: the working-tree Surface (W-ebbedc88) ─────────────────────
+
+
+def _init_wt(r: Path, *changed: str) -> None:
+    made = subprocess.run(
+        [
+            sys.executable,
+            str(RECEIPT_SCRIPT),
+            "--init",
+            "--project-root",
+            str(r),
+            "--out",
+            str(r / REL),
+            "--changed",
+            *changed,
+        ],
+        cwd=r,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert made.returncode == 0, made.stderr
+    (r / REL).write_text(_complete((r / REL).read_text(encoding="utf-8")), encoding="utf-8")
+
+
+def _restamp(r: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(RECEIPT_SCRIPT), "--restamp", REL, "--project-root", str(r)],
+        cwd=r,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
+def _commit_all(r: Path, msg: str) -> str:
+    _git(r, "add", "-A")
+    _git(r, "commit", "-q", "-m", msg)
+    return _git(r, "rev-parse", "HEAD")
+
+
+@pytest.fixture
+def wt(tmp_path: Path) -> Repo:
+    """seed, then an uncommitted edit reviewed with ``--init`` (no --range); not yet committed."""
+    r = tmp_path / "wt"
+    r.mkdir()
+    _git(r, "init", "-q")
+    _git(r, "config", "user.email", "t@example.com")
+    _git(r, "config", "user.name", "t")
+    (r / "app.py").write_text("x = 1\n", encoding="utf-8")
+    _git(r, "add", "app.py")
+    _git(r, "commit", "-q", "-m", "seed")
+    seed = _git(r, "rev-parse", "HEAD")
+    (r / "app.py").write_text("x = 2\n", encoding="utf-8")
+    _init_wt(r, "app.py")
+    return Repo(r, seed, seed, seed)
+
+
+def _surface_line(repo: Repo) -> str:
+    return next(ln for ln in repo.text().splitlines() if ln.startswith("**Surface:**"))
+
+
+def test_a_working_tree_receipt_matching_its_commit_passes(wt: Repo) -> None:
+    last = _commit_all(wt.root, "the reviewed change")
+    assert _check(wt, REL, [last]) == []
+
+
+def test_a_fix_after_the_receipt_is_refused_and_restamp_reanchors_it(wt: Repo) -> None:
+    (wt.root / "app.py").write_text("x = 3\n", encoding="utf-8")  # a review fix after --init
+    reasons = _check(wt, REL, [_commit_all(wt.root, "drifted")])
+    assert len(reasons) == 1 and reasons[0].startswith("(d)")
+    assert "is not the reviewed one" in reasons[0] and "--restamp" in reasons[0], reasons
+    assert "range tip" not in reasons[0]
+    # the same flow, re-anchored before the commit
+    _git(wt.root, "reset", "-q", "--soft", "HEAD~1")
+    (wt.root / "app.py").write_text("x = 4\n", encoding="utf-8")
+    done = _restamp(wt.root)
+    assert done.returncode == 0, done.stderr
+    assert _check(wt, REL, [_commit_all(wt.root, "restamped")]) == []
+
+
+def test_an_untracked_file_in_the_review_is_rebuilt_from_the_commit(tmp_path: Path) -> None:
+    r = tmp_path / "u"
+    r.mkdir()
+    _git(r, "init", "-q")
+    _git(r, "config", "user.email", "t@example.com")
+    _git(r, "config", "user.name", "t")
+    (r / "app.py").write_text("x = 1\n", encoding="utf-8")
+    _git(r, "add", "app.py")
+    _git(r, "commit", "-q", "-m", "seed")
+    (r / "app.py").write_text("x = 2\n", encoding="utf-8")
+    (r / "new.py").write_text("y = 1\n", encoding="utf-8")
+    _init_wt(r, "app.py", "new.py")
+    repo = Repo(r, "", "", "")
+    assert "+ 1 untracked file(s)" in _surface_line(repo)
+    assert _check(repo, REL, [_commit_all(r, "with a new file")]) == []
+
+
+def test_an_untracked_count_that_cannot_be_rebuilt_is_refused(tmp_path: Path) -> None:
+    r = tmp_path / "u2"
+    r.mkdir()
+    _git(r, "init", "-q")
+    _git(r, "config", "user.email", "t@example.com")
+    _git(r, "config", "user.name", "t")
+    (r / "app.py").write_text("x = 1\n", encoding="utf-8")
+    _git(r, "add", "app.py")
+    _git(r, "commit", "-q", "-m", "seed")
+    (r / "new.py").write_text("y = 1\n", encoding="utf-8")
+    _init_wt(r, "new.py")
+    repo = Repo(r, "", "", "")
+    line = _surface_line(repo)
+    repo.write(repo.text().replace(line, line.replace("+ 1 untracked", "+ 2 untracked"), 1))
+    reasons = _check(repo, REL, [_commit_all(r, "new file")])
+    assert len(reasons) == 1 and "cannot be rebuilt" in reasons[0], reasons
+
+
+def test_an_unresolvable_surface_base_is_refused(wt: Repo) -> None:
+    line = _surface_line(wt)
+    head = line.split("= ", 1)[1].split(";", 1)[0]
+    wt.write(wt.text().replace(line, line.replace(head, "0" * 40), 1))
+    reasons = _check(wt, REL, [_commit_all(wt.root, "c")])
+    assert len(reasons) == 1 and "does not resolve to a commit" in reasons[0], reasons
+
+
+def test_a_receipt_anchored_to_an_empty_diff_is_refused(wt: Repo) -> None:
+    last = _commit_all(wt.root, "c")
+    line = _surface_line(wt)
+    head = line.split("= ", 1)[1].split(";", 1)[0]
+    empty = (
+        line.replace(head, last).rsplit(" md5 ", 1)[0]
+        + " md5 d41d8cd98f00b204e9800998ecf8427e (0 bytes)"
+    )
+    wt.write(wt.text().replace(line, empty, 1))
+    reasons = _check(wt, REL, [last])
+    assert len(reasons) == 1 and "is EMPTY" in reasons[0], reasons
+
+
+def test_the_writer_and_the_reader_agree_on_the_working_tree_line(wt: Repo) -> None:
+    """A change to `_surface`'s wording must red here, not silently refuse every close."""
+    spec = importlib.util.spec_from_file_location("review_receipt_rt", RECEIPT_SCRIPT)
+    assert spec and spec.loader
+    rr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rr)
+    body = _surface_line(wt).split("**Surface:** ", 1)[1]
+    assert rr._WT_SURFACE.fullmatch(body) and _module()._WT_SURFACE.fullmatch(body)
+
+
+def test_a_cited_design_path_names_its_file() -> None:
+    norm = _module()._norm_cited
+    for cited in (
+        "scripts/x.py:340-373",
+        "scripts/x.py::func",
+        "scripts/x.py:12:5",
+        "scripts/x.py:1,4-6",
+        "./scripts/x.py:9",
+    ):
+        assert norm(cited) == "scripts/x.py", cited
+    assert norm(":12") == ":12" and norm("a:b") == "a:b"
+
+
+def _repo_seeded(tmp_path: Path, name: str) -> Path:
+    r = tmp_path / name
+    r.mkdir()
+    _git(r, "init", "-q")
+    _git(r, "config", "user.email", "t@example.com")
+    _git(r, "config", "user.name", "t")
+    (r / "app.py").write_text("x = 1\n", encoding="utf-8")
+    _git(r, "add", "app.py")
+    _git(r, "commit", "-q", "-m", "seed")
+    return r
+
+
+def test_a_directory_token_with_new_files_is_rebuilt(tmp_path: Path) -> None:
+    """Review A-S1: `--changed newdir` with untracked files inside it."""
+    r = _repo_seeded(tmp_path, "dir")
+    (r / "newdir").mkdir()
+    (r / "newdir" / "b.txt").write_text("b\n", encoding="utf-8")
+    (r / "newdir" / "a.txt").write_text("a\n", encoding="utf-8")
+    (r / "app.py").write_text("x = 2\n", encoding="utf-8")
+    _init_wt(r, "app.py", "newdir")
+    repo = Repo(r, "", "", "")
+    assert "+ 2 untracked file(s)" in _surface_line(repo)
+    assert _check(repo, REL, [_commit_all(r, "dir")]) == []
+
+
+def test_a_path_with_a_space_survives_the_round_trip(tmp_path: Path) -> None:
+    """Review A-S3: the writer shell-quotes, the reader and --restamp shlex-split."""
+    r = _repo_seeded(tmp_path, "sp")
+    (r / "my file.py").write_text("y = 1\n", encoding="utf-8")
+    _git(r, "add", "my file.py")
+    _git(r, "commit", "-q", "-m", "add spaced")
+    (r / "my file.py").write_text("y = 2\n", encoding="utf-8")
+    (r / "new file.py").write_text("z = 1\n", encoding="utf-8")
+    _init_wt(r, "my file.py", "new file.py")
+    repo = Repo(r, "", "", "")
+    assert "'my file.py'" in _surface_line(repo)
+    (r / "my file.py").write_text("y = 3\n", encoding="utf-8")
+    assert _restamp(r).returncode == 0
+    assert _check(repo, REL, [_commit_all(r, "spaced")]) == []
+
+
+def test_a_new_file_staged_before_the_review_still_matches(tmp_path: Path) -> None:
+    r = _repo_seeded(tmp_path, "staged")
+    (r / "new.py").write_text("n = 1\n", encoding="utf-8")
+    _git(r, "add", "new.py")
+    _init_wt(r, "new.py")
+    repo = Repo(r, "", "", "")
+    assert "untracked" not in _surface_line(repo)
+    assert _check(repo, REL, [_commit_all(r, "staged")]) == []
+
+
+def test_restamp_keeps_the_file_line_endings(tmp_path: Path) -> None:
+    """Review: --restamp rewrites ONE line; a CRLF receipt stays CRLF everywhere else."""
+    r = _repo_seeded(tmp_path, "crlf")
+    (r / "app.py").write_text("x = 2\n", encoding="utf-8")
+    _init_wt(r, "app.py")
+    rec = r / REL
+    rec.write_bytes(rec.read_bytes().replace(b"\n", b"\r\n"))
+    before = rec.read_bytes().count(b"\r\n")
+    (r / "app.py").write_text("x = 3\n", encoding="utf-8")
+    assert _restamp(r).returncode == 0
+    after = rec.read_bytes()
+    assert after.count(b"\r\n") == before and b"\n" not in after.replace(b"\r\n", b"")

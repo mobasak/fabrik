@@ -131,6 +131,18 @@ def _pid_start(pid: int | None) -> int | None:
         return None
 
 
+def _as_int(value: object) -> int | None:
+    """A stored pid or start time as an int, or None. Rows are hand-editable JSON: a digit string
+    counts, a bool never does (`True == 1` would make a corrupted row equal pid 1)."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
 def _pid_alive_same_start(row: dict) -> bool:
     """True only when the row's pid is alive AND is the same process the row was written for.
 
@@ -138,7 +150,7 @@ def _pid_alive_same_start(row: dict) -> bool:
     pid could not be determined gets no collision protection — and `bind()` says so in its success
     message rather than implying a protection it does not have.
     """
-    pid = row.get("pid")
+    pid = _as_int(row.get("pid"))
     if not pid:
         return False
     try:
@@ -149,7 +161,9 @@ def _pid_alive_same_start(row: dict) -> bool:
     was = row.get("pid_start")
     if was is None:
         return True  # a row written before start-times existed: pid-only, as before
-    return _pid_start(pid) == was
+    # Compared as ints: a start time stored as a digit string must not read as a DEAD holder, which
+    # would let any other session take a live name with no refusal.
+    return _pid_start(pid) == _as_int(was)
 
 
 def _toplevel() -> str:
@@ -353,35 +367,59 @@ def _bind_locked(
                 "without --force would silently re-identify the session that dispatched you."
             )
 
-    if not force:
-        for r in rows:
-            if r.get("session_id") == sid or str(r.get("name") or "") != name:
-                continue
-            # ⚠️ An UNKNOWN scope is its own scope, never a wildcard. With `if top and …`, a
-            # holder scoped "" was invisible to any checker inside a repo, and a checker scoped ""
-            # matched every holder everywhere (both measured). `_toplevel()` returns "" on a
-            # git-less dir AND on its 10 s timeout, so a transient git failure silently downgraded
-            # a binding into the unprotected half.
-            if str(r.get("toplevel") or "") != top:
-                continue
-            if _pid_alive_same_start(r):
-                return 1, (
-                    f"whoami_agent: refused — {name!r} is held by a LIVE session (pid "
-                    f"{r.get('pid')}) in this repo. Pick another name, or --force if that session "
-                    "is gone. ⚠️ Two sessions on one name is the cheapest way to look named "
-                    "without being attributable, and nothing downstream catches it."
-                )
+    # This window's claude process, read AFTER the snapshot and inside the lock (the trim grader opens
+    # its race inside this call), and only once the re-bind refusal above has passed. A /clear mints
+    # a new session id in the SAME process, so a row with this exact (pid, pid_start) is this
+    # window's predecessor, never a holder (W-34cb1ef9). Both halves must be known, and CLAUDE_PID,
+    # when the real claude process exported it, must agree: a nested claude the /proc walk passes
+    # through reaches the OUTER window's pid.
+    me_pid = _session_pid()
+    me_start = _pid_start(me_pid)
+    claude_pid = (os.environ.get("CLAUDE_PID") or "").strip()
+    same_window = me_pid is not None and me_start is not None and claude_pid in ("", str(me_pid))
+
+    # Scanned with or without --force: force only skips the refusal, so a forced rotation still
+    # records who it succeeded. A predecessor never ends the scan — a live foreign holder later in the
+    # store still refuses. `predecessor` is the most recent such row of this name in this scope; a
+    # /resume into an older id can make the chain cycle, so a reader walking it must bound itself.
+    predecessor = ""
+    for r in rows:
+        if r.get("session_id") == sid or str(r.get("name") or "") != name:
+            continue
+        # ⚠️ An UNKNOWN scope is its own scope, never a wildcard. With `if top and …`, a
+        # holder scoped "" was invisible to any checker inside a repo, and a checker scoped ""
+        # matched every holder everywhere (both measured). `_toplevel()` returns "" on a
+        # git-less dir AND on its 10 s timeout, so a transient git failure silently downgraded
+        # a binding into the unprotected half.
+        if str(r.get("toplevel") or "") != top:
+            continue
+        if (
+            same_window
+            and _as_int(r.get("pid")) == me_pid
+            and _as_int(r.get("pid_start")) == me_start
+        ):
+            predecessor = str(r.get("session_id"))
+            continue
+        if not force and _pid_alive_same_start(r):
+            return 1, (
+                f"whoami_agent: refused — {name!r} is held by a LIVE session (pid "
+                f"{r.get('pid')}) in this repo. Pick another name, or --force if that session "
+                "is gone. ⚠️ Two sessions on one name is the cheapest way to look named "
+                "without being attributable, and nothing downstream catches it."
+            )
 
     row = {
         "session_id": sid,
         "name": name,
-        "pid": (_pid := _session_pid()),
-        "pid_start": _pid_start(_pid),
+        "pid": me_pid,
+        "pid_start": me_start,
         "toplevel": top,
         "at": int(time.time()),
         "force": bool(force),
         "unlocked": not locked,  # auditable: this row was written without serialization
     }
+    if predecessor:
+        row["predecessor"] = predecessor
     cutoff = int(time.time()) - _TRIM_AFTER_S
     # ⚠️ A row's `at` is whatever is on disk. `int("abc")` raises ValueError and `int([1])` raises
     # TypeError (both executed), and an exception here would abort a BIND — the one operation the
@@ -403,6 +441,7 @@ def _bind_locked(
     return 0, (
         f"whoami_agent: {name} bound to session {sid}"
         + (" (forced)" if force else "")
+        + (f" (succeeds {predecessor})" if predecessor else "")
         + unprotected
     )
 

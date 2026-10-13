@@ -223,3 +223,239 @@ def test_synced_paths_empty_in_hub(tmp_path, monkeypatch):
     """In the hub (/opt/fabrik) synced files ARE the source → not excluded (lint them)."""
     monkeypatch.setattr(final_gate, "PROJECT_ROOT", final_gate._FABRIK_ROOT)
     assert final_gate._synced_paths() == set()
+
+
+def _g(repo, *args):
+    import subprocess
+
+    return subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    ).stdout
+
+
+def test_a_fast_forward_onto_master_does_not_widen_the_fixer_scope(tmp_path, monkeypatch):
+    """fleet 01M4EPDF7F: a worktree branch fast-forwarded onto origin/master carried 199 sibling
+    commits inside `upstream...HEAD`, and a bare gate run rewrote two files no fleet commit
+    touched. Only commits on NO published ref (upstream, origin/master) are this session's."""
+    origin = tmp_path / "origin.git"
+    _g(tmp_path, "init", "-q", "--bare", "-b", "master", str(origin))
+    repo = tmp_path / "repo"
+    _g(tmp_path, "clone", "-q", str(origin), str(repo))
+    (repo / "base.py").write_text("x = 1\n")
+    _g(repo, "add", "base.py")
+    _g(repo, "commit", "-qm", "base")
+    _g(repo, "push", "-q", "origin", "HEAD:master")
+    _g(repo, "checkout", "-q", "-b", "work")
+    _g(repo, "push", "-q", "-u", "origin", "work")  # upstream origin/work at base
+    _g(repo, "checkout", "-q", "master")
+    (repo / "sibling.py").write_text("y = 2  \n")
+    _g(repo, "add", "sibling.py")
+    _g(repo, "commit", "-qm", "sibling")
+    _g(repo, "push", "-q", "origin", "master")
+    _g(repo, "checkout", "-q", "work")
+    _g(repo, "merge", "-q", "--ff-only", "origin/master")  # the fast-forward
+    (repo / "mine.py").write_text("z = 3  \n")
+    _g(repo, "add", "mine.py")
+    _g(repo, "commit", "-qm", "mine")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    assert final_gate.get_writable_files() == {"mine.py"}
+    assert "sibling.py" not in final_gate.get_changed_files()
+
+
+def test_trailing_whitespace_fix_keeps_unicode_line_separators(tmp_path, monkeypatch):
+    """fleet 01M4EPDF7F: `str.splitlines()` splits on U+2028 and `rstrip()` strips it, so the
+    fixer deleted the U+2028 a test case exists to carry (`delta<U+2028>confirmed`). Trailing
+    whitespace is ASCII space and tab before a `\\n`; nothing else."""
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", tmp_path)
+    f = tmp_path / "t.py"
+    body = "a = 'delta\u2028confirmed'  \nb = 'nb\u00a0'\nc = 1\t\r\nd = 2"
+    f.write_text(body, encoding="utf-8")
+    ok, _, n = final_gate.fix_trailing_whitespace(["t.py"])
+    assert ok and n == 1
+    raw = f.read_bytes().decode("utf-8")  # read_text() would translate the "\r\n" it checks
+    assert raw == "a = 'delta\u2028confirmed'\nb = 'nb\u00a0'\nc = 1\r\nd = 2"
+
+
+def test_the_eof_fixer_keeps_a_crlf_file_crlf(tmp_path, monkeypatch):
+    """Same read-translation defect in fix_end_of_files: a CRLF file missing its final newline
+    came back with every line ending rewritten to LF."""
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", tmp_path)
+    f = tmp_path / "w.txt"
+    f.write_bytes(b"a\r\nb")
+    ok, _, n = final_gate.fix_end_of_files(["w.txt"])
+    assert ok and n == 1
+    assert f.read_bytes() == b"a\r\nb\r\n"
+
+
+def test_the_fixers_handle_bare_cr_line_endings(tmp_path, monkeypatch):
+    """Review A-S1/A-H2: a `\\n`-only split made a classic-Mac CR file one line (inner trailing
+    spaces kept), and the EOF fixer appended `\\n` to a CR-only file."""
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", tmp_path)
+    f = tmp_path / "mac.txt"
+    f.write_bytes(b"a  \rb\t\rc  \r\nd")
+    assert final_gate.fix_trailing_whitespace(["mac.txt"])[2] == 1
+    assert f.read_bytes() == b"a\rb\rc\r\nd"
+    g = tmp_path / "cr.txt"
+    g.write_bytes(b"x\ry")
+    assert final_gate.fix_end_of_files(["cr.txt"])[2] == 1
+    assert g.read_bytes() == b"x\ry\r"
+
+
+def test_a_file_added_then_removed_in_own_commits_is_not_in_scope(tmp_path, monkeypatch):
+    """Review A-S2: the scope is the session's NET change — a file its own commits created and
+    deleted again is not part of what it will publish."""
+    origin = tmp_path / "origin.git"
+    _g(tmp_path, "init", "-q", "--bare", "-b", "master", str(origin))
+    repo = tmp_path / "repo"
+    _g(tmp_path, "clone", "-q", str(origin), str(repo))
+    (repo / "base.py").write_text("x = 1\n")
+    _g(repo, "add", "base.py")
+    _g(repo, "commit", "-qm", "base")
+    _g(repo, "push", "-q", "origin", "HEAD:master")
+    (repo / "tmp.py").write_text("t = 1\n")
+    _g(repo, "add", "tmp.py")
+    _g(repo, "commit", "-qm", "add tmp")
+    _g(repo, "rm", "-q", "tmp.py")
+    _g(repo, "commit", "-qm", "drop tmp")
+    (repo / "mine.py").write_text("m = 1\n")
+    _g(repo, "add", "mine.py")
+    _g(repo, "commit", "-qm", "mine")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    assert final_gate.get_writable_files() == {"mine.py"}
+
+
+def test_a_git_that_refuses_the_log_falls_back_to_the_diff_base(tmp_path, monkeypatch):
+    """Review A-S3: a git without `--diff-merges=remerge` must not silently empty the scope."""
+    real = final_gate.run_cmd
+
+    def old_git(cmd, *a, **k):
+        if cmd and "--diff-merges=remerge" in cmd:
+            return 129, "error: unknown option"
+        return real(cmd, *a, **k)
+
+    origin = tmp_path / "origin.git"
+    _g(tmp_path, "init", "-q", "--bare", "-b", "master", str(origin))
+    repo = tmp_path / "repo"
+    _g(tmp_path, "clone", "-q", str(origin), str(repo))
+    (repo / "base.py").write_text("x = 1\n")
+    _g(repo, "add", "base.py")
+    _g(repo, "commit", "-qm", "base")
+    _g(repo, "push", "-q", "origin", "HEAD:master")
+    (repo / "mine.py").write_text("m = 1\n")
+    _g(repo, "add", "mine.py")
+    _g(repo, "commit", "-qm", "mine")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    monkeypatch.setattr(final_gate, "run_cmd", old_git)
+    assert final_gate.get_writable_files() == {"mine.py"}
+
+
+def _published_repo(tmp_path):
+    origin = tmp_path / "origin.git"
+    _g(tmp_path, "init", "-q", "--bare", "-b", "master", str(origin))
+    repo = tmp_path / "repo"
+    _g(tmp_path, "clone", "-q", str(origin), str(repo))
+    (repo / "worker").mkdir()
+    (repo / "worker" / "old.py").write_text("x=1\n")  # pre-existing format debt
+    _g(repo, "add", "worker/old.py")
+    _g(repo, "commit", "-qm", "base")
+    _g(repo, "push", "-q", "origin", "HEAD:master")
+    return repo
+
+
+def test_a_python_file_added_outside_the_lint_roots_is_selected(tmp_path, monkeypatch):
+    """fleet 01M4F5F2WM: a file-worker's worker/*.py was never ruffed. A file the session ADDS
+    carries no debt, so it gets the roots' treatment; a modified pre-existing file does not
+    (its lint stays the repo-wide ratchet's)."""
+    repo = _published_repo(tmp_path)
+    (repo / "worker" / "new.py").write_text("y=2\n")
+    (repo / "worker" / "old.py").write_text("x=3\n")
+    _g(repo, "add", "worker/new.py", "worker/old.py")
+    _g(repo, "commit", "-qm", "add new, edit old")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    assert final_gate._changed_python({"worker/new.py", "worker/old.py"}) == ["worker/new.py"]
+    (repo / "worker" / "staged.py").write_text("z=1\n")
+    _g(repo, "add", "worker/staged.py")
+    assert "worker/staged.py" in final_gate._changed_python({"worker/staged.py"})
+
+
+def test_every_ruff_leg_honours_the_repos_exclude(tmp_path, monkeypatch):
+    """A file named on the ruff command line bypasses `[tool.ruff] exclude` unless
+    `--force-exclude` is passed (executed by both design critiques)."""
+    repo = _published_repo(tmp_path)
+    (repo / "pyproject.toml").write_text('[tool.ruff]\nextend-exclude = ["gen"]\n')
+    (repo / "gen").mkdir()
+    (repo / "gen" / "x.py").write_text("import os\nx=1\n")
+    _g(repo, "add", "pyproject.toml", "gen/x.py")
+    _g(repo, "commit", "-qm", "generated")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    rows = final_gate.run_format_check({"gen/x.py"})
+    assert all(ok for _, ok, _ in rows), rows
+    seen = []
+    real = final_gate.run_cmd
+
+    def spy(cmd, *a, **k):
+        if cmd and cmd[0] == final_gate.RUFF:
+            seen.append(cmd)
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(final_gate, "run_cmd", spy)
+    final_gate.run_formatting_fixes(tier=2, changed_files={"gen/x.py"})
+    assert seen and all("--force-exclude" in c for c in seen), seen
+    assert (repo / "gen" / "x.py").read_text() == "import os\nx=1\n"  # never reformatted
+
+
+def test_a_file_moved_out_of_the_lint_roots_stays_ruffed(tmp_path, monkeypatch):
+    """Review A-S1: `scripts/x.py -> worker/x.py` (status R) silently left every ruff leg; a
+    rename whose source was under the roots keeps its coverage. A rename of a flat-layout file
+    adds no new enforcement, and an intent-to-add (`git add -N`) new file counts as added."""
+    repo = _published_repo(tmp_path)
+    (repo / "scripts").mkdir()
+    (repo / "scripts" / "tool.py").write_text("t = 1\n")
+    _g(repo, "add", "scripts/tool.py")
+    _g(repo, "commit", "-qm", "tool")
+    _g(repo, "push", "-q", "origin", "HEAD:master")
+    _g(repo, "mv", "scripts/tool.py", "worker/tool.py")
+    _g(repo, "mv", "worker/old.py", "worker/older.py")
+    (repo / "worker" / "ita.py").write_text("i=1\n")
+    _g(repo, "add", "-N", "worker/ita.py")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    got = final_gate._changed_python({"worker/tool.py", "worker/older.py", "worker/ita.py"})
+    assert got == ["worker/ita.py", "worker/tool.py"]
+
+
+def test_a_leg_whose_every_file_is_excluded_says_it_did_not_run(tmp_path, monkeypatch):
+    """Review A-S2: with every file excluded by the repo's ruff config, a plain PASS asserted a
+    check that never ran; the row carries a `(NOT RUN` skip marker instead."""
+    repo = _published_repo(tmp_path)
+    (repo / "pyproject.toml").write_text('[tool.ruff]\nextend-exclude = ["gen"]\n')
+    (repo / "gen").mkdir()
+    (repo / "gen" / "x.py").write_text("x = 1\n")
+    _g(repo, "add", "pyproject.toml", "gen/x.py")
+    _g(repo, "commit", "-qm", "generated")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    names = [n for n, ok, _ in final_gate.run_format_check({"gen/x.py"}) if ok]
+    assert any("(NOT RUN" in n for n in names), names
+
+
+def test_an_added_file_with_a_quoted_name_is_read_verbatim(tmp_path, monkeypatch):
+    """Review A-S4: `--name-status` C-quotes a path holding a quote, tab or non-ASCII byte, so a
+    tab-split stored the escaped text; `-z` gives git's own bytes."""
+    repo = _published_repo(tmp_path)
+    name = 'worker/we"ird ü.py'
+    (repo / name).write_text("q = 1\n")
+    _g(repo, "add", name)
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", repo)
+    assert name in final_gate._added_files()

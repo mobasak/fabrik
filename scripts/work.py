@@ -4391,6 +4391,14 @@ def _on_it_lines(claims: dict[str, dict], session: str) -> list[str]:
 PROMPT_CLAIM_LINES = 3  # this session's claims named per prompt; the rest are one count line
 
 
+# the three line shapes above that name THIS session's own claims — all a headless session keeps
+_OWN_CLAIM_LINES = (
+    "work: your claim — ",
+    "work: … and ",
+    "work: your claims on items not in this tree",
+)
+
+
 def prompt_block(repo: Path | str, session: str) -> str:
     """Read-only, no lock, the caller's own tree, in order: the unnamed-window line (spec D6), the
     obligation lines (D1), every awaiting-operator item with its question, ``session``'s live
@@ -4454,6 +4462,9 @@ def prompt_block(repo: Path | str, session: str) -> str:
             ready = len(_ready_from(items, closed, claims))
             if ready:
                 lines.append(f"work: {ready} ready — `work.py next`")
+            if _print_mode():
+                # a headless session sees only its OWN claims (01M4PAJWV1)
+                lines = [ln for ln in lines if ln.startswith(_OWN_CLAIM_LINES)]
             return "\n".join(_clip(" ".join(line.split())) for line in lines)
         except Exception as exc:
             _warn(f"prompt block skipped — {type(exc).__name__}: {exc}")
@@ -4604,6 +4615,68 @@ def _workers(main: Path) -> dict[str, Path]:
     return out
 
 
+_PRINT_FLAGS = frozenset({"-p", "--print"})
+_HEADLESS_LABELS = ("FABRIK_HEADLESS", "CLAUDE_MESH_HEADLESS")
+
+
+def _argv_prints(argv: list[str]) -> bool:
+    """`-p`/`--print` as a WHOLE token before any `--` (the VS Code claude's
+    `--permission-prompt-tool` holds the bytes `-p`, so a substring test would read every window
+    as headless)."""
+    head = argv[1 : argv.index("--")] if "--" in argv else argv[1:]
+    return any(a in _PRINT_FLAGS for a in head)
+
+
+def _proc_argv(entry: Path) -> list[str] | None:
+    try:
+        raw = (entry / "cmdline").read_bytes()
+    except OSError:
+        return None
+    return [a.decode("utf-8", "replace") for a in raw.split(b"\0") if a] or None
+
+
+def _is_claude(entry: Path, argv: list[str]) -> bool:
+    if any(os.path.basename(a) == "claude" for a in argv[:2]):
+        return True
+    # the npm launcher (`node …/@anthropic-ai/claude-code/cli.js`), never any tool's cli.js
+    if any(a.endswith("/claude-code/cli.js") for a in argv[:2]):
+        return True
+    try:
+        exe = os.readlink(entry / "exe")
+    except OSError:
+        return False
+    return exe.endswith("/claude") or "/claude/versions/" in exe
+
+
+def _print_mode() -> bool:
+    """True when this process runs under a HEADLESS claude: a labelled run (`FABRIK_HEADLESS=1`
+    or `CLAUDE_MESH_HEADLESS=1`), or the nearest `claude` ancestor holds `-p`/`--print` as an argv
+    token. Such a session takes no new work (iterative_image_editor 01M4PAJWV1): a `claude -p`
+    child a project's code spawns inherits the parent's env and entrypoint, so only its own argv
+    tells it apart from a window. The walk reads the proc root in FABRIK_WORK_PROC (default
+    /proc), at most 12 hops; any read failure or no claude ancestor is False — fail-open, today's
+    behaviour. Not visible: an SDK child that streams (`--input-format stream-json`, no `-p`) and
+    sets no label."""
+    if any(os.environ.get(k) == "1" for k in _HEADLESS_LABELS):
+        return True
+    root = Path(os.environ.get("FABRIK_WORK_PROC") or "/proc")
+    pid = os.getppid()
+    for _ in range(12):
+        if pid < 1:
+            return False
+        entry = root / str(pid)
+        argv = _proc_argv(entry)  # None for an unreadable or emptied cmdline: climb past it
+        if argv is not None and _is_claude(entry, argv):
+            return _argv_prints(argv)
+        if pid == 1:
+            return False  # pid 1 inspected (a container's `claude -p` entrypoint), nothing above
+        try:
+            pid = int((entry / "stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()[1])
+        except (OSError, IndexError, ValueError):
+            return False
+    return False
+
+
 def _present(workers: dict[str, Path]) -> set[str] | None:
     """Workers with a live `claude` process inside their tree, read from /proc (or the root in
     FABRIK_WORK_PROC); None when the process table cannot be read — then nobody is topped up."""
@@ -4617,6 +4690,9 @@ def _present(workers: dict[str, Path]) -> set[str] | None:
         try:
             if (entry / "comm").read_text(encoding="utf-8").strip() != "claude":
                 continue
+            argv = _proc_argv(entry)
+            if argv and _argv_prints(argv):
+                continue  # a `claude -p` child in the tree is not a window (01M4PAJWV1)
             cwd = Path(os.readlink(entry / "cwd")).resolve()
         except OSError:
             continue
@@ -5185,6 +5261,33 @@ def _parked_count(tree: Path, agent: str, session: str = "") -> int:
     )
 
 
+_PRINT_MODE_OWN = frozenset({"continue", "release"})  # subjects of THIS session's own claims
+
+
+def _print_mode_stop(result: dict) -> dict:
+    """A headless session keeps only the subjects of its OWN claims (a revived work session still
+    finishes its item); every other subject is dropped, and with none left it gets the bare null
+    action — never one still carrying `candidates`, which the hook's ladder would act on."""
+    cands = [
+        c
+        for c in (result.get("candidates") or [])
+        if isinstance(c, dict) and c.get("action") in _PRINT_MODE_OWN
+    ]
+    if cands:
+        return {**result, **cands[0], "candidates": cands}
+    null = {
+        "agent": result.get("agent", ""),
+        "role": result.get("role", ""),
+        "action": None,
+        "fp": "",
+        "text": "",
+        "reason": "print-mode",
+    }
+    if result.get("error"):
+        null["error"] = result["error"]  # a crashed Stop computation stays visible
+    return null
+
+
 def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
     if args.stop:
         try:
@@ -5198,6 +5301,8 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
                 "text": "",
                 "error": str(exc),
             }
+        if _print_mode():
+            result = _print_mode_stop(result)
         print(json.dumps(result, sort_keys=True))
         return 0
     main = _worktrees(repo)[0].resolve()

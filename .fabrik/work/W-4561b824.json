@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T17:02:14.767182Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4561b824",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4NVZGE9VTE3TK57ZVECD8FF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "REQUEST (D-441) — templates/governance/CLAUDE.md: the session-history paragraph under § Pointers (D-736 C.4)"
+}

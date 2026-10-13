@@ -252,11 +252,16 @@ product.** Skipped only by Phase 0 step 4 (`NOT-RUN (no FROZEN contract)`).
      /opt/<project>/compose.yaml ps -q <service>"`, or the `container_name` the compose declares). The
      vendored comparator is gitignored in projects, so the VPS checkout the image was built from does NOT
      contain it: ship both files first, then run:
-     `ssh <vps> "docker cp /opt/<project>/scripts/verify_prod_parity.py <leg>:/app/scripts/ 2>/dev/null;
-     true"` (the image already carries the script when the Dockerfile `COPY . .`s the checkout — the copy
-     refreshes it), `scp -r libs/health_probe <vps>:/tmp/health_probe && ssh <vps> "docker cp
-     /tmp/health_probe <leg>:/app/libs/"`, then `ssh <vps> "docker exec <leg> python scripts/verify_prod_parity.py
-     --json --site container" > <run>/container.json`. The container's own env (`DATABASE_URL`, `REDIS_URL`,
+     `ssh <vps> "rm -rf /tmp/health_probe" && scp -r libs/health_probe <vps>:/tmp/health_probe` (a repeat
+     `scp -r` into an existing copy nests the new package under the old one, which then loads), `ssh <vps>
+     "docker exec -u 0 <leg> rm -rf /app/libs/health_probe && docker exec -u 0 <leg> mkdir -p /app/scripts
+     /app/libs && docker cp /opt/<project>/scripts/verify_prod_parity.py <leg>:/app/scripts/ && docker cp
+     /tmp/health_probe <leg>:/app/libs/"` (a long-lived container keeps the last run's copy, and `docker cp`
+     merges into it; `docker cp` of a directory into a MISSING `/app/libs` makes `/app/libs` the package
+     itself; `-u 0` because the image's user may not own `/app`; a failed stage is a reason for
+     `--unreachable` below, never swallowed — the copy only refreshes a script the image may already carry),
+     then `ssh <vps> "docker exec <leg> python /app/scripts/verify_prod_parity.py --json --site container" >
+     <run>/container.json` (absolute: the image's WORKDIR need not be `/app`). The container's own env (`DATABASE_URL`, `REDIS_URL`,
      the compose network) is what makes these rows resolvable — that is why they live there. **The leg
      container must carry the comparator's runtime deps** — `libs/health_probe` imports `httpx` at module
      level, `psycopg2`/`redis` inside their rows (a missing one fails that row), and `python-dotenv` for the
@@ -267,10 +272,26 @@ product.** Skipped only by Phase 0 step 4 (`NOT-RUN (no FROZEN contract)`).
      the same UNVERIFIABLE leg, but the route is the CONTRACT (`/fabrik-deploy-checklist`: re-site those rows
      on the hub/host leg or declare a Python leg), never the Dockerfile. Both classes are the deploy plan's
      Phase 2 to catch BEFORE the deploy; reaching them here is itself a finding for `/fabrik-deploy-plan`.
-   - **host leg** — on the VPS host for rows that need `docker ps` or a volume path:
-     `scp scripts/verify_prod_parity.py <vps>:/tmp/ && ssh <vps> "cd /opt/<project> && PARITY_FILESTORE_PATH=<mount>
-     python3 /tmp/verify_prod_parity.py --json --site host" > <run>/host.json` (the host leg needs no
-     comparator for liveness rows; a comparison row there gets the same `docker cp`-free `scp -r libs/health_probe`).
+   - **host leg** — on the VPS host for rows that need `docker ps` or a volume path. STAGE, then run.
+     Liveness rows need only the script: `scp scripts/verify_prod_parity.py <vps>:/tmp/`. A comparison row
+     also needs the comparator BESIDE the script, where the stub reads it (D-744), fresh and writable by
+     nobody else (the stub refuses a group- or other-writable copy): `ssh <vps> "rm -rf /tmp/health_probe"
+     && scp -r libs/health_probe <vps>:/tmp/health_probe && ssh <vps> "chmod -R go-w /tmp/health_probe"`.
+     Then run: `ssh <vps> "cd /opt/<project> && PARITY_FILESTORE_PATH=<mount> python3
+     /tmp/verify_prod_parity.py --json --site host" > <run>/host.json`. A stub older than that rule reads
+     only its own clone — `grep -q _comparator_root scripts/verify_prod_parity.py` fails for it — so stage
+     and run it in a private clone layout instead, as ONE command line (the `$d` it sets lives only in that
+     shell): `d=$(ssh <vps> mktemp -d) && ssh <vps> "mkdir -p $d/scripts $d/libs" && scp
+     scripts/verify_prod_parity.py <vps>:$d/scripts/ && scp -r libs/health_probe <vps>:$d/libs/ && ssh
+     <vps> "cd /opt/<project> && PARITY_FILESTORE_PATH=<mount> python3 $d/scripts/verify_prod_parity.py
+     --json --site host" > <run>/host.json; ssh <vps> "rm -rf $d"`.
+   **A site the contract has no rows for** — when `--header` carries a `sites` object and that site's count
+   is 0 — skips its REMOTE exec only: emit it from the hub, `scripts/verify_prod_parity.py --json --site
+   <site> --unreachable "header: 0 rows" > <run>/<site>.json`, and merge it like any leg (its exit
+   status is not the leg's verdict — a true zero can print `[]` and still exit non-zero; only the merge decides).
+   A true zero adds no row; a wrong zero adds that site's rows as UNVERIFIABLE with `header: 0 rows` in
+   their detail, so the header's count can never shrink the denominator. A header without
+   `sites` runs every leg as above.
    A leg you CANNOT reach (no SSH, the container not running) is never skipped: emit its rows as
    UNVERIFIABLE from the hub — `scripts/verify_prod_parity.py --json --site container --unreachable "<why>"
    > <run>/container.json` — so the denominator stays whole and the verdict fails closed on that leg.

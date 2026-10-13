@@ -6,8 +6,9 @@ by VPS. **Pulled from the live `/opt/<svc>/compose.yaml` on each host on 2026-06
 - **Source of truth is the live host** (`/opt/<svc>/compose.yaml`), deployed/managed
   by `fabrik apply` (hub services) and `bootstrap-vps.sh` (spoke agents). Nothing
   deploys *from* `infra/` — it's a source-controlled mirror for review/DR reference.
-- **No secrets here.** Every service externalises credentials via `env_file: .env`,
-  `${VAR}` references, or mounted secret files (e.g. `.restic-password`) — never inline.
+- **No secrets here.** Every service externalises credentials via `env_file: .env` (or a
+  box-side env file such as traefik's `./cf.env`), `${VAR}` references, or mounted secret
+  files (e.g. `.restic-password`) — never inline; the box-side secret files are gitignored.
 - All services run on the external **`fabrik`** Docker network (renamed from `coolify`
   2026-05-31; `fabrik apply` rejects a compose declaring `coolify`).
 - Canonical *live* fleet state (counts, health, drift): [`docs/infrastructure/vps-complete-inventory.md`](../docs/infrastructure/vps-complete-inventory.md) and [`vps-urls.md`](../docs/infrastructure/vps-urls.md).

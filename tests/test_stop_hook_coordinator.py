@@ -198,3 +198,148 @@ def test_a_garbled_line_is_handled_inside_the_cause(monkeypatch, tmp_path):
     monkeypatch.setattr(hook, "_COORD_ARGV", (sys.executable, "-c", "print('not json')"))
     assert hook._coordinator_duty(tmp_path, SID, tmp_path) is None
     assert not hook._coord_state_path(SID).exists(), "a garbled line clears the state like a null"
+
+
+# W-05d3af0f: at a fleet AMBER band the contract says "finish what you started, start nothing
+# heavy", so the cause stops ordering NEW work and keeps enforcing what finishes or routes work.
+_STARTS = ("claim", "owned", "feedback", "self", "doorbell", "merge", "triage")
+_FINISHES = ("continue", "release", "commit-items", "mail")
+
+
+@pytest.mark.parametrize("action", _STARTS)
+def test_amber_stands_down_an_action_that_starts_new_work(monkeypatch, tmp_path, action):
+    main = _repo(tmp_path)
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line({**CLAIM, "action": action, "fp": action}))
+    monkeypatch.setattr(hook, "_coord_band", lambda transcript: "AMBER")
+    assert _drive(monkeypatch, main)[0] is None
+    monkeypatch.setattr(hook, "_coord_band", lambda transcript: "GREEN")
+    out, _ = _drive(monkeypatch, main)
+    assert out is not None and f"WORK WAITING — {action}" in out["reason"]
+
+
+@pytest.mark.parametrize("action", _FINISHES)
+def test_amber_still_enforces_finishing_and_routing_work(monkeypatch, tmp_path, action):
+    main = _repo(tmp_path)
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line({**CLAIM, "action": action, "fp": action}))
+    monkeypatch.setattr(hook, "_coord_band", lambda transcript: "AMBER")
+    out, _ = _drive(monkeypatch, main)
+    assert out is not None and f"WORK WAITING — {action}" in out["reason"]
+
+
+def test_amber_ladder_skips_start_candidates_without_spending_them(monkeypatch, tmp_path):
+    main = _repo(tmp_path)
+    ladder = {
+        "candidates": [
+            {"action": "claim", "fp": "claim:x", "text": "claim W-00000001"},
+            {"action": "continue", "fp": "item:W-00000002", "text": "finish W-00000002"},
+        ]
+    }
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line(ladder))
+    monkeypatch.setattr(hook, "_coord_band", lambda transcript: "AMBER")
+    out, _ = _drive(monkeypatch, main)
+    assert out is not None and "W-00000002" in out["reason"]
+    monkeypatch.setattr(hook, "_coord_band", lambda transcript: "GREEN")
+    out, _ = _drive(monkeypatch, main)
+    assert out is not None and "W-00000001" in out["reason"] and "attempt 1/" in out["reason"]
+
+
+def test_an_amber_skip_leaves_the_attempt_count_where_it_was(monkeypatch, tmp_path):
+    main = _repo(tmp_path)
+    hook._coord_state_path(SID).write_text(json.dumps({"fp": "claim:few", "att": 2}))
+    monkeypatch.setattr(hook, "_coord_band", lambda transcript: "AMBER")
+    assert _drive(monkeypatch, main)[0] is None
+    monkeypatch.setattr(hook, "_coord_band", lambda transcript: "GREEN")
+    out, _ = _drive(monkeypatch, main)
+    assert out is not None and f"attempt 3/{hook.CAP}" in out["reason"]
+
+
+def test_an_unreadable_band_is_enforced_as_green(monkeypatch, tmp_path):
+    main = _repo(tmp_path)
+    monkeypatch.setattr(hook, "_coord_band", lambda transcript: None)
+    out, _ = _drive(monkeypatch, main)
+    assert out is not None and "WORK WAITING — claim" in out["reason"]
+
+
+def test_a_stand_down_is_recorded_as_a_kaizen_event(monkeypatch, tmp_path):
+    main = _repo(tmp_path)
+    monkeypatch.setattr(hook, "_coord_band", lambda transcript: "AMBER")
+    assert _drive(monkeypatch, main)[0] is None
+    rows = [
+        json.loads(ln)
+        for p in (tmp_path / "events").rglob("*")
+        if p.is_file()
+        for ln in p.read_text(encoding="utf-8").splitlines()
+        if ln.strip()
+    ]
+    assert any(
+        r.get("event") == "stop_block"
+        and r.get("cause") == "coordinator"
+        and r.get("outcome") == "stood_down"
+        and r.get("action") == "claim"
+        and r.get("band") == "AMBER"
+        for r in rows
+    ), rows
+
+
+def test_every_action_work_py_emits_is_classified_for_amber():
+    """A new action must be placed deliberately: unlisted, it would block at AMBER by default."""
+    import re
+
+    src = (_TREE / "scripts" / "work.py").read_text(encoding="utf-8")
+    emitted = set(re.findall(r'"action": "([a-z-]+)"', src))
+    # every `"action":` value is a literal name or None, so the regex above sees them all
+    assert src.count('"action":') == len(re.findall(r'"action": (?:"[a-z-]+"|None)', src))
+    assert emitted == set(_STARTS) | set(_FINISHES), emitted ^ (set(_STARTS) | set(_FINISHES))
+    assert frozenset(_STARTS) == hook._COORD_AMBER_STARTS
+
+
+def test_one_stand_down_event_names_every_skipped_action(monkeypatch, tmp_path):
+    main = _repo(tmp_path)
+    ladder = {
+        "candidates": [
+            {"action": "claim", "fp": "claim:x", "text": "claim W-00000001"},
+            {"action": "owned", "fp": "owned:y", "text": "start W-00000003"},
+        ]
+    }
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line(ladder))
+    monkeypatch.setattr(hook, "_coord_band", lambda transcript: "AMBER")
+    assert _drive(monkeypatch, main)[0] is None
+    rows = _events(tmp_path)
+    stood = [r for r in rows if r.get("outcome") == "stood_down"]
+    assert len(stood) == 1 and stood[0]["action"] == "claim,owned", stood
+
+
+def test_a_warned_through_finisher_is_not_also_reported_as_a_stand_down(monkeypatch, tmp_path):
+    main = _repo(tmp_path)
+    hook._coord_state_path(SID).write_text(json.dumps({"map": {"item:W-00000002": hook.CAP}}))
+    ladder = {
+        "candidates": [
+            {"action": "claim", "fp": "claim:x", "text": "claim W-00000001"},
+            {"action": "continue", "fp": "item:W-00000002", "text": "finish W-00000002"},
+        ]
+    }
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line(ladder))
+    monkeypatch.setattr(hook, "_coord_band", lambda transcript: "AMBER")
+    _drive(monkeypatch, main)
+    outcomes = [r.get("outcome") for r in _events(tmp_path) if r.get("cause") == "coordinator"]
+    assert "warned_through" in outcomes and "stood_down" not in outcomes, outcomes
+
+
+def test_a_single_action_block_reports_its_own_action(monkeypatch, tmp_path):
+    main = _repo(tmp_path)
+    hook._COORD_LAST_ACTION[:] = ["stale-from-an-earlier-call"]
+    monkeypatch.setattr(hook, "_COORD_ARGV", _line({**CLAIM, "action": "continue", "fp": "c"}))
+    out, _ = _drive(monkeypatch, main)
+    assert out is not None
+    blocked = [r for r in _events(tmp_path) if r.get("outcome") == "blocked"]
+    assert blocked and blocked[-1]["action"] == "continue", blocked
+
+
+def _events(tmp_path: Path) -> list[dict]:
+    return [
+        json.loads(ln)
+        for p in (tmp_path / "events").rglob("*")
+        if p.is_file()
+        for ln in p.read_text(encoding="utf-8").splitlines()
+        if ln.strip()
+    ]

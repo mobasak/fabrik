@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T16:17:46.138268Z",
+  "creator": "fleet",
+  "evidence": "59a2a136aa736ebaa7b3c98905dc15727071ed77",
+  "id": "W-18d6d1ae",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-09-06-plan-1-session-history-retention.md",
+    "spec": ""
+  },
+  "next": "operator, from a phone hotspot or with the VPN off: run the plan's § Phase B steps B.1–B.5 and paste the sha256sum lines into the plan's Evidence; the pruner's unit stays on --dry-run until Gate C passes",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "gate-c",
+    "operator"
+  ],
+  "title": "Gate C (1) — operator: the Gate B download proof from a network that reaches https://f004.backblazeb2.com (B.1–B.5: --remote-count, --fetch of one object, a byte-identical restore) before the first real deletion"
+}

@@ -646,7 +646,7 @@ PARAMS = {
             "ARTIFACT": "contract",
             "DONE_ACT": "flip `Status: DRAFT → FROZEN`",
             "DONE_WORD": "FROZEN",
-            "AXES": "criteria · personas · second actors · gap states · resilience · primary paths",
+            "AXES": "criteria · personas · second actors · gap states · primary paths · resilience · contract inputs · i18n · exclusions · length · life-cycle arcs (UI types)",
             "EXEMPT_NOTE": " (The Phase-6 `Status: DRAFT → FROZEN` header flip is a post-convergence write, exempt from this rule — not a journey edit; it does not re-open the loop.)",
         },
         "questionbar": {
@@ -668,7 +668,7 @@ PARAMS = {
             "ARTIFACT": "contract",
             "DONE_ACT": "attest the contract independently REVIEWED",
             "DONE_WORD": "REVIEWED",
-            "AXES": "tracing · personas · second actors · gap states · primary/resilience · discipline · cross-artifact",
+            "AXES": "tracing · personas · second actors · gap states · primary/resilience · life-cycle arcs (UI types) · discipline · cross-artifact",
             "EXEMPT_NOTE": "",
         },
         "grounding-artifact": {
@@ -680,7 +680,7 @@ PARAMS = {
             "TASK_TYPE": '"review"',
             "PROJECT": "flows-review",
             "FLOOR": _floor("review", "`fabrik-researcher`"),
-            "EXTRA": ' Axis-reviewers (tracing · persona completeness · discipline/exclusions · cross-artifact vs the spec) inline their contract slice via `mode="read_only"`. The second-actor and async-boundary axes — the two highest-yield, judgment-heavy hunts — stay on Opus.',
+            "EXTRA": ' Axis-reviewers (tracing · persona completeness · discipline/exclusions · cross-artifact vs the spec) inline their contract slice via `mode="read_only"`.',
         },
     },
     "fabrik-ui-design-review": {
@@ -783,7 +783,7 @@ PARAMS = {
             "HEADLINE": "pool-default for gradeable fan-out (records to the flywheel)",
             "TASK_TYPE": '"docs"',
             "PROJECT": "docs-review",
-            "FLOOR": _floor("docs review", "`fabrik-researcher`"),
+            "FLOOR": _floor("docs review", "`fabrik-reviewer`"),
             "EXTRA": " Reconciliation breadth is mostly mechanical → cheap pool (+ optional Haiku/Sonnet native samples for the external live-checks); keep Opus for the authoritative pass + the doc-routing decide.",
         },
     },

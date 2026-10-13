@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T00:47:30.659411Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8bbf4715",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4F154S2KVQ75BCWHR350DN3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "a review seat's probe imported the live tree and fired ~150 real Namecheap API calls (site-provisioner, 2026-10-07)"
+}

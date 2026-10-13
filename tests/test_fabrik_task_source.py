@@ -71,7 +71,24 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # the prior record, the measured population, live contract probes — 25 feedback rows).
 # D-705 (kaizen, 2026-10-08): 13610 -> 13941 for phase 2's `--terminal-amend` sentence (infra built
 # the verb at 15423ef2f; MEASURE or the critiques can narrow what ends the run — 5 feedback rows).
-SIZE_CAP = 13941
+# D-734 (kaizen, 2026-10-11): 13941 -> 16326 for the one-pass answer to the whole /fabrik-task queue (D-735):
+# measure by executing the real path, MIRROR's whole-tree search and fail direction, the lane's critique-brief
+# additions, the pre-record checklist, graders, v1's single commit, phase 4's third question, and the
+# receipt's range tip — ~150 feedback rows.
+# D-747 (kaizen, 2026-10-12): 16326 -> 19497 for the second pass over the /fabrik-task queue (D-735): the
+# specific MEASURE, MIRROR, critique-brief, grader, review-sizing and receipt steps the first pass left open —
+# 53 feedback rows.
+# D-750 (infra, 2026-10-12): 19497 -> 19706 for the working-tree receipt route (W-ebbedc88): review before the
+# commit, `review_receipt.py --restamp` after the last fix, check (d) re-hashes the receipt's paths — 6 rows.
+# D-789 (infra, 2026-10-13): 19706 -> 19729 — the receipt exemption names its `archived/` carve-out
+# (review A-S4/B-S1: a `*.md` glob read as direct children only and hid the exception).
+# D-797 (kaizen, 2026-10-13): 19729 -> 19873 — phase 4 says up front that a nested full review over committed work
+# inits its receipt with `--range` and commits it alone (row 1791845646).
+# D-803 (kaizen, 2026-10-13): 19873 -> 19930 — phase 3 never runs a formatter by hand beyond the declared paths
+# (row 1791848436: a package-wide ruff format rewrote 8 untouched files).
+# D-811 (kaizen, 2026-10-13): 19930 -> 20060 — the plan-lock check runs before phase 2's `--design` over every
+# backticked path and again at phase 3 for amended paths and new locks (row 1791868540).
+SIZE_CAP = 20060
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -479,8 +496,8 @@ def test_design_note_names_behaviours_cap_and_the_design_amend_remedy() -> None:
         "Behaviours' tests, deletions and a rename's both paths included, under line-start "
         "UPPERCASE `APPROACH:`/`MIRROR:` labels, before any line opening with a field word or a "
         "`#` (fenced or not), one bare repo-relative path per backtick pair (`a.py::f`, "
-        "`a.py:120` and `a.py, b.py` match nothing; of receipts, only a `--review` one is "
-        "exempt): *(v2)* a committed path missing from both "
+        "`a.py:120` and `a.py, b.py` match nothing; a `.md` under `docs/development/reviews/` "
+        "but `archived/` is exempt): *(v2)* a committed path missing from both "
         "REFUSES `done` at close (v1 measures `--file` instead and only RECORDS);"
     )
     amend = (

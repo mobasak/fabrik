@@ -39,12 +39,14 @@ feedback report read it.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
 import posixpath
 import re
 import secrets
+import shlex
 import subprocess
 import sys
 import time
@@ -561,6 +563,22 @@ def _norm_all(paths: list[str]) -> list[str]:
     return [q for q in dict.fromkeys(_norm_path(p) for p in paths) if q]
 
 
+# A design note CITES code — `scripts/x.py:340-373`, `scripts/x.py::func`, `x.py:12:5` — and the
+# citation names the file. Stripped only from design paths and amendments: `--file` and the receipt
+# keep the raw spelling `start` read them with (W-ebbedc88, kaizen 01M4N1K909 row 1791465412).
+_CITED_SUFFIX = re.compile(r"(?:::[A-Za-z_][\w.]*|:\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)+$")
+
+
+def _norm_cited(path: str) -> str:
+    """A design-note citation as the path it names; a token that is ONLY a suffix is kept."""
+    p = path.strip()
+    return _norm_path(_CITED_SUFFIX.sub("", p) or p)
+
+
+def _norm_cited_all(paths: list[str]) -> list[str]:
+    return [q for q in dict.fromkeys(_norm_cited(p) for p in paths) if q]
+
+
 def _undeclared(
     commits: list[Rows], declared: set[str], inherit: set[str], exempt: Callable[[str], bool]
 ) -> list[str]:
@@ -658,7 +676,7 @@ def measure_close(
     if verb not in _CLOSE_VERBS:
         raise ValueError(f"verb must be one of {_CLOSE_VERBS} (got {verb!r})")
     files = _norm_all(rec.files)
-    amended = _norm_all(rec.amendments)
+    amended = _norm_cited_all(rec.amendments)
     # The receipt is spelled by the operator like a declared path, so it is normalised the
     # same way, once, for both the stamped and the unstamped close (T03a-O11).
     receipt = _norm_path(receipt) or None if receipt is not None else None
@@ -710,7 +728,7 @@ def measure_close(
         )
         findings.append(f"UPGRADE: {t} — {raised[t]}{tail}")
 
-    declared = set(_norm_all(rec.design_paths)) | set(amended)
+    declared = set(_norm_cited_all(rec.design_paths)) | set(amended)
     undeclared = _undeclared(commits, declared, declared | set(files), _exempt)
     if undeclared and verb == "done":
         refusals.append(
@@ -757,6 +775,12 @@ _CHECKER_TIMEOUT = 300
 _HEADER_LINES = 10
 _COMMAND_FIELD = re.compile(r"^\*\*Command:\*\* (.*)$", re.M)
 _SURFACE_FIELD = re.compile(r"^\*\*Surface:\*\*(.*)$", re.M)
+# The working-tree form `review_receipt.py --init` writes without --range (its `_surface`, and its
+# own `_WT_SURFACE` for `--restamp`); tests round-trip a real `--init` through this reader.
+_WT_SURFACE = re.compile(
+    r"`git rev-parse HEAD` = (?P<head>\S+); `git diff HEAD -- (?P<paths>[^`]*)`"
+    r"(?: \+ (?P<n>\d+) untracked file\(s\))? md5 (?P<md5>[0-9a-f]{32}) \((?P<bytes>\d+) bytes\)"
+)
 # `review_receipt.py --range A..B` writes `… = <HEAD>; range tip <sha>; `git diff …`` on the
 # Surface line (review_receipt.py `_surface`); an unresolvable endpoint is written `?`.
 _RANGE_TIP = re.compile(r"; range tip ([^\s;]+)")
@@ -857,6 +881,77 @@ def _resolve_commit(root: Path, rev: str) -> str | None:
     return sha or None
 
 
+def _working_tree_reasons(root: Path, wt: re.Match[str], last_in: str) -> list[str]:
+    """Check (d) for a WORKING-TREE Surface: the receipt hashed `git diff HEAD -- <paths>` (plus
+    every untracked path's bytes) at review time; the commit must hold that exact diff. The
+    writer's bytes are rebuilt from git — `git diff <base> <last> -- <tracked paths>` plus, for
+    the paths new between them, the writer's `--- untracked:` blocks — and compared by byte count,
+    then md5. Empty, unresolvable or unrebuildable refuses (fail closed).
+
+    What it proves: the commit equals the review over the Surface's own paths — a reviewed SUBSET
+    of the committed paths passes, as with the range form. What can falsely refuse: diff config
+    that differs between the writer's call and this one (`diff.mnemonicPrefix`, `diff.noprefix`,
+    `core.abbrev` growth, an external diff) — a refusal, never a false pass.
+    """
+    head, md5, nbytes = wt.group("head"), wt.group("md5"), int(wt.group("bytes"))
+    remedy = (
+        "run `review_receipt.py --restamp <receipt>` after the last fix and before the commit, "
+        "or re-make it with `review_receipt.py --init --range <base>..<last commit>`"
+    )
+    base, last = _resolve_commit(root, head), _resolve_commit(root, last_in)
+    if base is None:
+        return [f"(d) the receipt's Surface base {head} does not resolve to a commit — {remedy}"]
+    if last is None:
+        return [f"(d) the last --commit {last_in} does not resolve to a commit"]
+    try:
+        tokens = shlex.split(wt.group("paths"))
+    except ValueError as exc:
+        return [f"(d) the receipt's Surface paths cannot be parsed ({exc}) — {remedy}"]
+    if not tokens:
+        return [f"(d) the receipt's Surface names no paths — {remedy}"]
+    n = int(wt.group("n") or 0)
+    # The writer appended every UNTRACKED file under its pathspecs (`git ls-files --others`, sorted);
+    # in the commit those are the files under the same pathspecs absent at the base — a directory
+    # token expands to its files here exactly as it did there (review A-S1).
+    # With no untracked file the writer's diff already carried every path (a new file staged before
+    # the review included), so the plain diff is the whole blob.
+    files: dict[str, set[str]] = {base: set(), last: set()}
+    for rev in (base, last) if n else ():
+        r = _git(root, "ls-tree", "-r", "--name-only", "-z", rev, "--", *tokens)
+        if r is None or r.returncode != 0:
+            return [f"(d) `git ls-tree {rev[:12]}` failed — the receipt cannot be checked"]
+        files[rev] = {f for f in r.stdout.decode("utf-8", "surrogateescape").split("\0") if f}
+    new = sorted(files[last] - files[base])
+    if len(new) != n:
+        return [
+            f"(d) the receipt names {n} untracked file(s) but {len(new)} file(s) under its paths are "
+            f"new between {base[:12]} and {last[:12]} — the reviewed bytes cannot be rebuilt "
+            f"(a new file staged before the review, or one added after it); {remedy}"
+        ]
+    r = _git(root, "diff", base, last, "--", *tokens, *(f":(exclude,literal){p}" for p in new))
+    if r is None or r.returncode != 0:
+        return [f"(d) `git diff {base[:12]} {last[:12]}` failed — the receipt cannot be checked"]
+    blob = r.stdout
+    for p in new:
+        r = _git(root, "show", f"{last}:{p}")
+        if r is None or r.returncode != 0:
+            return [f"(d) `git show {last[:12]}:{p}` failed — the receipt cannot be checked"]
+        blob += f"\n--- untracked: {p}\n".encode() + r.stdout
+    if not blob:
+        return [
+            f"(d) the commit's diff over the receipt's paths is EMPTY ({base[:12]}..{last[:12]}) "
+            f"— a receipt anchored to nothing reviews nothing; {remedy}"
+        ]
+    got = hashlib.md5(blob, usedforsecurity=False).hexdigest()
+    if len(blob) != nbytes or got != md5:
+        return [
+            f"(d) the commit's diff over the receipt's paths ({len(blob)} bytes, md5 {got}) is not "
+            f"the reviewed one ({nbytes} bytes, md5 {md5}) — something changed after the receipt "
+            f"was stamped; {remedy}"
+        ]
+    return []
+
+
 def check_review_receipt(path: Path, commits: list[str], *, root: Path) -> list[str]:
     """The refusal reasons for a ``--review <receipt>`` on a ``done``/``handoff`` close that owes
     the full review (``CloseVerdict.needs_full_review``); empty when all four hold. Reasons
@@ -873,10 +968,12 @@ def check_review_receipt(path: Path, commits: list[str], *, root: Path) -> list[
     (c) the header zone holds exactly one line-start ``**Command:**`` field, and its token — the
         text up to the next `` · `` — is exactly ``/fabrik-review`` (``/fabrik-review-scoped``
         shares the prefix and is refused);
-    (d) the header zone holds exactly one ``**Surface:**`` field, its ``range tip`` (written by
-        ``review_receipt.py --range``) and the LAST of ``commits`` both resolve with ``git
-        rev-parse`` to the same full SHA — a short SHA is compared in full, an ambiguous one
-        refuses.
+    (d) the header zone holds exactly one ``**Surface:**`` field, and EITHER its ``range tip``
+        (written by ``review_receipt.py --range``) and the LAST of ``commits`` both resolve with
+        ``git rev-parse`` to the same full SHA — a short SHA is compared in full, an ambiguous one
+        refuses — OR it is the working-tree form ``--init`` writes without ``--range`` and the
+        commit's diff over its paths rebuilds to the same bytes (``_working_tree_reasons``; re-anchor
+        with ``review_receipt.py --restamp`` after the review's last fix — W-ebbedc88).
 
     (d) is TIP-ONLY, as the spec words it: the range's base is not checked, so a receipt over
     ``<last>~1..<last>`` passes for a run with earlier commits.
@@ -968,10 +1065,15 @@ def check_review_receipt(path: Path, commits: list[str], *, root: Path) -> list[
             f"(d) the receipt's header holds {len(surfaces)} **Surface:** line(s), not exactly one"
         )
     elif m is None:
-        reasons.append(
-            "(d) the receipt's **Surface:** line carries no range tip — make it with "
-            "`review_receipt.py --range <base>..<last commit>`"
-        )
+        wt = _WT_SURFACE.search(surfaces[0])
+        if wt is None:
+            reasons.append(
+                "(d) the receipt's **Surface:** line carries neither a range tip nor the "
+                "working-tree form — make it with `review_receipt.py --init` (re-anchored with "
+                "`--restamp` after the last fix) or `--range <base>..<last commit>`"
+            )
+        else:
+            reasons.extend(_working_tree_reasons(root, wt, commits[-1]))
     else:
         tip, last = _resolve_commit(root, m.group(1)), _resolve_commit(root, commits[-1])
         if tip is None or last is None or tip != last:

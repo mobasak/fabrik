@@ -1,0 +1,26 @@
+{
+  "block_digest": "83c1e0a3be80502047f0ca3348e2994b1ab0dce33df2cdb392516a0b934298c3",
+  "blocked_by": [],
+  "created": "2026-10-11T20:59:05.113161Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-af26cdfb",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "34636a48e92fea18c7140489d57d111577fd9af5a3ee255155d0c9b6a998dd3b"
+  ],
+  "next": "",
+  "note": "operator 2026-10-12: 'you can copy it proceed and do not stop again for the things you can handle yourself' — fleet copied the DSN into /opt/fabrik/.env itself",
+  "owner": "",
+  "priority": 2,
+  "question": "Will you copy session-recall's read-only database URL into the hub's env so the pruner can see the index?",
+  "status": "done",
+  "title": "Will you copy session-recall's read-only database URL into the hub's env so the pruner can see the index?"
+}

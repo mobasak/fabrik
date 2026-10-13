@@ -6,6 +6,12 @@
 .env.*BACKUP*
 .env.env.backup.*
 
+# Box-side secret files beside the infra/ compose mirrors (W-d9ccd618): a whole-dir pull from the
+# box must never stage the Cloudflare token, ACME private keys or basic-auth hashes
+infra/**/cf.env
+infra/**/acme*.json
+infra/**/htpasswd
+
 # VPS env dumps (plaintext secrets — local reference only)
 docs/reference/vps-all-container-envs.txt
 docs/reference/vps-env-*.txt

@@ -1551,6 +1551,13 @@ _FLEET_TOKEN_FRESH_S = 8 * 3600
 # --status/--tick warn inside _CHAIN_EXPIRY_WARN_S with the exact re-login block, and the tick
 # pushes once per chain (mesh-notify) inside _CHAIN_PUSH_S. The old --keepalive ping is retired.
 _CHAIN_PUSH_S = 3 * 86400
+# W-e8fc8685: an UNCONFIRMED chain push is re-attempted at the first tick at or past this many
+# seconds after the last attempt, never every tick — set equal to the notifier's own delivered-send
+# window (`claude-sound.sh mesh-notify`: `[ $((now - last)) -lt 1800 ]`), which no retry inside it
+# could beat after a delivered send; after a FAILED send it delays the next try by at most one
+# window plus the tick's 5 minutes, on a 3-day horizon. Restated, not derived: the notifier lives
+# outside the repo (~/.claude/bin). The printed strings take their minutes from this constant.
+_CHAIN_PUSH_BACKOFF_S = 1800.0
 
 
 def _pull_opts(args: list[str], names: tuple[str, ...]) -> tuple[list[str], dict[str, str], bool]:
@@ -2699,7 +2706,8 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     planted) cannot read 0 first and as itself after with nothing written. The mirror is
     fail-closed: a forward clock step past the tolerance in the instant between that value and
     the notifier's own `date +%s` reads a delivered send as unconfirmed, and the caller
-    re-attempts it each tick — the notifier's own window suppresses the resend until it lapses,
+    re-attempts it at the first tick at or past `_CHAIN_PUSH_BACKOFF_S` — the notifier's own
+    window suppresses the resend until it lapses,
     so the operator may see one duplicate — never a silent stamp at the chain push, the one
     caller that reads this return (the other callers latch their own stamps regardless of it).
     `mesh-notify` exits 0 on every
@@ -7603,12 +7611,21 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
     chain (new expiry) re-arms by itself. The stamp is written ONLY after the notifier's own
     success artifact advanced (delivery is never inferred from its exit code) under the push's
     OWN key (`quota-rotation-chain-<digest>`) — a rotation notification's 30-minute window can
-    never eat it — and an unconfirmed push is retried next tick with every cause this side can
-    know printed. A state dir that refuses the stamp is printed and the push repeats, bounded by
-    the notifier's window. A LOCK dir that refuses the notifier's own artifact defeats both,
-    because the stamp is written only after the artifact ADVANCED (that is the confirmation) and
-    the notifier's window is read from that same file: every tick then re-attempts the push —
-    and delivers it again whenever the send itself succeeds — until the operator fixes the dir.
+    never eat it — and an unconfirmed push is retried at the first tick at or past
+    ``_CHAIN_PUSH_BACKOFF_S`` after the ATTEMPT, never every tick (W-e8fc8685): the attempt's
+    epoch is the mtime of a sibling stamp (`<stamp>.attempt`, dated with the tick's `now` BEFORE the
+    spawn, so a notifier that hangs or fails to start still counts), checked after the delivery
+    stamp so a delivered chain never touches it; a missing, future-dated or non-regular
+    sibling reads as "attempt now" and is re-dated (a regular sibling nobody can read still dates
+    by `lstat`, so it holds the backoff until it ages out); one the state dir refuses (or a planted
+    link or FIFO `_touch_stamp` refuses to write through) leaves the per-tick cadence, and the
+    UNCONFIRMED line says which cadence applies with every cause this side can know printed. A
+    state dir that refuses the delivery stamp is printed and the push repeats once per backoff
+    (per tick when the attempt sibling could not be recorded either). A LOCK dir that refuses the notifier's own artifact defeats the delivery
+    stamp, because it is written only after the artifact ADVANCED (that is the confirmation) and
+    the notifier's window is read from that same file: the push is then re-attempted — and
+    delivered again whenever the send itself succeeds — once per backoff until the operator
+    fixes the dir.
     Returns the number of pushes CONFIRMED — a delivered push whose artifact never advanced is
     not counted. Never raises."""
     sent = 0
@@ -7627,6 +7644,23 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
             stamp, why = None, e  # the state dir cannot be made: reported below, never raised
         if stamp is not None and _stamp_holds(stamp, key):
             continue
+        # The attempt backoff (W-e8fc8685). The sibling is read and dated with the SAME `now` the
+        # tick took; `0 <= age` makes a future-dated sibling (a clock step back) an attempt now.
+        attempt_note = (
+            f" (attempt epoch not recorded: state dir unavailable: {type(why).__name__}: {why})"
+            if stamp is None
+            else ""
+        )
+        if stamp is not None:
+            attempt = stamp.with_name(stamp.name + ".attempt")
+            age = None if (m := _regular_stamp_mtime(attempt)) is None else now - m
+            if age is not None and 0 <= age < _CHAIN_PUSH_BACKOFF_S:
+                continue  # inside the backoff: no spawn, no line
+            try:
+                _touch_stamp(attempt, now)
+                attempt_note = ""
+            except OSError as e:
+                attempt_note = f" (attempt epoch not recorded: {e})"
         slugs = row.get("slugs") or []
         slug = row.get("refresh_expires_slug") or (slugs[0] if slugs else "<slug>")
         left = exp - now
@@ -7642,10 +7676,13 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
             key=notify_key,
         )
         if delivered is not True:
-            print(
-                f"chain push: {email} push UNCONFIRMED — {_notify_failure_reason()}"
-                " — retried next tick"
+            cadence = (
+                f"retried next tick{attempt_note}"
+                if attempt_note
+                else "retried at the first tick at or past the "
+                f"{_CHAIN_PUSH_BACKOFF_S / 60:.0f}-minute backoff"
             )
+            print(f"chain push: {email} push UNCONFIRMED — {_notify_failure_reason()} — {cadence}")
             continue
         sent += 1
         try:
@@ -7653,10 +7690,12 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
                 raise OSError(f"state dir unavailable: {type(why).__name__}: {why}")
             _write_stamp(stamp, key)
         except OSError as e:
-            print(
-                f"chain push: {email} stamp unwritable ({e}) — the push repeats next tick, "
-                "bounded by the notifier's window"
+            repeat = (
+                f"repeats at the first tick at or past the {_CHAIN_PUSH_BACKOFF_S / 60:.0f}-minute backoff"
+                if not attempt_note
+                else f"repeats next tick{attempt_note}"
             )
+            print(f"chain push: {email} stamp unwritable ({e}) — the push {repeat}")
     return sent
 
 

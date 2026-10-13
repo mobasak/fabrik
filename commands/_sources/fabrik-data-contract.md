@@ -54,7 +54,13 @@ already exists as an unfrozen skeleton. **A DRAFT stub is meant to be edited thr
 STOP** (the explicit exception to CLAUDE.md's "file exists = STOP" — that rule guards against clobbering *real* content, and a
 placeholder stub has none). Modes A/B rewrite its body from the design/schema; Mode C fills it. **Only if the
 file is already `FROZEN`** do you STOP and ask; on the user's confirmation, proceed as a **re-freeze** — bump
-`Version`, never a silent overwrite.
+`Version`, never a silent overwrite. An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds its approval — a row naming the
+spec's path that records the panel's `→ both-approve` or the operator's approving answer (a DRAFT or CONVERGED-flip row is
+not one) — and its § Contract deltas (the section a `Profile: delta` spec carries; a spec without one still
+stops) names the change: cite that row and the spec in the re-freeze's D-row and
+proceed. Anything else still stops: no approval row, or any field, column, type, validation, PII, reference or enum
+change the deltas do not name, which Phase 3's closing round re-checks before the Phase-4 flip. A `Version` that
+moved since the spec renumbers only when the spec says it does and the interim versions touch none of its deltas.
 
 ## Phase 1 — Build the field inventory (dual-source, grounded, adversarial)
 
@@ -97,7 +103,8 @@ does not count.
 ## Phase 2 — Emit the contract (the frozen shape)
 
 Write `docs/data-contract.md` to **exactly the shape of the seeded template** — the stub was scaffolded from
-`templates/scaffold/docs/data-contract-template.md`, which **is the canonical shape**. Fill/rewrite its
+`templates/scaffold/docs/data-contract-template.md`, which **is the canonical shape** (plus an existing
+Pass Ledger section, which is kept — Phase 3). Fill/rewrite its
 sections, in order: **house rules · entities · GUI↔DB reconciliation notes · enum registry · retention ·
 FREEZE CHECKLIST**. Keep it lean — do NOT re-introduce event/analytics tracking, a *per-field*
 retention/lawful-basis apparatus, or distribution machinery (out of scope; the retention section below is
@@ -145,6 +152,11 @@ project-level and light). Per section:
 ## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)
 
 Run repeated reconciliation passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged — is reached.
+The Pass Ledger lives in the contract's Pass Ledger section when it carries one, else in the closing report; a
+re-freeze adds its own dated version entry there after that closing round, so its absence is never a finding in
+any round of the run. A run paused before that round (the Termination contract's no-seat pause) carries its rows
+so far in its `blocked --reason` (free text; `--feedback` is the capped usage line), and the resumed run copies
+them into the entry, or into the closing report when the contract has no ledger section.
 Each pass checks ALL of:
 
 1. **Coverage** — every entity from the spec (Mode A) / schema (Mode B) is present; every GUI/form field maps to
@@ -160,6 +172,8 @@ Each pass checks ALL of:
    per-row `⚠ non-standard: <what>` note.
 4. **Completeness** — every field has type + req + PII class; every enum registered; the retention table covers
    every `personal`/`sensitive` category.
+5. **Re-freeze deltas (D-730)** — on a re-freeze confirmed by an approved spec, every change in the reconciled
+   body is named by that spec's § Contract deltas; anything else STOPs before the Phase-4 flip.
 
 After each pass, list what you reconciled (which `path:line` / spec sections you re-read) and what you changed,
 then run one MORE pass — the loop terminates ONLY at the Termination contract's closing round (`confirmed: 0`, md5-verified).
@@ -172,8 +186,8 @@ then run one MORE pass — the loop terminates ONLY at the Termination contract'
   operator rules otherwise).
 - Set the header: **`Status: FROZEN` · `Version: v<N>` · `Date: <YYYY-MM-DD>` · `Mode: A|B|C`**. Add the freeze
   rule verbatim: *"Frozen — no agent adds a field, column, or enum value not listed here. Any change = bump
-  Version + re-freeze via `/fabrik-data-contract`."* **This status/header write is a post-convergence action,
-  exempt from the no-op rule** — the md5 anti-cheat is measured on the reconciliation *body* during the final
+  Version + re-freeze via `/fabrik-data-contract`."* **This status/header write — and the version's Pass Ledger entry
+  (Phase 3) — is a post-convergence action, exempt from the no-op rule** — the md5 anti-cheat is measured on the reconciliation *body* during the final
   reconciliation pass (the closing round), so flipping `DRAFT → FROZEN` *after* that verified closing round does
   not re-open the loop.
 - **Do not commit** unless the user says so this turn (`git add` is fine). ⚠️ **Superseded where it conflicts with CLAUDE.md § EXIT:** an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed. **COMMIT the artifact** — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that. What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28). `docs/data-contract.md` is a
@@ -194,8 +208,8 @@ then run one MORE pass — the loop terminates ONLY at the Termination contract'
 {{include:questionbar}}
 ## Guardrails — never
 - Freeze on a pass whose *reconciliation* made edits — the closing round (`confirmed: 0`, md5-verified) is the ONLY thing that earns
-  `FROZEN`. (The Phase-4 `Status → FROZEN` header flip is the exempt post-convergence write, not a reconciliation
-  edit — see the Termination contract + Phase 4.)
+  `FROZEN`. (The Phase-4 `Status → FROZEN` header flip and the version's Pass Ledger entry are the exempt post-convergence
+  writes, not reconciliation edits — see the Termination contract + Phase 4.)
 - Invent a field, type, or enum value not grounded in the spec (Mode A) or the real schema (Mode B) — read it at
   `path:line` or leave it out.
 - Auto-migrate an existing violation (integer PK → uuid, add columns) — **flag and grandfather**; migrations are

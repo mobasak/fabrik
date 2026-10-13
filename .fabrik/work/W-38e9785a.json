@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:37:17.407462Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-38e9785a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4PAJWV18SAJ2ARSWPWJ67CZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: The work-queue Stop hook (and the claim it orders) fires inside headless `claude -p` child sessions that a project's own code spawns. In iterative_image_editor the catalogue copy engine (src/catalog/copy_engine.py, `claude -p` asked for strict JSON) got prose back instead: \"I'm not claiming W-"
+}

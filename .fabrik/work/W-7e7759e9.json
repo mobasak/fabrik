@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:58.586482Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7e7759e9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4PSYN6YBX4VS2AWN8HWXT60",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "/fabrik-docs-review feedback queue — 5 verdict(s) that need CODE in your beat (kaizen one-pass triage, D-735)"
+}

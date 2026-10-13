@@ -28,13 +28,15 @@ Opus seat in its place, and say so in the presentation with the reason. Never pr
 **Once both critiques are in hand (the stand-in Opus seat's when Fable failed, the re-dispatched seat's when
 one came back empty), you adjudicate every concern by executing its claim**, then give it one disposition:
 - `ACCEPTED` — the change is applied, and reviewed before anyone approves it: in spec-review and plan-review
-  it re-opens the loop for ONE delta round by the round-1 seats over the fix, and `Status: CONVERGED` stands only
-  if that round confirms 0 (else the loop continues); in `/fabrik-task` you edit `design.md` before `step
+  it re-opens the loop for ONE delta round by the round-1 seats over the fix, recorded as the next Pass with every slice an earlier round stated re-stated in `--slices`, and `Status: CONVERGED` stands only
+  if that round confirms 0 (else the loop continues — that round is a delta round of the same loop, so its
+  own-fix defects count in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row); an OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift; in `/fabrik-task` you edit `design.md` before `step
   --design` records it, which works on both lane versions;
 - `REJECTED` — with the counter-evidence;
 - `OPEN` — the operator rules on it (at a design-approval gate, an OPEN concern makes the panel split).
 
-Run the step once per artifact version: an md5 already critiqued in this run is not re-dispatched. In
+Run the step once per artifact version: an md5 already critiqued in this run is not re-dispatched, and a version that
+ONLY folds its ACCEPTED concerns is not a new one — the delta round reviews it, or `/fabrik-task` records it as is. In
 `/fabrik-task`, present both critiques with the design: each seat's verdict, then each concern with its
 disposition. At a design-approval gate, the panel step that follows decides what reaches the operator.
 

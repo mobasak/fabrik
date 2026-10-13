@@ -3,7 +3,8 @@
 Box-local. What keeps this machine's Claude Code session transcripts safe, where the copy lives,
 and how to get a transcript back. Decisions: D-142 (archive, not session-recall, is the durable
 tier), D-470 (local retention 3650 days on every account), D-565 (ship direct to Backblaze B2),
-D-569 (the plan's converged revision). Plan:
+D-569 (the plan's converged revision), D-736 (the operator's ruling: every history in B2, ~3 days
+local, the four named hub windows, never a session visible on screen), D-737 (Phase C). Plan:
 `docs/development/plans/2026-09-06-plan-1-session-history-retention.md`.
 
 ## What runs
@@ -13,7 +14,9 @@ D-569 (the plan's converged revision). Plan:
 | `session-archive.timer` | `~/.config/systemd/user/` (source: `scripts/sysadmin/systemd/`) | daily, `Persistent=true` — a run missed while the machine was off fires when the user manager next starts; linger keeps that manager up without a login |
 | `session-archive.service` | same | `ExecStartPre=-` the growth sampler (its failure never skips the backup), then the archiver; a failed run (e.g. no network at boot) is retried every 15 min, at most 4 times in 2 h |
 | `scripts/sysadmin/sample_transcript_growth.sh` | main checkout | one row a day into `~/.claude/state/transcript-growth.tsv` (date, MAIN bytes, files, largest) |
+| `scripts/sysadmin/transcript_size_check.py` | user-level hook (every window) | the ROTATE advisory (D-736 C.1.3): one `ROTATE:` line when a session's transcript crosses a new 100 MB step at or past `ROTATE_ADVISE_MB` (200) — `/clear <agent>-<date>`, then the informed `--force` re-bind; stamped per session, fail-open |
 | `scripts/sysadmin/archive_transcripts.py` | main checkout | zstd each MAIN transcript (`ARCHIVE_AFTER_DAYS`, default 0 — an open window ships a daily snapshot, compressed from a frozen copy) into `~/.claude/archive/<slug>/<session>.jsonl.zst`, append `manifest.jsonl`, `rclone copy` to the bucket, then upload the manifest |
+| `scripts/sysadmin/prune_transcripts.py` | main checkout — the unit's second `ExecStart=-` line, after the archiver | the ONLY deleter of MAIN transcripts (D-736 C.2): on `--dry-run` (a hand run; the unit ran this mode until Gate C passed on 2026-10-12) it prints the table and writes a summary row to `~/.claude/archive/prune-log.jsonl`; on `--apply --nightly` it deletes the oldest `PRUNE_MAX_PER_RUN` (200) transcripts that pass EVERY guard — older than `PRUNE_AFTER_DAYS` (3), not an OPEN session, not a project's or an agent's newest, indexed by session-recall to the current inode and size, current sha256 = the manifest row's, the `.zst` decompressing to those bytes, the bucket listing it with the same size and SHA1, every hard-linked name passing — one fsynced `pruned.jsonl` row BEFORE each unlink; `--restore <session_id>` puts one back, `--verify-ledger` re-lists every pruned object, `--status` shows the last row and the last apply row; the subagent tier (sidechains, `~/.claude/tasks`, `~/.claude/shell-snapshots`) is a 3-day cliff, never archived |
 
 Install (from the main checkout, once the archiver change is merged):
 
@@ -33,9 +36,13 @@ copies them and enables the timer.
   is restricted to that bucket and lives in the same file; the archiver reads ONLY the
   `SESSION_ARCHIVE_*` lines.
 - **Local** `~/.claude/archive/` holds the same `.zst` files and the manifest.
-- The transcripts themselves stay in `~/.claude/projects/` (3650-day retention, D-470), so
-  session-recall keeps indexing all of them. Nothing prunes them: the pruner (plan Phase C) is
-  deferred until disk, a proven restore and session-recall's `--full` behaviour all allow it.
+- The transcripts themselves stay in `~/.claude/projects/` for at least 3 days (Claude's own
+  `cleanupPeriodDays` stays 3650, D-470 — its sweep is never the deleter). The ONE thing that
+  prunes them is `prune_transcripts.py` (the row above; D-736 superseding the Phase C deferral):
+  on `--apply --nightly` since Gate C passed on 2026-10-12 (the merge, the download proof through the
+  vps1 tunnel, session-recall's incremental ingest + `SESSION_RECALL_RO_DSN`, a 10-file canary). A pruned session is still read through session-recall and put back with
+  `prune_transcripts.py --restore <session_id>`; `prune_transcripts.py --status` and
+  `--verify-ledger` are the morning check.
 
 ## Safety properties
 
@@ -86,6 +93,52 @@ zstd -d /tmp/r.zst -o /tmp/r.jsonl                                              
 - Put a restored file back under `~/.claude/projects/<slug>/<session>.jsonl`; session-recall picks
   it up on its next incremental index.
 
+### After a prune — `prune_transcripts.py --restore`
+
+A session the pruner removed (Phase C, D-736) is listed in `~/.claude/archive/pruned.jsonl` — one row
+per deletion. A `main` row carries the tier, the slug, the session id, the sha256, the byte count, every
+path removed, the agent tag, the object key with its size and SHA1, and `pruned_at`; a `subagents` row
+carries the tier, its `kind` (`subagent`, `task` or `shell-snapshot`), the byte count, the paths and
+`pruned_at`, plus the slug and the parent session id — filled for a `subagent` kind, empty strings for a
+`task` or a `shell-snapshot`, which belong to no project — and nothing to restore from, since that tier
+is never archived — and that file ships to the bucket with the archive, so the list is off-box too.
+
+```bash
+cd /opt/fabrik
+.venv/bin/python scripts/sysadmin/prune_transcripts.py --restore <session_id> [--slug <slug>]
+```
+
+- It re-creates EVERY path the row names as one inode: when a hard-linked twin survived with the row's
+  sha256, the missing names are linked to it and nothing is fetched; otherwise the object is fetched
+  (the download host above applies), verified against the row's sha256, written to the first missing
+  path (never over an existing file) and hard-linked to the rest. The inode's `mtime` is set to now, so
+  the next dry-run keeps it for 3 more days; `/resume` lists it again.
+- A surviving path with ANOTHER sha256 is live history: the restore refuses (exit 3) and names it.
+- A failed fetch is a refusal naming the three causes (object absent · download host unreachable ·
+  rclone itself failed) with `--fetch`'s own line; nothing is written.
+- Exit codes: 0 restored · 3 refused · 1 error · 2 usage.
+
+### The morning check
+
+```bash
+.venv/bin/python scripts/sysadmin/prune_transcripts.py --status          # the last run's row and the last APPLY row
+.venv/bin/python scripts/sysadmin/prune_transcripts.py --verify-ledger   # every pruned object still listed with its size + SHA1
+.venv/bin/python scripts/sysadmin/archive_transcripts.py --agent infra   # one named window's history, newest first
+```
+
+## Named hub windows — `agent`, `--agent`, and the ROTATE line
+
+Each manifest row carries `"agent": "<name>"` when the session is bound to a hub agent (D-736 C.1): the
+latest `~/.claude/state/agent-identity.jsonl` row for its session id, else the registry join
+(`~/.claude/sessions/<pid>.json` → `pid`+`procStart` ↔ the identity row's `pid`+`pid_start`, as integers),
+which is what tags a window after `/clear`. `archive_transcripts.py --agent <name>` lists that agent's
+rows newest first with whether the local file still exists — "infra's history" is that list plus
+session-recall. The pruner keeps each agent's NEWEST session as well as each project's. When a window's
+transcript passes `ROTATE_ADVISE_MB` (200 MB) the user-level hook prints one `ROTATE:` line per 100 MB
+step: run `/clear <agent>-<date>` now, then `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent>
+--force` — the holder the line names is this window's own claude process, so the `--force` is informed;
+the previous session stays resumable and is archived that night.
+
 ## Checking it
 
 ```bash
@@ -102,4 +155,6 @@ means updating this page in the same change. This list is generated from those h
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
 - `scripts/sysadmin/archive_transcripts.py`
+- `scripts/sysadmin/prune_transcripts.py`
+- `scripts/sysadmin/transcript_size_check.py`
 <!-- END related-scripts -->

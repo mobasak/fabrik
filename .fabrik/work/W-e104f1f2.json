@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-09T02:47:39.478730Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e104f1f2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4F1E8PXT3KC8BV6ZDHDHG2E",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "test_sync_worktree_adoption pins .claude/settings.json hooks to 5fd58526 — red since 61ebee4cd (seat guard)"
+}

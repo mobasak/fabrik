@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: tryton-crm's synced libs/health_probe/ is stale. health_probe.py is still VENDORED-FROM fabrik-lib @ e48ba19c and calls"
 }

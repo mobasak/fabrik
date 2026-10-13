@@ -1,5 +1,5 @@
 ---
-description: Turn a rough idea into a dual-grounded, execution-ready design spec — a BLOCKING live-research gate for every external fact (never memory) + a BLOCKING best-practice/approach gate (leanest, pro-grade, low-maintenance, cited) + a fabrik-lib vendor→enhance→build verdict + 2–3 approaches + collaborative Q&A. TRIGGER — EN: "I have an idea for…", "let's design/spec/talk through this", "what's the best/leanest way to…"; TR: "yeni bir proje/özellik fikrim var", "bunu tasarlayalım/spec'leyelim", "bunun en sade yolu ne" — fires BEFORE any code/scaffold. SKIP: an existing spec's harden/re-verify (→ /fabrik-spec-review) or building an approved spec (→ /fabrik-plan-after-chat). Stage: 1-design.
+description: Turn a rough idea into a dual-grounded, execution-ready design spec — a BLOCKING live-research gate for every external fact (never memory) + a BLOCKING best-practice/approach gate (leanest, pro-grade, low-maintenance, cited) + a fabrik-lib vendor→enhance→build verdict + 2–3 approaches + collaborative Q&A. TRIGGER — EN: "I have an idea for…", "let's design/spec/talk through this", "what's the best/leanest way to…"; TR: "yeni bir proje/özellik fikrim var", "bunu tasarlayalım/spec'leyelim", "bunun en sade yolu ne" — fires BEFORE any code/scaffold. SKIP: an existing spec's harden/re-verify (→ /fabrik-spec-review) or building an approved spec (→ /fabrik-plan-after-chat); an as-built revision of a CONVERGED spec stays here as an amendment (`Profile: delta`). Stage: 1-design.
 argument-hint: "[the idea / feature / problem, or a docs/development/epics/YYYY-MM-DD-epic-<n>-<slug>.md path — omit to spec the idea in the current conversation]"
 ---
 
@@ -133,6 +133,11 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
 - **BLOCKING:** you may NOT present approaches (Phase 3) until every external dependency is either
   grounded-with-a-cited-source, OR recorded as a **named BLOCKING unknown with an explicit resolution step**.
   Never silently assume a vendor API behaves a certain way.
+- **An amendment that adds no external fact** (a spec revising an earlier spec, its parent) satisfies this gate
+  by saying so, naming the parent and its last live verification: `This amendment adds no external facts beyond
+  <parent spec path>, last verified live <date>.` Keep the words `no external facts` together:
+  `check_spec_convergence.py`'s pattern does not match "no NEW external facts", so a spec citing no URL then grades
+  SILENT-1a. The 1c approach floor (≥2 cited URLs, `APPROACH-FLOOR`) still applies to an amendment.
 
 ### 1b — Internal capability: the fabrik-lib vendor→enhance→build ladder (+ shape-level infra)
 
@@ -273,7 +278,7 @@ build this — never pick an approach from training memory or first instinct:
 
 **Parallelism — UNCONDITIONAL, every run.** Ground with **one native `fabrik-researcher` seat PER DEPENDENCY/capability, run in parallel** (recipe in **§ Subagents** below): a serial grounding that could
 have been parallel is wasted wall-clock. Keep ≥1 native `fabrik-researcher` on Opus for the authoritative-source
-verify-sample; then **you** synthesize. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). A hard cap outranks the floor (D-189): when `dispatch_headroom.py` prints fewer `SEATS:`, dispatch that many, name the dependencies no seat grounded, and dispatch them when headroom returns. The vendor-ladder verdict (1b) and
+verify-sample; then **you** synthesize. A 1c (best-practice) seat is dispatched after the 1a facts it rests on are grounded or executed, and its brief carries them, so a recommended practice cannot rest on a mechanism those facts refute: the 1a wave and the 1c wave are two dispatches, each with its own `dispatch_headroom.py` call, stamp and three-seat floor, and the seats of one wave go in one message. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). A hard cap outranks the floor (D-189): when `dispatch_headroom.py` prints fewer `SEATS:`, dispatch that many, name the dependencies no seat grounded, and dispatch them when headroom returns. The vendor-ladder verdict (1b) and
 the design judgment stay yours.
 
 ## Phase 2 — Collaborative Q&A (pin intent)
@@ -433,7 +438,12 @@ spec's plan is drafted before it and approved with it).
   internal consistency (architecture matches features); scope (single buildable spec or decompose);
   ambiguity (pick one interpretation, make it explicit); and — Fabrik-specific — did any capability skip the
   vendor ladder? is any external claim ungrounded or from memory? does every backticked `path:line` resolve
-  (grep it)? Fix all before proceeding.
+  (grep it)? Then grade the DRAFT the way the CONVERGED flip will: copy it to scratch under its own filename,
+  set the copy's Status line to `CONVERGED`, and run `python3 scripts/enforcement/check_spec_convergence.py <the copy>` — the script skips a spec with no `Status: CONVERGED` text (`NOT-CONVERGED: <path> - a DRAFT is not graded`),
+  and the copy prints every finding the flip is graded on (`SILENT-1a`, `APPROACH-FLOOR`, `NO-PERSONAS`,
+  `NO-LIFECYCLE` and `NO-INTAKE` among them) that the flip's reviewer — `/fabrik-spec-review`, or
+  `/fabrik-plan-review` for a `Size: small` spec — would otherwise reach rounds later.
+  Fix all before proceeding.
 - After the self-review, go straight to Phase 6 — for a full-profile spec, the independent
   `/fabrik-spec-review` convergence runs BEFORE the user approves, so the user approves a hardened
   (CONVERGED) spec, never an unverified DRAFT. **Exception — a `Size: small` spec (above):** Phase 6 skips

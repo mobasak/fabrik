@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:03:04.548493Z",
+  "creator": "infra",
+  "evidence": "3537f263d950c60916a1289a9e448ea9785137fd",
+  "id": "W-5c688a41",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-802",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "switch the --name-only reads to -z and split on NUL, with a grader on a quoted name",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "infra"
+  ],
+  "title": "final_gate's change-set reads (get_changed_files/_unpublished_files/get_writable_files, git --name-only) are not -z, so a C-quoted path (tab, quote, non-ASCII) enters the gate's scope as escaped text and is mis-scoped; _added_files already reads -z (D-802 review A-S4)"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T07:59:56.902941Z",
+  "creator": "infra",
+  "evidence": "70c131f917312dac153b3f62d15e1bd46cf4f34f",
+  "id": "W-05d3af0f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make the claim/continue cause stand down while the fleet band is AMBER/RED/WALL (read via quota_posture_hook's posture, as the coordinator spec D3 does for the ring cause) and say so in one line; test red on HEAD with a stubbed AMBER posture; full /fabrik-review (hook surface)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "status": "done",
+  "tags": [
+    "infra"
+  ],
+  "title": "Stop hook WORK WAITING (claim/continue) ignores the quota band: at fleet AMBER the contract says start nothing heavy (no new fan-out, plan phase or review round), yet the hook orders claiming the next queued item every turn; work.py's hold logic (scripts/work.py:4480-4535) knows only hold/runtime/waits-* tags, never the band — seen 2026-10-11 at weekly 91% AMBER, 16 queued items"
+}

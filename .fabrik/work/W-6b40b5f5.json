@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:55.441793Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6b40b5f5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4SMMQQBZ9H0MA950K9PGE2N",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "_REDERIVATION_ROW passes on ANY Pass/Round row, so a re-derivation token on an early round satisfies the closing-pass gate"
+}

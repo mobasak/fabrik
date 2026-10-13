@@ -33,7 +33,10 @@ orchestrator ("you dispatch and judge — you do not drive"). Work the HANDED-OF
    decides whether a spec is warranted; the brief makes that a 2-minute decision.
 
 **No unfalsifiable exits:** if rows remain when this session genuinely cannot continue, the report's final
-ledger row is marked **`NOT-QUIET (routes outstanding)`** and a `## RESUME` block names every open row, its
+ledger row is marked **`NOT-QUIET (routes outstanding)`** — declared on a line of its own, exactly
+``ledger: **`NOT-QUIET (routes outstanding)`**`` (the grader's `NOT_QUIET` accepts the marker and one
+parenthetical, then only closing markup or `.`/`!`: an em-dash tail or a sentence that goes on is read as discussion) — and a
+`## RESUME` block names every open row, its
 repro path, and the verbatim re-invocation command. A truncated run may NEVER present itself as quiet.
 
 ## Phase 7 — CONFIRMING ROUND (the code-changing pass is never the last)

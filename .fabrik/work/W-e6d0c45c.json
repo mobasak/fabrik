@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T22:08:32.533567Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e6d0c45c",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "right-now fix + /fabrik-review-scoped over scripts/review_receipt.py",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "kaizen-01m4n1k909"
+  ],
+  "title": "review_receipt.py --scope slugifies (or refuses) a value holding '/' or spaces — review_receipt.py:281 uses it raw in the stem (kaizen 01M4N1K909 group 6; row 1791324501)"
+}

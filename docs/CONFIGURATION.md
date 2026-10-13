@@ -119,6 +119,10 @@ New projects never needed a Coolify API token.
 | `SESSION_ARCHIVE_B2_KEY_ID` / `SESSION_ARCHIVE_B2_APPLICATION_KEY` | an application key restricted to that bucket, read + write |
 | `SESSION_ARCHIVE_B2_PREFIX` | path under the bucket, default `archive` |
 | `SESSION_ARCHIVE_ENV_FILE` | where the archiver reads every `SESSION_ARCHIVE_*` setting (key, bucket, prefix) from when the process environment lacks it or holds an empty value, default `/opt/fabrik/.env` — only `SESSION_ARCHIVE_*` lines are read |
+| `ROTATE_ADVISE_MB` | the ROTATE advisory's threshold in MB (default 200; D-736 C.1.3) — `scripts/sysadmin/transcript_size_check.py` prints its one line when a session's transcript is at or past it and has crossed a new 100 MB step; read from the process env, else this file's line |
+| `PRUNE_AFTER_DAYS` | the pruner's window in days (default 3; D-736 C.2.1 r1) — `scripts/sysadmin/prune_transcripts.py` never offers a MAIN transcript whose `mtime` is inside it, nor a subagent sidechain, task or shell snapshot; read from the process env, else this file's line |
+| `PRUNE_MAX_PER_RUN` | the cap on MAIN deletions per pruner run (default 200; C.2.2) — every run takes the oldest cap-many deletable inodes and reports the rest `deferred`; a hand run's `--max M` replaces it |
+| `SESSION_RECALL_RO_DSN` | session-recall's EXISTING read-only role `recall_ro` (`/opt/session-recall/db/schema.sql`), copied here by the operator — the pruner reads `index_state` by inode through it (C.2.1 r8) and deletes nothing it has not indexed to the file's current size; absent ⇒ every file is refused `not-indexed`. Never printed |
 | `ARCHIVE_ROOT` / `ARCHIVE_AFTER_DAYS` / `ARCHIVE_MAX_FILE_MB` | local archive dir (`~/.claude/archive`), idle window in days (default 0 — every MAIN transcript, so an open window ships a daily snapshot), optional per-file ceiling |
 
 **How to get the key:** B2 console → Application Keys → Add a New Application Key, restricted to
@@ -240,14 +244,14 @@ Boot every payments connection — ingest now, and the worker once its login exi
 
 ### Project database DSNs — `DATABASE_URL` / `DATABASE_URL_OWNER` and `shape.database_url_app_role` (auto-injected, do NOT set by hand)
 
-Every project with `shape.needs_database` carries two DSNs in its `.env`, both injected by the postgres registrar at `fabrik apply` and neither with a default in code (a missing value fails loudly at boot):
+Every project with `shape.needs_database` carries two DSNs — `DATABASE_URL` in its `.env` and `DATABASE_URL_OWNER` in its `.env.owner` (root 0600, loaded only by the services that declare it: the audit-jobs companion, a `migrate` service — the owner split, D-754) — both injected by the postgres registrar at `fabrik apply` and neither with a default in code (a missing value fails loudly at boot):
 
-- `DATABASE_URL_OWNER` — the database OWNER. Only schema work uses it: `db/schema.sql` (whose header reads `psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql`), migrations, runtime DDL, and the scheduled audit-log retention and verification jobs. It is the rollback DSN, so it is never removed.
+- `DATABASE_URL_OWNER` — the database OWNER. Only schema work uses it: `db/schema.sql` (whose header runs `u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql` — `pgurl` is the one-line shell function from the project's TROUBLESHOOTING § Debug Commands, defined inside the root shell by the header's `sed` half — under one `sudo sh -c` that sources `.env` and `.env.owner` first), migrations, runtime DDL, and the scheduled audit-log retention and verification jobs. It is the rollback DSN, so it is never removed.
 - `DATABASE_URL` — what the app connects with. On a fresh create both hold the owner DSN; once the spec's `shape.database_url_app_role: true` cuts over, `DATABASE_URL` names the non-owner `<db>_app` role (the same DSN with only user and password swapped), which cannot `CREATE`, owns no table, and holds only `INSERT, SELECT` on `audit_log`.
 
 `shape.database_url_app_role` (boolean, default `false`, requires `needs_database`) is the per-project switch and must be a YAML boolean (a string such as `"false"` or a number fails validation, as the registrar refuses it). Every scaffolded database spec (`--db`, or a type whose defaults need a database) emits it `true` together with `depends.postgres: <id with hyphens as underscores>` — the project's OWN database, the name the registrar derives — so a new project is born on the app role and never shares a database the cutover would refuse; an existing project flips it after `fabrik app-role-check` passes, and unsetting it rolls back. The runbook and the converge table are in [`docs/operations/fabrik-lifecycle.md`](operations/fabrik-lifecycle.md) § App-role cutover and rollback.
 
-**The limit.** Both DSNs live in the same project `.env`. Append-only on `audit_log` holds against the app's own code paths and against SQL injection, not against code execution inside the container, which can read `DATABASE_URL_OWNER`.
+**What the split does not cover.** The owner DSN lives in `.env.owner`, loaded only by the services that declare it, so an app container no longer holds `DATABASE_URL_OWNER` (D-754); the owner credential leaves the app's environment only once the project cuts over (until then `DATABASE_URL` is itself the owner DSN). Still open: the Docker socket or root on the host, and a supply-chain compromise of the shared image the companion runs.
 
 ### Watchdog governance mount — `WATCHDOG_GOVERNANCE_MOUNT` (auto-set, do NOT set by hand)
 
@@ -1024,4 +1028,5 @@ means updating this page in the same change. This list is generated from those h
 
 - `scripts/enforcement/check_mutation.py`
 - `scripts/mail.py`
+- `scripts/sysadmin/prune_transcripts.py`
 <!-- END related-scripts -->

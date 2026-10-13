@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:12:27.091892Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2b85f43d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4F5F2WMKJJJNAE0SJFF2BGZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "final_gate's ruff legs never lint a file-worker's worker/*.py (_RUFF_ROOTS = (\"scripts/\", \"src/\"))"
+}

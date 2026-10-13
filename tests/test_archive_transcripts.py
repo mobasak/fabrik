@@ -456,6 +456,52 @@ def test_ab13_units_load_no_env_file_run_main_checkout_and_catch_up():
     assert "ExecStartPre=-/opt/fabrik/scripts/sysadmin/sample_transcript_growth.sh" in service
     assert "Persistent=true" in timer and "Unit=session-archive.service" in timer
     assert "Restart=on-failure" in service, "a boot-time run without network must be retried"
+    # C.2 unit ordering: Type=oneshot, the archiver's ExecStart first, the pruner's `ExecStart=-` second
+    assert "Type=oneshot" in service.splitlines()
+    starts = [ln for ln in service.splitlines() if ln.startswith("ExecStart=")]
+    assert len(starts) == 2 and "archive_transcripts.py" in starts[0]
+    assert starts[1].startswith("ExecStart=-") and "prune_transcripts.py" in starts[1]
+
+
+def test_a_path_that_vanishes_between_the_scan_and_group_by_inode_is_skipped(
+    tree, rec, monkeypatch, capsys
+):
+    """C.2: `_group_by_inode` stats each scanned path; one removed in between is skipped, not a crash,
+    and the skip is SAID like the other vanished site's (review 2026-10-11, wiring-S3)."""
+    projects, archive = tree
+    real_group = at._group_by_inode
+
+    def gone_before_grouping(paths):
+        (
+            projects / "-opt-beta" / "shared-id.jsonl"
+        ).unlink()  # removed after main_transcripts() saw it
+        return real_group(paths)
+
+    monkeypatch.setattr(at, "_group_by_inode", gone_before_grouping)
+    assert at.run([]) == 0
+    assert {r["project_slug"] for r in _rows(archive)} == {"-opt-alpha"}
+    assert "vanished" in capsys.readouterr().out
+
+
+def test_a_stale_marker_readme_is_rewritten_and_names_the_pruner(tree, rec):
+    """The README that stops a human freeing disk must not say 'nothing prunes' once the pruner
+    exists: an older text is refreshed on the next run (review 2026-10-11, wiring-S2)."""
+    projects, _archive = tree
+    readme = projects / "README"
+    readme.write_text(
+        "THIS DIRECTORY IS DATA, NOT CACHE.\n\nNothing on this box prunes these files.\n"
+    )
+    assert at.run([]) == 0
+    text = readme.read_text()
+    assert "Nothing on this box prunes" not in text
+    assert "prune_transcripts.py" in text and "--restore" in text
+    assert text == at.MARKER
+
+
+def test_group_by_inode_skips_a_vanished_path_directly(tmp_path):
+    a, b = tmp_path / "a.jsonl", tmp_path / "gone.jsonl"
+    a.write_text("x")
+    assert at._group_by_inode([a, b]) == [(a, [])]
 
 
 # ── rclone copyto exits 0 when the SOURCE object is absent and writes nothing ───────────────
@@ -662,3 +708,254 @@ def test_a_snapshot_named_symlink_is_left_alone_and_does_not_crash(tree, rec, tm
     assert at.run([]) == 0
     assert link.is_symlink()
     assert (target / "keep.txt").exists()
+
+
+# ── Phase C.1 (D-736 / D-737): the `agent` tag and the `--agent` verb ───────────────────────────
+
+
+def _identity(tmp_path: Path, rows: list[dict]) -> Path:
+    p = tmp_path / "state" / "agent-identity.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    return p
+
+
+def _registry(tmp_path: Path, entries: list[dict]) -> Path:
+    d = tmp_path / "sessions"
+    d.mkdir(parents=True, exist_ok=True)
+    for e in entries:
+        (d / f"{e['pid']}.json").write_text(json.dumps(e))
+    return d
+
+
+def test_c11_a_bound_session_row_carries_agent_and_an_unbound_one_carries_no_key(
+    tree, rec, tmp_path, monkeypatch
+):
+    projects, archive = tree
+    (projects / "-opt-alpha" / "bound.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path, [{"session_id": "bound", "name": "fleet", "pid": 1, "pid_start": 2, "at": 10}]
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(tmp_path / "no-sessions"))
+    assert at.run(["--no-ship"]) == 0
+    rows = [json.loads(line) for line in (archive / "manifest.jsonl").read_text().splitlines()]
+    by_sid = {r["session_id"]: r for r in rows}
+    assert by_sid["bound"]["agent"] == "fleet"
+    assert "agent" not in by_sid["shared-id"]
+
+
+def test_c11_the_latest_binding_by_at_wins(tree, rec, tmp_path, monkeypatch):
+    projects, archive = tree
+    (projects / "-opt-alpha" / "rebound.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path,
+        [
+            {"session_id": "rebound", "name": "intel", "pid": 1, "pid_start": 2, "at": 50},
+            {"session_id": "rebound", "name": "fleet", "pid": 1, "pid_start": 2, "at": 20},
+        ],
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(tmp_path / "no-sessions"))
+    assert at.run(["--no-ship"]) == 0
+    rows = [json.loads(line) for line in (archive / "manifest.jsonl").read_text().splitlines()]
+    assert {r["session_id"]: r.get("agent") for r in rows}["rebound"] == "intel"
+
+
+def test_c11_registry_join_tags_a_cleared_window_by_pid_and_procstart_as_integers(
+    tree, rec, tmp_path, monkeypatch
+):
+    """After /clear the new session id has no identity row; the registry entry for the SAME
+    claude pid carries the new id, and its procStart (a JSON string) equals the identity row's
+    pid_start (an int)."""
+    projects, archive = tree
+    (projects / "-opt-alpha" / "new-sid.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    (projects / "-opt-alpha" / "other-sid.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path,
+        [{"session_id": "old-sid", "name": "kaizen", "pid": 777, "pid_start": 123456, "at": 5}],
+    )
+    sessions = _registry(
+        tmp_path,
+        [
+            {"pid": 777, "sessionId": "new-sid", "procStart": "123456"},
+            {"pid": 778, "sessionId": "other-sid", "procStart": "123456"},  # another pid: no join
+        ],
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(sessions))
+    assert at.run(["--no-ship"]) == 0
+    rows = {
+        r["session_id"]: r
+        for r in (json.loads(x) for x in (archive / "manifest.jsonl").read_text().splitlines())
+    }
+    assert rows["new-sid"]["agent"] == "kaizen"
+    assert "agent" not in rows["other-sid"]
+
+
+def test_c12_agent_verb_lists_that_agents_rows_newest_first_with_the_local_flag(
+    tree, rec, tmp_path, monkeypatch, capsys
+):
+    projects, archive = tree
+    archive.mkdir(parents=True, exist_ok=True)
+
+    def row(slug, sid, when, agent=None, n=1):
+        r = {
+            "project_slug": slug,
+            "session_id": sid,
+            "sha256": str(n) * 64,
+            "bytes": 10 * n,
+            "mtime_ns": 1,
+            "also_slugs": [],
+            "archived_at": when,
+        }
+        if agent:
+            r["agent"] = agent
+        return r
+
+    rows = [
+        row("-opt-alpha", "a1", "2026-10-01T00:00:00Z", "fleet", 1),
+        row("-opt-alpha", "a2", "2026-10-03T00:00:00Z", "fleet", 2),
+        row("-opt-beta", "b1", "2026-10-02T00:00:00Z", "intel", 3),
+        row("-opt-beta", "shared-id", "2026-10-04T00:00:00Z", None, 4),
+    ]
+    (archive / "manifest.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    (projects / "-opt-alpha" / "a2.jsonl").write_bytes(b"x")  # a2 is still local, a1 is not
+    assert at.run(["--agent", "fleet"]) == 0
+    out = capsys.readouterr().out.strip().splitlines()
+    assert [line.split()[0] for line in out] == ["a2", "a1"], out
+    assert "local=yes" in out[0] and "local=no" in out[1]
+    assert all("intel" not in line and "shared-id" not in line for line in out)
+
+
+# ── review round 1 (2026-10-11) regression guards for the agent tag ─────────────────────────────
+
+
+def test_c11_an_ambiguous_registry_join_tags_nothing_and_an_agreeing_one_tags(
+    tree, rec, tmp_path, monkeypatch
+):
+    """archiver-S1: two `<pid>.json` entries for one session id joining to different identity
+    rows — the lexically-first file must not decide the tag."""
+    projects, archive = tree
+    (projects / "-opt-alpha" / "amb.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    (projects / "-opt-alpha" / "agree.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path,
+        [
+            {"session_id": "old-a", "name": "alpha", "pid": 100, "pid_start": 1, "at": 1},
+            {"session_id": "old-b", "name": "beta", "pid": 200, "pid_start": 2, "at": 2},
+        ],
+    )
+    sessions = _registry(
+        tmp_path,
+        [
+            {"pid": 100, "sessionId": "amb", "procStart": "1"},
+            {"pid": 200, "sessionId": "amb", "procStart": "2"},
+            {"pid": 300, "sessionId": "agree", "procStart": "1"},
+        ],
+    )
+    # a third entry for `agree` joining to the SAME name as a 100/1 twin is not ambiguous
+    (sessions / "301.json").write_text(
+        json.dumps({"pid": 100, "sessionId": "agree", "procStart": "1"})
+    )
+    (sessions / "300.json").write_text(
+        json.dumps({"pid": 100, "sessionId": "agree", "procStart": "1"})
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(sessions))
+    assert at.run(["--no-ship"]) == 0
+    rows = {
+        r["session_id"]: r
+        for r in (json.loads(x) for x in (archive / "manifest.jsonl").read_text().splitlines())
+    }
+    assert "agent" not in rows["amb"]
+    assert rows["agree"]["agent"] == "alpha"
+
+
+def test_c11_a_pretty_printed_registry_entry_joins_and_a_missing_at_ranks_below_zero(
+    tree, rec, tmp_path, monkeypatch
+):
+    """archiver-S2: `<pid>.json` is one document, indented or not. archiver-S5: a row without `at`
+    must not beat a row with an explicit `at: 0` by file order."""
+    projects, archive = tree
+    (projects / "-opt-alpha" / "pp.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    (projects / "-opt-alpha" / "tie.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path,
+        [
+            {"session_id": "old", "name": "kaizen", "pid": 777, "pid_start": 5, "at": 3},
+            {"session_id": "tie", "name": "intel", "pid": 1, "pid_start": 1, "at": 0},
+            {"session_id": "tie", "name": "fleet", "pid": 1, "pid_start": 1},  # no `at`
+        ],
+    )
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    (sessions / "777.json").write_text(
+        json.dumps({"pid": 777, "sessionId": "pp", "procStart": "5"}, indent=2)
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(sessions))
+    assert at.run(["--no-ship"]) == 0
+    rows = {
+        r["session_id"]: r
+        for r in (json.loads(x) for x in (archive / "manifest.jsonl").read_text().splitlines())
+    }
+    assert rows["pp"]["agent"] == "kaizen"
+    assert rows["tie"]["agent"] == "intel"
+
+
+def test_c12_agent_verb_local_flag_sees_a_surviving_hard_linked_twin(
+    tree, rec, tmp_path, monkeypatch, capsys
+):
+    """archiver-S3: the primary name is gone, the worktree twin (`also_slugs`) survives — the
+    history is still local."""
+    projects, archive = tree
+    archive.mkdir(parents=True, exist_ok=True)
+    row = {
+        "project_slug": "-opt-alpha",
+        "session_id": "twin",
+        "sha256": "9" * 64,
+        "bytes": 1,
+        "mtime_ns": 1,
+        "also_slugs": ["-opt-alpha--claude-worktrees-x"],
+        "archived_at": "2026-10-05T00:00:00Z",
+        "agent": "fleet",
+    }
+    (archive / "manifest.jsonl").write_text(json.dumps(row) + "\n")
+    (projects / "-opt-alpha--claude-worktrees-x").mkdir()
+    (projects / "-opt-alpha--claude-worktrees-x" / "twin.jsonl").write_bytes(b"x")
+    assert at.run(["--agent", "fleet"]) == 0
+    assert "local=yes" in capsys.readouterr().out
+    # a row whose also_slugs is a bare STRING (not the list the archiver writes) is one slug, never
+    # a sequence of one-character directory names (review round 2, archiver-S6)
+    row["also_slugs"] = "-opt-alpha--claude-worktrees-x"
+    (archive / "manifest.jsonl").write_text(json.dumps(row) + "\n")
+    assert at.run(["--agent", "fleet"]) == 0
+    assert "local=yes" in capsys.readouterr().out
+    # a scalar the archiver never writes (an int, a bool, a null) means NO aliases — the listing
+    # reports the primary's state and never raises (review round 3, archiver-S8)
+    for scalar in (7, True, None, 2.5, {"k": "v"}):
+        row["also_slugs"] = scalar
+        (archive / "manifest.jsonl").write_text(json.dumps(row) + "\n")
+        assert at.run(["--agent", "fleet"]) == 0, scalar
+        assert "local=no" in capsys.readouterr().out, scalar
+
+
+def test_c12_agent_verb_refuses_to_double_as_another_verb(tree, rec, tmp_path, capsys):
+    """archiver-S4: `--agent fleet --fetch a b` silently listed and never fetched."""
+    _projects, archive = tree
+    archive.mkdir(parents=True, exist_ok=True)
+    (archive / "manifest.jsonl").write_text("")
+    with pytest.raises(SystemExit) as exc:
+        at.run(["--agent", "fleet", "--fetch", "/-opt-x/s.jsonl.zst", str(tmp_path / "out")])
+    assert exc.value.code == 2
+    assert "--agent takes no other verb" in capsys.readouterr().err
+    for extra in (
+        ["--no-ship"],
+        ["--dry-run"],
+        ["--remote-count"],
+        ["--version-at", "2026-01-01T00:00:00Z"],
+    ):
+        with pytest.raises(SystemExit) as more:
+            at.run(["--agent", "fleet", *extra])
+        assert more.value.code == 2, extra  # the usage exit, never a traceback or a listing

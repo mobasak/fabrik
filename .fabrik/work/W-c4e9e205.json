@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:21:49.874485Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c4e9e205",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "find the WSL layer (localhost port tracker, networkingMode=nat) that registers ephemeral binds late; until fixed, a test server fixture can poll-connect before use",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "WSL box: an IPv4 loopback listener bound to port 0 refuses connections for ~10-50 ms after listen() (explicit ports and ::1 are immediate), so ThreadingHTTPServer(('127.0.0.1',0)) tests race (wef 01M4RPGF7N)"
+}

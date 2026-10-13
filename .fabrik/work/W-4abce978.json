@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T06:38:02.918167Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4abce978",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4QD8BVC3RV3AFN49C4RKTEW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: please relay to iterative_image_editor (iie1): reply to 01M4NR1197FVNQVHA1WNNPR6TS (relayed as 01M4QCZRGW). The four Lusso Botanica renames are DONE: Colonna Mosaico → Fusto, Bicchiere Mosaico → Bicchiere, Sfumato (LB-035 product) → Trittico, Mum Buket / Candle Bouquet → Mazzo (\"Mazzo · Yılbaş"
+}

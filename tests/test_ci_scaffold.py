@@ -17,6 +17,8 @@ import pytest
 
 from fabrik import version_registry
 from fabrik.ci_scaffold import (
+    SQLFLUFF_STEP,
+    SQLFLUFF_VERSION,
     TEST_DATABASE_URL,
     CiConfig,
     ci_files,
@@ -155,6 +157,43 @@ def test_ruff_always_installed_even_with_no_test_deps():
         assert "ruff check ." in wf and "pip install ruff" in wf
 
 
+def test_sqlfluff_installed_both_sides_even_with_no_test_deps():
+    # whatsapp-agent 01M4RKXS2G (2026-10-12): the gate's sqlfluff leg lints every tracked *.sql
+    # (final_gate.py) while CI installed only ruff + the test deps, so a project's schema lint was
+    # graded at the gate alone and any local CI addition died on regeneration. sqlfluff is installed
+    # beside ruff on both sides, whatever extra_test_deps says.
+    for cfg in (CiConfig(extra_test_deps=()), CiConfig()):
+        local = render_ci_local(cfg)
+        wf = render_ci_workflow(cfg)
+        # pinned, like ruff: an unpinned sqlfluff reds a repo on a new rule with zero code change
+        assert SQLFLUFF_VERSION and SQLFLUFF_VERSION[0].isdigit()
+        assert (
+            f" sqlfluff=={SQLFLUFF_VERSION}"
+            in local.split("install --quiet ruff==", 1)[1].splitlines()[0]
+        )
+        assert (
+            f" sqlfluff=={SQLFLUFF_VERSION}" in wf.split("pip install ruff==", 1)[1].splitlines()[0]
+        )
+
+
+def test_sqlfluff_lints_tracked_sql_both_sides_mirroring_the_gate():
+    # The step is the gate's own leg (final_gate.py: `git ls-files -- '*.sql'` then
+    # `python -m sqlfluff lint --dialect postgres <files>`), spelled ONCE and emitted on both
+    # sides, so ci_local.sh and ci.yml cannot drift from each other or from the gate; a repo
+    # without a tracked .sql file runs nothing — a portable `[ -z … ] ||` guard, never GNU `xargs -r`
+    # (BSD xargs has no -r and ci_local.sh runs on dev boxes).
+    step = SQLFLUFF_STEP
+    assert (
+        "git ls-files -z -- '*.sql' | xargs -0 python -m sqlfluff lint --dialect postgres" in step
+    )
+    assert step.startswith("[ -z ") and " -r " not in step
+    wf = render_ci_workflow(CiConfig())
+    local = render_ci_local(CiConfig())
+    assert step in wf and step in local
+    assert wf.index("pip install ruff==") < wf.index(step) < wf.index("- name: pytest")
+    assert local.index("install --quiet ruff==") < local.index(step) < local.index("[ci_local] OK")
+
+
 def test_pg_readiness_wait_is_bounded():
     # finding D: an unbounded `until pg_isready` hangs forever if the container dies /
     # docker is missing. The wait must be bounded and fail cleanly.
@@ -169,7 +208,10 @@ def test_no_database_no_postgres_service():
     cfg = CiConfig(needs_database=False)
     wf = render_ci_workflow(cfg)
     local = render_ci_local(cfg)
-    assert "postgres" not in wf.lower()
+    # no Postgres anywhere once the sqlfluff step's DIALECT text is stripped — the old strictness,
+    # so a service block OR a `docker run postgres` step would both still red this
+    stripped = wf.replace(SQLFLUFF_STEP, "").replace("postgres dialect", "")
+    assert "postgres" not in stripped.lower()
     assert "docker run" not in local
     assert "TEST_DATABASE_URL" not in wf
 

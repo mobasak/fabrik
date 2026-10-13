@@ -376,3 +376,26 @@ def test_every_push_remedy_names_the_gate_first(monkeypatch, tmp_path: Path) -> 
         if isinstance(c, ast.Constant) and isinstance(c.value, str)
     )
     assert "PUSH" in urgent_text and "--check --json" not in urgent_text
+
+
+def test_a_mismatched_upstream_is_told_to_push_under_its_own_name(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """W-43ccb000: a worktree branch created from origin/master (`worktree add -b x path origin/master`,
+    autoSetupMerge) tracks origin/master, so a plain `git push` is refused under push.default=simple
+    ("the upstream branch … does not match the name of your current branch"). Such a branch is told
+    `git push -u origin HEAD`, and the reason no longer claims it "has no upstream"; a branch whose
+    upstream has its own name keeps the plain push."""
+    main, _wt = _main_and_worktree(tmp_path)
+    mismatched = tmp_path / "wtx"
+    _git(main, "fetch", "-q", "origin")
+    _git(main, "worktree", "add", "-q", "-b", "x", str(mismatched), "origin/master")
+    assert _git(mismatched, "config", "--get", "branch.x.merge") == "refs/heads/master"
+    (mismatched / "notes.txt").write_text("x note\n", encoding="utf-8")
+    _git(mismatched, "add", "notes.txt")
+    _git(mismatched, "commit", "-qm", "docs: x note")
+    assert hook._has_upstream(mismatched) is False
+    reason = json.loads(_drive(monkeypatch, tmp_path, mismatched))["reason"]
+    assert "git push -u origin HEAD" in reason and "has no upstream" not in reason, reason
+    assert "named differently" in reason, reason
+    assert hook._has_upstream(main) is True  # master tracking origin/master keeps `git push`

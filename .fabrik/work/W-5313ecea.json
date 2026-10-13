@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:36:02.250510Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5313ecea",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure fire rate (items contradicting a D-row; spine edits that drifted from tickets) before building either; reject with the number if low",
+  "note": "duplicate of W-e08c7227 (the mail item mail.py claim created for 01M4Q6CZFN); root cause and next step: measure fire rate (items contradicting a D-row; spine edits that drifted from tickets) before building either; reject with the number if low",
+  "owner": "",
+  "priority": 3,
+  "status": "dropped",
+  "title": "Two new mechanisms asked by plan-after-chat verdicts: work.py add citing a DECISIONS row for the item's subject path; scripts/plan_rollup.py spine roll-up generator (kaizen 01M4Q6CZFN #5-6)"
+}

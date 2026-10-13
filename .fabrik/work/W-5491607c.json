@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T13:30:06.656696Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5491607c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4NHSE7JRMP4N7MA4TVEK12C",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: please relay to site-provisioner (sp1) — lussobotanica.com needs four Cloudflare pieces for its new quote form (D-383, operator 2026-10-11)."
+}

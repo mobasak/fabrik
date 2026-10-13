@@ -872,6 +872,14 @@ def _in_linked_worktree() -> bool:
     """True only in a linked worktree: its git dir differs from the common dir. Absolute paths on
     both sides, because a main checkout run from a subdirectory prints `--git-dir` absolute and
     `--git-common-dir` relative. Any git failure reads as a main checkout (today's walk)."""
+    return _linked_worktree_state() is True
+
+
+def _linked_worktree_state() -> bool | None:
+    """`_in_linked_worktree`'s answer, with None when git could not answer (a timeout, no git
+    binary, any other git failure) — for a caller that must fail CLOSED, `run_adopt`
+    (W-e6acc9ac). A directory that is not a git repository at all is False: it cannot be a
+    linked worktree."""
     try:
         proc = subprocess.run(
             ["git", "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"],
@@ -879,12 +887,15 @@ def _in_linked_worktree() -> bool:
             text=True,
             cwd=PROJECT_ROOT,
             timeout=15,
+            env={**os.environ, "LC_ALL": "C"},  # the stderr below is matched
         )
     except (OSError, subprocess.SubprocessError):
-        return False
+        return None
     lines = proc.stdout.splitlines()
-    if proc.returncode != 0 or len(lines) != 2:
+    if proc.returncode != 0 and "not a git repository" in proc.stderr:
         return False
+    if proc.returncode != 0 or len(lines) != 2:
+        return None
     return Path(lines[0]).resolve() != Path(lines[1]).resolve()
 
 
@@ -2323,6 +2334,56 @@ def _insert_owner_line(path: Path, name: str, dry_run: bool = False) -> bool:
     return True
 
 
+_DECISIONS_PY_DEFAULT = Path("/opt/fabrik/scripts/decisions.py")
+_DID_RE = re.compile(r"D-\d+")
+_DECISION_ROW_ID_RE_ANY = re.compile(r"^\|\s*D-\d+\s*\|", re.M)
+# decisions.py `_append_row`'s own table test, copied EXACTLY (a split("\n"), never splitlines; a
+# separator line that is not line 0 and follows a `|` line) — tests pin the two against each other.
+_LEDGER_SEPARATOR_RE = re.compile(r"^\|[\s:|-]+\|\s*$")
+_LEDGER_HEAD = "# Decisions\n\n| id | when | who | what (the decision) | why | where |\n|---|---|---|---|---|---|\n"
+
+
+def _ledger_has_separator(text: str) -> bool:
+    lines = text.split("\n")
+    return any(
+        _LEDGER_SEPARATOR_RE.match(ln.strip()) and n and lines[n - 1].lstrip().startswith("|")
+        for n, ln in enumerate(lines)
+    )
+
+
+def _last_id(res: subprocess.CompletedProcess | None) -> str:
+    """The `D-NNN` decisions.py printed on its LAST stdout line, or "" — rc 0 only."""
+    if res is None or res.returncode != 0:
+        return ""
+    lines = [ln.strip() for ln in res.stdout.splitlines() if ln.strip()]
+    return lines[-1] if lines and _DID_RE.fullmatch(lines[-1]) else ""
+
+
+def _decisions_script() -> Path:
+    """The hub's decisions.py: `$FABRIK_DECISIONS_PY` when set and non-empty (merge_request.py's
+    override), else /opt/fabrik's. ⚠ Unlike merge_request.py, a set-but-missing path is treated as
+    "hub absent" (fail-open with a NOTE naming the path), not refused: tests pin it to a missing
+    path so no test reaches the real reservation store."""
+    env = os.environ.get("FABRIK_DECISIONS_PY")
+    return Path(env) if env else _DECISIONS_PY_DEFAULT
+
+
+_DECISIONS_TIMEOUT_S = 120.0  # git calls + the lock wait + up to five merge-base reads
+
+
+def _run_decisions(script: Path, args: list[str]) -> subprocess.CompletedProcess | None:
+    """One decisions.py call; None on a timeout."""
+    try:
+        return subprocess.run(
+            [sys.executable, str(script), *args],
+            capture_output=True,
+            text=True,
+            timeout=_DECISIONS_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+
+
 def _mint_next_decision_id() -> str:
     """max existing `D-NNN` id + 1 in `docs/DECISIONS.md`, `D-001` when none/absent —
     the same `^\\|\\s*D-(\\d+)\\s*\\|` scan `decisions.py`'s `_next_id` (inline in both files; neither names the regex) uses,
@@ -2383,8 +2444,9 @@ def run_adopt(
     synced to projects — a repo with an epics dir but no vendored copy is skipped
     here; the hub adopts those epics separately, from /opt/fabrik, with `python3
     /opt/fabrik/scripts/epic_order.py --assign <names>`), then regenerate the PLANS
-    block. Refuses (exit 2, one stderr line) on any name failing `_ADOPT_NAME_RE`, or
-    on a checkout only this session shares unless `single_window` overrides it.
+    block. Refuses (exit 2, one stderr line) on any name failing `_ADOPT_NAME_RE`, in a linked
+    worktree or wherever git cannot tell (W-e6acc9ac — `single_window` and `dry_run` do not lift
+    it), or on a checkout only this session shares unless `single_window` overrides it.
     Returns 3 only when a PRESENT epic_order.py genuinely refused the assignment
     (rc≠0) — never for an absent script. Idempotent: a re-run with the same names
     touches no byte and prints `(nothing to adopt)`.
@@ -2401,6 +2463,21 @@ def run_adopt(
         sys.stderr.write(
             f"docs_updater --adopt: invalid agent name(s) {bad!r} — must match "
             f"{_ADOPT_NAME_RE.pattern!r}\n"
+        )
+        return 2
+
+    # W-e6acc9ac: the owner row and the owner stamps belong to the main checkout; `--single-window`
+    # disarms the session guard below, so a linked worktree is refused here, first, either way.
+    state = _linked_worktree_state()
+    if state is not False:  # True, or None: git could not say — fail closed
+        why = (
+            "this is a linked worktree"
+            if state
+            else "git could not tell whether this is a linked worktree"
+        )
+        sys.stderr.write(
+            f"docs_updater --adopt: refused — {why}; run --adopt from the main "
+            "checkout, which owns the merge-owner row and the ledger\n"
         )
         return 2
 
@@ -2449,36 +2526,103 @@ def run_adopt(
 
     # (c) declare the merge owner (first name) — ONLY when the ledger has none yet; a
     # changed merge owner is a hand-minted superseding row, never --adopt's write.
+    # W-e1b1052e: the id is allocated by the hub's `decisions.py --append`, under its reservation
+    # lock, so --adopt can never take an id a sibling worktree holds via --reserve-id. Two cases
+    # no lock can help fall back to the local max+1 (with a NOTE): the hub script is absent (a
+    # box without the hub — nobody can reserve), or the ledger has rows but no table separator
+    # (`--append` cannot write that shape). Any other failure writes NO row and returns 3.
+    ledger_failed = False
     if read_merge_owner() is None:
         first = names[0]
-        did = _mint_next_decision_id()
         today = datetime.now(UTC).strftime("%Y-%m-%d")
-        cells = [
-            did,
-            today,
-            f"{first} (--adopt)",
+        who = f"{first} (--adopt)"
+        what = (
             f"MERGE OWNER: {first} — the only writer of the base branch; agents 2..N "
-            "commit to worktree branches (multi-agent-per-repo model)",
+            "commit to worktree branches (multi-agent-per-repo model)"
+        )
+        why = (
             "declared by `docs_updater.py --adopt` at adoption; a change is a NEW row "
-            "superseding this one",
-            "docs/development/PLANS.md (the AUTO-GENERATED:PLANS header prints it)",
-        ]
-        row = "| " + " | ".join(_cell(c) for c in cells) + " |"
+            "superseding this one"
+        )
+        where = "docs/development/PLANS.md (the AUTO-GENERATED:PLANS header prints it)"
         ledger = PROJECT_ROOT / "docs" / "DECISIONS.md"
-        if ledger.exists():
-            ledger_text = ledger.read_text(encoding="utf-8")
-            sep = "" if ledger_text.endswith("\n") else "\n"
-            if not dry_run:
-                ledger.write_text(f"{ledger_text}{sep}{row}\n", encoding="utf-8")
-        else:
-            if not dry_run:
-                ledger.parent.mkdir(parents=True, exist_ok=True)
-                ledger.write_text(
-                    "# Decisions\n\n| id | when | who | what (the decision) | why | where |\n"
-                    f"|---|---|---|---|---|---|\n{row}\n",
-                    encoding="utf-8",
+        ledger_text = ledger.read_text(encoding="utf-8") if ledger.exists() else None
+        has_rows = bool(ledger_text and _DECISION_ROW_ID_RE_ANY.search(ledger_text))
+        has_table = ledger_text is not None and _ledger_has_separator(ledger_text)
+        script = _decisions_script()
+        local_reason = None
+        if not script.is_file():
+            local_reason = f"{script} not found — nobody can reserve"
+        elif has_rows and not has_table:
+            local_reason = "the ledger has rows but no table separator line, which decisions.py --append cannot write"
+        if dry_run:
+            did = _mint_next_decision_id()
+            source = "ledger-row"
+            if local_reason is None and ledger_text is not None:
+                peek = _run_decisions(script, ["--next-id", str(PROJECT_ROOT)])
+                peek_id = _last_id(peek)
+                if peek_id:
+                    did = peek_id
+            elif local_reason is None:
+                # no ledger yet: --next-id refuses a missing ledger (a guessed D-001 could be taken),
+                # so this preview is local and the real run may number higher
+                source = (
+                    "ledger-row (local preview; no ledger yet — the real run may number higher)"
                 )
-        report.append((f"{did} (MERGE OWNER)", first, "ledger-row"))
+            report.append((f"{did} (MERGE OWNER)", first, source))
+        elif local_reason is not None:
+            print(
+                f"NOTE: the MERGE OWNER row is minted locally (max+1), not reserved: {local_reason}",
+                file=sys.stderr,
+            )
+            did = _mint_next_decision_id()
+            row = "| " + " | ".join(_cell(c) for c in (did, today, who, what, why, where)) + " |"
+            if ledger_text is not None:
+                sep = "" if ledger_text.endswith("\n") else "\n"
+                ledger.write_text(f"{ledger_text}{sep}{row}\n", encoding="utf-8")
+            else:
+                ledger.parent.mkdir(parents=True, exist_ok=True)
+                ledger.write_text(_LEDGER_HEAD + f"{row}\n", encoding="utf-8")
+            report.append((f"{did} (MERGE OWNER)", first, "ledger-row"))
+        else:
+            # --append needs a table: a missing, empty or prose-only ledger gets the header first.
+            if ledger_text is None:
+                ledger.parent.mkdir(parents=True, exist_ok=True)
+                ledger.write_text(_LEDGER_HEAD, encoding="utf-8")
+            elif not ledger_text.strip():
+                ledger.write_text(_LEDGER_HEAD, encoding="utf-8")  # empty file: the whole head
+            elif not has_table:
+                sep = "" if ledger_text.endswith("\n") else "\n"
+                ledger.write_text(
+                    f"{ledger_text}{sep}\n" + _LEDGER_HEAD.split("\n\n", 1)[1], encoding="utf-8"
+                )
+            # RAW cells: decisions.py escapes them; `--opt=value` so a value can never read as a flag.
+            res = _run_decisions(
+                script,
+                [
+                    "--append",
+                    str(PROJECT_ROOT),
+                    f"--when={today}",
+                    f"--who={who}",
+                    f"--what={what}",
+                    f"--why={why}",
+                    f"--where={where}",
+                ],
+            )
+            out = _last_id(res)
+            if res is not None and res.returncode == 0 and out:
+                if res.stderr.strip():
+                    print(res.stderr.strip(), file=sys.stderr)  # e.g. "not reserved"
+                report.append((f"{out} (MERGE OWNER)", first, "ledger-row"))
+            else:
+                ledger_failed = True
+                why_failed = (
+                    "timed out (the row may still have been written; a re-run reads it)"
+                    if res is None
+                    else f"rc={res.returncode}: "
+                    + ((res.stderr.strip().splitlines() or [out or "no id printed"])[0])
+                )
+                report.append(("docs/DECISIONS.md", first, f"decisions.py --append ({why_failed})"))
 
     # (c') tag every untagged work-item row of docs/STRATEGIC_BACKLOG.md — round-robin
     # over `names`, in the row's own shape (T02b; tables only, W-77e00147). A missing file is silently nothing (23
@@ -2555,13 +2699,13 @@ def run_adopt(
 
     if not report:
         print("(nothing to adopt)")
-        return 3 if epic_order_failed else 0
+        return 3 if epic_order_failed or ledger_failed else 0
 
     lines = ["| Item | Owner | Source |", "|---|---|---|"]
     for item, owner, source in report:
         lines.append(f"| {_cell(item)} | {_cell(owner)} | {_cell(source)} |")
     print("\n".join(lines))
-    return 3 if epic_order_failed else 0
+    return 3 if epic_order_failed or ledger_failed else 0
 
 
 def run_check(proc_root: Path = Path("/proc")) -> int:

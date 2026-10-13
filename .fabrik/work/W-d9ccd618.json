@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-05T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "43ffdaac661b6fedc99b3e5e00e43a2574952f4f",
   "id": "W-d9ccd618",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:28f2170b9d16",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "The VPS copy of `/opt/traefik/compose.yaml` is AHEAD of its hub repo-of-record — a hub-driven redeploy would drop the Cloudflare DNS-01 resolver (2026-09-05, owner: fleet)"
 }

@@ -55,7 +55,9 @@ _SAAS_FAMILY = ("saas-skeleton", "static-site", "office-extension")
 _NODE_DB = ("node-api", "file-api")
 _NOTHING = ("desktop-app", "docusaurus", "file-worker-nodb")
 
-_HEADER = 'psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql'
+_HEADER = 'u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'
+_RAW_OWNER_PSQL = '"$DATABASE_URL_OWNER" -f db/schema.sql'
+_PGURL_DEFINED = "sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md"
 
 
 def _name(kind: str) -> str:
@@ -142,6 +144,8 @@ def test_python_backend_gets_module_table_revokes_header_env(
 
     sql = (project / schema_rel).read_text()
     assert _HEADER in sql
+    assert _RAW_OWNER_PSQL not in sql  # the raw variable never reaches psql (01M464NPPB)
+    assert _PGURL_DEFINED in sql  # pgurl is a shell function: the root shell must define it first
     table_at = sql.index("CREATE TABLE IF NOT EXISTS audit_log")
     for needle in (
         "current_database() || '_app'",
@@ -214,6 +218,8 @@ def test_node_type_gets_table_and_revokes_only(projects: dict[str, Path], kind: 
     project = projects[kind]
     sql = (project / "db" / "schema.sql").read_text()
     assert _HEADER in sql
+    assert _RAW_OWNER_PSQL not in sql  # the raw variable never reaches psql (01M464NPPB)
+    assert _PGURL_DEFINED in sql  # pgurl is a shell function: the root shell must define it first
     table_at = sql.index("CREATE TABLE IF NOT EXISTS audit_log")
     assert "current_database() || '_app'" in sql[table_at:]
     assert not (project / "libs" / "audit_log").exists()
@@ -351,7 +357,8 @@ def _roles(s: ScratchPg, db: str) -> tuple[str, str]:
 def _apply_as_header_says(
     s: ScratchPg, schema: Path, db: str, owner_pw: str
 ) -> subprocess.CompletedProcess:
-    """``psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql`` as the owner."""
+    """The emitted schema applies as the owner in one transaction (this test runs psql on a plain local
+    DSN; the header's pgurl form is pinned by ``_HEADER`` above)."""
     subprocess.run(
         ["docker", "cp", str(schema), f"{s.container}:/schema.sql"], check=True, timeout=60
     )
@@ -527,7 +534,13 @@ def test_committed_compose_carries_the_audit_jobs_companion(
     assert companion is not None
     svc = services[companion.id]
     assert svc["command"] == companion.command
-    assert svc["env_file"] == [".env"]
+    # Owner split (D-754): the companion loads `.env` AND `.env.owner` (long syntax, `required: false`
+    # — the registrar writes the owner file after the first `up`); the app service loads `.env` alone.
+    assert svc["env_file"] == [".env", {"path": ".env.owner", "required": False}]
+    # every OTHER service stays off the owner file (an app service may render no env_file key at all)
+    for other, cfg in services.items():
+        if other != companion.id:
+            assert ".env.owner" not in str(cfg.get("env_file", [])), (other, cfg.get("env_file"))
     assert svc["deploy"]["resources"]["limits"]["memory"] == companion.memory
     assert svc["networks"] == ["fabrik"] and svc["restart"] == "unless-stopped"
     assert svc["container_name"] == companion.id
@@ -553,9 +566,14 @@ def test_rendered_template_carries_the_audit_jobs_companion(ptype: str, tmp_path
     name = f"rt-{ptype}"
     spec = generate_spec(name, ptype, f"{name}.vps1.ocoron.com", use_database=True)
     rendered = TemplateRenderer(output_dir=tmp_path).render(spec, dry_run=True)
-    svc = yaml.safe_load(rendered["compose.yaml"])["services"][f"{name}-audit-jobs"]
+    services = yaml.safe_load(rendered["compose.yaml"])["services"]
+    svc = services[f"{name}-audit-jobs"]
     assert svc["command"] == spec.companion_services[0].command
-    assert ".env" in svc["env_file"]
+    assert svc["env_file"] == [".env", {"path": ".env.owner", "required": False}]
+    # every OTHER service (the app, whatever its template names it) stays off the owner file
+    for other, cfg in services.items():
+        if other != f"{name}-audit-jobs":
+            assert ".env.owner" not in str(cfg.get("env_file", [])), (other, cfg.get("env_file"))
 
 
 @requires_fabrik_env
@@ -696,3 +714,31 @@ def test_fresh_database_scaffold_scans_clean(projects: dict[str, Path], kind: st
     result = scan_repo(projects[kind])
     assert result.files_scanned > 0
     assert result.findings == [], result.findings
+
+
+def test_scaffold_spells_the_owner_file_only_through_the_constant() -> None:
+    """G31 (the Finish review, scaffold-S1/H1): `OWNER_ENV_FILE` is defined once in `spec_loader.py` "so
+    every Python consumer imports them and spells them nowhere else" — scaffold.py carries no literal
+    `.env.owner`, and the three emitted texts that name the file (the gitignore patterns, the two schema
+    headers, the .env.example block, the companion block) still spell it at run time."""
+    source = Path(scaffold.__file__).read_text()
+    assert '".env.owner' not in source and "'.env.owner" not in source
+    assert "OWNER_ENV_FILE" in source
+    for text in (
+        scaffold._SAAS_SCHEMA_SQL,
+        scaffold._SCHEMA_APPLY_HEADER,
+        scaffold._ENV_EXAMPLE_DSN_BLOCK,
+    ):
+        assert ".env.owner" in text and "__OWNER_ENV_FILE__" not in text
+    assert ".env.owner\n" in scaffold._COMMON_GITIGNORE_PATTERNS
+
+
+@requires_fabrik_env
+@pytest.mark.parametrize("kind", list(_PY_BACKENDS))
+def test_scaffolded_gitignore_lists_the_owner_env_file(
+    projects: dict[str, Path], kind: str
+) -> None:
+    """Owner split (D-754): `/opt/<name>` on the VPS is a git working tree, so an un-ignored
+    `.env.owner` would show as untracked there and in every clone."""
+    lines = (projects[kind] / ".gitignore").read_text().splitlines()
+    assert ".env" in lines and ".env.owner" in lines, lines[:12]

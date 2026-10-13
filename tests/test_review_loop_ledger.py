@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 TOOL = ROOT / "scripts" / "review_loop_ledger.py"
 
@@ -444,6 +446,56 @@ def test_pin_writes_read_only_pins_and_a_manifest(tmp_path: Path) -> None:
         ["sed", "-i", "s/A = 1/A = 9/", str(pins / "a.py")], capture_output=True, check=False
     )
     assert sed.returncode != 0 and _md5(pins / "a.py") == want["a.py"], "sed -i mutated a pin"
+
+
+def test_pins_manifest_checks_the_copies_from_any_cwd(tmp_path: Path) -> None:
+    """W-1008046c (site-provisioner 01M4RNTM85): MANIFEST.md5 is repo-relative — from the repo root
+    it checks the LIVE files, and a seat cannot cd into the pins dir — so the copies were never
+    checked. MANIFEST.pins.md5 names each copy by its absolute path (the pins_dir string the
+    fragment prints), so one `md5sum -c` from ANY cwd checks the copies; `pins_digest` attests it."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    got = _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py", "sub/b.py")
+    assert got.returncode == 0, got.stderr
+    frag = json.loads(got.stdout.splitlines()[-1])
+    pm = pins / "MANIFEST.pins.md5"
+    assert frag["pins_digest"] == _md5(pm), frag
+    lines = sorted(pm.read_text().splitlines())
+    want = sorted(f"{_md5(repo / p)}  {frag['pins_dir']}/{p}" for p in ("a.py", "sub/b.py"))
+    assert lines == want, lines
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    ok = subprocess.run(["md5sum", "-c", "--quiet", str(pm)], cwd=elsewhere, capture_output=True)
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    (pins / "a.py").chmod(0o644)
+    (pins / "a.py").write_text("A = 9\n")  # a seat that defeats the lock and alters a copy
+    bad = subprocess.run(["md5sum", "-c", "--quiet", str(pm)], cwd=elsewhere, capture_output=True)
+    assert bad.returncode != 0 and b"FAILED" in bad.stdout, bad.stdout
+    live = subprocess.run(
+        ["md5sum", "-c", "--quiet", str(pins / "MANIFEST.md5")], cwd=repo, capture_output=True
+    )
+    assert live.returncode == 0, "MANIFEST.md5 from the repo root still checks the live files"
+
+
+@pytest.mark.parametrize(
+    "name", ["MANIFEST.md5", "MANIFEST.json", "MANIFEST.pins.md5", "new\nline.py"]
+)
+def test_pin_refuses_reserved_and_newline_paths(tmp_path: Path, name: str) -> None:
+    """A root file named like a manifest would be overwritten by it, and a newline in a path splits
+    md5sum's line into a false FAILED: both refuse before anything is written."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    (repo / name).write_text("x\n")
+    got = _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py", name)
+    assert got.returncode != 0 and "cannot pin" in got.stderr, got.stderr
+    assert not pins.exists()
+
+
+def test_pin_refuses_a_newline_in_the_pins_dir(tmp_path: Path) -> None:
+    """MANIFEST.pins.md5 carries the pins_dir string on every line, so a newline THERE splits the line
+    exactly as one in a file path would (W-1008046c review A-S1): refused before anything is written."""
+    repo, pins = _repo(tmp_path), tmp_path / "pi\nns"
+    got = _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py")
+    assert got.returncode != 0 and "newline" in got.stderr, got.stderr
+    assert not pins.exists() and not (tmp_path / "pi").exists()
 
 
 def test_pin_from_a_ref_and_dirty_marker(tmp_path: Path) -> None:

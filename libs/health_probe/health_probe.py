@@ -1,4 +1,4 @@
-# VENDORED-FROM fabrik-lib health-probe/health_probe.py @ cfd9215f — byte-identical below this 3-line header; re-vendor, never edit
+# VENDORED-FROM fabrik-lib health-probe/health_probe.py @ b1c06437 — byte-identical below this 3-line header; re-vendor, never edit
 # ruff: noqa
 # fmt: off
 #!/usr/bin/env python3
@@ -70,8 +70,9 @@ def load_env(path: Optional[str] = None) -> bool:
     ``path`` to be explicit). Returns whether a file was loaded: ``False`` when no ``.env``
     was found, and ``False`` (loading nothing) when python-dotenv is not installed. Once any
     ``load_env()`` call has run, ``cli()`` does not search again. An unreadable or
-    non-UTF-8 file raises (``OSError`` / ``UnicodeDecodeError``) from here; ``cli()`` reports
-    it on stderr and carries on.
+    non-UTF-8 file raises (``OSError`` / ``UnicodeDecodeError``) from here before any key is
+    set; a NUL byte in a key or value raises ``ValueError`` part-way, with the keys above
+    that line, if any, already set. ``cli()`` reports either on stderr and carries on.
     """
     global _ENV_LOAD_CALLED
     _ENV_LOAD_CALLED = True
@@ -628,6 +629,9 @@ def cli(
         except (OSError, UnicodeDecodeError) as exc:
             # A broken .env is a config problem, not an outage: never exit 1 for it.
             print(f"health_probe: .env not loaded ({type(exc).__name__})", file=sys.stderr)  # no message: it can quote a .env byte
+        except ValueError as exc:
+            # os.environ refuses a NUL byte mid-load: the keys above the bad line, if any, are set.
+            print(f"health_probe: .env load stopped part-way ({type(exc).__name__})", file=sys.stderr)  # no message: it can quote a .env byte
     critical = critical or set()
     ap = argparse.ArgumentParser(description=description)
     ap.add_argument("--json", action="store_true")

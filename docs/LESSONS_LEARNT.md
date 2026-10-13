@@ -1,6 +1,51 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A fix that answers a finding's first half leaves its second half for the next round — read the whole row before closing it (2026-10-12)
+
+The Finish `/fabrik-review` of the owner-DSN split (plan `2026-10-12-plan-1-owner-dsn-split`, 20 candidates, 17 confirmed) needed a third fix
+commit for two rows the first two had "fixed": deployer-O7 named a stale comment AND a stale docstring, the round-2 fix reworded the comment
+alone; check-S2 named a dedup fallback the round-1 fix then DOCUMENTED in a code comment while the module docstring kept the promise the
+fallback breaks. Both came back STILL_TRUE from the round-1 seats on the pass-2 pin — docstrings only, c60a0ef10.
+- **A candidate's claim is a list, not a sentence.** Split every confirmed row into its clauses before fixing and tick each one against the
+  diff; a fix that satisfies the clause you remembered satisfies the row only if there was one clause.
+- **Documenting a behaviour in a comment does not fix the docstring that contradicts it** — the reader of the module docstring never sees
+  the comment at :849. Put the exception where the promise is made.
+- **The seat-isolation brief must list every root the slice's tests import.** Two deployer seats lost minutes rediscovering that
+  `templates/`, `.windsurf/rules/versions.yaml` and `scripts/fabrik_synced_manifest.py` are needed beside `src`/`tests`; the
+  pass-1 brief's example roots named four, the SEAT ISOLATION paragraph nine, and the two paragraphs disagreed. One list, in one place.
+- **A seat's `-o`/`>` goes under its scratch — say so with the incident.** A pass-1 Haiku finder wrote `arch-tests.tar` into the
+  repo root; naming the leak in the next brief ended it (every later leak check read identical to its baseline).
+
+## A point-in-time restore is keyed on the SERVER's clock — capture the instant from the server, never from `date -u` (2026-10-12)
+
+Gate B.4 of the retention plan (`archive_transcripts.py --fetch … --version-at <T>`, rclone `--b2-version-at`) returned nothing for every
+`T` taken from this box's clock between the two proof uploads, while a `T` five minutes later returned the newer version. The box runs
+2 min 49 s behind Backblaze (`date -u` 21:19:51Z against both B2 hosts' `Date: 21:22:40 GMT`), and B2 stamps a version with ITS upload
+time, so a locally captured instant lands before the first upload and reads "absent". Probing forward found the run-1 bytes at
+21:18:00Z and the proof passed.
+- **Capture `T` from the service, not the shell:** `date -u -d "$(curl -sI <server> | sed -n 's/^[Dd]ate: //p')" +%Y-%m-%dT%H:%M:%SZ` after the first write, plus 2 s for the floored second. Never "sleep past the skew": that only helps when the box is BEHIND the server — ahead of it, a local `T` lands after the SECOND upload and returns the newer version silently, a wrong restore rather than an absent one.
+- **A restore tool that prints "absent from the bucket, or B2's download host is unreachable from this network" for a clock miss misdirects the reader** — the
+  archiver's fetch cannot tell a clock miss from those two causes; the plan's B.4 text now says to take `T` from the server.
+- **An SNI filter on the download host is routed around, not waited out:** a SOCKS tunnel through our own VPS (`ssh -N -D`) carries
+  `HTTPS_PROXY` into rclone through the archiver's child environment; the keys never leave the box.
+
+## A fail-closed guard is only as closed as its least-guarded leg, and a spy's empty list passes `all()` (2026-10-11)
+
+Building the pruner (retention plan Phase C.2/C.3) and its review: 30/30 clause mutations red before the review, yet round 1 confirmed 15 candidates — 12 distinct defects behind them.
+- **Two legs of one rule must read the same helper the same way.** `open_sessions()` fed `_alive()` unconditionally for the registry (a pid-less entry ⇒ OPEN) but guarded the identity leg with `pid is not None and …`, so the belt was fail-open where the primary was fail-closed. When a rule has mirrors, grade each mirror with the SAME input (the pid-less row) — a grader per leg, not per rule.
+- **"Right before the unlink" means inside the loop.** One `open_sessions()` before a 200-inode loop is a snapshot, not a last look; the docstring said per-unlink and the code said per-run. Write the grader that distinguishes them (the Nth candidate's session opens at the Nth re-check) before the prose.
+- **`assert all(x for x in seen)` over a spy's list is vacuous when the spy never fires** — assert the count first. The same shape hid a restore grader that passed because both restore tests produced a fresh survivor; the aged-survivor variant was the real test. A grader is proven by its red: neuter the clause, not just the expression inside it.
+- **A fixture seam written as `A and B or C and D` reads as a precedence bug to every reviewer** — make the seam an explicit flag (`bucket_ledger`) and grade the path the flag exists for.
+- **A pin dir's copies are read-only by design; a re-pin is a NEW dir.** An `rm -rf` on the old dir fails and an `&&` chain then skips the re-pin silently — the seats read the first pin while I believed they had the second file.
+
+## A review's own Pass Ledger rows are reviewable prose, and a plan step stated from memory is the first thing a seat refutes (2026-10-11)
+
+Converging the session-history retention plan's Phase C revision (D-736 → D-737) took 16 `/fabrik-plan-review` passes; the content was quiet from round 11.
+- **Every Pass row I hand-wrote after round 9 seeded the next round's finding.** A row's "N hits", "FIXED (the seat's notes)" or "all figures read from pass-N.json" is a claim the next seat checks against the ledger file — and the file carries only `seats`, `candidates`, `verdicts` and a TOP-LEVEL `ledger_status` (no notes, no per-seat statuses, no edits). Six dispatches (~450k seat tokens) went on provenance cells, zero on the plan. Write the row FROM the file by script, label every cell that is not in the file as the orchestrator's disposition, and name no source the file does not hold; `review_loop_ledger.py` should grow a `--row` verb so the quiet round's row is never a hand-written claim.
+- **`command_run.py done` refuses when a slice that raised nothing in round 1 is missing from the last round's `--slices`.** Restate every slice at its last `<verified>/<claims>` (a 0/0 is fine) in every later round, or the close costs an extra `round` call.
+- **The draft stated how `whoami_agent.py` binds (by pid) from memory.** It binds by `CLAUDE_CODE_SESSION_ID` (`resolve_agent_name()`, `:259-274`); a `/clear` mints a new id, so the "survives `/clear`" claim was false and became the registry-join redesign — round 1's first confirmed finding. Before writing a plan step that leans on a script's BEHAVIOUR, open the function and quote it; a file name is not a reading.
+
 ## A merge request ships the whole branch, including work staged to merge later (2026-10-07)
 
 The PostgreSQL 18 plan kept its hub changes on the fleet worktree branch, to merge only after the operator's hub window, and its DR-chain hunk on its own branch to merge inside it. Then an unrelated GlitchTip fix on the same branch went out as a merge request for the whole branch, and the PG18 waves rode along to master a day before any window (D-647). Nothing applied them to a host, but master's DR list now named a volume no snapshot held: a hub rebuild would have stopped at compose-up, before its pg_dump fallback. Two habits follow. A branch that holds work staged for a later merge carries nothing else; an unrelated fix goes on its own branch. And before sending a merge request, read the commits between master and the branch tip for any that are not yours to ship yet. When it happens anyway, measure what the early merge can break and close that mechanically; the fix here was listing both volumes until release, not a revert across shared trees.
