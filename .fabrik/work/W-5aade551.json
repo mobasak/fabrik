@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: scripts/final_gate.py's sqlfluff leg (the `run_cmd([\"git\", \"ls-files\", \"-z\", \"--\", \"*.sql\"])` call, ~:1615) splits `run_cmd`'s OUTPUT on NUL to build the file list, but `run_cmd` merges stderr into that output (~:324). If `git ls-files` fails (not a repo, a corrupt index, a permissions error),"
 }
