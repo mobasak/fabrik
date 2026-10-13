@@ -1,7 +1,8 @@
 """A rule-pack checklist line that names a scaffold-only helper says where the helper exists.
 
-`scripts/review_rubric.py` injects pack checklist lines into every review finder's prompt, in
-every repo. A line that mandates `require_throwaway(...)` unconditionally sends finders after a
+`scripts/review_rubric.py` injects a pack's checklist lines into the finder prompts of every
+review whose diff the pack's globs match (45-testing-strategy: any test file), in every repo. A
+line that mandates `require_throwaway(...)` unconditionally sends finders after a
 helper that unscaffolded repos (fabrik-lib, and projects that never vendored it) do not have,
 and costs one refuted candidate per review there (iterative_image_editor 01M3WW5PFN item 2,
 intel 01M4TCKDX5). The pack's own table row already scopes the helper to the scaffold-emitted
