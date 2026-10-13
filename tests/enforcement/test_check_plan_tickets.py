@@ -999,6 +999,38 @@ def test_env_example_is_not_never_route(tmp_path: Path) -> None:
     assert cpt._never_route(".env.production")
 
 
+def test_final_gate_filename_family_is_never_route() -> None:
+    """W-2e6c1b0b (fabrik-lib 01M494TQ3E, SB-108): NEVER_ROUTE_PREFIXES named the hub's gate FILE only, and
+    `_covered_by` is component-literal containment, so a repo whose completion gate is
+    `scripts/final_gate_fabrik_lib.py` got no never-route cover — a `Complexity: simple` ticket touching it
+    passed the cross-check. The stem `scripts/final_gate` is a filename FAMILY (NEVER_ROUTE_FILE_FAMILIES):
+    every `scripts/final_gate*` path is never-route; the stem is rooted at `scripts/`, so a same-named file
+    elsewhere is not. RED on base: the first assertion."""
+    assert cpt._never_route("scripts/final_gate_fabrik_lib.py")
+    assert cpt._never_route("scripts/final_gate.py")
+    assert cpt._never_route("scripts/final_gate_tier_counts_helper.py")
+    assert cpt._never_route("scripts/final_gate")
+    assert not cpt._never_route("scripts/other.py")
+    assert not cpt._never_route("src/final_gate.py")
+    assert cpt.NEVER_ROUTE_FILE_FAMILIES == ("scripts/final_gate",)
+
+
+def test_pool_tier_ticket_touching_a_family_gate_errors(tmp_path: Path) -> None:
+    """End to end through check_plan_dir (the pool-tier never-route ERROR): the bc17 fixture pointed at the
+    family member fabrik-lib actually has. The EXACT message substring is asserted — a bare "never-route"
+    would also match the Never-Route label family. RED on base: 0 errors (the pass that handed a gate to a
+    pool coder)."""
+    t1 = T01.replace("- src/app/schema.py", "- scripts/final_gate_fabrik_lib.py")
+    spine = SPINE.replace("- src/app/schema.py", "- scripts/final_gate_fabrik_lib.py")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir))
+    assert any("never-route path 'scripts/final_gate_fabrik_lib.py'" in m for m in errors), errors
+
+
 def test_bold_board_cell_is_parsed(tmp_path: Path) -> None:
     # S4: | **T01** | must not vanish from the row set.
     spine = SPINE.replace("| T01 | schema", "| **T01** | schema")

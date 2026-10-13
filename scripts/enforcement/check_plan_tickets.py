@@ -547,6 +547,15 @@ NEVER_ROUTE_PREFIXES = (
     "db/migrations/",
     "secrets/",
 )
+# Filename FAMILIES — a stem the never-route path only has to START with. `_covered_by` is
+# component-literal containment, so `scripts/final_gate.py` above covers that one file and nothing
+# else: a repo whose completion gate is `scripts/final_gate_fabrik_lib.py` (fabrik-lib carries the
+# synced shim AND its own gate) got no never-route cover and a pool-tier ticket could own gate
+# machinery (fabrik-lib 01M494TQ3E, W-2e6c1b0b, D-row of 2026-10-13). The stem encodes the fleet
+# convention "a repo's completion gate lives at scripts/final_gate*" — 54 of 54 files on the box.
+# Over-match is deliberate and cheap (a false match re-tiers one ticket to native; a false miss is
+# silent); a gate named outside the family still needs the spine's `Never-Route:` line.
+NEVER_ROUTE_FILE_FAMILIES = ("scripts/final_gate",)
 # `.env` and `.env.*` are secret material — EXCEPT `.env.example` (a routine
 # Doc-Sync-Matrix file every env-var change touches).
 _ENV_EXEMPT = ".env.example"
@@ -677,6 +686,11 @@ def _never_route(p: str) -> bool:
     if p == _ENV_EXEMPT:
         return False
     if p == ".env" or p.startswith(".env."):
+        return True
+    # A filename family: the slash-stripped path STARTS WITH the stem (`scripts/final_gate*`), the
+    # one shape containment cannot express. Callers hand in `_norm_path` output, so `./`, backticks
+    # and a `:NN` suffix are already gone; only a trailing slash is stripped here.
+    if any(p.rstrip("/").startswith(stem) for stem in NEVER_ROUTE_FILE_FAMILIES):
         return True
     return any(_covered_by(n, p) or _covered_by(p, n) for n in NEVER_ROUTE_PREFIXES)
 
