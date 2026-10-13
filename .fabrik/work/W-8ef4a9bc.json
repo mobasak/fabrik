@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "handled: mail 01M4V508VR (mail-routing pilot numbers) was answered by kaizen's pilot review 01M4V55TV3 (no map change; floor judged on mail from 2026-10-06; auto_address stays off) and is archived",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "mail routing is built and pushed (04413b533, D-825) — the pilot numbers for your review before auto_address is switched on"
 }
