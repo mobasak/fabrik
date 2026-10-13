@@ -2094,7 +2094,10 @@ def test_failed_push_to_a_bad_remote_logs_the_plain_failure_line(tmp_path: Path)
     # shape as test_stalled_push_never_costs_the_main_tree_its_snapshot)
     # so BOTH push sites fail against the same unreachable remote.
     repo = _seed_repo(tmp_path, f"wtbadremote{os.getpid()}")
-    _git(repo, "remote", "add", "origin", "https://127.0.0.1:1/definitely-not-a-real-remote.git")
+    # A missing LOCAL path fails at once with no network: `https://127.0.0.1:1` was assumed to be
+    # refused fast, but on a box whose loopback TCP hangs it ran into the 5s timeout and printed
+    # "timed out" — the other branch — so the test graded the box, not the script (2026-10-13).
+    _git(repo, "remote", "add", "origin", str(tmp_path / "no-such-remote.git"))
     (repo / "dirty.txt").write_text("dirt\n")
     _exclude_path(repo, ".claude/worktrees")
     wt = repo / ".claude" / "worktrees" / "beta"
@@ -2718,3 +2721,50 @@ def test_a_malformed_inherited_config_count_cannot_abort_the_net(tmp_path: Path)
         )
         assert proc.returncode == 0, (bad, proc.stderr)
         assert "snapshotted" in proc.stdout, (bad, proc.stdout)
+
+
+def test_backup_pushes_never_run_the_repos_pre_push_hook(tmp_path: Path) -> None:
+    """The backup pushes only `refs/wip/*` and must not fire the repo's pre-push hook. pre-commit's
+    pre-push stage stashes and restores every unstaged file, so a hooked push rewrote each dirty
+    tree on the box every 15 minutes (cron's umask flipped the hub's files to 664, and an edit
+    landing inside the stash window is lost) — /tmp/wip-backup.log, 2026-10-13."""
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True, timeout=15)
+    repo = _seed_repo(tmp_path, "hooked")
+    _git(repo, "remote", "add", "origin", str(origin))
+    _exclude_path(repo, ".claude/worktrees")
+    wt = repo / ".claude" / "worktrees" / "alpha"
+    _git(repo, "worktree", "add", "-q", "-b", "hooked-a", str(wt))
+    (wt / "change.txt").write_text("worktree edit\n")
+    (repo / "base.txt").write_text("main-tree edit\n")
+    marker = tmp_path / "pre-push-ran"
+    hook = repo / ".git" / "hooks" / "pre-push"
+    hook.write_text(f"#!/bin/sh\necho ran >> '{marker}'\nexit 0\n")
+    hook.chmod(0o755)
+
+    _run(tmp_path)
+
+    assert not marker.exists(), f"the backup push ran pre-push {marker.read_text().count('ran')}x"
+    rolling, _ = _classify_wt_refs(repo, "alpha")
+    for ref in ("refs/wip/autobackup", *rolling):
+        on_origin = subprocess.run(
+            ["git", "rev-parse", "-q", "--verify", ref], cwd=origin, capture_output=True, timeout=15
+        )
+        assert on_origin.returncode == 0, f"{ref} must still reach origin"
+
+
+def test_a_run_never_rewrites_the_real_index(tmp_path: Path) -> None:
+    """`git status` refreshes stat data and REWRITES `.git/index` under `index.lock` unless optional
+    locks are off — so the cron's status probe raced every live agent's `git add` ("index.lock:
+    File exists") and contradicted "never touches the real index" (wip-backup review, 2026-10-13).
+    A file whose mtime moved but whose content did not is the case that makes status rewrite it."""
+    repo = _seed_repo(tmp_path, "statprobe")
+    (repo / "dirty.txt").write_text("dirty\n")  # dirty, so the run takes a snapshot
+    base = repo / "base.txt"
+    os.utime(base, (base.stat().st_atime + 100, base.stat().st_mtime + 100))  # stat-dirty only
+    index = repo / ".git" / "index"
+    before = (index.stat().st_mtime_ns, index.read_bytes())
+
+    _run(tmp_path)
+
+    assert (index.stat().st_mtime_ns, index.read_bytes()) == before, "the run rewrote .git/index"

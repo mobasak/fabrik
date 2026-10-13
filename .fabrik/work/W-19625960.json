@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Re: app-audit-log README takes the hub's read-the-key recipe + pgurl (fabrik-lib 11018d76); two findings on the canonical pgurl"
 }

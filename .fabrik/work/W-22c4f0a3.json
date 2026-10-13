@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T18:14:00.122115Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-22c4f0a3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TZJC3WWENXJS1NKZW0868Y",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_run.py handoff accepts a --resume file in a scratchpad that a restart wipes (/fabrik-review feedback row 1791905690)"
+}
