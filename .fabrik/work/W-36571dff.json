@@ -7,11 +7,11 @@
   "kind": "task",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-828",
     "plan": "",
-    "spec": ""
+    "spec": "docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md"
   },
-  "next": "/fabrik-spec for Phase 11-2: per verb, rebase on the SSH deploy model or retire it (and every doc and hint that recommends it, e.g. cli.py:1457 audit-registrars -> reconcile-all); spec-chain because it changes the public CLI contract of several verbs",
+  "next": "/fabrik-plan-after-chat docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md — the spec is CONVERGED and panel-approved (D-828, b2da7c382); plan it (Profile: delta; appetite 600 min, end of phase C is the session's hard stop) then /fabrik-plan-review → /fabrik-execute-plan",
   "note": "",
   "owner": "fleet",
   "priority": 2,
