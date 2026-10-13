@@ -318,6 +318,8 @@ def run_cmd(
             cwd=cwd or PROJECT_ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",  # display text: a tool echoing a non-UTF-8 name must not crash the gate
             timeout=timeout,
             env=env,
         )
@@ -327,6 +329,32 @@ def run_cmd(
         return RC_TIMEOUT, f"Command timed out after {timeout}s"
     except FileNotFoundError:
         return 1, f"Command not found: {cmd[0]}"
+
+
+def _git_names(args: list[str], timeout: int | None = None) -> list[str] | None:
+    """The paths a git command lists, read from STDOUT ONLY and split on NUL (`-z` is added after the
+    subcommand). `run_cmd` merges stderr into its output — right for display, wrong for parsing: a
+    git warning or `fatal:` line became a "filename" (the sqlfluff leg linted it, fleet 01M4RVW43D),
+    and a `--name-only` read without `-z` C-quotes a path holding a tab, a quote or a non-ASCII byte,
+    so the gate scoped a name no file has (W-5c688a41). None when git fails or cannot run."""
+    env = os.environ.copy()
+    env["PROJECT_ROOT"] = str(PROJECT_ROOT)
+    try:
+        result = subprocess.run(
+            ["git", args[0], "-z", *args[1:]],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="surrogateescape",  # -z hands over raw bytes: any name round-trips, never raises
+            timeout=timeout or TIMEOUTS["default"],
+            env=env,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+    if result.returncode != 0:
+        return None
+    return [p for p in result.stdout.split("\0") if p]
 
 
 # ── TEST_DATABASE_URL for the pytest leg (W-e93160e3, mail 01M3S2A3) ──────────────────────────
@@ -820,23 +848,19 @@ def fix_trailing_whitespace(files: list[str]) -> tuple[bool, str, int]:
         if not path.exists():
             continue
         try:
-            content = path.read_text(encoding="utf-8")
-            # Preserve line endings (LF or CRLF) while stripping trailing whitespace
-            lines = content.splitlines(keepends=True)
-            fixed_lines = []
-            for line in lines:
-                # Strip trailing whitespace but preserve the line ending
-                if line.endswith("\r\n"):
-                    fixed_lines.append(line[:-2].rstrip() + "\r\n")
-                elif line.endswith("\n"):
-                    fixed_lines.append(line[:-1].rstrip() + "\n")
-                elif line.endswith("\r"):
-                    fixed_lines.append(line[:-1].rstrip() + "\r")
-                else:
-                    fixed_lines.append(line.rstrip())  # Last line without newline
-            fixed = "".join(fixed_lines)
+            # newline="" both ways: a plain read_text() translates "\r\n" to "\n", so the
+            # "preserves CRLF" promise was never kept and every fixed CRLF file came back LF
+            with open(path, encoding="utf-8", newline="") as fh:
+                content = fh.read()
+            # Lines end at "\n" ONLY and trailing whitespace is ASCII space and tab: Python's
+            # `splitlines()` also splits on U+2028/U+2029/\x0b/\x0c/\x85 and `rstrip()` strips
+            # them (and NBSP) — the fixer deleted a U+2028 a test exists to carry (01M4EPDF7F).
+            # Line terminators are \r\n, \n and a bare \r (classic Mac) — never U+2028 & co.
+            parts = re.split(r"(\r\n|\n|\r)", content)
+            fixed = "".join(part if i % 2 else part.rstrip(" \t") for i, part in enumerate(parts))
             if fixed != content:
-                path.write_text(fixed, encoding="utf-8")
+                with open(path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(fixed)
                 files_fixed += 1
         except UnicodeDecodeError:
             continue  # Skip binary/non-UTF8 files
@@ -860,12 +884,20 @@ def fix_end_of_files(files: list[str]) -> tuple[bool, str, int]:
         if not path.exists():
             continue
         try:
-            content = path.read_text(encoding="utf-8")
+            with open(path, encoding="utf-8", newline="") as fh:  # see fix_trailing_whitespace
+                content = fh.read()
             # Check if file already ends with a newline
             if content and not content.endswith("\n"):
                 # Preserve line ending style: use CRLF if file contains CRLF, else LF
-                newline = "\r\n" if "\r\n" in content else "\n"
-                path.write_text(content + newline, encoding="utf-8")
+                newline = (
+                    "\r\n"
+                    if "\r\n" in content
+                    else "\r"
+                    if "\r" in content and "\n" not in content
+                    else "\n"
+                )
+                with open(path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(content + newline)
                 files_fixed += 1
         except UnicodeDecodeError:
             continue  # Skip binary/non-UTF8 files
@@ -944,13 +976,13 @@ def run_formatting_fixes(
     # Ruff format + fix — changed .py only; skip entirely when none changed.
     if ruff_py:
         code, out = run_cmd(
-            [RUFF, "format", *ruff_py],
+            [RUFF, "format", "--force-exclude", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
         results.append(("ruff-format", code == 0, out if code != 0 else ""))
 
         code, out = run_cmd(
-            [RUFF, "check", "--fix", *ruff_py],
+            [RUFF, "check", "--fix", "--force-exclude", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
         # returncode 0 = clean, 1 = issues found (some fixed), other = error — RC_TIMEOUT included
@@ -961,6 +993,21 @@ def run_formatting_fixes(
             results.append(("ruff --fix", False, out))
 
     return results
+
+
+# What `ruff --force-exclude` prints when the repo's own config excludes every path it was given.
+_NO_FILES = "No Python files found"
+
+
+def _excluded_row(leg: str, files: list[str]) -> tuple[str, bool, str]:
+    """A ruff read leg whose every file the repo's ruff config excludes ran nothing; a plain PASS
+    there would assert a check that never happened (review A-S2), so it carries a skip marker."""
+    return (
+        f"{leg} (NOT RUN — excluded by the repo's ruff config)",
+        True,
+        f"⚠ the repo's [tool.ruff] exclude covers every changed file this leg was given: "
+        f"{', '.join(files[:6])}{' …' if len(files) > 6 else ''}",
+    )
 
 
 def _scope_narrowed_row(
@@ -1022,7 +1069,11 @@ def run_format_check(
     ruff_py = _changed_python(scope)
     if not ruff_py:
         return narrowed_row
-    code, out = run_cmd([RUFF, "format", "--check", *ruff_py], timeout=TIMEOUTS["ruff"])
+    code, out = run_cmd(
+        [RUFF, "format", "--check", "--force-exclude", *ruff_py], timeout=TIMEOUTS["ruff"]
+    )
+    if code == 0 and _NO_FILES in out:
+        return [*narrowed_row, _excluded_row("ruff-format (--check)", ruff_py)]
     if code == 0:
         return [*narrowed_row, ("ruff-format (--check)", True, "")]
     return [
@@ -1132,19 +1183,11 @@ def _uninvoked_test_dirs() -> list[str]:
     # `Path(".").glob("*/**/tests")` and died with OSError(ENOMEM) walking a repo that
     # carries a large untracked `vault/`. Tracked files are also the right SET: an
     # untracked scratch suite is nobody's contract.
-    try:
-        res = subprocess.run(
-            ["git", "ls-files", "*/test_*.py", "*/tests/*.py"],
-            capture_output=True,
-            text=True,
-            timeout=20,
-        )
-    except Exception:
-        return []
-    if res.returncode != 0:
+    listed = _git_names(["ls-files", "*/test_*.py", "*/tests/*.py"], timeout=20)
+    if listed is None:
         return []
     dirs = set()
-    for line in res.stdout.splitlines():
+    for line in listed:
         d = str(Path(line).parent)
         if d == "tests" or d.startswith("tests/"):
             continue  # the leg DOES invoke this one
@@ -1342,19 +1385,21 @@ def run_static_checks(
         results.extend(_scope_narrowed_row(changed, _writable, "ruff"))
     if ruff_py:
         code, out = run_cmd(
-            [RUFF, "check", *ruff_py],
+            [RUFF, "check", "--force-exclude", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
-        results.append(("ruff", code == 0, out if code != 0 else ""))
+        if code == 0 and _NO_FILES in out:
+            results.append(_excluded_row("ruff", ruff_py))
+        else:
+            results.append(("ruff", code == 0, out if code != 0 else ""))
 
     # --- JSON validation (Tier 1 + Tier 2) ---
     import json
 
-    code, out = run_cmd(["git", "ls-files", "-z", "--", "*.json"])
     json_ok = True
     json_errors = []
-    if code == 0 and out:
-        files = [f for f in out.split("\0") if f]
+    files = _git_names(["ls-files", "--", "*.json"]) or []
+    if files:
         for f in files:
             path = PROJECT_ROOT / f
             if path.exists():
@@ -1369,8 +1414,7 @@ def run_static_checks(
     results.append(("check json", json_ok, "\n".join(json_errors)))
 
     # --- YAML validation (Tier 1 + Tier 2) ---
-    code, out = run_cmd(["git", "ls-files", "-z", "--", "*.yaml", "*.yml"])
-    yaml_files = [f for f in out.split("\0") if f] if code == 0 else []
+    yaml_files = _git_names(["ls-files", "--", "*.yaml", "*.yml"]) or []
     yaml_ok = True
     yaml_errors = []
     if yaml_files:
@@ -1612,9 +1656,11 @@ def run_static_checks(
 
     # SQLFluff (skip if no .sql files changed)
     if not changed or _has_extension(changed, ".sql"):
-        code, out = run_cmd(["git", "ls-files", "-z", "--", "*.sql"])
-        sql_files = [f for f in out.split("\0") if f]
-        if sql_files:
+        sql_files = _git_names(["ls-files", "--", "*.sql"])
+        if sql_files is None:
+            # git could not list them: say so, never a green "(no .sql files)" (review A-O3)
+            results.append(("sqlfluff-lint (NOT RUN — git ls-files failed)", True, ""))
+        elif sql_files:
             code, out = run_cmd(
                 [PYTHON, "-m", "sqlfluff", "lint", "--dialect", "postgres"] + sql_files,
                 timeout=TIMEOUTS["sqlfluff"],
@@ -2195,6 +2241,8 @@ def run_consistency_checks(
             run_optional_check(
                 "scripts/enforcement/check_spec_db_match.py",
                 "Spec <-> Project DB Name Match (Phase 1c)",
+                "--quiet",
+                advisory=True,  # keeps its ⚠ contradiction lines on a green run (01M4F7NVDZ)
             )
         )
         # Undeclared-import guard (ci-parity): the app source imports a package
@@ -2775,10 +2823,7 @@ def get_staged_files() -> set[str]:
     files (picking up gate autofixes) without sweeping unrelated, concurrently
     edited files into the commit. See stage_changes().
     """
-    code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
-    if code != 0 or not out:
-        return set()
-    return {f for f in out.strip().split("\n") if f}
+    return set(_git_names(["diff", "--name-only", "--cached"]) or [])
 
 
 def stage_changes(paths: set[str] | None = None) -> tuple[bool, str]:
@@ -2865,6 +2910,55 @@ def _diff_base() -> str | None:
     return None
 
 
+def _published_refs() -> list[str]:
+    """Every ref whose commits are already somebody's published work: the upstream, a linked
+    worktree's base branch, origin/master, origin/main — each when it resolves."""
+    refs: list[str] = []
+    for cmd in (
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+        None,
+        ["git", "rev-parse", "--verify", "--quiet", "origin/master"],
+        ["git", "rev-parse", "--verify", "--quiet", "origin/main"],
+    ):
+        code, out = run_cmd(cmd) if cmd else (0, _linked_worktree_base())
+        if code == 0 and out.strip():
+            refs.append(out.strip().splitlines()[0])
+    return refs
+
+
+def _unpublished_files() -> set[str]:
+    """Files touched by commits on HEAD that are on NO published ref — this session's own work.
+
+    fleet 01M4EPDF7F: `{_diff_base()}...HEAD` is "what differs from the upstream", and a worktree
+    branch fast-forwarded onto origin/master carried 199 sibling commits inside it, so a bare run
+    auto-fixed two files no fleet commit touched (one fix deleted a U+2028 a test exists to carry).
+    A commit already on the upstream, the linked worktree's base or origin/master|main is
+    somebody's published work, never this session's to rewrite. `--diff-merges=remerge` keeps a
+    merge commit's conflict resolutions (what the session authored there) and nothing else.
+    """
+    refs = _published_refs()
+    if not refs:
+        return set()
+    logged = _git_names(
+        ["log", "--format=", "--name-only", "--diff-merges=remerge", "HEAD", "--not", *refs]
+    )
+    base = _diff_base()
+    if logged is None:
+        # a git that rejects --diff-merges (< 2.36) must not silently empty the scope: fall back
+        # to the previous `base...HEAD` diff, wider but never blind (review A-S3)
+        wide = _git_names(["diff", "--name-only", f"{base}...HEAD"]) if base else None
+        return set(wide or [])
+    touched = set(logged)
+    # NET change only: a file the session's own commits created and deleted again (or edited and
+    # reverted) is not something it publishes — keep what differs from a boundary commit (A-S2)
+    code, bnd = run_cmd(["git", "rev-list", "--boundary", "HEAD", "--not", *refs])
+    net: set[str] = set()
+    for line in bnd.split("\n") if code == 0 else []:
+        if line.startswith("-"):
+            net.update(_git_names(["diff", "--name-only", line[1:].strip(), "HEAD"]) or [])
+    return touched & net
+
+
 def get_changed_files() -> set[str]:
     """Get set of changed file paths from git.
 
@@ -2883,20 +2977,12 @@ def get_changed_files() -> set[str]:
     session's gate and was one bare run away from being auto-staged into its commit.
     """
     changed: set[str] = set()
-    # Committed but not yet pushed (the session's own commits) — see _diff_base.
-    base = _diff_base()
-    if base:
-        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"])
-        if code == 0 and out:
-            changed.update(f for f in out.strip().split("\n") if f)
+    # Committed but not yet published (the session's own commits) — see _unpublished_files.
+    changed.update(_unpublished_files())
     # Staged changes (includes staged-NEW files — the authored path for new files)
-    code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
-    if code == 0 and out:
-        changed.update(f for f in out.strip().split("\n") if f)
+    changed.update(_git_names(["diff", "--name-only", "--cached"]) or [])
     # Unstaged changes (modifications to tracked files)
-    code, out = run_cmd(["git", "diff", "--name-only"])
-    if code == 0 and out:
-        changed.update(f for f in out.strip().split("\n") if f)
+    changed.update(_git_names(["diff", "--name-only"]) or [])
     return changed
 
 
@@ -2917,15 +3003,8 @@ def get_writable_files() -> set[str]:
     contract stages explicit paths anyway, so an authored file is in the writable scope by gate
     time. `--fix-all` opts back into fixing the whole change set for a solo tree.
     """
-    writable: set[str] = set()
-    base = _diff_base()
-    if base:
-        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"])
-        if code == 0 and out:
-            writable.update(f for f in out.strip().split("\n") if f)
-    code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
-    if code == 0 and out:
-        writable.update(f for f in out.strip().split("\n") if f)
+    writable: set[str] = set(_unpublished_files())
+    writable.update(_git_names(["diff", "--name-only", "--cached"]) or [])
     return writable
 
 
@@ -2943,12 +3022,12 @@ def _warn_untracked_sources(emit: bool = True) -> str | None:
     the caller passes emit=False and routes the message into the JSON `warnings` array
     instead (a bare print there would corrupt the JSON stream agents parse).
     """
-    code, out = run_cmd(["git", "ls-files", "--others", "--exclude-standard"])
-    if code != 0 or not out:
+    others = _git_names(["ls-files", "--others", "--exclude-standard"])
+    if not others:
         return None
     src = [
         f
-        for f in out.strip().split("\n")
+        for f in others
         # The gate's own scannable surface: lint/fix targets (_FIXABLE_TEXT_EXTS) + node/sql sources.
         if f.endswith((".py", ".js", ".ts", ".tsx", ".sql", ".sh", ".md", ".yaml", ".yml", ".json"))
     ]
@@ -2997,14 +3076,54 @@ def _synced_paths() -> set[str]:
         return set()
 
 
+def _added_files() -> set[str]:
+    """Files this session ADDED: new in the index (staged, or `git add -N` intent-to-add) or added
+    net of every boundary commit of the unpublished range (the refs `_unpublished_files` reads).
+    A RENAME counts when its source was under `_RUFF_ROOTS` — the file was ruffed before the move
+    and must not leave the legs silently (review A-S1); renaming a flat-layout file adds no new
+    enforcement. Untracked files never count."""
+
+    def _new(args: list[str]) -> set[str]:
+        # -z: git's own bytes, never C-quoted (a quoted name split on tabs stored escapes, A-S4)
+        found: set[str] = set()
+        tokens = _git_names(["diff", "--name-status", "--diff-filter=AR", *args]) or []
+        i = 0
+        while i < len(tokens):
+            status = tokens[i].strip()
+            if status == "A" and i + 1 < len(tokens):
+                found.add(tokens[i + 1])
+                i += 2
+            elif status.startswith("R") and i + 2 < len(tokens):
+                if tokens[i + 1].startswith(_RUFF_ROOTS):
+                    found.add(tokens[i + 2])
+                i += 3
+            else:
+                i += 1
+        return found
+
+    added = _new(["--cached"]) | _new([])  # the second picks up intent-to-add entries
+    refs = _published_refs()
+    if refs:
+        code, bnd = run_cmd(["git", "rev-list", "--boundary", "HEAD", "--not", *refs])
+        for line in bnd.split("\n") if code == 0 else []:
+            if line.startswith("-"):
+                added |= _new([line[1:].strip(), "HEAD"])
+    return added
+
+
 def _changed_python(changed_files: set[str]) -> list[str]:
-    """Changed .py under the ruff roots that exist on disk and are NOT Fabrik-synced."""
+    """Changed .py the ruff legs own: under the ruff roots, or ADDED by this session anywhere
+    (fleet 01M4F5F2WM — a file-worker's `worker/` was never ruffed; a new file carries no debt,
+    while a modified flat-layout file's lint stays the repo-wide ratchet's). Exists on disk and is
+    NOT Fabrik-synced; the legs pass `--force-exclude`, so the repo's own ruff `exclude` still wins."""
     synced = _synced_paths()
+    py = {f for f in changed_files if f.endswith(".py")}
+    outside = {f for f in py if not f.startswith(_RUFF_ROOTS)}
+    added = _added_files() if outside else set()
     return sorted(
         f
-        for f in changed_files
-        if f.endswith(".py")
-        and f.startswith(_RUFF_ROOTS)
+        for f in py
+        if (f.startswith(_RUFF_ROOTS) or f in added)
         and f not in synced
         and (PROJECT_ROOT / f).is_file()
     )
@@ -3183,6 +3302,13 @@ def run_iteration(
 
 def main() -> int:
     """Run the final gate checks with iteration loop."""
+    # a path `_git_names` read from raw bytes may hold a surrogate escape; printing it must never
+    # crash the gate (review A-O4) — the gate's own streams escape what they cannot encode
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="backslashreplace")
+        except (AttributeError, ValueError):
+            pass
     args = parse_args()
 
     # transdoc 1.2: fail SETUP loudly instead of returning a tree verdict the

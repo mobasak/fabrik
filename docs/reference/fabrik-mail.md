@@ -43,7 +43,7 @@ agent: <role>       # OPTIONAL intra-mailbox addressee (infra|fleet|intel|kaizen
                     # message, so nothing can be hidden from a role by addressing it elsewhere.
 from-agent: <role>  # OPTIONAL — the SENDER's role (CLAUDE_AGENT, else the session's identity
                     # binding), written on every send when known; emitted only when set. A reply
-                    # is addressed back to it (§ Addressing). Survives `route`, which rewrites `agent:` only.
+                    # is addressed back to it (§ The PROTOCOL rules, the ADDRESSEE bullet). Survives `route`, which rewrites `agent:` only.
 hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent RESOLVES writes parent.hops + 1 (an unresolvable/prose/cross-box parent → 0, fail-soft)
 ---
 <body>
@@ -73,7 +73,10 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
   `acked-by: <repo> · ts: <ISO> · disposition: <done|blocked|wontfix>`. Claim FIRST, then
   act, then ack. **Cooperative-ack rule:** within one repo the sessions share identity, so
   `ack`-ing a CLAIMED id asserts the work is DONE — never ack another agent's claim unless you
-  are finishing it (taking over a crashed claim goes through `requeue` first). Two simultaneous
+  are finishing it (taking over a crashed claim goes through `requeue` first). Nor is a message your
+  session SENT to its own shared mailbox ever acked by you: the ack is the reader's act, and on a shared
+  mailbox (the hub's `fabrik`) the reader is another session: the addressed beat's, or any beat's for
+  unaddressed mail. Two simultaneous
   fallback-acks can both append (a visible doubled line, never silent loss) — tolerated at this
   volume — CORRECTED same-day: the claimed-message resolve is now RENAME-LOCKED like every
   other transition (`archive/<id>.md → .resolving → back`), so two concurrent fallback-acks
@@ -264,9 +267,9 @@ they **all share the one `<repo>/inbox`** — identity is the repo basename, so 
   (it strips any stale marker, re-opening the message cleanly for the next session).
 - **No intra-repo addressing (ruling).** `--to <repo>` reaches *whichever* session of that repo picks
   it up, **not a specific one** — so to reach "the fabrik AIs" a sender mails `--to fabrik` and the
-  session pool handles it. Agent-to-agent messaging *within* one repo is **not** a mail use case (a
-  fabrik session mailing `fabrik` would just mail the queue it is already reading); sessions in one
-  repo coordinate through the shared tree + plan-locks, not mail. A `<repo>/<agent>` sub-address is a
+  session pool handles it. Within one repo, mail is only the durable handoff from one beat to another, addressed
+  with `--to-agent` (the ADDRESSEE bullet above), and its author never acks it; live coordination between a repo's
+  sessions goes through the shared tree, plan-locks and session messaging, not mail. A `<repo>/<agent>` sub-address is a
   future option only if a concrete need appears — the shared queue is the model today.
 
 ## Operator visibility

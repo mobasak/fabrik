@@ -167,9 +167,10 @@ class World:
         ack: str | None = None,
         item: str = "none",
         branch: str = "feat",
+        base: str = "master",
     ) -> str:
         body = (
-            f"branch: {branch}\nhead: {head}\nbase: master\nitem: {item}\n"
+            f"branch: {branch}\nhead: {head}\nbase: {base}\nitem: {item}\n"
             f"review: {self.tmp / 'review.md'}\ndoorbell: none\nsent: 2026-10-01T00:00:00Z\n"
             "requester: fleet\n\nWHAT — merge request.\n"
         )
@@ -1044,6 +1045,147 @@ def test_a_reply_timeout_after_the_cas_is_partial(world, monkeypatch):
     monkeypatch.setattr(world.mod, "_mail_cli", flaky)
     assert world.run("merge") == 4
     assert world.origin() == world.base() == world.record(msg_id)["merge_sha"]
+
+
+# W-d0bbb94d — an unreachable remote defers (step a) or stays PARTIAL (catch-up), never refuses
+def _origin_gone(world) -> str:
+    url = _git(world.main, "remote", "get-url", "origin")
+    _git(world.main, "remote", "set-url", "origin", str(world.tmp / "gone.git"))
+    return url
+
+
+def _pid_gone(world, msg_id: str) -> None:
+    path = world.main / ".git" / "fabrik-merge" / f"{msg_id}.json"
+    rec = json.loads(path.read_text())
+    rec.update(pid=_dead_pid(), start="123")
+    path.write_text(json.dumps(rec))
+
+
+def test_an_unreachable_remote_defers_and_replies_nothing(world, capsys):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    _origin_gone(world)
+    old = world.base()
+
+    assert world.run("merge") == 1
+
+    rec = world.record(msg_id)
+    assert rec["phase"] == "claimed" and rec.get("outcome") != "refused", rec
+    assert "(a) preflight" in rec["deferred"]
+    assert world.replies(msg_id) == {} and "disposition:" not in world.archived(msg_id)
+    assert world.base() == old
+    assert f"DEFERRED {msg_id}" in capsys.readouterr().err
+
+
+def test_a_deferred_request_merges_on_the_next_run(world):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    url = _origin_gone(world)
+    assert world.run("merge") == 1
+    _git(world.main, "remote", "set-url", "origin", url)
+    _pid_gone(world, msg_id)
+
+    assert world.run("merge") == 0
+
+    rec = world.record(msg_id)
+    assert rec["phase"] == "replied" and "deferred" not in rec, rec
+    assert "outcome: merged" in world.replies(msg_id)["fleet"]
+
+
+def test_a_fetch_timeout_defers(world, monkeypatch):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    real = world.mod._run
+
+    def slow(argv, *a, **kw):
+        if argv[:2] == ["git", "fetch"]:
+            raise world.mod.TimedOutError("git fetch -q timed out after 60s")
+        return real(argv, *a, **kw)
+
+    monkeypatch.setattr(world.mod, "_run", slow)
+    assert world.run("merge") == 1
+    rec = world.record(msg_id)
+    assert rec["phase"] == "claimed" and "timed out" in rec["deferred"], rec
+    assert world.replies(msg_id) == {}
+
+
+def test_a_missing_remote_ref_still_refuses(world):
+    _git(world.main, "branch", "rel")  # a local base the reachable origin does not have
+    msg_id = world.send(world.branch({"x.txt": "x\n"}), base="rel")
+
+    assert world.run("merge") == 1
+
+    rec = world.record(msg_id)
+    assert rec["phase"] == "replied" and rec["outcome"] == "refused", rec
+    assert "deferred" not in rec
+    assert "outcome: refused" in world.replies(msg_id)["fleet"]
+
+
+def test_a_deferral_claims_nothing_from_the_inbox(world):
+    first = world.send(world.branch({"x.txt": "x\n"}))
+    head2 = world.branch({"y.txt": "y\n"})  # pushed while origin is still reachable
+    _origin_gone(world)
+    assert world.run("merge") == 1
+    _pid_gone(world, first)
+    second = world.send(head2)
+
+    assert world.run("merge") == 1
+
+    assert world.record(first)["phase"] == "claimed"
+    assert second in world.inbox()
+
+
+def test_one_fetch_per_unreachable_remote_per_run(world, monkeypatch):
+    first = world.send(world.branch({"x.txt": "x\n"}))
+    head2 = world.branch({"y.txt": "y\n"})
+    _origin_gone(world)
+    assert world.run("merge") == 1
+    second = world.send(head2)
+    assert world.run("merge", second) == 1  # claimed by id: both records now deferred
+    _pid_gone(world, first)
+    _pid_gone(world, second)
+    fetches: list[list[str]] = []
+    real = world.mod._run
+
+    def counting(argv, *a, **kw):
+        if argv[:2] == ["git", "fetch"]:
+            fetches.append(argv)
+        return real(argv, *a, **kw)
+
+    monkeypatch.setattr(world.mod, "_run", counting)
+    assert world.run("merge") == 1
+
+    assert len(fetches) == 1, fetches  # the second record deferred without its own timeout
+    assert "earlier in this run" in world.record(second)["deferred"]
+    assert world.record(first)["phase"] == world.record(second)["phase"] == "claimed"
+
+
+def test_an_unreachable_remote_never_starves_a_request_on_another(world):
+    other = world.tmp / "other.git"
+    _git(world.tmp, "clone", "-q", "--bare", str(world.remote), str(other))
+    _git(world.main, "remote", "add", "other", str(other))
+    _git(world.main, "branch", "-q", "rel", "master")
+    _git(world.main, "config", "branch.rel.remote", "other")
+    _git(world.main, "push", "-q", "other", "rel")
+    first = world.send(world.branch({"x.txt": "x\n"}))
+    head2 = world.branch({"y.txt": "y\n"})
+    _origin_gone(world)
+    assert world.run("merge") == 1
+    _pid_gone(world, first)
+    second = world.send(head2, base="rel")
+
+    world.run("merge")  # the stranded record defers again; the reachable request still merges
+
+    assert world.record(first)["phase"] == "claimed"
+    assert world.record(second)["phase"] == "replied"
+    assert "outcome: merged" in world.replies(second)["fleet"]
+
+
+def test_an_unreachable_catch_up_is_partial_not_parked(world):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge", phase=_reject_push_with(world, "y.txt", "y\n")) == 4
+    _origin_gone(world)
+
+    assert world.run("resume", msg_id) == 4
+
+    assert world.record(msg_id)["phase"] == "carried"
 
 
 def test_a_failed_catch_up_fetch_on_resume_is_partial(world):

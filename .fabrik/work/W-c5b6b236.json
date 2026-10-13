@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:16:11.212799Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-c5b6b236",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RK95V7S7YYTJEDH77BFYC4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: specs/services/whatsapp-agent.yaml shape.exposes_metrics is false, but the app serves /metrics."
+}

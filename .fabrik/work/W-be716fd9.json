@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "session-recall's mailbox is unworked (89 unread since 2026-08-17); finding 01M3TQKAR1 blocks D-467's hook, and session-recall is infra's beat"
 }

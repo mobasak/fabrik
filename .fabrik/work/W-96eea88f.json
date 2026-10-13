@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:37:22.931442Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-96eea88f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RR483B25993ERBH0S3CB1R",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "URGENT fleet quota — stop gracefully, hook to the next reset"
+}

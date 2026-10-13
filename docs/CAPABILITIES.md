@@ -277,6 +277,7 @@
 - [scripts/sysadmin/mcp_health.py](../INDEX.md) (owner: infra): Assigned-vs-LIVE MCP diff for the current repo (D-033 forcing pair, advisory).
 - [scripts/sysadmin/mcp_orphan_reaper.py](../INDEX.md) (owner: infra): Reap stdio MCP server processes whose Claude Code session is gone (operator mail 01M4AR32MY).
 - [scripts/sysadmin/next_census.py](../INDEX.md) (owner: infra): next_census — the NEXT: line measurement, as one script (T06, spec
+- [scripts/sysadmin/prune_transcripts.py](../INDEX.md) (owner: infra): prune_transcripts — Phase C.2/C.3 of the session-history retention plan (D-736).
 - [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): The account-quota dashboard: a localhost page showing every Claude account's session +
 - [scripts/sysadmin/quota_governor.py](../INDEX.md) (owner: infra): Quota governor — headroom-aware router for the single-key ob@ VPS Claude.
 - [scripts/sysadmin/quota_posture_hook.py](../INDEX.md) (owner: infra): The box-local quota-posture hook — one injected line per prompt, one hold at RED.
@@ -284,6 +285,7 @@
 - [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): Version injection for the rules corpus (D-062 — no version literals in packs).
 - [scripts/sysadmin/selfwatch_check.py](../INDEX.md) (owner: infra): UserPromptSubmit (USER level — every window, every project) — is this session's self-watch ARMED?
 - [scripts/sysadmin/stop_mine.py](../INDEX.md) (owner: infra): stop_mine — the promoted research miner (spec 2026-09-23-stop-and-compaction-enforcement-design
+- [scripts/sysadmin/transcript_size_check.py](../INDEX.md) (owner: infra): transcript_size_check — the ROTATE advisory (C.1.3 of the session-history retention plan, D-736).
 - [scripts/sysadmin/user_hook_gate.py](../INDEX.md) (owner: infra): USER-level hook gate: run a hub hook for every window UNLESS the project already wires it.
 - [scripts/sysadmin/vps_script_drift.py](../INDEX.md) (owner: infra): Read-only drift check: is every VPS still running the hub's committed scripts? (W-c792a205)
 - [scripts/sysadmin/worktree_transcript_link.py](../INDEX.md) (owner: infra): SessionStart + Stop (USER level, every window, every repo): keep a worktree session listed in its repo's window.

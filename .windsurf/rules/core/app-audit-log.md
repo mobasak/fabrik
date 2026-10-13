@@ -37,7 +37,7 @@ The audit log is MANDATORY in every project, whatever its scaffold type. "Proper
    data, privacy rights and consent, and autonomous watchdog actions. A client-only surface (extension,
    mobile, desktop or static page) records through the backend it calls, never with a client-side write.
 4. **Retention scheduled** — `data_retention.sql` from the project's scheduler, as the database OWNER
-   (`DATABASE_URL_OWNER`), which is how the scaffolded job connects. The watchdog sidecar does NOT run it, whatever the module's README and
+   (`DATABASE_URL_OWNER`), which only a service declaring `.env.owner` (the scaffolded `<name>-audit-jobs` companion) or a host shell under `sudo` holds — an in-app scheduler no longer sees the key; that is how the scaffolded job connects. The watchdog sidecar does NOT run it, whatever the module's README and
    `data_retention.sql` header say (filed to fabrik-lib); register it yourself.
 5. **Weekly verification** — `verify_chain(conn, since=<ts of the LAST row the previous run verified>)` from the
    scheduler: `verify_chain` skips the pointer check of the first row in its window, so starting at the previous
@@ -177,7 +177,7 @@ fabrik-lib). Until it does, a project running the sidecar records them from its 
 ## Retention Policy
 
 **Default TTL: 12 months from `ts`.** Apply via `data_retention.sql` from your project's scheduler, as the database
-owner (`DATABASE_URL_OWNER` — § Every project has it (operator ruling 2026-09-23, D-368; the app role, D-385)); the watchdog sidecar does not run it.
+owner (`DATABASE_URL_OWNER` — § Every project has it (operator ruling 2026-09-23, D-368; the app role, D-385)), which only a service declaring `.env.owner` (the scaffolded `<name>-audit-jobs` companion) or a host shell under `sudo` holds — an in-app scheduler no longer sees the key; the watchdog sidecar does not run it.
 
 **Longer periods — keep for the legal period, then purge (never indefinitely):**
 

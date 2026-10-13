@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:06:14.906737Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a813f308",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Q22F278ZQ1Y4BG7595CPCS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: blocked",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "owner-DSN split (D-754) — five rule-pack sentences to amend: `.env.owner` is where `DATABASE_URL_OWNER` lives now"
+}

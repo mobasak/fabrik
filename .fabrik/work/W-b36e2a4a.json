@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T06:41:40.884783Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-b36e2a4a",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "capture each finder's error text in fabrik-review-loop.js (agent().catch), retry a null finder once on the same model, and throw naming the error when every seat failed with the same subscription-disabled message",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "review-loop"
+  ],
+  "title": "review-loop seat failure: re-seat a failed finder once and fail fast on an org-disabled account (mail 01M4PHYNXJ rows 1791027103, 1790707386)"
+}

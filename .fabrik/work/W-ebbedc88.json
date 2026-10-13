@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-11T22:08:31.875122Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "951f4335b603179fd69ff3d38cdcad126fe00140",
   "id": "W-ebbedc88",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "tags": [
     "kaizen-01m4n1k909"
   ],

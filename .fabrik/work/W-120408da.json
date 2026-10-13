@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:47.309175Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-120408da",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4SMZXCXGD5DE2DEQVGB7WTY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the vendored GlitchTip init (whatsapp-agent src/whatsapp_agent/glitchtip_init.py:1371, vendored unedited from the hub's deny-by-default template) reads `dsn = (os.environ.get(\"SENTRY_DSN\") or os.environ.get(\"GLITCHTIP_DSN\") or \"\").strip()`. A whitespace-only SENTRY_DSN wins the `or`, then stri"
+}

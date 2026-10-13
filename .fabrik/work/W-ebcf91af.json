@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:25:47.272147Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ebcf91af",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4SES97246GC3Z4SM3FPE2ZF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: scripts/enforcement/check_spec_db_match.py::_project_db_name truncates a hyphenated database name in its drift report. Its DATABASE_URL fallback captures `([A-Za-z0-9_]+)`, so `.../5432/whatsapp-agent` is reported as `project .env uses 'whatsapp'`, a name nobody wrote."
+}

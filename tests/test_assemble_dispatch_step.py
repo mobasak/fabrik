@@ -99,7 +99,8 @@ def test_judgement_floors_name_no_haiku_seat_and_review_floors_name_a_class_wide
 _PARTITION_SENTENCE = (
     "**plus the partition — the surface cut into DISJOINT slices by file: two cheap finders per "
     "slice, one Sonnet and one Haiku `fabrik-reviewer`, candidates unioned, no Opus finder (pilot D-344 "
-    "over D-207); at most ONE extra Haiku class seat when the brief names a non-scriptable "
+    "over D-207; `/fabrik-execute-plan`'s per-round Opus finder floor is its own rule and "
+    "still stands, D-813); at most ONE extra Haiku class seat when the brief names a non-scriptable "
     "inventory class; every file read by its two finders; sized by "
     "`dispatch_headroom.py --slices sonnet=N,haiku=N`"
 )
@@ -233,12 +234,11 @@ def test_both_floor_sentences_reach_their_rendered_commands_whole(tmp_path):
         for native in ("`fabrik-reviewer`", "`fabrik-researcher`", "`design-review`")
     }
     assert units == {
-        "`fabrik-reviewer`": ["fabrik-doc-converge", "fabrik-features"],
+        "`fabrik-reviewer`": ["fabrik-doc-converge", "fabrik-docs-review", "fabrik-features"],
         # the third carrier (review-family pass 3, D1): /design-review keeps its mechanical seat
         "`design-review`": ["design-review"],
         # `/fabrik-spec-review` left this list for the SECTION-partition floor (D-212/D-218)
         "`fabrik-researcher`": [
-            "fabrik-docs-review",
             "fabrik-flows-review",
             "fabrik-rules-review",
             "fabrik-ui-design-review",

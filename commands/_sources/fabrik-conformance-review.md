@@ -61,13 +61,12 @@ specs" — that is a finding, not an error.
 
      ⚠️ `check_review_coverage.py` PARSES this file. Its requirements are not stylistic, and a
      checklist that invents its own class list fails the gate:
-     * **Run `python scripts/review_rubric.py --changed <paths>` and record the invocation on a
-       prose `Rubric:` line using INLINE backticks** — not only inside a fenced block. The gate
-       strips fences before it looks, so a rubric recorded only inside a ``` block is invisible to
-       it and the review fails with "no review_rubric.py invocation recorded" while the command is
-       sitting right there in the file. Paste the OUTPUT in a fence by all means; the invocation
-       line must live outside one. The classes derive from the rubric, never from memory. The
-       surface is not a diff, so feed it the ENUMERATED artifact paths plus the implementing code
+     * **Run `python scripts/review_rubric.py --changed <paths>` and record BOTH: the invocation on a
+       prose `Rubric:` line in INLINE backticks, and the OUTPUT pasted verbatim in a fence.** The gate
+       (`check_review_coverage.py`'s `RUBRIC_RUN`) reads the pasted output's generated
+       header (its `# REVIEW RUBRIC` line, which names the script that printed it), fenced or not, and fails the review with
+       "no pasted review_rubric.py OUTPUT" without it; the invocation line is what lets a reader re-run it.
+       The classes derive from the rubric, never from memory. The surface is not a diff, so feed it the ENUMERATED artifact paths plus the implementing code
        paths the verifiers will open — the rubric globs by path, so it arms correctly either way.
      * **Carry the four STANDING recurrence classes as rows**, on top of the rubric's:
        `fail-open/fail-closed` · `cost/quota accounting` · `boundary/sentinel/prefix` ·
@@ -84,14 +83,20 @@ specs" — that is a finding, not an error.
 Dispatch a verifier per row, **batched 2–4 per dispatch** (a portfolio has dozens of rows; one
 dispatch each wastes wall-clock, one dispatch for all loses per-row grounding).
 
-Each verifier gets ONE brief and returns a compact report:
+Each verifier gets ONE brief (every path in it — the seat's scratch dir, an archive when one is used — a
+literal absolute path already substituted, never a `<scratch>` placeholder the seat expands itself) and
+returns a compact report:
 
 - Read the spec's **success criteria** and the plan's **behavior contracts** — those, not prose.
 - **Ground each one in the live tree TODAY**: open the file, confirm the symbol / table / column /
   route / job actually exists and does what was promised. Follow migration renumbering through
   status notes rather than declaring a renamed migration missing.
 - **Spot-RUN 1–2 of the plan's own test files** against a throwaway/ephemeral target. A plan's
-  tests are the closest thing to its executable contract, and a stale green is worth nothing.
+  tests are the closest thing to its executable contract, and a stale green is worth nothing. Before the
+  run, print the database or service target the suite's seeder, provisioner or fixtures actually resolve and
+  stop unless it is the throwaway one — a hardcoded name ignores the throwaway target and silently hits the shared
+  one — and call a run read-only only
+  after reading its shared fixtures for writes (a fixture that deletes rows makes every test using it a write).
 - **Note supersessions**: a later plan may have deliberately replaced this behavior. That is
   SUPERSEDED, not NOT-IMPLEMENTED, and the successor must be named.
 - Report contract: verdict · gaps as `path:line` · supersessions · evidence including test tails ·
@@ -163,10 +168,11 @@ Same termination contract as every other review command, on a non-diff surface: 
 round AND a fully adjudicated checklist. One pass over the inventory is a first pass, never the run.
 
 - **Round shape is discovery-until-dry**, like the certification gauntlets — not the diff loop's
-  wide→scoped→wide, because there is no diff and `review_rubric.py --changed` has nothing to read.
+  wide→scoped→wide, because there is no diff to derive `--changed` from (PHASE 0 passes it the enumerated paths instead).
   Round 1 verifies every inventory row. Later rounds re-hunt the CLASSES: an adjudication that
   downgraded a verifier's CONFORMS is evidence that class was under-hunted, so re-sweep it across
-  rows that already passed. The **closing round runs non-author verifiers** on the full inventory.
+  rows that already passed — inside the inventory: an instance found outside it is recorded and routed by PHASE 3's
+  table to its owning command (a work item or a mail), never counted toward this run's convergence. The **closing round runs non-author verifiers** on the full inventory.
 - **DONE requires all of:** the Termination contract's exit above — the closing round at `confirmed: 0 · fixed: 0 · unexecuted: 0` with every candidate adjudicated, every Checklist row adjudicated, the Pass Ledger in the fragment's grammar with `method: re-derivation` on the closing row — and, host-only, **every Inventory row terminal** (no `PENDING`).
 - **Every verdict evidence-anchored with FRESH runs.** A green from last week is not evidence —
   re-run it or mark the row PARTIAL and say why.
@@ -181,7 +187,10 @@ round AND a fully adjudicated checklist. One pass over the inventory is a first 
   result, (4) correct the embedded numbers to the verbatim output and re-run once; the fixpoint
   (embed == fresh run) is the evidence-true state. A routed finding's terminal token is
   **`ROUTED(n)`** — first-class in the checklist vocabulary alongside CLEAN/FIXED/REFUTED; never
-  write "FIXED via routing".
+  write "FIXED via routing". `n` counts the work items and mails the row's findings were routed to,
+  pre-existing ones included; an operator gate is not a route — that row reads
+  `RECORDED — measured (operator gate: <work item or mail id>)` and is listed in OUTPUT's RESIDUAL — and an id already counted under
+  another class is not counted again.
 
 ## OUTPUT
 

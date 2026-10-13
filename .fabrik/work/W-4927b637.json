@@ -1,0 +1,26 @@
+{
+  "block_digest": "7841e7c6f13d68445fcb8fecf10663768c60c4fe284f2d8e452393782677296e",
+  "blocked_by": [],
+  "created": "2026-10-13T10:39:49.453976Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-4927b637",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "9fda4bea87c28cae96b34c531a8ba37bd86cb081fbf7c09ba6ab843517f6e1eb"
+  ],
+  "next": "",
+  "note": "operator (relayed by kaizen in 01M4TC3JVN): 'research this well and then share your findings with infra, after it finishes W-800579be it will build this feature' · 'we need it asap'; and 2026-10-13: 'read and understand our need and tell me how we will perfectly rout mails/kaizen/feedbacks to correct agent in fabrik and in fabrik-lib'",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I start kaizen's hub mail auto-routing build now, or wait for the urgent task you said is coming?",
+  "status": "done",
+  "title": "Should I start kaizen's hub mail auto-routing build now, or wait for the urgent task you said is coming?"
+}

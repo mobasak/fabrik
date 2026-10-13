@@ -98,7 +98,7 @@ reads, names the unmerged branch owning a mirrored file, bars live-provider cred
 outputs. Wait for both in-turn: with stamped seats out, the Stop hook's run-record block stands down and will not hold you. A concern is ACCEPTED only after the tests are
 grepped for every line it touches; an optional one adding behaviour only when provable inside the declared files,
 else filed to its owner; a later executed review finding may override it, recorded in the D-row with the drift noted. Then, before this
-call: re-read `design.md`; each Behaviour names its test; every touched path is bare in
+call: read the plan locks (no CLI does: each `*.json` in `.fabrik/plan-locks/` with `status: active`) — a declared path or one backticked in APPROACH/MIRROR inside another lock's `owned_paths` is a STOP, and so is an ACTIVE lock whose `owned_paths` is empty or absent (it matches nothing and passes everything); re-read `design.md`; each Behaviour names its test; every touched path is bare in
 backticks under `APPROACH:`/`MIRROR:`; `--design` lands ONCE. Record them:
 
 ```bash
@@ -119,7 +119,8 @@ most 7 (an 8th is the `behaviours` UPGRADE, *(v2)*) — and name every file the 
 the Behaviours' tests, deletions and a rename's both paths included, under line-start UPPERCASE
 `APPROACH:`/`MIRROR:` labels, before any line opening with a field word or a `#` (fenced or not),
 one bare repo-relative path per backtick pair (`a.py::f`, `a.py:120` and `a.py, b.py` match
-nothing; of receipts, only a `--review` one is exempt): *(v2)* a committed path missing from both
+nothing; a `.md` under `docs/development/reviews/` but `archived/` is exempt): *(v2)* a committed
+path missing from both
 REFUSES `done` at close (v1 measures `--file` instead and only RECORDS); the remedy is
 `step --phase 2 --design-amend <path>` *(v2)*, append-only — it never overwrites a recorded field —
 and counted on the close as `design_amends`.
@@ -143,15 +144,14 @@ escape makes `check_decisions_unique.py` read a 7-cell row.
 
 ## Phase 3 — BUILD
 
-**Plan locks first** — no CLI reads them: each `*.json` in `.fabrik/plan-locks/` with `status: active`.
-A declared path inside another lock's `owned_paths` is a STOP; so is an ACTIVE lock whose `owned_paths` is empty or absent — that matches nothing and passes everything. Then the change and its grader, red-first per FIX
+Re-run phase 2's plan-lock check first: a `--design-amend` path or a lock taken since is the same STOP. The change and its grader, red-first per FIX
 DIRECTIVE 4; a shared-append file goes through § EXIT's private-index recipe, never the working file.
 One commit carries it at v1; *(v2)* several may, SPACE-separated — `done --commit shaA shaB …`
 measures each in order; a sync-path run (D7) commits ONCE, after phase 4, in the main checkout
 (`done` refuses more outside a worktree; `blocked`/`handoff` only note it). At v1 that one
 commit also carries phase 5's ledgers, so nothing is committed before phase 5. Each grader names its input domain
 and borrowed fixtures, EXECUTES an executable subject, runs hermetic (box env stripped, e.g. `env -u DATABASE_URL`) on production's transport and is red on base
-by its named assertion; every guard and threshold edge the change adds is mutated. The gate helpers a new call shape must satisfy are read
+by its named assertion; every guard and threshold edge the change adds is mutated. Never run a formatter by hand beyond the declared paths. The gate helpers a new call shape must satisfy are read
 first, a removed duplicate is guarded behaviourally, never by text shape, a new threshold is derived in its
 comment, and a probe worktree carries the built dist a test reads at import.
 
@@ -161,7 +161,7 @@ Invoke the review phase 0 already picked — at v1 always `/fabrik-review-scoped
 surface never reaches the lane — it routes right-now instead); *(v2)* `/fabrik-review-scoped`, or
 the full `/fabrik-review` for a sync, heavy, migration or >5-file surface (D2, D7) — unchanged,
 never from memory; nested here, its own scope-growth stop fires at the FIRST own-fix-only round,
-not the third (D8), still closing only on a confirmed-zero pass. Give its seat briefs
+not the third (D8), still closing only on a confirmed-zero pass. A full `/fabrik-review` over committed work inits its receipt with `--range <base>..<tip>`, committed alone (phase 5); a scoped one needs none. Give its seat briefs
 the phase-2 `design.md` path and the phase-0 declaration, plus three questions: *does the change ESCAPE the declared files? did it add a mechanism the declaration said `no` to?
 can you name a second approach whose merits the build cannot settle (an equivalent implementation is not one)?* A `yes` to the first or third is that seat's UPGRADE verdict — take it; a `yes` to the second corrects the D-row (name the mechanism there), never the lane (D-315). A declared file left UNTOUCHED is padding
 (a guaranteed `0` nothing sees) or unfinished work: finish phase 3 or say why in the D-row — never
@@ -202,7 +202,7 @@ sanctioned halt. *(v2)* a contract or new-source hit found only here REFUSES `do
 too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none. Its range tip must be the LAST `--commit` (`task_lane.py` check (d)):
 after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug>
 --range <base>..<that sha>` — the Surface line it writes is what check (d) reads (a re-tip after a fix commit takes a new `--scope`), run the full `/fabrik-review` into it (skipping its own `--init`) until `Status: CONVERGED`, then commit that receipt alone
-(outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`. When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a
+(outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`. Or review BEFORE the commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after the review's last fix — the receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88). When the two critique verdicts differ or a concern stayed OPEN, `--evidence` names the split; a
 terminal it changed was restated with `--terminal-amend` before `--design`.
 
 ## UPGRADE — the one-way ratchet, available from phase 1

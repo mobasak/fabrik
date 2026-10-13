@@ -122,3 +122,27 @@ def test_second_pass_names_the_specific_steps_in_their_phases() -> None:
 def test_size_declares_operator_named_work_as_heavy() -> None:
     """Row 1791755899: operator-named work is lane row 1b's heavy surface, declared at SIZE, not found at phase 4."""
     assert "`heavy=yes` includes operator-named work (lane row 1b)" in _section("## SIZE", "## Phase 1")
+
+
+def test_phase_four_names_the_committed_work_receipt_up_front() -> None:
+    """Row 1791845646: the nested review learned the `--range` init only at phase 5's close."""
+    text = " ".join((ROOT / "commands" / "_sources" / "fabrik-task.md").read_text().split())
+    review = text[text.index("Invoke the review phase 0 already picked") : text.index("Give its seat briefs")]
+    assert "A full `/fabrik-review` over committed work inits its receipt with `--range <base>..<tip>`, committed alone (phase 5); a scoped one needs none." in review
+
+
+def test_phase_three_formats_the_declared_paths_only() -> None:
+    """Row 1791848436: a package-wide formatter run rewrote eight files nobody declared."""
+    text = " ".join((ROOT / "commands" / "_sources" / "fabrik-task.md").read_text().split())
+    build = text[text.index("## Phase 3 — BUILD") : text.index("## Phase 4 — REVIEW")]
+    assert "Never run a formatter by hand beyond the declared paths." in build
+
+
+def test_the_plan_lock_check_runs_before_the_design_is_recorded() -> None:
+    """Row 1791868540: the lock check sat in phase 3, after --design had recorded a locked APPROACH path."""
+    text = " ".join((ROOT / "commands" / "_sources" / "fabrik-task.md").read_text().split())
+    design = text[text.index("## Phase 2") : text.index("```bash python3 scripts/command_run.py step --phase 2")]
+    assert "read the plan locks (no CLI does: each `*.json` in `.fabrik/plan-locks/` with `status: active`)" in design
+    assert "a declared path or one backticked in APPROACH/MIRROR inside another lock's `owned_paths` is a STOP" in design
+    build = text[text.index("## Phase 3 — BUILD") : text.index("## Phase 4 — REVIEW")]
+    assert "Re-run phase 2's plan-lock check first: a `--design-amend` path or a lock taken since is the same STOP." in build

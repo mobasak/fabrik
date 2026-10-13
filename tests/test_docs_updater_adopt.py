@@ -147,6 +147,64 @@ class TestBC1FirstAdoptRun:
         assert len(table_rows) == 4  # markers + 2 owner-lines + 1 ledger-row
 
 
+class TestRefusedInALinkedWorktree:
+    """W-e6acc9ac: `--adopt` mints the MERGE OWNER row and stamps owners — writes that belong to the
+    main checkout. `--single-window` disarmed the session-count guard, which was the only stop, so
+    a worktree agent could mint the owner row on its branch. A linked worktree is refused before any
+    write, `--single-window` or not."""
+
+    @pytest.mark.parametrize(
+        ("single_window", "dry_run"), [(True, False), (False, False), (True, True)]
+    )
+    def test_a_linked_worktree_is_refused_and_writes_nothing(
+        self, tmp_path, monkeypatch, capsys, single_window, dry_run
+    ):
+        import subprocess
+
+        main = tmp_path / "main"
+        main.mkdir()
+        run = lambda *a, cwd=main: subprocess.run(  # noqa: E731
+            ["git", *a], cwd=cwd, check=True, capture_output=True, text=True
+        )
+        run("init", "-q", "-b", "master")
+        run("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "0")
+        wt = tmp_path / "wt"
+        run("worktree", "add", "-q", "-b", "agent", str(wt))
+        _decisions_no_merge_owner(wt / "docs" / "DECISIONS.md")
+        before = (wt / "docs" / "DECISIONS.md").read_bytes()
+        monkeypatch.setattr(du, "PROJECT_ROOT", wt)
+        monkeypatch.setattr(du, "PLANS_DIR", wt / "docs" / "development" / "plans")
+        monkeypatch.setattr(du, "PLANS_INDEX", wt / "docs" / "development" / "PLANS.md")
+
+        rc = du.run_adopt(["alpha"], single_window=single_window, dry_run=dry_run)
+
+        assert rc == 2
+        assert "linked worktree" in capsys.readouterr().err
+        assert (wt / "docs" / "DECISIONS.md").read_bytes() == before
+        assert not (wt / "docs" / "development" / "PLANS.md").exists()
+
+    def test_git_that_cannot_answer_is_refused_never_read_as_main(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """A timeout or a missing git binary must not read as 'main checkout' here (fail closed);
+        a directory that is not a repository at all stays allowed (the fixtures above)."""
+        import subprocess
+
+        _decisions_no_merge_owner(tmp_path / "docs" / "DECISIONS.md")
+        before = (tmp_path / "docs" / "DECISIONS.md").read_bytes()
+        monkeypatch.setattr(du, "PROJECT_ROOT", tmp_path)
+
+        def timeout(*a, **kw):
+            raise subprocess.TimeoutExpired(cmd="git", timeout=15)
+
+        monkeypatch.setattr(du.subprocess, "run", timeout)
+        rc = du.run_adopt(["alpha"], single_window=True)
+
+        assert rc == 2
+        assert "could not tell" in capsys.readouterr().err
+        assert (tmp_path / "docs" / "DECISIONS.md").read_bytes() == before
+
+
 class TestBC2Idempotent:
     """Given the state after that run, re-running with the same names changes no byte
     and prints `(nothing to adopt)` — WITH an epics dir present too (D1): `--assign` is

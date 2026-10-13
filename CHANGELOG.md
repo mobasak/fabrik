@@ -4,6 +4,257 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the two review commands name `surface --add` for a file edited before `start` (2026-10-13)
+- `/fabrik-review` (its own paragraph after the run-record block) and `/fabrik-review-scoped` (step 1) now say that a file the run comes to cover, last edited before `start`, outside every earlier covered window and not named by `--surface`, is added with `python3 scripts/command_run.py surface --add <path>`. No command named the verb; among the reference docs only `docs/reference/command-run-protocol.md` and `docs/workstation/hooks-index.md` did (intel finding 01M4TJJDG2). The sentence also says the verb widens the top record only, so it is refused under a nested non-review `start`. Grader: `tests/test_review_scoped_queue_pass.py::test_both_review_commands_name_surface_add_for_a_pre_start_file` pins the sentence in both sections and runs the verb's `--help`.
+
+### Changed — /fabrik-command-improve names a fragment's by-path consumers, not only its includes (2026-10-13)
+- PHASE 3's rule "a `_fragments/` edit names each `{{include:}}` consumer" now also names each source or fragment that names it (`command grep -rlw <its file name without .md> commands/_sources commands/_fragments`, which lists the includers too); the bound placeholders stay with the include consumers. The review probe catalogue is never included, so an include-only list found no consumers and missed the two review commands' pointer sentences. Answers `/fabrik-command-improve` row 1791892288; the grader reads PHASE 3 and runs the recipe.
+
+### Changed — the review probe catalogue's pre-pin section reads as every pin, not only the first (2026-10-13)
+- `commands/_fragments/review-probe-catalogue.md`'s header now says its lines apply "before every pin, the first and each delta, and while writing every brief", and its pre-pin heading reads "Before the first pin, and again before each delta pin"; `/fabrik-review` (Phase 1) and `/fabrik-review-scoped` (step 5) point at it "Before every pin, the first and each delta, and in every brief". Two of the section's bullets already ran at each delta pin, so a lead going by the old heading or command sentence skipped them. Answers `/fabrik-review-scoped` row 1791890873; the grader `tests/test_review_scoped_queue_pass.py::test_the_pre_pin_section_reads_as_every_pin_not_only_the_first` checks the property over the catalogue and both commands (8 mutants killed).
+
+### Changed — the review probe catalogue reads an injected or rendered line back through its tool (2026-10-13)
+- `commands/_fragments/review-probe-catalogue.md` § Before the first pin, which `/fabrik-review` and `/fabrik-review-scoped` point at, has a bullet of its own: a line another tool injects or renders is read back whole through that tool's output after the edit and before each delta pin (a pack line in `review_rubric.py --changed`, a fragment's rendered consumers, a template's emitted file), and a line the change leaves emitted by no invocation is named in the brief as dropped. The old fragment-render clause folds into it. Answers `/fabrik-review` row 1791889493; the grader `tests/test_review_queue_pass.py::test_an_injected_line_is_read_back_through_its_consumer` asserts the whole sentence inside its section (a review seat's 8 mutants all killed).
+
+### Fixed — a stale worktree copy no longer reds check_synced_unmodified as "you edited" (2026-10-13)
+- `scripts/sync_enforcement_to_projects.py`: the worktree resync refreshes a ledger-gap copy (one Claude Code copied at worktree creation, so no ledger row) when its non-empty bytes are a version hub HEAD's history published at that file's own source path (`_is_published_version`); unknown bytes, an emptied file, another path's content and a ledger-mismatch edit stay WARN'd and preserved. Measured before the fix: 83 of 214 project worktrees red over 281 files, none a real edit (whatsapp-agent 01M4RQV6DA, W-800579be).
+- `scripts/enforcement/check_synced_unmodified.py`: inside a linked worktree the red also names the stale-copy remedy per file (`cp <main>/<rel> <rel>` when the main checkout matches the lock, else re-run the sync); the verdict is unchanged.
+
+### Fixed — the testing pack's throwaway-guard checklist line says where the helper exists (2026-10-13)
+- `.windsurf/rules/core/45-testing-strategy.md`'s checklist mandated `require_throwaway(TEST_DATABASE_URL)` unconditionally, and `review_rubric.py` injects that line into the finders of every review whose diff touches a test file (the pack's globs), so repos without the scaffold-emitted `tests/conftest.py` got one refuted candidate per review. The line now scopes the helper as the pack's own table row does, and names the anchored predicate for the rest. Grader: `tests/test_rule_pack_scaffold_scope.py`, seen red on the old line (iterative_image_editor 01M3WW5PFN item 2, intel 01M4TCKDX5).
+
+### Fixed — check_schema_sync sees table-declaring modules by content and compares table structure, not diff lines (2026-10-13)
+
+- `scripts/enforcement/check_schema_sync.py`: a model file is one matching the filename patterns, or any non-test, non-migration `.py` whose staged content imports an ORM and declares a table (`declares_table`). A change is now a difference in `schema_signature`: the DB classes' field statements and module-level `Table(...)` calls, parsed and format-free, compared between HEAD and the index, with a deleted file read from HEAD. A file that does not parse keeps the old diff regex. Before, `db.py`/`main.py` modules were unguarded (iterative_image_editor 664b7016c added a table with no migration), and the regex failed commits for Pydantic `BaseModel` and `BaseHTTPMiddleware` classes and for re-wrapped columns. Replayed over every fleet model file's history (53 files, 84 commits without a schema or migration): would-fails 15 → 12, from 5 false fails removed and the real miss added (W-62875be3, iterative_image_editor 01M3WW5PFN).
+- `docs/workflows/FINAL_GATE_WORKFLOW.md` § check_schema_sync.py now describes what the check does.
+
+### Fixed — check_rule_grounding reads a numbered Constraints Digest's Rule column, not its row numbers (2026-10-13)
+
+- `scripts/enforcement/check_rule_grounding.py` `_digest_rows`: a header whose first cell is exactly `#` makes that column a row label. With no `Quote`/`Verbatim` header, the quote is the column next to a named `Source`. A `| # | Rule | Source | … |` digest used to grade `1`, `2`, `C1` as quotes: they were either not found, or a label matched a substring of the cited file, a false green hiding a misquote. Measured over every digest under /opt (251 digests, 2085 rows): 22 changed, all `#`-led, and found quotes went 938 → 963. No audited plan changed colour (iterative_image_editor 01M3WW5PFN, W-62875be3).
+- `commands/_fragments/grounding-rules.md` states the fallback the checker applies, and a test pins the sentence.
+
+### Fixed — the review-loop floor and the subagents pack name execute-plan's Opus finder floor (2026-10-13)
+- The partition FLOOR rendered into `/fabrik-review` and `/fabrik-repo-review` (`commands/assemble_commands.py`) and `core/62-using-subagents.md`'s model-per-role line said "no Opus finder" bare, while D-813 made the corpus name `/fabrik-execute-plan`'s per-round Opus finder floor as its own rule. Both now say so (kaizen 01M4SYAGHQ).
+
+### Fixed — /fabrik-review-scoped cites D-118 for the closing-reader asymmetry, not D-066 (2026-10-13)
+- The clause pinned the closing-reader asymmetry on D-066, a finding-shape triage row; D-118 is the row that bound the independent-reader floor to the scoped command (W-a8361c19).
+
+### Added — `review_loop_ledger.py next --args` builds the next pass from the run's own ids; `#` stops crediting a bare id (2026-10-13)
+
+- `scripts/review_loop_ledger.py next --args <run file | launch args>` emits each slice whole (files, models, scope, priority and agent from the launch; the ledger replaced), so stdout is the next launch's `slices`. A run file resolves each id against the run's union candidates, the ids the verdicts carry (`A-S1#2`). stderr names the launch slices `not carried` and the `DISPATCH:` stamp. Without `--args`, an id two raw claims share is still refused, now listing every claim with its seat and file:line. Keep-first was rejected: both design critiques showed it can carry a refuted claim and drop the confirmed one (mail 01M4PHYNXJ). The review's round 1 added these refusals (rc 2, by name): an id two union rows carry, a nameless or malformed result slice, duplicate launch-slice names, a launch slice without `files`, and non-list `models`. A torn pass file is also refused. A repeated `--ids` entry now counts once.
+- `.claude/workflows/fabrik-review-loop.js`: `closeCheck` treats `#` as an id character, so a seat reporting `S-S1#2` no longer also re-verifies `S-S1`. The launch logs its `DISPATCH:` count before any seat. The pin recipe says `-P` keeps an inherited PYTHONPATH ahead of the insert, while an editable install's `.pth` path lands after it.
+- `docs/reference/review-loop-workflow.md`: `next --args`, and where the harness keeps each run's args and result.
+
+### Added — `command_run.py surface --add`: a running review widens its own Stop-hook exemption (2026-10-09)
+
+- A running review covers `(start, ∞)`, so its own edits were never the gap; a file last edited BEFORE its `start` that its `--surface` did not name stayed flagged by the sixth cause until `done`. `surface --add <path>` records such a path in a new `surface_adds` field (never in `surface`, the ledger's run dimension), and `.claude/hooks/final_gate_stop.py` `_surface_reviewed` reads it as one whole token (W-24ae7ecf). Refuses every record but a running review and every value that is not one repo path, rc 1 with nothing stored. Graders in `tests/test_command_run.py` and `tests/test_stop_hook_spontaneous_review.py`, seven mutants red.
+
+### Fixed — final_gate reads git's path lists from stdout only, NUL-split (2026-10-13)
+- `scripts/final_gate.py` parsed `run_cmd`'s merged stdout+stderr as file lists, so a git warning or `fatal:` line became a "filename" (the sqlfluff leg linted it, fleet 01M4RVW43D), and its `--name-only` reads were not `-z`, so a path holding a tab, a quote or a non-ASCII byte entered the gate's scope C-quoted as a name no file has (W-5c688a41). One helper, `_git_names`, now reads every path list (the staged, changed, writable, unpublished, added and untracked sets, the json/yaml/sql listings and the test-dir listing) from stdout alone with `-z`, or None when git fails. The GATE row's `final_gate.py:N` cites in both CLAUDE.md contracts move with the shifted lines.
+
+### Changed — execute-plan's Opus floor named beside D-344; plan-review splits a half-blocked plan (2026-10-13)
+- subagents-core keeps `/fabrik-execute-plan`'s per-round Opus finder floor; /fabrik-plan-review splits a plan whose later phases wait on a cross-agent blocker (D-813).
+
+### Changed — /fabrik-review fills the checklist before the in-progress gate run (2026-10-13)
+- § Reporting: fill every Coverage Checklist and Pass Ledger row before the close order; the in-progress run skips both checkers and an untracked receipt is skipped until staged (D-812).
+
+### Changed — /fabrik-task checks plan locks before the design is recorded (2026-10-13)
+- The plan-lock check runs before phase 2's `--design` over every backticked path and again at phase 3 for amended paths and new locks (D-811).
+
+### Fixed — a headless `claude -p` child no longer gets the work queue's claim orders (2026-10-13)
+- `scripts/work.py` gains `_print_mode()`: a labelled headless run, or one whose nearest `claude` ancestor runs with `-p`/`--print`, keeps only its own claims' `continue`/`release` subjects in `queue --stop` (else a bare null, `reason: print-mode`) and only its own-claim lines in the prompt block, and a `-p` claude is never counted as a present worker. A child a project's code spawns inherits its parent's entrypoint, so only its own argv tells it apart; in iterative_image_editor the Stop hook's "claim W-…" order turned 3 of 14 strict-JSON drafts into prose (01M4PAJWV1, D-809). The suite pins the labels and the proc root in `tests/conftest.py`, so it grades the same under a `-p` dispatcher.
+
+### Changed — review probes remap a shifted cite by content in one script (2026-10-13)
+- The Sweep line remaps a `path:line` cite a merge or edit shifted by the symbol the prose names, never by hand (D-810).
+
+### Fixed — the spec DB-name check reads the whole database name, not a prefix (2026-10-13)
+- `scripts/enforcement/check_spec_db_match.py` read a project's `PG_DATABASE` / `POSTGRES_DB` / `DATABASE_URL` name through `[A-Za-z0-9_]+`, so `foo_db-x` read as `foo_db` and PASSED against a spec naming `foo_db`, and a drift report quoted a prefix nobody wrote (whatsapp-agent 01M4SES972). It now reads each value the way dotenv does (an optional `export`, a quoted value to its own quote, an unquoted ` #comment` dropped only after whitespace) and finds the database through a URL parser, percent-decoded. A value that interpolates (`${…}`) falls through to the next source instead of being read as its prefix, which also ends the false drift `foo_${ENV}` raised. Two projects whose credential-less URLs the old pattern never read (`image-generation`, `web-scraper`) are now read; the live hub verdict is unchanged (9 compared of 69 specs).
+
+### Changed — review probes read a compose overlay through its merged render (2026-10-13)
+- The Surfaces hunt line renders `docker compose -f <base> -f <overlay> config`, where precedence and port exposure show (D-808).
+
+### Fixed — four synced rule texts now say what the code does (2026-10-13)
+- `core/40-documentation.md` § B no longer calls all of `docs/reference/**` hub-owned: it names the files and dirs `fabrik_synced_manifest.py` distributes, so a project's own reference docs stop reading as forbidden (web-ecommerce-factory 01M4179ZWW). `core/self-healing.md` gains ladder row 11, the hub's postgres allocation registry-drift heal, with a shared claim and a `heal_failed` refusal routed to their real metrics (fleet 01M3YEY98R). `core/55-observability.md` says the logentry allowlist narrows, not closes, the log channel and names the residuals the scaffold's ruff `G001`–`G004` cannot see (fleet 01M4EWXXK5). `check_review_coverage.py`'s comments stop restating the RECORDED meanings and its stale `check_convergence.py` line cites (01M4F2HKK8).
+
+### Changed — /fabrik-review names the closing method cell's literal token (2026-10-13)
+- § Reporting: write the closing row's method cell as `method: re-derivation`; the coverage gate's regex needs `method` followed by `re-deriv` with only punctuation between (D-807).
+
+### Changed — /fabrik-spec names the as-built amendment route (2026-10-13)
+- The SKIP line routes an as-built revision of a CONVERGED spec to an amendment here (`Profile: delta`); a stale pin on /fabrik-plan-after-chat's sentence is repinned (D-806).
+
+### Fixed — the spec DB-name check no longer skips a spec that names a database it never asks for (2026-10-13)
+- `scripts/enforcement/check_spec_db_match.py` skipped every spec whose `shape.needs_database` was falsy before reading `depends`, so a spec naming `depends.postgres` (or `postgres_seed`, or `redis` without `needs_cache`) was green at commit while `fabrik apply` warns on it at deploy. It now prints `fabrik apply`'s own `depends_contradiction` clause per contradiction (5 live hub specs today), warn-only, after any blocking drift; the gate calls it `--quiet` and keeps the lines on a green run, and a non-mapping `depends` or `shape` no longer crashes the check (fleet 01M4F7NVDZ, D-805). Also moves the GATE row's `final_gate.py:N` cites in both CLAUDE.md contracts, which D-802 had shifted (reported red by kaizen).
+
+### Fixed — /fabrik-flows-review's description names all eight axes (2026-10-13)
+- The frontmatter description adds life-cycle arcs (UI types) and discipline + exclusions and names G as cross-artifact truth, trimmed to stay under the 1024-character skill limit; /fabrik-ui-design-review's description gains its missing axis F; tests grade both (mail 01M4S7EX4S).
+
+### Changed — review probes run a matcher sentence over its inputs; briefs name a fix by sha (2026-10-13)
+- A sentence describing a matcher is executed over its input space before the pin; a brief names the fix by `git show <sha>` (each sha of a multi-commit fix), never a bare range (D-804).
+
+### Changed — /fabrik-task formats the declared paths only (2026-10-13)
+- Phase 3 never runs a formatter by hand beyond the declared paths; the size cap grows by that sentence (D-803).
+
+### Changed — /fabrik-command-improve reads the executor, fan-out and branches before writing (2026-10-13)
+- PHASE 3 reads the target's fan-out paragraph, the section whose executor acts on the sentence, and every branch its subject binds (D-799).
+
+### Changed — review loop: slices re-stated in remainder rounds, capped round 1 merges low-risk slices (2026-10-13)
+- A slice-partitioned scope-growth remainder round still re-states every slice; a known cap merges two low-risk slices; a fix outside the pin is pinned or named (D-798).
+
+### Changed — /fabrik-task phase 4 names the committed-work receipt init up front (2026-10-13)
+- A nested full `/fabrik-review` over committed work inits its receipt with `--range <base>..<tip>` and commits it alone (a scoped review needs none); the size cap grows by that sentence (D-797).
+
+### Changed — the gate formats and lints new Python outside scripts/ and src/, and honours each repo's ruff exclude (2026-10-13)
+- `scripts/final_gate.py`: a `.py` the session adds anywhere — a file-worker's `worker/`, a `server/` or `api/` — now gets the same ruff format and check as code under the lint roots; modified pre-existing files there stay with the repo-wide lint ratchet. Every gate ruff call passes `--force-exclude`, so a file the repo's own `[tool.ruff] exclude` lists is never linted or reformatted (fleet 01M4F5F2WM, D-802).
+
+### Fixed — the completion gate's auto-fixers touch only this session's own commits, and keep U+2028 and CRLF (2026-10-13)
+- `scripts/final_gate.py`: the fixer and read scopes took `upstream...HEAD`, so a worktree branch fast-forwarded onto master carried every sibling commit into a bare run's auto-fix (fleet 01M4EPDF7F: two sibling files rewritten). They now take the files of commits on no published ref (upstream, the worktree's base, origin/master|main; a merge contributes only its conflict resolutions). The trailing-whitespace fixer splits on `\n` only and strips only space and tab — `splitlines()`/`rstrip()` had deleted a U+2028 a test carries — and both fixers read and write with `newline=""`, so a CRLF file is no longer silently rewritten to LF.
+
+### Fixed — review seats run with python-dotenv disabled, so a probe cannot load a project's live credentials (2026-10-13)
+- `.claude/hooks/seat_guard.py` rewrites every allowed `fabrik-reviewer` seat Bash call to start with `export PYTHON_DOTENV_DISABLED=1` (`updatedInput`, never an approval). A seat that imports a live tree's app no longer has its import-time `load_dotenv()` restore provider credentials — the cause of live Namecheap and Cloudflare calls from seats in site-provisioner (01M4F154S2, 01M4F1KHHW, D-801).
+
+### Fixed — /fabrik-flows-review's renderer constants match its source (2026-10-13)
+- `commands/assemble_commands.py`: /fabrik-flows-review's term-edit AXES names all eight axes (it lacked E2, now `life-cycle arcs (UI types)`), /fabrik-flows' names its Phase-6 gate's eleven checks (it had six), and the flows-review EXTRA drops an Opus-axis sentence that rendered only inside the commented-out pool contract — the source states it since D-783. `tests/test_assemble_axes_match_source.py` grades every command whose source letters its axes against its AXES count (kaizen 01M4RXJYDW).
+
+### Changed — /fabrik-task checks the design note's names at `--design`, and lists the tests that name a declared script (2026-10-13)
+- `step --phase 2 --design` on a lane-v2 run refuses, storing nothing, when a declared `--file` is not backticked in APPROACH or MIRROR, so the note is fixed before the build instead of amended after it. `start` and the stored design print the tracked test files naming each declared script (kaizen 01M4RNGC0H, D-796).
+
+### Changed — review probes check a reimplemented tool against its own output (2026-10-13)
+- A fix that reimplements another tool's semantics proves parity against that tool's own output over its edge cases before it lands (D-795).
+
+### Changed — /design-review reaches a login-gated screen through the ui-verify auth harness (2026-10-13)
+- Seats sign in through `makeAuthedTest`/`makeUiAuthedTest` with credentials from the environment, never a brief, and confirm the signed-in screen before judging (D-794).
+
+### Changed — /fabrik-execute-plan never formats beyond its File Scope (2026-10-13)
+- `ruff format` is never run by hand beyond the plan's File Scope; the bare gate run already formats only the run's own changes (D-793).
+
+### Changed — the /fabrik-task close no longer refuses a run's own review receipt (2026-10-13)
+- A committed `.md` under `docs/development/reviews/` (not `archived/`) is excluded from the close's undeclared-path measures (the v2 refusal, the v1 and unstamped `oversized_mini` records), like a Doc Sync destination; a non-`.md` file there is still measured. The v1 record no longer lets a rename's destination inherit membership from an exempt source. The close's receipt dir is graded equal to `task_lane.REVIEWS_DIR`, and fabrik-task.md says so (kaizen 01M4RP9QCR, D-789).
+
+### Changed — review seats run scripts from the archive copy and pin one-hop callees (2026-10-13)
+- The catalogue's seat-isolation line runs a script from the archive with path arguments under scratch, and pins the changed files' one-hop callees that are repo files (D-792).
+
+### Changed — /fabrik-upstream's send line names the mail contract's seven headers (2026-10-13)
+- The proposal mail's body carries WHAT, WHERE, WHEN, WHO, WHY, HOW and SYSTEMIC, pointing at the message contract (D-791).
+
+### Changed — /fabrik-command-improve runs every test that names the edited source (2026-10-13)
+- PHASE 5 runs the queue-pass test plus every test file that names the edited source, the fragment or a command including it, so a size cap or a verbatim pin is caught before the commit (D-790).
+
+### Changed — /fabrik-features files a code defect it finds, never patches it (2026-10-13)
+- Phase 2 files a code defect with no row yet to its owner and points the feature row at that id (D-788).
+
+### Changed — the review probe catalogue briefs a fix's own guard in the next round (2026-10-12)
+- A guard a review's fix adds goes into every brief from the next one on, by name, with its escape variants and model boundary (D-787).
+
+### Fixed — scratch_sweep reads a git warning on a `-z` listing as unreadable, and its stale quote test is current (2026-10-13)
+- `scripts/scratch_sweep.py::_git` glued stderr onto stdout, so a warning at rc 0 ("could not open directory") became a fake NUL-separated `git status`/`ls-files -z` entry on an INCOMPLETE listing. A `-z` call now returns stdout alone and reads rc 0 with stderr as unreadable, so the worktree is kept (0 of 352 registered worktrees fire it today); `_ignored_data`, which read an unreadable `--ignored` listing as "no ignored data", now reports it as a hit, so the NEVER-delete guard keeps the worktree too. `tests/test_scratch_sweep_sync_materialised.py`'s quote-unwrapping test, red since W-fe6e0ed3 moved the caller to `-z`, now asserts names are taken verbatim (W-d81efab9).
+
+### Changed — /fabrik-conformance-review pastes the rubric output and gives seats literal paths (2026-10-12)
+- PHASE 0 records both the rubric invocation line and its pasted output, whose header is what the coverage gate reads; the verifier brief names literal absolute paths (D-786).
+
+### Changed — /fabrik-review-scoped briefs a guard's model boundary with its escape variants (2026-10-12)
+- A GUARD's brief states the inputs it is meant to judge, so an escape variant outside them is `RECORDED — by design (D-785)` in round 1 instead of seeding own-fix rounds (D-785).
+
+### Fixed — a review seat can check the pinned copies from any directory (2026-10-12)
+- `scripts/review_loop_ledger.py pin` also writes `MANIFEST.pins.md5` with each copy's absolute path and prints its `pins_digest`, so `md5sum -c --quiet <pins_dir>/MANIFEST.pins.md5` verifies the pins from any cwd; `MANIFEST.md5` from the repo root remains the live-file check. `pin` refuses a newline in a path or in the pins dir and a root file named like a manifest; the subagents-core fragment and the review-loop reference name the new check (site-provisioner 01M4RNTM85, W-1008046c, D-780).
+
+### Changed — the mail contract: an author never acks its own send to a shared mailbox (2026-10-12)
+- `docs/reference/fabrik-mail.md` and CLAUDE.md say the ack is the addressee's act, so on the hub's shared `fabrik` mailbox a session never acks mail it sent itself; the intra-repo ruling names mail as the handoff between beats, and two dead `§ Addressing` references now point at the ADDRESSEE bullet (D-784).
+
+### Changed — /fabrik-flows-review names its seat budget and bumps once per run (2026-10-12)
+- The dispatch line names `dispatch_headroom.py --units 8 --mechanical 2 --risky 2` (axes A–G plus E2), and a review run bumps the contract's version at its first edit and mints one row (D-783).
+
+### Changed — the review probe catalogue reads a pinned line's comment before copying it (2026-10-12)
+- Before adding a sibling of a pinned or guarded line, the lead reads the comment on the line it copies (D-782).
+
+### Changed — /fabrik-doc-converge writes cross-repo paths plainly, reads escaped pipes, checks by-design rulings (2026-10-12)
+- Phase 2 writes another `/opt` repo's path as a backticked plain path, treats `\|` in a cell as content, and greps DECISIONS and the archive for a by-design ruling before raising a schema finding (D-781).
+
+### Changed — the review probe catalogue runs emitted one-liners, checks helper contracts and pinned versions (2026-10-12)
+- An emitted one-liner runs as emitted under its real shell; a pure helper's own return contract is checked; an external quote's brief names the version the repo pins or deploys (D-779).
+
+### Fixed — docs_updater --adopt refuses to run in a linked worktree (2026-10-12)
+- `scripts/docs_updater.py`: `--adopt` writes the merge-owner row and owner stamps that belong to the main checkout; since `--single-window` disarms the session-count guard, a worktree agent could mint the owner row on its branch. It now refuses (exit 2) in a linked worktree before any write, with or without `--single-window` (W-e6acc9ac).
+
+### Changed — rule packs say where the owner DSN lives after the owner split (2026-10-12)
+- `.windsurf/rules/core/30-ops.md`, `10-python.md`, `app-audit-log.md`: `DATABASE_URL_OWNER` is read only by a service that declares `.env.owner` in `env_file` (the audit-jobs companion, a `migrate` service), never by the app service or an in-app scheduler; `docker compose run --rm <svc> alembic upgrade head` names such a service; the `migrate` service bullet gains its `.env.owner` (fleet mail 01M4Q22F27, W-7ed355e6, D-754).
+
+### Changed — /fabrik-review names --own-fix, the plan-flip order and the GATE-SCOPE line (2026-10-12)
+- The round grammar names `--own-fix`; a caller's `EXECUTED` plan flip follows the receipt's post-flip gate run; the receipt template shows the GATE-SCOPE declaration (D-778).
+
+### Fixed — the plan-review grader pins the design-critique sentence D-758 extended (2026-10-12)
+- `tests/test_plan_review_recurring_rules.py` read the ACCEPTED bullet's delta-round sentence without the OSCILLATING-advisory clause D-758 added, so master was red; it now pins the sentence whole (D-777 records the /fabrik-task queue: one row held at the source's byte cap, four mailed to infra as code).
+
+### Fixed — a merge request waits out an unreachable remote instead of being refused (2026-10-12)
+- `scripts/merge_request.py`: a fetch that times out or cannot reach the remote no longer refuses the request and asks the requester to re-send; the request stays claimed, nothing is replied, the run says DEFERRED, the next `merge` run retries it and requests on other remotes keep merging meanwhile, and the same outage after the merge stays resumable instead of parking the queue. A branch or base the reachable remote does not have is still refused (W-d0bbb94d, D-775).
+
+### Fixed — /fabrik-deploy-verify stages a fresh comparator where every stub reads it (2026-10-12)
+- `commands/_sources/fabrik-deploy-verify.md`: the host leg stages the comparator beside the script with a stale copy removed and group/other write stripped, and stages a stub older than D-744 in a private clone layout; the container leg removes the last run's copy inside the container, creates `/app/scripts` and `/app/libs` as root, stops on a failed copy instead of hiding it, and runs the script by its absolute path; a `--header` `sites` count of 0 skips only the remote exec, and the hub still emits that site with `--unreachable` (fleet mail 01M4PKBYRV, fleet's W-82cff1ac, infra's W-4f902e2f, D-763).
+
+### Fixed — corpus-weight names how to drop a registered surface's key; health-probe re-vendored (2026-10-12)
+- `scripts/enforcement/check_corpus_weight.py`: the `--reseed` line for a surface it could not measure and its `--check` twin now say the key is still a SURFACES entry, and the write line adds that retiring it from SURFACES is what drops it; a comment marks `_not_written_because`'s last return as unreachable while its three causes stay exhaustive (fleet mail 01M4P514GR, W-ed63cd68). `libs/health_probe/health_probe.py` re-vendored from fabrik-lib b1c06437 (3190a4d77), which turned master's `tests/test_scaffold_deploy_contract.py` green again.
+
+### Fixed — the /fabrik-task close accepts a receipt reviewed before the commit (2026-10-12)
+- kaizen's triage (mail 01M4N1K909, rows 1791317858, 1791470714, 1791116082, 1791099519, 1791465412, 1791074435): `--review` refused every receipt made with `review_receipt.py --init` and no `--range` (156 of 671 on disk), so a close then refused the receipt as undeclared. Check (d) now also accepts that working-tree Surface when the commit's diff over its paths rebuilds to the same bytes (untracked files included); `review_receipt.py --restamp <receipt>` re-anchors it after the review's last fix. A design note citing `path:N-M` or `path::symbol` now names that file at close, and a `--commit` value holding whitespace is refused with the fix (W-ebbedc88, D-750).
+
+### Changed — review seats attack a re-vendor's byte-identity result as a claim (2026-10-12)
+- The review probe catalogue's premise line has a re-vendor brief hand the seats the lead's executed byte-identity result to attack (re-run first), and the seat-isolation line has the brief extend the seat recipe to every top-level path the tests import, read or run (D-776).
+
+### Changed — /fabrik-flows commits the DRAFT with its index rows at first write (2026-10-12)
+- An untracked `docs/flows.md` reds every full (Tier-2) gate run in a shared checkout, so the first write is committed with its `INDEX.md` and `docs/README.md` rows (D-772).
+
+### Changed — the certification NOT-QUIET line is shown in the exact form the grader accepts (2026-10-12)
+- `cert-execution` (service-test, user-test) gives ``ledger: **`NOT-QUIET (routes outstanding)`**`` as the declaration line and names the shapes `NOT_QUIET` refuses (D-771).
+
+### Changed — /fabrik-release leads with a missing certification report and names its docs checks (2026-10-12)
+- A UI/service surface with no certification report is BLOCKED first; the dated-docs precondition says what its git-date and `Last Updated` checks each read, with a printed content tiebreak (D-770).
+
+### Changed — /fabrik-deploy-checklist names the leg-file threat model and runs a red-seen control (2026-10-12)
+- The hub spec is read read-only; Phase 2 names how a merged leg file can reach CONFIRMED; Phase 5 runs probes with the vendored dirs and an unmutated control, and runs a contract test in the gate's pytest leg (D-769).
+
+### Changed — /fabrik-conformance-review checks a spot-run's target and bounds its re-sweeps (2026-10-12)
+- Spot-runs print their resolved DB/service target and read shared fixtures before calling a run read-only; class re-sweeps stay inside the inventory; `ROUTED(n)` says what it counts (D-768).
+
+### Changed — /fabrik-command-improve reads what already governs a subject before writing (2026-10-12)
+- PHASE 3 names the reads (target intro and guardrails, included fragments, routing rules, a script's --help), runs a verb the agent is told to run end to end in a scratch repo, and runs recipes on real artifacts (D-767).
+
+### Changed — /fabrik-plan-after-chat checks a new plan's citations and its rubric's source tree (2026-10-12)
+- New plan files are graded with `check_citations_resolve.py --doc` before the citation check; script-behaviour steps quote the function; spec-fed grounders start from the spec's anchors; the rubric runs from the tree holding the packs (D-766).
+
+### Changed — /fabrik-features gains a Scoped REFRESH mode and symbol-cited Planned rows (2026-10-12)
+- Planned rows cite symbols, not line numbers; REFRESH may run scoped to a plan or section, the code still its denominator; route rows cover every mode; known defects point at the backlog; Phase 3 names each population before counting (D-765).
+
+### Changed — /fabrik-ui-design-review grounds IA on the built surface and follows cross-references (2026-10-12)
+- Form controls are checked against the template's Forms and Permissions UX sections; built menus ground IA claims; trimmed seats carry named axes; a cross-reference must resolve to the design it names; in-loop edits are not in-place-edit findings (D-764).
+
+### Changed — /fabrik-catchup runs the gate first, claims items and probes the work store (2026-10-12)
+- Phase 0 queues the gate's reds first; probe 1 reads status through the parser; probe 2 derives code roots and needs drift; a probe 7 lists polluted work items; Phase 2 claims existing store items by id and mails other beats' items in the hub (D-762).
+
+### Changed — /fabrik-ui-design gains a re-freeze mode and a mirror sweep (2026-10-12)
+- Phase 0 names a `re-freeze` mode; the size ceiling is measured; Phase 6 checks ids are defined once, every enum value and the size ceiling; the Re-freeze close-out sweeps mirrors and names /fabrik-ui-design-review's gate and the expected attestation WARN (D-761).
+
+### Changed — /fabrik-spec grades its own DRAFT before handoff (2026-10-12)
+- Phase 5's self-review runs `check_spec_convergence.py` on a copy of the DRAFT flipped to CONVERGED; § 1a gives the wording an amendment with no external fact uses; § 1c seats carry the 1a facts; fabrik-researcher quotes schema fields from the raw arm on HTML docs pages (D-760).
+
+### Changed — /fabrik-command-improve executes what a new sentence says a script does (2026-10-12)
+- PHASE 3: a sentence describing a script's, tool's or step's behaviour is executed on its own scenario before review and quoted as it prints, or the row is mailed to the script's beat. PHASE 5: the tests run in the commit's shell after the last edit, and the trailer and marks name only rows PHASE 4's seats found answered (D-759).
+
+### Changed — the panel's ACCEPTED delta round is recorded as the next Pass (2026-10-12)
+- In /fabrik-spec-review and /fabrik-plan-review, the delta round an ACCEPTED panel concern re-opens is recorded as the next Pass with every earlier-stated slice re-stated, and an OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift (D-758).
+
+### Fixed — /fabrik-doc-converge: three contract rows counted from the wrong source (2026-10-12)
+- RESILIENCE's billable APIs come from the code, not the doc's own §2; README's capability claims are verified against the code (FEATURES is a cross-check); INDEX.md reads an untracked-but-present file as present and resolves a bare filename under its directory row. Every docs-level index obeys the docs/README row, and a code defect found mid-converge is filed and described as it is (D-757).
+
+### Fixed — review commands: no pass-number ceiling; the round recipe states --own-fix (2026-10-12)
+- `pass: 2|3` read as a ceiling in /fabrik-spec-review, /fabrik-plan-review, /fabrik-review-scoped, /fabrik-review and the review-loop workflow contract; it is now the next pass number with no ceiling. The spec-review and plan-review round recipes state `--own-fix`; spec-review's Phase 0 runs the flip gates on a flipped scratch copy before Pass 1, and its briefs apply the review probe catalogue (D-756).
+
+### Fixed — /fabrik-docs-review: its floor seat can run commands; an out-of-surface gate red is declared (2026-10-12)
+- The floor seat is `fabrik-reviewer` (Bash) since Phase 2 verifies runnable examples by running them; `fabrik-researcher` keeps external claims. A doc-sync gate red none of whose findings the change caused is embedded with the `GATE-SCOPE: out-of-surface` declaration; seat briefs apply the review probe catalogue (D-755).
+
+### Fixed — /fabrik-execute-plan: three wrong sentences and the recurring steps of its feedback queue (2026-10-12)
+- A merged sibling's lock is visible to the overlap scan; the baseline gate runs `--check`; the phase-review artifact binds every phase, not only GUI ones. The pre-flight spot-check repeats before each later phase, a resumed run names receipts with the plan prefix, the loop names the Profile: small waiver and the repo's interpreter, one ID per `Agent-Task:` line, D4's wave brief points at the review probe catalogue and its receipt passes `check_review_coverage.py`, D5 compares reds by name and D7 points at the quota pause (D-753).
+
+### Changed — /fabrik-review answers its feedback queue in one pass (2026-10-12)
+- Phase 1 points at the review probe catalogue; a failed or `NO RESULT` refuter's candidates are executed by the lead, and the FAILED-seat re-dispatch names finders; the delta brief names its must-read files; `next`'s rows merge into `args.slices` by name; the close stages before its IN-PROGRESS gate. Every command, fragment and contract that states the Agent-tool fallback now also takes it for a run the operator did not invoke. The catalogue gains redactor timing, what a fix recipe leaves unchanged, quoting code from its emit site and linting a copy with the repo's config (D-752).
 ### Fixed — the vendored GlitchTip init takes the first NON-BLANK DSN, and its comments stop citing files a scaffolded repo lacks (2026-10-13)
 
 - `templates/scaffold/python/glitchtip_init.py` (whatsapp-agent findings 01M4SQZBMTN6DF9KX1B5FYVNF0 and 01M4SNBHR007MHT6Y40R9BEJBE,
@@ -16,7 +267,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — The five specs apply's depends-contradiction warning named now say what their stores are (2026-10-13)
 
-`check_spec_db_match.py` (ab9d3cf21, D-805) warned on five specs whose `depends.postgres` named a database the Postgres registrar would never create because `shape.needs_database` was false or absent. Grounded in each project's own code and docs, not the live store: **job-agent** persists to SQLite (its `project.yaml` says so; `compose.yaml` carries `DATABASE_URL` commented out) — `depends.postgres: jobagent` and the required `DATABASE_URL` are gone and the spec carries the `shape:` block its `project.yaml` already had; **proposal-creator**, **trading-core** and **triggered-content-orchestration** are PostgreSQL-backed (`src/db/database.py`, `docs/CONFIGURATION.md` § State, `src/shared/config.py` + `alembic.ini`) — each gains a `shape:` block with `needs_database: true` (trading-core also `needs_cache: true`, its `REDIS_URL`), `depends.postgres` pinned to the registrar's derived name (D-410; the name their `.env.example` declares), and `DATABASE_URL` removed from `secrets.required` because the registrar injects it and a required DSN is otherwise INVENTED (`_warn_fabricated_secrets`); **proxy** drops `depends.postgres: main` — the shared legacy database D-410 forbids, for a service whose own `DB_*` env is the contract and which has not run on vps1 since 2026-05-31. Four of the five were shapeless (W-989653a7's population, the plan-vs-apply class, which stays open): `fabrik plan` and `fabrik apply` now read the same flags for them. Decision row D-822.
+`check_spec_db_match.py` (ab9d3cf21, D-805) warned on five specs whose `depends.postgres` named a database the Postgres registrar would never create because `shape.needs_database` was false or absent. Grounded in each project's own code and docs, not the live store: **job-agent** persists to SQLite (its `project.yaml` says so; `compose.yaml` carries `DATABASE_URL` commented out) — `depends.postgres: jobagent` and the required `DATABASE_URL` are gone and the spec carries the `shape:` block its `project.yaml` already had; **proposal-creator**, **trading-core** and **triggered-content-orchestration** are PostgreSQL-backed (`/opt/proposal-creator/src/db/database.py`, trading-core's `docs/CONFIGURATION.md` § State, `/opt/triggered-content-orchestration/src/shared/config.py` + its `alembic.ini`) — each gains a `shape:` block with `needs_database: true` (trading-core also `needs_cache: true`, its `REDIS_URL`), `depends.postgres` pinned to the registrar's derived name (D-410; the name their `.env.example` declares), and `DATABASE_URL` removed from `secrets.required` because the registrar injects it and a required DSN is otherwise INVENTED (`_warn_fabricated_secrets`); **proxy** drops `depends.postgres: main` — the shared legacy database D-410 forbids, for a service whose own `DB_*` env is the contract and which has not run on vps1 since 2026-05-31. Four of the five were shapeless (W-989653a7's population, the plan-vs-apply class, which stays open): `fabrik plan` and `fabrik apply` now read the same flags for them. Decision row D-822.
 
 ### Fixed — the schema-apply one-liner reads the owner DSN instead of sourcing the env files as root shell code (2026-10-13)
 
@@ -145,6 +396,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — a window's own `/clear` successor binds its agent name without `--force` (2026-10-12)
 - fleet's request (mail 01M4NVZJTM, D-736): `/clear` starts a new session id in the same `claude` process, and `whoami_agent.py --as <agent>` refused it because the window's own earlier row looked like a live holder. A row carrying this process's exact pid and start time (and agreeing with `CLAUDE_PID`) is now a predecessor, recorded on the new row with or without `--force`; a live foreign holder and a pre-start-time row still refuse (W-34cb1ef9, D-748). Stored pids are compared as ints, which also stops a start time stored as a string from reading a live holder as dead.
+
+### Added — the review probe catalogue answers the /fabrik-review-scoped queue (2026-10-12)
+- `commands/_fragments/review-probe-catalogue.md` collects the probes, hunt lines, grader, prose-fix, isolation and loop steps ~290 feedback rows asked for; /fabrik-review-scoped step 5 points at it by its hub path. The command's `command_run.py` citations are by symbol (the line numbers had drifted), and a guard's escape variants are asked from round 1 (D-751).
 
 ### Changed — /fabrik-task: the specific steps the first queue pass left open (2026-10-12)
 - MEASURE names its real paths (subprocess-driven tests, the gate's own command, fail-open callees, a concurrent reader, written-file hashes, an independent parser); MIRROR names its specific readers (key verbs, literal paths, record shapes, env-var and config hand-offs, allowlist buckets); the critique brief executes a claim per external dependency and adjudicates ACCEPTED concerns against the tests; the review is sized before dispatch; the receipt is CONVERGED alone and outside the one-commit rule (D-747).

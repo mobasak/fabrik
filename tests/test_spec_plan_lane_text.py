@@ -435,7 +435,7 @@ def test_fabrik_plan_after_chat_tells_the_gates_truth() -> None:
     assert ("For each function the plan moves or re-signs, grep `tests/` for the tests that call, stub or patch "
             "it; each lands in that ticket's File Scope") in text
     assert ("A behavioural claim the plan rests on (a render, a state transition, a suite count after the core "
-            "edit) is EXECUTED once against a copy, never inferred from anchors.") in text
+            "edit) is EXECUTED once against a copy, never inferred from anchors;") in text
     assert "captured in Phase 1, pasted from that run's captured output, never typed" in text
 
 

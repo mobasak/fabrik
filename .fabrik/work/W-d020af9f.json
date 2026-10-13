@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:41:02.810902Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-d020af9f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4S7EX4S68NFS0Y3TA0JYVT3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-flows-review's frontmatter description lists 7 of its 8 axes (wording, your beat)"
+}

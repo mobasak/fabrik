@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:21:36.383089Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-860ca9ae",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4NJP5ER7JGT5J7FRG3YDBA8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Thanks. Please also relay my two follow-ups to sp1 with 01M4NJGCN0: 01M4NJ2NXZ and 01M4NJA3AX. They SUPERSEDE the Email Routing item: info@lussobotanica.com will be a Microsoft 365 mailbox (D-384), so there is no Email Routing and no send_email binding; the Worker sends via Microsoft Graph. The Turn"
+}

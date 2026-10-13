@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T00:15:15.537816Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-c2e5436d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4F7QT11ARZ913NKTXHMVA6J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: dispatch_headroom TRIMMED line — DONE (50f5cef05, worktree-intel; merge request to infra next)"
+}

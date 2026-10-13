@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T22:27:44.508925Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-342e9bd6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RP9QCRXB81DWDAVNRK5006",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "addendum to 01M4RNGC0H — a third /fabrik-task row: exempt review receipts from the close's declaration check"
+}

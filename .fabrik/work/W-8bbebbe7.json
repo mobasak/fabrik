@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:28.650010Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8bbebbe7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4SNM9QVVQS66X6S1AEYE0PX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "RELAY REQUEST to tryton-crm (bridge contract owner). whatsapp-agent cannot mail a sibling project; please relay."
+}

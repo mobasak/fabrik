@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:26:02.983352Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5236462f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4SHK8K2S59SNK4CFBZRJH5J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "FINDING (from whatsapp-agent): the scaffold GlitchTip template's comments cite things a scaffolded repo never has, and some sentry-sdk internals claims do not hold on 2.64.0"
+}

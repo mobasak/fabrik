@@ -68,7 +68,8 @@ ITERATE your review of the implementation against the finalized plan until it CO
 — do NOT stop after one pass. Loop:
   1. ROUND 1 is the ONLY full pass: cut the surface into DISJOINT slices by file and give each slice TWO cheap finders
      — one Sonnet and one Haiku, each over the whole slice, candidates unioned, never
-     voted — and no Opus finder (D-344); the risky units (concurrency and locks, record
+     voted — and no Opus finder (D-344; a plan's execute-time review still seats
+     `/fabrik-execute-plan`'s per-round Opus floor); the risky units (concurrency and locks, record
      and file formats, fleet-synced paths, auth, schema, migrations, secrets) are each
      slice's named hunt priority. The union of the slices IS the full pass; no file is
      in two slices. YOU orchestrate and adjudicate — never a finder. Size it with

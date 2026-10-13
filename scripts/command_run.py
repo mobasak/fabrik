@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import collections
 import contextlib
 import datetime as dt
 import fcntl
@@ -54,6 +55,7 @@ import hashlib
 import json
 import math
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -1274,6 +1276,103 @@ AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
 # The commands whose closed window reaches back to the previous covered window's close: a review
 # reviews the session's work SINCE the last run, so that span is covered by its contract.
 REVIEW_FAMILY = frozenset({"fabrik-review", "fabrik-review-scoped"})
+
+#: One repo path as the Stop hook's `_SURFACE_SPLIT` reads a token — the COMPLEMENT of that
+#: splitter's class, so a path `surface --add` accepts is exactly one token there. A second copy
+#: because the writer cannot import the hook; a parity grader binds the two (W-24ae7ecf).
+_SURFACE_PATH = re.compile(r"[A-Za-z0-9_./\\-]+")
+
+
+def _surface_token(t: str) -> str:
+    """A `surface` token EXACTLY as the hook reads one (`final_gate_stop._surface_reviewed`): ONE
+    leading `./` and every trailing `.` stripped. Used only to ask "does the surface already exempt
+    this path?" — a looser rule here would skip an add the hook then fails to match (`././x.py` reads
+    as `./x.py` there). Added paths never reach it: `posixpath.normpath` has already collapsed them."""
+    t = t[2:] if t.startswith("./") else t
+    return t.rstrip(".")
+
+
+def _surface_path(raw: str, root: str) -> tuple[str, str]:
+    """`(path, "")` for one repo FILE path as the hook will match it, or `("", why)`.
+
+    One normalisation, never a sequence of partial strips: an absolute path is resolved (symlinks
+    too) against the resolved repo root; a relative one is collapsed (`//`, `./`) by
+    `posixpath.normpath`; a `..` component, a backslash, a character outside the hook's token
+    alphabet, and anything that IS a directory in the repo are refused — a directory exempts
+    nothing, because the hook matches whole tokens against authored FILE paths."""
+    p = raw.strip()
+    if not p:
+        return "", "is empty"
+    if "\\" in p or not _SURFACE_PATH.fullmatch(p):
+        return "", "is not one repo path (letters, digits and `_./-` only — anything else splits)"
+    if p.startswith("/"):
+        real_root = os.path.realpath(root) if root else ""
+        real = os.path.realpath(p)
+        if not real_root or not real.startswith(real_root + "/"):
+            return "", f"is outside the repo ({root})"
+        p = real[len(real_root) + 1 :]
+    if ".." in p.split("/"):
+        return "", "has a `..` component"
+    p = _surface_token(posixpath.normpath(p))
+    # an empty `repo_root` (a record started outside git) is read relative to the cwd, never skipped
+    if not p or p == "." or os.path.isdir(os.path.join(root or ".", p)):
+        return "", "is a directory, not a file"
+    return p, ""
+
+
+def _surface_add(sid: str, rec: dict[str, Any], args: argparse.Namespace) -> int:
+    """`surface --add` (W-24ae7ecf): widen a RUNNING review's own sixth-cause exemption, mid-run.
+
+    A running review covers (start, inf), so its own edits are covered already; what it cannot
+    cover is a file last edited BEFORE its start that its `--surface` did not name. Each path goes
+    to `surface_adds` — never into `surface`, which stays the ledger's run dimension (see the
+    `--file` comment on `start`) — normalised as the hook reads a token. Every refusal is rc 1 with
+    nothing stored, including the no-record and closed-record cases `step` treats as warned no-ops.
+
+    COBRA (D-253): the cheapest misuse is to `--add` every file the sixth cause names and stop.
+    It buys nothing `start --surface` could not: the exemption lives only while the record runs
+    and is fresh, the running record keeps the fifth cause in force, `blocked`/`handoff` take it
+    back, and `done` covers the session anyway — and each add is kept with its time, so a widening
+    is countable, never invisible.
+    """
+    if not rec:
+        return _refuse("REFUSED — surface --add: no run record for this session")
+    if rec.get("state") != "running":
+        return _refuse(f"REFUSED — surface --add: this record is {rec.get('state')}, not running")
+    if _tokish(rec.get("command")).lstrip("/") not in REVIEW_FAMILY:
+        return _refuse(
+            "REFUSED — surface --add widens a running REVIEW only (fabrik-review, "
+            f"fabrik-review-scoped); this record is {rec.get('command')}"
+        )
+    root = str(rec.get("repo_root") or "").rstrip("/")
+    wanted: list[str] = []
+    for raw in args.add:
+        p, why = _surface_path(str(raw), root)
+        if why:
+            return _refuse(f"REFUSED — surface --add: {raw!r} {why}")
+        wanted.append(p)
+    named = {_surface_token(t) for t in _SURFACE_PATH.findall(str(rec.get("surface") or ""))}
+    prev = rec.get("surface_adds")
+    adds = [a for a in prev if isinstance(a, dict)] if isinstance(prev, list) else []
+    named |= {str(a.get("path")) for a in adds}
+    added: list[str] = []
+    for p in wanted:
+        if p in named:
+            continue
+        named.add(p)
+        adds.append({"path": p, "at": _now()})
+        added.append(p)
+    rec["surface_adds"] = adds
+    _touch(rec)
+    if not save(sid, rec):  # save() never raises: a False is an exemption that does not exist
+        return _refuse(
+            "REFUSED — surface --add: the run record could not be written; nothing added"
+        )
+    print(
+        f"SURFACE widened: {', '.join(added) if added else 'nothing new'} "
+        f"({len(adds)} path(s) added this run)"
+    )
+    return 0
 
 
 def _norm_command(value: object) -> str:
@@ -2802,6 +2901,20 @@ def _build_parser() -> argparse.ArgumentParser:
         help="/fabrik-task only (lane v2): the lane-refusal id a /fabrik-spec DOWNGRADE handed back",
     )
 
+    p = sub.add_parser(
+        "surface",
+        help="widen a RUNNING review's own exemption by path, mid-run (W-24ae7ecf)",
+        parents=[common],
+    )
+    p.add_argument(
+        "--add",
+        action="append",
+        required=True,
+        metavar="PATH",
+        help="one repo path per occurrence (repeatable): a file this review came to cover that its "
+        "`--surface` did not name — recorded in `surface_adds`, never in `surface`",
+    )
+
     p = sub.add_parser("step", help="advance to a phase", parents=[common])
     p.add_argument(
         "--review-waived",
@@ -3721,6 +3834,14 @@ _TASK_LEDGER_EXCL = (
     ".fabrik/work/",
 )
 
+# A run's own review receipt is its evidence, as a Doc Sync destination is (kaizen 01M4RP9QCR): a
+# `.md` under this dir, `archived/` excepted — the set the pre-commit coverage hook grades — never
+# the bare prefix, which would hide an undeclared source file. One spelling with
+# `task_lane.REVIEWS_DIR` (graded in tests/test_command_run_fabrik_task.py). Being in
+# `_task_excluded`, it reaches every close measure that helper feeds: the v2 refusal and the v1
+# and unstamped `oversized_mini` records (D-789).
+_TASK_REVIEWS_DIR = "docs/development/reviews/"
+
 _TASK_BACKTICKED = re.compile(r"`([^`]+)`")
 # Root-level destinations the Doc Sync Matrix names WITHOUT a slash. A harvested token with no
 # `/` and not in this set is prose (see `_doc_sync_tokens`).
@@ -3793,8 +3914,88 @@ def _task_excl(root: Path) -> set[str]:
     return excl
 
 
+def _task_unnamed(rec: dict, text: str) -> list[str]:
+    """The declared `--file` paths a v2 close would refuse as unnamed in ``text``'s APPROACH or
+    MIRROR, computed as `task_lane.measure_close` does (design paths and amendments through
+    `_norm_cited_all`, the files through `_norm_all`, the close's own exclusions) — checked at
+    `step --design`, before the design is stored, so the note is fixed, never amended after the
+    build (kaizen 01M4RNGC0H). A rename the close would let inherit is not modelled: backtick the
+    new name too. Empty when the lane module is absent."""
+    tl = _lane_module()
+    if tl is None:
+        return []
+    decl = rec.get("declared")
+    raw = decl.get("files") if isinstance(decl, dict) else None
+    files = tl._norm_all([str(f) for f in raw]) if isinstance(raw, list) else []
+    amends = rec.get("design_amends")
+    named = set(tl._norm_cited_all(_design_paths(text)))
+    named |= set(tl._norm_cited_all([str(a) for a in amends] if isinstance(amends, list) else []))
+    excl = _task_excl(Path(str(rec.get("repo_root") or ".")))
+    return [f for f in files if f not in named and not _task_excluded(f, excl)]
+
+
+_TASK_TESTS_SHOWN = 10
+_TASK_TESTS_MAX_BYTES = 1 << 20
+
+
+def _task_tests_note(root: Path, files: list[str]) -> None:
+    """ADVICE on stderr, never a refusal (kaizen 01M4RNGC0H row 1791827964): per declared `.py`
+    that is not itself a test, the TRACKED test files (any `tests/` directory) naming it — by its
+    repo path, by an anchored basename when that basename is unique among tracked `.py` files, or
+    by an anchored import of its stem. Fail-silent: an error here must never cost the record or
+    the advisories printed after it."""
+    with contextlib.suppress(Exception):
+        out = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--", "*.py"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=20,
+        )
+        if out.returncode != 0:
+            return
+        tracked = [t for t in out.stdout.split("\0") if t]
+        tests = [t for t in tracked if "tests" in t.split("/")[:-1]]
+        names = collections.Counter(t.rsplit("/", 1)[-1] for t in tracked)
+        texts: dict[str, str] = {}
+        for t in tests:
+            fp = root / t
+            if fp.is_file() and fp.stat().st_size <= _TASK_TESTS_MAX_BYTES:
+                texts[t] = fp.read_bytes().decode("utf-8", "replace")
+        for f in files:
+            if not f.endswith(".py") or "tests" in f.split("/")[:-1]:
+                continue
+            base = f.rsplit("/", 1)[-1]
+            stem = re.escape(base[:-3])
+            # anchored both ends: `xsrc/c.py`, `src/c.py.bak`, `src/c.py-old` name another file,
+            # while a sentence-final `src/c.py.` still names this one (review A-S1, A-S3)
+            end = r"(?![\w-]|\.\w)"
+            pats = [rf"(?<![\w.-]){re.escape(f)}{end}"]
+            if names.get(base) == 1:
+                pats.append(rf"(?<![\w.-]){re.escape(base)}{end}")
+            pats.append(
+                rf"^\s*(?:from\s+(?:[\w.]+\.)?{stem}\s+import\b|import\s+(?:[\w.]+\.)?{stem}\b)"
+            )
+            rx = re.compile("|".join(f"(?:{x})" for x in pats), re.M)
+            hits = sorted(t for t, body in texts.items() if rx.search(body))
+            if hits:
+                more = len(hits) - _TASK_TESTS_SHOWN
+                tail = f" (+{more} more)" if more > 0 else ""
+                sys.stderr.write(
+                    f"[command_run] NOTE — fabrik-task: {len(hits)} test file(s) name {f}: "
+                    f"{', '.join(hits[:_TASK_TESTS_SHOWN])}{tail}\n"
+                )
+
+
 def _task_excluded(path: str, excl: set[str]) -> bool:
-    """A concrete path matches exactly; a `<name>` row's PREFIX matches its whole directory."""
+    """A concrete path matches exactly; a `<name>` row's PREFIX matches its whole directory; a
+    review receipt (`_TASK_REVIEWS_DIR`) matches too."""
+    if (
+        path.startswith(_TASK_REVIEWS_DIR)
+        and path.endswith(".md")
+        and not path.startswith(_TASK_REVIEWS_DIR + "archived/")
+    ):
+        return True
     return path in excl or any(t.endswith("/") and path.startswith(t) for t in excl)
 
 
@@ -3985,8 +4186,15 @@ def _task_measure(
     sha, parents = _task_run_commit(rec, rp, sha_in)
     if sha is None:
         # The merge and the stale date SHARE this message: both answer the same question.
+        # A quoted multi-line capture (`--commit "$(cat commit.sha)"`) arrives as ONE value with
+        # whitespace inside; a sha never holds any (W-ebbedc88, kaizen 01M4N1K909 row 1791074435).
+        hint = (
+            " — the value holds whitespace: this close takes ONE sha, passed unquoted"
+            if any(ch.isspace() for ch in sha_in)
+            else ""
+        )
         return (
-            _refuse(f"REFUSED — fabrik-task: --commit {sha_in} is not this run's commit"),
+            _refuse(f"REFUSED — fabrik-task: --commit {sha_in} is not this run's commit{hint}"),
             "",
             False,
         )
@@ -4049,9 +4257,11 @@ def _task_measure(
             # A RENAME's DESTINATION inherits its source's membership — a declared file renamed
             # is still the declared work, and the source ceases to exist. The SOURCE is judged on
             # its OWN membership like any other path, so both tokens of the pair may contribute.
-            if _member(src):
+            # Only a DECLARED source lends membership: an exempt one (a ledger, a receipt) renamed
+            # onto `src/x.py` would launder it — v2's `task_lane._undeclared` agrees (D-789 A-H1).
+            if src in declared:
                 member = True
-            else:
+            elif not _member(src):
                 a.add(src)
         elif src is not None:
             # A COPY is NOT a rename. The source SURVIVES — its own edit, if any, arrives as its
@@ -4219,7 +4429,15 @@ def _task_close_v2(
         for c in shas:
             sha, parents = _task_run_commit(rec, rp, c)
             if sha is None:
-                return _refuse(f"REFUSED — fabrik-task: --commit {c} is not this run's commit"), {}
+                hint = (
+                    " — --commit takes one sha per value: unquote the substitution, "
+                    "`--commit $(cat …/commit.sha)`"
+                    if any(ch.isspace() for ch in c)
+                    else ""
+                )
+                return _refuse(
+                    f"REFUSED — fabrik-task: --commit {c} is not this run's commit{hint}"
+                ), {}
             base = f"{sha}~1" if parents else _TASK_EMPTY_TREE
             # (kind, source, destination) → the spine's (status, path, old_path); a modify row
             # has no old path (T03a-O7).
@@ -4443,6 +4661,9 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
     rec = load(sid)
     outbox["started_at"] = rec.get("started_at") or ""
 
+    if args.cmd == "surface":  # before the closed-record no-op below: it refuses, rc 1
+        return _surface_add(sid, rec, args)
+
     if args.cmd in ("step", "round", "dispatch") and rec and rec.get("state") != "running":
         # A-F4 (review 2026-09-06): `_close` refuses to touch an already-closed record ("never
         # mutate; never resurrect") but these two had no such guard — a `step` on a done record
@@ -4625,6 +4846,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 )
             else:
                 print("lane: v1")
+            if _declared.get("gate") == 2:
+                _task_tests_note(
+                    Path(str(new.get("repo_root") or ".")), list(_declared.get("files") or [])
+                )
         # A second `start` for the SAME command inside the join window is almost always a
         # DOUBLE-START, not a legitimate nest: a command invoking itself recursively is not a
         # shape we have, while an agent who missed the confirmation and re-ran is exactly what
@@ -4729,6 +4954,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # deletes its own `run_close` event to prevent. `rec["phase"]` above is in-memory only,
         # so returning here leaves the phase on disk exactly where it was.
         _design = str(getattr(args, "design", "") or "")
+        _tests_note_files: list[str] | None = None
         if _design and str(rec.get("command") or "").lstrip("/") != _TASK_COMMAND:
             # The MIRROR of `start`'s cross-command guard. Without it a `--design` on any other
             # record was rc 0 with the pinned line printed and nothing stored: every signal of
@@ -4801,7 +5027,18 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # 2,000-char `_LEDGER_FIELD_CAP` that bounds a one-line usage verdict never
                 # applied to it, and it refused a sized six-field design at 3,588 chars on its
                 # first real use. An unreadable path still refuses above.
+                _decl = rec.get("declared")
+                if isinstance(_decl, dict) and _decl.get("gate") == 2:
+                    _unnamed = _task_unnamed(rec, _text)
+                    if _unnamed:
+                        return _refuse(
+                            "REFUSED — fabrik-task: declared --file path(s) not named in the "
+                            f"design note's APPROACH or MIRROR: {', '.join(_unnamed)} — backtick "
+                            "each in the design note and re-run --design (nothing was stored)"
+                        )
                 rec["design"] = _text
+                if isinstance(_decl, dict) and _decl.get("gate") == 2:
+                    _tests_note_files = [str(f) for f in _decl.get("files") or []]
         _ap = getattr(args, "appetite", None)
         if _ap is not None and _ap <= 0:
             return _refuse(f"REFUSED — step --appetite {_ap} must be a positive number of minutes")
@@ -4843,6 +5080,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _touch(rec)
         fields["persisted"] = save(sid, rec)
         print(pinned_line(rec))
+        if _tests_note_files is not None:
+            # after the save and every refusal: the design's test advice, where the grader path
+            # can still be backticked (Fable critique #1)
+            _task_tests_note(Path(str(rec.get("repo_root") or ".")), _tests_note_files)
         return 0
 
     if args.cmd == "dispatch":  # `rec` is live here: the generic no-record guard fired above

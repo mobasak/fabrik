@@ -301,13 +301,11 @@ slice `agent: "fabrik-researcher"` (contract: `/opt/fabrik/docs/reference/review
 slice EXECUTES every candidate and returns the command and output, and ONE ledger comes back. Read it into a file
 with `python3 scripts/review_loop_ledger.py read <the run's transcript dir> --pins <pins_dir> --out <scratch>/pass-<n>.json --box
 <box_minutes>`, re-run every `confirmed` candidate's check yourself before acting — CONFIRMED means you ran it —
-and close the round with `python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed
-<confirmed> --slices <name>:<verified>/<claims>,…` (the recipe in § Subagents below is the same one). Under the
-partition the three-seat floor stands down (D-208, D-218). Every later pass is a NEW `Workflow` call with
-`pass: 2|3` and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json
+and close the round with `python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed <confirmed> --own-fix <own-fix; round 1: 0> --slices <name>:<verified>/<claims>,… --classes-swept <every class swept> --classes-new <classes first seen>` (§ Subagents below carries the dispatch stamp). Under the
+partition the three-seat floor stands down (D-208, D-218). Every later pass is a NEW `Workflow` call with `pass: <n>`, the next pass number (unbounded), and each slice's `ledger` from `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json
 --ids <the confirmed ids>` — the round-1 seats re-verifying their OWN slices over the fix diff plus one hop, the
 tickets and sections whose tokens cite the edited step (D-335) — plus the hygiene script on the re-pin. When the
-`Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached) the seats go out through the `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. (This replaces the old GREENFIELD-monolith exemption: a monolith that
+`Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. (This replaces the old GREENFIELD-monolith exemption: a monolith that
 modifies or wires into EXISTING code still owes its author-blind pass (live proof: a ~40-line monolith's
 author nearly converged solo; the author-blind finder returned a CONFIRMED-HIGH invalidating the plan's core
 mechanism — every anchor was real, the defect was the author's inference) — and a plan SET always partitions
@@ -406,7 +404,7 @@ A residual phrased **"resolve with <other AI> / confirm with the user / decide a
 **DEFECT, not a residual** — it is a deferred question. Either get the answer now, or rewrite it into a
 self-service step with the default baked in. A genuine cross-AI / infra / credential dependency the executor
 cannot satisfy alone is a **named BLOCKING unknown → stop at `DRAFT`** until resolved with its owner; it never
-rides into `CONVERGED` as an "open" item. (This is the lesson from a real run: a plan converged with
+rides into `CONVERGED` as an "open" item. When only LATER phases wait on it, SPLIT the plan: the phases BEFORE the first blocked one keep the plan's name, converge and execute; that phase and every later one move to a new `DRAFT` plan naming the blocker. (This is the lesson from a real run: a plan converged with
 "[OPEN → resolve the DSN with the coding-selection AI at Phase C start]", and execution dutifully halted mid-run
 to ask — when the answer was self-service all along. Ask before, or make it self-service; never defer.)
 

@@ -138,6 +138,23 @@ def _isolated_sound_lock_dir(tmp_path, _private_monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolated_print_mode(tmp_path, _private_monkeypatch):
+    """`work.py`'s `_print_mode()` (01M4PAJWV1) reads the headless labels and walks the proc root
+    to the nearest `claude` ancestor. Run under a `claude -p` dispatcher, the whole suite would
+    read as headless and every queue/prompt grader would go falsely red. One autouse pin: the
+    labels are removed and the proc root is an empty dir, so a walk finds no ancestor (False).
+    A test that wants print mode sets the label or its own FABRIK_WORK_PROC after this. Helpers
+    that build a subprocess env from scratch name their own proc root for the same reason."""
+    monkeypatch = _private_monkeypatch
+    for name in ("FABRIK_HEADLESS", "CLAUDE_MESH_HEADLESS"):
+        monkeypatch.delenv(name, raising=False)
+    proc = tmp_path / "no-proc"
+    proc.mkdir(exist_ok=True)
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(proc))
+    yield proc
+
+
+@pytest.fixture(autouse=True)
 def _isolated_kaizen_events_dir(tmp_path, _private_monkeypatch):
     """Five tests built their own `dict(os.environ, …)` without `KAIZEN_EVENTS_DIR`, so a suite
     run wrote fabricated round/run events into the operator's REAL per-session events log under
@@ -212,7 +229,9 @@ def _isolated_decisions_resolver(tmp_path, _private_monkeypatch):
     (W-e1b1052e). Pinned to a missing script for every test, so an adopt run in a test takes the
     local fallback and never touches that store; a test that wants the real resolver sets
     `FABRIK_DECISIONS_PY` (and `HOME`) itself after this — as the merge_request tests already do."""
-    _private_monkeypatch.setenv("FABRIK_DECISIONS_PY", str(tmp_path / "no-decisions-py-in-tests.py"))
+    _private_monkeypatch.setenv(
+        "FABRIK_DECISIONS_PY", str(tmp_path / "no-decisions-py-in-tests.py")
+    )
 
 
 @pytest.fixture(autouse=True)

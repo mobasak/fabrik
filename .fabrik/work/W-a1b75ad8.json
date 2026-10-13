@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:37:24.355214Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-a1b75ad8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4S2D1DWCHNYWK8TZKGXPV4V",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "request: 01M4S2BXKDVG02XNVN13Z0DD03"
+}

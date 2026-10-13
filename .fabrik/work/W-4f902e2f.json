@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T02:39:09.560149Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4f902e2f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4PKBYRV7AF9RSEBW9KJ8AGM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "W-82cff1ac (the parity contract, wef3's four defects) — items 2-residual, 3 and 4 are on your sync surface commands/_sources/; item 1 is fixed in the template, with a belt for the runner recipe"
+}

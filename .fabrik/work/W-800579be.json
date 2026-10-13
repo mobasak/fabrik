@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:34:40.811247Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-800579be",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RQV6DAKJEQ66NT3ABQPDV2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: check_synced_unmodified.py reports a false \"Fabrik-synced files modified locally\" red inside a linked worktree after a hub re-sync, although nobody edited a synced file."
+}

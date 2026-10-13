@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T06:30:44.779996Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8b1187a0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4NR1197FVNQVHA1WNNPR6TS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "RELAY REQUEST — please deliver to web-ecommerce-factory (the agent that owns sites/lussobotanica, last worked in worktree wef3)."
+}

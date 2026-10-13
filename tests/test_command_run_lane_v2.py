@@ -281,6 +281,99 @@ def _started_v2(run_dir: Path, tmp_path: Path, *extra: str) -> Path:
     return repo
 
 
+_TESTS_NOTE = "[command_run] NOTE — fabrik-task: "
+
+
+def test_v2_design_refuses_a_declared_path_it_does_not_name(run_dir: Path, tmp_path: Path) -> None:
+    """kaizen 01M4RNGC0H row 1791764963: a declared `--file` the design note never backticks is
+    refused AT `--design`, before anything is stored, so the note is fixed before the build — not
+    amended (and counted) after it, as the close's refusal forces."""
+    repo = _started_v2(run_dir, tmp_path, "--file", "src/b.py")
+    d = repo.parent / "design.md"
+    d.write_text(
+        "PROBLEM: x\nAPPROACH: edit `src/a.py`\nDECISION: reversible\nMIRROR: none\n"
+        "OUT: none\nTERMINAL: green\n",
+        encoding="utf-8",
+    )
+    r = _cr(run_dir, "step", "--phase", "2", "--title", "design", "--design", str(d), cwd=repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "not named in the design note's APPROACH or MIRROR: src/b.py" in r.stdout
+    assert "design" not in _rec(run_dir)
+    _design(run_dir, repo, "edit `src/a.py` and `src/b.py`")
+    assert "design" in _rec(run_dir)
+
+
+def test_v2_start_lists_the_tests_that_name_a_declared_script(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """kaizen 01M4RNGC0H row 1791827964: `start` names the tracked tests that load a declared
+    script, so the grader path is declared the first time; a near-miss name lists nothing."""
+    repo = _repo(tmp_path, lane=2)
+    (repo / "tests").mkdir()
+    (repo / "tests" / "test_alpha.py").write_text("from a import x\n", encoding="utf-8")
+    (repo / "tests" / "test_near.py").write_text("# ab.py\nimport ab\n", encoding="utf-8")
+    _git(repo, "add", "tests")
+    _git(repo, "commit", "-qm", "tests")
+    r = _cr(
+        run_dir, *_start("--file", "src/a.py", "--file", "src/b.py", "--declare", _V2), cwd=repo
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _TESTS_NOTE + "1 test file(s) name src/a.py: tests/test_alpha.py" in r.stderr
+    assert "name src/b.py" not in r.stderr, r.stderr
+    # the same advice once the design is stored — the step where a grader can still be named
+    d = repo.parent / "design.md"
+    d.write_text("APPROACH: edit `src/a.py` and `src/b.py`\nMIRROR: none\n", encoding="utf-8")
+    r = _cr(run_dir, "step", "--phase", "2", "--title", "design", "--design", str(d), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _TESTS_NOTE + "1 test file(s) name src/a.py: tests/test_alpha.py" in r.stderr
+
+
+def test_v2_the_tests_note_anchors_a_declared_path(run_dir: Path, tmp_path: Path) -> None:
+    """D-796 review A-S1: the repo-path match is anchored like the basename match — a test that
+    names `xsrc/c.py`, `src/c.py.bak` or `src/c.py-old` does not name `src/c.py` (review A-S1,
+    A-S3), while a sentence ending `src/c.py.` still does. `c.py` is made non-unique, so only the path
+    pattern can match here."""
+    repo = _repo(tmp_path, lane=2)
+    (repo / "lib").mkdir()
+    (repo / "lib" / "c.py").write_text("x = 1\n", encoding="utf-8")
+    (repo / "tests").mkdir()
+    (repo / "tests" / "test_x.py").write_text(
+        "# xsrc/c.py\n# src/c.py.bak\n# src/c.py-old\n", encoding="utf-8"
+    )
+    (repo / "tests" / "test_y.py").write_text("# see src/c.py.\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "c")
+    r = _cr(run_dir, *_start("--file", "src/c.py", "--declare", _V2), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _TESTS_NOTE + "1 test file(s) name src/c.py: tests/test_y.py" in r.stderr
+
+
+def test_v2_done_accepts_an_undeclared_review_receipt(run_dir: Path, tmp_path: Path) -> None:
+    """A run's own nested-review receipt is its evidence, like a Doc Sync ledger: committing
+    `docs/development/reviews/<x>-review.md` without naming it in APPROACH/MIRROR (or passing it
+    as `--review`) no longer refuses `done` (kaizen 01M4RP9QCR). A `.py` hidden there still does."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "docs/development/reviews/2026-10-13-x-review.md", "# Review\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", a, b)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_v2_done_still_refuses_a_source_file_under_the_reviews_dir(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """The receipt exemption is `.md` only: an undeclared `.py` under the reviews dir is a
+    hiding place, never evidence (design critiques, Opus + Fable)."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "docs/development/reviews/helper.py", "x = 1\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", a, b)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "docs/development/reviews/helper.py" in r.stdout
+
+
 def test_v2_done_refuses_an_undeclared_path_until_it_is_amended(
     run_dir: Path, tmp_path: Path
 ) -> None:
@@ -1011,3 +1104,30 @@ def test_v2_a_refused_terminal_amend_raises_no_loop_notice(run_dir: Path, tmp_pa
     assert r.returncode == 1 and "REFUSED" in r.stdout, r.stdout + r.stderr
     assert "ZERO rounds" not in r.stderr, r.stderr
     assert _rec(run_dir)["terminal"] == _START_TERMINAL
+
+
+def test_v2_a_design_that_cites_a_file_by_line_or_symbol_names_that_file(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """W-ebbedc88: a design note cites code as `path:N-M` or `path::symbol`; the citation names
+    the file, so the close admits its commit without a --design-amend."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py:1-3` and `src/b.py::helper`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "src/b.py", "def helper():\n    return 1\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", a, b)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rows(run_dir)[-1]["design_amends"] == "0"
+
+
+def test_v2_a_quoted_multi_sha_commit_value_names_the_fix(run_dir: Path, tmp_path: Path) -> None:
+    """W-ebbedc88: `--commit "$(cat commit.sha)"` over a two-line capture arrives as ONE value;
+    the refusal says --commit takes one sha per value."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "src/a.py", "x = 3\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", f"{a}\n{b}")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "takes one sha per value" in r.stdout, r.stdout
+    assert _rec(run_dir)["state"] == "running"

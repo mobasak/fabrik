@@ -187,7 +187,11 @@ hub's governance sync, and (h) the reply to requester and distributor, then `mai
 request. When the reason is a conflict with the base, the requester brings the base in by MERGING it
 into the branch (`git merge <base>`), never a rebase: the branch is already pushed, so a rebase could
 only be republished with `--force`. A refusal that names the main checkout (a dirty,
-staged or untracked owner file) is the owner's to clear and needs no change to the branch. Mail is the durable record; the doorbell only wakes an idle session (best effort, D-463).
+staged or untracked owner file) is the owner's to clear and needs no change to the branch. A remote the
+run cannot reach (a fetch that times out or fails for any reason but a missing ref) is no refusal: the
+request DEFERS — it stays claimed, nothing is replied, the next `merge` run retries it, and for the rest
+of that run every request on the same remote defers without another fetch while requests on other
+remotes are still served; after the merge the same outage stays resumable (exit 4) instead of parking (D-775). Mail is the durable record; the doorbell only wakes an idle session (best effort, D-463).
 The Stop hook holds the owner's turn while a request waits unclaimed or a record is stranded
 (`docs/workstation/hooks-index.md`). To keep a plan's epic order, merge by id in
 `python3 scripts/epic_order.py` phase order. `/fabrik-execute-plan`'s § Finish (c) is the agent-side

@@ -22,15 +22,17 @@ root cause, stop early and report that cause.
 
 ## ⚠️ Precondition — no open certification handoffs
 
-Read the newest `docs/development/reviews/*-{user,service}-test-*.md` for this project. Every open row carries a severity (P0–P3). **An open P0/P1 row (or any `NOT-QUIET` ledger, or any
+**No file matching `docs/development/reviews/*-{user,service}-test-*.md` for this project is itself BLOCKED**
+(run the gauntlet first — every scaffold type owes one: UI-bearing types a user-test, headless types a
+service-test, CLAUDE.md § Pipeline item 2) — a `reviews/` directory holding other review types is not a certification report.
+Otherwise read the newest one. Every open row carries a severity (P0–P3). **An open P0/P1 row (or any `NOT-QUIET` ledger, or any
 `DESIGN-GAP` row untouched by the operator) is a BLOCKED release** — report it as
 `BLOCKED: certification handoff open — <finding> → <route>` and stop. Open P2/P3 rows are printed as a
 ⚠ WARN list in the Gate-2 handoff block — visible for the operator's explicit accept, never silently passed. A handoff is closed when its route ran and its committed red repro is now green.
 This is the gate that makes `/fabrik-user-test` / `/fabrik-service-test` handoffs real work rather than a
 list nobody reads. **Grader honesty:** the HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports
 are machine-graded (`check_review_coverage.py`); the severity-tiered blocking HERE is read by no check —
-it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep. No certification report at all for a UI/service surface = **BLOCKED** (run the
-gauntlet first). The operator may waive a specific row explicitly this turn; you may never waive one —
+it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep. The operator may waive a specific row explicitly this turn; you may never waive one —
 and a waiver granted is a RECEIVED decision: **mint its `docs/DECISIONS.md` row and COMMIT AND PUSH it now, its
 own commit, BEFORE `release_cut.py` runs** (Phase 0's own precondition demands `@{u}..HEAD` empty —
 an unpushed waiver commit would block the release on its own mandated act) — the cut's hardcoded `-- CHANGELOG.md` pathspec would
@@ -67,7 +69,15 @@ strand a merely-staged row (CLAUDE.md § the decision ledger), and the accepted 
    - **Docs truth is dated, not assumed:** every registry-obligated key doc for this type
      (`FEATURES.md` always; `SERVICES`/`RESILIENCE`/`CONFIGURATION`/`DEPLOYMENT` for deployed types)
      has its last commit **no older than the last feature-bearing code commit** (`git log -1 --format=%ci
-     -- <doc>` vs `-- src/ app/ web/ lib/ scripts/` — the same code-path set `fleet_doc_audit.py` probes), AND `python scripts/docs_updater.py --check` is green this run.
+     -- <doc>` vs `-- src/ app/ web/ lib/ scripts/` — the same code-path set `fleet_doc_audit.py` probes), AND `python scripts/docs_updater.py --check` is green this run. The two measure different things:
+     the git check compares each key doc's last commit with the last code commit; `docs_updater.py --check` reads
+     the `**Last Updated:**` header of only the docs in its `MANUAL_DOCS` list (of these key docs, `CONFIGURATION.md`)
+     and reports one older than 90 days — so they can disagree (a doc edited without bumping its header; an
+     untouched doc past 90 days while the code is quiet). When the git check finds a doc older than the code but
+     the code commits since touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> —
+     <shas> — <claims still true>` in the Gate-2 block and that doc's BLOCKED below lifts; otherwise it stands. A
+     stale header clears only by re-reading the doc against the code and bumping the header in a commit that
+     says what was checked — never by a date bump alone.
      A key doc older than the code it describes = **BLOCKED: docs behind code — run the doc's
      converge command first**: `/fabrik-features` for `FEATURES.md`, `/fabrik-doc-converge <doc>` for
      SERVICES/RESILIENCE/CONFIGURATION/DEPLOYMENT (or `/fabrik-docs-review` for a whole-tree pass) —
