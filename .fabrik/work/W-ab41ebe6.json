@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T18:20:23.355266Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-ab41ebe6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TEEZYDYPXCBQGBNRQJTTBM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: commands/_sources/fabrik-deploy-verify.md step 2 (Phase 6, the merge: `scripts/verify_prod_parity.py --verdict --rows-from <run>/hub.json <run>/container.json <run>/host.json`) narrates exits 0/1/2 only. Since fabrik commit 74d159577 the parity template's merge can also exit 64 (EX_USAGE) — th"
+}

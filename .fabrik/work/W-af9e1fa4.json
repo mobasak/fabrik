@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "account/ — sessions screen now follows fastapi-user-auth grace rotation (fabrik-lib SB-121, fabrik-lib D-427). Re-vendor account/ BEFORE enabling AUTH_REFRESH_ROTATION=grace."
 }
