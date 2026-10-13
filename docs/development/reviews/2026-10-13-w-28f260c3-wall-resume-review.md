@@ -1,7 +1,7 @@
 # W-28f260c3 — quota-wall resume: blocked --wall keeps a seed, start --resume-from carries the run (/fabrik-task phase-4 full review)
 
 **Status:** CONVERGED
-**Surface:** `git rev-parse HEAD` = d5860f5967745038448597d17d35d4fcc6d08481; range tip d5860f5967745038448597d17d35d4fcc6d08481; `git diff 0d76bd834..d5860f596 -- scripts/command_run.py .claude/hooks/quota_stop.py tests/test_command_run.py tests/test_quota_stop_hook.py CLAUDE.md docs/reference/command-run-protocol.md` md5 c41e56b81fcd3d32c8c86caf7e278eca (77140 bytes)
+**Surface:** `git rev-parse HEAD` = f21249a96b47ab530c44a9a2ab7126a2b9f8d0f2; range tip 88b3e7765240df94d9a0493ef456044a48962de4; `git diff 0d76bd834..88b3e7765 -- scripts/command_run.py .claude/hooks/quota_stop.py tests/test_command_run.py tests/test_quota_stop_hook.py CLAUDE.md docs/reference/command-run-protocol.md docs/workstation/kaizen-event-stream.md` md5 1798c1eeba8b97372e574deeaad27127 (86425 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/command_run.py`, `.claude/hooks/quota_stop.py`, `tests/test_command_run.py`, `tests/test_quota_stop_hook.py`, `CLAUDE.md`, `docs/reference/command-run-protocol.md`
 **Lane:** fabrik-task
 
