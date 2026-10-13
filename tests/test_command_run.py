@@ -15,6 +15,7 @@ import importlib.util
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import time
@@ -7434,3 +7435,601 @@ def test_surface_add_refuses_a_directory_even_with_no_repo_root(
     monkeypatch.chdir(tmp_path)
     assert cr._surface_path("scripts", "") == ("", "is a directory, not a file")
     assert cr._surface_path("scripts/x.py", "") == ("scripts/x.py", "")
+
+
+# --- W-28f260c3: a run closed at the quota wall is resumed, not restarted -----------------
+#
+# The wall text (quota_stop.py `_reason`) tells a held session to close its run record; the
+# session's next `start` then overwrote it, so the successor lost the round and class ledgers,
+# the design, the SIZE declaration and the start clock: its quiet round read as "round 1 is the
+# full pass" and `done --commit` refused every pre-wall commit. `blocked --wall` keeps a JSON
+# seed; `start --resume-from <seed>` carries the run forward with the ORIGINAL clock kept
+# beside the new sitting's (origin_epoch + gap_s), never as the record's own start.
+
+_WALL_FB = "confusion: none · waste: none · change: none · filed: none — harness setup, wall probe"
+_GAP_S = 10 * 3600  # an overnight wall
+
+
+def _age_record(path: Path, seconds: int) -> None:
+    """Move a record's whole clock `seconds` into the past (started_epoch, updated_ts, phase marks)."""
+    rec = json.loads(path.read_text(encoding="utf-8"))
+    for key in ("started_epoch", "updated_ts"):
+        if isinstance(rec.get(key), (int, float)):
+            rec[key] = rec[key] - seconds
+    for m in rec.get("phase_marks") or []:
+        for key in ("started", "ended"):
+            if isinstance(m.get(key), (int, float)):
+                m[key] -= seconds
+    path.write_text(json.dumps(rec), encoding="utf-8")
+
+
+def _wall_block(run_dir: Path, command: str = _PROBE, sid: str = "s1") -> Path:
+    out = _cr(run_dir, "blocked", "--command", command, "--wall", "--reason", "quota wall", sid=sid)
+    assert out.returncode == 0, out.stdout + out.stderr
+    m = re.search(r"--resume-from (\S+)", out.stdout)
+    assert m, out.stdout
+    return Path(m.group(1))
+
+
+def test_wall_blocked_keeps_a_resume_seed_and_names_the_reopen(run_dir: Path) -> None:
+    """Behaviour 1: `blocked --wall` marks the record, keeps a seed (the closed record minus `stack`,
+    plus `stack_commands`) under <state>/seeds/, and prints the reopen order; the hook's own phrase
+    is the regex fallback; a non-wall `blocked` keeps none, a broad quota-shaped reason without the
+    flag gets a stderr NOTE, and a nested wall-block names the parent and the order."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--seats",
+        "3",
+        "--findings",
+        "5",
+        "--confirmed",
+        "3",
+        "--classes-new",
+        "a,b",
+    )
+    out = _cr(run_dir, "blocked", "--command", _PROBE, "--wall", "--reason", "quota wall")
+    assert out.returncode == 0, out.stdout + out.stderr
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["state"] == "blocked" and rec["wall"] is True
+    seed = Path(rec["resume_seed"])
+    assert seed.parent == run_dir.resolve() / "seeds" and seed.suffix == ".json", seed
+    data = json.loads(seed.read_text(encoding="utf-8"))
+    assert data["state"] == "blocked" and data["wall"] is True
+    assert len(data["rounds"]) == 1 and sorted(data["classes"]) == ["a", "b"]
+    assert "stack" not in data and data["stack_commands"] == []
+    assert f"start --command {_PROBE} --phases 5 --resume-from {seed}" in out.stdout, out.stdout
+    # the hook's own phrase, without the flag, still keeps a seed
+    _start(run_dir, sid="s2")
+    _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        _PROBE,
+        "--reason",
+        "FLEET QUOTA EXHAUSTED — hold",
+        sid="s2",
+    )
+    assert json.loads((run_dir / "s2.json").read_text(encoding="utf-8")).get("wall") is True
+    # a quota-shaped reason WITHOUT the flag: no seed, a NOTE naming the flag
+    _start(run_dir, sid="s3")
+    out3 = _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        _PROBE,
+        "--reason",
+        "BLOCKED: quota RED — searched: x",
+        sid="s3",
+    )
+    r3 = json.loads((run_dir / "s3.json").read_text(encoding="utf-8"))
+    assert "wall" not in r3 and "resume_seed" not in r3
+    assert "--wall" in out3.stderr, out3.stderr
+    # the NOTE is a conditional: a vendor quota or a wall-mounted sensor in a legitimate reason
+    # also matches the broad hint, and the line must then read as ignorable (review code-S3)
+    assert "IF this close is the fleet quota wall" in out3.stderr, out3.stderr
+    assert "ignore this line" in out3.stderr, out3.stderr
+    # an ordinary BLOCKED case: nothing kept, nothing said — spelled the way agents spell it: a
+    # lowercase "red" is a test colour, never the RED band (the band name is upper-case only)
+    _start(run_dir, sid="s4")
+    out4 = _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        _PROBE,
+        "--reason",
+        "3 same-test failures — tests/test_x.py::t red thrice",
+        sid="s4",
+    )
+    r4 = json.loads((run_dir / "s4.json").read_text(encoding="utf-8"))
+    assert "wall" not in r4 and "resume_seed" not in r4 and "--wall" not in out4.stderr
+    # `--wall` belongs to `blocked` alone — argparse refuses it on `done` (review tests-docs-S6)
+    _start(run_dir, sid="s6")
+    out6 = _cr(
+        run_dir,
+        "done",
+        "--command",
+        _PROBE,
+        "--wall",
+        "--evidence",
+        "e",
+        "--feedback",
+        _WALL_FB,
+        sid="s6",
+    )
+    assert out6.returncode == 2 and "unrecognized arguments: --wall" in out6.stderr, out6.stderr
+    # nested: the child's wall close names the live parent and the resume order
+    _start(run_dir, sid="s5")
+    _cr(run_dir, "start", "--command", "fabrik-child", "--phases", "1", "--terminal", "t", sid="s5")
+    out5 = _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        "fabrik-child",
+        "--wall",
+        "--reason",
+        "quota wall",
+        sid="s5",
+    )
+    assert out5.returncode == 0, out5.stdout + out5.stderr
+    assert (
+        f"the parent /{_PROBE} is live" in out5.stdout and "resume the PARENT first" in out5.stdout
+    )
+    child_seed = Path(re.search(r"--resume-from (\S+)", out5.stdout).group(1))
+    assert json.loads(child_seed.read_text(encoding="utf-8"))["stack_commands"] == [_PROBE]
+
+
+def _seeded_run(run_dir: Path, sid: str = "s1") -> Path:
+    """A probe run with a budget, a phase, a round, hand-set carried fields, blocked at the wall
+    ten hours ago; returns the seed path (aged like the record)."""
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        "--budget",
+        "30",
+        "--surface",
+        "S",
+        sid=sid,
+    )
+    _cr(run_dir, "step", "--phase", "2", "--title", "two", sid=sid)
+    _cr(
+        run_dir,
+        "round",
+        "--seats",
+        "3",
+        "--findings",
+        "5",
+        "--confirmed",
+        "3",
+        "--classes-new",
+        "a,b",
+        sid=sid,
+    )
+    f = run_dir / f"{sid}.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["design"] = "PROBLEM: d\nAPPROACH: `a.py`\n"
+    rec["design_amends"] = ["x.py"]
+    rec["surface_adds"] = ["a.py"]
+    rec["waived_reviews"] = [{"phase": 1, "reason": "w", "at": "t"}]
+    rec["phase_marks"] = [{"phase": 2, "appetite": 60, "started": time.time()}]
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    seed = _wall_block(run_dir, sid=sid)
+    _age_record(seed, _GAP_S)
+    _age_record(f, _GAP_S)
+    return seed
+
+
+def test_start_resume_from_carries_the_run_and_the_closing_pass_is_not_round_one(
+    run_dir: Path,
+) -> None:
+    """Behaviour 2: the resumed record carries the ledgers, the design, the declaration-shaped
+    fields and the phase, keeps ITS OWN start clock (budget and appetite count active time, so a
+    ten-hour gap prints no OVER), carries the original clock as origin_epoch + gap_s, drops the
+    stale dispatch stamp, and the next quiet round is round 2 — the TERMINAL verdict, never the
+    "round 1 is the full pass" refusal (defect 1 of W-28f260c3)."""
+    seed = _seeded_run(run_dir)
+    seed_data = json.loads(seed.read_text(encoding="utf-8"))
+    out = _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--resume-from", str(seed))
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "RESUMED: from" in out.stdout and "round 1" in out.stdout, out.stdout
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["state"] == "running" and rec["command"] == _PROBE
+    assert len(rec["rounds"]) == 1 and sorted(rec["classes"]) == ["a", "b"]
+    assert rec["phase"] == 2 and rec["phase_title"] == "two" and rec["terminal"] == "t"
+    assert rec["surface"] == "S" and rec["budget_min"] == 30
+    assert rec["design"].startswith("PROBLEM") and rec["design_amends"] == ["x.py"]
+    assert rec["surface_adds"] == ["a.py"] and rec["waived_reviews"][0]["reason"] == "w"
+    # the clocks: this sitting's start is NOW; the original is carried beside it
+    assert rec["started_epoch"] > time.time() - 120
+    assert rec["origin_epoch"] == seed_data["started_epoch"]
+    assert rec["origin_started_at"] == seed_data["started_at"]
+    assert rec["gap_s"] >= _GAP_S - 120
+    assert rec["resumed_from"]["seed"] == str(seed) and rec["resumed_from"]["session_id"] == "s1"
+    assert "dispatch" not in rec
+    # the open phase mark ended at the wall; a fresh one runs from the resume
+    marks = rec["phase_marks"]
+    assert marks[0]["ended"] == seed_data["updated_ts"] and marks[-1]["phase"] == 2
+    assert marks[-1]["started"] > time.time() - 120 and marks[-1]["appetite"] == 60
+    line = _cr(run_dir, "line").stdout
+    assert "round 1" in line and "OVER" not in line and "past 2×" not in line, line
+    # the closing pass is round 2 — terminal, not "the full pass"
+    out2 = _cr(
+        run_dir,
+        "round",
+        "--seats",
+        "3",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a,b",
+    )
+    assert "TERMINAL VERDICT" in out2.stdout, out2.stdout
+    assert "round 1 is the full pass" not in out2.stdout
+    assert len(json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))["rounds"]) == 2
+
+
+def test_start_resume_from_refuses_a_seed_that_is_not_a_wall_block(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 3: every bad seed shape is REFUSED with no record opened — a missing or oversized
+    file, a seed still `running`, one without the wall mark, another command's, a resume beside a
+    fresh declaration, a child seed with no live parent, a parent seed under a live run. A
+    `--phases` mismatch is a NOTE and a differing `--terminal` becomes an amend, never a refusal."""
+    cr = _load("command_run_resume_refusals", _SCRIPT)
+
+    def _try(seed: Path, *extra: str, sid: str = "r1") -> subprocess.CompletedProcess[str]:
+        return _cr(
+            run_dir,
+            "start",
+            "--command",
+            _PROBE,
+            "--phases",
+            "5",
+            "--resume-from",
+            str(seed),
+            *extra,
+            sid=sid,
+        )
+
+    missing = tmp_path / "nope.json"
+    r = _try(missing)
+    assert r.returncode == 1 and "REFUSED" in r.stdout and "--resume-from" in r.stdout, r.stdout
+    assert not (run_dir / "r1.json").exists(), "a refused start opens no record"
+    big = tmp_path / "big.json"
+    big.write_bytes(b"{" + b" " * (cr._RESUME_READ_CAP + 1) + b"}")
+    r = _try(big)
+    assert r.returncode == 1 and "REFUSED" in r.stdout and "seed cap" in r.stdout, r.stdout
+    base = {
+        "state": "blocked",
+        "wall": True,
+        "command": _PROBE,
+        "rounds": [],
+        "classes": {},
+        "started_at": "2026-10-13T10:00:00+0300",
+        "started_epoch": time.time() - 3600,
+        "updated_ts": int(time.time()) - 1800,
+        "phases": 5,
+        "phase": 1,
+        "terminal": "t",
+        "stack_commands": [],
+    }
+    for name, patch, needle in (
+        ("running", {"state": "running"}, "blocked"),
+        ("nowall", {"wall": False}, "wall"),
+        ("other", {"command": "fabrik-other"}, "fabrik-other"),
+    ):
+        p = tmp_path / f"{name}.json"
+        p.write_text(json.dumps({**base, **patch}), encoding="utf-8")
+        r = _try(p)
+        assert r.returncode == 1 and needle in r.stdout, (name, r.stdout)
+        assert not (run_dir / "r1.json").exists()
+    good = tmp_path / "good.json"
+    good.write_text(json.dumps(base), encoding="utf-8")
+    r = _try(good, "--declare", "decision=yes")
+    assert r.returncode == 1 and "carried" in r.stdout, r.stdout
+    # a child seed with no live parent: resume the parent first
+    child = tmp_path / "child.json"
+    child.write_text(
+        json.dumps({**base, "command": "fabrik-child", "stack_commands": [_PROBE]}),
+        encoding="utf-8",
+    )
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-child",
+        "--phases",
+        "1",
+        "--resume-from",
+        str(child),
+        sid="r1",
+    )
+    assert r.returncode == 1 and "parent" in r.stdout, r.stdout
+    # a parent seed under a live run: refused (the live run would be parked under its own parent)
+    _start(run_dir, sid="r2")
+    r = _try(good, sid="r2")
+    assert r.returncode == 1 and "live" in r.stdout, r.stdout
+    assert json.loads((run_dir / "r2.json").read_text(encoding="utf-8"))["state"] == "running"
+    # the parent resumed first, then the child nests under it as a normal start would
+    r = _try(good, sid="r3")
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-child",
+        "--phases",
+        "1",
+        "--resume-from",
+        str(child),
+        sid="r3",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    rec = json.loads((run_dir / "r3.json").read_text(encoding="utf-8"))
+    assert rec["command"] == "fabrik-child" and rec["stack"][-1]["command"] == _PROBE
+    # phases mismatch → NOTE; a differing terminal → an amend, the seed's terminal kept as the original
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "9",
+        "--terminal",
+        "new words",
+        "--resume-from",
+        str(good),
+        sid="r4",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "phases" in r.stderr
+    rec4 = json.loads((run_dir / "r4.json").read_text(encoding="utf-8"))
+    assert (
+        rec4["phases"] == 5
+        and rec4["terminal"] == "new words"
+        and rec4["terminal_amends"][-1] == "t"
+    )
+
+
+def _wall_repo(tmp_path: Path) -> tuple[Path, dict[str, str]]:
+    """A lane-v1 git repo with one tracked declared file, and the hub env its SIZE gate reads."""
+    r = tmp_path / "repo"
+    (r / "scripts").mkdir(parents=True)
+    (r / ".fabrik").mkdir()
+    (r / "scripts" / "plain.py").write_text("x = 1\n", encoding="utf-8")
+    (r / ".fabrik" / "synced.lock").write_text("[]\n", encoding="utf-8")
+    (r / ".fabrik" / "lane.json").write_text('{"version": 1}\n', encoding="utf-8")
+    git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run(["git", "init", "-q"], cwd=r, check=True, timeout=15)
+    subprocess.run(["git", "add", "-A"], cwd=r, check=True, timeout=15)
+    subprocess.run([*git, "commit", "-qm", "base"], cwd=r, check=True, timeout=15)
+    hub = tmp_path / "hub"
+    hub.mkdir()
+    (hub / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n        name: sync\n"
+        "        entry: true\n        language: system\n        stages: [post-commit]\n"
+        "        files: '^never/match/'\n        pass_filenames: false\n",
+        encoding="utf-8",
+    )
+    return r, {"FABRIK_HUB_ROOT": str(hub)}
+
+
+def test_resumed_run_binds_a_pre_wall_commit(run_dir: Path, tmp_path: Path) -> None:
+    """Behaviour 4 (defect 2 of W-28f260c3), end to end: a commit made after the ORIGINAL start and
+    before the wall is this run's commit on the resumed record — `done --commit` accepts it where
+    the overwritten successor refused it as "not this run's commit"."""
+    repo, env = _wall_repo(tmp_path)
+    decl = "decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no,consumers=internal"
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-task",
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        "--file",
+        "scripts/plain.py",
+        "--declare",
+        decl,
+        cwd=repo,
+        extra_env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    time.sleep(1.1)  # the commit binding floors to whole seconds
+    (repo / "scripts" / "plain.py").write_text("x = 2\n", encoding="utf-8")
+    git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run([*git, "commit", "-qam", "the change"], cwd=repo, check=True, timeout=15)
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, timeout=15
+    ).stdout.strip()
+    seed = _wall_block(run_dir, command="fabrik-task")
+    # the gap: age the seed and the record so a fresh start would sit AFTER the commit
+    _age_record(seed, 60)
+    _age_record(run_dir / "s1.json", 60)
+    time.sleep(1.1)
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-task",
+        "--phases",
+        "5",
+        "--resume-from",
+        str(seed),
+        cwd=repo,
+        extra_env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "RECORD:" in r.stdout, "a /fabrik-task resume reprints the scratch key"
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-task",
+        "--commit",
+        sha,
+        "--evidence",
+        "e",
+        "--feedback",
+        _WALL_FB,
+        cwd=repo,
+        extra_env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "not this run's commit" not in r.stdout and "DONE /fabrik-task" in r.stdout
+
+
+def test_resumed_close_row_names_resumed_from_and_the_gap(run_dir: Path) -> None:
+    """Behaviour 5: the wall row carries `wall: quota`; the resumed run's row carries resumed_from,
+    gap_s, rounds_before_resume and THIS sitting's wall_s (the pre-wall sitting is on the wall
+    row, never counted twice), and the close prints the gap NOTE."""
+    seed = _seeded_run(run_dir)
+    ledger = run_dir.parent / "command-feedback.jsonl"
+    rows = [json.loads(ln) for ln in ledger.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    wall_row = rows[-1]
+    assert wall_row["command"] == _PROBE and wall_row.get("wall") == "quota", wall_row
+    r = _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--resume-from", str(seed))
+    assert r.returncode == 0, r.stdout + r.stderr
+    _cr(
+        run_dir,
+        "round",
+        "--seats",
+        "3",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a,b",
+    )
+    out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", "--feedback", _WALL_FB)
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "NOTE — resumed run" in out.stdout + out.stderr, out.stdout + out.stderr
+    rows = [json.loads(ln) for ln in ledger.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    row = rows[-1]
+    assert row["resumed_from"] and row["resumed_from"]["session_id"] == "s1", row
+    assert row["gap_s"] >= _GAP_S - 120 and row["rounds_before_resume"] == 1 and row["rounds"] == 2
+    assert row["wall_s"] < 600, row  # this sitting only — the gap is not wall-clock
+    # the run_close EVENTS carry the pair as scalars under their own names — `wall` on the wall
+    # close, `resumed_from_start` on the resumed one; `resumed_from` (the dict) stays on the record
+    # and the ledger row (review tests-docs-S1: one name, two shapes across two streams)
+    closes = [e for e in _events(run_dir, "s1") if e.get("event") == "run_close"]
+    assert closes[0]["wall"] == "quota" and closes[0]["resumed_from_start"] == "", closes[0]
+    assert (
+        closes[-1]["wall"] == ""
+        and closes[-1]["resumed_from_start"] == row["resumed_from"]["started_at"]
+    ), closes[-1]
+    assert "resumed_from" not in closes[-1], closes[-1]
+
+
+def test_wall_blocked_warns_and_proceeds_when_the_seed_cannot_be_kept(run_dir: Path) -> None:
+    """The fail direction of the wall close (review tests-docs-S3): when `<state>/seeds/` cannot be
+    written the close WARNS on stderr and PROCEEDS — at the wall every tool is held, and a refused
+    close would leave the record `running` with the Stop hook blocking every turn after the lift —
+    and the record file itself is the seed the reopen order names and `start --resume-from` accepts."""
+    _start(run_dir, sid="s7")
+    (run_dir / "seeds").write_text("not a directory", encoding="utf-8")  # mkdir → FileExistsError
+    out = _cr(run_dir, "blocked", "--command", _PROBE, "--wall", "--reason", "quota wall", sid="s7")
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "WARNING — the quota-wall seed could not be kept" in out.stderr, out.stderr
+    rec_path = run_dir / "s7.json"
+    assert f"--resume-from {rec_path}" in out.stdout, out.stdout
+    rec = json.loads(rec_path.read_text(encoding="utf-8"))
+    assert rec["state"] == "blocked" and rec["wall"] is True and "resume_seed" not in rec, rec
+    (run_dir / "seeds").unlink()
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "5",
+        "--resume-from",
+        str(rec_path),
+        sid="s8",
+    )
+    assert r.returncode == 0 and "RESUMED: from" in r.stdout, r.stdout + r.stderr
+    assert (
+        json.loads((run_dir / "s8.json").read_text(encoding="utf-8"))["resumed_from"]["session_id"]
+        == "s7"
+    )
+
+
+def test_since_label_names_the_origin_of_a_resumed_run() -> None:
+    """Review code-S1: the phase-review refusal's human cutoff and the gate it describes
+    (`_phase_review_exists(since=origin_epoch or started_epoch)`) read the SAME clock — a resumed
+    run's label names the pre-wall origin, never this sitting's start two hours later."""
+    cr = _load("command_run_since_label", _SCRIPT)
+    now = time.time()
+    origin, sitting = now - 7200, now - 60
+    label = cr._since_label({"origin_epoch": origin, "started_epoch": sitting})
+    assert time.strftime("%H:%M:%S", time.localtime(origin)) in label, label
+    assert time.strftime("%H:%M:%S", time.localtime(sitting)) not in label, label
+    assert cr._since_label({"started_epoch": sitting}).endswith(
+        f"({time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(sitting))})"
+    )
+    assert cr._since_label({}) == ""
+
+
+def test_resumed_task_appetite_counts_active_time_not_the_gap(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 7: a lane-v2 /fabrik-task resumed after a ten-hour wall reads its appetite from
+    ACTIVE time — the pinned line shows elapsed 0/240, never the past-2× UPGRADE order — because
+    `_effective_start` shifts the carried origin by the gap."""
+    cr = _load("command_run_effective_start", _SCRIPT)
+    seed = tmp_path / "task.json"
+    now = time.time()
+    seed.write_text(
+        json.dumps(
+            {
+                "state": "blocked",
+                "wall": True,
+                "command": "fabrik-task",
+                "rounds": [],
+                "classes": {},
+                "started_at": "2026-10-13T08:00:00+0300",
+                "started_epoch": now - _GAP_S - 600,
+                "updated_ts": int(now) - _GAP_S,
+                "phases": 5,
+                "phase": 3,
+                "terminal": "t",
+                "stack_commands": [],
+                "declared": {"gate": 2, "appetite": 240, "review": "scoped", "files": ["a.py"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-task",
+        "--phases",
+        "5",
+        "--resume-from",
+        str(seed),
+        cwd=tmp_path,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["declared"]["appetite"] == 240 and rec["gap_s"] >= _GAP_S - 120
+    # the helper: origin shifted by the gap ≈ ten minutes of active time
+    eff = cr._effective_start(rec)
+    # the seed's updated_ts is floored to whole seconds, so the gap can read up to a second long
+    assert -2 <= (now - eff) - 600 < 120, (eff, now)
+    line = _cr(run_dir, "line").stdout
+    # ten minutes of active time, floored to whole minutes (the gap's second-rounding can shave one)
+    assert re.search(r"elapsed (9|10|11)/240", line), line
+    assert "past 2×" not in line and "UPGRADE" not in line

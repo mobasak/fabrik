@@ -18,7 +18,9 @@ gets its ENTIRE working tree — staged + unstaged + untracked — snapshotted t
 
 **Why it's safe around live agents:** the snapshot is built through an ISOLATED index
 (`GIT_INDEX_FILE` temp) — it never touches the real index, HEAD, any branch, or the stash list, so a
-sibling's half-staged work stays exactly as they left it. Clean repos and unchanged-dirty repos are
+sibling's half-staged work stays exactly as they left it. Both backup pushes pass `--no-verify`, so
+no push hook runs in the tree: pre-commit's pre-push stage stashes and restores every unstaged file,
+and until 2026-10-13 that rewrote every dirty tree on the box each run. Clean repos and unchanged-dirty repos are
 skipped (no ref churn). `archived/` is excluded.
 
 **What it protects against:** VS Code reloads and machine restarts (the post-restart session can't

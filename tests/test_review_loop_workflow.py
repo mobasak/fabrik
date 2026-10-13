@@ -279,6 +279,8 @@ globalThis.agent = async (prompt, opts) => {{
   console.error('AGENT CALLED ' + opts.label);
   prompts[opts.label] = prompt;
   optsBy[opts.label] = {{ model: opts.model, agentType: opts.agentType, effort: opts.effort }};
+  // a canned value of "THROW" makes the seat reject, as a transport or auth error may (W-b36e2a4a)
+  if (results[opts.label] === 'THROW') throw new Error('seat ' + opts.label + ' rejected');
   return Object.hasOwn(results, opts.label) ? results[opts.label] : null;
 }};
 (async () => {{ {src} }})().then((out) => console.log(JSON.stringify({{ out, prompts, optsBy }})));
@@ -334,10 +336,14 @@ def test_the_union_merges_only_across_seats_near_the_same_line_and_never_drops_a
         {
             "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
-                "notes": "",
+                "notes": "read the slice",
                 "candidates": [_cand("S-S1", 3), _cand("S-S2", 5)],
             },
-            "find:S:haiku": {"files_read": ["a.py"], "notes": "", "candidates": [_cand("S-H1", 7)]},
+            "find:S:haiku": {
+                "files_read": ["a.py"],
+                "notes": "read the slice",
+                "candidates": [_cand("S-H1", 7)],
+            },
             "refute:S": {
                 "verdicts": [
                     {
@@ -383,7 +389,7 @@ def test_a_null_finder_makes_every_unread_file_a_logged_gap_and_the_seat_failed(
     ledger, log = _run_ledger(
         _ARGS,
         {
-            "find:S:sonnet": {"files_read": ["a.py"], "notes": "", "candidates": []},
+            "find:S:sonnet": {"files_read": ["a.py"], "notes": "read the slice", "candidates": []},
             # find:S:haiku absent → a null finder
         },
     )
@@ -394,7 +400,11 @@ def test_a_null_finder_makes_every_unread_file_a_logged_gap_and_the_seat_failed(
     assert s["verdicts"] == [], "zero candidates run zero verify seats"
 
 
-_FULL_READ = {"files_read": ["a.py", "b.py"], "notes": "", "candidates": []}
+_FULL_READ = {
+    "files_read": ["a.py", "b.py"],
+    "notes": "read a.py and b.py whole; nothing found",
+    "candidates": [],
+}
 _LEDGER_ROW = [{"id": "S-S1", "file": "a.py", "line": 3, "claim": "off by one"}]
 # Seven shapes of a finder that reviewed nothing (01M4C00TSS): `(pass, seat result, the returned files_read count)`.
 _READ_NOTHING = {
@@ -412,7 +422,7 @@ _READ_NOTHING = {
         2,
         {
             "files_read": [],
-            "notes": "",
+            "notes": "read the slice",
             "candidates": [],
             "ledger_status": [{"id": "S-S1", "status": "NOW_FALSE"}],
         },
@@ -507,7 +517,7 @@ def test_both_seat_prompts_open_with_the_brief_is_the_task_line() -> None:
         {
             "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
-                "notes": "",
+                "notes": "read the slice",
                 "candidates": [_cand("S-S1", 3)],
             }
         },
@@ -544,7 +554,7 @@ def test_a_later_pass_prompt_defines_its_ledger_status_on_the_defect_and_every_s
     assert "STILL_TRUE means the defect is still there" in finder, (
         "pass ≥ 2 keys the status on the DEFECT (R-3)"
     )
-    assert "NOW_FALSE means it is gone" in finder
+    assert "NOW_FALSE means the claimed defect is absent" in finder
     assert "ONLY the STILL_TRUE and NEW rows" in finder, "a fix that holds is never a candidate"
     assert "StructuredOutput" in prompts["find:S:haiku"], (
         "every finder is told to finish with the schema"
@@ -554,7 +564,7 @@ def test_a_later_pass_prompt_defines_its_ledger_status_on_the_defect_and_every_s
         {
             "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
-                "notes": "",
+                "notes": "read the slice",
                 "candidates": [_cand("S-S1", 3)],
             }
         },
@@ -568,11 +578,15 @@ def _two_finders(
     return {
         "find:S:sonnet": {
             "files_read": ["a.py", "b.py"],
-            "notes": "",
+            "notes": "read a.py and b.py whole",
             "candidates": cands_sonnet,
             "ledger_status": ledger_status or [],
         },
-        "find:S:haiku": {"files_read": ["a.py"], "notes": "", "candidates": cands_haiku or []},
+        "find:S:haiku": {
+            "files_read": ["a.py"],
+            "notes": "read the slice",
+            "candidates": cands_haiku or [],
+        },
     }
 
 
@@ -691,8 +705,16 @@ def test_a_slice_closes_only_when_nothing_is_confirmed_unverified_unread_or_unre
         (_two_finders([_cand("S-S1", 3)]), "unverified"),
         (
             {
-                "find:S:sonnet": {"files_read": ["a.py"], "notes": "", "candidates": []},
-                "find:S:haiku": {"files_read": ["a.py"], "notes": "", "candidates": []},
+                "find:S:sonnet": {
+                    "files_read": ["a.py"],
+                    "notes": "read the slice",
+                    "candidates": [],
+                },
+                "find:S:haiku": {
+                    "files_read": ["a.py"],
+                    "notes": "read the slice",
+                    "candidates": [],
+                },
             },
             "unread",
         ),
@@ -887,7 +909,7 @@ def test_every_seat_is_told_never_to_write_under_the_repo_and_to_time_box_blocki
         {
             "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
-                "notes": "",
+                "notes": "read the slice",
                 "candidates": [_cand("S-S1", 3)],
             }
         },
@@ -908,7 +930,7 @@ def test_every_seat_is_told_how_to_import_a_pinned_module_and_to_prove_it() -> N
         {
             "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
-                "notes": "",
+                "notes": "read the slice",
                 "candidates": [_cand("S-S1", 3)],
             }
         },
@@ -1177,7 +1199,7 @@ def test_the_pin_recipe_archives_whole_roots_and_names_what_the_archive_cannot_h
         {
             "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
-                "notes": "",
+                "notes": "read the slice",
                 "candidates": [_cand("S-S1", 3)],
             }
         },
@@ -1185,11 +1207,11 @@ def test_the_pin_recipe_archives_whole_roots_and_names_what_the_archive_cannot_h
     for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
         p = prompts[label]
         for needed in (
-            "with ROOTS every top-level directory and root module file the code imports",
+            "with ROOTS every top-level path the code or its tests import, read or run",
             "and when unsure, the whole commit",
             "over-inclusion is safe",
             "a package that imports a sibling package or a root module fails with ModuleNotFoundError in a one-package archive",
-            "a file outside your slice is at its",
+            "a file outside the run's pins is at its",
             "a later fix to it is invisible to you",
             "the fleet-synced scripts and rule packs (`scripts/enforcement/`, `.windsurf/rules/`) are gitignored",
             "Archive ALSO the WHOLE test tree",
@@ -1227,7 +1249,7 @@ def test_every_seat_is_told_how_to_run_pytest_against_the_pins() -> None:
         {
             "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
-                "notes": "",
+                "notes": "read the slice",
                 "candidates": [_cand("S-S1", 3)],
             }
         },
@@ -1243,7 +1265,7 @@ def test_every_seat_is_told_how_to_run_pytest_against_the_pins() -> None:
         assert "pytest.main(sys.argv[1:])" in p and "site-packages" in p, label
         # the real base sha, never a literal BASE no seat can run (review A-H1)
         assert "tox.ini" in p and f"git ls-tree --name-only {_ARGS['base_sha']}`" in p, label
-        assert "every top-level directory the tests import" in p, label
+        assert "every top-level path the tests import, read or run" in p, label
         assert "the live repo's absolute path" in p and "unverifiable" in p, label
         assert "Print `__file__` from INSIDE the run" in p and "child process" in p, label
         # a dummy must never reach a real DB nor un-skip a DB-gated suite (Fable critique)
@@ -1267,7 +1289,8 @@ def test_a_shell_less_researcher_finder_gets_no_shell_recipe() -> None:
         {"name": "X", "files": ["a.py"], "models": ["sonnet"], "agent": "fabrik-researcher"}
     ]
     _, _, prompts = _harness(
-        args, {"find:X:sonnet": {"files_read": ["a.py"], "notes": "", "candidates": []}}
+        args,
+        {"find:X:sonnet": {"files_read": ["a.py"], "notes": "read the slice", "candidates": []}},
     )
     p = prompts["find:X:sonnet"]
     assert "read the pin, never the live tree" in p
@@ -1287,7 +1310,7 @@ _PIN_ARGS = {
 
 
 def _gaps(files_read: list, pins_dir: str | None = "/s/pins") -> list[str]:
-    seat = {"files_read": files_read, "notes": "", "candidates": []}
+    seat = {"files_read": files_read, "notes": "read the slice", "candidates": []}
     args = {**_PIN_ARGS, "pins_dir": pins_dir}
     ledger, _ = _run_ledger(args, {"find:S:sonnet": seat, "find:S:haiku": seat})
     return ledger["slices"][0]["gaps"]
@@ -1308,7 +1331,9 @@ def test_every_files_read_shape_a_seat_really_returns_counts_as_read() -> None:
         == []
     )
     assert _gaps(["./src/a.py:120", "  `tests/b.py` — pinned  ", "file:///s/pins/c.md"]) == []
-    assert _gaps(["pins/src/a.py", "tests/b.py, read whole", "c.md [pin]"], pins_dir="pins") == []
+    # a relative pins_dir is refused before any seat now (01M4PNBVJ1 row 1791149709)
+    _, err, _ = _harness({**_PIN_ARGS, "pins_dir": "pins"}, {}, expect_fail=True)
+    assert "pins_dir must be an absolute path" in err, err[-300:]
     assert _gaps([None, 7, "", "src/a.py"]) == ["tests/b.py", "c.md"], (
         "a non-string entry never crashes"
     )
@@ -1319,8 +1344,10 @@ def test_every_files_read_shape_a_seat_really_returns_counts_as_read() -> None:
 def test_an_unset_empty_or_regex_special_root_never_credits_a_file() -> None:
     """Pass 1, code-S2/S3: an unset pins_dir must not become the root `undefined/`, an empty one must not strip
     every absolute path, and a pins_dir holding a regex metacharacter matches only itself (escRe)."""
-    assert _gaps(["undefined/src/a.py", "tests/b.py", "c.md"], pins_dir=None) == ["src/a.py"]
-    assert _gaps(["/src/a.py", "tests/b.py", "c.md"], pins_dir="") == ["src/a.py"]
+    # an unset or empty pins_dir no longer reaches readsFile: the launch is refused (01M4PNBVJ1 row 1791149709)
+    for bad in (None, ""):
+        _, err, _ = _harness({**_PIN_ARGS, "pins_dir": bad}, {}, expect_fail=True)
+        assert "pins_dir must be an absolute path" in err, (bad, err[-300:])
     assert _gaps(["/s/pXins/src/a.py", "/s/p.ins/tests/b.py", "c.md"], pins_dir="/s/p.ins") == [
         "src/a.py"
     ]
@@ -1370,10 +1397,14 @@ def _shell_seat_prompts() -> tuple[str, str]:
     results = {
         "find:S:sonnet": {
             "files_read": ["a.py", "b.py"],
-            "notes": "",
+            "notes": "read the slice",
             "candidates": [_cand("S-S1", 3)],
         },
-        "find:S:haiku": {"files_read": ["a.py", "b.py"], "notes": "", "candidates": []},
+        "find:S:haiku": {
+            "files_read": ["a.py", "b.py"],
+            "notes": "read the slice",
+            "candidates": [],
+        },
         "refute:S": {"verdicts": []},
     }
     _, _, prompts = _harness(_ARGS, results)
@@ -1972,3 +2003,245 @@ def test_the_launch_logs_its_dispatch_count_before_any_seat() -> None:
     assert line in log, log
     assert log.index(line) < log.index("AGENT CALLED"), log
     assert "stays inside this stamp" in log, log
+
+
+_GREP_RULE = "a grep not fed by a pipe or a redirect names a file or directory operand, and `-r` always names one"
+
+
+def test_the_seat_recipe_overlays_every_pin_and_names_every_used_root() -> None:
+    """kaizen 01M4RM8CYR/01M4RMKM28 (rows 1791774523, 1791785471): a test that READS templates/ or .windsurf/, or
+    RUNS scripts/ by subprocess, was a false red under an archive built from what the tests IMPORT. 01M4PNBVJ1 row
+    1791735249: a slice's tests may import another slice's module, so every pin of the run is overlaid — by ONE
+    program over MANIFEST.md5, which lists no manifest file and no change.diff."""
+    _, _, prompts = _harness(
+        _ARGS,
+        {"find:S:sonnet": {**_FULL_READ, "candidates": [_cand("S-S1", 3)]}},
+    )
+    for label in ("find:S:sonnet", "refute:S"):
+        p = prompts[label]
+        assert "every top-level path the code or its tests import, read or run" in p, label
+        assert "every top-level path the tests import, read or run" in p, label
+        assert "overlay EVERY pinned file of the run" in p and "MANIFEST.md5" in p, label
+        assert "hashlib.md5" in p and "/p/MANIFEST.md5" in p, (label, "the overlay is one program")
+        assert "a file outside the run's pins is at its" in p, label
+        assert "YOUR slice's pins" not in p and "it holds only the slice's files" not in p, label
+
+
+def test_a_relative_scratch_or_pins_dir_is_refused_before_any_seat() -> None:
+    """01M4PNBVJ1 row 1791149709: a relative scratch_dir lands a seat's probes in the live checkout."""
+    for key, bad in (
+        ("scratch_dir", "scratch/x"),
+        ("pins_dir", "pins"),
+        ("base_pin_dir", "base"),
+        ("scratch_dir", None),
+    ):
+        _, err, _ = _harness({**_ARGS, key: bad}, {}, expect_fail=True)
+        assert f"{key} must be an absolute path" in err and "AGENT CALLED" not in err, (
+            key,
+            err[-400:],
+        )
+    out, _ = _run_ledger({**_ARGS, "base_pin_dir": ""}, {})
+    assert out is not None, "an empty base_pin_dir means none, never a refusal"
+
+
+def test_seat_isolation_requires_a_grep_file_operand() -> None:
+    """01M4PY7AG9 row 1789571402 (the brief half): a bare grep reads stdin and hangs; a bare `grep -r` searches the
+    live tree. A grep fed by a pipe or a redirect is fine, so the rule names those."""
+    _, _, prompts = _harness(
+        _ARGS, {"find:S:sonnet": {**_FULL_READ, "candidates": [_cand("S-S1", 3)]}}
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        assert _GREP_RULE in prompts[label], label
+
+
+def test_a_finder_that_brought_nothing_back_fails() -> None:
+    """01M4Q4D8VP: notes of 'placeholder' or only a MACHINERY line, no candidate and no ledger row, read as a clean
+    0. Such a seat fails; a delta seat with ledger rows and a bare MACHINERY line does not."""
+    for notes in ("", "placeholder", "MACHINERY: none", "n/a\nMACHINERY: none", "TODO", "  \n "):
+        out, _ = _run_ledger(
+            _ARGS,
+            {"find:S:sonnet": {**_FULL_READ, "notes": notes}, "find:S:haiku": _FULL_READ},
+        )
+        seats = {s["model"]: s for s in out["slices"][0]["seats"]}
+        assert (
+            seats["sonnet"]["failed"] is True
+            and "no coverage statement" in seats["sonnet"]["notes"]
+        ), notes
+        assert seats["haiku"]["failed"] is False and out["closable"] is False, notes
+    led = {
+        **_ARGS,
+        "pass": 2,
+        "slices": [{**_ARGS["slices"][0], "models": ["sonnet"], "ledger": _LEDGER_ROW}],
+    }
+    row = {"id": "S-S1", "status": "NOW_FALSE", "command": "c", "output": "o"}
+    out, _ = _run_ledger(
+        led, {"find:S:sonnet": {**_FULL_READ, "notes": "MACHINERY: none", "ledger_status": [row]}}
+    )
+    assert out["slices"][0]["seats"][0]["failed"] is False and out["closable"] is True, out[
+        "slices"
+    ][0]
+
+
+def test_a_null_finder_is_reseated_once() -> None:
+    """W-b36e2a4a: a null finder (a transport or auth error) was dropped for the whole pass. It is re-seated once,
+    under its own label and its own scratch dir, and the retry's result is used; null twice stays a failed seat."""
+    out, log, prompts = _harness(
+        _ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku:retry": _FULL_READ}
+    )
+    assert "find:S:haiku:retry" in prompts and "find:S:sonnet:retry" not in prompts, sorted(prompts)
+    assert "/s/S-haiku-retry/" in prompts["find:S:haiku:retry"], (
+        "the retry never reuses the dead seat's scratch"
+    )
+    assert all(not s["failed"] for s in out["slices"][0]["seats"]), out["slices"][0]["seats"]
+    assert "find:S:haiku null — retried: recovered" in log, log
+    out, log, prompts = _harness(_ARGS, {"find:S:sonnet": _FULL_READ})
+    haiku = [s for s in out["slices"][0]["seats"] if s["model"] == "haiku"][0]
+    assert "find:S:haiku:retry" in prompts and haiku["failed"] is True, haiku
+    assert "after one retry" in haiku["notes"] and "retried: STILL NULL" in log, (haiku, log)
+
+
+def test_a_throwing_finder_is_reseated_too() -> None:
+    """A transport or auth error may THROW rather than resolve null; the first call is caught, so it is retried —
+    and a retry that throws too leaves the failed seat, never a dropped slice."""
+    out, log, prompts = _harness(
+        _ARGS,
+        {"find:S:sonnet": _FULL_READ, "find:S:haiku": "THROW", "find:S:haiku:retry": _FULL_READ},
+    )
+    assert "find:S:haiku:retry" in prompts and "retried: recovered" in log, log
+    assert out["dropped_slices"] == 0 and all(not s["failed"] for s in out["slices"][0]["seats"]), (
+        out
+    )
+    out, log, _ = _harness(
+        _ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": "THROW", "find:S:haiku:retry": "THROW"}
+    )
+    assert out["dropped_slices"] == 0 and "retried: STILL NULL" in log, log
+
+
+def test_a_ledger_pass_reexecutes_every_claim_and_keeps_recorded_recorded() -> None:
+    """01M4PPW8D8 Q1 (the Opus + Fable panel agreed): a quiet round 1's closing pass re-executes every claim of the
+    seat's ledger, an earlier refutation included. Enforced, not only said: an echoed NOW_FALSE with no command or
+    output re-verifies nothing. A `recorded: true` claim is report-only: a candidate on it never reaches the refuter."""
+    led = {
+        **_ARGS,
+        "pass": 2,
+        "slices": [{**_ARGS["slices"][0], "models": ["sonnet"], "ledger": _LEDGER_ROW}],
+    }
+    _, _, prompts = _harness(led, {})
+    p = prompts["find:S:sonnet"]
+    assert "EVERY claim in YOUR ledger is re-executed, an earlier refutation included" in p
+    assert "a claim refuted in an earlier pass and NOT in your ledger is closed (D-206)" in p
+    assert "re-run and never cited" in p
+    echo = {
+        **_FULL_READ,
+        "ledger_status": [{"id": "S-S1", "status": "NOW_FALSE", "command": "", "output": ""}],
+    }
+    out, _ = _run_ledger(led, {"find:S:sonnet": echo})
+    assert "ledger claim S-S1 not re-verified by any seat" in out["slices"][0]["open"], out[
+        "slices"
+    ][0]
+    rec = {
+        **led,
+        "slices": [{**led["slices"][0], "ledger": [{**_LEDGER_ROW[0], "recorded": True}]}],
+    }
+    seat = {
+        **_FULL_READ,
+        "candidates": [_cand("S-S1", 3)],
+        "ledger_status": [{"id": "S-S1", "status": "STILL_TRUE", "command": "c", "output": "o"}],
+    }
+    out, _, prompts = _harness(rec, {"find:S:sonnet": seat})
+    assert "REPORT ONLY" in prompts["find:S:sonnet"], "recorded claims are listed as report-only"
+    assert "refute:S" not in prompts and out["slices"][0]["verdicts"] == [], out["slices"][0]
+    assert out["closable"] is True, out["slices"][0]
+    assert out["slices"][0]["candidates"] == [] and [
+        c["id"] for c in out["slices"][0]["recorded"]
+    ] == ["S-S1"]
+    # an executed check may print nothing (a grep that finds no match): the command is the evidence (round 1, A-H2)
+    quiet = {
+        **_FULL_READ,
+        "ledger_status": [
+            {"id": "S-S1", "status": "NOW_FALSE", "command": "grep -c x a.py", "output": ""}
+        ],
+    }
+    out, _ = _run_ledger(led, {"find:S:sonnet": quiet})
+    assert out["closable"] is True, out["slices"][0]["open"]
+
+
+def test_a_recorded_candidate_never_shifts_another_seats_credit() -> None:
+    """Review round 1 (A-S1/B-S1): with a recorded candidate beside an ordinary one, the per-seat `confirmed` credit
+    zipped `verdicts` against a `candidates` list the recorded one was put back into, crediting the wrong seat."""
+    ledger = [
+        {**_LEDGER_ROW[0], "id": "S-L1", "recorded": True},
+        {**_LEDGER_ROW[0], "id": "S-L2", "line": 50},
+    ]
+    args = {**_ARGS, "pass": 2, "slices": [{**_ARGS["slices"][0], "ledger": ledger}]}
+    row = lambda i: {"id": i, "status": "STILL_TRUE", "command": "c", "output": "o"}  # noqa: E731
+    seats = {
+        "find:S:sonnet": {
+            **_FULL_READ,
+            "candidates": [_cand("S-L1", 3)],
+            "ledger_status": [row("S-L1")],
+        },
+        "find:S:haiku": {
+            **_FULL_READ,
+            "candidates": [_cand("S-L2", 50)],
+            "ledger_status": [row("S-L2")],
+        },
+        "refute:S": {
+            "verdicts": [{"id": "S-L2", "verdict": "confirmed", "command": "c", "output": "o"}]
+        },
+    }
+    out, _ = _run_ledger(args, seats)
+    s = out["slices"][0]
+    credit = {x["model"]: x["confirmed"] for x in s["seats"]}
+    assert credit == {"sonnet": 0, "haiku": 1}, credit
+    assert [c["id"] for c in s["candidates"]] == ["S-L2"] and len(s["verdicts"]) == 1, s
+
+
+def test_a_machinery_block_is_not_a_coverage_statement() -> None:
+    """Review round 1 (A-S2): bullet lines under a MACHINERY header read as coverage, so a seat whose notes were only
+    a MACHINERY block passed. MACHINERY is the notes' last part: everything from its first line on is not coverage."""
+    notes = "MACHINERY:\n- the guard refused a heredoc twice\n- node rejected --input-type"
+    out, _ = _run_ledger(
+        _ARGS, {"find:S:sonnet": {**_FULL_READ, "notes": notes}, "find:S:haiku": _FULL_READ}
+    )
+    seats = {x["model"]: x for x in out["slices"][0]["seats"]}
+    assert seats["sonnet"]["failed"] is True, seats["sonnet"]
+    ok = "read a.py and b.py whole\nMACHINERY: none"
+    out, _ = _run_ledger(
+        _ARGS, {"find:S:sonnet": {**_FULL_READ, "notes": ok}, "find:S:haiku": _FULL_READ}
+    )
+    assert all(not x["failed"] for x in out["slices"][0]["seats"]), out["slices"][0]["seats"]
+
+
+def test_the_args_comment_states_no_pass_ceiling() -> None:
+    """01M4PVPY8J: D-756 removed the pass ceiling from four command sources; the script's comment was the last copy."""
+    assert "pass: 1|2|3" not in _script() and "pass: 1, 2, 3, … (unbounded)" in _script()
+
+
+def test_every_seat_is_told_how_to_run_a_git_history_test() -> None:
+    """kaizen 01M4V37VFT (/fabrik-review row 1791910374): an archive carries no history, so a test that runs git log,
+    blame or rev-parse failed falsely, and the seat prompt named no route; it now names the catalogue's shared clone,
+    with its push URL disabled and the pins committed in it, and only a test reading the LIVE checkout's own refs is
+    reported unverifiable (both design critiques executed the clone)."""
+    _, _, prompts = _harness(
+        _ARGS, {"find:S:sonnet": {**_FULL_READ, "candidates": [_cand("S-S1", 3)]}}
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        assert "A test that reads git HISTORY (log, blame, rev-parse of an older commit)" in p, (
+            label
+        )
+        assert (
+            "git -C SCRATCH clone --shared --no-checkout" in p and "remote.origin.pushurl" in p
+        ), label
+        assert (
+            f"git -C SCRATCH/clone checkout {_ARGS['base_sha']}" in p
+            and "git -C SCRATCH/clone add -A" in p
+            and "commit -q --allow-empty -m pins" in p
+        ), label
+        assert "writes nothing to the shared" in p and "lands in the clone's own" in p, label
+        assert "only a test that reads the LIVE checkout's own branches" in p, label
+        assert "(init, clone, add, commit" in p, (
+            label,
+            "a clone is a writing verb, in the -C form",
+        )

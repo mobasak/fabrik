@@ -2073,6 +2073,17 @@ def run_consistency_checks(
                 warn_only=True,
             )
         )
+        # Data-contract Backing legend (fleet 01M4TGT7N4): every Enum-registry `Backing` cell is
+        # one of the template's six tokens in its whole-cell grammar. warn_only — 107 cells in 9
+        # projects were off it on 2026-10-13; the FAIL flip waits for their re-freeze. Unconditional:
+        # a contract-only `.md` diff must reach it.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_data_contract_legend.py",
+                "Data Contract Backing Legend",
+                warn_only=True,
+            )
+        )
         # Doc Sync Matrix — the single "update docs when code changes" gate
         # (consolidates CHANGELOG / INDEX / CONFIGURATION / schema / QUICKSTART /
         # FEATURES / PORTS touch-on-change). Tier 1+2 so it blocks in --lean.

@@ -4,6 +4,108 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_plan_tickets collapses a doubled slash, so `scripts//final_gate.py` no longer slips past Never-Route (fleet 01M4TQPCXT) (2026-10-14)
+
+- `scripts/enforcement/check_plan_tickets.py`: `_norm_path` collapsed `/./` and a `./` prefix but not `//`, so a Touches entry spelled `scripts//final_gate.py` was never-route under neither rule and a `Complexity: simple` ticket carrying it drew no error. The fixpoint loop now collapses doubled slashes too; the same normaliser feeds File Scope, and a fleet count found no plan-set path that the collapse re-keys. The review found that collapsing `//` turned `.//.` into an empty token, which `_list_paths` drops silently. The cause is older: the `./` prefix strip already did that to `./` and `./.`. Every repo-root spelling now normalises to `.` and reaches the repo-root ERROR. Graded by `test_a_doubled_slash_collapses_before_never_route` and `test_a_repo_root_spelling_never_normalises_to_empty`, each red before its fix.
+
+### Changed — review_loop_ledger.py pin's stdout is the JSON fragment alone, and seats get a route for git-history tests (2026-10-14)
+
+- `scripts/review_loop_ledger.py pin` prints its DIRTY, UNCHANGED and SKIPPED advisories on stderr. Stdout is the args fragment alone, one JSON document, which now also carries `dirty`, so a caller can hand stdout to a Workflow launch whole (kaizen 01M4V6VQ8V, /fabrik-review row 1791913338).
+- `.claude/workflows/fabrik-review-loop.js`: a seat whose test reads git history runs it in a shared clone of the live checkout (`git -C SCRATCH clone --shared --no-checkout …`). The clone's push URL is disabled, because its origin is the live repo. It is checked out at the base SHA with the pins overlaid, and the pins are committed when the test reads HEAD, a diff or the status. Branch, worktree and stash state a test creates stays in the clone, so only a test reading the live checkout's own refs is unverifiable. `clone` joins the seat rules' write-verb list (kaizen 01M4V37VFT, row 1791910374; both design critiques executed the clone).
+- `docs/reference/review-loop-workflow.md` says where pin's output goes.
+
+### Fixed — check_schema_sync no longer passes a model change on schema.sql alone where migrations apply the schema (intel 01M4TJJDC3) (2026-10-14)
+
+- `scripts/enforcement/check_schema_sync.py`: a model whose project tracks a migration directory (an ancestor of the model in the index; vendored trees such as `node_modules/` excluded) now needs a staged added, modified or renamed-in migration under that directory, and fails without one, naming it. `env.py`, `__init__.py` and `script.py.mako` do not count. A model no migration dir governs, in a repo that tracks one elsewhere, passes on schema.sql with a WARN naming those dirs, even when another project's migration rides the same commit. A migration renamed into the dir counts, and a non-ASCII staged path (which plain `git diff` output quotes) is now read, where before it switched the whole check off. A fleet replay through the built gate shows site-provisioner 7da4149 as the only commit newly failing; its 20 columns were never migrated until 5ce52f2. Graded by eleven new tests in `tests/enforcement/test_check_schema_sync.py`; each rule-bearing one was watched red first or under a targeted mutation. `docs/workflows/FINAL_GATE_WORKFLOW.md` states the rule.
+
+### Changed — libs/health_probe re-vendored at fabrik-lib 0e44811c (2026-10-13)
+
+- `libs/health_probe/health_probe.py` and `fingerprint.py` now match fabrik-lib 0e44811c. `load_env`'s docstring now also names a truthy `PYTHON_DOTENV_DISABLED` as a reason it returns False and loads nothing (the hub's finding 01M4V9BKD2). No behaviour change. `tests/test_scaffold_deploy_contract.py`'s vendoring-header test passes again.
+
+### Fixed — pgurl counts `requiressl` as an ssl key and pins its own IFS (2026-10-14)
+
+- `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` + `CONFIGURATION_TEMPLATE.md` (fabrik-lib 01M4VB91YA): libpq 17
+  still honours the deprecated `requiressl`, which REWRITES sslmode — `?sslmode=verify-full&requiressl=0` connected at
+  `prefer` past the duplicate-key arm. The key count now runs inside the existing `for kv` loop over
+  `ssl|sslmode|requiressl` (the enumerated pairing arm is gone), and the loop pins `IFS=" "` inside the subshell —
+  the review found the new count read the CALLER's IFS, so a root shell after `IFS=:` let the duplicate through
+  (executed: rc 0 before, refused after, caller IFS untouched). Graders in `tests/test_scaffold_doc_seeding.py`:
+  three requiressl pairings refused, `requiressl=1` alone passes, the IFS loop under `IFS=:` and `IFS=`, and `set -f`
+  pinned by a glob that matches a file in the cwd (red with `set -f` removed). `scaffold.py` schema headers name
+  `requiressl`.
+
+### Fixed — the scaffold parity stub's ".env loaded nothing" message names PYTHON_DOTENV_DISABLED (2026-10-13)
+
+- `templates/scaffold/scripts/verify_prod_parity.py:231` (infra 01M4V9BKHB): python-dotenv 1.2's `load_dotenv` also
+  returns False when `PYTHON_DOTENV_DISABLED` is truthy, so the message's two causes ("sets no variable, or python-dotenv
+  is not installed") sent an operator after a package that was installed; the third cause is named. Grader
+  `tests/test_parity_stub_loads_env.py::test_a_disabled_dotenv_is_reported_as_the_third_cause` runs the stub against a
+  real `.env` under `PYTHON_DOTENV_DISABLED=1`: nothing reaches `os.environ` and the message names the variable;
+  the control run without the switch loads both variables, and `PYTHON_DOTENV_DISABLED=0` loads them too (the message
+  names the five values python-dotenv reads — 1/true/t/yes/y — never "set"); skipped below python-dotenv 1.2.
+
+### Added — unit tests for the verifier's authoritative DNS wait and resolved-IP health probe; the probe keeps the URL's port (2026-10-13)
+
+- `tests/orchestrator/test_verifier.py` (W-2178bedc, from the W-1996f86b review): `DeploymentVerifier._wait_for_dns`
+  (B19 — the zone's authoritative NS asked via `dig` so a resolver's negative cache cannot hide a live record) and
+  `_check_health`'s resolved-IP branch (connect to the IP, send the domain as the Host header) only ever ran as live
+  network calls, and the file's autouse stub hides the former from every test. Five tests run the real method with
+  `subprocess.run` and `shutil.which` replaced by a recording fake that pins every `dig` argv AND its kwargs
+  (captured output, text, a 10 s cap, `check=False`): the zone NS argv, the first-server poll, the public-resolver
+  fallback on a timed-out or failed NS lookup, CNAME lines skipped with a timed-out and a failed poll survived, and
+  a 3 s budget giving up after exactly two polls at the 5 s cadence (a zero budget polls nothing). Five more pin
+  `_check_health`'s IP branch through a patched `httpx.get`: the URL with its port, path, query and fragment kept,
+  the Host header, verify/redirect flags, the non-200 retry-then-raise contract, a retried transport error with its
+  retry sleep, the http:// refusal, and the fallback to `urlopen` when no Host header is given.
+- `src/fabrik/orchestrator/verifier.py` (Fixed, found by the review's seats — H2): the IP probe rebuilt the netloc from
+  the bare IP, so a health URL on `:8443` was probed on 443; the port is kept.
+
+### Fixed — the canonical `pgurl` refuses a duplicate ssl/sslmode key and a non-postgres DSN (2026-10-13)
+
+- `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md:107` and `CONFIGURATION_TEMPLATE.md:204`, byte-identical (fabrik-lib
+  01M4TP1W, both executed against psql 16): renaming every `ssl=` to `sslmode=` let `?sslmode=require&ssl=disable` reach
+  libpq as two `sslmode` keys, of which it keeps the LAST silently — a TLS downgrade with no error; and a value such as
+  `-o/<file>` passed the no-whitespace check and reached root's `psql` as an option (psql truncates the file before it
+  connects). pgurl now refuses more than one ssl/sslmode key before the rename, refuses a percent-encoded query KEY
+  (libpq decodes keys, so `%73slmode=` is a second sslmode — review pgurl-O1), and accepts only a DSN that rewrites to
+  `postgres://` or `postgresql://` (a lowercase `+driver` is stripped; an upper-case or malformed one is refused rather than
+  printed unchanged — pgurl-S1/O6); refuses a raw `?` in the user:password part (libpq reads the text before the first
+  `@` as credentials, so a `?` there hid the real query from both checks — pgurl-O8; encode it as `%3F`); the
+  whitespace/quote check runs first so a still-quoted line is told the real cause;
+  `sslcert`/`sslkey`/`sslrootcert` stay legitimate. Grader red-first in
+  `tests/test_scaffold_doc_seeding.py::test_pgurl_rewrites_a_driver_dsn_for_libpq` (eighteen refusal shapes, seven new pass
+  shapes; the scaffold's two schema headers restate the refusals). The /fabrik-review-scoped loop confirmed 11 → 2 → 0.
+### Fixed — the parity-stub .env tests count the load the stub really makes (W-6dd44ffe) (2026-10-13)
+
+- `tests/test_parity_stub_loads_env.py`: the counting probe patched `libs.health_probe.health_probe.load_env`, but since D-744 the stub loads its health_probe copy BY FILE PATH as `_parity_health_probe`. It counted a module the stub never calls, so two tests read 0 loads and were red on master. It now counts at `dotenv.load_dotenv`, which every copy of `load_env` reaches whenever python-dotenv is installed (a declared dependency; without it the probe fails loudly at `import dotenv`). A stub that reloads on every row reads 3 loads and fails the test.
+
+### Added — the gate warns when a data contract's Backing cell is not a legend token (fleet 01M4TGT7N4) (2026-10-13)
+
+- `scripts/enforcement/check_data_contract_legend.py` is a new Tier 1/2 warn-only gate row. Every Enum-registry `Backing` cell in a project's `docs/data-contract.md` must be one of the template legend's six tokens (`native` · `CHECK` · `app` · `doc` · `file` · `unconstrained`) in its whole-cell grammar (`token`, `token (note)`, `a / b`). Tables are read as GFM (a header and a delimiter row, fenced code skipped, escaped pipes kept). A contract's own differing legend is reported, never honoured. It exits 0 on every path. On 2026-10-13 it names 107 cells in 9 projects; the FAIL flip waits for their re-freeze. Graded by `tests/enforcement/test_check_data_contract_legend.py`, and `tests/test_scaffold_doc_seeding.py` now reads the template through the same reader and grammar. Canaries in `scripts/sysadmin/liveness_audit.py`.
+- `commands/_sources/fabrik-data-contract.md` names the six tokens and the grammar.
+- Two reds on master from 04413b533 are fixed. `check_beat_owners` had no canary (`tests/test_gate_check_canaries.py`), and `docs/workflows/FINAL_GATE_WORKFLOW.md`'s GATE-COUNTS was one row behind (`tests/test_final_gate_tier_counts.py`). The counts are re-measured by instrumented execution: 38 / 58 / 22. `check_beat_owners.py`'s docstring opens with a complete sentence, because the capability catalog takes its first line.
+
+### Fixed — the wip-backup cron no longer stash-restores every dirty tree on the box (2026-10-13)
+
+- `scripts/wip_backup.sh`: both backup pushes now pass `--no-verify`. pre-commit's pre-push stage stashes and restores every unstaged file, so each 15-minute run rewrote every dirty working tree it pushed from, once per push (`/tmp/wip-backup.log`: 27 stash cycles over 14 runs that stashed, 13 of them two). The script also sets `GIT_OPTIONAL_LOCKS=0`: its `git status` had rewritten each tree's real index under `index.lock`, racing a live agent's `git add`. That is now guarded by `test_a_run_never_rewrites_the_real_index`. Cron's umask left the hub's files at mode 664, which tripped `verify_prod_parity.py`'s writable-by-others guard in two contract tests, and an edit landing inside the stash window could be lost. Guarded by `tests/test_wip_backup.py::test_backup_pushes_never_run_the_repos_pre_push_hook`, which failed with the hook running twice on the old script.
+- `tests/test_wip_backup.py::test_failed_push_to_a_bad_remote_logs_the_plain_failure_line` now pushes to a missing local path. `https://127.0.0.1:1` hangs into the 5 s timeout on a box whose loopback TCP is wedged, so the test graded the network and failed on HEAD too.
+- `docs/workstation/wip-backup-safety-net.md`: the "safe around live agents" paragraph now states the `--no-verify`.
+
+### Changed — libs/health_probe re-vendored at fabrik-lib 09bf9236 (2026-10-13)
+
+- `libs/health_probe/health_probe.py` and `fingerprint.py` now match fabrik-lib 09bf9236 (fabrik-lib reply 01M4TG4MKN). `load_env`'s docstring and comment now say when a NUL byte in `.env` raises and when it does not, so `load_env` must not be used to validate a `.env`. No behaviour change. `tests/test_scaffold_deploy_contract.py::test_hub_copy_differs_from_fabrik_lib_only_by_the_vendoring_header` had been red since fabrik-lib moved; it passes again.
+
+### Fixed — the template's RED clause names the quota-wall close; the GATE-row cites follow final_gate.py (2026-10-13)
+
+- `templates/governance/CLAUDE.md`: the quota RED clause now names `blocked --wall` and `start --resume-from <seed>`, as the hub CLAUDE.md does since W-28f260c3 (D-826; fleet 01M4V5P329). Without it, a project agent that closes at the RED band reads no verb and closes with a plain `blocked`, which keeps no seed.
+- `CLAUDE.md` + `templates/governance/CLAUDE.md`: the GATE row's setup-error and tier cites move to `:3326-3343` and `:3345-3351`. Commit 04413b533 inserted the beat-owners check at final_gate.py:2245, which shifted them. `tests/test_governance_template_split.py` had been red on master since then; it now passes and pins the new RED wording in both contracts.
+
+### Fixed — mail_escalate scans the mailboxes once per run (W-ef8cffc6) (2026-10-13)
+
+- `scripts/sysadmin/mail_escalate.py`: `main()` scans once and hands that list to `_owners_done()`, which used to scan again, so the owner roll-call and the send could judge two different lists of a live store. Guarded by `tests/test_mail_escalate.py::test_one_run_scans_the_mailboxes_once` (its sending-path assertion is the one that fails on the old code). A scan that raises now prints a WARNING and exits 0 (the module's fail-soft contract) instead of a traceback (`test_a_scan_that_raises_is_reported_not_a_traceback`).
+
+### Fixed — the kaizen hand-off grader reads MAIL_BEATS from the AST (W-d1e6573a) (2026-10-13)
+- `tests/test_mail_addressing.py::test_kaizen_sends_one_addressed_obligation_per_beat` was red on master since a90b35a3b (D-646) replaced the literal beat loop with `MAIL_BEATS`. It now reads the tuple and the send loop from the AST: the tuple holds infra, fleet and kaizen, the send passes `--to-agent` with the loop's beat, and no `--broadcast`/`--ack` appears anywhere in the loop — a flag appended after the argv list included.
 ### Fixed — term-coverage says which consumers round zero and rule (5) bind (2026-10-14)
 - `commands/_fragments/term-coverage.md` scope paragraph said every obligation binds all five consumers alike, while round zero runs only for a consumer that runs delta rounds (before its round one and every re-dispatch) and rule (5) governs only a fix to a checker or a gate; the two certification gauntlets and the conformance review run neither. It now says so. W-eaa66f83.
 
@@ -60,6 +162,23 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-command-improve checks a rule it adds on the edit itself and on its origin case (2026-10-13)
 - PHASE 3 now says a rule the edit adds is checked before PHASE 4's pin on the edit's own grader and sentence, which obey it, and on the case that raised it, which it must flag. The catalogue's moved-text rule (403ab35e) was drafted with a section-scoped grader, the weakness that rule names, and its review's round 1 caught it before the commit (row 1791896044, a recurrence of the held apply-rule-to-origin-case). Grader: `tests/test_command_improve_queue_pass.py::test_phase_three_checks_an_added_rule_on_the_edit_and_its_origin_case`.
 
+### Added — a run closed at the quota wall is resumed, not restarted: `blocked --wall` keeps a seed, `start --resume-from` carries it (2026-10-13)
+
+- `scripts/command_run.py`, `.claude/hooks/quota_stop.py` (infra W-28f260c3 from sp3 01M49B2E91 / W-746e8b5a; D-826): the wall
+  text told a held session to close its run record and named no way back; the session's next `start` overwrote the record, so the successor's
+  quiet round read as "round 1 is the full pass" (the closing pass recorded twice, the class ledger restarted) and `done --commit` refused
+  every pre-wall commit (the SIZE declaration, design and amends had to be re-recorded by hand). `blocked --wall` (or the hook's own phrase in
+  `--reason`) marks the record and keeps a JSON seed under `<state>/seeds/`; `start --resume-from <seed>` carries rounds, classes, declaration,
+  design, amends, phase, terminal, `surface_adds`, `waived_reviews` and `phase_marks`, keeps the record's OWN start clock, and carries the
+  original as `origin_epoch`/`origin_started_at` + `gap_s`: the commit binding and the review windows read the origin, budget and appetite read
+  active time, the ledger rows pair (`wall: quota` on the wall row; `resumed_from`, `gap_s`, `rounds_before_resume` on the resumed row). Eight
+  bad seed shapes are refused (nested walls resume the parent first); a seed write failure warns and the close proceeds. The wall text and
+  CLAUDE.md's RED clause name both verbs; `docs/reference/command-run-protocol.md` documents them; the run_close event carries
+  `wall` and `resumed_from_start` (docs/workstation/kaizen-event-stream.md). Seven graders red-first in `tests/test_command_run.py`
+  and `tests/test_quota_stop_hook.py`; the phase-4 /fabrik-review (11 → 9 confirmed → 0 over 2 passes) fixed the phase-review
+  refusal's cutoff label to the origin clock, made the RED hint case-sensitive with a conditional NOTE, and shortened the hook text
+  so every admitted sid (up to 80 chars) stays under the one-message pin. Ships to the ~46 synced repos on merge; fabrik-lib re-vendors.
+
 ### Fixed — check_plan_tickets never-route covers the `scripts/final_gate*` filename FAMILY, not the hub's gate file alone (2026-10-13)
 
 - `scripts/enforcement/check_plan_tickets.py` (fabrik-lib finding 01M494TQ3E, SB-108, W-2e6c1b0b; D-824): `NEVER_ROUTE_PREFIXES`
@@ -72,6 +191,26 @@ All notable changes to this project will be documented in this file.
   `Never-Route:` line keeps working for a gate named outside the family. Two pre-existing residuals recorded, not fixed here: the Stop
   hook `.claude/hooks/final_gate_stop.py` is outside `scripts/`, and a `scripts//final_gate.py` spelling escapes `_norm_path`
   (filed to infra, 01M4TQPCXT). Ships to the ~46 synced repos on merge; fabrik-lib re-vendors.
+
+### Changed — the review-loop workflow re-seats a dead finder, fails an empty one, and makes a closing pass execute its claims (2026-10-13)
+
+- `.claude/workflows/fabrik-review-loop.js`:
+  - A finder that returns null or throws is re-seated once (`find:<slice>:<model>:retry`, its own scratch dir), inside the dispatch stamp (W-b36e2a4a).
+  - A finder that brought nothing back fails (no coverage statement, no candidate, no ledger row; 2 of 6707 real seats). A ledger row re-verifies its claim only with a command and an output. A `recorded: true` ledger claim is report-only and never reaches the refuter (01M4Q4D8VP, 01M4PPW8D8).
+  - The seat head now says every claim in a seat's ledger is re-executed, an earlier refutation included, so a quiet round 1's closing pass has a recipe (the Opus + Fable panel's answer).
+  - The seat recipe archives every top-level path the tests import, read or run, overlays every pinned file of the run with one program, and requires a grep to name a file operand. A relative `pins_dir`, `scratch_dir` or `base_pin_dir` is refused before any seat runs (kaizen 01M4PNBVJ1, 01M4RM8CYR, 01M4RMKM28, 01M4RVAWG3, 01M4PY7AG9, 01M4PVPY8J).
+- `docs/reference/review-loop-workflow.md` describes the args, the retry, the failed-seat and closable rules, and the ledger rows.
+
+### Changed — review_loop_ledger.py tells a running workflow from a dead seat, and pin writes the change's diff (2026-10-13)
+
+- `read` checks the workflow's run file, `<session>/workflows/<runId>.json`, which the harness writes only when the workflow ends (2412 of 2412 runs on the box had one). With no run file yet, a seat without a result prints `RUNNING`, not `NO RESULT`, and the read exits 5 with the run dir's idle minutes. A run file that does not parse, or one with an unended status, also exits 5. An ended run prints the workflow's own verdict: `closable`, and a `SLICE DROPPED`, `REFUTER FAILED` or `SEAT FAILED` line per recorded failure. `next` refuses a pass file read before the workflow ended. (kaizen 01M4PNBVJ1 rows 1791748866, 1791217578, 1790292451, 1791033713; 01M4RMKM28 row 1791826392; 01M4PY7AG9 row 1791410439.)
+- `pin` writes `change.diff`: one `git diff --no-index` per pinned file, from `--base`, else HEAD, else `<ref>^` (a root commit diffs from /dev/null). Its path and md5 go in the args fragment. It prints `UNCHANGED <file>` for a pin equal to that basis, refuses a `--base` that is no commit, and reserves the name `change.diff`. (01M4PNBVJ1 rows 1791099162, 1791481582; 01M4RM8CYR row 1791827197.)
+- `docs/reference/review-loop-workflow.md` and `/fabrik-review-scoped` step 5 describe both.
+
+### Fixed — Kilo golden parity tolerates the collapsed OpenRouter routes artifact as a known collapse (2026-10-13)
+
+- `scripts/kilo-benchmarks/tests/golden/known_collapses.json`: a `kind: artifact` entry for `scripts/kilo_openrouter_routes_final.json`. Its floor is the collapsed shape ai-model-catalog has delivered since 2026-09-07: seven categories, all empty, plus `generated_at`. This is the engine-run-2026-08-18 collapse the `OPENROUTER_ROUTES` markers already carry (D-430, D-554, D-567). In a checkout holding that ignored artifact, `test_golden_parity.py` failed 9 tests; it now passes 103 with 2 skipped. A shape other than the floor still fails, and a full recovery reports `KNOWN COLLAPSE HEALED` (infra 01M4TDF3MK).
+- `test_known_collapses_are_announced_not_silent` also accepts the oracle's `KNOWN COLLAPSE unobservable here (absent-by-gitignore)` line. A checkout without the artifact (CI, a fresh worktree) now announces the collapse instead of failing.
 
 ### Changed — the review probe catalogue: a brief names the readers that never import a changed file (2026-10-13)
 - The "Callers and consumers" hunt line in `commands/_fragments/review-probe-catalogue.md` now asks for every reader of a changed or vendored file's text that never imports it (a scaffold fold such as `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by `check_synced_unmodified.py`), each hit that reads the file named in the brief. A seat cannot infer a consumer it was never told exists (/fabrik-review row 1791891025). Grader: `tests/test_review_queue_pass.py::test_the_callers_hunt_line_names_readers_that_never_import_the_file`.

@@ -415,17 +415,14 @@ def _deliver_to_agent(body: str) -> bool:
 _OWNER_MAX_ROWS = 30
 
 
-def _owners_done(today: str) -> bool:
-    """Has every repo that currently owns an overdue obligation already been told today?
+def _owners_done(today: str, items: list[Obligation]) -> bool:
+    """Has every repo that owns an obligation in `items` already been told today?
 
     ⚠️ The early exit in `main` short-circuits on the operator+agent stamps. Without this the
     owner leg would never run on any day those two had already fired — which, since they fire on
-    the day's FIRST run and the cron runs four times, is almost every day.
+    the day's FIRST run and the cron runs four times, is almost every day. `items` is the run's
+    ONE scan: a second scan here could disagree with the list `main` then sends (W-ef8cffc6).
     """
-    try:
-        items = collect_obligations(_mail._mail_root())
-    except Exception:  # noqa: BLE001 — never crash the cron on a scan; assume work remains
-        return False
     repos = {o.repo_key or o.repo for o in items if (o.repo_key or o.repo) != _HUB_MAILBOX}
     return all(_stamped(_owner_stamp(r), today) for r in repos)
 
@@ -581,10 +578,14 @@ def main() -> int:
         print(f"mail-escalate: WARNING — lock unavailable ({exc}); proceeding UNLOCKED")
     operator_done = _stamped(DAY_STAMP, today)
     agent_done = _stamped(DAY_STAMP_AGENT, today)
-    if operator_done and agent_done and _owners_done(today):
+    try:  # the run's ONE scan (W-ef8cffc6); a second scan used to mask a transient error
+        items = collect_obligations(_mail._mail_root())
+    except Exception as exc:  # noqa: BLE001 — a store bug is a logged line, never a traceback
+        print(f"mail-escalate: WARNING — scan raised {type(exc).__name__}: {exc}; next run retries")
+        return 0  # fail-soft (module docstring); never an empty list, which reads as a healthy day
+    if operator_done and agent_done and _owners_done(today, items):
         print(f"mail-escalate: already sent today — suppressed ({today})")
         return 0  # the print keeps the log's mtime fresh for the liveness budget
-    items = collect_obligations(_mail._mail_root())
     if not items:
         print(f"mail-escalate: 0 aged obligations — no send ({today})")
         return 0

@@ -612,7 +612,7 @@ def _norm_path(p: str) -> str:
     # QUOTE wraps (never parens — legal path chars), a trailing `:NN` citation
     # suffix and trailing colons, a RUN of trailing sentence dots (whole-dot
     # segments survive for the repo-root/out-of-repo arms; `dir/.` collapses),
-    # interior `/./` self-references, and a `./` prefix. Iterated so mixed
+    # interior `/./` self-references and doubled slashes, and a `./` prefix. Iterated so mixed
     # forms (`` `vendor/`. ``) resolve fully. Commas/semicolons are NOT
     # stripped — they reach the LOUD residue arms. A lone edge star is a GLOB
     # (`docs/*`) and must survive so the glob ERROR catches it.
@@ -633,9 +633,10 @@ def _norm_path(p: str) -> str:
         # A `path:NN` citation suffix collapses to the path (author intent —
         # the file is what's owned/protected); bare trailing colons strip too.
         p = re.sub(r":\d+$", "", p).rstrip(":")
-        # Interior `/./` self-references collapse (POSIX identity).
-        while "/./" in p:
-            p = p.replace("/./", "/")
+        # Interior `/./` self-references and doubled slashes collapse (POSIX
+        # identity) — `scripts//final_gate.py` must not slip past Never-Route.
+        while "/./" in p or "//" in p:
+            p = p.replace("/./", "/").replace("//", "/")
         # A RUN of trailing sentence dots — segment-aware: a final segment that
         # is ENTIRELY dots must survive for the repo-root/out-of-repo arms —
         # except the POSIX self-reference `dir/.`, which IS the dir.
@@ -646,7 +647,7 @@ def _norm_path(p: str) -> str:
             if p.rsplit("/", 1)[-1].strip("."):
                 p = core
         if p.startswith("./"):
-            p = p[2:]
+            p = p[2:] or "."  # `./` IS the repo root — never an empty, silently dropped token
         if p == before:
             return p
 

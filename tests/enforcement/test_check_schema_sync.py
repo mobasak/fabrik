@@ -349,3 +349,130 @@ def test_a_pure_rename_passes_when_git_lists_both_paths(repo):
     _git(repo, "mv", "src/media/db.py", "src/media/orm.py")
     assert "src/media/db.py" in c.get_staged_files()
     assert c.main() == 0
+
+
+# --- intel 01M4TJJDC3: schema.sql alone must not satisfy a model whose project applies migrations ---
+
+_NEW_TABLE = '\n\nclass Added(Base):\n    __tablename__ = "added"\n    id: Mapped[int] = mapped_column(primary_key=True)\n'
+
+
+def _commit(repo: Path, files: dict[str, str]) -> None:
+    for rel, text in files.items():
+        p = repo / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "setup")
+
+
+def _model_and_schema(repo: Path) -> None:
+    (repo / "src" / "media" / "db.py").write_text(DB_PY + _NEW_TABLE, encoding="utf-8")
+    (repo / "db").mkdir(exist_ok=True)
+    (repo / "db" / "schema.sql").write_text("CREATE TABLE added (id int);\n", encoding="utf-8")
+    _git(repo, "add", "src/media/db.py", "db/schema.sql")
+
+
+def test_schema_sql_alone_fails_where_migrations_govern(repo, capsys):
+    _commit(repo, {"alembic/versions/0001_init.py": "# init\n"})
+    _model_and_schema(repo)
+    assert c.main() == 1
+    assert "alembic/versions/" in capsys.readouterr().out
+
+
+def test_only_an_added_migration_under_the_governing_dir_satisfies(repo, capsys):
+    _commit(
+        repo,
+        {
+            "alembic/versions/0001_init.py": "# init\n",
+            "other/migrations/0001_x.py": "# other project\n",
+            "migrations/env.py": "# alembic env\n",
+        },
+    )
+    _model_and_schema(repo)
+    (repo / "other" / "migrations" / "0002_y.py").write_text("# y\n", encoding="utf-8")
+    (repo / "migrations" / "env.py").write_text("# touched\n", encoding="utf-8")
+    _git(repo, "add", "other/migrations/0002_y.py", "migrations/env.py")
+    assert c.main() == 1, "another project's migration and env.py do not count"
+    (repo / "alembic" / "versions" / "0002_added.py").write_text("# adds\n", encoding="utf-8")
+    _git(repo, "add", "alembic/versions/0002_added.py")
+    capsys.readouterr()
+    assert c.main() == 0
+
+
+def test_amending_a_migration_under_the_governing_dir_satisfies(repo):
+    """Amending a not-yet-shipped migration in the same feature is common (seo 42d7000); the gate cannot
+    tell it from an edit to an applied one, so an edit counts (D-row names the dodge)."""
+    _commit(repo, {"alembic/versions/0001_init.py": "# init\n"})
+    _model_and_schema(repo)
+    (repo / "alembic" / "versions" / "0001_init.py").write_text("# amended\n", encoding="utf-8")
+    _git(repo, "add", "alembic/versions/0001_init.py")
+    assert c.main() == 0
+
+
+def test_a_db_migrations_dir_governs_the_repo_root(repo):
+    _commit(repo, {"db/migrations/versions/0001_init.py": "# init\n"})
+    _model_and_schema(repo)
+    assert c.main() == 1
+
+
+def test_an_ungoverned_model_warns_and_passes(repo, capsys):
+    _commit(
+        repo,
+        {
+            "web/db/migrations/0001.sql": "-- web\n",
+            "node_modules/x/migrations/0001.py": "# vendored\n",
+        },
+    )
+    _model_and_schema(repo)
+    assert c.main() == 0
+    out = capsys.readouterr().out
+    assert "WARN" in out and "web/db/migrations/" in out and "node_modules" not in out, out
+
+
+def test_a_vendored_migration_dir_alone_changes_nothing(repo, capsys):
+    _commit(repo, {"node_modules/x/migrations/0001.py": "# vendored\n"})
+    _model_and_schema(repo)
+    capsys.readouterr()
+    assert c.main() == 0
+    assert "migration" not in capsys.readouterr().out.lower()
+
+
+def test_schema_sql_still_suffices_without_migrations(repo, capsys):
+    _model_and_schema(repo)
+    capsys.readouterr()
+    assert c.main() == 0
+    assert "migration" not in capsys.readouterr().out.lower()
+
+
+def test_removing_a_dead_migration_dir_restores_the_schema_sql_pass(repo):
+    _commit(repo, {"alembic/versions/0001_init.py": "# init\n"})
+    _git(repo, "rm", "-q", "-r", "alembic")
+    _model_and_schema(repo)
+    assert c.main() == 0
+
+
+def test_an_unrelated_migration_never_silences_the_ungoverned_warn(repo, capsys):
+    """Another project's migration in the same commit is not this model's: the WARN still names the dirs."""
+    _commit(repo, {"web/db/migrations/0001.sql": "-- web\n"})
+    _model_and_schema(repo)
+    (repo / "web" / "db" / "migrations" / "0002.sql").write_text("-- web 2\n", encoding="utf-8")
+    _git(repo, "add", "web/db/migrations/0002.sql")
+    assert c.main() == 0
+    out = capsys.readouterr().out
+    assert "WARN" in out and "web/db/migrations/" in out and "src/media/db.py" in out, out
+
+
+def test_a_migration_renamed_into_the_governing_dir_satisfies(repo):
+    """git reports a moved draft as R, not A or M; it is still a new file under the governing dir."""
+    draft = "# draft migration\nrevision = '0002'\ndown_revision = '0001'\n"
+    _commit(repo, {"alembic/versions/0001_init.py": "# init\n", "drafts/0002_added.py": draft})
+    _model_and_schema(repo)
+    _git(repo, "mv", "drafts/0002_added.py", "alembic/versions/0002_added.py")
+    assert c.main() == 0
+
+
+def test_a_non_ascii_model_path_is_still_checked(repo, capsys):
+    """git quotes a non-ASCII path in plain output; read unquoted, the model change reaches the check."""
+    _commit(repo, {"src café/db.py": DB_PY})
+    assert _stage(repo, "src café/db.py", DB_PY + _NEW_TABLE) == 1
+    assert "src café/db.py" in capsys.readouterr().out

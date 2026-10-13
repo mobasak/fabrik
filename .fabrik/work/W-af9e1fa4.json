@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T17:49:39.285282Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-af9e1fa4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4V0N3YVXP1M3YB50AY5D7K7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "account/ — sessions screen now follows fastapi-user-auth grace rotation (fabrik-lib SB-121, fabrik-lib D-427). Re-vendor account/ BEFORE enabling AUTH_REFRESH_ROTATION=grace."
+}

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "a quiet round 1's closing pass has no executable recipe — term-coverage D5 says its claims are open, the workflow head says refuted claims are closed, and an empty slices list is refused"
 }

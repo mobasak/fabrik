@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T17:49:37.057421Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-02aa1cc3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TK1MKQX5YN2PKTSHMSZC7W",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "relay — the scaffold schema-apply header sources .env/.env.owner as shell code, as root (a fabrik-lib finding in 01M4TGJ1CV; your scaffold beat)"
+}

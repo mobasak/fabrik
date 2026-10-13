@@ -234,15 +234,55 @@ def test_rotate_twin_copies_are_byte_identical():
 def test_kaizen_sends_one_addressed_obligation_per_beat():
     """The kaizen hand-off is each beat's PASS TRIGGER (infra.md/fleet.md) — it must stay
     an ADDRESSED ack:required obligation per beat, never a sweepable ownerless broadcast."""
-    src = _KAIZEN.read_text(encoding="utf-8")
-    m = _re.search(r'for beat in \("infra", "fleet"\):.*?"send",.*?\]', src, _re.S)
-    assert m, "kaizen per-beat addressed send loop not found"
-    argv = " ".join(
-        m.group(0).split()
-    )  # formatting-insensitive: the source is ruff-formatted one arg per line
-    assert '"--to-agent", beat' in argv, argv
-    assert '"--broadcast"' not in argv and '"--ack"' not in argv, (
-        "the obligation must keep kind-default ack:required and never broadcast: " + argv
+    import ast
+
+    tree = ast.parse(_KAIZEN.read_text(encoding="utf-8"))
+    # the beats ride a named tuple since a90b35a3b (D-646 added kaizen); every beat whose
+    # charter names the digest its pass trigger must be in it. Read from the AST, never by a
+    # regex over the text: a regex stops at the first bracket and misses an appended flag.
+    beats = next(
+        (
+            n.value
+            for n in ast.walk(tree)
+            if isinstance(n, (ast.Assign, ast.AnnAssign))
+            and any(
+                isinstance(t, ast.Name) and t.id == "MAIL_BEATS"
+                for t in (n.targets if isinstance(n, ast.Assign) else [n.target])
+            )
+        ),
+        None,
+    )
+    assert isinstance(beats, ast.Tuple), "MAIL_BEATS tuple not found"
+    named = {e.value for e in beats.elts if isinstance(e, ast.Constant)}
+    assert {"infra", "fleet", "kaizen"} <= named, named
+    loops = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.For)
+        and isinstance(n.iter, ast.Name)
+        and n.iter.id == "MAIL_BEATS"
+        and isinstance(n.target, ast.Name)
+    ]
+    assert len(loops) == 1, "kaizen per-beat addressed send loop not found"
+    body = ast.Module(body=loops[0].body, type_ignores=[])
+    flags = [
+        n.value for n in ast.walk(body) if isinstance(n, ast.Constant) and isinstance(n.value, str)
+    ]
+    assert "send" in flags and "--to-agent" in flags, flags
+    addressed = any(
+        isinstance(n, ast.List)
+        and any(
+            isinstance(a, ast.Constant)
+            and a.value == "--to-agent"
+            and isinstance(b, ast.Name)
+            and b.id == loops[0].target.id
+            for a, b in zip(n.elts, n.elts[1:], strict=False)
+        )
+        for n in ast.walk(body)
+    )
+    assert addressed, "the send must pass `--to-agent <the loop's beat>`"
+    assert "--broadcast" not in flags and "--ack" not in flags, (
+        "the obligation must keep kind-default ack:required and never broadcast: " + str(flags)
     )
 
 

@@ -3178,3 +3178,18 @@ def test_a_depends_cycle_ends_the_ancestor_walk(tmp_path: Path) -> None:
     worker.join(timeout=30)
     assert box, "check_plan_dir did not return within 30 s on a Depends cycle"
     assert len(box[0]) == 1 and box[0][0].startswith("T02:") and f"`{_GUARD}`" in box[0][0], box[0]
+
+
+def test_a_doubled_slash_collapses_before_never_route() -> None:
+    """fleet 01M4TQPCXT: `scripts//final_gate.py` reached _never_route unnormalised — a silent bypass."""
+    assert cpt._norm_path("scripts//final_gate.py") == "scripts/final_gate.py"
+    assert cpt._norm_path("./scripts///x//y.py") == "scripts/x/y.py"
+    assert cpt._never_route(cpt._norm_path("scripts//final_gate.py"))
+
+
+def test_a_repo_root_spelling_never_normalises_to_empty() -> None:
+    """`./`, `./.` and `.//.` are the repo root; an empty token is dropped by _list_paths with no signal,
+    so each must survive as `.` for the repo-root ERROR arm (closing pass of fleet 01M4TQPCXT)."""
+    for spelling in ("./", "./.", ".//.", ".//", ".//.//."):
+        assert cpt._norm_path(spelling) == ".", spelling
+    assert cpt._list_paths("- .//.\n") == ["."]
