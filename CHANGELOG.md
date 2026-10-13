@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the scaffold parity stub's ".env loaded nothing" message names PYTHON_DOTENV_DISABLED (2026-10-13)
+
+- `templates/scaffold/scripts/verify_prod_parity.py:231` (infra 01M4V9BKHB): python-dotenv 1.2's `load_dotenv` also
+  returns False when `PYTHON_DOTENV_DISABLED` is truthy, so the message's two causes ("sets no variable, or python-dotenv
+  is not installed") sent an operator after a package that was installed; the third cause is named. Grader
+  `tests/test_parity_stub_loads_env.py::test_a_disabled_dotenv_is_reported_as_the_third_cause` runs the stub against a
+  real `.env` under `PYTHON_DOTENV_DISABLED=1`: nothing reaches `os.environ` and the message names the variable;
+  the control run without the switch loads both variables, and `PYTHON_DOTENV_DISABLED=0` loads them too (the message
+  names the five values python-dotenv reads — 1/true/t/yes/y — never "set"); skipped below python-dotenv 1.2.
+
 ### Added — unit tests for the verifier's authoritative DNS wait and resolved-IP health probe; the probe keeps the URL's port (2026-10-13)
 
 - `tests/orchestrator/test_verifier.py` (W-2178bedc, from the W-1996f86b review): `DeploymentVerifier._wait_for_dns`

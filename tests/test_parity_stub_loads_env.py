@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[1]
 
 _PROBE = """
@@ -135,6 +137,45 @@ def test_a_dotenv_that_loads_nothing_is_reported(tmp_path):
     r = _run(_COUNTING, proj, str(proj))
     assert r.stdout.split() == ["1", "True"], r.stdout
     assert "verify_prod_parity: .env loaded nothing" in r.stderr, r.stderr
+
+
+def test_a_disabled_dotenv_is_reported_as_the_third_cause(tmp_path):
+    """python-dotenv 1.2 returns False from load_dotenv when PYTHON_DOTENV_DISABLED is truthy, so a
+    REAL .env loads nothing and the message must name that cause beside the other two (infra
+    01M4V9BKHB) — otherwise the operator hunts a missing package that is installed. The control run
+    (same project, no switch) loads both variables and prints no message, so the switch is the cause."""
+    import re
+    from importlib.metadata import version
+
+    # the switch landed in 1.2.0 while pyproject allows >=1.0.0; a pre-release or odd string ("1.2rc1",
+    # "2") never crashes the parse — an unparsable version runs the test rather than skipping it
+    m = re.match(r"(\d+)\.(\d+)", version("python-dotenv"))
+    if m and (int(m.group(1)), int(m.group(2))) < (1, 2):
+        pytest.skip("PYTHON_DOTENV_DISABLED needs python-dotenv >= 1.2")
+    proj = _project(tmp_path)  # a .env that DOES set two variables
+
+    def run(env):
+        return subprocess.run(
+            [sys.executable, "-c", _PROBE, str(proj / "scripts" / "verify_prod_parity.py")],
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+    control = run({"PATH": "/usr/bin:/bin"})
+    assert control.stdout.split() == ["loaded", "from-dotenv", "True"], control.stdout
+    assert "loaded nothing" not in control.stderr, control.stderr
+    disabled = run({"PATH": "/usr/bin:/bin", "PYTHON_DOTENV_DISABLED": "1"})
+    assert disabled.stdout.split() == ["None", "None", "True"], (
+        disabled.stdout
+    )  # nothing reached os.environ
+    assert "verify_prod_parity: .env loaded nothing" in disabled.stderr, disabled.stderr
+    assert "PYTHON_DOTENV_DISABLED is truthy" in disabled.stderr, disabled.stderr
+    # a set-but-falsy value does not disable loading — python-dotenv reads 1/true/t/yes/y only
+    falsy = run({"PATH": "/usr/bin:/bin", "PYTHON_DOTENV_DISABLED": "0"})
+    assert falsy.stdout.split() == ["loaded", "from-dotenv", "True"], falsy.stdout
 
 
 def test_the_stub_loads_the_project_env_once_and_a_real_variable_wins(tmp_path):
