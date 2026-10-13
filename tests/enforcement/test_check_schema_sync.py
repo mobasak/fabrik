@@ -306,3 +306,46 @@ def test_declares_table_and_schema_signature_are_pure():
         DB_PY.replace("        nullable=False,\n", "        nullable=False,  # kept\n")
     )
     assert c.schema_signature("def (:\n") is None
+
+
+def test_a_pure_rename_of_a_model_module_passes(repo):
+    """Review round 1 A-S3: HEAD has no blob at the new path, so the old side read as empty and a `git mv` with no
+    edit failed as a brand-new table; the rename source is the old side."""
+    _git(repo, "mv", "src/media/db.py", "src/media/orm.py")
+    assert c.main() == 0
+
+
+def test_a_rename_with_a_column_change_still_fails(repo):
+    _git(repo, "mv", "src/media/db.py", "src/media/orm.py")
+    text = DB_PY.replace("        String(20),\n", "        String(40),\n")
+    assert _stage(repo, "src/media/orm.py", text) == 1
+
+
+def test_a_model_class_inside_a_try_block_is_compared(repo):
+    """Review round 1 A-S2: only module-level statements were read, so a class under try/except was invisible."""
+    guarded = (
+        DB_PY
+        + '\n\ntry:\n    class Guarded(Base):\n        __tablename__ = "guarded"\n        id: Mapped[int] = mapped_column(primary_key=True)\nexcept ImportError:\n    pass\n'
+    )
+    _stage(repo, "src/media/db.py", guarded)
+    _git(repo, "commit", "-q", "-m", "guarded")
+    changed = guarded.replace(
+        '        __tablename__ = "guarded"\n',
+        '        __tablename__ = "guarded"\n        note: Mapped[str] = mapped_column(String(9))\n',
+    )
+    assert _stage(repo, "src/media/db.py", changed) == 1
+
+
+def test_a_per_app_tests_module_is_not_admitted(repo):
+    """Review round 1 A-S4: Django's per-app `tests.py` and a `conftest.py` are test files whatever their directory."""
+    assert _stage(repo, "src/app/tests.py", DB_PY) == 0
+    assert _stage(repo, "src/app/conftest.py", DB_PY) == 0
+
+
+def test_a_pure_rename_passes_when_git_lists_both_paths(repo):
+    """With `diff.renames=false` the staged list carries the old path as a deletion beside the new one; the rename
+    source's deletion is no change, or a `git mv` with no edit would still fail through the old path."""
+    _git(repo, "config", "diff.renames", "false")
+    _git(repo, "mv", "src/media/db.py", "src/media/orm.py")
+    assert "src/media/db.py" in c.get_staged_files()
+    assert c.main() == 0

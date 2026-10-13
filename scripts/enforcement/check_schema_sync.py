@@ -102,6 +102,7 @@ def _is_test_or_migration(filepath: str) -> bool:
         filepath.startswith("tests/")
         or "/tests/" in filepath
         or name.startswith("test_")
+        or name in ("tests.py", "conftest.py")  # review round 1 A-S4: Django's per-app tests.py
         or any(filepath.startswith(d) or ("/" + d) in filepath for d in MIGRATION_DIRS)
     )
 
@@ -176,7 +177,9 @@ def schema_signature(text: str) -> list[str] | None:
     except (SyntaxError, ValueError):
         return None
     out: list[str] = []
-    for node in tree.body:
+    # every class and Table(...) assignment at any depth — a model under try/except or if/else counts (review round
+    # 1, A-S2); ast.walk's breadth-first order is deterministic for one source
+    for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef) and _is_db_class(node):
             fields = [ast.dump(s) for s in node.body if isinstance(s, (ast.Assign, ast.AnnAssign))]
             out.append(node.name + ":" + "|".join(fields))
@@ -189,10 +192,33 @@ def schema_signature(text: str) -> list[str] | None:
     return out
 
 
+def _staged_renames() -> dict[str, str]:
+    """Staged renames, new path -> old path (git's own rename detection over the index)."""
+    out = _git_text("diff", "--cached", "-M", "--name-status", "-z", "HEAD") or ""
+    parts = out.split("\0")
+    renames: dict[str, str] = {}
+    i = 0
+    while i < len(parts):
+        status = parts[i]
+        if status.startswith(("R", "C")) and i + 2 < len(parts):
+            renames[parts[i + 2]] = parts[i + 1]
+            i += 3
+        else:
+            i += 2
+    return renames
+
+
 def has_db_changes(filepath: str) -> bool:
     """The table structure differs between HEAD and the index (a side absent from its tree is empty); a side that
-    does not parse falls back to the DB_FIELD_PATTERNS regex over the staged diff."""
+    does not parse falls back to the DB_FIELD_PATTERNS regex over the staged diff. A rename compares the new path
+    against its source, and the source's own deletion is no change (review round 1, A-S3: a `git mv` with no edit
+    failed as a brand-new table)."""
+    renames = _staged_renames()
+    if filepath in renames.values():
+        return False
     old = _git_text("show", f"HEAD:{filepath}")
+    if old is None and filepath in renames:
+        old = _git_text("show", f"HEAD:{renames[filepath]}")
     new = _git_text("show", f":{filepath}")
     old_sig = schema_signature(old) if old is not None else []
     new_sig = schema_signature(new) if new is not None else []
