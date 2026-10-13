@@ -8,8 +8,11 @@ source:
   path: /opt/proposal-creator
 
 # shape: python-api defaults plus needs_database — the app is PostgreSQL-backed
-# (/opt/proposal-creator/src/db/database.py reads DATABASE_URL; SQLite only as the local-dev
-# fallback). The registrar creates the database named by depends.postgres and injects
+# (/opt/proposal-creator/src/db/database.py reads DATABASE_URL; SQLite as the fallback — and that
+# fallback is UNCONDITIONAL in the app's code, so a container whose DATABASE_URL never arrived
+# would run on an in-container SQLite file: the production fail-fast belongs in the project and is
+# requested from it by mail, D-441; here the registrar is what delivers the DSN). The registrar
+# creates the database named by depends.postgres and injects
 # DATABASE_URL, so the key left secrets.required (a required DSN is INVENTED when absent —
 # orchestrator/__init__.py _warn_fabricated_secrets). Disposition of apply's
 # depends-contradiction warning (D-805): D-822.

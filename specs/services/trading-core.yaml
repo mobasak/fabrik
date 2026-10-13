@@ -22,6 +22,8 @@ shape:
   has_persistent_data: false
   needs_database: true
   has_search_feature: false
+  # No depends.redis pin: the redis registrar reserves a logical-DB index BY SPEC NAME
+  # (drivers/redis.py acquire_db_index) and injects REDIS_URL — an index is allocated, never named.
   needs_cache: true
   exposes_metrics: false
 
