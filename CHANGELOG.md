@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a design-gate delta round that confirms a defect takes CONVERGED back (2026-10-14)
+- `commands/_fragments/design-critique.md` ACCEPTED bullet: spec-review and plan-review flip `CONVERGED` with its D-row before the panel's ACCEPTED fold, and the text only said CONVERGED "stands" if the fold's delta round confirms 0. Now, when it does not, the next commit sets each document the flip touched back to what it read before the flip, with a `docs/DECISIONS.md` row superseding the flip's row. Found by an Opus audit while answering /fabrik-spec row 1791930659; graders in `tests/test_design_critique_fragment.py` and `tests/test_plan_review_recurring_rules.py`.
+
 ### Fixed — the review checklist's shared-clone recipe matches what a clone does (2026-10-14)
 - `commands/_fragments/review-probe-catalogue.md` § Seat isolation, on intel's executed evidence (mail 01M4VMNGGM, re-run here): the seat checks the clone out at the pass's base SHA (until then its status reads every file deleted), disables its push to `origin` at once (`origin` is the live repo, so a push writes its `.git`), commits the pins in the clone when the test reads HEAD, a diff or the status; branch, worktree and stash state a test creates lands in the clone's own `.git`, so only a test that reads the live checkout's own state runs in the lead's throwaway worktree; the worktree ban now reads "on the live repo". Graders: the two queue-pass tests that pin these sentences.
 

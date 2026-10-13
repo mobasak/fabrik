@@ -29,7 +29,7 @@ Opus seat in its place, and say so in the presentation with the reason. Never pr
 one came back empty), you adjudicate every concern by executing its claim**, then give it one disposition:
 - `ACCEPTED` — the change is applied, and reviewed before anyone approves it: in spec-review and plan-review
   it re-opens the loop for ONE delta round by the round-1 seats over the fix, recorded as the next Pass with every slice an earlier round stated re-stated in `--slices`, and `Status: CONVERGED` stands only
-  if that round confirms 0 (else the loop continues — that round is a delta round of the same loop, so its
+  if that round confirms 0 (else the next commit sets each document the flip touched back to what it read before the flip, with a `docs/DECISIONS.md` row superseding the flip's row, and the loop continues — that round is a delta round of the same loop, so its
   own-fix defects count in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row); an OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift; in `/fabrik-task` you edit `design.md` before `step
   --design` records it, which works on both lane versions;
 - `REJECTED` — with the counter-evidence;
