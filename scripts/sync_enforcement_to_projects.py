@@ -807,6 +807,102 @@ def _backup_worktree_file(path: Path, dst_root: Path, project_dir: Path) -> None
         pass
 
 
+# Successful readings only (W-800579be review): a transient OSError or git failure must not pin
+# "no proof" for the rest of a long sync run — it is retried on the next call instead.
+_HUB_SOURCES: dict[str, dict[str, str]] = {}
+_HUB_BLOBS: dict[tuple[str, str], frozenset[str]] = {}
+
+
+def _hub_source_by_dest(hub_root: str) -> dict[str, str]:
+    """Project-relative destination -> hub-relative source, from the manifest's own pairing
+    (`iter_synced_pairs`), so a template that ships under another name (the governance
+    `CLAUDE.md`) is looked up at the path it is published from. Empty on a walk failure
+    (not cached)."""
+    if hub_root in _HUB_SOURCES:
+        return _HUB_SOURCES[hub_root]
+    root = Path(hub_root)
+    anchor = Path("/__fabrik_dest__")
+    pairs: dict[str, str] = {}
+    try:
+        for src, dst in iter_synced_pairs(anchor, root):
+            try:
+                pairs[dst.relative_to(anchor).as_posix()] = src.relative_to(root).as_posix()
+            except ValueError:
+                continue
+    except OSError:
+        return {}
+    _HUB_SOURCES[hub_root] = pairs
+    return pairs
+
+
+def _published_blobs(hub_root: str, src_rel: str) -> frozenset[str]:
+    """Every blob id hub HEAD's history recorded at `src_rel` — `-m` so a merge's own
+    resolution counts too. Empty (not cached) on any git failure. No `--follow`: its copy
+    detection can pull another file's history in, which would weaken the proof; a version
+    from before a rename only stays WARN'd (the safe direction)."""
+    key = (hub_root, src_rel)
+    if key in _HUB_BLOBS:
+        return _HUB_BLOBS[key]
+    try:
+        out = subprocess.run(
+            [
+                "git",
+                "-C",
+                hub_root,
+                "log",
+                "HEAD",
+                "-m",
+                "--format=",
+                "--raw",
+                "--no-abbrev",
+                "--",
+                src_rel,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return frozenset()
+    if out.returncode != 0:
+        return frozenset()
+    # `:<old mode> <new mode> <old blob> <new blob> <status>\t<path>` — the new blob is field 4
+    blobs = frozenset(
+        parts[3] for parts in (ln.split() for ln in out.stdout.splitlines()) if len(parts) >= 5
+    )
+    _HUB_BLOBS[key] = blobs
+    return blobs
+
+
+def _is_published_version(project_rel: str, data: bytes, project_dir: Path) -> bool:
+    """True when `data` is a version hub HEAD's history published at the hub source of
+    `project_rel` — the proof that a worktree copy with no ledger row is STALE, not edited
+    (W-800579be). Bound to the file's OWN source path, never "any blob in the store": the
+    empty blob is in a real hub store (truncating a gate script would self-prove), as are
+    other paths' contents and unmerged or dangling objects. Never taken for the hub itself
+    — its store holds its worktrees' committed edits. Every failure is "no proof", which
+    keeps today's WARN-and-preserve.
+
+    THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (D-253): revert a gap file to an
+    OLDER published version — it reads as stale and is refreshed to the current one. That
+    loses nothing the hub does not own; any other edit stays WARN'd.
+    """
+    if not data:
+        return False
+    hub = FABRIK_ROOT
+    try:
+        if project_dir.resolve() == hub.resolve():
+            return False
+    except OSError:
+        return False
+    src_rel = _hub_source_by_dest(str(hub)).get(project_rel)
+    if not src_rel:
+        return False
+    blob = hashlib.sha1(b"blob %d\0" % len(data) + data, usedforsecurity=False).hexdigest()
+    return blob in _published_blobs(str(hub), src_rel)
+
+
 def _copy_into_worktree_safely(
     src: Path,
     dst: Path,
@@ -849,16 +945,20 @@ def _copy_into_worktree_safely(
       class 2: measured live, 5 of 5 hash-sampled instances of this exact case on the
       first fleet run were stale copies from an older branch, not agent edits — the
       worktree's copy equalled the MAIN checkout at the time, just not the freshly-
-      advanced hub). WARN, distinctly worded ("no ledger record … — left in place"),
-      and left alone — the decision (never overwrite without proof) still stands, but
-      the message must not claim an edit that was never made.
+      advanced hub). One proof IS available here (W-800579be): non-empty bytes that hub
+      HEAD's history published at this file's own source path (`_is_published_version`)
+      are a stale distributed copy — COPY, reason "a published hub version — stale, not
+      an edit". Otherwise WARN, distinctly worded ("no ledger record … — left in
+      place"), and left alone — the decision (never overwrite without proof) still
+      stands, but the message must not claim an edit that was never made.
     - anything else (a hash matching neither the source nor a PRESENT ledger record)
       → a genuine, provable drift from what the sync last wrote: the agent's own
       edit. WARN, worded "differs from the ledger record — edit preserved", and left
       alone, unconditionally.
 
-    **Bootstrapping a worktree stuck in the ledger-gap state:** this function will
-    never overwrite it on its own — that decision does not change. An operator who
+    **Bootstrapping a worktree stuck in the ledger-gap state:** a copy that is a
+    published hub version heals on the next sync by itself (above); for anything else
+    this function will never overwrite it on its own. An operator who
     has confirmed the worktree's copy carries no real edit clears the gap by hand:
     copy the MAIN CHECKOUT's current file over the worktree's copy at the same
     relative path (`cp <project>/<path> <worktree>/<path>`) and run the sync once —
@@ -903,6 +1003,23 @@ def _copy_into_worktree_safely(
         # asserts a provable drift the sentinel can never actually prove. The prune
         # side already treats an empty sentinel as "no proof" (`if not recorded_
         # hash`); the copy side must use the same test.
+        #
+        # W-800579be: a ledger gap whose bytes ARE a version the hub published at this
+        # same path is a stale distributed copy (Claude Code's creation-time
+        # `.worktreeinclude` copy records no row), not an edit — refresh it, or the
+        # worktree's check_synced_unmodified reds against the fresh lock forever.
+        try:
+            published = _is_published_version(project_rel, dst.read_bytes(), project_dir)
+        except OSError:
+            published = False
+        if published:
+            reason = "worktree refresh (a published hub version — stale, not an edit)"
+            if dry_run:
+                return SyncResult("COPY", src, dst, reason)
+            if backup:
+                _backup_worktree_file(dst, dst_root, project_dir)
+            _atomic_copy(src, dst)
+            return SyncResult("COPY", src, dst, reason)
         return SyncResult(
             "WARN",
             src,

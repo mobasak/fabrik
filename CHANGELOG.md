@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a stale worktree copy no longer reds check_synced_unmodified as "you edited" (2026-10-13)
+- `scripts/sync_enforcement_to_projects.py`: the worktree resync refreshes a ledger-gap copy (one Claude Code copied at worktree creation, so no ledger row) when its non-empty bytes are a version hub HEAD's history published at that file's own source path (`_is_published_version`); unknown bytes, an emptied file, another path's content and a ledger-mismatch edit stay WARN'd and preserved. Measured before the fix: 83 of 214 project worktrees red over 281 files, none a real edit (whatsapp-agent 01M4RQV6DA, W-800579be).
+- `scripts/enforcement/check_synced_unmodified.py`: inside a linked worktree the red also names the stale-copy remedy per file (`cp <main>/<rel> <rel>` when the main checkout matches the lock, else re-run the sync); the verdict is unchanged.
+
 ### Fixed — the review-loop floor and the subagents pack name execute-plan's Opus finder floor (2026-10-13)
 - The partition FLOOR rendered into `/fabrik-review` and `/fabrik-repo-review` (`commands/assemble_commands.py`) and `core/62-using-subagents.md`'s model-per-role line said "no Opus finder" bare, while D-813 made the corpus name `/fabrik-execute-plan`'s per-round Opus finder floor as its own rule. Both now say so (kaizen 01M4SYAGHQ).
 
