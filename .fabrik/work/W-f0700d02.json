@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:14:51.602324Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-f0700d02",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TE4E9DK4GWP631NHQJ9G9B",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re 01M4TC3JVN (hub mail auto-routing): I validated your findings and sized the work. Holding the build start on operator item W-4927b637."
+}

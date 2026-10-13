@@ -279,3 +279,23 @@ def test_an_injected_line_is_read_back_through_its_consumer() -> None:
     )
     assert pre_pin.count(rule) == 1
     assert "render a fragment edit's consumers to a temp dir and read each" not in _norm(CAT)
+
+
+def test_the_callers_hunt_line_names_readers_that_never_import_the_file() -> None:
+    """Row 1791891025: a seat cannot infer a consumer it was never told exists, and a scaffold fold or drift checker
+    reads a file's TEXT without importing it, so no importer grep finds it. The class sits in the general Callers and
+    consumers hunt line (any changed or vendored file, not only a re-vendor), with the recipe that finds the readers
+    and who names them. Pinned as the contiguous span between its neighbours inside that bullet, so a truncated,
+    qualified or relocated clause reds. Cheapest bypass: a brief that names the class but lists no reader; the seat
+    reading that brief owns it, not this pin."""
+    callers = _section(_norm(CAT), "- Callers and consumers:", "- Parsers:")
+    assert (
+        "every gate grading the old name; every reader of a changed or vendored file's text that never imports it (a"
+        " scaffold fold such as `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by"
+        " the lead grepping the hub and the fleet repos for the file's path, basename and directory and reading"
+        " `scripts/fabrik_synced_manifest.py` for a glob that covers it (a covered file is also read through each"
+        " project's `.fabrik/synced.lock` by `scripts/enforcement/check_synced_unmodified.py`), each hit that reads the"
+        " file named in the brief; every outbound sink" in callers
+    )
+    # the round-1 draft put it in the re-vendor premise; neither wording may remain anywhere else
+    assert _norm(CAT).count("that never imports it") == 1

@@ -13,7 +13,7 @@
   },
   "next": "/fabrik-spec for the chrome-extension developer-mode release kit, seeded with mail 01M3WQXZ3Y and .windsurf/rules/chrome-ext/70-chrome-ext.md § Distribution Model — spec-chain: >3 files, a signing-key secret surface, and the keypair-at-scaffold vs at-release trade-off",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
   "tags": [

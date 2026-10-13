@@ -48,7 +48,12 @@ box: execute it, or name in the brief why the shape does not have it.
 - Callers and consumers: every caller of a changed exit code, output line or gated script; every consumer of a changed
   prompt output, of import-time side effects, of a flipped Status (generated indexes) or of a renamed name (link fields,
   hand-kept indexes); callers that use a normaliser's return value; a pure helper's own return contract, not only what
-  its callers observe; the line that copies a template-emitted claim; every gate grading the old name; every outbound
+  its callers observe; the line that copies a template-emitted claim; every gate grading the old name; every reader of a
+  changed or vendored file's text that never imports it (a scaffold fold such as
+  `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and
+  the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob
+  that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by
+  `scripts/enforcement/check_synced_unmodified.py`), each hit that reads the file named in the brief; every outbound
   sink a production-reaching test can touch; every actor touching an RLS table; placeholder resolution per consumer;
   repo-wide service lists and absence statements.
 - Parsers: the producer's real output contract first, then the parsing model before tokens; lossy cases (duplicate
@@ -86,8 +91,9 @@ box: execute it, or name in the brief why the shape does not have it.
   (an absence assertion over never-written state is vacuous); a grader EXECUTES an executable subject, through the
   real production adapter and the consumer's entry point (the command's output, as the gate passes files by name),
   never reads it; a premise guard asserts at the call site, not on constants; a prose grader asserts the whole
-  generated sentence, not a substring; a test-quality seat checks docstring claims against the scan; a fix recipe
-  handed to a coder names one input it must leave unchanged and the test that holds it.
+  generated sentence, not a substring, and one for MOVED text (a sentence, clause, bullet or row), added in the edit
+  that moves it, also fails when the text sits at its old position; a test-quality seat checks docstring claims
+  against the scan; a fix recipe handed to a coder names one input it must leave unchanged and the test that holds it.
 - Each parser-output shape owes its own red; a config or regex grader is graded by running the tool on mutated inputs;
   a red branch of a new procedure step is executed as well as the green; a boundary fix tests both sides with the
   exact message; a numeric bound is derived in its comment and graded at both edges, with the determining input varied

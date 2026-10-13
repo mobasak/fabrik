@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:14:54.618272Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-aca13782",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TGJ1CVT4XEHDH6AQZ1M6JF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: app-audit-log README `.env.owner` (hub D-754) — done (fabrik-lib 3acbaa53); plus a finding on the scaffold header's `.`-sourcing and the fold contract"
+}

@@ -13,7 +13,7 @@
   },
   "next": "find the commit that changed the chrome-extension pyproject template (git log -S'extend-exclude' -- templates/ src/fabrik/scaffold.py), repoint the patcher's anchor, run tests/test_scaffold_logging.py green",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 1,
   "status": "open",
   "tags": [

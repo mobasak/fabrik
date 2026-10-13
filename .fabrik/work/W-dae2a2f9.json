@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:38:19.102444Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-dae2a2f9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TM3S9SA5BYK2JBVTHD3YXD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "done — both review commands now name `surface --add` (re 01M4TJJDG2)"
+}
