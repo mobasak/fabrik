@@ -75,7 +75,8 @@ def test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim() -> None:
     assert (
         "a re-vendor brief hands the seats the lead's executed byte-identity result (the diff command and its output) as"
         " a claim to attack — the diff reads the source's COMMITTED blob at the SHA the copy records (a `VENDORED-FROM`"
-        " header; HEAD when it records none: `git -C <source> show <sha>:<source path>`) against the copy minus that"
+        " header, else the `Vendored-From:` trailer of the commit that vendored it; HEAD when neither does: `git -C"
+        " <source> show <sha>:<source path>`) against the copy minus that"
         " header, never the source's working file, where a sibling's uncommitted edit reads as drift — and the brief"
         " names the source's own regression test for the file at that SHA, run with its import path pointed at the"
         " copy (or says the source has none); they re-run that command and that test first, then spend on what byte identity cannot show: the"

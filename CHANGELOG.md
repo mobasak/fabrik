@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan vendors from fabrik-lib's committed blob (2026-10-13)
+- § When Vendoring step 1 now reads each file from fabrik-lib's COMMITTED blob (`git -C /opt/fabrik-lib show <sha>:<its path in fabrik-lib>`, at the SHA the plan names or else fabrik-lib's resolved HEAD), never its working file, where a sibling's uncommitted edit would ship, and records that SHA as a `Vendored-From: fabrik-lib@<sha>` trailer on the task's commit; the review catalogue's re-vendor clause reads that trailer when a copy carries no `VENDORED-FROM` header. The review catalogue's re-vendor rule reached review waves only (row 1791898318; D-711 audit). Grader: `tests/test_execute_plan_queue_pass.py::test_vendoring_copies_the_committed_blob_at_the_pinned_sha`; ruff also rewrapped one existing test in that file (layout only).
+
 ### Changed — /fabrik-command-improve: a reject reason cites a line the command reaches (2026-10-13)
 - PHASE 2's D-711 paragraph now says a reject reason cites a line the queue's command reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it loads — never one that only exists elsewhere in the corpus; PHASE 1's answered-row reject already cites the command's current text. Two of today's rejects first cited the round-zero rule in `term-coverage.md`, which `/fabrik-review-scoped` never points at (row 1791907618, a recurrence of the held `reject-cites-what-the-command-reads`). Grader: `tests/test_command_improve_queue_pass.py::test_a_reject_reason_cites_a_line_the_command_reaches`.
 
