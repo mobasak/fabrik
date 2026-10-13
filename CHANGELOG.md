@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `command_run.py surface --add`: a running review widens its own Stop-hook exemption (2026-10-09)
+
+- A running review covers `(start, ∞)`, so its own edits were never the gap; a file last edited BEFORE its `start` that its `--surface` did not name stayed flagged by the sixth cause until `done`. `surface --add <path>` records such a path in a new `surface_adds` field (never in `surface`, the ledger's run dimension), and `.claude/hooks/final_gate_stop.py` `_surface_reviewed` reads it as one whole token (W-24ae7ecf). Refuses every record but a running review and every value that is not one repo path, rc 1 with nothing stored. Graders in `tests/test_command_run.py` and `tests/test_stop_hook_spontaneous_review.py`, seven mutants red.
+
 ### Fixed — final_gate reads git's path lists from stdout only, NUL-split (2026-10-13)
 - `scripts/final_gate.py` parsed `run_cmd`'s merged stdout+stderr as file lists, so a git warning or `fatal:` line became a "filename" (the sqlfluff leg linted it, fleet 01M4RVW43D), and its `--name-only` reads were not `-z`, so a path holding a tab, a quote or a non-ASCII byte entered the gate's scope C-quoted as a name no file has (W-5c688a41). One helper, `_git_names`, now reads every path list (the staged, changed, writable, unpublished, added and untracked sets, the json/yaml/sql listings and the test-dir listing) from stdout alone with `-z`, or None when git fails. The GATE row's `final_gate.py:N` cites in both CLAUDE.md contracts move with the shifted lines.
 
