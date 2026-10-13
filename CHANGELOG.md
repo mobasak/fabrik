@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review-loop workflow re-seats a dead finder, fails an empty one, and makes a closing pass execute its claims (2026-10-13)
+
+- `.claude/workflows/fabrik-review-loop.js`:
+  - A finder that returns null or throws is re-seated once (`find:<slice>:<model>:retry`, its own scratch dir), inside the dispatch stamp (W-b36e2a4a).
+  - A finder that brought nothing back fails (no coverage statement, no candidate, no ledger row; 2 of 6707 real seats). A ledger row re-verifies its claim only with a command and an output. A `recorded: true` ledger claim is report-only and never reaches the refuter (01M4Q4D8VP, 01M4PPW8D8).
+  - The seat head now says every claim in a seat's ledger is re-executed, an earlier refutation included, so a quiet round 1's closing pass has a recipe (the Opus + Fable panel's answer).
+  - The seat recipe archives every top-level path the tests import, read or run, overlays every pinned file of the run with one program, and requires a grep to name a file operand. A relative `pins_dir`, `scratch_dir` or `base_pin_dir` is refused before any seat runs (kaizen 01M4PNBVJ1, 01M4RM8CYR, 01M4RMKM28, 01M4RVAWG3, 01M4PY7AG9, 01M4PVPY8J).
+- `docs/reference/review-loop-workflow.md` describes the args, the retry, the failed-seat and closable rules, and the ledger rows.
+
 ### Changed — review_loop_ledger.py tells a running workflow from a dead seat, and pin writes the change's diff (2026-10-13)
 
 - `read` checks the workflow's run file, `<session>/workflows/<runId>.json`, which the harness writes only when the workflow ends (2412 of 2412 runs on the box had one). With no run file yet, a seat without a result prints `RUNNING`, not `NO RESULT`, and the read exits 5 with the run dir's idle minutes. A run file that does not parse, or one with an unended status, also exits 5. An ended run prints the workflow's own verdict: `closable`, and a `SLICE DROPPED`, `REFUTER FAILED` or `SEAT FAILED` line per recorded failure. `next` refuses a pass file read before the workflow ended. (kaizen 01M4PNBVJ1 rows 1791748866, 1791217578, 1790292451, 1791033713; 01M4RMKM28 row 1791826392; 01M4PY7AG9 row 1791410439.)
