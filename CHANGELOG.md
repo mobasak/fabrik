@@ -13,6 +13,21 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-task phase 4 names the committed-work receipt init up front (2026-10-13)
 - A nested full `/fabrik-review` over committed work inits its receipt with `--range <base>..<tip>` and commits it alone (a scoped review needs none); the size cap grows by that sentence (D-797).
 
+### Changed — the gate formats and lints new Python outside scripts/ and src/, and honours each repo's ruff exclude (2026-10-13)
+- `scripts/final_gate.py`: a `.py` the session adds anywhere — a file-worker's `worker/`, a `server/` or `api/` — now gets the same ruff format and check as code under the lint roots; modified pre-existing files there stay with the repo-wide lint ratchet. Every gate ruff call passes `--force-exclude`, so a file the repo's own `[tool.ruff] exclude` lists is never linted or reformatted (fleet 01M4F5F2WM, D-802).
+
+### Fixed — the completion gate's auto-fixers touch only this session's own commits, and keep U+2028 and CRLF (2026-10-13)
+- `scripts/final_gate.py`: the fixer and read scopes took `upstream...HEAD`, so a worktree branch fast-forwarded onto master carried every sibling commit into a bare run's auto-fix (fleet 01M4EPDF7F: two sibling files rewritten). They now take the files of commits on no published ref (upstream, the worktree's base, origin/master|main; a merge contributes only its conflict resolutions). The trailing-whitespace fixer splits on `\n` only and strips only space and tab — `splitlines()`/`rstrip()` had deleted a U+2028 a test carries — and both fixers read and write with `newline=""`, so a CRLF file is no longer silently rewritten to LF.
+
+### Fixed — review seats run with python-dotenv disabled, so a probe cannot load a project's live credentials (2026-10-13)
+- `.claude/hooks/seat_guard.py` rewrites every allowed `fabrik-reviewer` seat Bash call to start with `export PYTHON_DOTENV_DISABLED=1` (`updatedInput`, never an approval). A seat that imports a live tree's app no longer has its import-time `load_dotenv()` restore provider credentials — the cause of live Namecheap and Cloudflare calls from seats in site-provisioner (01M4F154S2, 01M4F1KHHW, D-801).
+
+### Fixed — /fabrik-flows-review's renderer constants match its source (2026-10-13)
+- `commands/assemble_commands.py`: /fabrik-flows-review's term-edit AXES names all eight axes (it lacked E2, now `life-cycle arcs (UI types)`), /fabrik-flows' names its Phase-6 gate's eleven checks (it had six), and the flows-review EXTRA drops an Opus-axis sentence that rendered only inside the commented-out pool contract — the source states it since D-783. `tests/test_assemble_axes_match_source.py` grades every command whose source letters its axes against its AXES count (kaizen 01M4RXJYDW).
+
+### Changed — /fabrik-task checks the design note's names at `--design`, and lists the tests that name a declared script (2026-10-13)
+- `step --phase 2 --design` on a lane-v2 run refuses, storing nothing, when a declared `--file` is not backticked in APPROACH or MIRROR, so the note is fixed before the build instead of amended after it. `start` and the stored design print the tracked test files naming each declared script (kaizen 01M4RNGC0H, D-796).
+
 ### Changed — review probes check a reimplemented tool against its own output (2026-10-13)
 - A fix that reimplements another tool's semantics proves parity against that tool's own output over its edge cases before it lands (D-795).
 

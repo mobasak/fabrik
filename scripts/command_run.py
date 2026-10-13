@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import collections
 import contextlib
 import datetime as dt
 import fcntl
@@ -3801,6 +3802,79 @@ def _task_excl(root: Path) -> set[str]:
     return excl
 
 
+def _task_unnamed(rec: dict, text: str) -> list[str]:
+    """The declared `--file` paths a v2 close would refuse as unnamed in ``text``'s APPROACH or
+    MIRROR, computed as `task_lane.measure_close` does (design paths and amendments through
+    `_norm_cited_all`, the files through `_norm_all`, the close's own exclusions) — checked at
+    `step --design`, before the design is stored, so the note is fixed, never amended after the
+    build (kaizen 01M4RNGC0H). A rename the close would let inherit is not modelled: backtick the
+    new name too. Empty when the lane module is absent."""
+    tl = _lane_module()
+    if tl is None:
+        return []
+    decl = rec.get("declared")
+    raw = decl.get("files") if isinstance(decl, dict) else None
+    files = tl._norm_all([str(f) for f in raw]) if isinstance(raw, list) else []
+    amends = rec.get("design_amends")
+    named = set(tl._norm_cited_all(_design_paths(text)))
+    named |= set(tl._norm_cited_all([str(a) for a in amends] if isinstance(amends, list) else []))
+    excl = _task_excl(Path(str(rec.get("repo_root") or ".")))
+    return [f for f in files if f not in named and not _task_excluded(f, excl)]
+
+
+_TASK_TESTS_SHOWN = 10
+_TASK_TESTS_MAX_BYTES = 1 << 20
+
+
+def _task_tests_note(root: Path, files: list[str]) -> None:
+    """ADVICE on stderr, never a refusal (kaizen 01M4RNGC0H row 1791827964): per declared `.py`
+    that is not itself a test, the TRACKED test files (any `tests/` directory) naming it — by its
+    repo path, by an anchored basename when that basename is unique among tracked `.py` files, or
+    by an anchored import of its stem. Fail-silent: an error here must never cost the record or
+    the advisories printed after it."""
+    with contextlib.suppress(Exception):
+        out = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--", "*.py"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=20,
+        )
+        if out.returncode != 0:
+            return
+        tracked = [t for t in out.stdout.split("\0") if t]
+        tests = [t for t in tracked if "tests" in t.split("/")[:-1]]
+        names = collections.Counter(t.rsplit("/", 1)[-1] for t in tracked)
+        texts: dict[str, str] = {}
+        for t in tests:
+            fp = root / t
+            if fp.is_file() and fp.stat().st_size <= _TASK_TESTS_MAX_BYTES:
+                texts[t] = fp.read_bytes().decode("utf-8", "replace")
+        for f in files:
+            if not f.endswith(".py") or "tests" in f.split("/")[:-1]:
+                continue
+            base = f.rsplit("/", 1)[-1]
+            stem = re.escape(base[:-3])
+            # anchored both ends: `xsrc/c.py`, `src/c.py.bak`, `src/c.py-old` name another file,
+            # while a sentence-final `src/c.py.` still names this one (review A-S1, A-S3)
+            end = r"(?![\w-]|\.\w)"
+            pats = [rf"(?<![\w.-]){re.escape(f)}{end}"]
+            if names.get(base) == 1:
+                pats.append(rf"(?<![\w.-]){re.escape(base)}{end}")
+            pats.append(
+                rf"^\s*(?:from\s+(?:[\w.]+\.)?{stem}\s+import\b|import\s+(?:[\w.]+\.)?{stem}\b)"
+            )
+            rx = re.compile("|".join(f"(?:{x})" for x in pats), re.M)
+            hits = sorted(t for t, body in texts.items() if rx.search(body))
+            if hits:
+                more = len(hits) - _TASK_TESTS_SHOWN
+                tail = f" (+{more} more)" if more > 0 else ""
+                sys.stderr.write(
+                    f"[command_run] NOTE — fabrik-task: {len(hits)} test file(s) name {f}: "
+                    f"{', '.join(hits[:_TASK_TESTS_SHOWN])}{tail}\n"
+                )
+
+
 def _task_excluded(path: str, excl: set[str]) -> bool:
     """A concrete path matches exactly; a `<name>` row's PREFIX matches its whole directory; a
     review receipt (`_TASK_REVIEWS_DIR`) matches too."""
@@ -4657,6 +4731,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 )
             else:
                 print("lane: v1")
+            if _declared.get("gate") == 2:
+                _task_tests_note(
+                    Path(str(new.get("repo_root") or ".")), list(_declared.get("files") or [])
+                )
         # A second `start` for the SAME command inside the join window is almost always a
         # DOUBLE-START, not a legitimate nest: a command invoking itself recursively is not a
         # shape we have, while an agent who missed the confirmation and re-ran is exactly what
@@ -4761,6 +4839,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # deletes its own `run_close` event to prevent. `rec["phase"]` above is in-memory only,
         # so returning here leaves the phase on disk exactly where it was.
         _design = str(getattr(args, "design", "") or "")
+        _tests_note_files: list[str] | None = None
         if _design and str(rec.get("command") or "").lstrip("/") != _TASK_COMMAND:
             # The MIRROR of `start`'s cross-command guard. Without it a `--design` on any other
             # record was rc 0 with the pinned line printed and nothing stored: every signal of
@@ -4833,7 +4912,18 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # 2,000-char `_LEDGER_FIELD_CAP` that bounds a one-line usage verdict never
                 # applied to it, and it refused a sized six-field design at 3,588 chars on its
                 # first real use. An unreadable path still refuses above.
+                _decl = rec.get("declared")
+                if isinstance(_decl, dict) and _decl.get("gate") == 2:
+                    _unnamed = _task_unnamed(rec, _text)
+                    if _unnamed:
+                        return _refuse(
+                            "REFUSED — fabrik-task: declared --file path(s) not named in the "
+                            f"design note's APPROACH or MIRROR: {', '.join(_unnamed)} — backtick "
+                            "each in the design note and re-run --design (nothing was stored)"
+                        )
                 rec["design"] = _text
+                if isinstance(_decl, dict) and _decl.get("gate") == 2:
+                    _tests_note_files = [str(f) for f in _decl.get("files") or []]
         _ap = getattr(args, "appetite", None)
         if _ap is not None and _ap <= 0:
             return _refuse(f"REFUSED — step --appetite {_ap} must be a positive number of minutes")
@@ -4875,6 +4965,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _touch(rec)
         fields["persisted"] = save(sid, rec)
         print(pinned_line(rec))
+        if _tests_note_files is not None:
+            # after the save and every refusal: the design's test advice, where the grader path
+            # can still be backticked (Fable critique #1)
+            _task_tests_note(Path(str(rec.get("repo_root") or ".")), _tests_note_files)
         return 0
 
     if args.cmd == "dispatch":  # `rec` is live here: the generic no-record guard fired above

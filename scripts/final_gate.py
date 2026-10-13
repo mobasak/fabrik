@@ -820,23 +820,19 @@ def fix_trailing_whitespace(files: list[str]) -> tuple[bool, str, int]:
         if not path.exists():
             continue
         try:
-            content = path.read_text(encoding="utf-8")
-            # Preserve line endings (LF or CRLF) while stripping trailing whitespace
-            lines = content.splitlines(keepends=True)
-            fixed_lines = []
-            for line in lines:
-                # Strip trailing whitespace but preserve the line ending
-                if line.endswith("\r\n"):
-                    fixed_lines.append(line[:-2].rstrip() + "\r\n")
-                elif line.endswith("\n"):
-                    fixed_lines.append(line[:-1].rstrip() + "\n")
-                elif line.endswith("\r"):
-                    fixed_lines.append(line[:-1].rstrip() + "\r")
-                else:
-                    fixed_lines.append(line.rstrip())  # Last line without newline
-            fixed = "".join(fixed_lines)
+            # newline="" both ways: a plain read_text() translates "\r\n" to "\n", so the
+            # "preserves CRLF" promise was never kept and every fixed CRLF file came back LF
+            with open(path, encoding="utf-8", newline="") as fh:
+                content = fh.read()
+            # Lines end at "\n" ONLY and trailing whitespace is ASCII space and tab: Python's
+            # `splitlines()` also splits on U+2028/U+2029/\x0b/\x0c/\x85 and `rstrip()` strips
+            # them (and NBSP) — the fixer deleted a U+2028 a test exists to carry (01M4EPDF7F).
+            # Line terminators are \r\n, \n and a bare \r (classic Mac) — never U+2028 & co.
+            parts = re.split(r"(\r\n|\n|\r)", content)
+            fixed = "".join(part if i % 2 else part.rstrip(" \t") for i, part in enumerate(parts))
             if fixed != content:
-                path.write_text(fixed, encoding="utf-8")
+                with open(path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(fixed)
                 files_fixed += 1
         except UnicodeDecodeError:
             continue  # Skip binary/non-UTF8 files
@@ -860,12 +856,20 @@ def fix_end_of_files(files: list[str]) -> tuple[bool, str, int]:
         if not path.exists():
             continue
         try:
-            content = path.read_text(encoding="utf-8")
+            with open(path, encoding="utf-8", newline="") as fh:  # see fix_trailing_whitespace
+                content = fh.read()
             # Check if file already ends with a newline
             if content and not content.endswith("\n"):
                 # Preserve line ending style: use CRLF if file contains CRLF, else LF
-                newline = "\r\n" if "\r\n" in content else "\n"
-                path.write_text(content + newline, encoding="utf-8")
+                newline = (
+                    "\r\n"
+                    if "\r\n" in content
+                    else "\r"
+                    if "\r" in content and "\n" not in content
+                    else "\n"
+                )
+                with open(path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(content + newline)
                 files_fixed += 1
         except UnicodeDecodeError:
             continue  # Skip binary/non-UTF8 files
@@ -944,13 +948,13 @@ def run_formatting_fixes(
     # Ruff format + fix — changed .py only; skip entirely when none changed.
     if ruff_py:
         code, out = run_cmd(
-            [RUFF, "format", *ruff_py],
+            [RUFF, "format", "--force-exclude", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
         results.append(("ruff-format", code == 0, out if code != 0 else ""))
 
         code, out = run_cmd(
-            [RUFF, "check", "--fix", *ruff_py],
+            [RUFF, "check", "--fix", "--force-exclude", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
         # returncode 0 = clean, 1 = issues found (some fixed), other = error — RC_TIMEOUT included
@@ -961,6 +965,21 @@ def run_formatting_fixes(
             results.append(("ruff --fix", False, out))
 
     return results
+
+
+# What `ruff --force-exclude` prints when the repo's own config excludes every path it was given.
+_NO_FILES = "No Python files found"
+
+
+def _excluded_row(leg: str, files: list[str]) -> tuple[str, bool, str]:
+    """A ruff read leg whose every file the repo's ruff config excludes ran nothing; a plain PASS
+    there would assert a check that never happened (review A-S2), so it carries a skip marker."""
+    return (
+        f"{leg} (NOT RUN — excluded by the repo's ruff config)",
+        True,
+        f"⚠ the repo's [tool.ruff] exclude covers every changed file this leg was given: "
+        f"{', '.join(files[:6])}{' …' if len(files) > 6 else ''}",
+    )
 
 
 def _scope_narrowed_row(
@@ -1022,7 +1041,11 @@ def run_format_check(
     ruff_py = _changed_python(scope)
     if not ruff_py:
         return narrowed_row
-    code, out = run_cmd([RUFF, "format", "--check", *ruff_py], timeout=TIMEOUTS["ruff"])
+    code, out = run_cmd(
+        [RUFF, "format", "--check", "--force-exclude", *ruff_py], timeout=TIMEOUTS["ruff"]
+    )
+    if code == 0 and _NO_FILES in out:
+        return [*narrowed_row, _excluded_row("ruff-format (--check)", ruff_py)]
     if code == 0:
         return [*narrowed_row, ("ruff-format (--check)", True, "")]
     return [
@@ -1342,10 +1365,13 @@ def run_static_checks(
         results.extend(_scope_narrowed_row(changed, _writable, "ruff"))
     if ruff_py:
         code, out = run_cmd(
-            [RUFF, "check", *ruff_py],
+            [RUFF, "check", "--force-exclude", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
-        results.append(("ruff", code == 0, out if code != 0 else ""))
+        if code == 0 and _NO_FILES in out:
+            results.append(_excluded_row("ruff", ruff_py))
+        else:
+            results.append(("ruff", code == 0, out if code != 0 else ""))
 
     # --- JSON validation (Tier 1 + Tier 2) ---
     import json
@@ -2865,6 +2891,57 @@ def _diff_base() -> str | None:
     return None
 
 
+def _published_refs() -> list[str]:
+    """Every ref whose commits are already somebody's published work: the upstream, a linked
+    worktree's base branch, origin/master, origin/main — each when it resolves."""
+    refs: list[str] = []
+    for cmd in (
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+        None,
+        ["git", "rev-parse", "--verify", "--quiet", "origin/master"],
+        ["git", "rev-parse", "--verify", "--quiet", "origin/main"],
+    ):
+        code, out = run_cmd(cmd) if cmd else (0, _linked_worktree_base())
+        if code == 0 and out.strip():
+            refs.append(out.strip().splitlines()[0])
+    return refs
+
+
+def _unpublished_files() -> set[str]:
+    """Files touched by commits on HEAD that are on NO published ref — this session's own work.
+
+    fleet 01M4EPDF7F: `{_diff_base()}...HEAD` is "what differs from the upstream", and a worktree
+    branch fast-forwarded onto origin/master carried 199 sibling commits inside it, so a bare run
+    auto-fixed two files no fleet commit touched (one fix deleted a U+2028 a test exists to carry).
+    A commit already on the upstream, the linked worktree's base or origin/master|main is
+    somebody's published work, never this session's to rewrite. `--diff-merges=remerge` keeps a
+    merge commit's conflict resolutions (what the session authored there) and nothing else.
+    """
+    refs = _published_refs()
+    if not refs:
+        return set()
+    code, out = run_cmd(
+        ["git", "log", "--format=", "--name-only", "--diff-merges=remerge", "HEAD", "--not", *refs]
+    )
+    base = _diff_base()
+    if code != 0:
+        # a git that rejects --diff-merges (< 2.36) must not silently empty the scope: fall back
+        # to the previous `base...HEAD` diff, wider but never blind (review A-S3)
+        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"]) if base else (1, "")
+        return {f for f in out.split("\n") if f.strip()} if code == 0 else set()
+    touched = {f for f in out.split("\n") if f.strip()}
+    # NET change only: a file the session's own commits created and deleted again (or edited and
+    # reverted) is not something it publishes — keep what differs from a boundary commit (A-S2)
+    code, bnd = run_cmd(["git", "rev-list", "--boundary", "HEAD", "--not", *refs])
+    net: set[str] = set()
+    for line in bnd.split("\n") if code == 0 else []:
+        if line.startswith("-"):
+            c, d = run_cmd(["git", "diff", "--name-only", line[1:].strip(), "HEAD"])
+            if c == 0:
+                net.update(f for f in d.split("\n") if f.strip())
+    return touched & net
+
+
 def get_changed_files() -> set[str]:
     """Get set of changed file paths from git.
 
@@ -2883,12 +2960,8 @@ def get_changed_files() -> set[str]:
     session's gate and was one bare run away from being auto-staged into its commit.
     """
     changed: set[str] = set()
-    # Committed but not yet pushed (the session's own commits) — see _diff_base.
-    base = _diff_base()
-    if base:
-        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"])
-        if code == 0 and out:
-            changed.update(f for f in out.strip().split("\n") if f)
+    # Committed but not yet published (the session's own commits) — see _unpublished_files.
+    changed.update(_unpublished_files())
     # Staged changes (includes staged-NEW files — the authored path for new files)
     code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
     if code == 0 and out:
@@ -2917,12 +2990,7 @@ def get_writable_files() -> set[str]:
     contract stages explicit paths anyway, so an authored file is in the writable scope by gate
     time. `--fix-all` opts back into fixing the whole change set for a solo tree.
     """
-    writable: set[str] = set()
-    base = _diff_base()
-    if base:
-        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"])
-        if code == 0 and out:
-            writable.update(f for f in out.strip().split("\n") if f)
+    writable: set[str] = set(_unpublished_files())
     code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
     if code == 0 and out:
         writable.update(f for f in out.strip().split("\n") if f)
@@ -2997,14 +3065,55 @@ def _synced_paths() -> set[str]:
         return set()
 
 
+def _added_files() -> set[str]:
+    """Files this session ADDED: new in the index (staged, or `git add -N` intent-to-add) or added
+    net of every boundary commit of the unpublished range (the refs `_unpublished_files` reads).
+    A RENAME counts when its source was under `_RUFF_ROOTS` — the file was ruffed before the move
+    and must not leave the legs silently (review A-S1); renaming a flat-layout file adds no new
+    enforcement. Untracked files never count."""
+
+    def _new(args: list[str]) -> set[str]:
+        # -z: git's own bytes, never C-quoted (a quoted name split on tabs stored escapes, A-S4)
+        code, out = run_cmd(["git", "diff", "-z", "--name-status", "--diff-filter=AR", *args])
+        found: set[str] = set()
+        tokens = out.split("\0") if code == 0 else []
+        i = 0
+        while i < len(tokens):
+            status = tokens[i].strip()
+            if status == "A" and i + 1 < len(tokens):
+                found.add(tokens[i + 1])
+                i += 2
+            elif status.startswith("R") and i + 2 < len(tokens):
+                if tokens[i + 1].startswith(_RUFF_ROOTS):
+                    found.add(tokens[i + 2])
+                i += 3
+            else:
+                i += 1
+        return found
+
+    added = _new(["--cached"]) | _new([])  # the second picks up intent-to-add entries
+    refs = _published_refs()
+    if refs:
+        code, bnd = run_cmd(["git", "rev-list", "--boundary", "HEAD", "--not", *refs])
+        for line in bnd.split("\n") if code == 0 else []:
+            if line.startswith("-"):
+                added |= _new([line[1:].strip(), "HEAD"])
+    return added
+
+
 def _changed_python(changed_files: set[str]) -> list[str]:
-    """Changed .py under the ruff roots that exist on disk and are NOT Fabrik-synced."""
+    """Changed .py the ruff legs own: under the ruff roots, or ADDED by this session anywhere
+    (fleet 01M4F5F2WM — a file-worker's `worker/` was never ruffed; a new file carries no debt,
+    while a modified flat-layout file's lint stays the repo-wide ratchet's). Exists on disk and is
+    NOT Fabrik-synced; the legs pass `--force-exclude`, so the repo's own ruff `exclude` still wins."""
     synced = _synced_paths()
+    py = {f for f in changed_files if f.endswith(".py")}
+    outside = {f for f in py if not f.startswith(_RUFF_ROOTS)}
+    added = _added_files() if outside else set()
     return sorted(
         f
-        for f in changed_files
-        if f.endswith(".py")
-        and f.startswith(_RUFF_ROOTS)
+        for f in py
+        if (f.startswith(_RUFF_ROOTS) or f in added)
         and f not in synced
         and (PROJECT_ROOT / f).is_file()
     )
