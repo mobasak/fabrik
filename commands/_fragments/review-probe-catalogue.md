@@ -9,6 +9,11 @@ or name in the brief why the shape does not have it.
   check the END STATE a recipe exists to produce, not only each step; run a README snippet, usage text or rewritten
   docstring instruction as a caller would, and probe each exception a rewritten docstring says the function still
   raises.
+- A line another tool injects or renders, changed or with a rendering the change alters, is read back whole through
+  that tool's output after the edit and before each delta pin, under an invocation that emits it — a pack line in
+  `review_rubric.py --changed <a path its globs hit>`, a fragment edit's consumers rendered to a temp dir, a
+  template's emitted file — never in its source alone; a line the change leaves emitted by no invocation (a pack
+  line with no mandate keyword, a section under a conditional heading) is named in the brief as dropped.
 - Trace the entry path: the first caller that reaches the fixed function; enumerate every call shape through a new
   branch and every input path of a shared reader; trace each rationale sentence's mechanism to the code, and execute
   every "X only when Y" claim the fix adds.
@@ -37,7 +42,7 @@ or name in the brief why the shape does not have it.
   with the dependencies available; before a counted bar or a spend scale changes, drive it over the real series and
   the unit cost.
 - Grep the docs and ledgers for a by-design rule on the subject; resolve an integrity-check exemption against its real
-  target; render a fragment edit's consumers to a temp dir and read each.
+  target.
 
 ## The brief's hunt lines (name the ones the shape has)
 - Callers and consumers: every caller of a changed exit code, output line or gated script; every consumer of a changed

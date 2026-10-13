@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review probe catalogue reads an injected or rendered line back through its tool (2026-10-13)
+- `commands/_fragments/review-probe-catalogue.md` § Before the first pin, which `/fabrik-review` and `/fabrik-review-scoped` point at, has a bullet of its own: a line another tool injects or renders is read back whole through that tool's output after the edit and before each delta pin (a pack line in `review_rubric.py --changed`, a fragment's rendered consumers, a template's emitted file), and a line the change leaves emitted by no invocation is named in the brief as dropped. The old fragment-render clause folds into it. Answers `/fabrik-review` row 1791889493; the grader `tests/test_review_queue_pass.py::test_an_injected_line_is_read_back_through_its_consumer` asserts the whole sentence inside its section (a review seat's 8 mutants all killed).
+
 ### Fixed — a stale worktree copy no longer reds check_synced_unmodified as "you edited" (2026-10-13)
 - `scripts/sync_enforcement_to_projects.py`: the worktree resync refreshes a ledger-gap copy (one Claude Code copied at worktree creation, so no ledger row) when its non-empty bytes are a version hub HEAD's history published at that file's own source path (`_is_published_version`); unknown bytes, an emptied file, another path's content and a ledger-mismatch edit stay WARN'd and preserved. Measured before the fix: 83 of 214 project worktrees red over 281 files, none a real edit (whatsapp-agent 01M4RQV6DA, W-800579be).
 - `scripts/enforcement/check_synced_unmodified.py`: inside a linked worktree the red also names the stale-copy remedy per file (`cp <main>/<rel> <rel>` when the main checkout matches the lock, else re-run the sync); the verdict is unchanged.
