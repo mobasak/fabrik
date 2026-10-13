@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: a reject reason cites a line the command reaches (2026-10-13)
+- PHASE 2's D-711 paragraph now says a reject reason cites a line the queue's command reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it loads — never one that only exists elsewhere in the corpus; PHASE 1's answered-row reject already cites the command's current text. Two of today's rejects first cited the round-zero rule in `term-coverage.md`, which `/fabrik-review-scoped` never points at (row 1791907618, a recurrence of the held `reject-cites-what-the-command-reads`). Grader: `tests/test_command_improve_queue_pass.py::test_a_reject_reason_cites_a_line_the_command_reaches`.
+
 ### Changed — the review probe catalogue: a re-vendor identity diff reads the source's committed blob and runs its test (2026-10-13)
 - The re-vendor premise in `commands/_fragments/review-probe-catalogue.md` now says the lead's byte-identity diff reads the source's COMMITTED blob at the SHA the copy records (its `VENDORED-FROM` header, as `libs/health_probe/` carries; HEAD when it records none) against the copy minus that header, never the source's working file, where a sibling's uncommitted edit reads as drift. The brief also names the source's own regression test for the file at that SHA, run with its import path pointed at the copy, or says the source has none (/fabrik-review rows 1791896579, 1791905875). Grader: `tests/test_review_scoped_queue_pass.py::test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim`.
 

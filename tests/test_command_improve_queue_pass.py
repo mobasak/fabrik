@@ -148,3 +148,17 @@ def test_phase_three_checks_an_added_rule_on_the_edit_and_its_origin_case() -> N
         " sentence, which obey it, and on the case that raised it, which it must flag. A sentence that describes"
         in p3
     )
+
+
+def test_a_reject_reason_cites_a_line_the_command_reaches() -> None:
+    """Row 1791907618, a recurrence of the held reject-cites-what-the-command-reads: two rejects cited the round-zero rule
+    in term-coverage.md, which /fabrik-review-scoped never points at, and the D-711 audit had to find the lines it does
+    reach. Pinned whole inside PHASE 2's D-711 paragraph. Not seen: a contradicting sentence elsewhere in PHASE 2, or a
+    reason that cites a reachable line for the wrong rule; the audit seat owns those."""
+    p2 = _phase("## PHASE 2", "## PHASE 3")
+    assert (
+        "for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command"
+        " reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running"
+        " it loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites"
+        " the command's current text)." in p2
+    )
