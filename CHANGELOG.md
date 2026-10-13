@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — libs/health_probe re-vendored at fabrik-lib 09bf9236 (2026-10-13)
+
+- `libs/health_probe/health_probe.py` and `fingerprint.py` now match fabrik-lib 09bf9236 (fabrik-lib reply 01M4TG4MKN). `load_env`'s docstring and comment now say when a NUL byte in `.env` raises and when it does not, so `load_env` must not be used to validate a `.env`. No behaviour change. `tests/test_scaffold_deploy_contract.py::test_hub_copy_differs_from_fabrik_lib_only_by_the_vendoring_header` had been red since fabrik-lib moved; it passes again.
+
 ### Fixed — the template's RED clause names the quota-wall close; the GATE-row cites follow final_gate.py (2026-10-13)
 
 - `templates/governance/CLAUDE.md`: the quota RED clause now names `blocked --wall` and `start --resume-from <seed>`, as the hub CLAUDE.md does since W-28f260c3 (D-826; fleet 01M4V5P329). Without it, a project agent that closes at the RED band reads no verb and closes with a plain `blocked`, which keeps no seed.
