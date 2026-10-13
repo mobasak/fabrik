@@ -369,3 +369,19 @@ def test_a_brief_states_the_count_to_report_never_the_expected_one() -> None:
         "each brief embeds its ledger text and states what the seat must report (a count, a verdict, an output),"
         " never the value the lead expects; the closing-pass brief"
     ) in loop
+
+
+def test_the_run_record_section_yields_to_a_step_named_before_it() -> None:
+    """W-ae8fd45b: this command's 'classify the surface FIRST' sat two lines above the run-record include, whose
+    heading says the record is the FIRST act, and a heading beats the paragraph above it. The fragment's first line
+    now yields to a step the command names as running before the record; the command still names that step there."""
+    frag = _norm(ROOT / "commands" / "_fragments" / "run-record.md")
+    assert frag.startswith(
+        "## Run record — open it as this command's FIRST act A step this command's text names as running BEFORE the"
+        " record (`/fabrik-review-scoped`'s surface classification) runs first; then the record opens, unless that step"
+        " routed to another command, whose record replaces this one."
+    )
+    src = _norm(SRC)
+    assert src.index("**Before the record — classify the surface FIRST") < src.index(
+        "{{include:run-record}}"
+    )
