@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve checks a rule it adds on the edit itself and on its origin case (2026-10-13)
+- PHASE 3 now says a rule the edit adds is checked before PHASE 4's pin on the edit's own grader and sentence, which obey it, and on the case that raised it, which it must flag. The catalogue's moved-text rule (403ab35e) was drafted with a section-scoped grader, the weakness that rule names, and its review's round 1 caught it before the commit (row 1791896044, a recurrence of the held apply-rule-to-origin-case). Grader: `tests/test_command_improve_queue_pass.py::test_phase_three_checks_an_added_rule_on_the_edit_and_its_origin_case`.
+
 ### Changed — the review probe catalogue: a brief names the readers that never import a changed file (2026-10-13)
 - The "Callers and consumers" hunt line in `commands/_fragments/review-probe-catalogue.md` now asks for every reader of a changed or vendored file's text that never imports it (a scaffold fold such as `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by `check_synced_unmodified.py`), each hit that reads the file named in the brief. A seat cannot infer a consumer it was never told exists (/fabrik-review row 1791891025). Grader: `tests/test_review_queue_pass.py::test_the_callers_hunt_line_names_readers_that_never_import_the_file`.
 
