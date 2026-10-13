@@ -51,4 +51,6 @@ def test_the_opus_floor_and_the_half_blocked_split_are_stated() -> None:
     core = " ".join((ROOT / "commands" / "_fragments" / "subagents-core.md").read_text().split())
     assert "`/fabrik-execute-plan`'s per-round Opus finder floor, once at D7 under `Profile: small`, is its own rule and still stands" in core
     plan = " ".join((ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text().split())
-    assert "When only LATER phases wait on it, SPLIT the plan: the unblocked phases converge and execute as their own plan" in plan
+    assert "SPLIT the plan: the phases BEFORE the first blocked one keep the plan's name, converge and execute; that phase and every later one move to a new `DRAFT` plan" in plan
+    review = " ".join((ROOT / "commands" / "_sources" / "fabrik-review.md").read_text().split())
+    assert "a run `/fabrik-execute-plan` dispatches still seats its per-round Opus floor" in review
