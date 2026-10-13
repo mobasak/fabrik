@@ -29,9 +29,16 @@ def test_one_bump_and_one_row_per_review_run() -> None:
 
 
 def test_the_description_names_every_axis() -> None:
-    """Mail 01M4S7EX4S: the frontmatter listed 7 of the 8 axes, without E2 and F."""
-    head = SRC.read_text().split("\n---\n", 1)[0]
+    """Mail 01M4S7EX4S: the frontmatter named 6 of the 8 lettered axes, without E2 and F."""
+    desc = next(line for line in SRC.read_text().splitlines() if line.startswith("description:"))
     for axis in ("Success-Criterion tracing", "persona completeness", "SECOND-ACTOR completeness",
                  "async-boundary gap states", "[PRIMARY PATH]", "per-call resilience",
-                 "life-cycle arcs (UI types)", "discipline + exclusions", "contract-input routing"):
-        assert axis in head, axis
+                 "life-cycle arcs (UI types)", "discipline + exclusions", "cross-artifact truth"):
+        assert axis in desc, axis
+
+
+def test_the_ui_design_review_description_names_axis_f() -> None:
+    """Same drift in the sibling: its description listed axes A-E and left out F."""
+    src = ROOT / "commands" / "_sources" / "fabrik-ui-design-review.md"
+    desc = next(line for line in src.read_text().splitlines() if line.startswith("description:"))
+    assert "consistency + internal contradictions" in desc

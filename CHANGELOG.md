@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed — /fabrik-flows-review's description names all eight axes (2026-10-13)
-- The frontmatter description adds life-cycle arcs (UI types) and discipline + exclusions, trimmed to stay under the 1024-character skill limit; a test grades it (mail 01M4S7EX4S).
+- The frontmatter description adds life-cycle arcs (UI types) and discipline + exclusions and names G as cross-artifact truth, trimmed to stay under the 1024-character skill limit; /fabrik-ui-design-review's description gains its missing axis F; tests grade both (mail 01M4S7EX4S).
 
 ### Changed — review probes run a matcher sentence over its inputs; briefs name a fix by sha (2026-10-13)
 - A sentence describing a matcher is executed over its input space before the pin; a brief names the fix by `git show <sha>` (each sha of a multi-commit fix), never a bare range (D-804).
