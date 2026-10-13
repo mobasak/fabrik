@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the vendored GlitchTip init takes the first NON-BLANK DSN, and its comments stop citing files a scaffolded repo lacks (2026-10-13)
+
+- `templates/scaffold/python/glitchtip_init.py` (whatsapp-agent findings 01M4SQZBMTN6DF9KX1B5FYVNF0 and 01M4SNBHR007MHT6Y40R9BEJBE,
+  routed by infra): `(SENTRY_DSN or GLITCHTIP_DSN or "").strip()` let a whitespace-only `SENTRY_DSN` win before stripping, so a
+  valid `GLITCHTIP_DSN` was ignored and monitoring stayed off — it now uses `_first_set` (first non-blank after stripping), graded by
+  `test_blank_sentry_dsn_falls_through_to_glitchtip_dsn` (red on the old line). The three cross-repo citations a vendored copy cannot
+  resolve (the hub's grader, site-provisioner's drill test, `api/main.py`) carry the `HUB NOTE` marker the `_release()` docstring
+  already uses, and the two sentry-sdk-internals claims name the version they were measured on (2.68.1) and what 2.64.0 does instead
+  (gates on `has_logs_enabled()` / `has_metrics_enabled()` — no leak on either). Every repo that vendors the template inherits the text.
+
+### Fixed — The five specs apply's depends-contradiction warning named now say what their stores are (2026-10-13)
+
+`check_spec_db_match.py` (ab9d3cf21, D-805) warned on five specs whose `depends.postgres` named a database the Postgres registrar would never create because `shape.needs_database` was false or absent. Grounded in each project's own code and docs, not the live store: **job-agent** persists to SQLite (its `project.yaml` says so; `compose.yaml` carries `DATABASE_URL` commented out) — `depends.postgres: jobagent` and the required `DATABASE_URL` are gone and the spec carries the `shape:` block its `project.yaml` already had; **proposal-creator**, **trading-core** and **triggered-content-orchestration** are PostgreSQL-backed (`src/db/database.py`, `docs/CONFIGURATION.md` § State, `src/shared/config.py` + `alembic.ini`) — each gains a `shape:` block with `needs_database: true` (trading-core also `needs_cache: true`, its `REDIS_URL`), `depends.postgres` pinned to the registrar's derived name (D-410; the name their `.env.example` declares), and `DATABASE_URL` removed from `secrets.required` because the registrar injects it and a required DSN is otherwise INVENTED (`_warn_fabricated_secrets`); **proxy** drops `depends.postgres: main` — the shared legacy database D-410 forbids, for a service whose own `DB_*` env is the contract and which has not run on vps1 since 2026-05-31. Four of the five were shapeless (W-989653a7's population, the plan-vs-apply class, which stays open): `fabrik plan` and `fabrik apply` now read the same flags for them. Decision row D-822.
+
 ### Fixed — the schema-apply one-liner reads the owner DSN instead of sourcing the env files as root shell code (2026-10-13)
 
 - `src/fabrik/scaffold.py` (`_SCHEMA_APPLY_HEADER`, the saas `db/schema.sql` header), `templates/scaffold/docs/CONFIGURATION_TEMPLATE.md`,

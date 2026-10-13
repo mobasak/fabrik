@@ -7,17 +7,35 @@ source:
   type: local
   path: /opt/proposal-creator
 
+# shape: python-api defaults plus needs_database — the app is PostgreSQL-backed
+# (/opt/proposal-creator/src/db/database.py reads DATABASE_URL; SQLite only as the local-dev
+# fallback). The registrar creates the database named by depends.postgres and injects
+# DATABASE_URL, so the key left secrets.required (a required DSN is INVENTED when absent —
+# orchestrator/__init__.py _warn_fabricated_secrets). Disposition of apply's
+# depends-contradiction warning (D-805): D-822.
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: false
+  needs_database: true
+  has_search_feature: false
+  needs_cache: false
+  exposes_metrics: false
+
 env:
   PORT: "8015"
   LOG_LEVEL: INFO
 
 secrets:
   required:
-    - DATABASE_URL
     - KILO_API_KEY
 
 depends:
-  postgres: proposals
+  # The registrar's derived name (D-410) — and the name the project's own .env.example
+  # DATABASE_URL carries, which check_spec_db_match.py compares against.
+  postgres: proposal_creator
 
 resources:
   limits:
