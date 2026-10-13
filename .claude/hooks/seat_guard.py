@@ -35,6 +35,13 @@ For a seat only (the payload's ``agent_id`` + ``agent_type``, documented hook in
     ``scratchpad_dir`` when present.
   * Fail-CLOSED for a seat whose command cannot be tokenised AND mentions a git write verb or a
     kill word; otherwise fail-open (any error, a malformed payload) with exit 0 and no output.
+  * Dotenv: an allowed seat call is rewritten (``updatedInput``, no ``permissionDecision`` — it
+    still goes through the normal permission flow) to start with ``export
+    PYTHON_DOTENV_DISABLED=1``, so a probe that imports a live tree's app loads no ``.env``
+    (site-provisioner 01M4F154S2, 01M4F1KHHW). Limits, stated: ``dotenv_values()``, ``dotenv
+    run``, pydantic-settings ``env_file``, a hand-rolled ``.env`` parser, credentials already in the
+    session's environment, and ``env -i``/``sudo`` or a typed ``unset`` are not covered; a seat
+    that needs ``.env`` loaded sets ``PYTHON_DOTENV_DISABLED=0`` inline, visibly.
 The lead (no ``agent_id``) and every other agent type are never touched.
 
 ⚠️ COBRA (D-253): the cheapest bypass is indirection the Bash string does not show — a variable
@@ -575,13 +582,55 @@ def decide(payload: dict) -> str:
     return ""
 
 
+_DOTENV_OFF = "export PYTHON_DOTENV_DISABLED=1"
+# the switch already set as the FIRST statement (a trailing `;` or newline ends it); `=10` is not
+# it — python-dotenv reads only 1/true/t/yes/y as on (review A-S1)
+_ALREADY_OFF = re.compile(r"\s*export\s+PYTHON_DOTENV_DISABLED=1\s*(?:;|\n|$)")
+
+
+def rewrite(payload: dict) -> dict | None:
+    """The seat's ``tool_input`` with ``_DOTENV_OFF`` on its own first line, or None.
+
+    site-provisioner 01M4F154S2 / 01M4F1KHHW: seats that imported the live tree's app had its
+    import-time ``load_dotenv()`` restore every provider credential the brief told them to unset,
+    and made real Namecheap and Cloudflare calls. Every program the rewritten command starts
+    inherits the switch (python-dotenv >= 1.2.0 reads it on each ``load_dotenv`` call). Emitted as
+    ``updatedInput`` WITHOUT a ``permissionDecision``: the hook rewrites, it never approves.
+    """
+    if not payload.get("agent_id") or payload.get("agent_type") not in SEAT_TYPES:
+        return None
+    tool_input = payload.get("tool_input")
+    command = tool_input.get("command") if isinstance(tool_input, dict) else None
+    if not isinstance(command, str) or not command.strip():
+        return None
+    if _ALREADY_OFF.match(command):
+        return None
+    return {**tool_input, "command": f"{_DOTENV_OFF}\n{command}"}
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
-        if not isinstance(payload, dict) or payload.get("tool_name") != "Bash":
-            return 0
+    except Exception:
+        return 0
+    if not isinstance(payload, dict) or payload.get("tool_name") != "Bash":
+        return 0
+    # the rewrite is computed apart from the scan: the deny half fails open by charter, and the
+    # credential half must not fail with it
+    try:
+        updated = rewrite(payload)
+    except Exception:
+        updated = None
+    try:
         reason = decide(payload)
     except Exception:
+        reason = ""
+    if not reason and updated is not None:
+        print(
+            json.dumps(
+                {"hookSpecificOutput": {"hookEventName": "PreToolUse", "updatedInput": updated}}
+            )
+        )
         return 0
     if reason:
         print(

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review seats run with python-dotenv disabled, so a probe cannot load a project's live credentials (2026-10-13)
+- `.claude/hooks/seat_guard.py` rewrites every allowed `fabrik-reviewer` seat Bash call to start with `export PYTHON_DOTENV_DISABLED=1` (`updatedInput`, never an approval). A seat that imports a live tree's app no longer has its import-time `load_dotenv()` restore provider credentials — the cause of live Namecheap and Cloudflare calls from seats in site-provisioner (01M4F154S2, 01M4F1KHHW, D-801).
+
 ### Fixed — /fabrik-flows-review's renderer constants match its source (2026-10-13)
 - `commands/assemble_commands.py`: /fabrik-flows-review's term-edit AXES names all eight axes (it lacked E2, now `life-cycle arcs (UI types)`), /fabrik-flows' names its Phase-6 gate's eleven checks (it had six), and the flows-review EXTRA drops an Opus-axis sentence that rendered only inside the commented-out pool contract — the source states it since D-783. `tests/test_assemble_axes_match_source.py` grades every command whose source letters its axes against its AXES count (kaizen 01M4RXJYDW).
 

@@ -7,7 +7,10 @@ live damage from a seat's `git checkout/reset/commit` in a main checkout and a s
 
 from __future__ import annotations
 
+import importlib.util
+import io
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -50,7 +53,17 @@ def _run(
 def _denied(out: str) -> bool:
     if not out.strip():
         return False
-    return json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+    return json.loads(out)["hookSpecificOutput"].get("permissionDecision") == "deny"
+
+
+_PREFIX = "export PYTHON_DOTENV_DISABLED=1"
+
+
+def _rewritten(out: str) -> dict | None:
+    """The `updatedInput` a seat's allowed call is rewritten to, or None."""
+    if not out.strip():
+        return None
+    return json.loads(out)["hookSpecificOutput"].get("updatedInput")
 
 
 def test_pattern_kills_are_denied_numeric_pids_pass() -> None:
@@ -281,3 +294,100 @@ def test_the_fail_closed_fallback_sees_flags_before_the_verb() -> None:
     assert _denied(_run('git -C /opt/x reset --hard "unterminated'))
     assert _denied(_run("git --no-pager -C /opt/x checkout . 'unterminated"))
     assert not _denied(_run('echo "unterminated git'))
+
+
+def test_a_seat_command_runs_with_dotenv_disabled() -> None:
+    """site-provisioner 01M4F154S2 / 01M4F1KHHW: a seat that imported the live tree's app had
+    `load_dotenv()` restore every provider credential. An allowed seat call is rewritten so every
+    program it starts inherits PYTHON_DOTENV_DISABLED=1 — and it is NOT approved: the output
+    carries no permissionDecision, so the normal permission flow still judges the call."""
+    out = _run("python3 probe.py --x", agent_type="fabrik-reviewer")
+    hso = json.loads(out)["hookSpecificOutput"]
+    assert "permissionDecision" not in hso
+    assert hso["updatedInput"]["command"] == _PREFIX + "\npython3 probe.py --x"
+
+
+def test_the_rewrite_keeps_the_other_inputs_and_is_not_doubled() -> None:
+    payload = {
+        "session_id": "s1",
+        "cwd": str(REPO),
+        "scratchpad_dir": SCRATCH,
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "agent_id": "agent-1",
+        "agent_type": "fabrik-reviewer",
+        "tool_input": {"command": "ls", "description": "list", "timeout": 1234},
+    }
+    got = _rewritten(_run("", raw=json.dumps(payload)))
+    assert got == {"command": _PREFIX + "\nls", "description": "list", "timeout": 1234}
+    payload["tool_input"]["command"] = _PREFIX + "\nls"
+    assert _rewritten(_run("", raw=json.dumps(payload))) is None
+    # a near-miss value is not the prefix: "=10" is not truthy to python-dotenv
+    payload["tool_input"]["command"] = "export PYTHON_DOTENV_DISABLED=10\nls"
+    assert _rewritten(_run("", raw=json.dumps(payload)))["command"].startswith(_PREFIX + "\n")
+
+
+def test_the_lead_other_agents_denials_and_empty_commands_are_not_rewritten() -> None:
+    assert _run("python3 probe.py", agent_type=None) == ""  # the lead
+    assert _run("python3 probe.py", agent_type="general-purpose") == ""
+    denied = _run("pkill -f x", agent_type="fabrik-reviewer")
+    assert _denied(denied) and _rewritten(denied) is None
+    assert _run("   ", agent_type="fabrik-reviewer") == ""
+
+
+def test_a_child_python_under_the_rewrite_loads_no_dotenv(tmp_path) -> None:
+    """The outcome, executed: the rewritten command's child python runs `load_dotenv` on a .env
+    holding a dummy credential and sees nothing."""
+    (tmp_path / ".env").write_text("NAMECHEAP_API_KEY=dummy.invalid\n", encoding="utf-8")
+    probe = (
+        f'{sys.executable} -c \'import os, dotenv; dotenv.load_dotenv("{tmp_path}/.env"); '
+        'print(os.environ.get("NAMECHEAP_API_KEY"))\''
+    )
+    cmd = _rewritten(_run(probe, agent_type="fabrik-reviewer"))["command"]
+    env = {k: v for k, v in os.environ.items() if k != "NAMECHEAP_API_KEY"}
+    env.pop("PYTHON_DOTENV_DISABLED", None)
+    r = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=60, env=env)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "None"
+
+
+def test_a_scan_that_raises_still_rewrites(monkeypatch) -> None:
+    """The deny half fails open by charter; the rewrite must not fail with it — a seat whose
+    command the scanner cannot handle still runs with dotenv disabled."""
+    spec = importlib.util.spec_from_file_location("seat_guard_raise", HOOK)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    def boom(*a, **k):
+        raise RuntimeError("scanner bug")
+
+    monkeypatch.setattr(mod, "_scan", boom)
+    payload = {
+        "agent_id": "a",
+        "agent_type": "fabrik-reviewer",
+        "tool_name": "Bash",
+        "tool_input": {"command": "python3 x.py"},
+    }
+    monkeypatch.setattr(mod.sys, "stdin", io.StringIO(json.dumps(payload)))
+    buf = io.StringIO()
+    monkeypatch.setattr(mod.sys, "stdout", buf)
+    assert mod.main() == 0
+    out = json.loads(buf.getvalue())["hookSpecificOutput"]
+    assert out["updatedInput"]["command"] == _PREFIX + "\npython3 x.py"
+
+
+def test_an_existing_export_with_a_trailing_semicolon_is_not_doubled() -> None:
+    """D-801 review A-S1: `export PYTHON_DOTENV_DISABLED=1;` as the first statement already sets
+    the switch; a second prefix ahead of it is noise the transcript and classifier read."""
+    out = _run("export PYTHON_DOTENV_DISABLED=1; python3 x.py", agent_type="fabrik-reviewer")
+    assert out == ""
+    out = _run("  export PYTHON_DOTENV_DISABLED=1 ;\nls", agent_type="fabrik-reviewer")
+    assert out == ""
+
+
+def test_malformed_seat_payloads_produce_nothing() -> None:
+    """D-801 review B-S3: shapes the harness should never send still exit 0 with no output."""
+    base = {"tool_name": "Bash", "agent_id": "a", "agent_type": "fabrik-reviewer"}
+    for ti in ("notadict", None, {"command": None}, {"command": ["ls"]}, {}):
+        assert _run("", raw=json.dumps({**base, "tool_input": ti})) == "", ti
