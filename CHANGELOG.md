@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the parity template's `--rows-from` merge checks the leg files instead of trusting them whole (2026-10-13)
+
+- `templates/scaffold/scripts/verify_prod_parity.py` (kaizen finding 01M4Q92620J5NJG87SS9ADVFD7, the leg-file threat
+  model D-769 named): `_rows_for` concatenated every `--rows-from` file with `merged.extend(json.loads(...))`, so a
+  stale, truncated, doubled or re-serialised leg could reach CONFIRMED through four silent axes — which row ids appear,
+  how many times each appears, which comparison keys a row carries, and what `match` holds (`verdict()` tests `match`
+  by identity, so a string `"true"` sat in the denominator and was counted nowhere). New `check_leg_rows` names the axis
+  it refuses — every contract row (`ROWS`, by function name) exactly once, the three comparison keys all or none, a
+  tri-state `match`, the vendored status alphabet, row objects only — and the merge exits 64 (EX_USAGE, the flag-typo
+  exit) with the misses on stderr and no `VERDICT:` line, never a verdict. Cobra check in the docstring: a hand-written
+  complete leg still passes; the counter-measure is the runner producing the legs itself. Graders in
+  `tests/test_deploy_verify_verdict.py` (each axis red-first; the CLI path) and the two scaffold tests re-cut onto a
+  contract that declares the rows they merge. The review moved the id convention from prose to code: `run_rows`
+  applies the merge's per-row rules (`_row_defects`) and the function-name rule where a row is MADE, so a misnamed
+  or hand-built row reads UNVERIFIABLE on the first `--json` run instead of refusing every later merge; `self_check`
+  flags a function listed twice in `ROWS`; an unhashable status or a deeply nested file is a refusal, not a traceback. `docs/reference/deployment-verification.md` names the refusal. The three
+  projects carrying an authored copy (site-provisioner, tryton-crm, web-ecommerce-factory) are mailed the patch (D-441).
+
 ### Fixed — the scaffold's CI pair installs sqlfluff and lints every tracked `.sql` like the gate does (2026-10-12)
 
 - `src/fabrik/ci_scaffold.py` (whatsapp-agent finding 01M4RKXS2G4S5EQATRA4HR4Z9S): `scripts/ci_local.sh` and the kept

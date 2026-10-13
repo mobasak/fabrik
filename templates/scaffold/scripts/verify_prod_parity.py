@@ -310,9 +310,51 @@ def run_rows(
             out.append(unverifiable(fn.__name__, f"{row_site(fn)} leg not run — {unreachable}"))
             continue
         try:
-            out.append(fn())
+            row = fn()
         except Exception as exc:  # noqa: BLE001 — a row that raises is UNVERIFIABLE, never a crash
             out.append(unverifiable(fn.__name__, f"row raised {type(exc).__name__}: {exc}"))
+            continue
+        if not isinstance(row, dict) or row.get("system") != fn.__name__:
+            # The id convention ENFORCED where rows are made (review 2026-10-13, S1): a corpus row is named by
+            # its function — the id this loop writes for an --unreachable leg and the id `check_leg_rows`
+            # expects in a merge. A row that names itself otherwise would make every merge refuse forever;
+            # it reads UNVERIFIABLE here instead, on the first `--json` run, naming the cause.
+            got = row.get("system") if isinstance(row, dict) else type(row).__name__
+            out.append(
+                unverifiable(
+                    fn.__name__,
+                    f"row returned system {got!r} — a corpus row is named by its function ({fn.__name__!r})",
+                )
+            )
+            continue
+        defects = _row_defects(row)
+        if defects:
+            # The same per-row rules the merge applies (`check_leg_rows`), applied where the row is MADE, so a
+            # direct `--verdict` run and the merge of its own legs always agree (review 2026-10-13, O8/O11).
+            out.append(
+                unverifiable(
+                    fn.__name__,
+                    "row "
+                    + "; ".join(defects)
+                    + " — build rows with compare_row()/liveness_row(), never by hand",
+                )
+            )
+            continue
+        try:
+            json.dumps(row)
+        except (TypeError, ValueError) as exc:
+            # The fifth axis, serialisability (review 2026-10-13, O12): a Decimal or a date in expected/actual crashed
+            # the `--json` leg (exit 1, read as a DOWN) while the direct run confirmed the row — UNVERIFIABLE where made,
+            # so both paths agree and the leg file is always written.
+            out.append(
+                unverifiable(
+                    fn.__name__,
+                    f"row not JSON-serialisable ({type(exc).__name__}: {str(exc)[:120]}) — compare plain"
+                    " values (str, int, float, bool, None, list, dict)",
+                )
+            )
+            continue
+        out.append(row)
     return out
 
 
@@ -333,6 +375,12 @@ def self_check() -> list[str]:
             )
         elif row_site(fn) not in SITES:
             misses.append(f"{fn.__name__}: unknown site {row_site(fn)!r}")
+    names = [fn.__name__ for fn in ROWS if callable(fn)]
+    for name in sorted({n for n in names if names.count(n) > 1}):
+        misses.append(
+            f"{name}: listed {names.count(name)} times in ROWS — one function per corpus id (its own legs"
+            " would always be refused as a doubled row)"
+        )
     for name in NOT_OBLIGATED:
         if name not in {fn.__name__ for fn in ROWS}:
             misses.append(f"NOT_OBLIGATED names {name!r}, which is not a row")
@@ -358,6 +406,87 @@ def is_parity_row(row: dict[str, Any]) -> bool:
     """A row carrying ANY comparison key is a comparison row — a disjunction on purpose: a hand-built
     row carrying only `match` was invisible to an `expected AND actual` test and exited 0 (fabrik-lib)."""
     return any(k in row for k in _COMPARISON_KEYS)
+
+
+#: The status alphabet every row builder here and the vendored comparator write (`health_probe.py`:
+#: `OK, DOWN, WARN, SKIP`). `verdict()` reads a DOWN by exact string, so any other spelling hides one.
+_ROW_STATUSES = frozenset({"OK", "DOWN", "WARN", "SKIP"})
+
+
+class _LegRefusedError(Exception):
+    """A `--rows-from` merge the script must refuse — EX_USAGE (64), the exit a flag typo takes: an input
+    defect, never a verdict (exit 2 would read as "denied", exit 1 as a DOWN, and 0 as CONFIRMED)."""
+
+    def __init__(self, misses: list[str]) -> None:
+        super().__init__("; ".join(misses))
+        self.misses = misses
+
+
+def _row_defects(r: dict[str, Any]) -> list[str]:
+    """The per-row rules ONE place owns — `run_rows` applies them where a row is made, `check_leg_rows` where legs
+    are merged: the three comparison keys all or none, `match` tri-state, `status` from the vendored alphabet."""
+    defects: list[str] = []
+    present = [k for k in _COMPARISON_KEYS if k in r]
+    if present and len(present) != len(_COMPARISON_KEYS):
+        defects.append(
+            f"carries {len(present)} of {len(_COMPARISON_KEYS)} comparison keys {present} — all three or none"
+        )
+    if "match" in r and not (r["match"] is None or isinstance(r["match"], bool)):
+        defects.append(
+            f"match is {r['match']!r} ({type(r['match']).__name__}) — True, False or None only"
+        )
+    status = r.get("status")
+    if (
+        not isinstance(status, str) or status not in _ROW_STATUSES
+    ):  # a non-str is unhashable: type first
+        defects.append(f"status {status!r} is not one of {', '.join(sorted(_ROW_STATUSES))}")
+    return defects
+
+
+def check_leg_rows(rows: list[Any], *, expected_ids: frozenset[str]) -> list[str]:
+    """The leg-file threat model (kaizen D-769): a `--rows-from` merge once trusted the files whole, so a leg
+    could reach CONFIRMED through four axes. One line per miss, naming its axis; empty = the merge is sound.
+
+    1. WHICH ids appear — every `system` is a row of this contract (`ROWS`, named by function: the id
+       `run_rows` itself writes for an `--unreachable` leg);
+    2. HOW MANY times each appears — exactly once: the runner emits one leg per site and never drops a row
+       (an unreachable leg is emitted UNVERIFIABLE), so a duplicate counts twice in PARITY and a missing id
+       shrinks the denominator;
+    3. WHICH comparison keys a row carries — all three (`expected`, `actual`, `match`: the vendored
+       `compare()` shape, `unverifiable()` included) or none (a liveness row); a partial row is a hand edit;
+    4. WHAT `match` holds — `True`, `False` or `None`: `verdict()` tests identity, so a string "true" sits in
+       the denominator and is counted nowhere.
+    Plus the status alphabet (`verdict()` reads a DOWN by exact string) and that every row is an object
+    carrying a `system`. NOT checked: `detail`, extra keys, agreement between `detail` and `match` — the
+    verdict reads none of those for its counts.
+
+    Cobra check (D-253): the cheapest way past this check is a hand-written leg carrying every id once, all
+    keys and `match: true` — this script cannot tell a forged complete leg from a real one. The counter-measure
+    is the runner: `/fabrik-deploy-verify` produces the three leg files itself and merges only those. This
+    check closes the SILENT axes (a stale, truncated, re-serialised or doubled leg), not forgery.
+    """
+    misses: list[str] = []
+    counts: dict[str, int] = {}
+    for i, r in enumerate(rows):
+        if not isinstance(r, dict) or not isinstance(r.get("system"), str):
+            misses.append(f"row {i}: not a row object carrying a `system`")
+            continue
+        sid = r["system"]
+        counts[sid] = counts.get(sid, 0) + 1
+        if sid not in expected_ids:
+            misses.append(
+                f"{sid!r}: not a row of this contract (ROWS — a row is named by its function; a leg's"
+                " `--json` run already reads a misnamed row UNVERIFIABLE)"
+            )
+        misses.extend(f"{sid!r}: {d}" for d in _row_defects(r))
+    for sid, n in counts.items():
+        if n > 1:
+            misses.append(f"{sid!r}: appears {n} times (every contract row exactly once per merge)")
+    for sid in sorted(expected_ids - counts.keys()):
+        misses.append(
+            f"{sid!r}: missing from the merge (a leg dropped it — emit it with --unreachable, never drop)"
+        )
+    return misses
 
 
 def verdict(
@@ -465,13 +594,48 @@ def _parse(args: list[str]) -> tuple[list[str], dict[str, Any], list[str]]:
 
 
 def _rows_for(values: dict[str, Any]) -> list[dict[str, Any]]:
+    """The rows a verdict is computed from: run here, or merged from `--rows-from` leg files — and a merge
+    is checked (`check_leg_rows`) before anything reads it; a miss raises `_LegRefusedError` (exit 64)."""
     files = values.get("--rows-from")
-    if files:
-        merged: list[dict[str, Any]] = []
-        for f in files:
-            merged.extend(json.loads(Path(f).read_text(encoding="utf-8")))
-        return merged
-    return run_rows(site=values.get("--site"), unreachable=values.get("--unreachable"))
+    if not files:
+        return run_rows(site=values.get("--site"), unreachable=values.get("--unreachable"))
+    merged: list[dict[str, Any]] = []
+    misses: list[str] = []
+    for f in files:
+        try:
+            rows = json.loads(Path(f).read_text(encoding="utf-8"))
+        except (
+            OSError,
+            ValueError,
+            RecursionError,
+        ) as exc:  # JSONDecodeError and UnicodeDecodeError are ValueErrors; a deeply nested file recurses
+            misses.append(f"{f}: not a readable JSON file ({type(exc).__name__}: {str(exc)[:200]})")
+            continue
+        if not isinstance(rows, list):
+            misses.append(f"{f}: expected a JSON list of row objects (a leg's --json output)")
+            continue
+        for j, r in enumerate(
+            rows
+        ):  # named by FILE and in-file index — three legs, one operator reading
+            if not isinstance(r, dict) or not isinstance(r.get("system"), str):
+                misses.append(f"{f}: row {j}: not a row object carrying a `system`")
+            else:
+                merged.append(r)
+    misses.extend(check_leg_rows(merged, expected_ids=frozenset(fn.__name__ for fn in ROWS)))
+    if misses:
+        raise _LegRefusedError(misses)
+    return merged
+
+
+def _refuse_legs(exc: _LegRefusedError) -> int:
+    print(
+        f"--rows-from refused ({len(exc.misses)} miss(es)) — the merge is not this contract's legs"
+        " (every contract row once, the comparison keys all or none, a tri-state match, a known status):",
+        file=sys.stderr,
+    )
+    for m in exc.misses:
+        print(f"  {m}", file=sys.stderr)
+    return 64  # EX_USAGE — a bad leg file must never fall through to a verdict
 
 
 _USAGE = (
@@ -483,7 +647,9 @@ _USAGE = (
     "  --header      the parsed Status/Version/Date header as JSON (+ container_leg_service)\n"
     "  --site NAME   run only the rows declared for that site (hub | host | container) — one leg of a multi-site run\n"
     "  --unreachable WHY   with --site: emit that site's rows as UNVERIFIABLE without running them (the leg could not be reached)\n"
-    "  --rows-from F [F…]  with --verdict/--json: use the row lists in these JSON files (the legs' outputs) instead of running rows\n"
+    "  --rows-from F [F…]  with --verdict/--json: use the row lists in these JSON files (the legs' outputs) instead of running rows;\n"
+    "                      refused (exit 64) unless every contract row appears exactly once, with the comparison keys all or none,\n"
+    "                      a tri-state match and a known status\n"
 )
 
 
@@ -506,7 +672,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({**hdr, "container_leg_service": CONTAINER_LEG_SERVICE}))
         return 0
     if "--verdict" in args:
-        rows = _rows_for(values)
+        try:
+            rows = _rows_for(values)
+        except _LegRefusedError as exc:
+            return _refuse_legs(exc)
         v = verdict(rows, hdr, not_obligated=NOT_OBLIGATED)
         p = v["parity"]
         if p:
@@ -525,7 +694,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"SELF-CHECK MISS: {m}")
         print("self-check: OK" if not misses else f"self-check: {len(misses)} miss(es)")
         return 0 if not misses else 2
-    rows = _rows_for(values)
+    try:
+        rows = _rows_for(values)
+    except _LegRefusedError as exc:
+        return _refuse_legs(exc)
     if "--json" in args:
         print(json.dumps(rows, indent=1))
     else:
