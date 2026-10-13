@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — four synced rule texts now say what the code does (2026-10-13)
+- `core/40-documentation.md` § B no longer calls all of `docs/reference/**` hub-owned: it names the files and dirs `fabrik_synced_manifest.py` distributes, so a project's own reference docs stop reading as forbidden (web-ecommerce-factory 01M4179ZWW). `core/self-healing.md` gains ladder row 11, the hub's postgres allocation registry-drift heal, with a shared claim and a `heal_failed` refusal routed to their real metrics (fleet 01M3YEY98R). `core/55-observability.md` says the logentry allowlist narrows, not closes, the log channel and names the residuals the scaffold's ruff `G001`–`G004` cannot see (fleet 01M4EWXXK5). `check_review_coverage.py`'s comments stop restating the RECORDED meanings and its stale `check_convergence.py` line cites (01M4F2HKK8).
+
 ### Fixed — the spec DB-name check no longer skips a spec that names a database it never asks for (2026-10-13)
 - `scripts/enforcement/check_spec_db_match.py` skipped every spec whose `shape.needs_database` was falsy before reading `depends`, so a spec naming `depends.postgres` (or `postgres_seed`, or `redis` without `needs_cache`) was green at commit while `fabrik apply` warns on it at deploy. It now prints `fabrik apply`'s own `depends_contradiction` clause per contradiction (5 live hub specs today), warn-only, after any blocking drift; the gate calls it `--quiet` and keeps the lines on a green run, and a non-mapping `depends` or `shape` no longer crashes the check (fleet 01M4F7NVDZ, D-805). Also moves the GATE row's `final_gate.py:N` cites in both CLAUDE.md contracts, which D-802 had shifted (reported red by kaizen).
 
