@@ -26,3 +26,12 @@ def test_one_bump_and_one_row_per_review_run() -> None:
     """Row 1791511001."""
     assert "the run's first edit bumps `Version`, every later edit stays under that version, and the closing round re-freezes it" in _norm()
     assert "one bump and one row per review run, a run closed `blocked` and resumed included, never a bump per round" in _norm()
+
+
+def test_the_description_names_every_axis() -> None:
+    """Mail 01M4S7EX4S: the frontmatter listed 7 of the 8 axes, without E2 and F."""
+    head = SRC.read_text().split("\n---\n", 1)[0]
+    for axis in ("Success-Criterion tracing", "persona completeness", "SECOND-ACTOR completeness",
+                 "async-boundary gap states", "[PRIMARY PATH]", "per-call resilience",
+                 "life-cycle arcs (UI types)", "discipline + exclusions", "contract-input routing"):
+        assert axis in head, axis

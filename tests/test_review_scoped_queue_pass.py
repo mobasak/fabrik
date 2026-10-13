@@ -138,6 +138,6 @@ def test_a_matcher_sentence_is_executed_over_its_input_space() -> None:
 
 
 def test_a_brief_names_the_fix_by_sha_never_a_bare_range() -> None:
-    """Row 1791852611: a two-dot range across sibling merges carried another item's 1278 lines."""
+    """Row 1791852611: a two-dot range over a shared branch carried another item's 1278 lines."""
     text = _norm(CAT)
     assert "The brief names the fix as `git show <sha>` — each sha when the fix spans several commits — or a pathspec-scoped diff, never a bare range on a branch others commit to" in text
