@@ -215,6 +215,23 @@ def test_a_shifted_cite_is_remapped_by_content_in_one_script() -> None:
     )
 
 
+def test_a_range_cite_grader_checks_both_ends() -> None:
+    """Row 1791914277: a grader that checks a cited range's first line alone passes when its last line moved."""
+    text = _norm(CAT)
+    bullet = _section(text, "- Grade the PROPERTY", "- Each parser-output shape").strip()
+    assert bullet == (
+        "- Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is"
+        " absent (an absence assertion over never-written state is vacuous); a grader EXECUTES an executable subject,"
+        " through the real production adapter and the consumer's entry point (the command's output, as the gate passes"
+        " files by name), never reads it; a premise guard asserts at the call site, not on constants; a prose grader"
+        " asserts the whole generated sentence, not a substring, and one for MOVED text (a sentence, clause, bullet or"
+        " row), added in the edit that moves it, also fails when the text sits at its old position; a test-quality seat"
+        " checks docstring claims against the scan; a fix recipe handed to a coder names one input it must leave"
+        " unchanged and the test that holds it; a grader of a `path:N-M` cite asserts its first line AND its last line"
+        " still hold the text the cite backs."
+    )
+
+
 def test_the_closing_reader_clause_cites_d118_not_d066() -> None:
     """W-a8361c19 residual 5: the clause pinned the asymmetry on D-066 (a finding-shape triage row); D-118 bound independent recall here."""
     text = _norm(SRC)
