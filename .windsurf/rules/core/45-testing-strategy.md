@@ -223,7 +223,7 @@ Tests run against the **same backing services as production** — real PostgreSQ
 - [ ] Backend tests run against real PostgreSQL — no DB mocks in test files.
 - [ ] Test session uses `join_transaction_mode="create_savepoint"` — inner commits don't leak past rollback.
 - [ ] Test DB URL from `TEST_DATABASE_URL` env var — not hardcoded.
-- [ ] Destructive DB tests pass the throwaway guard before connecting — `require_throwaway(TEST_DATABASE_URL)` where the scaffold emitted `tests/conftest.py`, the anchored DB-name predicate this pack's Banned Patterns row "Destructive test … connecting unguarded" gives where it did not (an unscaffolded repo has no such helper) — never point them at a dev/shared DB.
+- [ ] Destructive DB tests pass the throwaway guard before connecting — `require_throwaway(TEST_DATABASE_URL)` where the scaffold emitted `tests/conftest.py`; where it did not (an unscaffolded repo has no such helper), this anchored predicate, verbatim: `dbname = urlparse(url).path.lstrip('/'); assert dbname.lower().endswith(('_test', 'throwaway', 'scratch')), dbname` — never point them at a dev/shared DB.
 - [ ] Backend tests use `httpx.AsyncClient` + `ASGITransport` — not sync `TestClient`.
 - [ ] Tests run via `uv run pytest` — not bare `pytest`.
 - [ ] Multi-tenant projects have tenant isolation tests (query as A, verify B invisible).

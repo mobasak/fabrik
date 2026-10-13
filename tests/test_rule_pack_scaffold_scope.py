@@ -15,6 +15,8 @@ is stated truthfully.
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 RULES = Path(__file__).resolve().parents[1] / ".windsurf" / "rules"
@@ -38,6 +40,25 @@ def test_no_pack_checklist_line_mandates_a_scaffold_only_helper_unscoped() -> No
         for p in sorted(RULES.rglob("*.md"))
     }
     assert {k: v for k, v in bad.items() if v} == {}
+
+
+PACK = RULES / "core" / "45-testing-strategy.md"
+PREDICATE = "dbname = urlparse(url).path.lstrip('/'); assert dbname.lower().endswith(('_test', 'throwaway', 'scratch')), dbname"
+
+
+def test_the_injected_rubric_carries_the_predicate_the_table_row_states() -> None:
+    """The unscaffolded half of the line is only usable if a finder SEES the predicate: the rubric
+    injects mandate lines, never the Banned Patterns table row, so the checklist line carries the
+    predicate itself — byte-equal to the table row's copy, observed through review_rubric.py."""
+    pack = PACK.read_text(encoding="utf-8")
+    table_row = next(ln for ln in pack.splitlines() if ln.startswith("| Destructive test (DROP SCHEMA"))
+    assert PREDICATE in table_row
+    out = subprocess.run(
+        [sys.executable, str(RULES.parents[1] / "scripts" / "review_rubric.py"), "--changed", "tests/x.py"],
+        capture_output=True, text=True, cwd=RULES.parents[1], check=True,
+    ).stdout
+    injected = [ln for ln in out.splitlines() if ln.startswith("- [") and "require_throwaway" in ln]
+    assert len(injected) == 1 and PREDICATE in injected[0]
 
 
 def test_the_predicate_fires_on_the_old_line_and_not_on_prose() -> None:
