@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the gate warns when a data contract's Backing cell is not a legend token (fleet 01M4TGT7N4) (2026-10-13)
+
+- `scripts/enforcement/check_data_contract_legend.py` is a new Tier 1/2 warn-only gate row. Every Enum-registry `Backing` cell in a project's `docs/data-contract.md` must be one of the template legend's six tokens (`native` · `CHECK` · `app` · `doc` · `file` · `unconstrained`) in its whole-cell grammar (`token`, `token (note)`, `a / b`). Tables are read as GFM (a header and a delimiter row, fenced code skipped, escaped pipes kept). A contract's own differing legend is reported, never honoured. It exits 0 on every path. On 2026-10-13 it names 107 cells in 9 projects; the FAIL flip waits for their re-freeze. Graded by `tests/enforcement/test_check_data_contract_legend.py`, and `tests/test_scaffold_doc_seeding.py` now reads the template through the same reader and grammar. Canaries in `scripts/sysadmin/liveness_audit.py`.
+- `commands/_sources/fabrik-data-contract.md` names the six tokens and the grammar.
+- Two reds on master from 04413b533 are fixed. `check_beat_owners` had no canary (`tests/test_gate_check_canaries.py`), and `docs/workflows/FINAL_GATE_WORKFLOW.md`'s GATE-COUNTS was one row behind (`tests/test_final_gate_tier_counts.py`). The counts are re-measured by instrumented execution: 38 / 58 / 22. `check_beat_owners.py`'s docstring opens with a complete sentence, because the capability catalog takes its first line.
+
 ### Fixed — the wip-backup cron no longer stash-restores every dirty tree on the box (2026-10-13)
 
 - `scripts/wip_backup.sh`: both backup pushes now pass `--no-verify`. pre-commit's pre-push stage stashes and restores every unstaged file, so each 15-minute run rewrote every dirty working tree it pushed from, once per push (`/tmp/wip-backup.log`: 27 stash cycles over 14 runs that stashed, 13 of them two). The script also sets `GIT_OPTIONAL_LOCKS=0`: its `git status` had rewritten each tree's real index under `index.lock`, racing a live agent's `git add`. That is now guarded by `test_a_run_never_rewrites_the_real_index`. Cron's umask left the hub's files at mode 664, which tripped `verify_prod_parity.py`'s writable-by-others guard in two contract tests, and an edit landing inside the stash window could be lost. Guarded by `tests/test_wip_backup.py::test_backup_pushes_never_run_the_repos_pre_push_hook`, which failed with the hook running twice on the old script.
