@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — mail_escalate scans the mailboxes once per run (W-ef8cffc6) (2026-10-13)
+
+- `scripts/sysadmin/mail_escalate.py`: `main()` scans once and hands that list to `_owners_done()`, which used to scan again, so the owner roll-call and the send could judge two different lists of a live store. Guarded by `tests/test_mail_escalate.py::test_one_run_scans_the_mailboxes_once` (its sending-path assertion is the one that fails on the old code). A scan that raises now prints a WARNING and exits 0 (the module's fail-soft contract) instead of a traceback (`test_a_scan_that_raises_is_reported_not_a_traceback`).
+
 ### Fixed — the kaizen hand-off grader reads MAIL_BEATS from the AST (W-d1e6573a) (2026-10-13)
 - `tests/test_mail_addressing.py::test_kaizen_sends_one_addressed_obligation_per_beat` was red on master since a90b35a3b (D-646) replaced the literal beat loop with `MAIL_BEATS`. It now reads the tuple and the send loop from the AST: the tuple holds infra, fleet and kaizen, the send passes `--to-agent` with the loop's beat, and no `--broadcast`/`--ack` appears anywhere in the loop — a flag appended after the argv list included.
 
