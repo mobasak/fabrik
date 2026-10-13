@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — mail routing: one ownership map, applied at send (plan 2026-10-13-plan-1, D-820) (2026-10-13)
+- `.fabrik/beat-owners.json`, the hub's ownership map, validated by the new gate check `scripts/enforcement/check_beat_owners.py` (unknown owner, missing source, malformed/dead pattern, a rule shadowed by another owner, a beat covering every tracked file, unknown switch; reports `unowned: N of M tracked`; self-skips where the map is absent).
+- `scripts/mail.py`: `owner_of` (cited hub paths, last match wins, gitignore-style segments; a project's own files never count), a `map-owner:` header on every hub-bound send, an advisory when an explicit address differs, `--to-agent map`, a `routed:` trail on every re-route with `route --reason`, `list` markers (`→ map:`, `→ mixed:`, `→ unmapped`, `(map)`), a claim advisory, and `mail.py route-report --days N`. Automatic addressing (`switches.auto_address`) and the fabrik-lib leg (`switches.fabrik_lib_address`) ship OFF.
+- `.claude/hooks/mail_notify.py` shows the header's marker; `scripts/sysadmin/mail_escalate.py`'s digest names the map owner. The Haiku tie-break is deferred to W-a28ece0d.
+
 ### Changed — the review probe catalogue: a history-reading seat test runs in a shared clone (2026-10-13)
 - § Seat isolation now says a seat test that reads git history runs in `git clone --shared --no-checkout <live repo> <scratch>/clone` at the pass's base SHA with the pins laid over it, and that test's red-on-revert overlays the revert on the clone, as its own sentence after the existing ban on `git worktree add`; the clone's only local branch is the live checkout's and every other is `origin/*`, so a test that inspects branch, worktree or stash state runs in the lead's throwaway worktree. A `git archive` pin has no history, so such a test had no sanctioned route (row 1791910374, a recurrence of the held `gitdir-shim-recipe`). The D-711 audit ran the clone: it reads the shared objects through `objects/info/alternates` and wrote nothing to the shared `.git`. Grader: `tests/test_review_queue_pass.py::test_a_seat_reads_git_history_from_a_shared_clone_not_a_worktree`.
 

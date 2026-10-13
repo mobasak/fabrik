@@ -2245,6 +2245,15 @@ def run_consistency_checks(
                 advisory=True,  # keeps its ⚠ contradiction lines on a green run (01M4F7NVDZ)
             )
         )
+        # The hub's mail ownership map (.fabrik/beat-owners.json, D-818/D-820): every
+        # sender's synced mail.py routes by it, so an unknown owner, a dead or shadowed
+        # rule or an unknown switch fails here. Self-skips where the map does not exist.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_beat_owners.py",
+                "Mail Ownership Map (beat-owners.json)",
+            )
+        )
         # Undeclared-import guard (ci-parity): the app source imports a package
         # declared in NO manifest -> a fresh `pip install -r requirements.txt` (CI's
         # clean room, or a fresh `fabrik apply` deploy) crashes on import. check_deps_sync

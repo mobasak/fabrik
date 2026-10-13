@@ -105,6 +105,9 @@ class Obligation:
     # the three underscore repos on this box were never told — while the sanitised names read
     # convincingly enough as "shadow mailboxes" that they were filed as a finding.
     repo_key: str = ""
+    # the `map-owner:` header's single owner when it differs from `agent` (mail routing, spec
+    # D6) — read from the header the send wrote, never recomputed here
+    map_owner: str = ""
 
 
 def _sanitize(text: str, cap: int = 40) -> str:
@@ -221,6 +224,7 @@ def _from_file(
     age = _mail._age_seconds(fm.get("ts", ""))
     if not _aged(age, threshold):
         return None
+    owner = _mail._header_owner(fm)
     return Obligation(
         ulid=_sanitize(fm.get("id", f.stem), 26),
         repo=repo,
@@ -229,6 +233,7 @@ def _from_file(
         age_days=age / 86400.0,
         kind=kind,
         repo_key=repo_key,
+        map_owner=owner if owner in _mail.HUB_BEATS and owner != fm.get("agent", "") else "",
     )
 
 
@@ -246,6 +251,7 @@ def build_digest(items: list[Obligation]) -> str:
         rows.append(
             f"{_sanitize(ob.ulid, 26)} · {_sanitize(ob.repo)} · {_sanitize(ob.sender)} · "
             f"{_fmt_age(ob.age_days)} · {_sanitize(ob.agent, 10)} ({_sanitize(ob.kind, 8)})"
+            + (f" · map: {_sanitize(ob.map_owner, 10)}" if ob.map_owner else "")
         )
     while rows and sum(len(r) + 1 for r in rows) > BODY_BUDGET - 80:
         rows.pop()  # fewer than 20 if the budget demands — the count line always survives

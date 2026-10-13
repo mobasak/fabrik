@@ -217,3 +217,57 @@ def test_summary_skips_colonless_frontmatter_line(tmp_path):
         "---\nid: 01CL\nthis line has no colon\nkind: request\n---\nbody\n"
     )
     assert hook._summaries(inbox) == []
+
+
+# ---------------------------------------------------------------------------
+# Mail routing (plan 2026-10-13-plan-1-mail-routing, Phase B, B3)
+# ---------------------------------------------------------------------------
+def _write_routed(inbox: Path, mid: str, agent: str, owner_line: str):
+    inbox.mkdir(parents=True, exist_ok=True)
+    (inbox / f"{mid}.md").write_text(
+        f"---\nid: {mid}\nfrom: alpha\nto: fabrik\nts: 2026-08-11T00:00:00+00:00\n"
+        f"re: \nkind: finding\nack: required\nagent: {agent}\nmap-owner: {owner_line}\n---\nSubject: s\n"
+    )
+
+
+def test_summary_shows_the_map_marker_from_the_header(tmp_path):
+    inbox = tmp_path / "inbox"
+    _write_routed(inbox, "01A", "intel", "infra · v1 · scripts/mail.py → s")
+    _write_routed(inbox, "01B", "infra", "infra · v1 · scripts/mail.py → s")
+    _write_routed(inbox, "01C", "fleet", "mixed:fleet,infra · v1")
+    _write_routed(inbox, "01D", "fleet", "unmapped · v1")
+    _write_routed(inbox, "01E", "fleet", "in fra\u0007 · v1")
+    _write_routed(inbox, "01F", "fleet", "notabeat · v1")
+    _write_routed(inbox, "01G", "fleet", "mixed:infra,infra · v1")
+    _write_routed(inbox, "01H", "fleet", "a" * 4000 + " · v1")
+    lines = [ln for ln in hook._summaries(inbox) if ln.startswith(hook._DELIM)]
+    assert lines[0].endswith("→ map: infra")
+    assert not lines[1].endswith("infra")
+    assert lines[2].endswith("→ mixed: fleet,infra")
+    assert lines[3].endswith("→ unmapped")
+    assert all("→" not in line for line in lines[4:8])
+
+
+def test_the_hook_imports_no_mail_module():
+    import subprocess
+    import sys as _sys
+
+    code = (
+        "import importlib.util,sys;"
+        f"s=importlib.util.spec_from_file_location('h',{str(_HOOK_PY)!r});"
+        "m=importlib.util.module_from_spec(s);s.loader.exec_module(m);"
+        "print(any(k=='mail' or k.endswith('_mail') for k in sys.modules))"
+    )
+    out = subprocess.run([_sys.executable, "-c", code], capture_output=True, text=True, timeout=30)
+    assert out.stdout.strip() == "False", out.stdout + out.stderr
+
+
+def test_hook_beats_match_mail_py():
+    import importlib.util as _u
+
+    spec = _u.spec_from_file_location(
+        "mail_for_beats", Path(__file__).resolve().parent.parent / "scripts" / "mail.py"
+    )
+    mod = _u.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert hook._HUB_BEATS == mod.HUB_BEATS
