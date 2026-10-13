@@ -66,9 +66,9 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
   - The hub root and map path are `_opt_root()/fabrik/...` (`scripts/mail.py:317`).
   - The sidecar is under `_mail_root()`.
   - So the existing `env` test fixture (`tests/test_mail_addressing.py:28`, which sets `FABRIK_MAIL_ROOT` and the opt root) isolates every test.
-- **Header hygiene:** every value written into a header (`routed:` reason and by, `map-owner:` reason) is one line: CR/LF and `·` removed, whitespace collapsed, capped at 200 characters. The trail is read from raw header lines, because `_parse` keeps only the last of repeated keys.
+- **Header hygiene:** every value written into a header (`routed:` reason and by, `map-owner:` reason) is sanitised to one line: every line boundary Python's `str.splitlines()` recognises (CR, LF, VT, FF, the C0 separators 0x1c-0x1e, NEL, U+2028, U+2029) becomes a space and `·` is removed, whitespace is collapsed, and the value is capped at 200 characters — the same boundary set `_parse` and `route()` split on, so a value can never start a header line. The trail is read from raw header lines, because `_parse` keeps only the last of repeated keys.
 - **No new dependency** (`core/10-python.md:30`): stdlib `json`, `re`, `subprocess` only. Trail timestamps use `datetime.now(UTC)` (`core/10-python.md:220`). No log file (`core/10-python.md:294`).
-- **The tie-break:** one sequential `claude -p --model haiku` per qualifying mail, with a 60 s timeout and at most 10 calls per run. It uses the watchdog's subscription-CLI precedent (`core/60-watchdog.md:198`) and is never a fan-out (`core/62-using-subagents.md:103`) or OpenRouter (`core/62-using-subagents.md:100`).
+- **The tie-break:** one sequential `claude -p --model haiku` per qualifying mail, with a 60 s timeout and at most 10 calls per run. It is the subscription path for a low-volume classification (`core/65-rag-search.md:108`); that rule's `claude_p_chat` adapter lives in fabrik-lib `rag`, which the hub does not vendor, so it calls the CLI directly as the watchdog does (`core/60-watchdog.md:198`) and is never a fan-out (`core/62-using-subagents.md:103`) or OpenRouter (`core/62-using-subagents.md:100`).
 - **Tests:**
   - watched-fail-first for every behaviour (`core/45-testing-strategy.md:22`);
   - fixtures use the `env` fixture shape, a scratch hub tree under the opt root with its own `.fabrik/beat-owners.json`, and a stubbed `claude` on `PATH` (never called live);
@@ -98,7 +98,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it. | `.windsurf/rules/core/10-python.md:30` |
 | **`datetime.now(UTC)`, never `datetime.utcnow()`** | `.windsurf/rules/core/10-python.md:220` |
 | any `*.log` file write, any in-app log rotation/retention/cleanup | `.windsurf/rules/core/10-python.md:294` |
-| an operator-facing or batch step (a judge run, a one-off classification), never a per-request path | `.windsurf/rules/core/65-rag-search.md:108` |
+| an operator-facing or batch step (a judge run, a one-off classification), never a per-request path — is `claude -p` through the module's `claude_p_chat` adapter | `.windsurf/rules/core/65-rag-search.md:108` |
 | a fan-out of `claude -p` processes from the orchestrator | `.windsurf/rules/core/62-using-subagents.md:103` |
 | or a direct OpenRouter HTTP call — a dispatch still spends | `.windsurf/rules/core/62-using-subagents.md:100` |
 
@@ -115,7 +115,7 @@ Appetite: 150
   - `_glob_re(pattern) -> re.Pattern`: gitignore-style; `*` stops at `/`, `**` crosses it, a pattern without `/` matches a file name anywhere, and a trailing `/` is a directory prefix.
   - `Routing = namedtuple("Routing", "owner owners reason map_version")`.
   - `owner_of(text, mailbox="fabrik") -> Routing`, exactly per `spec § The delta` D2: cited existing FILES under `_opt_root()/fabrik`; owned paths only; last match wins; mixed → `None` plus owners; topic-only → an advisory owner with `reason` starting `topic`; a missing or invalid map → `Routing(None, [], "", "")`.
-  - For `mailbox == "fabrik-lib"`, cited modules are matched against `/opt/fabrik-lib/.fabrik/module-owners.json`, per D7.
+  - For `mailbox == "fabrik-lib"`, cited modules are matched against `_opt_root()/fabrik-lib/.fabrik/module-owners.json`, per D7.
 - **`route(msg_id, to_agent, repo=None, *, reason=None)`.** It appends a sanitised `routed:` line with `by` = `_caller_agent()` and keeps earlier ones; `_routed_lines(text)` reads them from the raw header. **CLI:** `route … [--reason <text>]` (optional).
 - **`send(...)`:**
   - It records `explicit = to_agent is not None` before thread inheritance (`scripts/mail.py:1060-1067`).
@@ -146,7 +146,9 @@ Appetite: 150
    - overwrite instead of append, or drop sanitising → A1 fails;
    - treat an inherited address as explicit → A4 fails;
    - let `owner_of` raise on a bad map → A2's invalid-map case fails;
-   - ignore the fabrik-lib switch → A6 fails.
+   - ignore the fabrik-lib switch → A6 fails;
+   - drop the shadowed-rule check, or the unknown-owner check, from the validator → A5 fails;
+   - auto-address when the map file is missing → A3's no-map case fails.
 6. **`/fabrik-review-scoped`** on Phase A's surface, run to a closing pass confirming 0. This is BLOCKING before Phase B. Phase A is not committed alone.
 
 ### Behavior Contract — Phase A
@@ -166,7 +168,9 @@ Appetite: 150
 - **A3** (V4) — **Given** an unaddressed hub send citing one owner's path, **When** `switches.auto_address` is false and when it is true, **Then**:
   - the first is refused as today;
   - the second is delivered to that owner with a `routed: … · map …` line and the stderr note;
-  - a topic-only or mixed body is refused either way.
+  - a topic-only or mixed body is refused either way;
+  - with no map file at all, an unaddressed send is refused exactly as today and carries no header;
+  - a thread reply is never auto-addressed.
 - **A4** (V4) — **Given** sends citing an infra-owned path, **When** one is `--to-agent intel` and another is a thread reply that inherits intel, **Then**:
   - both deliver to intel;
   - only the explicit one prints the advisory;
@@ -201,7 +205,7 @@ Appetite: 100
   - The digest line names `map: <owner>` from the header.
   - The tie-break runs per `spec § The delta` D6. It writes the sidecar `_mail_root()/fabrik/.routing/<id>.json`, taking the message id from the file name only.
 
-**Consumes:** the `map-owner:` header and the `routed:` line format, exactly as Phase A writes them (the `Routing` reason text is not re-parsed).
+**Consumes:** the `map-owner:` header and the `routed:` line format, exactly as Phase A writes them (the `Routing` reason text is not re-parsed), and in `list` and `mail_escalate.py` only, the D6 sidecar this phase writes.
 
 **Mirror (named):**
 - `tests/test_mail_notify.py` and `tests/test_mail_escalate.py` pin today's output lines; they are updated with the new markers.
@@ -212,7 +216,7 @@ Appetite: 100
 1. **Write the failing tests first** (rows B1–B5). The `claude` stub is a script on `PATH` that prints `infra`, prints `banana`, or sleeps past the timeout.
 2. **Implement** per the Interfaces.
 3. **Green:** `.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_mail_routing.py tests/test_mail_notify.py tests/test_mail_escalate.py tests/test_mail_who.py tests/test_mail_items.py tests/test_mail_addressing.py tests/test_mail_structure.py tests/test_mail.py` → all pass.
-4. **Measure:** time the hook 20 times on the live inbox; record the median beside the U3 baseline in § Evidence. A median more than 10 ms above the baseline is a stop and a fix before step 5.
+4. **Measure:** before Phase B's first edit and again after step 3, time the hook 20 times each on the same live inbox snapshot (copied to scratch) with `time.perf_counter_ns()` around one subprocess run. Record both medians and their spreads in § Evidence. The change adds no I/O, so a median rise above 20 ms (twice the 5-run spread's resolution) is investigated before step 5.
 5. **Red on revert**, in a throwaway worktree:
    - drop the `--agent` header rows → B1 fails;
    - accept unvalidated tie-break output → B4's `banana` case fails;
@@ -225,6 +229,7 @@ Appetite: 100
 - **B1** (V5) — **Given** an inbox holding an agreeing message, a mis-addressed one, a mixed one, an unmapped one and one with no header, **When** `list` and `list --agent infra` run, **Then**:
   - the notes read `""`, `→ map: infra`, `→ mixed: …`, `→ unmapped` and `""`;
   - infra's list includes the mis-addressed one marked `(map)`.
+  - an unmapped message with a tie-break sidecar holding `infra` shows `→ haiku: infra` in `list`, and the hook shows no haiku marker.
 - **B2** (V5) — **Given** a mis-addressed message, **When** `claim` runs as `intel`, **Then**:
   - stderr carries the advisory and the message is claimed;
   - no inbox file changes bytes before the rename.
@@ -358,6 +363,6 @@ $ python3 -c "import json;d=json.load(open('/opt/fabrik-lib/.fabrik/module-owner
 
 ## Residual unknowns
 
-- **Resolved — U3:** the hook reads a header it already parses; Phase B step 4 confirms its median stays within 10 ms of the baseline.
+- **Resolved — U3:** the hook reads a header it already parses and adds no I/O; Phase B step 4 records 20-run before and after medians measured the same way.
 - **Open — U1, the pilot result:** it gates `switches.auto_address`. Resolution step: Phase C step 7 asks kaizen for it; turning it on is a one-line map commit.
 - **Open — U2, the sentinel's agreement:** it gates `switches.fabrik_lib_address`. Resolution step: Phase C step 2's request; the hub sets the switch after the agreement is recorded.

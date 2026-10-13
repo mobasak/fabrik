@@ -81,13 +81,13 @@ A Haiku tie-break runs only inside the existing 6-hourly escalation cron, for un
 
 **Principle (D-818, sharpened in review round 1): the map is applied once, at send, by construction.**
 - `send` computes the owner and writes it into the new message as a `map-owner:` header.
-- Every later touchpoint reads that header and never recomputes: `list`, `claim`, the notify hook and the escalation cron. So the fleet-synced notify hook keeps its rule of never importing `mail.py`, and no read path pays a lookup.
+- Every later touchpoint reads that header and never recomputes: `list`, `claim`, the notify hook and the escalation cron. So the fleet-synced notify hook keeps its rule of never importing `mail.py` and pays no lookup per prompt. Only the `list` CLI also stats the tie-break sidecar (D6).
 - A message sent before this ships (or by a not-yet-synced copy) carries no header and is shown as today.
 
 **D1 — Routing trail.** `route()` (`scripts/mail.py:1756`) appends one header line per re-route and keeps the earlier ones:
 `routed: <UTC ISO> · <by> · <from or -> → <to or -> · <reason or (no reason)>`.
 - `<by>` is the caller from `_caller_agent()`, `mail.py`'s own identity resolver.
-- `<reason>` comes from an optional `--reason`. It is sanitised to one line: CR/LF and `·` removed, whitespace collapsed, capped at 200 characters. So a reason can never inject a header.
+- `<reason>` comes from an optional `--reason`. It is sanitised to one line: every line boundary Python's `str.splitlines()` recognises (CR, LF, VT, FF, the C0 separators 0x1c-0x1e, NEL, U+2028, U+2029) becomes a space and `·` is removed, whitespace is collapsed, and the value is capped at 200 characters — the same boundary set `_parse` and `route()` split on, so a value can never start a header line.
 - An automatic address at send (D3a) writes the first `routed:` line with `<by>` = `map`.
 - The trail is read from the raw header lines, never through the frontmatter dict parser, which keeps only the last of repeated keys.
 - Timestamps use `datetime.now(UTC)`. The trail is what D5 measures.
@@ -117,7 +117,7 @@ A Haiku tie-break runs only inside the existing 6-hourly escalation cron, for un
 - **The refusal prose** at `scripts/mail.py:1083-1089` stays as written, with one added line pointing at `.fabrik/beat-owners.json` as the authority. kaizen rewords each charter's beat section to point at the map (01M4TCHD5Y § SYSTEMIC).
 
 **D3 — Send (`mail.py send`, deterministic, no model).** `send` first records whether `--to-agent` was given explicitly, before thread inheritance fills it (`scripts/mail.py:1060-1067`). Then:
-- **(a) Automatic address:** with `switches.auto_address` true, a hub-bound send with no explicit `--to-agent`, no `--broadcast` and no inherited address is addressed to `owner_of`'s owner, but only when that owner came from owned paths, not a topic. It writes `routed: … · map · - → <owner> · ownership map (<reason>)` and prints `addressed to <owner> by the ownership map (<reason>)` to stderr. Otherwise today's refusal (`scripts/mail.py:1079-1091`) stands. This is the operator's "assigned … automatically" applied where the map is certain.
+- **(a) Automatic address:** with `switches.auto_address` true, a hub-bound send that today's refusal would refuse — no explicit `--to-agent`, no `--broadcast`, and not a thread reply (`is_thread_reply`, `scripts/mail.py:1050`; a reply is exempt from the refusal today and stays untouched) — is addressed to `owner_of`'s owner, but only when that owner came from owned paths, not a topic. It writes `routed: … · map · - → <owner> · ownership map (<reason>)` and prints `addressed to <owner> by the ownership map (<reason>)` to stderr. Otherwise today's refusal (`scripts/mail.py:1079-1091`) stands. This is the operator's "assigned … automatically" applied where the map is certain.
 - **(b) Advisory:** an EXPLICIT `--to-agent` that differs from a single map owner prints `advisory: the ownership map names <owner> (<reason>); delivered to <to-agent> as addressed` to stderr and delivers as addressed. An inherited address prints nothing.
 - **(c) The `map-owner:` header** on every hub-bound message when a map exists: `map-owner: <owner | mixed:<a>,<b> | unmapped> · v<map_version> · <reason>`, sanitised like D1.
 - **Where the map is read:** a project's synced `mail.py` reads the hub map at `_opt_root()/fabrik/.fabrik/beat-owners.json` when it exists, and skips every step silently when it does not (off-box, or a sync-excluded repo).
@@ -137,14 +137,14 @@ A Haiku tie-break runs only inside the existing 6-hourly escalation cron, for un
 
 **D6 — Escalation and the tie-break (`scripts/sysadmin/mail_escalate.py`, hub-only, existing 6-hourly cron).**
 - Its digest names `map: <owner>` from the header beside the addressee.
-- For unclaimed hub mail older than the escalation threshold whose header reads `unmapped`, with no sidecar yet, it makes ONE sequential `claude -p --model haiku` call per mail. This is the subscription CLI the watchdog already invokes (`.windsurf/rules/core/60-watchdog.md:198`) for a low-volume classification step (`.windsurf/rules/core/65-rag-search.md:108`), never a fan-out (`.windsurf/rules/core/62-using-subagents.md:103`) and never OpenRouter (`.windsurf/rules/core/62-using-subagents.md:100`). Each call has a 60 s timeout, with at most 10 calls per run.
+- For unclaimed hub mail older than the escalation threshold whose header reads `unmapped`, with no sidecar yet, it makes ONE sequential `claude -p --model haiku` call per mail. This is a low-volume classification step on the subscription path (`.windsurf/rules/core/65-rag-search.md:108`). That rule names fabrik-lib `rag`'s `claude_p_chat` adapter, which the hub does not vendor (`libs/` holds no `rag` module), so the step calls the CLI directly, as the watchdog does (`.windsurf/rules/core/60-watchdog.md:198`), never a fan-out (`.windsurf/rules/core/62-using-subagents.md:103`) and never OpenRouter (`.windsurf/rules/core/62-using-subagents.md:100`). Each call has a 60 s timeout, with at most 10 calls per run.
 - **Rubric:** the map file. **Output:** one token validated against `HUB_BEATS ∪ {none}`; anything else reads `none`.
-- **Where it lands:** the sidecar `_mail_root()/fabrik/.routing/<id>.json` as `{"suggested", "by": "haiku", "map_version", "at"}`. `list` and the hook show it as `→ haiku: <owner>`.
+- **Where it lands:** the sidecar `_mail_root()/fabrik/.routing/<id>.json` as `{"suggested", "by": "haiku", "map_version", "at"}`. `list` shows it as `→ haiku: <owner>`; the per-prompt hook does not read sidecars.
 - **Never:** a message id from model output (it comes from the file name), a write to the message file, or a move.
 
 **D7 — fabrik-lib leg: built switched off, requested, and gated on the sentinel's sign-off.**
-- **The rule (D-815, 01M4TCHD5Y § C):** with the map's `switches.fabrik_lib_address` true, a send to the `fabrik-lib` mailbox with no `--to-agent` gets an owner when its cited modules all belong to ONE owner in `/opt/fabrik-lib/.fabrik/module-owners.json` (read in place, never copied).
-  - A cited module is a cited path under `/opt/fabrik-lib/<module>/…`, or a backticked bare token equal to a module directory name.
+- **The rule (D-815, 01M4TCHD5Y § C):** with the map's `switches.fabrik_lib_address` true, a send to the `fabrik-lib` mailbox with no `--to-agent` gets an owner when its cited modules all belong to ONE owner in `_opt_root()/fabrik-lib/.fabrik/module-owners.json` (live: `/opt/fabrik-lib/…`; read in place, never copied; tests point `FABRIK_OPT_ROOT` at a scratch tree).
+  - A cited module is a cited path under `_opt_root()/fabrik-lib/<module>/…`, or a backticked bare token equal to a module directory name.
   - The message gets that owner as `agent:` plus a `routed: … · map …` line.
   - It is addressed at send, by construction: no second writer on the inbox, no race with `claim`, and the sentinel's bare arm still sees it.
   - Several owners or none leave it for the sentinel.
@@ -211,7 +211,7 @@ A Haiku tie-break runs only inside the existing 6-hourly escalation cron, for un
 - **The measure over time:** `route-report` monthly. If mail the map placed is re-routed by its receiver more often than the sender's ≈10% over 50 mails, `switches.auto_address` goes back to false, and the map is revised before anything else.
 - **Degradation:**
   - A missing or invalid map makes `owner_of` return no owner and `map_version` `""`: no `map-owner:` header, no advisory, and unaddressed sends refused as today.
-  - The read paths parse one header and do no lookup, so they cannot slow down; a message with no header is shown as today.
+  - The per-prompt hook parses one header and does no lookup, so it cannot slow down; a message with no header is shown as today.
   - A `claude -p` failure or timeout in the cron yields `none`.
   - Nothing here can block delivery or a claim.
 - **Retirement:** deleting `.fabrik/beat-owners.json` turns every leg off at once. The trail and sidecars stay as history.
@@ -264,7 +264,7 @@ The design inherits these; every selection above cites one or is unconstrained.
 |---|---|
 | Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it. | `.windsurf/rules/core/10-python.md:30` |
 | **`datetime.now(UTC)`, never `datetime.utcnow()`** | `.windsurf/rules/core/10-python.md:220` |
-| an operator-facing or batch step (a judge run, a one-off classification), never a per-request path | `.windsurf/rules/core/65-rag-search.md:108` |
+| an operator-facing or batch step (a judge run, a one-off classification), never a per-request path — is `claude -p` through the module's `claude_p_chat` adapter | `.windsurf/rules/core/65-rag-search.md:108` |
 | a fan-out of `claude -p` processes from the orchestrator | `.windsurf/rules/core/62-using-subagents.md:103` |
 | or a direct OpenRouter HTTP call — a dispatch still spends | `.windsurf/rules/core/62-using-subagents.md:100` |
 | any `*.log` file write, any in-app log rotation/retention/cleanup | `.windsurf/rules/core/10-python.md:294` |
@@ -292,7 +292,7 @@ Rows applied:
   - every hub-bound message carries `map-owner:`;
   - with no map file, there is no header and behaviour is today's.
 - **V5 — read and claim:**
-  - `list` shows `→ map:`, `→ mixed:` and `→ unmapped` from the header, and nothing for a message without one;
+  - `list` shows `→ map:`, `→ mixed:` and `→ unmapped` from the header, `→ haiku: <owner>` from a tie-break sidecar, and nothing for a message without either;
   - `list --agent X` includes X's map-owned mail marked `(map)`;
   - `claim` by a non-owner prints the advisory and still claims;
   - no message file's bytes change (md5 before and after).
@@ -328,7 +328,7 @@ Running cost:
 
 - The five hub seams are D-815 (kaizen; ledger rows, charter lines and an Opus + Fable panel).
 - The map is JSON at `.fabrik/beat-owners.json` (not YAML, not under `docs/`), so stdlib readers in fleet-synced `mail.py` can load it.
-- The map is applied once at send (the `map-owner:` header) and only read afterwards, so the fleet-synced notify hook never imports `mail.py`. This refines D-818's "read at every touchpoint" after plan-review round 1. The switches live in the map, not in senders' environments.
+- The map is applied once at send (the `map-owner:` header) and only read afterwards, so the fleet-synced notify hook never imports `mail.py`. This refines D-818, whose row names the touchpoints as "send, list, the notify hook, claim and the 6-hourly escalation cron": after plan-review round 1 the map is applied at send and the others read its result. The approval row records the refinement. The switches live in the map, not in senders' environments.
 - Approach D (D-818), the judge panel 3–0 in round 2. Unaddressed mail is assigned automatically where the map is certain (D3a, after the pilot). Explicitly addressed mail is never moved; its map owner is shown, and auto-moving it is a later gate with a measured threshold (D5).
 - The fabrik-lib leg ADDRESSES unaddressed mail, which is not a move, and only with the sentinel's agreement.
 
