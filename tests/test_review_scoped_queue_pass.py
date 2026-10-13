@@ -45,7 +45,10 @@ def test_the_catalogue_sections_hold_their_probes() -> None:
     prose = _section(cat, "## Prose and docs fixes", "## Seat isolation")
     assert "re-read an inserted sentence with the one after it" in prose
     iso = _section(cat, "## Seat isolation", "## Loop bookkeeping")
-    assert "A SEAT never runs `git worktree add` (its metadata lands in the shared `.git`)" in iso
+    assert (
+        "A SEAT never runs `git worktree add` on the live repo (its metadata lands in the shared `.git`)"
+        in iso
+    )
     assert "never `resumeFromRunId`" in _section(cat, "## Loop bookkeeping", None)
     loop = _section(cat, "## Loop bookkeeping", None)
     assert "`confirmed` counts DEFECTS, never checks passed" in loop
@@ -85,6 +88,19 @@ def test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim() -> None:
         " beside it (its `from … import` names and each `module.attr` use), each shown present in that module's copy."
         in premise
     )
+
+
+def test_a_dependency_claim_is_checked_against_the_dependencys_own_case_set() -> None:
+    """/fabrik-review row 1791925061, recurring held subject guard-key-aliases-from-the-target-library (row
+    1791919154): a guard and a docs sentence were checked against the cases the author named, not the aliases and
+    branches the dependency itself has. Bounded to the claim's keys; docs plus a probe where no source is readable."""
+    premise = _section(_norm(CAT), "- The premise:", "## Graders")
+    assert (
+        "asks for the claim at that version; a claim about what a dependency accepts or does (a guard over its keys, a"
+        " docs sentence about its behaviour) is checked against every case the dependency defines for the keys or"
+        " behaviour the claim covers — each branch and alias in its source at that version, else its versioned"
+        " reference docs plus an executed probe — never only the cases the author listed;"
+    ) in premise
 
 
 def test_seat_isolation_names_every_root_the_tests_import_read_or_run() -> None:

@@ -10,6 +10,13 @@ from pathlib import Path
 
 from hypothesis import Phase, settings
 
+# The session's own Claude Code subagent knobs (kaizen 01M4TBA449): dispatch_headroom reads the cap at import
+# and the model force per call, so either one set in the operator's shell turned 17-38 tests red. Stripped at
+# this module's top — before any later conftest statement, hook or collected module can import the reader;
+# a test that wants one sets it on its own call. Grader: tests/test_conftest_isolation.py.
+for _var in ("CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS", "CLAUDE_CODE_SUBAGENT_MODEL_FORCE"):
+    os.environ.pop(_var, None)
+
 settings.register_profile(
     "ci",
     max_examples=100,

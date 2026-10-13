@@ -1,4 +1,4 @@
-# VENDORED-FROM fabrik-lib health-probe/health_probe.py @ 09bf9236 — byte-identical below this 3-line header; re-vendor, never edit
+# VENDORED-FROM fabrik-lib health-probe/health_probe.py @ 0e44811c — byte-identical below this 3-line header; re-vendor, never edit
 # ruff: noqa
 # fmt: off
 #!/usr/bin/env python3
@@ -68,7 +68,10 @@ def load_env(path: Optional[str] = None) -> bool:
     vendored ``libs/health_probe/`` copy still finds the project-root ``.env`` (under
     ``python -c``, a REPL or a tracer it searches the current directory instead — pass
     ``path`` to be explicit). Returns whether a file was loaded: ``False`` when no ``.env``
-    was found, and ``False`` (loading nothing) when python-dotenv is not installed. Once any
+    was found, ``False`` (loading nothing) when python-dotenv is not installed, and ``False``
+    (loading nothing, even from an existing file) when ``PYTHON_DOTENV_DISABLED`` is one of
+    ``1``, ``true``, ``t``, ``yes`` or ``y`` in any case, which python-dotenv honours (1.2.x;
+    other values such as ``on`` or ``enabled`` leave loading ON). Once any
     ``load_env()`` call has run, ``cli()`` does not search again. An unreadable or
     non-UTF-8 file raises (``OSError`` / ``UnicodeDecodeError``) from here before any key is
     set. python-dotenv parses the whole file first, keeps each key's LAST value in

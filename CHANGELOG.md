@@ -16,6 +16,24 @@ All notable changes to this project will be documented in this file.
   pinned by a glob that matches a file in the cwd (red with `set -f` removed). `scaffold.py` schema headers name
   `requiressl`.
 
+### Fixed — check_plan_tickets collapses a doubled slash, so `scripts//final_gate.py` no longer slips past Never-Route (fleet 01M4TQPCXT) (2026-10-14)
+
+- `scripts/enforcement/check_plan_tickets.py`: `_norm_path` collapsed `/./` and a `./` prefix but not `//`, so a Touches entry spelled `scripts//final_gate.py` was never-route under neither rule and a `Complexity: simple` ticket carrying it drew no error. The fixpoint loop now collapses doubled slashes too; the same normaliser feeds File Scope, and a fleet count found no plan-set path that the collapse re-keys. The review found that collapsing `//` turned `.//.` into an empty token, which `_list_paths` drops silently. The cause is older: the `./` prefix strip already did that to `./` and `./.`. Every repo-root spelling now normalises to `.` and reaches the repo-root ERROR. Graded by `test_a_doubled_slash_collapses_before_never_route` and `test_a_repo_root_spelling_never_normalises_to_empty`, each red before its fix.
+
+### Changed — review_loop_ledger.py pin's stdout is the JSON fragment alone, and seats get a route for git-history tests (2026-10-14)
+
+- `scripts/review_loop_ledger.py pin` prints its DIRTY, UNCHANGED and SKIPPED advisories on stderr. Stdout is the args fragment alone, one JSON document, which now also carries `dirty`, so a caller can hand stdout to a Workflow launch whole (kaizen 01M4V6VQ8V, /fabrik-review row 1791913338).
+- `.claude/workflows/fabrik-review-loop.js`: a seat whose test reads git history runs it in a shared clone of the live checkout (`git -C SCRATCH clone --shared --no-checkout …`). The clone's push URL is disabled, because its origin is the live repo. It is checked out at the base SHA with the pins overlaid, and the pins are committed when the test reads HEAD, a diff or the status. Branch, worktree and stash state a test creates stays in the clone, so only a test reading the live checkout's own refs is unverifiable. `clone` joins the seat rules' write-verb list (kaizen 01M4V37VFT, row 1791910374; both design critiques executed the clone).
+- `docs/reference/review-loop-workflow.md` says where pin's output goes.
+
+### Fixed — check_schema_sync no longer passes a model change on schema.sql alone where migrations apply the schema (intel 01M4TJJDC3) (2026-10-14)
+
+- `scripts/enforcement/check_schema_sync.py`: a model whose project tracks a migration directory (an ancestor of the model in the index; vendored trees such as `node_modules/` excluded) now needs a staged added, modified or renamed-in migration under that directory, and fails without one, naming it. `env.py`, `__init__.py` and `script.py.mako` do not count. A model no migration dir governs, in a repo that tracks one elsewhere, passes on schema.sql with a WARN naming those dirs, even when another project's migration rides the same commit. A migration renamed into the dir counts, and a non-ASCII staged path (which plain `git diff` output quotes) is now read, where before it switched the whole check off. A fleet replay through the built gate shows site-provisioner 7da4149 as the only commit newly failing; its 20 columns were never migrated until 5ce52f2. Graded by eleven new tests in `tests/enforcement/test_check_schema_sync.py`; each rule-bearing one was watched red first or under a targeted mutation. `docs/workflows/FINAL_GATE_WORKFLOW.md` states the rule.
+
+### Changed — libs/health_probe re-vendored at fabrik-lib 0e44811c (2026-10-13)
+
+- `libs/health_probe/health_probe.py` and `fingerprint.py` now match fabrik-lib 0e44811c. `load_env`'s docstring now also names a truthy `PYTHON_DOTENV_DISABLED` as a reason it returns False and loads nothing (the hub's finding 01M4V9BKD2). No behaviour change. `tests/test_scaffold_deploy_contract.py`'s vendoring-header test passes again.
+
 ### Fixed — the scaffold parity stub's ".env loaded nothing" message names PYTHON_DOTENV_DISABLED (2026-10-13)
 
 - `templates/scaffold/scripts/verify_prod_parity.py:231` (infra 01M4V9BKHB): python-dotenv 1.2's `load_dotenv` also
@@ -89,6 +107,12 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the kaizen hand-off grader reads MAIL_BEATS from the AST (W-d1e6573a) (2026-10-13)
 - `tests/test_mail_addressing.py::test_kaizen_sends_one_addressed_obligation_per_beat` was red on master since a90b35a3b (D-646) replaced the literal beat loop with `MAIL_BEATS`. It now reads the tuple and the send loop from the AST: the tuple holds infra, fleet and kaizen, the send passes `--to-agent` with the loop's beat, and no `--broadcast`/`--ack` appears anywhere in the loop — a flag appended after the argv list included.
 
+### Fixed — the review checklist's shared-clone recipe matches what a clone does (2026-10-14)
+- `commands/_fragments/review-probe-catalogue.md` § Seat isolation, on intel's executed evidence (mail 01M4VMNGGM, re-run here): the seat checks the clone out at the pass's base SHA (until then its status reads every file deleted), disables its push to `origin` at once (`origin` is the live repo, so a push writes its `.git`), commits the pins in the clone when the test reads HEAD, a diff or the status; branch, worktree and stash state a test creates lands in the clone's own `.git`, so only a test that reads the live checkout's own state runs in the lead's throwaway worktree; the worktree ban now reads "on the live repo". Graders: the two queue-pass tests that pin these sentences.
+
+### Changed — a dependency claim is checked against the dependency's own cases (2026-10-14)
+- `commands/_fragments/review-probe-catalogue.md` premise bullet: a claim about what a dependency accepts or does (a guard over its keys, a docs sentence about its behaviour) is checked against every case the dependency defines for the keys or behaviour the claim covers — each branch and alias in its source at that version, else its versioned reference docs plus an executed probe — never only the cases the author listed. Answers /fabrik-review row 1791925061, a recurrence of the held subject from /fabrik-review-scoped row 1791919154 (libpq `requiressl`). Grader: `tests/test_review_scoped_queue_pass.py::test_a_dependency_claim_is_checked_against_the_dependencys_own_case_set`.
+
 ### Changed — a re-vendor brief checks the names the copy reads from its siblings (2026-10-13)
 - `commands/_fragments/review-probe-catalogue.md` premise bullet: what byte identity cannot show now also includes every name the vendored copy reads from each module vendored beside it (its `from … import` names and each `module.attr` use), each shown present in that module's copy — the copy can be byte-identical and still read a name a sibling lacks (/fabrik-task row 1791918689). Grader: the existing `test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim` pins the extended sentence.
 
@@ -153,6 +177,26 @@ All notable changes to this project will be documented in this file.
   `Never-Route:` line keeps working for a gate named outside the family. Two pre-existing residuals recorded, not fixed here: the Stop
   hook `.claude/hooks/final_gate_stop.py` is outside `scripts/`, and a `scripts//final_gate.py` spelling escapes `_norm_path`
   (filed to infra, 01M4TQPCXT). Ships to the ~46 synced repos on merge; fabrik-lib re-vendors.
+
+### Changed — the review-loop workflow re-seats a dead finder, fails an empty one, and makes a closing pass execute its claims (2026-10-13)
+
+- `.claude/workflows/fabrik-review-loop.js`:
+  - A finder that returns null or throws is re-seated once (`find:<slice>:<model>:retry`, its own scratch dir), inside the dispatch stamp (W-b36e2a4a).
+  - A finder that brought nothing back fails (no coverage statement, no candidate, no ledger row; 2 of 6707 real seats). A ledger row re-verifies its claim only with a command and an output. A `recorded: true` ledger claim is report-only and never reaches the refuter (01M4Q4D8VP, 01M4PPW8D8).
+  - The seat head now says every claim in a seat's ledger is re-executed, an earlier refutation included, so a quiet round 1's closing pass has a recipe (the Opus + Fable panel's answer).
+  - The seat recipe archives every top-level path the tests import, read or run, overlays every pinned file of the run with one program, and requires a grep to name a file operand. A relative `pins_dir`, `scratch_dir` or `base_pin_dir` is refused before any seat runs (kaizen 01M4PNBVJ1, 01M4RM8CYR, 01M4RMKM28, 01M4RVAWG3, 01M4PY7AG9, 01M4PVPY8J).
+- `docs/reference/review-loop-workflow.md` describes the args, the retry, the failed-seat and closable rules, and the ledger rows.
+
+### Changed — review_loop_ledger.py tells a running workflow from a dead seat, and pin writes the change's diff (2026-10-13)
+
+- `read` checks the workflow's run file, `<session>/workflows/<runId>.json`, which the harness writes only when the workflow ends (2412 of 2412 runs on the box had one). With no run file yet, a seat without a result prints `RUNNING`, not `NO RESULT`, and the read exits 5 with the run dir's idle minutes. A run file that does not parse, or one with an unended status, also exits 5. An ended run prints the workflow's own verdict: `closable`, and a `SLICE DROPPED`, `REFUTER FAILED` or `SEAT FAILED` line per recorded failure. `next` refuses a pass file read before the workflow ended. (kaizen 01M4PNBVJ1 rows 1791748866, 1791217578, 1790292451, 1791033713; 01M4RMKM28 row 1791826392; 01M4PY7AG9 row 1791410439.)
+- `pin` writes `change.diff`: one `git diff --no-index` per pinned file, from `--base`, else HEAD, else `<ref>^` (a root commit diffs from /dev/null). Its path and md5 go in the args fragment. It prints `UNCHANGED <file>` for a pin equal to that basis, refuses a `--base` that is no commit, and reserves the name `change.diff`. (01M4PNBVJ1 rows 1791099162, 1791481582; 01M4RM8CYR row 1791827197.)
+- `docs/reference/review-loop-workflow.md` and `/fabrik-review-scoped` step 5 describe both.
+
+### Fixed — Kilo golden parity tolerates the collapsed OpenRouter routes artifact as a known collapse (2026-10-13)
+
+- `scripts/kilo-benchmarks/tests/golden/known_collapses.json`: a `kind: artifact` entry for `scripts/kilo_openrouter_routes_final.json`. Its floor is the collapsed shape ai-model-catalog has delivered since 2026-09-07: seven categories, all empty, plus `generated_at`. This is the engine-run-2026-08-18 collapse the `OPENROUTER_ROUTES` markers already carry (D-430, D-554, D-567). In a checkout holding that ignored artifact, `test_golden_parity.py` failed 9 tests; it now passes 103 with 2 skipped. A shape other than the floor still fails, and a full recovery reports `KNOWN COLLAPSE HEALED` (infra 01M4TDF3MK).
+- `test_known_collapses_are_announced_not_silent` also accepts the oracle's `KNOWN COLLAPSE unobservable here (absent-by-gitignore)` line. A checkout without the artifact (CI, a fresh worktree) now announces the collapse instead of failing.
 
 ### Changed — the review probe catalogue: a brief names the readers that never import a changed file (2026-10-13)
 - The "Callers and consumers" hunt line in `commands/_fragments/review-probe-catalogue.md` now asks for every reader of a changed or vendored file's text that never imports it (a scaffold fold such as `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by `check_synced_unmodified.py`), each hit that reads the file named in the brief. A seat cannot infer a consumer it was never told exists (/fabrik-review row 1791891025). Grader: `tests/test_review_queue_pass.py::test_the_callers_hunt_line_names_readers_that_never_import_the_file`.

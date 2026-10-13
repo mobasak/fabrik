@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-execute-plan feedback queue — 1 verdict that needs CODE in your beat (kaizen one-pass triage, D-735)"
 }

@@ -12,7 +12,9 @@ file, not its scrollback. So:
         `agent-<id>.jsonl` per seat). Writes {seats, candidates, verdicts, ledger_status} to FILE and prints a
         compact table. Every seat carries its MINUTES, from its transcript's first and last timestamp — the
         Workflow API has no per-agent timeout, so an overrun is only ever visible here (`OVER BOX`; one refuter
-        ran 59 minutes against a 12-minute box on 2026-09-23). A seat with no result row is `NO RESULT`.
+        ran 59 minutes against a 12-minute box on 2026-09-23). A seat with no result row is `NO RESULT` — or
+        `RUNNING` while the workflow's run file is absent (`workflow_state`: the read then exits 5), and an ended
+        run's own failures print as SLICE DROPPED / REFUTER FAILED / SEAT FAILED.
     review_loop_ledger.py next FILE --ids A-S1,B-S2 [--args RUN_OR_ARGS]
         The next pass's `slices[].ledger` for exactly those confirmed ids, as objects grouped by slice (the id
         prefix). An id the pass never raised is refused by name; an id two raw claims share is refused with
@@ -27,8 +29,12 @@ file, not its scrollback. So:
         read-only (with the directory writable, `sed -i` renames over a 0444 pin). Writes DIR/MANIFEST.md5
         (md5sum format, repo-relative: the live-file check from the repo root), DIR/MANIFEST.pins.md5 (the
         copies by absolute path: checks the pins from any cwd) and DIR/MANIFEST.json, and with --base extracts that whole commit read-only into
-        DIR.base. Prints `DIRTY <file>` for a working-tree pin that is not HEAD's bytes, then the Workflow args
-        fragment — `pins_dir`, `pin_manifest`, `digest` (the md5 of MANIFEST.md5), `pins_digest` (of MANIFEST.pins.md5) and `base_pin_dir` — and the
+        DIR.base. Writes DIR/change.diff from a basis to the pins (`_change_diff`). On STDERR it prints `UNCHANGED
+        <file>` for a pin equal to that basis, `DIRTY <file>` for a working-tree pin that is not HEAD's bytes and
+        `SKIPPED <member>` for a base member it leaves out; STDOUT is the Workflow args fragment alone, one JSON
+        document — `pins_dir`, `pin_manifest`, `digest` (the md5 of MANIFEST.md5), `pins_digest` (of MANIFEST.pins.md5),
+        `change_diff`, `change_diff_md5`, `basis`, `unchanged`, `dirty` and, with --base, `base_pin_dir` and
+        `base_skipped` (the advisory lines' lists are in the JSON too, for a caller that reads stdout alone) — and the
         workflow refuses a slice file the manifest lacks before any seat runs. A used DIR is refused: each pass
         gets a NEW one (`--replace` re-pins on purpose). A workflow script has no filesystem, so the pins are
         the lead's verb, never the script's.
@@ -124,6 +130,105 @@ def _tokens(transcript: Path) -> dict | None:
     return {**tot, "messages": len(per)}
 
 
+_ENDED = frozenset({"completed", "killed", "failed"})
+
+
+def run_file_of(run: Path) -> Path | None:
+    """The harness writes `<session>/workflows/<runId>.json` only when the workflow ENDS — completed, killed or
+    failed (2412 of 2412 runs on this box had one, 2026-10-13) — and keeps the seats' transcripts at
+    `<session>/subagents/workflows/<runId>`. Judged on the resolved path, so `read .` from inside the run dir and a
+    symlinked fleet root both count; a run dir outside that layout (a copy, a test fixture) has none."""
+    run = run.resolve()
+    if run.parent.name == "workflows" and run.parent.parent.name == "subagents":
+        return run.parent.parent.parent / "workflows" / f"{run.name}.json"
+    return None
+
+
+def _idle_minutes(run: Path) -> float | None:
+    try:
+        newest = max(p.stat().st_mtime for p in run.iterdir())
+    except (OSError, ValueError):
+        return None
+    return max(0.0, (datetime.now().timestamp() - newest) / 60)
+
+
+def workflow_state(run: Path) -> dict | None:
+    """What the workflow itself said, from its run file — None outside the harness layout. `wait` is True while
+    there is nothing final to read: no run file yet (running), a file that does not parse (it may be mid-write),
+    or a status other than completed, killed or failed. Ended, it carries the failures the workflow recorded:
+    failed refuters, failed seats and dropped slices (a slice whose stage threw is absent from `result.slices`).
+
+    COBRA (D-253): the cheapest clean table is one read before the seats finish; a read with `wait` now exits 5,
+    so a scripted read cannot adjudicate half a pass, and a resultless seat prints RUNNING, never NO RESULT. A
+    session that died mid-run leaves no run file and reads RUNNING forever — it fails closed, and the line shows
+    how long the run dir has been idle so the lead can tell."""
+    f = run_file_of(run)
+    if f is None:
+        return None
+    if not f.exists():
+        return {
+            "status": "running",
+            "wait": True,
+            "no_file": True,
+            "run_file": str(f),
+            "idle_min": _idle_minutes(run),
+        }
+    try:
+        doc = json.loads(f.read_text(encoding="utf-8"))
+        status = str(doc.get("status") or "unknown")
+    except (OSError, ValueError, AttributeError) as exc:
+        return {
+            "status": "unreadable",
+            "wait": True,
+            "run_file": str(f),
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
+    if status not in _ENDED:
+        return {"status": status, "wait": True, "run_file": str(f), "idle_min": _idle_minutes(run)}
+    res = doc.get("result")
+    if not isinstance(res, dict):
+        return {"status": status, "wait": False, "run_file": str(f), "result": False}
+    slices = []
+    for s in res.get("slices") or []:
+        if not isinstance(s, dict):
+            continue
+        ref = s.get("refuter") if isinstance(s.get("refuter"), dict) else {}
+        slices.append(
+            {
+                "name": s.get("name"),
+                "failed_seats": [
+                    x.get("model")
+                    for x in s.get("seats") or []
+                    if isinstance(x, dict) and x.get("failed")
+                ],
+                "refuter_failed": bool(ref.get("failed")),
+                "refuter_reason": ref.get("reason") or "",
+                "open": [str(o) for o in s["open"]]
+                if isinstance(s.get("open"), list)
+                else ([str(s["open"])] if s.get("open") else []),
+            }
+        )
+    args = doc.get("args") if isinstance(doc.get("args"), dict) else {}
+    launched = [
+        s["name"]
+        for s in args.get("slices") or []
+        if isinstance(s, dict) and isinstance(s.get("name"), str) and s["name"]
+    ]
+    returned = {s["name"] for s in slices}
+    return {
+        "status": status,
+        "wait": False,
+        "run_file": str(f),
+        "result": True,
+        "closable": res.get("closable"),
+        "failed_refuters": res.get("failed_refuters"),
+        "dropped_seats": res.get("dropped_seats"),
+        "dropped_slices": res.get("dropped_slices"),
+        "dropped_names": [n for n in launched if n not in returned],
+        "slices": slices,
+    }
+
+
 def read_run(run: Path, box: float | None) -> dict:
     journal = run / "journal.jsonl"
     if not journal.is_file():
@@ -150,8 +255,11 @@ def read_run(run: Path, box: float | None) -> dict:
             labels[aid] = row.get("label", aid)
         elif row.get("type") == "result":
             results.setdefault(aid, []).append(row.get("result"))
+    wf = workflow_state(run)
+    waiting = bool(wf and wf["wait"])
     doc: dict = {
         "run": str(run),
+        "workflow": wf,
         "unreadable_rows": unreadable,
         "seats": [],
         "candidates": [],
@@ -188,6 +296,7 @@ def read_run(run: Path, box: float | None) -> dict:
                 "untimed": minutes is None,
                 "tokens": _tokens(run / f"agent-{aid}.jsonl"),
                 "returned": bool(got),
+                "running": waiting and not got,
                 "read_no_file": read_none,
                 "duplicate_results": len(got),
             }
@@ -215,7 +324,7 @@ def _print(doc: dict) -> None:
         flags = (
             ("  OVER BOX" if s["over_box"] else "")
             + ("  UNTIMED" if s.get("untimed") else "")
-            + ("" if s["returned"] else "  NO RESULT")
+            + ("" if s["returned"] else "  RUNNING" if s.get("running") else "  NO RESULT")
             + ("  READ 0 FILES" if s.get("read_no_file") else "")
             + (
                 f"  DUPLICATE RESULT x{s['duplicate_results']}"
@@ -252,9 +361,48 @@ def _print(doc: dict) -> None:
         )
     print(
         f"{len(doc['seats'])} seats · {len(doc['candidates'])} candidates · {len(doc['verdicts'])} verdicts · "
-        f"{sum(1 for s in doc['seats'] if s['over_box'])} over box · {sum(1 for s in doc['seats'] if not s['returned'])} no result · "
+        f"{sum(1 for s in doc['seats'] if s['over_box'])} over box · "
+        f"{sum(1 for s in doc['seats'] if not s['returned'] and not s.get('running'))} no result · "
+        f"{sum(1 for s in doc['seats'] if s.get('running'))} running · "
         f"{sum(1 for s in doc['seats'] if s.get('read_no_file'))} read 0 files"
     )
+
+
+def _print_workflow(wf: dict | None, run: Path) -> None:
+    if wf is None:
+        print(f"workflow: NOT CHECKED — {run} is not under <session>/subagents/workflows/")
+        return
+    st = wf["status"]
+    idle = wf.get("idle_min")
+    idle_s = (
+        ""
+        if idle is None
+        else f" (run dir idle {idle:.0f} min — long idle may mean the session died)"
+    )
+    if st == "unreadable":
+        print(
+            f"workflow: UNREADABLE ({wf['reason']}) — it may be mid-write; read again: {wf['run_file']}"
+        )
+    elif wf["wait"]:
+        state = "RUNNING — no run file yet" if wf.get("no_file") else f"{st} — not ended"
+        print(
+            f"workflow: {state}; adjudicate nothing, wait for the workflow's notification and read again{idle_s}"
+        )
+    elif not wf.get("result"):
+        print(f"workflow: {st} — no result: every seat without one is NO RESULT")
+    else:
+        print(
+            f"workflow: {st} · {'closable' if wf.get('closable') else 'NOT closable'} · "
+            f"{wf.get('failed_refuters') or 0} failed refuter(s) · {wf.get('dropped_seats') or 0} dropped seat(s) · "
+            f"{wf.get('dropped_slices') or 0} dropped slice(s)"
+        )
+        for n in wf.get("dropped_names") or []:
+            print(f"SLICE DROPPED {n} — a stage threw; the slice is unverified")
+        for s in wf["slices"]:
+            if s["refuter_failed"]:
+                print(f"REFUTER FAILED {s['name']} — {s['refuter_reason'] or 'no reason recorded'}")
+            for m in s["failed_seats"]:
+                print(f"SEAT FAILED {s['name']}:{m}")
 
 
 class LedgerError(Exception):
@@ -445,7 +593,7 @@ def carry_notes(args: dict, out: list[dict]) -> list[str]:
     ]
 
 
-_MANIFEST_NAMES = frozenset({"MANIFEST.md5", "MANIFEST.json", "MANIFEST.pins.md5"})
+_MANIFEST_NAMES = frozenset({"MANIFEST.md5", "MANIFEST.json", "MANIFEST.pins.md5", "change.diff"})
 
 
 class PinError(Exception):
@@ -604,6 +752,66 @@ def _tree_changes(root: Path, before: dict, after: dict, skip) -> list[dict]:
     return changes
 
 
+def _change_diff(
+    root: Path, basis: str, blobs: dict[str, bytes], explicit: bool
+) -> tuple[bytes, list[str]]:
+    """One diff per pinned file, from `basis` to the pinned bytes (01M4PNBVJ1 row 1791099162), and the files whose
+    pin equals the basis (UNCHANGED, row 1791481582 — compared to the SAME basis, so a committed change read with
+    --base is never called unmade). `git diff --no-index` over two scratch copies, never difflib, so a missing
+    final newline, a non-UTF-8 or binary file all come out as git prints them; a file absent at the basis — an
+    untracked file, or every file when an IMPLIED basis does not resolve (HEAD in a repo with no commit yet, `<ref>^`
+    of a root commit) — diffs from /dev/null. An EXPLICIT basis (`--base`) that does not resolve is refused, whatever
+    its spelling (review round 1, A-H1 and A-S3/B-S3: keying the fallback on a trailing `^` refused a fresh repo's
+    working-tree pin and admitted `--base <typo>^`). `<ref>^` is ONE commit: a multi-commit range needs `--base`."""
+    try:
+        _vcs(root, "rev-parse", "--verify", "-q", f"{basis}^{{commit}}")
+        resolved = True
+    except subprocess.CalledProcessError:
+        resolved = False
+    if not resolved and explicit:
+        # a --base typo would otherwise diff every file from /dev/null and call none UNCHANGED (A1 critique, Fable 3)
+        raise PinError(f"cannot diff against {basis}: not a commit here")
+    out = [f"# change.diff — basis {basis}, {len(blobs)} pinned file(s)\n".encode()]
+    unchanged: list[str] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for f, new in blobs.items():
+            old = None
+            if resolved:  # an unresolved implied basis has no tree: every file diffs from /dev/null
+                try:
+                    old = _vcs(root, "show", f"{basis}:{f}")
+                except subprocess.CalledProcessError:
+                    old = None  # the path is absent at the basis: a new file
+            if old == new:
+                unchanged.append(f)
+                continue
+            for side, data in (("a", old), ("b", new)):
+                if data is not None:
+                    (Path(tmp) / side / f).parent.mkdir(parents=True, exist_ok=True)
+                    (Path(tmp) / side / f).write_bytes(data)
+            r = subprocess.run(
+                [
+                    "git",
+                    "diff",
+                    "--no-index",
+                    "--no-color",
+                    "--no-ext-diff",
+                    "--no-prefix",
+                    "--",
+                    "/dev/null" if old is None else f"a/{f}",
+                    f"b/{f}",
+                ],
+                cwd=tmp,
+                capture_output=True,
+                check=False,
+            )
+            if r.returncode not in (0, 1):
+                raise PinError(
+                    f"cannot diff {f} against {basis}: {r.stderr.decode(errors='replace').strip()}"
+                )
+            out.append(r.stdout)
+    return b"".join(out), unchanged
+
+
 def pin(
     files: list[str],
     pins_dir: Path,
@@ -633,7 +841,7 @@ def pin(
         if "\n" in rel:
             raise PinError(f"cannot pin {f!r}: a newline in the path breaks the md5 manifests")
         if rel in _MANIFEST_NAMES:
-            raise PinError(f"cannot pin {f}: the name is reserved for the pins dir's own manifest")
+            raise PinError(f"cannot pin {f}: the name is reserved for the pins dir's own files")
         # with --from the bytes come from the commit, so the WORKING-TREE shape of the path (a local
         # symlink, a deletion) is irrelevant: escape is judged lexically and a symlink AT the ref by its
         # tree mode below (pin-refusal wording review A-S1)
@@ -667,6 +875,9 @@ def pin(
             blobs[f] = _vcs(root, "cat-file", "blob", entry[2])
         else:
             blobs[f] = (root / f).read_bytes()
+    # computed before anything is written, so a refused basis leaves no pins dir behind
+    basis = base or ("HEAD" if ref is None else f"{ref}^")
+    change, unchanged = _change_diff(root, basis, blobs, explicit=base is not None)
     # the tree a seat could write into, taken BEFORE any write so the pins dir and its base are never in it
     tree = _tree(root) if top is not None else None
     _fresh(pins_dir, replace)
@@ -694,12 +905,14 @@ def pin(
         (pins_dir / "MANIFEST.pins.md5").write_text(
             "".join(f"{m}  {pins_dir}/{f}\n" for f, m in manifest.items())
         )
+        (pins_dir / "change.diff").write_bytes(change)
         (pins_dir / "MANIFEST.json").write_text(
             json.dumps(
                 {
                     "root": str(root),
                     "source": ref or "working-tree",
                     "files": manifest,
+                    "change_diff": hashlib.md5(change, usedforsecurity=False).hexdigest(),
                     "tree": tree,
                 },
                 indent=1,
@@ -715,6 +928,10 @@ def pin(
         "pin_manifest": manifest,
         "digest": _md5(pins_dir / "MANIFEST.md5"),
         "pins_digest": _md5(pins_dir / "MANIFEST.pins.md5"),
+        "change_diff": str(pins_dir / "change.diff"),
+        "change_diff_md5": _md5(pins_dir / "change.diff"),
+        "basis": basis,
+        "unchanged": unchanged,
     }
     _lock_tree(pins_dir)
     if base:
@@ -794,6 +1011,13 @@ def check_pins(pins_dir: Path, run: Path) -> dict:
     pin_moved = [
         f for f, m in files.items() if not (pins_dir / f).is_file() or _md5(pins_dir / f) != m
     ]
+    # change.diff is every seat's view of the change, so a mutated one moves the pass like a pin (review round 1,
+    # A-S1); a manifest written before it existed carries no `change_diff` and checks nothing here
+    cd = doc.get("change_diff")
+    if isinstance(cd, str) and (
+        not (pins_dir / "change.diff").is_file() or _md5(pins_dir / "change.diff") != cd
+    ):
+        pin_moved.append("change.diff")
     live_moved = (
         [f for f, m in files.items() if not (root / f).is_file() or _md5(root / f) != m]
         if doc.get("source") == "working-tree"
@@ -903,14 +1127,24 @@ def main(argv: list[str] | None = None) -> int:
         if a.cmd == "pin":
             pins = Path(os.path.abspath(a.pins_dir))
             frag, dirty = pin(a.files, pins, Path.cwd(), ref=a.ref, base=a.base, replace=a.replace)
+            frag["dirty"] = dirty  # in the JSON too, so a caller reading stdout alone still sees it
             for f in dirty:
                 print(
-                    f"DIRTY {f} — the pin is the working tree's bytes, not HEAD's (pass --from <sha> for a commit)"
+                    f"DIRTY {f} — the pin is the working tree's bytes, not HEAD's (pass --from <sha> for a commit)",
+                    file=sys.stderr,
+                )
+            for f in frag.get("unchanged", []):
+                print(
+                    f"UNCHANGED {f} — the pin equals {frag['basis']} (a context file, or a change not made yet)",
+                    file=sys.stderr,
                 )
             for f in frag.get("base_skipped", []):
                 print(
-                    f"SKIPPED {f} — the base tree leaves out a member the safe extract refuses (an absolute link)"
+                    f"SKIPPED {f} — the base tree leaves out a member the safe extract refuses (an absolute link)",
+                    file=sys.stderr,
                 )
+            # stdout is the fragment ALONE, so a caller can hand it to a launch whole; every advisory above went to
+            # stderr, as `next`'s carry notes do (kaizen 01M4V6VQ8V, row 1791913338)
             print(json.dumps(frag, ensure_ascii=False))
         elif a.cmd == "read":
             doc = read_run(a.run, a.box)
@@ -919,6 +1153,8 @@ def main(argv: list[str] | None = None) -> int:
             if a.out:
                 a.out.write_text(json.dumps(doc, indent=1, ensure_ascii=False))
             _print(doc)
+            _print_workflow(doc["workflow"], a.run)
+            wait = 5 if doc["workflow"] and doc["workflow"]["wait"] else 0
             chk = doc.get("pins")
             if chk is None:
                 print("pins: NOT CHECKED — pass --pins <pins_dir> to re-hash the pins `pin` wrote")
@@ -968,6 +1204,8 @@ def main(argv: list[str] | None = None) -> int:
                     return 3
                 if any(c["kind"] == "SEAT ARCHIVE" for c in chk["tree_changes"] or []):
                     return 4  # the pass stands; a seat's archive sits in the live tree, one `git add` from a commit
+            if wait:
+                return wait  # the workflow has not ended: a seat still out is an open question
         else:
             try:
                 doc = json.loads(a.ledger.read_text())
@@ -975,6 +1213,13 @@ def main(argv: list[str] | None = None) -> int:
                 ValueError
             ) as exc:  # review round 1 A-S1: a torn pass file is a refusal, never a traceback
                 raise LedgerError(f"{a.ledger} is not JSON ({exc})") from None
+            wf = doc.get("workflow") if isinstance(doc, dict) else None
+            if isinstance(wf, dict) and wf.get("wait"):
+                # `read --out` writes the pass file before it exits 5: a pass 2 built from it rests on half a pass
+                raise LedgerError(
+                    f"{a.ledger} was read while the workflow was {wf.get('status')} — read the run again once it has "
+                    "ended, then build the next pass"
+                )
             launch, result = load_args(a.launch) if a.launch else (None, None)
             out = next_ledger(
                 doc, [i.strip() for i in a.ids.split(",") if i.strip()], launch, result

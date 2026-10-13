@@ -762,10 +762,10 @@ def test_pin_from_a_ref_and_dirty_marker(tmp_path: Path) -> None:
     got = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p1"), "--from", "HEAD", "a.py")
     assert got.returncode == 0, got.stderr
     assert (tmp_path / "p1" / "a.py").read_text() == "A = 1\n"
-    assert "DIRTY" not in got.stdout
+    assert "DIRTY" not in got.stderr
     wt = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p2"), "a.py", "sub/b.py")
     assert wt.returncode == 0, wt.stderr
-    assert "DIRTY a.py" in wt.stdout and "DIRTY sub/b.py" not in wt.stdout, wt.stdout
+    assert "DIRTY a.py" in wt.stderr and "DIRTY sub/b.py" not in wt.stderr, wt.stderr
     assert json.loads((tmp_path / "p2" / "MANIFEST.json").read_text())["source"] == "working-tree"
     assert json.loads((tmp_path / "p1" / "MANIFEST.json").read_text())["source"] != "working-tree"
 
@@ -898,7 +898,7 @@ def test_pin_base_skips_an_absolute_link_and_names_it(tmp_path: Path) -> None:
     got = _tool_in(repo, "pin", "--pins-dir", str(pins), "--base", "HEAD", "a.py")
     assert got.returncode == 0, got.stderr
     frag = json.loads(got.stdout.splitlines()[-1])
-    assert frag["base_skipped"] == ["vault"] and "SKIPPED vault" in got.stdout, (frag, got.stdout)
+    assert frag["base_skipped"] == ["vault"] and "SKIPPED vault" in got.stderr, (frag, got.stderr)
     assert (Path(frag["base_pin_dir"]) / "a.py").is_file()
     assert not (Path(frag["base_pin_dir"]) / "vault").exists()
 
@@ -1134,3 +1134,201 @@ def test_seat_archive_needs_a_full_commit_name(tmp_path: Path) -> None:
     assert any(ln.startswith("NEW UNTRACKED short.tar") for ln in _tree_lines(got.stdout)), (
         got.stdout
     )
+
+
+def _session_run(tmp: Path, run_file: dict | str | None) -> Path:
+    """The harness layout: the run's transcript dir at <session>/subagents/workflows/<runId>, and the run file it
+    writes only when the workflow ends, at <session>/workflows/<runId>.json (a str is written raw)."""
+    sess = tmp / "sess"
+    (sess / "subagents" / "workflows").mkdir(parents=True)
+    run = _run_dir(sess / "subagents" / "workflows")
+    if run_file is not None:
+        (sess / "workflows").mkdir()
+        body = run_file if isinstance(run_file, str) else json.dumps(run_file)
+        (sess / "workflows" / f"{run.name}.json").write_text(body)
+    return run
+
+
+def test_read_says_running_while_the_workflow_has_no_run_file(tmp_path: Path) -> None:
+    """01M4PNBVJ1 rows 1791748866, 1791217578, 1790292451: a seat still out was printed NO RESULT, so a lead
+    adjudicated half a pass. With no run file yet the resultless seats are RUNNING and the read exits 5 — also
+    when the run dir is named relatively, from inside it."""
+    out = tmp_path / "p.json"
+    run = _session_run(tmp_path, None)
+    r = _tool("read", str(run), "--out", str(out))
+    assert r.returncode == 5, (r.returncode, r.stdout, r.stderr)
+    assert "RUNNING" in r.stdout and "NO RESULT" not in r.stdout, r.stdout
+    assert "workflow: RUNNING" in r.stdout and "idle" in r.stdout, r.stdout
+    assert json.loads(out.read_text())["workflow"]["status"] == "running"
+    rel = _tool_in(run, "read", ".")
+    assert rel.returncode == 5 and "workflow: RUNNING" in rel.stdout, rel.stdout
+
+
+def test_read_prints_the_workflows_own_failures_once_it_has_ended(tmp_path: Path) -> None:
+    """01M4RMKM28 row 1791826392, 01M4PNBVJ1 row 1791033713: the workflow records a failed refuter, failed seats
+    and dropped slices in its return, which the lead never read; `read` now prints them."""
+    result = {
+        "closable": False,
+        "failed_refuters": 1,
+        "dropped_seats": 1,
+        "dropped_slices": 1,
+        "slices": [
+            {
+                "name": "A",
+                "seats": [{"model": "sonnet", "failed": False}, {"model": "haiku", "failed": True}],
+                "refuter": {"failed": True, "reason": "null result"},
+                "open": ["seat failed: haiku", "refuter failed"],
+            },
+            # review round 1: a string `open` is one reason, never split into characters (A-S2)
+            {"name": "C", "seats": [], "refuter": {}, "open": "unread: c.py"},
+        ],
+    }
+    # a launch slice with no name is never printed as `SLICE DROPPED None` (A-H2)
+    args = {"slices": [{"name": "A"}, {"name": "B"}, {"name": "C"}, {"files": ["x.py"]}]}
+    run = _session_run(tmp_path, {"status": "completed", "args": args, "result": result})
+    out = tmp_path / "p.json"
+    r = _tool("read", str(run), "--out", str(out))
+    assert r.returncode == 0, (r.returncode, r.stdout, r.stderr)
+    opened = {s["name"]: s["open"] for s in json.loads(out.read_text())["workflow"]["slices"]}
+    assert opened["C"] == ["unread: c.py"], opened
+    assert "SLICE DROPPED None" not in r.stdout, r.stdout
+    assert "workflow: completed · NOT closable" in r.stdout and "1 dropped slice(s)" in r.stdout, (
+        r.stdout
+    )
+    assert "REFUTER FAILED A — null result" in r.stdout, r.stdout
+    assert "SEAT FAILED A:haiku" in r.stdout and "SLICE DROPPED B" in r.stdout, r.stdout
+    assert "NO RESULT" in r.stdout and "RUNNING" not in r.stdout, (
+        "an ended run's resultless seat is NO RESULT"
+    )
+
+
+def test_read_names_a_run_file_that_is_not_final(tmp_path: Path) -> None:
+    """A killed run with no `result` reads as ended (rc 0, its seats NO RESULT). A torn or non-ended run file is
+    a reason to read again: UNREADABLE and an unknown status exit 5 like RUNNING (A1 critique, Opus 5)."""
+    r = _tool("read", str(_session_run(tmp_path / "k", {"status": "killed"})))
+    assert r.returncode == 0 and "workflow: killed — no result" in r.stdout, r.stdout
+    r = _tool("read", str(_session_run(tmp_path / "u", "{not json")))
+    assert r.returncode == 5 and "workflow: UNREADABLE" in r.stdout, r.stdout
+    r = _tool("read", str(_session_run(tmp_path / "s", {"status": "running"})))
+    assert r.returncode == 5 and "running — not ended" in r.stdout, r.stdout
+
+
+def test_read_outside_the_harness_layout_checks_no_workflow(tmp_path: Path) -> None:
+    r = _tool("read", str(_run_dir(tmp_path)))
+    assert r.returncode == 0 and "workflow: NOT CHECKED" in r.stdout, r.stdout
+
+
+def test_pin_writes_the_change_diff_from_its_basis(tmp_path: Path) -> None:
+    """01M4PNBVJ1 row 1791099162, 01M4RM8CYR row 1791827197: the pin writes the change's diff beside the pins,
+    so no brief hand-builds it. The basis is HEAD for a working-tree pin, REF^ for --from (all files from
+    /dev/null when REF is a root commit), --base when given; a new untracked file diffs from /dev/null, and a
+    file without a final newline or not UTF-8 comes out as git prints it."""
+    repo = _repo(tmp_path)
+    root = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p0"), "--from", "HEAD", "a.py")
+    assert root.returncode == 0, root.stderr
+    assert "--- /dev/null" in (tmp_path / "p0" / "change.diff").read_text(), (
+        "a root commit diffs from nothing"
+    )
+    (repo / "a.py").write_text("A = 2")
+    (repo / "new.py").write_bytes(b"N = '\xe9'\n")
+    got = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p1"), "a.py", "new.py", "sub/b.py")
+    assert got.returncode == 0, got.stderr
+    frag = json.loads(got.stdout.splitlines()[-1])
+    path = Path(frag["change_diff"])
+    assert path == tmp_path / "p1" / "change.diff" and frag["change_diff_md5"] == _md5(path)
+    diff = path.read_bytes().decode("utf-8", "surrogateescape")
+    assert "-A = 1\n+A = 2\n\\ No newline at end of file" in diff, diff
+    assert "--- /dev/null" in diff and "+N = '\udce9'" in diff, diff
+    assert "sub/b.py" not in diff.split("\n", 1)[1], "an unchanged pin has no hunk"
+    assert "change.diff" not in (tmp_path / "p1" / "MANIFEST.md5").read_text()
+    for argv in (
+        ["add", "a.py"],
+        ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "two"],
+    ):
+        subprocess.run(["git", *argv], cwd=repo, check=True, env=_VCS_ENV, capture_output=True)
+    ref = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p2"), "--from", "HEAD", "a.py")
+    assert "-A = 1\n+A = 2" in (tmp_path / "p2" / "change.diff").read_text(), ref.stdout
+    based = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p3"), "--base", "HEAD~1", "a.py")
+    assert based.returncode == 0 and "UNCHANGED" not in based.stderr, based.stderr
+    assert "+A = 2" in (tmp_path / "p3" / "change.diff").read_text(), "--base wins over HEAD"
+
+
+def test_pin_names_an_unchanged_pin_and_reserves_change_diff(tmp_path: Path) -> None:
+    """01M4PNBVJ1 row 1791481582: a pin equal to its basis is named UNCHANGED — advice, never a refusal, since
+    context files are pinned on purpose. A root file named change.diff is refused, never overwritten."""
+    repo = _repo(tmp_path)
+    (repo / "a.py").write_text("A = 2\n")
+    got = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p1"), "a.py", "sub/b.py")
+    assert got.returncode == 0, got.stderr
+    assert "UNCHANGED sub/b.py" in got.stderr and "UNCHANGED a.py" not in got.stderr, got.stderr
+    assert json.loads(got.stdout.splitlines()[-1])["unchanged"] == ["sub/b.py"]
+    (repo / "change.diff").write_text("x\n")
+    out = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p2"), "change.diff")
+    assert out.returncode == 2 and "reserved" in out.stderr, out.stderr
+    typo = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p3"), "--base", "deadbeef", "a.py")
+    assert typo.returncode == 2 and "not a commit" in typo.stderr, typo.stderr
+    assert not (tmp_path / "p3").exists(), "a refused basis leaves no pins dir behind"
+    # review round 1 (A-S3/B-S3): a --base typo ending in `^` is refused by the diff's own check, not by luck
+    caret = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p4"), "--base", "deadbeef^", "a.py")
+    assert caret.returncode == 2 and "cannot diff against deadbeef^" in caret.stderr, caret.stderr
+
+
+def test_pin_in_a_repo_with_no_commit_diffs_from_nothing(tmp_path: Path) -> None:
+    """Review round 1 (A-H1): a working-tree pin in a fresh repo — HEAD names no commit yet — pinned before this
+    change and must still: the implied basis falls back to /dev/null, only an explicit --base is refused."""
+    repo = tmp_path / "fresh"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, env=_VCS_ENV, capture_output=True)
+    (repo / "a.py").write_text("A = 1\n")
+    got = _tool_in(repo, "pin", "--pins-dir", str(tmp_path / "p"), "a.py")
+    assert got.returncode == 0, got.stderr
+    assert "--- /dev/null" in (tmp_path / "p" / "change.diff").read_text()
+
+
+def test_read_pins_flags_a_mutated_change_diff(tmp_path: Path) -> None:
+    """Review round 1 (A-S1): change.diff is every seat's view of the change, so a mutated one is PIN MOVED
+    (rc 3) like a mutated pin — its md5 rides in MANIFEST.json."""
+    repo, pins = _repo(tmp_path), tmp_path / "pins"
+    (repo / "a.py").write_text("A = 2\n")
+    assert _tool_in(repo, "pin", "--pins-dir", str(pins), "a.py").returncode == 0
+    run = tmp_path / "run"
+    run.mkdir()
+    _run_dir(run)
+    clean = _tool("read", str(run / "wf_x"), "--pins", str(pins))
+    assert clean.returncode == 0 and "PIN MOVED" not in clean.stdout, clean.stdout
+    pins.chmod(0o755)
+    (pins / "change.diff").chmod(0o644)
+    with (pins / "change.diff").open("a") as fh:
+        fh.write("+forged\n")
+    moved = _tool("read", str(run / "wf_x"), "--pins", str(pins))
+    assert moved.returncode == 3 and "PIN MOVED change.diff" in moved.stdout, moved.stdout
+
+
+def test_next_refuses_a_pass_file_read_before_the_workflow_ended(tmp_path: Path) -> None:
+    """A1 critique (Fable 6): `read --out` writes the pass file before it exits 5, so `next` over it would seed
+    pass 2 from half a pass — refused by name. A pass file with no `workflow` key (older, or outside the
+    layout) is read as before."""
+    out = tmp_path / "p.json"
+    assert _tool("read", str(_session_run(tmp_path, None)), "--out", str(out)).returncode == 5
+    r = _tool("next", str(out), "--ids", "A-S1")
+    assert r.returncode == 2 and "read while the workflow was running" in r.stderr, r.stderr
+    old = tmp_path / "old.json"
+    (tmp_path / "x").mkdir()
+    assert _tool("read", str(_run_dir(tmp_path / "x")), "--out", str(old)).returncode == 0
+    assert _tool("next", str(old), "--ids", "A-S1").returncode == 0
+
+
+def test_pin_stdout_is_the_fragment_alone(tmp_path: Path) -> None:
+    """kaizen 01M4V6VQ8V (/fabrik-review row 1791913338): DIRTY and UNCHANGED lines printed on stdout ahead of the
+    JSON, so a caller could not hand stdout to a Workflow launch whole. Advisories go to stderr; stdout is ONE JSON
+    document."""
+    repo = _repo(tmp_path)
+    (repo / "a.py").write_text("A = 2\n")
+    got = _tool_in(
+        repo, "pin", "--pins-dir", str(tmp_path / "p"), "--base", "HEAD", "a.py", "sub/b.py"
+    )
+    assert got.returncode == 0, got.stderr
+    frag = json.loads(got.stdout)
+    assert frag["pins_dir"] == str(tmp_path / "p"), frag
+    assert frag["dirty"] == ["a.py"] and frag["unchanged"] == ["sub/b.py"], frag
+    assert "DIRTY a.py" in got.stderr and "UNCHANGED sub/b.py" in got.stderr, got.stderr
