@@ -126,22 +126,23 @@ or name in the brief why the shape does not have it.
   rewritten or deleted whole, never patched again.
 
 ## Seat isolation
-- The brief names the fix as `git show <sha>` or a pathspec-scoped diff, never a bare range across merges (a range
-  carries every sibling commit merged into it). Seats copy the pin to scratch and assert its md5s first; tests run
-  against an archive of the pinned SHA by the seat prompt's `PIN_IMPORT`/`PYTEST_PINS` recipe — the whole test tree
-  archived so collection succeeds, the live repo's `.venv` python (never `uv run`), no `.env` copied (a dummy on
-  `.invalid` only for an import-failing variable). The recipe names its roots by what the tests import, so the brief
-  extends it to every top-level path the tests import, read or run (a test that renders `templates/`, reads
-  `.windsurf/` or runs `scripts/` by subprocess is a false red without it) and names the live repo as the checkout
-  `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from a worktree. The pins line follows the real layout
-  and the digest is the pin authority. A SEAT never runs `git worktree add` (its metadata lands in the shared `.git`):
-  a seat's red-on-revert overlays the revert on its archive copy by `PYTEST_PINS`, and the lead's red-on-revert and
-  mutate-restore cycle run in CLAUDE.md's throwaway worktree, never a `PYTHONPATH` copy — set its upstream and link
-  `.env` before its first gate. Ruff and mypy run from the repo root with the repo's own config (on a copy: ruff
-  `--config <repo>/pyproject.toml`, mypy `--config-file` with the same path); tests run by exact node id. A script a
-  seat runs is run from its archive copy with every path argument under scratch (a script may treat any argument as a
-  write path), and the pin carries the changed files' one-hop callees that are repo files (`review_loop_ledger.py pin`
-  refuses the whole list when one path is missing, a symlink or outside the repo root).
+- The brief names the fix as `git show <sha>` — each sha when the fix spans several commits — or a pathspec-scoped
+  diff, never a bare range on a branch others commit to (a range carries every sibling commit landed in it). Seats
+  copy the pin to scratch and assert its md5s first; tests run against an archive of the pinned SHA by the seat
+  prompt's `PIN_IMPORT`/`PYTEST_PINS` recipe — the whole test tree archived so collection succeeds, the live repo's
+  `.venv` python (never `uv run`), no `.env` copied (a dummy on `.invalid` only for an import-failing variable). The
+  recipe names its roots by what the tests import, so the brief extends it to every top-level path the tests import,
+  read or run (a test that renders `templates/`, reads `.windsurf/` or runs `scripts/` by subprocess is a false red
+  without it) and names the live repo as the checkout `git rev-parse --show-toplevel` prints, never `/opt/fabrik` from
+  a worktree. The pins line follows the real layout and the digest is the pin authority. A SEAT never runs `git
+  worktree add` (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive
+  copy by `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree,
+  never a `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo
+  root with the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the
+  same path); tests run by exact node id. A script a seat runs is run from its archive copy with every path argument
+  under scratch (a script may treat any argument as a write path), and the pin carries the changed files' one-hop
+  callees that are repo files (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink
+  or outside the repo root).
 - No `uv`/`pip`, no live API key outside the suite's fixtures, and every writing verb outside scratch named and
   forbidden; one grep form; large output goes to the seat's scratch first; the adjudication authority (CLAUDE.md, the
   packs) is read at the pin; the brief names which shell guard a seat is under (the worktree guard reads the word

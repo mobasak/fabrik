@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed — review probes run a matcher sentence over its inputs; briefs name a fix by sha (2026-10-13)
-- A sentence describing a matcher is executed over its input space before the pin; a brief names the fix by `git show <sha>`, never a bare range (D-804).
+- A sentence describing a matcher is executed over its input space before the pin; a brief names the fix by `git show <sha>` (each sha of a multi-commit fix), never a bare range (D-804).
 
 ### Changed — /fabrik-task formats the declared paths only (2026-10-13)
 - Phase 3 never runs a formatter by hand beyond the declared paths; the size cap grows by that sentence (D-803).
