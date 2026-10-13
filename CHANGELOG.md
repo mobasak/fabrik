@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the kaizen hand-off grader reads MAIL_BEATS from the AST (W-d1e6573a) (2026-10-13)
+- `tests/test_mail_addressing.py::test_kaizen_sends_one_addressed_obligation_per_beat` was red on master since a90b35a3b (D-646) replaced the literal beat loop with `MAIL_BEATS`. It now reads the tuple and the send loop from the AST: the tuple holds infra, fleet and kaizen, the send passes `--to-agent` with the loop's beat, and no `--broadcast`/`--ack` appears anywhere in the loop — a flag appended after the argv list included.
+
 ### Added — mail routing: one ownership map, applied at send (plan 2026-10-13-plan-1, D-820) (2026-10-13)
 - `.fabrik/beat-owners.json`, the hub's ownership map, validated by the new gate check `scripts/enforcement/check_beat_owners.py` (unknown owner, missing source, malformed/dead pattern, a rule shadowed by another owner, a beat covering every tracked file, unknown switch; reports `unowned: N of M tracked`; self-skips where the map is absent).
 - `scripts/mail.py`: `owner_of` (cited hub paths, last match wins, gitignore-style segments; a project's own files never count), a `map-owner:` header on every hub-bound send, an advisory when an explicit address differs, `--to-agent map`, a `routed:` trail on every re-route with `route --reason`, `list` markers (`→ map:`, `→ mixed:`, `→ unmapped`, `(map)`), a claim advisory, and `mail.py route-report --days N`. Automatic addressing (`switches.auto_address`) and the fabrik-lib leg (`switches.fabrik_lib_address`) ship OFF.
