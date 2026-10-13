@@ -82,9 +82,12 @@ box: execute it, or name in the brief why the shape does not have it.
   boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to a
   `fabrik-researcher` seat whose brief names the version the repo pins or deploys (its lockfile or spec line) and asks
   for the claim at that version; a seat names the whole input class of a finding it raises; a re-vendor brief hands the
-  seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack — they re-run
-  that command first, then spend on what byte identity cannot show: the vendored copy's own header and every importer of
-  it.
+  seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack — the diff reads
+  the source's COMMITTED blob at the SHA the copy records (a `VENDORED-FROM` header; HEAD when it records none: `git -C
+  <source> show <sha>:<source path>`) against the copy minus that header, never the source's working file, where a
+  sibling's uncommitted edit reads as drift — and the brief names the source's own regression test for the file at that
+  SHA, run with its import path pointed at the copy (or says the source has none); they re-run that command and that
+  test first, then spend on what byte identity cannot show: the vendored copy's own header and every importer of it.
 
 ## Graders
 - Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is absent

@@ -68,15 +68,18 @@ def test_command_run_is_cited_by_symbol_not_line() -> None:
 
 
 def test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim() -> None:
-    """Row 1791769363 (D-776)."""
+    """Row 1791769363 (D-776); rows 1791896579 and 1791905875: the identity diff reads the source's committed
+    blob, and the brief names the source's own regression test. Pinned in the premise bullet. Not seen: a brief
+    that names a test but never runs it; the seats' transcripts own that."""
     premise = _section(_norm(CAT), "- The premise:", "## Graders")
     assert (
-        "a re-vendor brief hands the seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack"
-        in premise
-    )
-    assert (
-        "they re-run that command first, then spend on what byte identity cannot show: the vendored copy's own header and every importer of it"
-        in premise
+        "a re-vendor brief hands the seats the lead's executed byte-identity result (the diff command and its output) as"
+        " a claim to attack — the diff reads the source's COMMITTED blob at the SHA the copy records (a `VENDORED-FROM`"
+        " header; HEAD when it records none: `git -C <source> show <sha>:<source path>`) against the copy minus that"
+        " header, never the source's working file, where a sibling's uncommitted edit reads as drift — and the brief"
+        " names the source's own regression test for the file at that SHA, run with its import path pointed at the"
+        " copy (or says the source has none); they re-run that command and that test first, then spend on what byte identity cannot show: the"
+        " vendored copy's own header and every importer of it" in premise
     )
 
 
