@@ -223,3 +223,11 @@ def test_the_closing_method_cell_rule_matches_the_gate() -> None:
     assert "Write the closing row's method cell as `method: re-derivation`" in _norm(SRC)
     assert mod._REDERIVATION_ROW.search("| Pass 3 | sonnet×1 | found: 0 | method: re-derivation — closing pass |")
     assert not mod._REDERIVATION_ROW.search("| Pass 3 | sonnet×1 | found: 0 | method: remainder pass — re-derivation |")
+
+
+def test_the_checklist_is_filled_before_the_in_progress_gate_run() -> None:
+    """Row 1791869394: an empty checklist passed the IN-PROGRESS run and reddened only after the flip."""
+    text = _norm(SRC)
+    fill = "Fill every Coverage Checklist and Pass Ledger row before the close: the IN-PROGRESS run below skips both convergence checkers"
+    assert fill in text
+    assert text.index(fill) < text.index("Close in this ORDER: stage your own files")
