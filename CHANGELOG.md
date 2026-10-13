@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — term-edit's pin clause no longer reads as licensing an edit while seats run (2026-10-14)
+- `commands/_fragments/term-edit.md` pin obligation (2): "(the seats read the pin; you edit the working tree)" read as allowing edits during the seat window, against `subagents-core.md`'s "While seats are out you do not edit the pinned files" in 14 of its 17 includers. It now says you edit the working tree once every seat has returned and you have read the pass. W-975b3652; an Opus + Fable panel split (parity vs reword), settled by the rule against copying a fragment's rule into another.
+
 ### Fixed — the run-record section yields to a step a command names before it (2026-10-14)
 - `commands/_fragments/run-record.md` (35 includers): its heading says the record is the command's FIRST act, which overrode `/fabrik-review-scoped`'s "classify the surface FIRST" two lines above it. Its first line now says a step the command names as running before the record runs first, and when that step routes to another command, that command's record replaces this one. Work item W-ae8fd45b; grader `tests/test_review_scoped_queue_pass.py::test_the_run_record_section_yields_to_a_step_named_before_it`.
 

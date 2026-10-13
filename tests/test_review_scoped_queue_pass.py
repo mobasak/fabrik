@@ -385,3 +385,16 @@ def test_the_run_record_section_yields_to_a_step_named_before_it() -> None:
     assert src.index("**Before the record — classify the surface FIRST") < src.index(
         "{{include:run-record}}"
     )
+
+
+def test_term_edit_pin_clause_does_not_license_a_mid_window_edit() -> None:
+    """W-975b3652: term-edit's '(the seats read the pin; you edit the working tree)' read as
+    licensing an edit while seats run, against subagents-core's 'While seats are out you do not edit the pinned
+    files' in 14 of its 17 includers. Panel split (Opus parity, Fable reword); the repo's own rule against copying
+    a fragment's rule into another settles it as a reword that states WHEN."""
+    te = _norm(ROOT / "commands" / "_fragments" / "term-edit.md")
+    assert (
+        "never touch the pin while its seats run (the seats read the pin; you edit the working tree once every seat"
+        " has returned and you have read the pass)" in te
+    )
+    assert "(the seats read the pin; you edit the working tree)" not in te
