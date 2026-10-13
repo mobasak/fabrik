@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-review-scoped feedback queue — 3 verdicts that need review-loop CODE (kaizen, D-776)"
 }
