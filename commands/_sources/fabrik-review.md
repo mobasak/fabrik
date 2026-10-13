@@ -536,6 +536,7 @@ copied WITH its fence is not a ledger at all: the same three rows parse as three
 **zero** inside a ```text fence, and a receipt with zero ledger rows grades on nothing. (Same class
 as the `measured by:` rule above, where a block fence on the following lines is not read as the
 value.) Write the rows bare, under the `## Pass Ledger` heading.
+Write the closing row's method cell as `method: re-derivation` — `check_review_coverage.py`'s `_REDERIVATION_ROW` passes when a `Pass`/`Round` row has `method` followed by `re-deriv` with at most punctuation (a colon, `**`) between them, so `method: remainder pass — re-derivation` fails the gate.
 
 ```text
 | Pass 1 | opus×1 + sonnet×3 | found: 5, new: 5, confirmed: 3, fixed: 3, unexecuted: 0 | method: citation — full partitioned pass; hygiene run at start and close |

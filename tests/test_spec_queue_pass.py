@@ -77,3 +77,9 @@ def test_researcher_quotes_schema_and_versions_from_a_raw_fetch() -> None:
     text = _flat(RESEARCHER)
     assert "on an HTML docs page a schema field or a parameter name is quoted from the raw arm" in text
     assert "JSON/XML and version claims keep rule 3's routing" in text
+
+
+def test_the_skip_line_routes_an_as_built_revision_to_an_amendment() -> None:
+    """Row 1791859866: a CONVERGED spec's as-built re-freeze had no named home in the description."""
+    desc = next(line for line in SRC.read_text().splitlines() if line.startswith("description:"))
+    assert "an as-built revision of a CONVERGED spec stays here as an amendment (`Profile: delta`)" in desc
