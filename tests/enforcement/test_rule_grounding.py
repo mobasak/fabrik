@@ -356,11 +356,15 @@ def test_a_named_quote_column_wins_over_the_position_rule():
 
 def test_the_column_before_a_named_source_is_the_quote():
     """The MIRROR the change accepts: with no Quote header, the column just before `Source` is graded."""
-    section = "| X | Pack | Source |\n|---|---|---|\n" + f"| x | Use uv, never pip | {PACK_REL}:12 |\n"
+    section = (
+        "| X | Pack | Source |\n|---|---|---|\n" + f"| x | Use uv, never pip | {PACK_REL}:12 |\n"
+    )
     assert chk._digest_rows(section) == [("Use uv, never pip", PACK_REL)]
     first = "| Source | Rule |\n|---|---|\n" + f"| {PACK_REL}:12 | Use uv, never pip |\n"
     assert chk._digest_rows(first) == [("Use uv, never pip", PACK_REL)]
-    labelled = "| # | Source | Rule |\n|---|---|---|\n" + f"| 1 | {PACK_REL}:12 | Use uv, never pip |\n"
+    labelled = (
+        "| # | Source | Rule |\n|---|---|---|\n" + f"| 1 | {PACK_REL}:12 | Use uv, never pip |\n"
+    )
     assert chk._digest_rows(labelled) == [("Use uv, never pip", PACK_REL)]
 
 
@@ -546,7 +550,9 @@ def test_the_digest_row_the_commands_teach_is_one_the_checker_grades(tmp_path):
     `grounding-rules` now states the heading, the header + separator, a literal row and the matching rule,
     and /fabrik-plan-review step 3 sends the reviewer to it. Each stated rule is driven through `_audit`."""
     frag = " ".join((REPO / "commands" / "_fragments" / "grounding-rules.md").read_text().split())
-    review = " ".join((REPO / "commands" / "_sources" / "fabrik-plan-review.md").read_text().split())
+    review = " ".join(
+        (REPO / "commands" / "_sources" / "fabrik-plan-review.md").read_text().split()
+    )
     for phrase in (
         "Put it under a `## Constraints Digest` heading, and give the table its `| Quote | Source |` header and "
         "`|---|---|` separator, because the checker takes the first two table lines as those.",
@@ -571,16 +577,21 @@ def test_the_digest_row_the_commands_teach_is_one_the_checker_grades(tmp_path):
         if pack_extra:
             (root / PACK_REL).write_text(PACK_TEXT + pack_extra, encoding="utf-8")
         _write_digest(
-            root, f"| Quote | Source | Rule | Why |\n|---|---|---|---|\n| {quote} | `{PACK_REL}:2` | r | w |\n"
+            root,
+            f"| Quote | Source | Rule | Why |\n|---|---|---|---|\n| {quote} | `{PACK_REL}:2` | r | w |\n",
         )
         assert not _ungraded(root), _ungraded(root)
         return _labels(root)
 
-    assert "QUOTE-NOT-FOUND" not in graded(WRAPPED_QUOTE), "the taught row, wrapped in the pack, extra columns"
+    assert "QUOTE-NOT-FOUND" not in graded(WRAPPED_QUOTE), (
+        "the taught row, wrapped in the pack, extra columns"
+    )
     assert "QUOTE-NOT-FOUND" in graded(WRAPPED_QUOTE.lower()), "case-exact"
     assert "QUOTE-NOT-FOUND" in graded("Use Pydantic BaseSettings … app setting."), "no elision"
-    assert "QUOTE-NOT-FOUND" not in graded("Never use a \\| b here", "- **Never** use `a | b` here.\n"), (
-        "backticks and * dropped, an escaped pipe matches a literal one"
-    )
+    assert "QUOTE-NOT-FOUND" not in graded(
+        "Never use a \\| b here", "- **Never** use `a | b` here.\n"
+    ), "backticks and * dropped, an escaped pipe matches a literal one"
     headerless = f"| {WRAPPED_QUOTE} | {PACK_REL}:2 |\n" * 3
-    assert len(chk._digest_rows(headerless)) == 1, "the first two table lines are read as header + separator"
+    assert len(chk._digest_rows(headerless)) == 1, (
+        "the first two table lines are read as header + separator"
+    )
