@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review probe catalogue: a range-cite grader checks both ends (2026-10-13)
+- `commands/_fragments/review-probe-catalogue.md` § Graders: a grader of a `path:N-M` cite asserts its first line AND its last line still hold the text the cite backs, so a range whose last line moved no longer passes on its first line alone (/fabrik-review-scoped row 1791914277). Grader: `tests/test_review_scoped_queue_pass.py::test_a_range_cite_grader_checks_both_ends` pins the whole bullet.
+
 ### Changed — the four agent charters point at the mail-routing map (2026-10-13)
 - Each charter's Beat section (`docs/reference/agents/{infra,fleet,intel,kaizen}.md`) now opens with one sentence: who receives mail about a path is named by `.fabrik/beat-owners.json` (D-818, D-825), the map `mail.py` reads for a mail's `map-owner:`; where a charter and the map disagree on a path's mail owner, the map holds and the charter is corrected, and where the map is silent the charter stands. It names a mail owner only; write ownership is unchanged (D-627), and `switches.auto_address` stays off. The mail-routing spec assigned this rewording to kaizen (§ The refusal prose; 01M4TCHD5Y § SYSTEMIC). The insertion shifted the charter lines the map cites as rule sources, so `.fabrik/beat-owners.json` now cites `fleet.md:18-24` and `intel.md:84-86`. Grader: `tests/test_agent_role_hook.py::test_every_charter_beat_points_at_the_mail_routing_map` pins the sentence as each Beat section's first live paragraph and checks that every charter range the map cites still starts on the text it backs.
 
