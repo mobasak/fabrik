@@ -148,7 +148,8 @@ or name in the brief why the shape does not have it.
   directory can settle is recorded up front for the lead.
 - Every file a grader reads is pinned, the uncommitted module under test included; a "nothing changed for readers"
   claim is proven on a pinned input; a concurrent sibling run on a shared DB is a known false red; a seen-red on a
-  DB-writing script names its sandbox.
+  DB-writing script names its sandbox; a ledger row whose fix landed in a file outside the pin (a CHANGELOG or ledger
+  hunk) has that file pinned next pass, or the brief names it, so the seat never reads the base copy.
 
 ## Loop bookkeeping
 - Run `dispatch_headroom.py` before the pin, then stamp `command_run.py dispatch --seats <SEATS + one refuter per
@@ -174,7 +175,7 @@ or name in the brief why the shape does not have it.
 - Remainder rounds: a remainder round names the classes its fixed set re-sweeps; it never fixes a RECORDED candidate;
   a finding it raises is fixed when it is a defect of the fixed set and routed when it is not; a premise-refuted
   verdict is re-probed under the later reader's rule; a slice a trim left with one finder gets its second in the next
-  wave.
+  wave — or, when the cap is known before round 1, merge two low-risk slices so the riskiest keeps both finders.
 - Route-up and close: a fix that adds a file re-applies step 1's count; a critical finding on a published contract
   routes up at once; artifacts the review itself created go to a follow-up loop; a RECORDED residue whose surface is
   another beat's is mailed at the close; shared-ledger hunks land before the closing pass; the completion gate runs

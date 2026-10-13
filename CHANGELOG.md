@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve reads the executor, fan-out and branches before writing (2026-10-13)
+- PHASE 3 reads the target's fan-out paragraph, the section whose executor acts on the sentence, and every branch its subject binds (D-799).
+
+### Changed — review loop: slices re-stated in remainder rounds, capped round 1 merges low-risk slices (2026-10-13)
+- A slice-partitioned scope-growth remainder round still re-states every slice; a known cap merges two low-risk slices; a fix outside the pin is pinned or named (D-798).
+
+### Changed — /fabrik-task phase 4 names the committed-work receipt init up front (2026-10-13)
+- A nested full `/fabrik-review` over committed work inits its receipt with `--range <base>..<tip>` and commits it alone (a scoped review needs none); the size cap grows by that sentence (D-797).
+
 ### Changed — the gate formats and lints new Python outside scripts/ and src/, and honours each repo's ruff exclude (2026-10-13)
 - `scripts/final_gate.py`: a `.py` the session adds anywhere — a file-worker's `worker/`, a `server/` or `api/` — now gets the same ruff format and check as code under the lint roots; modified pre-existing files there stay with the repo-wide lint ratchet. Every gate ruff call passes `--force-exclude`, so a file the repo's own `[tool.ruff] exclude` lists is never linted or reformatted (fleet 01M4F5F2WM, D-802).
 

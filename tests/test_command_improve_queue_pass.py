@@ -64,3 +64,10 @@ def test_phase_five_runs_every_test_that_names_the_edited_source() -> None:
     found = subprocess.run(["grep", "-rl", "--include=*.py", "fabrik-task.md", "tests/"], cwd=ROOT, capture_output=True, text=True).stdout.split()
     assert "tests/test_fabrik_task_source.py" in found
     assert not [p for p in found if not p.endswith(".py")]
+
+
+def test_phase_three_reads_the_executor_the_fan_out_and_every_branch() -> None:
+    """Rows 1791845066, 1791846266, 1791847237: three edits each cost a review round on one of these."""
+    text = " ".join(_phase("## PHASE 3", "## PHASE 4").split())
+    assert "its fan-out paragraph and the section whose executor — lead, seat or fixer — acts on the sentence" in text
+    assert "every branch the sentence's subject can bind" in text

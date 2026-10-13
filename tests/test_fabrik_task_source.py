@@ -82,7 +82,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # commit, `review_receipt.py --restamp` after the last fix, check (d) re-hashes the receipt's paths — 6 rows.
 # D-789 (infra, 2026-10-13): 19706 -> 19729 — the receipt exemption names its `archived/` carve-out
 # (review A-S4/B-S1: a `*.md` glob read as direct children only and hid the exception).
-SIZE_CAP = 19729
+# D-797 (kaizen, 2026-10-13): 19729 -> 19873 — phase 4 says up front that a nested full review over committed work
+# inits its receipt with `--range` and commits it alone (row 1791845646).
+SIZE_CAP = 19873
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
