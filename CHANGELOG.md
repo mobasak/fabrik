@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the spec DB-name check reads the whole database name, not a prefix (2026-10-13)
+- `scripts/enforcement/check_spec_db_match.py` read a project's `PG_DATABASE` / `POSTGRES_DB` / `DATABASE_URL` name through `[A-Za-z0-9_]+`, so `foo_db-x` read as `foo_db` and PASSED against a spec naming `foo_db`, and a drift report quoted a prefix nobody wrote (whatsapp-agent 01M4SES972). It now reads each value the way dotenv does (an optional `export`, a quoted value to its own quote, an unquoted ` #comment` dropped only after whitespace) and finds the database through a URL parser, percent-decoded. A value that interpolates (`${…}`) falls through to the next source instead of being read as its prefix, which also ends the false drift `foo_${ENV}` raised. Two projects whose credential-less URLs the old pattern never read (`image-generation`, `web-scraper`) are now read; the live hub verdict is unchanged (9 compared of 69 specs).
+
 ### Changed — review probes read a compose overlay through its merged render (2026-10-13)
 - The Surfaces hunt line renders `docker compose -f <base> -f <overlay> config`, where precedence and port exposure show (D-808).
 
