@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_schema_sync no longer passes a model change on schema.sql alone where migrations apply the schema (intel 01M4TJJDC3) (2026-10-14)
+
+- `scripts/enforcement/check_schema_sync.py`: a model whose project tracks a migration directory (an ancestor of the model in the index; vendored trees such as `node_modules/` excluded) now needs a staged added, modified or renamed-in migration under that directory, and fails without one, naming it. `env.py`, `__init__.py` and `script.py.mako` do not count. A model no migration dir governs, in a repo that tracks one elsewhere, passes on schema.sql with a WARN naming those dirs, even when another project's migration rides the same commit. A migration renamed into the dir counts, and a non-ASCII staged path (which plain `git diff` output quotes) is now read, where before it switched the whole check off. A fleet replay through the built gate shows site-provisioner 7da4149 as the only commit newly failing; its 20 columns were never migrated until 5ce52f2. Graded by eleven new tests in `tests/enforcement/test_check_schema_sync.py`; each rule-bearing one was watched red first or under a targeted mutation. `docs/workflows/FINAL_GATE_WORKFLOW.md` states the rule.
+
 ### Changed — libs/health_probe re-vendored at fabrik-lib 0e44811c (2026-10-13)
 
 - `libs/health_probe/health_probe.py` and `fingerprint.py` now match fabrik-lib 0e44811c. `load_env`'s docstring now also names a truthy `PYTHON_DOTENV_DISABLED` as a reason it returns False and loads nothing (the hub's finding 01M4V9BKD2). No behaviour change. `tests/test_scaffold_deploy_contract.py`'s vendoring-header test passes again.

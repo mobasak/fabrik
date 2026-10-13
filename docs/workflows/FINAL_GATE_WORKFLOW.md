@@ -692,11 +692,19 @@ that drops a table the frozen `docs/data-contract.md` still declares fails.
   (`schema_signature`: the DB classes' field statements and module-level `Table(...)` calls, format-free) needs a
   staged `schema.sql` or migration (`.py`/`.sql`) at any depth; a file that does not parse falls back to a regex over
   its staged diff.
+- Where a migration directory in the index is an ANCESTOR of the model (`MIGRATION_DIRS` under the model's own path,
+  the repo root included; vendored trees such as `node_modules/` excluded), `schema.sql` is not enough: the model
+  needs a staged added, modified or renamed-in migration under THAT directory (`env.py`, `__init__.py`, `script.py.mako` do not
+  count), or the check FAILs naming it. A model no migration dir governs, in a repo that tracks one elsewhere,
+  passes on `schema.sql` with a WARN naming those dirs, whatever other migration the commit stages. A repo with no
+  migration dir keeps the plain rule.
 - A schema change without a staged data contract WARNs; a migration dropping a table the contract still declares FAILs.
 
 **Why this matters:**
 - A model module named anything but `models.py` was unguarded (iterative_image_editor 01M3WW5PFN, W-62875be3), and a
   regex over diff lines failed commits for Pydantic classes and re-wrapped columns.
+- site-provisioner 7da4149 passed on `schema.sql` alone while its database applies Alembic migrations; 20 columns
+  the code wrote were never created until 5ce52f2 (intel 01M4TJJDC3).
 
 #### check_openapi_sync.py
 
