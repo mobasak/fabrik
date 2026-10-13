@@ -135,4 +135,4 @@ def test_phase_three_formats_the_declared_paths_only() -> None:
     """Row 1791848436: a package-wide formatter run rewrote eight files nobody declared."""
     text = " ".join((ROOT / "commands" / "_sources" / "fabrik-task.md").read_text().split())
     build = text[text.index("## Phase 3 — BUILD") : text.index("## Phase 4 — REVIEW")]
-    assert "A formatter runs on the declared paths only." in build
+    assert "Never run a formatter by hand beyond the declared paths." in build
