@@ -7270,8 +7270,22 @@ def _rec_on_disk(run_dir: Path, sid: str = "s1") -> dict:
     return json.loads((run_dir / f"{sid}.json").read_text(encoding="utf-8"))
 
 
+def _surface_cr(run_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """`_cr` from a throwaway repository holding `scripts/` and `tests/` directories.
+
+    `start` records the invoking shell's repo and `surface --add` reads a directory against it, so
+    a grader run from pytest's own cwd measures wherever pytest was launched (pass 3: from a
+    non-repository cwd, `scripts` was accepted as a file)."""
+    repo = run_dir.parent / "surface-repo"
+    if not (repo / ".git").exists():
+        for d in ("scripts", "tests"):
+            (repo / d).mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+    return _cr(run_dir, *args, cwd=repo)
+
+
 def _start_review(run_dir: Path, command: str = "fabrik-review-scoped") -> None:
-    r = _cr(
+    r = _surface_cr(
         run_dir,
         "start",
         "--command",
@@ -7289,18 +7303,18 @@ def _start_review(run_dir: Path, command: str = "fabrik-review-scoped") -> None:
 def test_surface_add_refuses_every_record_but_a_running_review(run_dir: Path) -> None:
     """No record, a closed record, a non-review record: rc 1 and the record unchanged — never the
     warned rc-0 no-op `step` gives a closed record, which reads as success with nothing stored."""
-    r = _cr(run_dir, "surface", "--add", "tests/x.py")
+    r = _surface_cr(run_dir, "surface", "--add", "tests/x.py")
     assert r.returncode == 1 and "REFUSED" in r.stdout, (r.returncode, r.stdout, r.stderr)
     _start(run_dir)  # fabrik-probe: not a review
     before = _rec_on_disk(run_dir)
-    r = _cr(run_dir, "surface", "--add", "tests/x.py")
+    r = _surface_cr(run_dir, "surface", "--add", "tests/x.py")
     assert r.returncode == 1 and "REFUSED" in r.stdout, (r.returncode, r.stdout)
     assert _rec_on_disk(run_dir) == before
     _cr(run_dir, "done", "--command", _PROBE, "--evidence", "x")
     _start_review(run_dir)
     _cr(run_dir, "blocked", "--command", "fabrik-review-scoped", "--reason", "x")
     closed = _rec_on_disk(run_dir)
-    r = _cr(run_dir, "surface", "--add", "tests/x.py")
+    r = _surface_cr(run_dir, "surface", "--add", "tests/x.py")
     assert r.returncode == 1 and "REFUSED" in r.stdout, (r.returncode, r.stdout)
     assert _rec_on_disk(run_dir) == closed
 
@@ -7314,7 +7328,7 @@ def test_surface_add_refuses_a_value_that_is_not_one_repo_path(run_dir: Path, ba
     directory exempts nothing (whole-token match); a path outside the repo is no repo file."""
     _start_review(run_dir)
     before = _rec_on_disk(run_dir)
-    r = _cr(run_dir, "surface", "--add", bad)
+    r = _surface_cr(run_dir, "surface", "--add", bad)
     assert r.returncode == 1 and "REFUSED" in r.stdout, (bad, r.returncode, r.stdout, r.stderr)
     assert _rec_on_disk(run_dir) == before, bad
 
@@ -7332,7 +7346,7 @@ def test_surface_add_normalises_as_the_hook_reads_and_never_repeats(run_dir: Pat
         "tests/x.py",
         "scripts/a.py",
     ):
-        r = _cr(run_dir, "surface", "--add", value)
+        r = _surface_cr(run_dir, "surface", "--add", value)
         assert r.returncode == 0, (value, r.stdout, r.stderr)
     adds = _rec_on_disk(run_dir)["surface_adds"]
     # one entry: the four spellings of tests/x.py collapse; scripts/a.py is already the surface
@@ -7343,7 +7357,7 @@ def test_surface_add_records_a_trace_and_never_writes_surface(run_dir: Path) -> 
     """The ledger's `surface` dimension keeps its meaning; the widening is its own field, with
     the time of each add, so a close or an audit can count what a review widened mid-run."""
     _start_review(run_dir)
-    r = _cr(run_dir, "surface", "--add", "tests/x.py", "--add", "docs/y.md")
+    r = _surface_cr(run_dir, "surface", "--add", "tests/x.py", "--add", "docs/y.md")
     assert r.returncode == 0, r.stderr
     rec = _rec_on_disk(run_dir)
     assert rec["surface"] == "scripts/a.py", rec["surface"]
@@ -7369,7 +7383,7 @@ def test_surface_add_refuses_when_the_record_cannot_be_written(run_dir: Path) ->
     before = _rec_on_disk(run_dir)
     run_dir.chmod(0o555)
     try:
-        r = _cr(run_dir, "surface", "--add", "tests/x.py")
+        r = _surface_cr(run_dir, "surface", "--add", "tests/x.py")
     finally:
         run_dir.chmod(0o755)
     assert r.returncode == 1 and "could not be written" in r.stdout, (
@@ -7393,7 +7407,7 @@ def test_surface_add_resolves_an_absolute_path_through_a_symlinked_root(tmp_path
 def test_surface_add_skips_only_what_the_hook_already_exempts(run_dir: Path) -> None:
     """The dedup asks "does the surface already exempt this path?" with the HOOK'S rule: a surface
     token `././tests/x.py` reads as `./tests/x.py` there, which matches nothing, so the add is kept."""
-    r = _cr(
+    r = _surface_cr(
         run_dir,
         "start",
         "--command",
@@ -7406,7 +7420,7 @@ def test_surface_add_skips_only_what_the_hook_already_exempts(run_dir: Path) -> 
         "confirmed:0 closing pass",
     )
     assert r.returncode == 0, r.stderr
-    assert _cr(run_dir, "surface", "--add", "tests/x.py").returncode == 0
+    assert _surface_cr(run_dir, "surface", "--add", "tests/x.py").returncode == 0
     assert [a["path"] for a in _rec_on_disk(run_dir)["surface_adds"]] == ["tests/x.py"]
 
 
