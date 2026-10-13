@@ -148,3 +148,10 @@ def test_a_compose_overlay_is_read_through_its_merged_render() -> None:
     text = _norm(CAT)
     surfaces = text[text.index("- Surfaces:") : text.index("- The premise:")]
     assert "a changed compose overlay read through its merged render (`docker compose -f <base> -f <overlay> config`)" in surfaces
+
+
+def test_a_shifted_cite_is_remapped_by_content_in_one_script() -> None:
+    """Row 1791866581 (recurs held anchor-sweep-auto-compares-symbols): remapping by number took two passes."""
+    text = _norm(CAT)
+    sweep = text[text.index("- Sweep:") : text.index("- Claims:")]
+    assert "a `path:line` cite a merge or an edit shifted, remapped by CONTENT in one script over every doc that cites the file" in sweep
