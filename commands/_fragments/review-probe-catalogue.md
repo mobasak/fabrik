@@ -155,9 +155,14 @@ box: execute it, or name in the brief why the shape does not have it.
   a worktree. The pins line follows the real layout and the digest is the pin authority. A SEAT never runs `git
   worktree add` (its metadata lands in the shared `.git`): a seat's red-on-revert overlays the revert on its archive
   copy by `PYTEST_PINS`, and the lead's red-on-revert and mutate-restore cycle run in CLAUDE.md's throwaway worktree,
-  never a `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. Ruff and mypy run from the repo
-  root with the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the
-  same path); tests run by exact node id. A script a seat runs is run from its archive copy with every path argument
+  never a `PYTHONPATH` copy — set its upstream and link `.env` before its first gate. A seat test that reads git
+  history runs in `git clone --shared --no-checkout <live repo> <scratch>/clone` at the pass's base SHA with the pins
+  laid over it, and that test's red-on-revert overlays the revert on the clone: the clone reads the shared objects and
+  writes nothing to the shared `.git`, but its only local branch is the live checkout's and every other is
+  `origin/*`, so a test that inspects branch, worktree or stash state runs in the lead's throwaway worktree. Ruff
+  and mypy run from the repo root with the repo's own config (on a copy: ruff `--config <repo>/pyproject.toml`, mypy
+  `--config-file` with the same path); tests run by exact node id. A script a seat runs is run from its archive
+  copy with every path argument
   under scratch (a script may treat any argument as a write path), and the pin carries the changed files' one-hop
   callees that are repo files (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink
   or outside the repo root).

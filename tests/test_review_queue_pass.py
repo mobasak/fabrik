@@ -299,3 +299,25 @@ def test_the_callers_hunt_line_names_readers_that_never_import_the_file() -> Non
     )
     # the round-1 draft put it in the re-vendor premise; neither wording may remain anywhere else
     assert _norm(CAT).count("that never imports it") == 1
+
+
+def test_a_seat_reads_git_history_from_a_shared_clone_not_a_worktree() -> None:
+    """Row 1791910374, a recurrence of the held gitdir-shim-recipe ("a history-reading test recipe"): the catalogue forbade
+    `git worktree add` but a `git archive` pin has no history, so a history-reading test had no sanctioned route. The
+    D-711 audit ran the clone: alternates point at the shared objects and nothing in the shared `.git` changed. Its own
+    sentence, after the worktree ban, so the ban's colon still leads to the archive red-on-revert; live text only (an
+    HTML comment around it reds). Not seen: a seat that runs the test in the archive anyway; the seat's red owns it."""
+    iso = re.sub(
+        r"<!--.*?-->", "", _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
+    )
+    assert (
+        "before its first gate. A seat test that reads git history runs in `git clone --shared --no-checkout <live repo>"
+        " <scratch>/clone` at the pass's base SHA with the pins laid over it, and that test's red-on-revert overlays the"
+        " revert on the clone: the clone reads the shared objects and writes nothing to the shared `.git`, but its only"
+        " local branch is the live checkout's and every other is `origin/*`, so a test that inspects branch, worktree or"
+        " stash state runs in the lead's throwaway worktree. Ruff" in iso
+    )
+    assert (
+        "A SEAT never runs `git worktree add` (its metadata lands in the shared `.git`): a seat's red-on-revert overlays"
+        " the revert on its archive copy" in iso
+    )
