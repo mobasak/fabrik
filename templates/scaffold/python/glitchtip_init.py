@@ -26,8 +26,9 @@ revision at that moment (`git -C /opt/site-provisioner log -1 --format=%h --
 api/glitchtip_init.py`), never by trusting a sha written in a ticket OR IN A MAIL — and
 prefer the current committed revision over the one a message cites.
 
-Scaffold adaptations, all deliberate and each graded by
-tests/test_scaffold_glitchtip_security.py:
+Scaffold adaptations, all deliberate and each graded by the HUB's
+tests/test_scaffold_glitchtip_security.py (HUB NOTE: that grader lives in /opt/fabrik only — it
+aims at this template and at every vendored copy by path; it is never emitted into a project):
   * ``server_name`` keeps upstream's ``SERVICE_NAME`` env read; only the fallback differs
     (the scaffolded service name, not the origin repo's own);
   * ``LoggingIntegration(event_level=logging.ERROR)`` is the FLEET default (D-126) — the
@@ -196,8 +197,10 @@ def _scalar_or_none(value):
 # `_ALLOWED_EVENT_KEYS` grants it the exemption at a level where nothing drills it, and it
 # would ship whole. `stacktrace` is the live example — a real top-level `Event` key
 # (`_types.py`) that is in this set for `_ALLOWED_EXC_VALUE_KEYS`'s sake. It is NOT in the
-# event allowlist, and `test_container_exempt_top_level_keys_are_all_drilled` is what keeps
-# it that way, rather than this comment.
+# event allowlist. HUB NOTE: `test_container_exempt_top_level_keys_are_all_drilled` keeps it
+# that way in site-provisioner (tests/test_glitchtip_init.py) and in the hub's grader; a
+# scaffolded repo carries no such test, so there this set is held by review alone — change
+# `_ALLOWED_EVENT_KEYS` and this set together, never one without the other.
 _CONTAINER_VALUED_KEYS = frozenset({
     "request", "contexts", "logentry", "exception", "threads", "spans", "sdk", "modules",
     "measurements", "transaction_info", "headers", "env", "stacktrace", "frames",
@@ -1368,7 +1371,11 @@ def _scrub_event(event: dict, hint: dict) -> dict:
 
 def init_glitchtip() -> bool:
     """Initialize Sentry SDK for FastAPI. Returns True if init ran, False if no-op."""
-    dsn = (os.environ.get("SENTRY_DSN") or os.environ.get("GLITCHTIP_DSN") or "").strip()
+    # The first NON-BLANK of the two, stripped first (whatsapp-agent 01M4SQZBMT, 2026-10-13): the
+    # earlier `a or b` chain let a whitespace-only SENTRY_DSN win before stripping, so a valid
+    # GLITCHTIP_DSN was ignored and monitoring stayed off. `_first_set` is the same rule
+    # APP_ENV/ENVIRONMENT already use.
+    dsn = _first_set(os.environ.get("SENTRY_DSN"), os.environ.get("GLITCHTIP_DSN")) or ""
     if not dsn:
         return False
     try:
@@ -1391,8 +1398,9 @@ def init_glitchtip() -> bool:
         return False
 
     # Everything below is wrapped: a malformed GLITCHTIP_TRACES_SAMPLE_RATE ("0,05") or a
-    # copy-pasted bad DSN otherwise raises out of the module-level `init_glitchtip()` call in
-    # api/main.py — effectively the first executable statement of
+    # copy-pasted bad DSN otherwise raises out of the module-level `init_glitchtip()` call at
+    # the app's entrypoint (HUB NOTE: site-provisioner's is api/main.py; a scaffolded service
+    # calls it from its own main module) — effectively the first executable statement of
     # the app — and takes the WHOLE SERVICE down. Losing monitoring is bad; losing the
     # service because monitoring was misconfigured is strictly worse, and it is the same
     # reasoning that made the ImportError path log-and-continue rather than fail silently.
@@ -1414,9 +1422,12 @@ def _drop_log(log, hint):
     ⚠️ `enable_logs` does NOT close this channel, and the comment beside the
     `LoggingIntegration` kwarg said it did for a full round. That option is read at
     `integrations/logging.py:409-410`, i.e. at HANDLER-INSTALL time — it gates the stdlib
-    logging BRIDGE. The channel itself is `Scope._capture_log` (`scope.py:1483-1497`), which
-    has no `enable_logs` check at all; contrast its sibling `_capture_span` at :1515-1524,
-    which explicitly gates on `has_span_streaming_enabled`. So a direct `sentry_sdk.logger.*`
+    logging BRIDGE. The channel itself is `Scope._capture_log` (`scope.py:1483-1497` on
+    sentry-sdk 2.68.1, where it was measured), which has no `enable_logs` check at all; contrast
+    its sibling `_capture_span` at :1515-1524, which explicitly gates on
+    `has_span_streaming_enabled`. (On 2.64.0 — the floor many repos pin — `scope.py:1436-1452`
+    DOES gate on `has_logs_enabled()`, so this hook is simply never consulted there: no leak on
+    either version; the hook costs nothing where it is redundant. whatsapp-agent 01M4SNBHR0.) So a direct `sentry_sdk.logger.*`
     call emits a `log` envelope item carrying the interpolated parameter values —
     `sentry.message.parameter.*` — with `_scrub_event` never invoked.
 
@@ -1516,7 +1527,9 @@ def _init_sdk(sentry_sdk, FastApiIntegration, StarletteIntegration, LoggingInteg
         # as a closed channel for a full round. `client.py:656-659` logs "The enable_metrics
         # option has no effect and will be removed in the next major" and then
         # `client.py:661-664` constructs the `MetricsBatcher` UNCONDITIONALLY, outside that
-        # `if`. Contrast `span_batcher` at :666-671, which genuinely is gated. So the option
+        # `if` (sentry-sdk 2.68.1, where this was measured; on 2.64.0 `client.py:630-635` gates
+        # it on `has_metrics_enabled()`, so there the hook is never consulted — same outcome,
+        # whatsapp-agent 01M4SNBHR0). Contrast `span_batcher` at :666-671, which genuinely is gated. So the option
         # disabled nothing; a runtime probe still shipped a DSN inside a metric attribute
         # with `_scrub_event` never invoked, while the test asserted only that the kwarg had
         # been passed — a proxy where the real check was executable and cheap.

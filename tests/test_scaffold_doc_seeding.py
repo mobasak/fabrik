@@ -502,6 +502,25 @@ def test_pgurl_rewrites_a_driver_dsn_for_libpq():
         ["sh", "-c", definition + '\nu=$(pgurl "") && echo RAN'], capture_output=True, text=True
     )
     assert empty.returncode != 0 and "RAN" not in empty.stdout
+    # A DSN carrying whitespace, a quote or a backslash — a hand-edited or still-quoted .env line — is refused
+    # before psql (review 2026-10-13 S3/O4/O6), each alternative of the case pattern exercised alone; a
+    # legitimate DSN with URL-encoding, a `#` in the password or a query string is not.
+    for bad in (
+        "postgresql://o:p@h/d # note",
+        'postgresql://o:p@h/d"',
+        "'postgresql://o:p@h/d'",
+        "postgresql://o:p\\x@h/d",
+        "postgresql://o:p@h/d\r",
+    ):
+        r = subprocess.run(
+            ["sh", "-c", definition + '\nu=$(pgurl "$1") && echo RAN', "sh", bad], capture_output=True, text=True
+        )
+        assert r.returncode != 0 and "RAN" not in r.stdout and "pgurl:" in r.stderr, (bad, r.stdout, r.stderr)
+    for good in ("postgresql://o:p%40w%23x@h/d?sslmode=require", "postgresql://o:p#x@h/d"):
+        r = subprocess.run(
+            ["sh", "-c", definition + '\npgurl "$1"', "sh", good], capture_output=True, text=True, check=True
+        )
+        assert r.stdout.strip() == good, (good, r.stdout)
 
 
 def test_readme_template_carries_every_section_the_readme_gate_requires():

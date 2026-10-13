@@ -256,6 +256,38 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-review answers its feedback queue in one pass (2026-10-12)
 - Phase 1 points at the review probe catalogue; a failed or `NO RESULT` refuter's candidates are executed by the lead, and the FAILED-seat re-dispatch names finders; the delta brief names its must-read files; `next`'s rows merge into `args.slices` by name; the close stages before its IN-PROGRESS gate. Every command, fragment and contract that states the Agent-tool fallback now also takes it for a run the operator did not invoke. The catalogue gains redactor timing, what a fix recipe leaves unchanged, quoting code from its emit site and linting a copy with the repo's config (D-752).
 
+### Fixed — the vendored GlitchTip init takes the first NON-BLANK DSN, and its comments stop citing files a scaffolded repo lacks (2026-10-13)
+
+- `templates/scaffold/python/glitchtip_init.py` (whatsapp-agent findings 01M4SQZBMTN6DF9KX1B5FYVNF0 and 01M4SNBHR007MHT6Y40R9BEJBE,
+  routed by infra): `(SENTRY_DSN or GLITCHTIP_DSN or "").strip()` let a whitespace-only `SENTRY_DSN` win before stripping, so a
+  valid `GLITCHTIP_DSN` was ignored and monitoring stayed off — it now uses `_first_set` (first non-blank after stripping), graded by
+  `test_blank_sentry_dsn_falls_through_to_glitchtip_dsn` (red on the old line). The three cross-repo citations a vendored copy cannot
+  resolve (the hub's grader, site-provisioner's drill test, `api/main.py`) carry the `HUB NOTE` marker the `_release()` docstring
+  already uses, and the two sentry-sdk-internals claims name the version they were measured on (2.68.1) and what 2.64.0 does instead
+  (gates on `has_logs_enabled()` / `has_metrics_enabled()` — no leak on either). Every repo that vendors the template inherits the text.
+
+### Fixed — The five specs apply's depends-contradiction warning named now say what their stores are (2026-10-13)
+
+`check_spec_db_match.py` (ab9d3cf21, D-805) warned on five specs whose `depends.postgres` named a database the Postgres registrar would never create because `shape.needs_database` was false or absent. Grounded in each project's own code and docs, not the live store: **job-agent** persists to SQLite (its `project.yaml` says so; `compose.yaml` carries `DATABASE_URL` commented out) — `depends.postgres: jobagent` and the required `DATABASE_URL` are gone and the spec carries the `shape:` block its `project.yaml` already had; **proposal-creator**, **trading-core** and **triggered-content-orchestration** are PostgreSQL-backed (`src/db/database.py`, `docs/CONFIGURATION.md` § State, `src/shared/config.py` + `alembic.ini`) — each gains a `shape:` block with `needs_database: true` (trading-core also `needs_cache: true`, its `REDIS_URL`), `depends.postgres` pinned to the registrar's derived name (D-410; the name their `.env.example` declares), and `DATABASE_URL` removed from `secrets.required` because the registrar injects it and a required DSN is otherwise INVENTED (`_warn_fabricated_secrets`); **proxy** drops `depends.postgres: main` — the shared legacy database D-410 forbids, for a service whose own `DB_*` env is the contract and which has not run on vps1 since 2026-05-31. Four of the five were shapeless (W-989653a7's population, the plan-vs-apply class, which stays open): `fabrik plan` and `fabrik apply` now read the same flags for them. Decision row D-822.
+
+### Fixed — the schema-apply one-liner reads the owner DSN instead of sourcing the env files as root shell code (2026-10-13)
+
+- `src/fabrik/scaffold.py` (`_SCHEMA_APPLY_HEADER`, the saas `db/schema.sql` header), `templates/scaffold/docs/CONFIGURATION_TEMPLATE.md`,
+  `docs/CONFIGURATION.md` (fabrik-lib finding in 01M4TGJ1CVT4XEHDH6AQZ1M6JF): the recipe ran `set -a; . ./.env; . ./.env.owner;
+  set +a` under `sudo sh -c` — the env files executed as SHELL CODE, as root: a value `X="$(touch f)"` ran, and a value with
+  an apostrophe aborted the line before psql (both reproduced under dash). The recipe now reads the ONE key it needs —
+  `v=$(sed -n "s/^DATABASE_URL_OWNER=//p" ./.env.owner | tail -n 1)`, the wrapping quotes `_format_env` may add stripped —
+  and hands it to `pgurl`; nothing is sourced. Executed grader `test_schema_apply_recipe_reads_the_owner_key_without_sourcing_the_env_files`
+  (tests/test_scaffold_audit_log.py) runs the header's own recipe under `sh` with a stub `psql` and a hostile `.env.owner`:
+  the hostile line does not run, the apostrophe does not abort, psql receives the libpq-rewritten DSN, a missing key is
+  refused before psql; HEAD's recipe fails both ways. The emitted saas schema's recipe is executed by its own grader too
+  (`test_rls_schema_recipe_executes_without_sourcing`) — the review caught the saas header rendering `${v%"}` without its
+  backslash (a plain string, not an f-string) while the text pin stayed green. `pgurl` — seeded TWICE, byte-identical, in
+  `TROUBLESHOOTING_TEMPLATE.md` and `CONFIGURATION_TEMPLATE.md` (the review's pass 2 caught the second copy left behind;
+  `tests/test_scaffold_doc_seeding.py` holds the two together and now executes each refusal alternative alone) — now also
+  refuses a DSN carrying whitespace, a quote or a backslash, so a hand-edited or still-escaped `.env` line fails closed at the
+  one boundary instead of reaching psql mangled. The text pins (`_HEADER`, saas test) follow; `. ./.env` is asserted absent.
+
 ### Changed — the data-contract template's Enum-registry `Backing` legend is a closed, measured token list (2026-10-13)
 
 - `templates/scaffold/docs/data-contract-template.md` (kaizen finding 01M4F92G6VG2GMR96X1095JKEJ, /fabrik-data-contract
