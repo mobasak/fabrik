@@ -359,3 +359,13 @@ def test_the_lead_runs_the_leak_check_around_every_scoped_pass() -> None:
         " md5sum`, not the PIN digest) plus `git rev-parse HEAD`, `git status --porcelain --ignored` and `git stash list`"
         in _section(review, "- **The seats (native", "- **Every finder brief carries")
     )
+
+
+def test_a_brief_states_the_count_to_report_never_the_expected_one() -> None:
+    """/fabrik-review row 1791931043: a closing-pass brief that names the count, verdict or output the lead expects is a leading question;
+    no reached line said a brief must not carry it (Opus audit 2026-10-14: no governing line)."""
+    loop = _section(_norm(CAT), "## Loop bookkeeping", None)
+    assert (
+        "each brief embeds its ledger text and states what the seat must report (a count, a verdict, an output),"
+        " never the value the lead expects; the closing-pass brief"
+    ) in loop
