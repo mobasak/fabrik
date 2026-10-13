@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review probe catalogue: a grader for moved text also fails at its old position (2026-10-13)
+- `commands/_fragments/review-probe-catalogue.md` § Graders now says a prose grader for MOVED text (a sentence, clause, bullet or row), added in the edit that moves it, also fails when the text sits at its old position. A grader pinned to a section that still contained the old paragraph passed a fold-back mutant in the 2026-10-13 surface-add review (f481f1a4d; row 1791894842). /fabrik-review, /fabrik-review-scoped, /fabrik-execute-plan, /fabrik-docs-review and /fabrik-spec-review point at the catalogue by its hub path. Grader: `tests/test_review_scoped_queue_pass.py::test_the_graders_section_pins_moved_texts_old_position`.
+
 ### Changed — the two review commands name `surface --add` for a file edited before `start` (2026-10-13)
 - `/fabrik-review` (its own paragraph after the run-record block) and `/fabrik-review-scoped` (step 1) now say that a file the run comes to cover, last edited before `start`, outside every earlier covered window and not named by `--surface`, is added with `python3 scripts/command_run.py surface --add <path>`. No command named the verb; among the reference docs only `docs/reference/command-run-protocol.md` and `docs/workstation/hooks-index.md` did (intel finding 01M4TJJDG2). The sentence also says the verb widens the top record only, so it is refused under a nested non-review `start`. Grader: `tests/test_review_scoped_queue_pass.py::test_both_review_commands_name_surface_add_for_a_pre_start_file` pins the sentence in both sections and runs the verb's `--help`.
 

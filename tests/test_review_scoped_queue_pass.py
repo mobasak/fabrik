@@ -279,3 +279,19 @@ def test_both_review_commands_name_surface_add_for_a_pre_start_file() -> None:
         cwd=ROOT,
     )
     assert out.returncode == 0 and "--add" in out.stdout, out.stderr
+
+
+def test_the_graders_section_pins_moved_texts_old_position() -> None:
+    """Row 1791894842: a fix that moved a sentence kept a grader that passed with the sentence folded back into its
+    old paragraph, so a later round found the gap. The clause is pinned as the contiguous span from the premise-guard
+    clause before it to the test-quality clause after it, inside the Graders section, so the clause moved alone,
+    truncated, or qualified inside the span reds. Not seen: a qualifier placed before the span, a contradicting line
+    elsewhere, the three clauses moved together, and a review grader that names the old position but asserts nothing
+    there — the last is the cheapest bypass, and a seat reading that grader owns it."""
+    graders = _section(_norm(CAT), "## Graders", "## Prose and docs fixes")
+    assert (
+        "a premise guard asserts at the call site, not on constants; a prose grader asserts the whole generated"
+        " sentence, not a substring, and one for MOVED text (a sentence, clause, bullet or row), added in the edit"
+        " that moves it, also fails when the text sits at its old position; a test-quality seat checks docstring"
+        " claims against the scan;" in graders
+    )

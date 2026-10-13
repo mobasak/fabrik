@@ -86,8 +86,9 @@ box: execute it, or name in the brief why the shape does not have it.
   (an absence assertion over never-written state is vacuous); a grader EXECUTES an executable subject, through the
   real production adapter and the consumer's entry point (the command's output, as the gate passes files by name),
   never reads it; a premise guard asserts at the call site, not on constants; a prose grader asserts the whole
-  generated sentence, not a substring; a test-quality seat checks docstring claims against the scan; a fix recipe
-  handed to a coder names one input it must leave unchanged and the test that holds it.
+  generated sentence, not a substring, and one for MOVED text (a sentence, clause, bullet or row), added in the edit
+  that moves it, also fails when the text sits at its old position; a test-quality seat checks docstring claims
+  against the scan; a fix recipe handed to a coder names one input it must leave unchanged and the test that holds it.
 - Each parser-output shape owes its own red; a config or regex grader is graded by running the tool on mutated inputs;
   a red branch of a new procedure step is executed as well as the green; a boundary fix tests both sides with the
   exact message; a numeric bound is derived in its comment and graded at both edges, with the determining input varied
