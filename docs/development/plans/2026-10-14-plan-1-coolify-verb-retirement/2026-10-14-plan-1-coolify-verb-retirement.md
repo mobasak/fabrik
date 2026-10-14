@@ -1,6 +1,6 @@
 # Plan — the Coolify-bound verbs move to SSH + Compose and the Coolify code leaves the tree (W-36571dff)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: delta
 **Owner:** fleet
 Spec: docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md (CONVERGED, panel-approved D-828; md5 35e84255394b562cfa1097570fd05f1d, 454 lines)
