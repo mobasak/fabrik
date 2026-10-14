@@ -8,6 +8,18 @@ All notable changes to this project will be documented in this file.
 
 - `scripts/cloud_dispatch.py` + `.fabrik/cloud-routines.json`: `dispatch` fires a fleet account's claude.ai routine `fabrik-cloud-worker` (token path when `~/.claude-fleet/<slug>/routine-token` exists — zero local quota, 401 → exit 3, 429 → exit 4, never a fallback; else a headless `claude -p '/schedule run …'` from a scratch dir, a wall → exit 5, a dead chain → exit 6); `--pick` spends the credits evenly (usable path, then fewest dispatches this week, then weekly %; no qualifying account refuses); `wait` accepts only a `claude/<slug>` tip carrying the `Cloud-Dispatch: done` trailer; `log` reads a run headlessly; every attempt is a ledger row in `<state>/cloud-dispatch.jsonl`. Four accounts proven end to end (ob, ozgurbasak, can, mob — push access granted with `/web-setup`). 66 tests red-first (31 of them red on the review's pass-1 pin), 16/16 mutants killed by name; the scoped review's 18 confirmed findings (a task text tripping the wall regex, a stale branch read as done, FETCH_HEAD races, token-file content, argparse parents, exception paths that skipped the ledger) fixed in-run. Doc: `docs/workstation/cloud-dispatch.md` (D-857).
 
+### Changed — review probe catalogue: overlay and pin currency, isolation seams, real-build text diffs, identity keys and predicate readers (2026-10-14)
+
+The fourth pass over the `/fabrik-review` feedback queue adds five clauses and one bullet to the probe catalogue:
+- The input class now names a fix's identity or dedup key: byte vs text read, line endings, recycled ids.
+- The callers line names every reader of a changed predicate's verdict.
+- A re-vendor brief says whether the source's regression test assumes a co-located hub tree.
+- A change that writes outside its state dir names every isolation seam its callers' tests use.
+- A page-type or reader move diffs the visible text and heading outline of real base and head builds, independently of any identity diff, and runs the preview server on each language root.
+- A new seat-isolation bullet covers overlay and pin currency. Each pinned file is copied to its own path, or with `cp -r <pin>/. <dest>/` then made writable, and md5-checked. The pin carries the gitignored inputs the tests read (`.worktreeinclude`, `.env` excepted) and sibling-repo symlinks. Each later pass names its own pin, and seat scratch from earlier rounds is kept until the close.
+
+`tests/test_review_queue_pass.py` pins the new lines, and `tests/test_review_scoped_queue_pass.py` re-pins the re-vendor sentence.
+
 ### Changed — /fabrik-review-scoped step 5: ruff findings are the lead's, and a sync-excluded repo runs the hub's ledger script (2026-10-14)
 
 Step 5's pre-pin ruff run still fixes what it reports, so the touched files stay format-clean for the completion gate. The brief now tells the seats that ruff's output is the lead's, so no seat reports a lint or format finding, including a pre-existing one (row 1791982905). The step also says every `review_loop_ledger.py` call in it runs as `python3 /opt/fabrik/scripts/review_loop_ledger.py` in a sync-excluded repo, because a vendored copy there may lack `pin` or `read --pins` (rows 1791982896, 1791981699). `tests/test_review_scoped_queue_pass.py` pins both.
