@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-data-contract: a checkable validation cell is a probed regex (2026-10-14)
+
+Phase 2's per-entity table rules now write a validation cell whose rule is a format the project defines itself (a URL shape, a key or code format) as the regex itself, probed in the same edit against each guard that consumes it with one value it must accept and one it must refuse; a cited standard or a bound stays as written, and a field no guard enforces yet gets a reconciliation note. Answers /fabrik-data-contract row 1791957889 (a recurrence of probe-from-table-cells). Grader: `tests/test_data_contract_recurring_rules.py`, red on the previous text.
+
 ### Changed — Review commands flip CONVERGED after the design panel, not before (2026-10-14)
 
 `commands/_fragments/design-critique.md` and `design-gate-panel.md` now hold the `Status: CONVERGED` flip until the panel's ACCEPTED-concern delta round confirms 0, and write it in the approval commit; the flip-then-revert path survives only for an artifact already CONVERGED when it is re-reviewed. /fabrik-spec-review, /fabrik-plan-review (its `Size: small` joint loop) and /fabrik-spec say the same; /fabrik-plan-review also re-runs `check_plan_tickets` after every edit to a ticket's Behavior Contract. Decided by an Opus + Fable panel (both flip-after-panel). Answers /fabrik-plan-review row 1791954506. Graders: `tests/test_design_critique_fragment.py::test_the_converged_flip_waits_for_the_panels_delta_round` and `tests/test_plan_review_recurring_rules.py::test_plan_tickets_reruns_after_every_behavior_contract_edit_and_the_small_loop_flips_at_the_panel`, red on the previous text.

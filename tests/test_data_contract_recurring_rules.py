@@ -114,3 +114,17 @@ def test_a_refreeze_whose_deltas_touch_no_tabled_item_closes_without_a_bump() ->
     assert "bump `Version` (a zero-delta re-freeze, below, excepted), never a silent overwrite." in phase0
     phase3 = _between(_norm(SRC), "## Phase 3", "## Phase 4")
     assert "A zero-delta re-freeze (Phase 0) edits nothing, so its rows always go in the closing report." in phase3
+
+
+def test_a_checkable_validation_cell_is_a_probed_regex() -> None:
+    """Row 1791957889 (probe-from-table-cells, a recurrence): two rounds refined a validation cell's prose before it
+    became one probed regex. Pinned in Phase 2's per-entity table rules."""
+    phase2 = _between(_norm(SRC), "## Phase 2", "## Phase 3")
+    assert (
+        "A `validation` cell whose rule is a format the project defines itself (a URL shape, a key or code format) is"
+        " written as the regex itself, in backticks (a `|` inside it escaped as `\\|` for the table and unescaped"
+        " when probed), never prose, and in the same edit is probed against each guard that consumes it (the request schema, form validator or DB constraint)"
+        " with one value it must accept and one it must refuse; a cited standard (RFC 5322, E.164) or a bound"
+        " (`≤255`) stays as written, and a field no guard enforces yet gets a reconciliation note naming the missing"
+        " guard."
+    ) in phase2
