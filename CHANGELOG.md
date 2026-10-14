@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — every run gets a persistent scratch dir that survives a WSL /tmp wipe; `--restamp` no longer silently ignores `--range` (kaizen 01M4V0B03B) (2026-10-14)
+
+- `scripts/command_run.py`: `start` creates `<main checkout>/.tmp/runs/<session>/<command>-<record key>/` for every run, prints `SCRATCH: <path>` and records it as `scratch`. The session scratchpad under /tmp, where phase-2 measure.md, critique briefs and review pins lived, died with the WSL shutdown on 2026-10-13. A linked worktree's run writes to the main checkout, so `git worktree remove` at merge keeps it. A resumed run in a new session keeps its seed's dir when it lies under the run's root, even if the repo has since stopped ignoring it. A repo that does not ignore `.tmp` gets one untracked `.git/info/exclude` line, and if git still does not ignore the dir, no dir is made (the run starts anyway). `start` prunes dirs whose newest file is over 14 days old, never one a record or resume seed names, nor one holding a git worktree. Under a test (`COMMAND_RUN_DIR` or `PYTEST_CURRENT_TEST`) the scratch goes in the state dir, never a live checkout.
+- `scripts/review_receipt.py`: `--restamp` with `--range` is refused (rc 2) instead of silently ignored. Both refusals now name the real remedies: a committed working-tree receipt already passes task_lane's check (d) when the commit holds the reviewed bytes; otherwise re-make it with `--init --range`.
+- Graded by `tests/test_command_run_scratch.py` (8 tests) and `test_restamp_refuses_range_and_names_the_real_remedy`, each red first or under a mutant; seven mutants were killed.
+
 ### Changed — term-coverage rule (3): a deletion's pointer is opened and its fact seen before the pin (2026-10-14)
 
 A restating sentence rule (3) deletes may be replaced by at most a pointer; the rule now requires each pointer be OPENED before the pin and the fact seen at it, recorded as one `· pointer: <path:line> read` per pointer in the Pass Ledger row's `method:` cell, the way rule (2) records the mirrors it read (W-c9b727ab). Like rule (2)'s `mirrors:` token it is a prose obligation: no gate parses it yet. Grader: `tests/test_review_queue_pass.py::test_rule_three_pointer_is_opened_before_the_pin`.

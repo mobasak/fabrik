@@ -574,6 +574,34 @@ Three properties are load-bearing and each has a grader:
 - **It advises, it never acts.** The sweeper is invoked in dry-run `--brief`; `--apply` is the
   agent's own next command. That is the operator's constraint: nothing is deleted blindly.
 
+## A run's persistent scratch
+
+Since 2026-10-14 (kaizen 01M4V0B03B) every `start` gives its run a scratch dir that outlives the session,
+records it as `scratch`, and prints `SCRATCH: <absolute path>` after its other start lines. The session
+scratchpad lives under `/tmp`, which a WSL shutdown clears. On 2026-10-13 it took phase-2 `measure.md`,
+critique briefs and review pins with it; the record survived, because it lives under `~/.claude/state`.
+
+- **Where:** `<main checkout>/.tmp/runs/<session>/<command>-<record key>/`, rooted at the parent of
+  `git rev-parse --git-common-dir`. A linked worktree's run therefore survives `git worktree remove` at
+  merge; a submodule keeps its own root. Seats may read it (never `$HOME/.claude*`), and it is never
+  committed.
+- **Ignored or absent:** `start` makes sure git ignores `.tmp/runs/`. If git does not already, it appends
+  `/.tmp/runs/` once to the untracked `.git/info/exclude` shared by every worktree, then re-checks. If git
+  still does not ignore it (a `.gitignore` negation), no dir is made and a NOTE says why. The run itself
+  always starts.
+- **Resume:** `scratch` rides in `_RESUME_CARRY`. A `start --resume-from` keeps the seed's dir when it lies under
+  the run's root, even if the repo has since stopped ignoring it (with a NOTE), or builds the path from the seed's session, never
+  the new one's. A resume in a new session says the scratch is kept.
+- **Pruned by `start`, not scratch_sweep** (which never touches `.tmp`): a run dir goes once its newest
+  file is over 14 days old (`SCRATCH_RETENTION_S`), unless it is the current run's, a record or kept seed
+  names it, or it holds a git worktree (reported, never removed). Empty session dirs go too.
+- **Tests:** when `COMMAND_RUN_DIR` or `PYTEST_CURRENT_TEST` is set, the root is the state dir's own
+  `scratch/` (`$COMMAND_RUN_DIR/scratch`, or `$HOME/.claude/state/command-runs/scratch` under a `HOME`
+  override) with no exclude step, so a suite never writes into a live checkout.
+
+COBRA (D-253): the cheapest way to "have scratch" without the outcome is to keep writing resume
+artifacts to the `/tmp` scratchpad. The counter is the command text naming the printed `SCRATCH:` path.
+
 ## Tests
 
 `tests/test_command_run.py` — line format · idle/corrupt/unwritable silence · ledger persistence ·

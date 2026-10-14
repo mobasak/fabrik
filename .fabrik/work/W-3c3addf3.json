@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T22:44:37.814048Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3c3addf3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4V0B03BN929SSVW1HXRJGVX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "class finding: scratch state under /tmp died in today's WSL shutdown across three commands; four feedback rows, plus one receipt verb (extends 01M4TZJC3W)"
+}

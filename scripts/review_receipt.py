@@ -132,6 +132,15 @@ _WT_SURFACE = re.compile(
 _SURFACE_LINE = re.compile(r"^\*\*Surface:\*\* ([^\r\n]*)", re.M)
 
 
+# What a receipt whose surface is already COMMITTED needs (kaizen 01M4V0B03B row 1791907300): nothing,
+# when the commit holds the reviewed bytes — task_lane's check (d) rebuilds them from base..last — or a
+# new receipt. A `--restamp --range` would downgrade a byte-checked receipt to a tip-only one.
+_COMMITTED_REMEDY = (
+    "Already committed? A working-tree receipt already passes task_lane's check (d) when the commit "
+    "holds the reviewed bytes; if it does not, re-make the receipt with `--init --range <base>..<last>`"
+)
+
+
 def restamp(root: Path, receipt: Path) -> int:
     """Re-anchor an existing receipt's working-tree **Surface:** line to the tree as it is NOW.
 
@@ -174,7 +183,7 @@ def restamp(root: Path, receipt: Path) -> int:
     if nbytes == 0:
         sys.stderr.write(
             f"review_receipt: --restamp {receipt}: the surface is EMPTY — nothing differs from "
-            "HEAD on its paths and none is untracked (already committed? pass --range instead)\n"
+            f"HEAD on its paths and none is untracked. {_COMMITTED_REMEDY}\n"
         )
         return 1
     new = _SURFACE_LINE.sub(lambda _m: f"**Surface:** {surface}", text, count=1)
@@ -357,6 +366,12 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     root = a.project_root.resolve()
     if a.restamp is not None:
+        if a.rng is not None:
+            sys.stderr.write(
+                "review_receipt: --restamp does not take --range — a restamp re-anchors the "
+                f"working-tree form only. {_COMMITTED_REMEDY}\n"
+            )
+            return 2
         target = a.restamp if a.restamp.is_absolute() else root / a.restamp
         return restamp(root, target)
     if not a.changed:
