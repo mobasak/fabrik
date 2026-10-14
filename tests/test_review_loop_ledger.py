@@ -212,6 +212,47 @@ def test_nothing_the_journal_carries_is_dropped_or_read_as_in_box(tmp_path: Path
     )
 
 
+def test_read_flags_a_present_defect_with_no_candidate_and_seats_that_disagree(tmp_path: Path) -> None:
+    """W-729416b3 (mail 01M48MQ2HS): a seat that reports a defect PRESENT but raises no candidate is the shape of
+    the label inversion (161 of 587 such seats on the box, 104 Haiku), and two seats giving one id different
+    statuses is a disagreement the lead must settle — both printed, never a gate; legacy labels count too."""
+    row = lambda i, s: {"id": i, "status": s, "command": "c", "output": "o"}  # noqa: E731
+    d = _journal(
+        tmp_path,
+        [
+            {"type": "started", "agentId": "a1", "label": "find:A:haiku"},
+            {"type": "started", "agentId": "a2", "label": "find:A:sonnet"},
+            {"type": "started", "agentId": "a3", "label": "find:B:sonnet"},
+            {"type": "started", "agentId": "a4", "label": "find:B:haiku"},
+            {"type": "started", "agentId": "a5", "label": "find:C:haiku"},
+            # A: haiku says the defect persists and raises nothing; sonnet says it is absent
+            {"type": "result", "agentId": "a1", "result": {"files_read": ["a.py"], "candidates": [],
+                                                          "ledger_status": [row("A-S1", "STILL_TRUE")]}},
+            {"type": "result", "agentId": "a2", "result": {"files_read": ["a.py"], "candidates": [],
+                                                          "ledger_status": [row("A-S1", "DEFECT_ABSENT")]}},
+            # B: both say present (one legacy label), and each raises its candidate — no flag at all
+            {"type": "result", "agentId": "a3", "result": {"files_read": ["b.py"], "candidates": [_cand2("B-S1", 1)],
+                                                          "ledger_status": [row("B-S0", "DEFECT_PRESENT")]}},
+            {"type": "result", "agentId": "a4", "result": {"files_read": ["b.py"], "candidates": [_cand2("B-H1", 2)],
+                                                          "ledger_status": [row("B-S0", "STILL_TRUE")]}},
+            # C: a NEW defect with no candidate is the same shape (review B3 r1 A-S1)
+            {"type": "result", "agentId": "a5", "result": {"files_read": ["c.py"], "candidates": [],
+                                                          "ledger_status": [row("C-S0", "NEW")]}},
+        ],
+    )
+    out = tmp_path / "p.json"
+    r = _tool("read", str(d), "--out", str(out), "--box", "12")
+    assert r.returncode == 0, r.stderr
+    flags = json.loads(out.read_text())["ledger_flags"]
+    assert {(f["kind"], f.get("seat"), f["id"]) for f in flags} == {
+        ("contradiction", "find:A:haiku", "A-S1"),
+        ("disagree", None, "A-S1"),
+        ("contradiction", "find:C:haiku", "C-S0"),
+    }, flags
+    assert "CONTRADICTION A-S1 (find:A:haiku)" in r.stdout and "DISAGREE A-S1" in r.stdout, r.stdout
+    assert "B-S0" not in " ".join(ln for ln in r.stdout.splitlines() if "CONTRADICTION" in ln or "DISAGREE" in ln)
+
+
 def test_next_refuses_an_ambiguous_or_slice_less_id(tmp_path: Path) -> None:
     """A-S2/A-S5/B-H1: an id two seats both raised, or one with no `<slice>-` prefix, cannot name one claim."""
     d = _journal(

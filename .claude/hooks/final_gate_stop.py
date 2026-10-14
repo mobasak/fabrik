@@ -1265,6 +1265,64 @@ def _urgent_sidecar(sid: str | None) -> Path:
     return _counter_path(sid).with_suffix(".urgent")
 
 
+def _arm_sidecar(sid: str | None) -> Path:
+    """`<tempdir>/fabrik-gate-stop-<sid>.urgent-arm` — present once THIS consumption of the self-watch
+    has had its one arm block. Unlinked whenever the lock reads held (the next consumption gets its
+    own block) and when no hold is in force (W-117b1916)."""
+    return _counter_path(sid or "nosession").with_suffix(".urgent-arm")
+
+
+def _arm_order(sid: str | None, cwd: str) -> str | None:
+    """W-117b1916 — the ARM checkpoint item, or None. The rotation tick's relief wake (`.holdlifted`)
+    reaches ONLY a session whose selfwatch.lock is held, and one arm is one wake (D-356), so a
+    window that pauses at urgent-90 or at the wall with a consumed watch sleeps through the reset.
+    The decision is the prompt notice's own (`selfwatch_check.arm_state`, loaded by absolute path
+    from `$FABRIK_HUB_ROOT` or /opt/fabrik); a held lock clears this consumption's arm sidecar; any
+    load or probe failure adds nothing (fail-open). Supersedes D-718 at the Stop site.
+
+    ⚠️ COBRA (D-253): the item reads only "lock held", so a `nohup`, Agent-subagent or FOREGROUND
+    arm, or another session's sid, satisfies it without producing a wake (D-718: those wake
+    nothing); the item names the background form, and an unblocked owed arm lands in the kaizen
+    stream as `stood_down cause=unarmed`."""
+    if not sid or sid == "nosession":
+        return None
+    try:
+        hub = (os.environ.get("FABRIK_HUB_ROOT") or "/opt/fabrik").rstrip("/") or "/opt/fabrik"
+        spec = importlib.util.spec_from_file_location(
+            "_fgs_selfwatch", Path(hub) / "scripts" / "sysadmin" / "selfwatch_check.py"
+        )
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        state = mod.arm_state(sid, cwd)
+        if state == "armed":
+            with contextlib.suppress(OSError):
+                _arm_sidecar(sid).unlink(missing_ok=True)
+            return None
+        if state != "arm":
+            return None
+        return (
+            "ARM the self-watch — the relief wake reaches only an armed watch: "
+            f'Bash(run_in_background: true, command: "bash {mod.ARM} {mod._safe(sid)}") '
+            "(a background task of this session, never nohup or foreground)"
+        )
+    except BaseException:  # a hub module that exits or raises at import must not cost the Stop
+        return None
+
+
+def _claim_arm_block(sid: str | None) -> bool:
+    """True when this consumption's arm sidecar was written NOW — the one arm block it gets."""
+    side = _arm_sidecar(sid)
+    if side.exists():
+        return False
+    try:
+        side.write_text(str(time.time()))
+    except OSError:
+        return False
+    return True
+
+
 def _urgent_checkpoint(
     root: Path,
     sid: str | None,
@@ -1292,6 +1350,7 @@ def _urgent_checkpoint(
     items: list[str] = []
     owed: list[str] = []
     stood: list[tuple[str, dict]] = []
+    arm = _arm_order(sid, str(root))
     dirty = _dirty_paths(root)
     mine = sorted(
         rel
@@ -1338,6 +1397,9 @@ def _urgent_checkpoint(
         owed.append("the waiting merge request — python3 scripts/merge_request.py merge")
         stood.append(("merge-request", {}))
     side = _urgent_sidecar(sid)
+    if arm and not side.exists() and not _arm_sidecar(sid).exists():
+        items.append(arm)  # rides the episode's one block; the arm sidecar marks it spent below
+        stood.append(("unarmed", {}))
     blockable = bool(items) and bool(sid) and sid != "nosession" and not side.exists()
     if blockable:
         # Write FIRST, block only if it landed: an unwritable sidecar would otherwise block every
@@ -1347,6 +1409,27 @@ def _urgent_checkpoint(
             side.write_text(str(time.time()))
         except OSError:
             blockable = False
+    if blockable and arm and arm in items:
+        _claim_arm_block(sid)
+    elif not blockable and arm and _claim_arm_block(sid):
+        # the episode's block is spent (or nothing else was owed with no sidecar to write) and the
+        # watch was consumed since: ONE arm-only block per consumption — the other debts still owed
+        # are recorded as stood down, exactly as on a Stop that blocks nothing
+        for cause, fields in stood:
+            if cause == "unarmed":
+                continue  # the arm is this block's own item, recorded once as blocked below
+            _kaizen(
+                "stop_block",
+                ev_sid,
+                cause=cause,
+                outcome="stood_down",
+                tier=_STAMP_TIER_URGENT,
+                **fields,
+            )
+        _kaizen("stop_block", ev_sid, cause="unarmed", outcome="blocked", tier=_STAMP_TIER_URGENT)
+        return _URGENT_PREFIX + arm + ". Then end the turn."
+    elif arm and ("unarmed", {}) not in stood:
+        stood.append(("unarmed", {}))
     if blockable:
         _kaizen(
             "stop_block",
@@ -1361,8 +1444,9 @@ def _urgent_checkpoint(
             + " · ".join(items)
             + ". "
             + (f"Still owed after the reset: {'; '.join(owed)}. " if owed else "")
-            + "The gate was not evaluated at the urgent tier. This block fires ONCE per episode — "
-            "after the checkpoint, end the turn; the wall tier follows if the quota runs out."
+            + "The gate was not evaluated at the urgent tier. This block fires ONCE per episode"
+            + (" (a self-watch consumed later earns one arm-only block)" if arm else "")
+            + " — after the checkpoint, end the turn; the wall tier follows if the quota runs out."
         )
     for cause, fields in stood:
         _kaizen(
@@ -4399,6 +4483,35 @@ def main(argv: list[str]) -> int:
                 if not urgent:
                     with contextlib.suppress(OSError):
                         _urgent_sidecar(sid).unlink(missing_ok=True)
+                    # W-117b1916: the wall yields everything (D-158) — but one arm-only block per
+                    # consumption first, so the lift's wake has a watch to reach; the arm is one of
+                    # quota_stop.py's allowed calls. A SessionStart never blocks.
+                    _warm = None if "--baseline" in argv else _arm_order(sid, str(root))
+                    if _warm and _claim_arm_block(sid):
+                        _kaizen(
+                            "stop_block", ev_sid, cause="unarmed", outcome="blocked",
+                            tier=_STAMP_TIER_WALLED,
+                        )  # fmt: skip
+                        sys.stdout.write(
+                            json.dumps(
+                                {
+                                    "decision": "block",
+                                    "reason": "FLEET QUOTA AT THE WALL — before you stop: "
+                                    + _warm
+                                    + ". Then end the turn.",
+                                }
+                            )
+                            + "\n"
+                        )
+                        return 0
+                    if _warm:  # owed, but this consumption's block is spent: record the debt
+                        _kaizen(
+                            "stop_block",
+                            ev_sid,
+                            cause="unarmed",
+                            outcome="stood_down",
+                            tier=_STAMP_TIER_WALLED,
+                        )
                     _kaizen("stop_allowed_quota_hold", ev_sid)
                     _store_decision(_ta, sid, judged, _repo)
                     return 0
@@ -4407,6 +4520,8 @@ def main(argv: list[str]) -> int:
         if not urgent:  # the episode is over (or never began): the next urgent one gets its block
             with contextlib.suppress(OSError):
                 _urgent_sidecar(sid).unlink(missing_ok=True)
+            with contextlib.suppress(OSError):
+                _arm_sidecar(sid).unlink(missing_ok=True)
 
         # SessionStart: record the inherited failing set, then always allow.
         # RESUME/COMPACT keep the ORIGINAL baseline: a revived session (the

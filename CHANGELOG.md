@@ -8,6 +8,65 @@ All notable changes to this project will be documented in this file.
 
 PHASE 3 now says that when a row prescribes a step, an order, a commit or a hand-off, and that prescription contradicts a line the pre-draft reading finds, the choice is a decision, settled before the first draft in CLAUDE.md § Autonomy's order: the self-service sources first, then the Opus + Fable panel. A NEW mechanism still routes per PHASE 2. Answers /fabrik-command-improve row 1791961631. The /fabrik-execute-plan pass drafted a row's literal "commit once" mechanism, which broke seven contract sites until the panel overturned it. Grader: `tests/test_command_improve_queue_pass.py`, red on the previous text.
 
+### Fixed — the quota checkpoint makes sure a pausing window's self-watch is armed, so the relief wake can reach it (W-117b1916) (2026-10-14)
+
+- `.claude/hooks/final_gate_stop.py`: the rotation tick's relief wake (`.holdlifted`) reaches only a session whose `selfwatch.lock` is held, and one arm is one wake, so a window that paused at urgent-90 or at the wall after its watch had woken once slept through the reset (five mails, operator-reported). At urgent-90 the checkpoint block now carries an ARM item (the background `selfwatch_arm.sh <sid>` order), and a watch consumed later in the episode earns one arm-only block; at the wall the same arm-only block fires once per consumption before the yield. Fail-open on any load or probe error (D-844, superseding D-718 at the Stop site).
+- `scripts/sysadmin/selfwatch_check.py`: the notice's gates moved into `arm_state(sid, cwd)`, which the prompt notice and the Stop checkpoint now share; the notice text is byte-identical (pinned by a golden test). `SELFWATCH_OPT_ROOT` is a test seam for the `/opt` gate.
+- Graded by 15 new tests in `tests/test_stop_hook_quota_hold_exemption.py` and `tests/test_selfwatch_check.py`, each seen red. The review also closed a hang: a FIFO at the lock path blocked the decider's read forever. `_armed` now decides with ONE non-blocking, non-following open and `fstat`, so a non-regular lock reads as not armed and is never armed onto, and a held lock the reader may not open still reads armed through `/proc/locks`. The rotation tick's vendored copy of the decider gets the same refusal in W-14c96fdc. Windows paused with no stamp (AMBER, RED with a successor) are a separate item, W-a6f51c0b.
+
+### Fixed — `check_convergence.py` grades a spec-review or plan-review receipt by its own Pass Ledger, not a final_gate embed (W-39d8d1fd, mail 01M493W8G3) (2026-10-14)
+
+- `scripts/enforcement/check_convergence.py`: a finished receipt under `docs/development/reviews/` had to embed a `final_gate` success block, the proof a CODE review owes. A `/fabrik-spec-review` or `/fabrik-plan-review` receipt reviews a design document, so its honest close was refused, and authors bolted on a gate run that proved nothing (web-ecommerce-factory). `check_review_coverage.py` never grades such a receipt, so that embed was the only rule on it.
+- Such a receipt is now recognised by the FIRST `Command:` label in its header (its first token, in any case, with list, quote or bold markup), and never when it carries a Coverage Checklist heading. It is graded by the same closing-row law a plan's Pass Ledger answers to: its `| Pass N |` rows carry `confirmed:` counters, read past fences, code spans and HTML comments, and the last one reads 0. Other spellings keep the embed demand.
+- Graded by 17 new tests (34 cases) in `tests/test_check_convergence.py`; every guard was killed by a mutant. Across 1679 receipts on the box, 3 fleet receipts route: two web-ecommerce-factory receipts pass, and trade-intelligence's plan review (closed on the retired scope-growth stop) fails the next time it changes.
+
+### Fixed — `command_run.py step` finds a phase receipt a linked worktree holds (W-9fca9008, mail 01M48QZDFM) (2026-10-14)
+
+- `scripts/command_run.py`: the phase-review gate looked only under the record's repo_root, so a plan built in a worktree, with its receipts committed on the worktree branch, was refused at every phase boundary. The only way through was `--review-waived`, which records a skip that never happened.
+- The gate now also searches every registered worktree of the repo (`git worktree list --porcelain -z`, skipping bare and prunable entries; each git call has a 5 s timeout). A sibling tree offers only NEW evidence: a receipt whose content root's index already holds is skipped, and a sibling receipt is aged by the author time of the last commit that added or changed it, following exact renames only, not by its mtime, because `worktree add` re-stamps checked-out files and a rebase re-stamps committer times; a receipt untracked in its tree keeps its mtime. When the record names a dated plan, a sibling receipt must start with that plan's `<date>-plan-<n>` prefix (an undated stem binds nothing, a stated cost), since another worktree usually holds another session's plan, and the refusal names the prefix. Replication is checked by hashing the blob in-process, so a refused phase costs 0.7 to 1.0 s on a 25-tree hub.
+- An unreadable sibling is skipped, never fatal. A git failure keeps today's root-only search, and the refusal says which.
+- `step` computes the scan once, and only for phase-gated commands.
+- Graded by `tests/test_command_run_phase_worktree.py` (17 tests; each guard killed a mutant, the two literal-pathspec flags as a pair). Glob characters in a receipt name are literal, and a symlinked receipt hashes as git does. A run rooted inside a linked worktree still ages root's own receipts by mtime, which is unchanged from before this fix and filed as W-3c082de1.
+
+### Fixed — `scripts/proof_run.py` refuses to run its live proof without `--live` (2026-10-14)
+
+- The harness parsed no argv, so ANY invocation — `--help` included — ran step 1's `fabrik destroy --yes --drop-data`,
+  `rm -rf /opt/<fixture>` and `gh repo delete` against the fleet; four review seats ran it on 2026-10-14 and destroyed
+  and re-scaffolded the `fabrik-test-saas-skeleton` fixture (`proof-logs/saas-skeleton-20261014T00*.log`). `parse_args()`
+  now runs before `main()` with a REQUIRED `--live`: a bare run exits 2, `--help` exits 0, both before any side effect;
+  there is no dry run and the docstring carries the cobra check. Grader `tests/test_proof_run_guard.py`: a static read
+  refuses to execute an unguarded file (the RED, proved in a throwaway worktree with the proof-log count unchanged), then
+  the real `__main__` block runs under `runpy` with module-global `subprocess`/`urlopen` and class-level `Path` fakes
+  recording zero calls; the review added `allow_abbrev=False` (a prefix such as `--li` is refused), an `if not
+  parse_args().live` check in the `__main__` block (a loosened parser cannot reach `main()`), a static WHITELIST of what the
+  module top level may contain (un-aliased imports, `Path`-only constants to plain names, undecorated defs, classes
+  on builtin or module-defined bases with no dunder assignment or hook def in the body, the `__main__` block without `else`) with the recording fakes installed before
+  every import as the second layer — defence in depth, neither a proof — the `__main__` block asserted by AST shape,
+  `load_env`'s `.env` read pinned to `Path.read_text`, a sentinel proving
+  `--live` reaches `main()` at its first `.env` read, and the escape variants as executable cases. Plan T08
+  (`docs/development/plans/2026-10-14-plan-1-coolify-verb-retirement/T08-script-rebases.md`) inherits the parser and
+  the grader; its spine's File Scope names the test and its never-execute rule now reads as a regression guard.
+
+### Fixed — pgurl counts `requiressl` as an ssl key and pins its own IFS (2026-10-14)
+
+- `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` + `CONFIGURATION_TEMPLATE.md` (fabrik-lib 01M4VB91YA): libpq 17
+  still honours the deprecated `requiressl`, which REWRITES sslmode — `?sslmode=verify-full&requiressl=0` connected at
+  `prefer` past the duplicate-key arm. The key count now runs inside the existing `for kv` loop over
+  `ssl|sslmode|requiressl` (the enumerated pairing arm is gone), and the loop pins `IFS=" "` inside the subshell —
+  the review found the new count read the CALLER's IFS, so a root shell after `IFS=:` let the duplicate through
+  (executed: rc 0 before, refused after, caller IFS untouched). Graders in `tests/test_scaffold_doc_seeding.py`:
+  three requiressl pairings refused, `requiressl=1` alone passes, the IFS loop under `IFS=:` and `IFS=`, and `set -f`
+  pinned by a glob that matches a file in the cwd (red with `set -f` removed). `scaffold.py` schema headers name
+  `requiressl`.
+
+### Fixed — the GATE row's final_gate.py line cites follow an 11-line move, and the grader now checks range ends (2026-10-14)
+
+- `CLAUDE.md`, `templates/governance/CLAUDE.md`: the setup-error and tier cites moved from `:3326-3343`/`:3345-3351` to `:3337-3354`/`:3356-3362`. infra's 7bef5f4cd (D-827) shifted final_gate.py by 11 lines and left `tests/test_governance_template_split.py` red. The grader checked only each range's START line, so it gains `_GATE_CITE_ENDS`, which asserts every range's last line too (shown red on a wrong end).
+
+### Added — `command_feedback_report.py --reasons <command> [--held]`: a read-only view of rejected feedback rows and their reasons (kaizen 01M4V1BCW7) (2026-10-14)
+
+- `scripts/command_feedback_report.py`: `--queue` printed only held tag names, but fabrik-review's 236 tagged rejects carry 235 distinct tags, so a D-711 audit cannot find a subject held under a near-synonym by tag. `--reasons` prints each rejected row's ts handle, tags and reason text, newest reject first (by `at`, since every index `ts` is a string). `--held` narrows to tagged rows. It is read-only and runs alone. It exits rc 1 with a stderr line on an unreadable index, never a silent "nothing held". It survives a non-UTF-8 stdout. A stray `--reason` without `--reject`, the one-letter near-miss that used to run the full report silently, and `--held` without `--reasons` are both refused rc 2. Graded by seven red-first tests in `tests/test_command_feedback_report.py`; `docs/reference/command-run-protocol.md` names the view.
+
 ### Changed — /fabrik-execute-plan: a small sync-path plan runs in its own worktree (2026-10-14)
 
 In the main checkout, a `Profile: small` plan whose owned paths include a governance-sync trigger path now runs in its own isolation worktree (step 8's `EnterWorktree` path), because every main-checkout commit on such a path distributes fleet-wide: its phases still commit one by one, and the plan reaches the fleet once, when Finish position (b) merges the branch and the merge's own hook syncs it. Decided by an Opus + Fable panel over committing once at Finish, which broke the resume rule, the per-phase commit and the Finish review range. Answers /fabrik-execute-plan row 1791912630. Grader: `tests/test_execute_plan_queue_pass.py`, red on the previous text.
@@ -98,6 +157,19 @@ A restating sentence rule (3) deletes may be replaced by at most a pointer; the 
 
 - `scripts/enforcement/check_plan_tickets.py`: `_norm_path` collapsed `/./` and a `./` prefix but not `//`, so a Touches entry spelled `scripts//final_gate.py` was never-route under neither rule and a `Complexity: simple` ticket carrying it drew no error. The fixpoint loop now collapses doubled slashes too; the same normaliser feeds File Scope, and a fleet count found no plan-set path that the collapse re-keys. The review found that collapsing `//` turned `.//.` into an empty token, which `_list_paths` drops silently. The cause is older: the `./` prefix strip already did that to `./` and `./.`. Every repo-root spelling now normalises to `.` and reaches the repo-root ERROR. Graded by `test_a_doubled_slash_collapses_before_never_route` and `test_a_repo_root_spelling_never_normalises_to_empty`, each red before its fix.
 
+### Changed — review seats label a later-pass claim by its defect, and `read` flags a present defect with no candidate (2026-10-14)
+
+- `.claude/workflows/fabrik-review-loop.js`: the pass-2+ `ledger_status` labels are DEFECT_PRESENT, DEFECT_ABSENT and NEW (were STILL_TRUE and NOW_FALSE), in the schema enum, its description and the later-pass brief. Haiku seats read STILL_TRUE as "the claim is true" and labelled fixed defects present (mail 01M48MQ2HS: 11, then 14, of 14-16 rows), with the definition already in the brief. No reader branches on the label, so an older run's rows still close their claims.
+- `commands/_agents/fabrik-reviewer.md` (every workflow seat's system prompt) and `commands/_sources/fabrik-review.md` use the same labels. The agent file's later-pass paragraph takes B2's rule: open every slice file, and a NEW candidate is bounded by the fix hunks.
+- `scripts/review_loop_ledger.py read` prints two advisory flags, never a gate. CONTRADICTION: a seat reports a defect present and raises no candidate (161 of 587 such seats on the box, 104 of them Haiku). DISAGREE: two seats give one id different statuses.
+- A flag on "passing output under DEFECT_PRESENT" was measured and rejected. 151 of 1034 STILL_TRUE rows have pass-shaped output, and the sampled ones are legitimate test-gap rows, where the mutant still passing IS the defect.
+
+### Changed — a later-pass review seat opens its whole slice, and the seat's history clone never pushes (2026-10-14)
+
+- `.claude/workflows/fabrik-review-loop.js`: the later-pass seat head says to open every slice file and list it in files_read, to look for a NEW defect the fix introduced in a file no claim names. The gap check runs on every pass, and 296 of 2383 later-pass slices on the box had logged a gap and stayed open. The same head now bounds a NEW candidate the way term-edit.md does (a defect of a line inside the previous round's fix hunks, or a contradiction they created; one hop out is named in notes, never raised). Before this, it said an out-of-ledger candidate was "never counted" while the script counted it. The clone sentence calls the push URL a tripwire, not a guard, since an explicit path bypasses it, and a seat never runs `git push` in the clone. SEAT_ISOLATION's write verbs are a class (refs, index, tree, config or objects) with examples, `config`, `branch`, `tag`, `merge`, `rebase`, `fetch`, `pull` and `push` among them; `git worktree list` and `git remote -v` stay legal reads.
+- `docs/reference/review-loop-workflow.md`: the gaps and base_pin_dir rows say the same.
+- Graders in `tests/test_review_loop_workflow.py`, red before the change.
+
 ### Changed — review_loop_ledger.py pin's stdout is the JSON fragment alone, and seats get a route for git-history tests (2026-10-14)
 
 - `scripts/review_loop_ledger.py pin` prints its DIRTY, UNCHANGED and SKIPPED advisories on stderr. Stdout is the args fragment alone, one JSON document, which now also carries `dirty`, so a caller can hand stdout to a Workflow launch whole (kaizen 01M4V6VQ8V, /fabrik-review row 1791913338).
@@ -111,18 +183,6 @@ A restating sentence rule (3) deletes may be replaced by at most a pointer; the 
 ### Changed — libs/health_probe re-vendored at fabrik-lib 0e44811c (2026-10-13)
 
 - `libs/health_probe/health_probe.py` and `fingerprint.py` now match fabrik-lib 0e44811c. `load_env`'s docstring now also names a truthy `PYTHON_DOTENV_DISABLED` as a reason it returns False and loads nothing (the hub's finding 01M4V9BKD2). No behaviour change. `tests/test_scaffold_deploy_contract.py`'s vendoring-header test passes again.
-
-### Fixed — pgurl counts `requiressl` as an ssl key and pins its own IFS (2026-10-14)
-
-- `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` + `CONFIGURATION_TEMPLATE.md` (fabrik-lib 01M4VB91YA): libpq 17
-  still honours the deprecated `requiressl`, which REWRITES sslmode — `?sslmode=verify-full&requiressl=0` connected at
-  `prefer` past the duplicate-key arm. The key count now runs inside the existing `for kv` loop over
-  `ssl|sslmode|requiressl` (the enumerated pairing arm is gone), and the loop pins `IFS=" "` inside the subshell —
-  the review found the new count read the CALLER's IFS, so a root shell after `IFS=:` let the duplicate through
-  (executed: rc 0 before, refused after, caller IFS untouched). Graders in `tests/test_scaffold_doc_seeding.py`:
-  three requiressl pairings refused, `requiressl=1` alone passes, the IFS loop under `IFS=:` and `IFS=`, and `set -f`
-  pinned by a glob that matches a file in the cwd (red with `set -f` removed). `scaffold.py` schema headers name
-  `requiressl`.
 
 ### Fixed — the scaffold parity stub's ".env loaded nothing" message names PYTHON_DOTENV_DISABLED (2026-10-13)
 

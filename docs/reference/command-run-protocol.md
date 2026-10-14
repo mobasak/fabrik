@@ -336,7 +336,11 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   marks its rows — `command_feedback_report.py --mark-answered <command> --rows <ts,…> --commit
   <sha>`, which refuses a commit touching no corpus path and writes
   `~/.claude/state/command-feedback-answered.jsonl` beside the ledger. `--queue` excludes those
-  rows and states how many it dropped. In a repo with a work store, TAKING a command's queue
+  rows and states how many it dropped. `--reasons <command> [--held]` is the read-only view of the
+  REJECTED rows: their ts handle, held tags and reason text, newest reject first. A D-711 audit greps it,
+  because tag names alone miss a subject held under a near-synonym. It exits rc 1 on an unreadable index, and
+  its output is large, so the orchestrator pins it into a seat's scratch rather than having the seat read
+  `~/.claude`. In a repo with a work store, TAKING a command's queue
   (`command_feedback_report.py --take <command>`) opens (or reports held) the one `kind: feedback`
   work-store item for that queue's `/fabrik-command-improve` run, and `--mark-answered` closes it
   `done` with the note `answered by <sha prefix>` — but NOT always at the same depth the `QUEUE:` line

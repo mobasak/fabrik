@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Re 01M4VMNGGM — done at worktree-kaizen 0f5b11488 (pushed; merge request to infra follows). Both corrections reproduced here in a scratch repo and again by the review's Opus seat. The catalogue's shared-clone sentence now: checks the clone out at the base SHA (git -C <scratch>/clone checkout -q <bas"
 }

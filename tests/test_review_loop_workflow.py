@@ -61,6 +61,26 @@ def test_every_finder_schema_requires_files_read_and_candidates() -> None:
         assert field in required.group(1), f"FINDINGS must require {field}"
 
 
+def test_the_ledger_status_labels_name_the_defect() -> None:
+    """W-729416b3: the schema a pass ≥ 2 seat fills offers exactly the defect-named labels, and its description
+    uses them; an old run's STILL_TRUE/NOW_FALSE rows still close their claims, because no reader branches on the
+    label (the NOW_FALSE fixtures below prove it)."""
+    m = re.search(r"const FINDINGS\s*=\s*\{(.*?)\n\}", _script(), re.S)
+    assert m, "no FINDINGS schema"
+    enum = re.search(r"status:\s*\{\s*enum:\s*\[([^\]]*)\]", m.group(1))
+    assert enum, "ledger_status.status has no enum"
+    assert [x.strip().strip("'\"") for x in enum.group(1).split(",")] == ["DEFECT_PRESENT", "DEFECT_ABSENT", "NEW"]
+    assert "DEFECT_PRESENT it persists, DEFECT_ABSENT it is absent" in m.group(1)
+    # every workflow seat runs as fabrik-reviewer, so its system prompt carries the same vocabulary (both B3 design
+    # critiques: a JS-only rename leaves a Haiku seat two label sets in one context)
+    agent = (ROOT / "commands" / "_agents" / "fabrik-reviewer.md").read_text(encoding="utf-8")
+    # review B3 r1 B-S1: the spaced form is a second vocabulary too — the agent spells the schema's exact tokens
+    for old in ("STILL_TRUE", "NOW_FALSE", "STILL TRUE", "NOW FALSE", "DEFECT PRESENT", "DEFECT ABSENT"):
+        assert old not in agent, old
+    assert "`DEFECT_PRESENT` the defect persists · `DEFECT_ABSENT` it is absent" in agent
+    assert "each label says what is true of the\nDEFECT, never of the claim" in agent
+
+
 def test_every_seat_names_its_model_and_effort_and_no_run_is_resumed() -> None:
     body = _script()
     sites = [m.start() for m in re.finditer(r"\bagent\(", body)]
@@ -551,11 +571,15 @@ def test_a_later_pass_prompt_defines_its_ledger_status_on_the_defect_and_every_s
     ]
     _, _, prompts = _harness(args, {})
     finder = prompts["find:S:sonnet"]
-    assert "STILL_TRUE means the defect is still there" in finder, (
+    # W-729416b3 (mail 01M48MQ2HS): the label names the DEFECT, not the claim's truth — a Haiku seat read a
+    # re-verified claim as "true" and labelled 11 then 14 of 14-16 fixed defects STILL_TRUE with the definition
+    # already in the brief
+    assert "DEFECT_PRESENT means the defect is still there" in finder, (
         "pass ≥ 2 keys the status on the DEFECT (R-3)"
     )
-    assert "NOW_FALSE means the claimed defect is absent" in finder
-    assert "ONLY the STILL_TRUE and NEW rows" in finder, "a fix that holds is never a candidate"
+    assert "DEFECT_ABSENT means the claimed defect is absent" in finder
+    assert "ONLY the DEFECT_PRESENT and NEW rows" in finder, "a fix that holds is never a candidate"
+    assert "STILL_TRUE" not in finder and "NOW_FALSE" not in finder, "one vocabulary per prompt"
     assert "StructuredOutput" in prompts["find:S:haiku"], (
         "every finder is told to finish with the schema"
     )
@@ -2241,7 +2265,38 @@ def test_every_seat_is_told_how_to_run_a_git_history_test() -> None:
         ), label
         assert "writes nothing to the shared" in p and "lands in the clone's own" in p, label
         assert "only a test that reads the LIVE checkout's own branches" in p, label
-        assert "(init, clone, add, commit" in p, (
+        assert "these being examples only: init, clone, add, commit" in p, (
             label,
             "a clone is a writing verb, in the -C form",
         )
+        # kaizen 01M4VNJWES: a push to the source PATH bypasses pushurl, and a fetch run IN the live repo from
+        # the clone writes live refs — so the URL is named a tripwire, no push is allowed, and both verbs are writers
+        assert "a tripwire, not a guard: an explicit path or URL bypasses it" in p, label
+        assert "NEVER run `git push` in the clone, to origin or to any path or URL" in p, label
+        # review A-S3/A-H2: the verb list is a class, `config` in it (it rewrites the tripwire); A-S4: the
+        # read-only subcommands of remote and worktree stay legal reads
+        # review pass 2 A-H1: the verbs read as a closed list until the class says the names are examples
+        assert "ANY verb that changes its refs, index, tree, config or objects, these being examples only" in p, label
+        assert "push, config, branch, tag, merge, rebase" in p, label
+        assert "(`git worktree list` and `git remote -v` only read)" in p, label
+
+
+def test_a_later_pass_seat_is_told_to_read_its_whole_slice() -> None:
+    """kaizen 01M4VNPMAZ (/fabrik-review row 1791927763): the files_read gap check runs on every pass, but a
+    ledger-only seat read only its claims' files — 296 of 2383 later-pass slices on the box logged a gap and stayed
+    open. The later-pass head now says to open every slice file, for a NEW defect the fix introduced, while still
+    raising nothing outside the ledger (D-230); the pass-1 head is unchanged."""
+    args = {**_ARGS, "pass": 2, "slices": [{**_ARGS["slices"][0], "ledger": _LEDGER_ROW}]}
+    _, _, prompts = _harness(args, {"find:S:sonnet": _FULL_READ, "find:S:haiku": _FULL_READ})
+    for label in ("find:S:sonnet", "find:S:haiku"):
+        p = prompts[label]
+        assert "Open EVERY slice file and list it in files_read on this pass too" in p, label
+        assert "a fix hunk can sit in a file no claim names" in p, label
+        # review A-S2: a NEW candidate is bounded by the fix hunks (term-edit.md, D-230), quoted, so the
+        # sentence asking for whole-slice reads cannot read as licence to raise one-hop defects that would count
+        assert "a defect of a line INSIDE the previous round's fix hunks" in p, label
+        assert "is never raised — name it in notes with a destination (D-230)" in p, label
+        assert "a candidate outside the ledger is RECORDED with a destination, never counted" not in p, label
+        assert "a slice file no seat lists keeps the slice open" in p, label
+    _, _, first = _harness(_ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": _FULL_READ})
+    assert "on this pass too" not in first["find:S:sonnet"], "pass 1 already reads the whole slice"
