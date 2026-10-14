@@ -54,7 +54,10 @@ SSH + Docker Compose (`fabrik apply`). The legacy CLI commands (`fabrik status`,
 API are now non-functional and listed under "Known broken" in the SSH-deployer
 archived plan.
 
-New projects never needed a Coolify API token.
+New projects never needed a Coolify API token. The `.env.example` placeholder blocks (nine `COOLIFY_*` names:
+`COOLIFY_URL`, `COOLIFY_API_URL`, `COOLIFY_API_TOKEN`, `COOLIFY_ADMIN_EMAIL`, `COOLIFY_ADMIN_PASSWORD`, the server,
+project, environment and private-key UUIDs) and the hub `compose.yaml`'s four `COOLIFY_*` environment lines were removed on
+2026-10-14 (plan 2026-10-14-plan-1-coolify-verb-retirement, T07b); the hub `/health` no longer checks Coolify.
 -->
 
 ### FABRIK_EXEC_MODE — WordPress driver execution mode

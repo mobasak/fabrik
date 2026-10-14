@@ -74,14 +74,14 @@ Intake: 25 items — 23 IN, 2 OUT-OF-SCOPE (I19 → W-53f8a3f3; I22 → W-2191a0
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | deployer helpers: `app_dir`, `_host_env`, `probe_app`, `list_compose_projects`, `_parse_compose_ps` | — | ⚡ | ⬜ | |
+| T01 | deployer helpers: `app_dir`, `_host_env`, `probe_app`, `list_compose_projects`, `_parse_compose_ps` | — | ⚡ | ✅ | `d64847a49` |
 | T02 | `fabrik status` prints the last apply and the live containers | T01 | ⛓️ | ⬜ | |
 | T03 | `fabrik reconcile-all` reads the deployed set from Compose; `refresh_infrastructure` walks `app_dir` | T01, T02 | ⛓️ | ⬜ | |
 | T04 | `fabrik projects --sync` re-scans `/opt`; the registry loses its Coolify fields | T03 | ⛓️ | ⬜ | |
 | T05 | `fabrik apply` loses its legacy flags; `deploy.py` is deleted; cli wording | T04 | ⛓️ | ⬜ | |
 | T06 | export/import drop the Coolify section; legacy members counted | T05 | ⛓️ | ⬜ | |
-| T07a | `RollbackManager` loses its Coolify branch; vestigial patches leave the orchestrator tests | — | ⚡ | ⬜ | |
-| T07b | hub `/health` drops the Coolify check; state and context words; env placeholders go | — | ⚡ | ⬜ | |
+| T07a | `RollbackManager` loses its Coolify branch; vestigial patches leave the orchestrator tests | — | ⚡ | ✅ | `665b04272` |
+| T07b | hub `/health` drops the Coolify check; state and context words; env placeholders go | — | ⚡ | ✅ | `e8367785b` |
 | T08 | the four hub scripts bound to the driver are rebased | T01, T05 | ⚡ | ⬜ | |
 | T09 | the Coolify modules, their tests and the two dead scripts are deleted in one commit | T06, T07a, T07b, T08 | ⛓️ | ⬜ | |
 | T10a | the reference, module and operations docs stop calling the verbs broken | T09 | ⚡ | ⬜ | |
