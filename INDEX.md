@@ -1388,6 +1388,7 @@ docs/
 | [docs/README.md](docs/README.md) | The docs/ tree's charter and folder map — one role per folder |
 | [preplans/README.md](docs/preplans/README.md) | Preplans folder — stage 1 of the Fabrik lifecycle, captured intent before `fabrik scaffold` |
 | [workstation/kaizen.md](docs/workstation/kaizen.md) | The kaizen continuous-improvement loop on this box — the daily measurement half and the analysis half |
+| [workstation/cloud-dispatch.md](docs/workstation/cloud-dispatch.md) | Cloud subagents that spend the per-account cloud-session credit: `scripts/cloud_dispatch.py` fires a fleet account's claude.ai routine (`.fabrik/cloud-routines.json`), waits for its `claude/<slug>` branch, reads its log (D-857) |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration guide - credentials, architecture, troubleshooting |
 | [DEPLOYMENT_ARCHITECTURE.md](docs/DEPLOYMENT_ARCHITECTURE.md) | Deploy code architecture reference |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |

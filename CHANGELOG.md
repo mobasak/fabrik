@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — cloud subagents that spend the per-account cloud-session credit (2026-10-14)
+
+- `scripts/cloud_dispatch.py` + `.fabrik/cloud-routines.json`: `dispatch` fires a fleet account's claude.ai routine `fabrik-cloud-worker` (token path when `~/.claude-fleet/<slug>/routine-token` exists — zero local quota, 401 → exit 3, 429 → exit 4, never a fallback; else a headless `claude -p '/schedule run …'` from a scratch dir, a wall → exit 5, a dead chain → exit 6); `--pick` spends the credits evenly (usable path, then fewest dispatches this week, then weekly %; no qualifying account refuses); `wait` accepts only a `claude/<slug>` tip carrying the `Cloud-Dispatch: done` trailer; `log` reads a run headlessly; every attempt is a ledger row in `<state>/cloud-dispatch.jsonl`. Four accounts proven end to end (ob, ozgurbasak, can, mob — push access granted with `/web-setup`). 66 tests red-first (31 of them red on the review's pass-1 pin), 16/16 mutants killed by name; the scoped review's 18 confirmed findings (a task text tripping the wall regex, a stale branch read as done, FETCH_HEAD races, token-file content, argparse parents, exception paths that skipped the ledger) fixed in-run. Doc: `docs/workstation/cloud-dispatch.md` (D-857).
+
 ### Fixed — fabrik-mail's fabrik-lib addressing leg spares threads and senders, and is switched on (2026-10-14)
 
 - `scripts/mail.py`: an unaddressed send to `fabrik-lib` is addressed to the one module owner only when it is unthreaded and not a broadcast, never to the sender's own role; a module counts as an absolute `/opt/fabrik-lib/<m>` path, a relative `<m>/…` path (not the sender's own top-level folder, `..` refused), or a backticked hyphenated name; a bare single-word name never routes but a second owner it names unaddresses the mail (W-c687ce60, D-853).
