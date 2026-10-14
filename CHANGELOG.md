@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: a shared rule lives where its writers load it; a mechanism meets its consumer (2026-10-14)
+
+§ Drive's consistency rule now puts a rule that binds more than one command where every loop that writes the text it governs loads it (a fragment those commands include, else the `CLAUDE.md` or pack they all load), and PHASE 2's targets and lock check admit each of those homes. PHASE 3 now checks a mechanism the edit adds against the step or code that must consume it, and writes it in only when that consumer reads it or the edit wires it in. Answers rows 1791937927 and 1791940094: the count rule was first written per command, where the review-fix loops never read it, and a panel's coder time box was written in before anyone checked that D6 never reads its `TIMEOUT:` token. Grader: `tests/test_command_improve_queue_pass.py::test_a_rule_lands_where_its_writers_load_it_and_a_mechanism_meets_its_consumer`; the adjacent origin-case pin moved to the new joint.
+
 ### Changed — /fabrik-execute-plan: every coder dispatch runs in the foreground (2026-10-14)
 
 The board loop, D2 and § Dispatch pattern now dispatch coders as FOREGROUND Agent calls (`run_in_background=False`, added with `model=` to the three example calls), so the orchestrator's turn holds until the wave returns. A web-ecommerce-factory run used the default instead, ended its turn while two coders ran, and took 132 run-record Stop blocks, because the hook's stand-down covers stamped review seats only (infra mail 01M4VXJ4TQ). D2's dispatch timeout is now checked when each call returns; a coder that never returns is bounded only by the explicit command timeouts its brief demands. Grader: `tests/test_execute_plan_queue_pass.py::test_the_orchestrator_waits_for_its_coders_in_turn`.

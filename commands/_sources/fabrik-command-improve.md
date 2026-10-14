@@ -68,7 +68,8 @@ five runs, each of which a reader can judge on its own.
   --command /fabrik-command-improve --resume <that path> --reason "<why rows remain open>"
   --feedback "<the four fields>"`.
 - **Consistency and the manifesto.** The corpus keeps one shape: a rule that binds more than this
-  command lives in `commands/_fragments/` and is INCLUDED, never restated per command; a rule
+  command lives where every loop that WRITES the text it governs loads it — a fragment those commands
+  INCLUDE, else the `CLAUDE.md` or pack they all load — never restated per command; a rule
   already in `CLAUDE.md` or a pack is POINTED at, never copied; and a sibling command's handling of
   the same subject is read before a new one is invented — best practice here is what the live
   corpus practices. Every edit is reversible by default and, when it adds a count or a bar, names
@@ -162,7 +163,8 @@ and stop; do not invent an edit to justify the run.
 
 Group the rows by what they are actually about, then choose the group that (a) the most rows name,
 and (b) you can express as a CONCRETE change to `commands/_sources/<command>.md`, to one of the
-fragments that command renders, or to the rule pack it cites. Name the rows you are answering by `ts`. ⚠️ **A `.windsurf/rules/` edit is a FLEET-WIDE
+fragments that command renders, to the rule pack it cites, or to the fragment, pack or `CLAUDE.md` that § Drive's
+consistency rule sends a shared rule to. Name the rows you are answering by `ts`. ⚠️ **A `.windsurf/rules/` edit is a FLEET-WIDE
 change** — that directory is a governance-sync trigger, so a commit there distributes to ~46 repos
 on the post-commit hook. Make it only if it is correct for all of them, and say so in the commit;
 one hub agent's verdict is not evidence about 46 projects.
@@ -181,8 +183,8 @@ Three shapes are NOT yours to apply here, and each has a destination:
 
 - **the file you would WRITE is lock-owned.** RESOLVE THE TARGET FIRST, THEN READ THE LOCKS. Key it
   on the write TARGET — `commands/_sources/<command>.md`, one of the fragments that command renders
-  (`command grep -n 'include:' commands/_sources/<command>.md` names them), or the pack you would
-  edit — never on what the verdict talks about: a verdict phrased about behaviour names no file and
+  (`command grep -n 'include:' commands/_sources/<command>.md` names them), § Drive's home for a shared
+  rule, or the pack you would edit — never on what the verdict talks about: a verdict phrased about behaviour names no file and
   still lands in one. ONLY THEN read the locks: `python3 -c` over `.fabrik/plan-locks/*.json`,
   keeping the files whose `status` is `"active"` and testing your write target against their
   **`owned_paths`** list — name that key, a guess like `files` returns `[]` and reads as "no lock
@@ -235,7 +237,9 @@ consumer with its bound placeholders, and each source or fragment that names it 
 without .md> commands/_sources commands/_fragments`, which lists the includers too;
 `test_a_fragment_edit_names_its_by_path_consumers_too` runs it), and must be obeyable in each. A rule the edit adds
 is checked before PHASE 4's pin on the edit's own grader and sentence, which obey it, and on the case that raised
-it, which it must flag. A sentence that describes what a script, tool or another step DOES — its output or
+it, which it must flag. A mechanism the edit adds — a token, a field, a report shape, a panel's proposal
+included — is checked against the step or code that must consume it, and is written in only when that
+consumer reads it or this edit wires it in. A sentence that describes what a script, tool or another step DOES — its output or
 advisory, every finding string it classifies, an edge case such as an empty input or a quiet round, a recipe — or
 tells the agent to run one of its verbs is executed on the scenario the sentence states before PHASE 4's review and
 quoted as it prints (a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites,
