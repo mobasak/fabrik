@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-07T06:03:22.189450Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "c92da90e245ec6ca2cefe9cf6c7ba32c264a90fb",
   "id": "W-39d8d1fd",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m493w8g3",
     "waits-2026-10-13"
