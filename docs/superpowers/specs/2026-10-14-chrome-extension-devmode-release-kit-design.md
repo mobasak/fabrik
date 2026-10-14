@@ -175,9 +175,10 @@ One seat's dissent is folded below: before the first release, dev builds have a 
    - `wxt.config.ts` (`src/fabrik/scaffold.py:5109-5134`) reads `extension-key.pub` when it exists and sets
      `manifest.key` from it. It omits the key when the file is absent, or when the build sets `STORE_BUILD=1`.
    - The store rejects a first upload carrying `key` (§ External dependencies), so a store build leaves it out.
-   - `manifest.permissions` gains `alarms`, and `host_permissions` gains the backend origin from `VITE_API_ORIGIN`. The
-     existing `src/lib/api/config.ts` already points at the backend; the plan grounds the exact variable at its
-     `path:line`.
+   - `manifest.permissions` gains `alarms`. `manifest.host_permissions` (the manifest has none today) gains the backend
+     origin, taken from `VITE_PUBLIC_API_URL`, the variable the emitted `src/lib/api/config.ts` already reads as
+     `API_BASE_URL` (`src/fabrik/scaffold.py:5532`). The existing `authedFetch` already refuses any other origin
+     (`src/fabrik/scaffold.py:5544-5561`).
 3. **The release target.**
    - The `Makefile` (`src/fabrik/scaffold.py:6000-6056`) gains `release-ext`: `pnpm keygen` (a no-op once a key exists),
      then `pnpm zip`, which keeps `wxt zip` unchanged (I6).
@@ -293,7 +294,7 @@ None. The project's data contract and UI contract are not frozen artifacts of th
   - `EXTENSION_LATEST_VERSION`
   - `EXTENSION_LATEST_URL`
   - `EXTENSION_LATEST_SHA256`
-  - `VITE_API_ORIGIN` (if the plan finds no existing equivalent)
+  - The extension reuses its existing `VITE_PUBLIC_API_URL` (`src/fabrik/scaffold.py:5532`); no new client variable.
 
 ## Documentation landing sites
 
@@ -349,6 +350,5 @@ Graders in `tests/test_scaffold.py`, each watched red first:
   - Whether the store also rejects `key` on later updates (reports conflict, ledger key-9 and prac-7). The design never
     uploads one, so either answer changes nothing.
   - Resolution step: none needed. Recorded so a later store-migration spec does not re-litigate it.
-- **Open, for the plan:**
-  - The exact backend-origin variable the emitted extension already uses (`src/lib/api/config.ts`).
-  - Resolution step: `/fabrik-plan-after-chat` greps the emitted file and names it at `path:line`.
+- **Resolved by the plan's grounding:**
+  - The backend-origin variable is `VITE_PUBLIC_API_URL` (`src/fabrik/scaffold.py:5532`).
