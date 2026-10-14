@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review-loop Workflow seats never execute an unread or destructive script (2026-10-14)
+
+- `.claude/workflows/fabrik-review-loop.js`: SEAT_ISOLATION carries kaizen's rule from subagents-core.md and the fabrik-reviewer agent. A seat reads a script before executing it, `--help` included. It never executes one that deletes, deploys, provisions, writes outside its scratch dir or contacts a non-local host, by any route: an import that calls a function, `runpy`, a test, or a node or shell wrapper. It cites the lines and returns the claim unverified. On 2026-10-14 four plan-review seats ran scripts/proof_run.py, which has no argument parsing, and destroyed a live fixture.
+- The refuter's "run it" names that exception: the verdict is unverified, the command is the read and the output is the cited lines.
+- The pytest recipe has a seat read each script a selected test runs. PIN_IMPORT's runpy recipe defers to the rule.
+- On a later pass, a claim whose check is forbidden gets no ledger row, so it stays open for the lead.
+- `docs/reference/review-loop-workflow.md` says the same. Graded in `tests/test_review_loop_workflow.py`, red before the change.
+
 ### Changed — review seats label a later-pass claim by its defect, and `read` flags a present defect with no candidate (2026-10-14)
 
 - `.claude/workflows/fabrik-review-loop.js`: the pass-2+ `ledger_status` labels are DEFECT_PRESENT, DEFECT_ABSENT and NEW (were STILL_TRUE and NOW_FALSE), in the schema enum, its description and the later-pass brief. Haiku seats read STILL_TRUE as "the claim is true" and labelled fixed defects present (mail 01M48MQ2HS: 11, then 14, of 14-16 rows), with the definition already in the brief. No reader branches on the label, so an older run's rows still close their claims.
