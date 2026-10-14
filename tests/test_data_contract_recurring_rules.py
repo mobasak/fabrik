@@ -26,7 +26,7 @@ def test_phase_3_names_the_ledger_home_and_when_the_version_entry_is_written() -
     phase3 = _between(_norm(SRC), "## Phase 3 — Converge", "1. **Coverage**")
     assert (
         "The Pass Ledger lives in the contract's Pass Ledger section when it carries one, else in the closing report; "
-        "a re-freeze adds its own dated version entry there after that closing round, so its absence is never a "
+        "a bumping re-freeze adds its own dated version entry there after that closing round, so its absence is never a "
         "finding in any round of the run. A run paused before that round (the Termination contract's no-seat pause) "
         "carries its rows so far in its `blocked --reason` (free text; `--feedback` is the capped usage line), and the "
         "resumed run copies them into the entry, or into the closing report when the contract has no ledger section."
@@ -99,3 +99,18 @@ def test_a_delta_citing_an_unbuilt_file_carries_the_doc_links_marker() -> None:
     assert list(mod._iter_refs(marked)) == []
     assert list(mod._iter_refs(unmarked)) != []
     assert list(mod._iter_refs(capital)) != []
+
+
+def test_a_refreeze_whose_deltas_touch_no_tabled_item_closes_without_a_bump() -> None:
+    """Row 1791945393 (refreeze-short-path, a recurrence): Phase 0 names the zero-delta close."""
+    phase0 = _between(_norm(SRC), "## Phase 0", "## Phase 1")
+    assert (
+        "When no delta (an empty § Contract deltas included) changes anything the contract records — a table row, "
+        "an enum value, a retention row, a house rule, a reconciliation note — the re-freeze is zero-delta: Phases "
+        "1–3 still run and confirm the body unchanged, then Phase 4 bumps no `Version` and edits nothing, its D-row "
+        "cites the approval row and the spec and says no recorded item changed, and the re-freeze close-out does "
+        "not run."
+    ) in phase0
+    assert "bump `Version` (a zero-delta re-freeze, below, excepted), never a silent overwrite." in phase0
+    phase3 = _between(_norm(SRC), "## Phase 3", "## Phase 4")
+    assert "A zero-delta re-freeze (Phase 0) edits nothing, so its rows always go in the closing report." in phase3

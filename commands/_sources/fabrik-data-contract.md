@@ -54,13 +54,17 @@ already exists as an unfrozen skeleton. **A DRAFT stub is meant to be edited thr
 STOP** (the explicit exception to CLAUDE.md's "file exists = STOP" — that rule guards against clobbering *real* content, and a
 placeholder stub has none). Modes A/B rewrite its body from the design/schema; Mode C fills it. **Only if the
 file is already `FROZEN`** do you STOP and ask; on the user's confirmation, proceed as a **re-freeze** — bump
-`Version`, never a silent overwrite. An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds its approval — a row naming the
+`Version` (a zero-delta re-freeze, below, excepted), never a silent overwrite. An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds its approval — a row naming the
 spec's path that records the panel's `→ both-approve` or the operator's approving answer (a DRAFT or CONVERGED-flip row is
 not one) — and its § Contract deltas (the section a `Profile: delta` spec carries; a spec without one still
 stops) names the change: cite that row and the spec in the re-freeze's D-row and
 proceed. Anything else still stops: no approval row, or any field, column, type, validation, PII, reference or enum
 change the deltas do not name, which Phase 3's closing round re-checks before the Phase-4 flip. A `Version` that
 moved since the spec renumbers only when the spec says it does and the interim versions touch none of its deltas.
+When no delta (an empty § Contract deltas included) changes anything the contract records — a table row, an
+enum value, a retention row, a house rule, a reconciliation note — the re-freeze is zero-delta: Phases 1–3 still
+run and confirm the body unchanged, then Phase 4 bumps no `Version` and edits nothing, its D-row cites the
+approval row and the spec and says no recorded item changed, and the re-freeze close-out does not run.
 
 ## Phase 1 — Build the field inventory (dual-source, grounded, adversarial)
 
@@ -153,10 +157,11 @@ project-level and light). Per section:
 
 Run repeated reconciliation passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged — is reached.
 The Pass Ledger lives in the contract's Pass Ledger section when it carries one, else in the closing report; a
-re-freeze adds its own dated version entry there after that closing round, so its absence is never a finding in
+bumping re-freeze adds its own dated version entry there after that closing round, so its absence is never a finding in
 any round of the run. A run paused before that round (the Termination contract's no-seat pause) carries its rows
 so far in its `blocked --reason` (free text; `--feedback` is the capped usage line), and the resumed run copies
-them into the entry, or into the closing report when the contract has no ledger section.
+them into the entry, or into the closing report when the contract has no ledger section. A zero-delta re-freeze
+(Phase 0) edits nothing, so its rows always go in the closing report.
 Each pass checks ALL of:
 
 1. **Coverage** — every entity from the spec (Mode A) / schema (Mode B) is present; every GUI/form field maps to
