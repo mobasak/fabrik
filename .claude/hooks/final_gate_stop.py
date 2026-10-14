@@ -1665,19 +1665,81 @@ def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = N
     if not surfaces and not tokens:
         return set()
     for s in surfaces:
-        for raw in _SURFACE_SPLIT.split(s):
-            if not raw:
-                continue
-            tok = raw[2:] if raw.startswith("./") else raw
-            # `.` is a path character, so a surface written as a SENTENCE keeps its full stop on
-            # the token and the exemption silently fails — a false BLOCK, the thing T5.2 exists to
-            # end (round 1, seat finding F7). ONLY `.`: `,`, `;` and `:` are not in the splitter's
-            # class, so it has already ended the token at them and stripping them here was dead
-            # (round 2, seat finding 10 — the same unreachable-code class as round 1's C-R3).
-            tok = tok.rstrip(".")
-            if tok:
-                tokens.add(tok)
+        tokens |= _surface_tokens(s)
     return {f for f in authored if f in tokens}
+
+
+def _surface_tokens(surface: str) -> set[str]:
+    """The whole-token path names a free-text `--surface` carries — ONE parse for the running
+    review's exemption and the closed reviews' record (W-bdcff87a), so the two cannot disagree on
+    what a surface names."""
+    tokens: set[str] = set()
+    for raw in _SURFACE_SPLIT.split(surface):
+        if not raw:
+            continue
+        tok = raw[2:] if raw.startswith("./") else raw
+        # `.` is a path character, so a surface written as a SENTENCE keeps its full stop on
+        # the token and the exemption silently fails — a false BLOCK, the thing T5.2 exists to
+        # end (round 1, seat finding F7). ONLY `.`: `,`, `;` and `:` are not in the splitter's
+        # class, so it has already ended the token at them and stripping them here was dead
+        # (round 2, seat finding 10 — the same unreachable-code class as round 1's C-R3).
+        tok = tok.rstrip(".")
+        if tok:
+            tokens.add(tok)
+    return tokens
+
+
+def _closed_review_named(
+    rec: object, authored: dict[str, int], committed: dict[str, int]
+) -> set[str]:
+    """The paths a CLOSED `done` review of this session NAMED after they were last touched
+    (W-bdcff87a, site-provisioner 01M49X4BZT): `command_run.py` records `{surface, adds, closed}` in
+    `reviewed_surfaces` at every review-family `done`, nested included, and carries the list for the
+    session. A nested review stamps no reach and its window starts after an earlier edit, so before
+    this a file reviewed only by nested reviews stayed unreviewed for good.
+
+    An EDITED path is named when an entry closed at or after its edit — judged by the edit, never a
+    later commit, or the commit the uncommitted cause orders would re-block it. A COMMIT-ONLY path
+    is named within `_COMMIT_GRACE_S` after a close, the commit rule `_unreviewed_spontaneous_files`
+    already applies. The record and every parked `stack` frame are read, never `nested` (the pop
+    joins the same entries into the caller, so reading both would count them twice). Closed entries
+    are history, read whatever the live state — only a `done` writes them. An entry whose `closed`
+    is not a number, or lies beyond now + `_CLOCK_SKEW_TOLERANCE_S` (a clock ahead would clear
+    every later edit), is skipped, and so is a touch of 0 (an unreadable time): every malformed shape fails
+    CLOSED. Edits are the FLOORED set, so an edit older than the floor never shields a fresh commit.
+
+    ⚠️ COBRA (D-253), stated: naming a file in a trivial review's surface clears it — the contract a
+    RUNNING review already has (T5.2) and a top-level `done` review's whole-session reach-back
+    already grants (D-574); the review still owes its rounds to reach `done`. And a surface that
+    mentions a path to EXCLUDE it now clears it durably (the cost `_surface_reviewed` states, no
+    longer bounded by the run's life), still no wider than that reach-back."""
+    if not isinstance(rec, dict) or not (authored or committed):
+        return set()
+    ceiling = time.time() + _CLOCK_SKEW_TOLERANCE_S
+    named: set[str] = set()
+    for holder in [rec, *_seq(rec, "stack")]:
+        entries = holder.get("reviewed_surfaces") if isinstance(holder, dict) else None
+        for e in entries if isinstance(entries, list) else []:
+            if not isinstance(e, dict):
+                continue
+            closed = e.get("closed")
+            # a non-number would raise in the comparisons below; NaN compares false everywhere and
+            # a bool reads as 0/1, so neither can ever reach a real touch — no guard is owed them
+            if not isinstance(closed, (int, float)) or closed > ceiling:
+                continue
+            surface, adds = e.get("surface"), e.get("adds")
+            tokens = _surface_tokens(surface) if isinstance(surface, str) else set()
+            tokens |= {a for a in adds if isinstance(a, str)} if isinstance(adds, list) else set()
+            for f in tokens:
+                # a touch of 0 is an UNREADABLE time — no proof of order, so never cleared
+                if f in authored:
+                    if authored[f] > 0 and closed >= authored[f]:
+                        named.add(f)
+                elif (
+                    f in committed and committed[f] > 0 and closed + _COMMIT_GRACE_S >= committed[f]
+                ):
+                    named.add(f)
+    return named
 
 
 def _unreviewed_spontaneous(
@@ -1792,6 +1854,9 @@ def _unreviewed_spontaneous_files(
     # exempts them by name exactly as it exempts an Edit-written file (T5.2).
     committed = _commit_files(root, commits, floor) if commits and root is not None else {}
     named = _surface_reviewed(rec, {**committed, **authored}, sid)  # once per stop, not per file
+    # the FLOORED edits: an edit older than the floor is not this session's work, so a fresh commit
+    # of that path is judged by the commit leg, never shielded by a review of the old edit (C2)
+    named |= _closed_review_named(rec, _this_sessions_edits(authored, floor), committed)
     scoped = {f: ts for f, ts in _this_sessions_edits(authored, floor).items() if f not in named}
     names = _unreviewed_code_file_names(scoped, windows)
     if names and root is not None:

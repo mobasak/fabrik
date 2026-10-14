@@ -227,7 +227,7 @@ to the session's EARLIEST covered window and stamps `first_review_reach` there, 
 non-review command (`/fabrik-plan-review`, `/fabrik-spec`) is covered too (D-574); a nested review, or a
 ledger holding a pair it cannot read, keeps the latest-close reach. `REVIEW_FAMILY` (`fabrik-review` +
 `fabrik-review-scoped`) is that reach-back set, and only `done` reaches back: a `blocked` or `handoff`
-reviewed nothing and caps the window. Two consequences the review-family pass-3 plan
+reviewed nothing and caps the window. Every review-family `done`, nested included, also appends what it NAMED — `{surface, adds, closed}` — to the session-durable `reviewed_surfaces` list (a nested child starts it empty and joins it to the caller at the pop; `start` carries it like `covered`), and the Stop hook clears an edited path a closed entry names when the entry closed at or after the edit — so work reviewed only by nested reviews, which stamp no reach, is no longer unclearable (W-bdcff87a). Two consequences the review-family pass-3 plan
 wrote into `/fabrik-review-scoped` (2026-09-12): (1) a change that trips its step-1 trigger BEFORE any
 record exists routes up at once — the heavy review starts with `--surface "ROUTED-UP: step 1 — …"` and
 its `done` covers the pre-start edits, no scoped record in between; (2) a scoped review whose SECOND

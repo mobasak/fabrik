@@ -8,9 +8,11 @@ All notable changes to this project will be documented in this file.
 
 Each command now says that its Pass Ledger lives in `docs/development/reviews/<YYYY-MM-DD>-<slug>-{spec,plan}-review.md`, and that the receipt's first 10 lines carry `**Command:** /fabrik-{spec,plan}-review`. Once a receipt claims a finished review, `check_convergence.py` grades it by its ledger only under that label (W-39d8d1fd), and without the label it demands a code review's gate embed. Before this, no producer emitted the label the gate keys on. Answers infra's mail 01M4W4ZWTZ. Grader: `tests/test_spec_review_queue_pass.py`, which drives the router on the line as written and is red on the previous text.
 
-### Changed — /fabrik-command-improve: a row that prescribes how a command works goes to the panel first (2026-10-14)
+### Fixed — a file reviewed only by NESTED reviews no longer stays "unreviewed spontaneous work" forever (W-bdcff87a) (2026-10-14)
 
-PHASE 3 now says that when a row prescribes a step, an order, a commit or a hand-off, and that prescription contradicts a line the pre-draft reading finds, the choice is a decision, settled before the first draft in CLAUDE.md § Autonomy's order: the self-service sources first, then the Opus + Fable panel. A NEW mechanism still routes per PHASE 2. Answers /fabrik-command-improve row 1791961631. The /fabrik-execute-plan pass drafted a row's literal "commit once" mechanism, which broke seven contract sites until the panel overturned it. Grader: `tests/test_command_improve_queue_pass.py`, red on the previous text.
+- `scripts/command_run.py`: every review-family `done`, nested included, records what it NAMED — `{surface, adds, closed}` — in a session-durable `reviewed_surfaces` list. `start` carries it like `covered` (a nested child starts empty, its entries join the caller at the pop), and a late `done --surface` is the one recorded; `blocked`/`handoff` record nothing.
+- `.claude/hooks/final_gate_stop.py`: the sixth cause clears an edited path a closed entry names when the entry closed at or after the edit (a commit-only path within the existing commit grace of the close), reading the record and its parked frames. A nested review stamps no reach and its window starts after an earlier edit, so before this an edit made before a session's first run and reviewed only inside `/fabrik-execute-plan` blocked 3/3 every time (site-provisioner 01M49X4BZT, 01M4AH24H7). The running-surface parse is now one helper, `_surface_tokens`, shared by both readers.
+- Graded by 10 new tests, each seen red, and 13 mutants each killed; the record-shape pin gains `reviewed_surfaces`. The review closed three more holes: an unreadable edit time of 0, an edit older than the floor shielding a fresh commit, and a non-list `reviewed_surfaces` wedging `done`. The pre-existing loss of a reaped nested child's parked lists is W-a2361e7b.
 
 ### Fixed — the quota checkpoint makes sure a pausing window's self-watch is armed, so the relief wake can reach it (W-117b1916) (2026-10-14)
 
@@ -70,6 +72,10 @@ PHASE 3 now says that when a row prescribes a step, an order, a commit or a hand
 ### Added — `command_feedback_report.py --reasons <command> [--held]`: a read-only view of rejected feedback rows and their reasons (kaizen 01M4V1BCW7) (2026-10-14)
 
 - `scripts/command_feedback_report.py`: `--queue` printed only held tag names, but fabrik-review's 236 tagged rejects carry 235 distinct tags, so a D-711 audit cannot find a subject held under a near-synonym by tag. `--reasons` prints each rejected row's ts handle, tags and reason text, newest reject first (by `at`, since every index `ts` is a string). `--held` narrows to tagged rows. It is read-only and runs alone. It exits rc 1 with a stderr line on an unreadable index, never a silent "nothing held". It survives a non-UTF-8 stdout. A stray `--reason` without `--reject`, the one-letter near-miss that used to run the full report silently, and `--held` without `--reasons` are both refused rc 2. Graded by seven red-first tests in `tests/test_command_feedback_report.py`; `docs/reference/command-run-protocol.md` names the view.
+
+### Changed — /fabrik-command-improve: a row that prescribes how a command works goes to the panel first (2026-10-14)
+
+PHASE 3 now says that when a row prescribes a step, an order, a commit or a hand-off, and that prescription contradicts a line the pre-draft reading finds, the choice is a decision, settled before the first draft in CLAUDE.md § Autonomy's order: the self-service sources first, then the Opus + Fable panel. A NEW mechanism still routes per PHASE 2. Answers /fabrik-command-improve row 1791961631. The /fabrik-execute-plan pass drafted a row's literal "commit once" mechanism, which broke seven contract sites until the panel overturned it. Grader: `tests/test_command_improve_queue_pass.py`, red on the previous text.
 
 ### Changed — /fabrik-execute-plan: a small sync-path plan runs in its own worktree (2026-10-14)
 
