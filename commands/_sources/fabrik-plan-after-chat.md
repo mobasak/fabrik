@@ -56,13 +56,13 @@ First capture the **source of truth** — do NOT invent scope:
   skip only what the spec approval's own row minted — and the skip is VERIFIED, never assumed:
   `grep docs/DECISIONS.md` for the spec path first; row absent (the approval arrived in a bare
   conversational turn no command contract bound) → mint it HERE before planning, then proceed
-  (`/fabrik-spec-review` § after-CONVERGED owns that
+  (`/fabrik-spec-review`'s panel section, gate then flip, owns that
   mint) — a decision made HERE always rows HERE.
   **Exception — a `Size: small` spec (its own `Size:` line under `Status:`, spec § The delta D10): the
   row-absent branch above does NOT apply.** Its approval never minted at `/fabrik-spec-review` time (that
   review never ran on it) and does not mint HERE either — mint NO approval row in this phase for it.
   `/fabrik-plan-review` mints it at its own approval gate, once this plan's spec and ticket sections have
-  converged together (`/fabrik-plan-review`'s Small-spec exception, which flips the spec first or in the same
+  converged together (`/fabrik-plan-review`'s Small-spec exception, which flips both in the panel's approval
   commit). Proceed straight to planning.
 - Then branch, and **state which branch you took and why**:
   - **RICH** (the chat/args already pin the goal AND the approach) → skip brainstorming, go to Phase 1.

@@ -45,13 +45,13 @@ def test_the_panel_delta_round_shares_the_scope_growth_window() -> None:
     """panel-delta-scope-growth (3 rows): one loop, one window; the backlog exit only once the stop fired."""
     accepted = _between(_norm(FRAG / "design-critique.md"), "- `ACCEPTED`", "- `REJECTED`")
     assert (
-        "(else the next commit sets each document the flip touched back to what it read before the flip, with a "
-        "`docs/DECISIONS.md` row superseding the flip's row, and the loop continues — that round is a delta round "
+        "(a round that confirms more leaves the artifact `DRAFT` and the loop continues — that round is a delta round "
         "of the same loop, so its own-fix defects count "
         "in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row — "
         "residue a delta round raises AFTER the stop fired is `RECORDED — measured` there (term-edit's scope-growth "
-        "stop), not confirmed, so it does not set the flip back, while the round that fires the stop confirms and "
-        "fixes its defects and does); an "
+        "stop), not confirmed, so it does not hold the flip, while the round that fires the stop confirms and "
+        "fixes its defects and does; an artifact already CONVERGED at HEAD, re-reviewed, goes back to `DRAFT` with a "
+        "row superseding its flip row until such a round confirms 0); an "
         "OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift; in "
         "`/fabrik-task`"
     ) in accepted
@@ -83,3 +83,17 @@ def test_the_flip_copy_recipe_is_the_matrix_rows_method() -> None:
         "there), with the repo's `scripts/` and `.windsurf/` linked in, the MATRIX row's method (without them "
         "`check_rule_grounding` reports the plan UNGRADED and every digest quote QUOTE-NOT-FOUND)."
     ) in gate
+
+
+def test_plan_tickets_reruns_after_every_behavior_contract_edit_and_the_small_loop_flips_at_the_panel() -> None:
+    """Row 1791954506: a stale roll-up cost a round because check_plan_tickets was not re-run after ticket rows
+    were edited mid-loop; and the Size: small joint loop flips both documents in the panel's approval commit."""
+    text = _norm(REPO / "commands" / "_sources" / "fabrik-plan-review.md")
+    assert (
+        "must exit 0 before the `CONVERGED` flip, and again after every edit to a ticket's Behavior Contract (the"
+        " spine's roll-up must still equal its tickets' rows)"
+    ) in text
+    assert (
+        "Once the joint loop's closing round is quiet (both documents still `DRAFT`, flipped in the approval"
+        " commit), this run ends at the design-approval gate"
+    ) in text

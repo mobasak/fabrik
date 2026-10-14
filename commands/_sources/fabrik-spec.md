@@ -363,7 +363,8 @@ spec's plan is drafted before it and approved with it).
 - Write to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` (allowlisted location). **Check before
   create** — if it exists, STOP and ask; never overwrite.
 - Open the spec with **`Status: DRAFT`** — this command writes DRAFT; the adversarial `/fabrik-spec-review`
-  flips it to `CONVERGED` in place after re-verifying every cited fact + auditing the vendor verdict —
+  flips it to `CONVERGED` in place after re-verifying every cited fact + auditing the vendor verdict, once its
+  design-approval panel has approved —
   **except a `Size: small` spec (below, spec § The delta D10): `/fabrik-plan-review` flips it, together
   with the plan, at its own approval gate, and `/fabrik-spec-review` never runs on it.**
 - **`Profile: delta` — the brief profile, declared on the line under `Status:` (hub ruling D-153:
@@ -389,8 +390,8 @@ spec's plan is drafted before it and approved with it).
   from `Profile:` above, since `Profile: delta` already names the BRIEF's own shape, not the code estimate.
   A `Size: small` spec skips `/fabrik-spec-review` entirely: after the self-review below, hand it straight
   to **`/fabrik-plan-after-chat <spec path>`**, which plans it as `Profile: small` and whose own
-  `/fabrik-plan-review` grades the spec's sections together with the plan, flips BOTH to `CONVERGED`, and
-  holds the operator's design-approval gate in its place (Phase 6's exception, below). An estimate over
+  `/fabrik-plan-review` grades the spec's sections together with the plan, holds the operator's
+  design-approval gate in its place and flips BOTH to `CONVERGED` in the approval commit (Phase 6's exception, below). An estimate over
   either bound writes no `Size:` line and keeps the full chain — Phase 6 runs `/fabrik-spec-review` as today.
 - The spec MUST contain a **`## Personas`** section, FIRST among the content sections (operator law
   2026-08-29: *"all specs must address all relevant personas"*): **(a)** EVERY relevant persona
@@ -456,8 +457,8 @@ spec's plan is drafted before it and approved with it).
 
 **Exception — a `Size: small` spec (Phase 5, spec § The delta D10) skips this phase's call entirely:** do
 NOT invoke `/fabrik-spec-review`; hand the DRAFT straight to `/fabrik-plan-after-chat <spec path>` instead.
-Its own `/fabrik-plan-review` grades this spec's sections together with the plan, flips both to
-`CONVERGED`, and holds the operator's approval gate there — never twice. Everything else in this phase
+Its own `/fabrik-plan-review` grades this spec's sections together with the plan, holds the operator's
+approval gate there and flips both to `CONVERGED` in the approval commit — never twice. Everything else in this phase
 (the MANDATORY call, the comparison table, the approval gate below) is the full-profile path, unchanged.
 The two independent design critiques (the `design-critique` step) run at the command holding the approval
 gate — `/fabrik-spec-review`, or `/fabrik-plan-review` for a `Size: small` spec — never a second pair here.
@@ -466,14 +467,14 @@ gate — `/fabrik-spec-review`, or `/fabrik-plan-review` for a `Size: small` spe
 it to a fixed point in THIS turn. Do not just name it — call it.** Phase 5's self-review is the light inline
 pass; `/fabrik-spec-review` is the independent adversarial one that re-verifies every cited external fact
 against the live web, audits the fabrik-lib vendor→enhance→build verdict against real modules, iterates to a
-no-op round, and flips `Status: DRAFT → CONVERGED` (same relationship as `/fabrik-plan-after-chat` →
+no-op round, and after its design-approval panel flips `Status: DRAFT → CONVERGED` (same relationship as `/fabrik-plan-after-chat` →
 `/fabrik-plan-review`). **Do NOT end the turn on an unconverged DRAFT** (**Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred) — the only reasons to stop before
 CONVERGED are an unanswered Phase-2 question or a Phase-1 BLOCKING unknown (an external fact you cannot
 verify live); surface those and close with `python3 scripts/command_run.py handoff --command fabrik-spec --resume
 <scratch file> --reason "<the open question>" --feedback …`, the file's `## RESUME` block naming the question
 and the restart `/fabrik-spec <spec path>` — never by stopping on a `running` record.
 
-After `CONVERGED`, the hardened spec reaches the design-approval gate `/fabrik-spec-review` holds — answered by
+After the quiet closing round, the hardened spec reaches the design-approval gate `/fabrik-spec-review` holds — answered by
 the Opus + Fable panel in the operator's place (D-613; only a split reaches the operator) — and the gate is
 weighed against the **ask ↔ spec comparison table** (hub ruling D-153: *"present what I have asked and what was specced in a
 comparison table"*): **one row per item of the operator's brief** — the operator's OWN WORDS · what the spec
@@ -485,7 +486,7 @@ anchor; a brief item with no row is the SILENT DROP the inventory exists to catc
 the artifact grades coverage for the AGENT; this table is the same fact laid out for the OPERATOR, side by
 side, in their wording — how a 672-line spec got approved-for-review while its operator was "totally lost"
 . `/fabrik-spec-review` builds the same table, recomputed against the
-CONVERGED text, for its gate and keeps it in the spec's review receipt. On approval, the pipeline continues —
+closing-round text, for its gate and keeps it in the spec's review receipt. On approval, the pipeline continues —
 **data + UI contracts are frozen BEFORE planning** for anything data/GUI-shaped:
 
 ```
