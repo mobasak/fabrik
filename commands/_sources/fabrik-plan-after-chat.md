@@ -196,7 +196,7 @@ Treat every intended step as unproven until verified against the real code/schem
   an id, a config key) counts as a store, and the source that accepts it is censused too.
 - For each external dependency or data source, **ground it to 100% truth NOW — never infer from training.**
   Repo-first (`grep docs/`, `docs/reference/`, `AFCL.md`); if unresolved, escalate to **live external
-  research: `mcp__exa__web_search_exa` → `WebSearch` → `mcp__brave-search__brave_web_search` →
+  research: `WebSearch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` /
   `mcp__firecrawl__firecrawl_search` / `firecrawl_scrape`** (and official-docs `WebFetch` for library detail). Capture the
   **real** endpoint / signature / auth headers / rate limits
   and **cite the source URL in the plan**. If 3 research passes still can't confirm it, record it as a

@@ -112,7 +112,7 @@ For **every** external dependency the idea touches — 3rd-party API / SDK, vend
 library, framework, protocol, standard — ground it to **CURRENT truth**, never from training memory.
 
 - Order: **repo-first** (`grep docs/`, `docs/reference/`, `AFCL.md`) → then **live research**:
-  `mcp__exa__web_search_exa` → `WebSearch` / `WebFetch` → `mcp__brave-search__brave_web_search` →
+  `WebSearch` / `WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` /
   `mcp__firecrawl__firecrawl_search` / `firecrawl_scrape` on the library's OFFICIAL docs site for framework/API detail (`WebFetch` only to locate
   the page) → the **`gh` CLI** (`gh search code` / `gh api -H 'Accept: application/vnd.github.raw'
   repos/<o>/<r>/contents/<path>` / `gh release list`) to read a dependency's
@@ -222,8 +222,8 @@ research is.** (Grounded in `agents-fabrik.md` § Planning Constraints + § Arch
 Grounding the FACTS (1a) is **not** grounding the APPROACH. Before Phase 3, research the CURRENT best way to
 build this — never pick an approach from training memory or first instinct:
 
-- Use the wired tools (`mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search`
-  → `mcp__firecrawl__firecrawl_search`) to find, for the **core** of the design, the
+- Use the wired tools (`WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa`
+  / `mcp__firecrawl__firecrawl_search`) to find, for the **core** of the design, the
   **current best-practice / pro-grade / LEANEST / lowest-maintenance** way the field actually does this now:
   the standard library/pattern, the fewest moving parts, the simplest thing that is still production-grade
   (not a toy, not gold-plated).
