@@ -142,6 +142,11 @@ project-level and light). Per section:
   `PII` ∈ `none | personal | sensitive` (sensitive = KVKK Art. 6 / GDPR Art. 9); an operator/actor audit
   identifier (`changed_by`, `reviewed_by`, set from the app user) is `personal`. `references` = the
   `entity.column` a FK points at, or `—`. A GUI field folded into a jsonb key is written `column.jsonkey`.
+  A `validation` cell whose rule is a format the project defines itself (a URL shape, a key or code format) is written
+  as the regex itself, in backticks (a `|` inside it escaped as `\|` for the table and unescaped when probed), never
+  prose, and in the same edit is probed against each guard that consumes it (the request schema, form validator or DB
+  constraint) with one value it must accept and one it must refuse; a cited standard (RFC 5322, E.164) or a bound
+  (`≤255`) stays as written, and a field no guard enforces yet gets a reconciliation note naming the missing guard.
 - **Enum registry** — the template's `Enum | Backing | Allowed values` table: one row per enum (bare name in
   `Enum`; in `Backing` one of the template legend's six tokens `native` · `CHECK` · `app` · `doc` · `file` · `unconstrained`, whole-cell `token`, `token (note)` or `a / b` — `check_data_contract_legend.py` WARNs on any other cell; values in `Allowed values`). In the per-entity `type` column an enum
   field is written `enum:<x>` (native PG enum) or `chk:<x>` (CHECK-constraint-backed) — real schemas encode most
