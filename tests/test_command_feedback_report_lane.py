@@ -114,6 +114,7 @@ def test_lane_task_to_spec_ratio_excludes_the_downgraded_spec_run(tmp_path: Path
         "task": 2,
         "spec": 3,
         "downgraded_spec": 1,
+        "downgrades_no_refusal": 0,
         "unjoined_downgrades": 0,
         "ratio": 1.0,
     }
@@ -639,3 +640,140 @@ def test_c_o2_an_id_less_handoff_is_never_a_downgrade_and_the_task_is_unjoined(
     assert (tts["spec"], tts["downgraded_spec"], tts["unjoined_downgrades"]) == (2, 1, 1)
     text = _lane(tmp_path, rows, []).stdout
     assert "1 downgraded /fabrik-task run joins no /fabrik-spec handoff" in text, text
+
+
+# ── the two-sided gate (kaizen 01M4XQN131A897DAFH628FJFKJ, D-858): no-refusal downgrades,
+# spec-start overrides and the gated population ─────────────────────────────────────────────
+
+
+def test_lane_a_no_refusal_downgrade_is_counted_beside_the_ratio_and_never_joined(
+    tmp_path: Path,
+) -> None:
+    """Fold 1: the `downgrade: no-refusal` row (no `from_downgrade`) is counted, stays in the
+    task-to-spec denominator (exclusion is on the exact join only), and joins nothing."""
+    rows = [
+        _row("fabrik-spec", state="handoff", downgrade="no-refusal", surface="docs/a.md"),
+        _row(
+            "fabrik-spec",
+            state="handoff",
+            downgrade="refusal",
+            from_downgrade="LR-a",
+            surface="docs/b.md",
+        ),
+        _row("fabrik-spec", surface="docs/c.md"),
+        _row("fabrik-task", from_downgrade="LR-a"),
+    ]
+    doc = _doc(tmp_path, rows, [_refusal("LR-a", agent="infra")])
+    tts = doc["task_to_spec"]
+    assert (tts["spec"], tts["downgraded_spec"], tts["downgrades_no_refusal"]) == (3, 1, 1)
+    assert tts["ratio"] == 0.5 and tts["unjoined_downgrades"] == 0
+    assert doc["agents"]["infra"]["downgraded"] == 1
+    out = _lane(tmp_path, rows, [_refusal("LR-a", agent="infra")]).stdout
+    assert "1 spec run handed small work back with no refusal row" in out
+
+
+def test_lane_a_spec_start_row_is_an_override_never_a_task_refusal(tmp_path: Path) -> None:
+    """Fold 2: a `route: spec-start` ledger row is a spec opened over the gate's objection — its
+    own tally, per agent and in total, with 'handed back' as the D9 join; the task tally is
+    untouched."""
+    rows = [_row("fabrik-task"), _row("fabrik-task", from_downgrade="LR-s")]
+    refusals = [
+        _refusal("LR-t", agent="infra", route="chain: tradeoffs"),
+        _refusal("LR-s", agent="infra", route="spec-start", verdict="lane"),
+        _refusal("LR-u", agent="fleet", route="spec-start", verdict="lane"),
+    ]
+    doc = _doc(tmp_path, rows, refusals)
+    assert doc["agents"]["infra"] == {
+        "starts": 3,
+        "refused": 1,
+        "downgraded": 0,
+        "spec_overrides": 1,
+        "overrides_handed_back": 1,
+    }
+    assert doc["agents"]["fleet"] == {
+        "starts": 0,
+        "refused": 0,
+        "downgraded": 0,
+        "spec_overrides": 1,
+        "overrides_handed_back": 0,
+    }
+    assert doc["spec_starts"]["override_rows"] == 2 and doc["spec_starts"]["handed_back"] == 1
+    assert doc["coverage"]["refusal_rows"] == 1 and doc["coverage"]["spec_start_rows"] == 2
+
+
+def test_lane_counts_the_gated_spec_population_from_lane_gate(tmp_path: Path) -> None:
+    """Fold 3: every spec close row says whether the gate ran — `none`, a chain verdict or `lane`
+    (an override) — so the opt-in population is measured from day one."""
+    rows = [
+        _row("fabrik-spec", lane_gate="none", surface="docs/a.md"),
+        _row("fabrik-spec", lane_gate="chain: tradeoffs", surface="docs/b.md"),
+        _row("fabrik-spec", lane_gate="chain: contract", surface="docs/c.md"),
+        _row("fabrik-spec", lane_gate="lane", spec_refusal="LR-s", surface="docs/d.md"),
+        _row("fabrik-spec", surface="docs/e.md"),  # a pre-gate row: unknown, not ungated
+    ]
+    doc = _doc(tmp_path, rows)
+    assert doc["spec_starts"] == {
+        **doc["spec_starts"],
+        "specs": 5,
+        "gated": 3,
+        "ungated": 1,
+        "unknown": 1,
+        "chain": 2,
+        "overridden": 1,
+    }
+    out = _lane(tmp_path, rows).stdout
+    assert (
+        "spec starts: gated 3 of 5 (1 ungated, 1 unknown) · chain 2 · overridden by --why 1" in out
+    )
+
+
+def test_lane_an_undated_spec_start_row_is_an_undated_override_never_a_refusal(
+    tmp_path: Path,
+) -> None:
+    """B-S-1: the undated count is split by route where the undated rows are still visible."""
+    rows = [_row("fabrik-task")]
+    refusals = [
+        _refusal("LR-t", agent="infra", route="chain: tradeoffs"),
+        {"id": "LR-u", "session": "s1", "repo": "/opt/x/.git", "route": "chain: oneway"},  # no ts
+        {"id": "LR-s", "session": "s1", "repo": "/opt/x/.git", "route": "spec-start"},  # no ts
+    ]
+    doc = _doc(tmp_path, rows, refusals)
+    cov = doc["coverage"]
+    assert (cov["refusal_rows"], cov["undated_refusals"], cov["undated_spec_start_rows"]) == (
+        1,
+        1,
+        1,
+    )
+    assert "1 refusal rows [+1 undated]" in _lane(tmp_path, rows, refusals).stdout
+
+
+def test_lane_the_latest_close_of_a_spec_names_its_gate(tmp_path: Path) -> None:
+    """B-S-2: a handoff then a resumed `done` of one spec — the later close wins, not ledger order."""
+    rows = [
+        _row("fabrik-spec", ts=T0, lane_gate="chain: contract", surface="docs/a.md", state="done"),
+        _row("fabrik-spec", ts=T0 - 100, lane_gate="lane", surface="docs/a.md", state="handoff"),
+    ]
+    doc = _doc(tmp_path, rows)
+    assert (
+        doc["spec_starts"]["specs"],
+        doc["spec_starts"]["chain"],
+        doc["spec_starts"]["overridden"],
+    ) == (1, 1, 0)
+    rows.reverse()
+    doc = _doc(tmp_path, rows)
+    assert (doc["spec_starts"]["chain"], doc["spec_starts"]["overridden"]) == (1, 0)
+
+
+def test_lane_the_override_line_names_each_population(tmp_path: Path) -> None:
+    """B-S-3: `overridden` counts specs, `override rows` counts ledger rows; handed back is a
+    share of rows."""
+    rows = [
+        _row("fabrik-spec", lane_gate="lane", surface="docs/a.md"),
+        _row("fabrik-task", from_downgrade="LR-s1"),
+    ]
+    refusals = [
+        _refusal("LR-s1", agent="infra", route="spec-start", verdict="lane"),
+        _refusal("LR-s2", agent="infra", route="spec-start", verdict="lane"),
+    ]
+    out = _lane(tmp_path, rows, refusals).stdout
+    assert "overridden by --why 1 · override rows 2, handed back 1/2 (50%)" in out

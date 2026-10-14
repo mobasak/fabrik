@@ -2080,6 +2080,19 @@ def _downgraded_specs(rows: list[dict]) -> set[int]:
     }
 
 
+def _norefusal_downgrades(rows: list[dict]) -> int:
+    """`/fabrik-spec` handoff rows a `DOWNGRADE: no-refusal` produced (D-858): counted beside the
+    ratio, never excluded from its denominator — exclusion stays on the exact id join, so the
+    cheapest way to raise the ratio (labelling a handoff a downgrade) moves this number only."""
+    return sum(
+        1
+        for r in rows
+        if r.get("command") == "fabrik-spec"
+        and _s(r, "state") == "handoff"
+        and _s(r, "downgrade") == "no-refusal"
+    )
+
+
 def _unjoined_downgrades(rows: list[dict]) -> int:
     """`/fabrik-task` rows carrying a `from_downgrade` id that no `/fabrik-spec` DOWNGRADE handoff
     row carries — downgraded, but joined to no spec run, so they exclude nothing from the ratio."""
@@ -2120,8 +2133,14 @@ def lane(
     window_days: float,
     undated: int = 0,
     undated_rows: int = 0,
+    undated_overrides: int = 0,
 ) -> dict:
     """The lane's 30-day measures and kill-rule joins (spec § Validation; § The delta D9)."""
+    # D-858: a `spec-start` row is a SPEC opened over the gate's objection — its own tally, never
+    # a task start refused to the chain (the tally below is positional, so the split is here).
+    overrides = [f for f in refusals if _s(f, "route") == "spec-start"]
+    refusals = [f for f in refusals if _s(f, "route") != "spec-start"]
+
     tasks = [r for r in rows if r.get("command") == "fabrik-task"]
     # a lane START is a v2 close (every v2 close writes the `over_appetite` key) or a refusal
     v2_tasks = [r for r in tasks if "over_appetite" in r]
@@ -2133,16 +2152,41 @@ def lane(
         if r.get("command") in ("fabrik-task", "fabrik-spec") and _s(r, "from_downgrade")
     }
 
+    def _agent_row() -> dict[str, int]:
+        return {"starts": 0, "refused": 0, "downgraded": 0}
+
     agents: dict[str, dict[str, int]] = {}
     for r in v2_tasks:
-        a = agents.setdefault(_s(r, "agent") or "?", {"starts": 0, "refused": 0, "downgraded": 0})
+        a = agents.setdefault(_s(r, "agent") or "?", _agent_row())
         a["starts"] += 1
     for f in refusals:
         name = _s(f, "agent") or sid_agent.get(_s(f, "session"), "") or "?"
-        a = agents.setdefault(name, {"starts": 0, "refused": 0, "downgraded": 0})
+        a = agents.setdefault(name, _agent_row())
         a["starts"] += 1
         a["refused"] += 1
         a["downgraded"] += int(_s(f, "id") in downgraded_ids)
+    for f in overrides:
+        # the two override keys are SPARSE — present only on an agent with an override — so
+        # the agent row's shape is unchanged for everyone else
+        name = _s(f, "agent") or sid_agent.get(_s(f, "session"), "") or "?"
+        a = agents.setdefault(name, _agent_row())
+        a.setdefault("spec_overrides", 0)
+        a.setdefault("overrides_handed_back", 0)
+        a["spec_overrides"] += 1
+        a["overrides_handed_back"] += int(_s(f, "id") in downgraded_ids)
+
+    # D-858: the gated population — every spec close at lane v2 says whether the gate ran
+    gate_of: dict[tuple[str, str], str] = {}
+    gate_ts: dict[tuple[str, str], float] = {}
+    for i, r in enumerate(rows):
+        if r.get("command") == "fabrik-spec":
+            # the LATEST close of a spec names its gate (a handoff then a resumed `done`), as
+            # `small_by_key` below keys on time, never on ledger order (B-S-2)
+            k = _spec_key(i, r)
+            ts = _num(r.get("ts")) or -math.inf
+            if k not in gate_of or ts >= gate_ts[k]:
+                gate_of[k] = "unknown" if r.get("lane_gate") is None else _s(r, "lane_gate")
+                gate_ts[k] = ts
 
     spec_keys = {_spec_key(i, r) for i, r in enumerate(rows) if r.get("command") == "fabrik-spec"}
     down_keys = {_spec_key(i, rows[i]) for i in _downgraded_specs(rows)}
@@ -2208,7 +2252,9 @@ def lane(
             "feedback_rows": len(rows),
             "undated_rows": undated_rows,
             "refusal_rows": len(refusals),
+            "spec_start_rows": len(overrides),
             "undated_refusals": undated,
+            "undated_spec_start_rows": undated_overrides,
             "v1_task_rows": len(tasks) - len(v2_tasks),
         },
         "agents": dict(sorted(agents.items())),
@@ -2216,8 +2262,21 @@ def lane(
             "task": len(tasks),
             "spec": specs,
             "downgraded_spec": down_specs,
+            "downgrades_no_refusal": _norefusal_downgrades(rows),
             "unjoined_downgrades": _unjoined_downgrades(rows),
             "ratio": round(len(tasks) / denom, 2) if denom > 0 else None,
+        },
+        "spec_starts": {
+            "specs": len(gate_of),
+            "gated": sum(1 for g in gate_of.values() if g not in ("none", "unknown")),
+            "ungated": sum(1 for g in gate_of.values() if g == "none"),
+            "unknown": sum(1 for g in gate_of.values() if g == "unknown"),
+            "chain": sum(1 for g in gate_of.values() if g.startswith("chain")),
+            # overridden = spec CLOSES whose gate said `lane`; override_rows = the ledger's
+            # `spec-start` rows (a spec still open has a row and no close yet)
+            "overridden": sum(1 for g in gate_of.values() if g == "lane"),
+            "override_rows": len(overrides),
+            "handed_back": sum(1 for f in overrides if _s(f, "id") in downgraded_ids),
         },
         "task": {
             "rows": len(tasks),
@@ -2265,6 +2324,12 @@ def _lane_text(doc: dict) -> str:
         lines.append(
             f"  {name} · {a['starts']} · {_share(a['refused'], a['starts'])} · "
             f"{_share(a['downgraded'], a['refused'])}"
+            + (
+                f" · spec overrides {a['spec_overrides']} "
+                f"(handed back {_share(a['overrides_handed_back'], a['spec_overrides'])})"
+                if a.get("spec_overrides")
+                else ""
+            )
         )
     denom = tts["spec"] - tts["downgraded_spec"]
     ratio = "—" if tts["ratio"] is None else tts["ratio"]
@@ -2279,7 +2344,27 @@ def _lane_text(doc: dict) -> str:
             if tts["unjoined_downgrades"]
             else ""
         )
+        + (
+            f"; {tts['downgrades_no_refusal']} spec "
+            f"{'run' if tts['downgrades_no_refusal'] == 1 else 'runs'} handed small work back "
+            "with no refusal row (counted, not excluded)"
+            if tts.get("downgrades_no_refusal")
+            else ""
+        )
     )
+    ss = doc.get("spec_starts") or {}
+    if ss.get("specs"):
+        lines.append(
+            f"spec starts: gated {ss['gated']} of {ss['specs']} ({ss['ungated']} ungated, "
+            f"{ss['unknown']} unknown) · chain {ss['chain']} · overridden by --why "
+            f"{ss['overridden']}"
+            + (
+                f" · override rows {ss['override_rows']}, handed back "
+                f"{_share(ss['handed_back'], ss['override_rows'])}"
+                if ss.get("override_rows")
+                else ""
+            )
+        )
     med = "—" if t["median_min"] is None else t["median_min"]
     toks = " · ".join(f"{k} {v}" for k, v in t["upgrade_tokens"].items())
     lines.append(
@@ -2761,9 +2846,20 @@ def main(argv: list[str] | None = None) -> int:
         # a row or refusal with no numeric `ts` falls outside every window: counted, never silent
         undated_rows = sum(1 for r in rows if _num(r.get("ts")) is None)
         rows = [r for r in rows if (_num(r.get("ts")) or 0) >= cutoff]
-        undated = sum(1 for r in refusals if _num(r.get("ts")) is None)
+        # an undated `spec-start` row is an undated OVERRIDE, never an undated task refusal: the
+        # two populations are split here, where the undated rows are still visible (B-S-1)
+        _undated_all = [r for r in refusals if _num(r.get("ts")) is None]
+        undated_overrides = sum(1 for r in _undated_all if _s(r, "route") == "spec-start")
+        undated = len(_undated_all) - undated_overrides
         refusals = [r for r in refusals if (_num(r.get("ts")) or 0) >= cutoff]
-        doc = lane(rows, refusals, window_days=days, undated=undated, undated_rows=undated_rows)
+        doc = lane(
+            rows,
+            refusals,
+            window_days=days,
+            undated=undated,
+            undated_rows=undated_rows,
+            undated_overrides=undated_overrides,
+        )
         sys.stdout.write((json.dumps(doc, indent=1) if a.json else _lane_text(doc)) + "\n")
         return 0
     if a.stages:

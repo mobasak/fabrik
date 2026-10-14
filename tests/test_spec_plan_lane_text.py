@@ -558,3 +558,24 @@ def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch)
               if '"run_close"' in ln]
     assert f"kept at {kept[0]}" in p.stdout, p.stdout
     assert any(kept[0] in (c.get("resume_copy"), (c.get("fields") or {}).get("resume_copy")) for c in closes), closes
+
+
+def test_fabrik_spec_phase0_no_refusal_reason_form_matches_command_run():
+    """Fold 1 (kaizen 01M4XQN131A897DAFH628FJFKJ): the reason form Phase 0 tells the agent to write
+    for a spec with no refusal row is the one `command_run.py` reads as `downgrade: no-refusal` —
+    text and code pinned to each other, and the text's own sentence ("records no `from_downgrade`")
+    stays true because that form never carries an id."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "command_run_under_test", Path(__file__).resolve().parents[1] / "scripts" / "command_run.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    phase0 = _spec_phase0()
+    m = re.search(r'--reason "(DOWNGRADE: no-refusal — [^"]*)"', phase0)
+    assert m, "Phase 0 names the no-refusal reason form"
+    assert mod._DOWNGRADE_NOREF.match(m.group(1)), m.group(1)
+    assert mod._DOWNGRADE_REASON.match(m.group(1)) is None, "never an LR- join"
+    assert "records no `from_downgrade`" in phase0

@@ -3315,14 +3315,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "--file",
         action="append",
         metavar="PATH",
-        help="/fabrik-task only: one declared path (repeatable) — the CODE surface of the task",
+        help="/fabrik-task (and /fabrik-spec, opt-in): one declared path (repeatable) — the CODE "
+        "surface of the task",
     )
     p.add_argument(
         "--declare",
         default="",
         metavar="K=V,...",
-        help="/fabrik-task only: decision=,heavy=,mechanism=,oneway=,tradeoffs= (yes|no); at lane "
-        "v2 also consumers= (external|internal)",
+        help="/fabrik-task (and /fabrik-spec, opt-in): decision=,heavy=,mechanism=,oneway=,"
+        "tradeoffs= (yes|no); at lane v2 also consumers= (external|internal)",
     )
     # Lane v2 (D1, D4, D9; `task_lane.admit`). Read only when `.fabrik/lane.json` says version 2;
     # at v1 they are accepted and ignored with a note, so command text that names them works
@@ -3332,13 +3333,16 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         metavar="MIN",
-        help="/fabrik-task only (lane v2): the run's appetite in minutes (default 240, max 240)",
+        help="/fabrik-task, and /fabrik-spec with --file/--declare (lane v2): the run's appetite "
+        "in minutes (default 240, max 240)",
     )
     p.add_argument(
         "--why",
         default=None,
-        help="/fabrik-task only (lane v2): required with oneway=yes or tradeoffs=yes — what cannot "
-        "be undone, or '<approach A> vs <approach B>'",
+        help="/fabrik-task, and /fabrik-spec with --file/--declare (lane v2): required with "
+        "oneway=yes or tradeoffs=yes — what cannot be undone, or '<approach A> vs <approach B>'; "
+        "on a /fabrik-spec start it also overrides a `lane` verdict ('<the test the gate cannot "
+        "see>'), which the ledger records",
     )
     p.add_argument(
         "--from-downgrade",
@@ -3979,6 +3983,10 @@ def _in_lane_review(rec: dict[str, Any]) -> bool:
 _REFUSAL_ID = re.compile(r"LR-[0-9a-f]{8}")
 # D9: `handoff --reason "DOWNGRADE: <refusal id> — …"` on a /fabrik-spec run.
 _DOWNGRADE_REASON = re.compile(r"\s*DOWNGRADE:\s*(LR-[0-9a-f]{8})\b")
+# D-858 (kaizen 01M4XQN131A897DAFH628FJFKJ): the form a spec with NO refusal row hands back with —
+# `downgrade: no-refusal` on the row and never a `from_downgrade` (an id field holds ids only).
+_DOWNGRADE_NOREF = re.compile(r"\s*DOWNGRADE:\s*no-refusal\b")
+_SPEC_COMMAND = "fabrik-spec"
 
 
 # W-25318990: the two reviews whose surface D10 joins on.
@@ -4054,7 +4062,87 @@ def _task_admit_v2(
     return 0, declared
 
 
-def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[str, Any] | None]:
+def _spec_admit_v2(
+    tl: Any,
+    args: argparse.Namespace,
+    sid: str,
+    root: Path,
+    rels: list[str],
+    answers: dict[str, str],
+    declared: dict[str, Any],
+    sync_hits: set[str],
+    switch: str | None,
+    dirty_paths: list[str],
+    command: str,
+) -> tuple[int, dict[str, Any] | None]:
+    """Lane v2 admission of a `/fabrik-spec` start — the gate's other side (D-858, kaizen
+    01M4XQN131A897DAFH628FJFKJ). The same `task_lane.admit`, the opposite reading of its verdict:
+    a ``chain`` verdict ADMITS the spec (no row — nothing was refused; the verdict rides the
+    record and the close row as ``lane_gate``); a ``right-now`` verdict REFUSES it outright (a
+    pure fix needs no spec, and no prose opens one over it); a ``lane`` verdict refuses it unless
+    ``--why`` names the test the gate cannot see, in which case the override is ledgered as a
+    ``spec-start`` row — the verdict, the why, the files and the restart — whose id the record
+    keeps as ``spec_refusal`` so Phase 0's DOWNGRADE check and the report's join can name it.
+
+    ⚠️ COBRA (D-253): the cheapest way to open a spec with the gate "run" is a chain-shaped lie
+    (`tradeoffs=yes --why "A vs B"`, `--appetite 241`), which writes no row — so the verdict is
+    stamped on every spec close row and the report prints the verdict distribution; the cheaper
+    lie still, omitting the flags, is counted there as ``lane_gate: none``."""
+    why = getattr(args, "why", None)
+    appetite = getattr(args, "appetite", None)
+    tag = f"REFUSED — {command}"
+    v = tl.admit(answers, rels, sync_hits=sync_hits, appetite=appetite, why=why, version=2)
+    if v.route == "refused":
+        return _refuse(f"{tag}: {v.reason}"), None
+    if v.route.startswith("right-now"):
+        return _refuse(
+            f"{tag}: {v.reason} → {v.route} (a pure fix needs no spec; re-declare decision=yes "
+            "if a decision exists)"
+        ), None
+    if v.route == "lane" and not (why or "").strip():
+        return _refuse(
+            f"{tag}: {v.reason} → lane; this brief is /fabrik-task work — pass "
+            '--why "<the test the gate cannot see>" to open the spec anyway (the override is '
+            "ledgered)"
+        ), None
+    # `declared` is COMPLETE before the ledger row is written: a failure between the two would
+    # otherwise leave an override row no record ever names (round-1 A-S-2).
+    declared["consumers"] = answers["consumers"]
+    declared["gate"] = 2
+    declared["verdict"] = v.route
+    declared["review"] = v.review
+    declared["review_reason"] = v.reason
+    declared["appetite"] = appetite if appetite is not None else tl.APPETITE_DEFAULT
+    declared["sync_hits"] = sorted(sync_hits)
+    declared["lane_switch"] = switch or ("" if (root / tl.LANE_FILE).is_file() else "default")
+    if dirty_paths:
+        declared["dirty"] = dirty_paths
+    if why:
+        declared["why"] = why
+    if v.route == "lane":
+        line = f"{tag}: {v.reason} → lane (overridden by --why)"
+        common = _task_git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+        declared["spec_refusal"] = tl.record_refusal(
+            _lane_ledger(),
+            {
+                "repo": common.stdout.strip() if common.returncode == 0 else str(root),
+                "session": sid,
+                "agent": _agent_name(),
+                "route": "spec-start",
+                "verdict": v.route,
+                "declared": dict(sorted(answers.items())),
+                "why": why or "",
+                "files": rels,
+                "restart": "/fabrik-task --from-downgrade {id}",
+                "refusal": line,
+            },
+        )
+    return 0, declared
+
+
+def _task_size_gate(
+    args: argparse.Namespace, sid: str = "", command: str = _TASK_COMMAND
+) -> tuple[int, dict[str, Any] | None]:
     """The SIZE inventory, in ORDER. The flag guards and the path/state checks SHORT-CIRCUIT —
     a missing flag, an invalid path or a dirty path makes every later test meaningless, so that
     correction prints alone and no lane verdict is printed. The two lane tests and the five
@@ -4067,6 +4155,8 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
     to — the counter-measure is the close's re-measure against `declared`, and the tripwire in
     the command's own § The decision rule, not a check that would only teach a better lie.
     """
+    tag = f"REFUSED — {command}"  # the same gate under /fabrik-spec names that command (D-858)
+    spec = command != _TASK_COMMAND
     paths = [str(p) for p in (getattr(args, "file", None) or [])]
     answers: dict[str, str] = {}
     malformed: list[str] = []
@@ -4088,19 +4178,19 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
     # into the other has paid two round trips for a single correction.
     gaps = []
     if not paths:
-        gaps.append("REFUSED — fabrik-task: missing --file")
+        gaps.append(f"{tag}: missing --file")
     if malformed:
-        gaps.append("REFUSED — fabrik-task: --declare members must be k=v: " + ", ".join(malformed))
+        gaps.append(f"{tag}: --declare members must be k=v: " + ", ".join(malformed))
     absent = [k for k in _TASK_DECLARE_KEYS if k not in answers]
     if absent:
-        gaps.append("REFUSED — fabrik-task: missing --declare keys: " + ", ".join(absent))
+        gaps.append(f"{tag}: missing --declare keys: " + ", ".join(absent))
     # VALIDATE the answers, or a typo fails OPEN in the direction of the cheapest lane: four keys
     # are tested `== "yes"`, so `yse`/`nope`/`1`/`true` all read as *no*, and `decision` is tested
     # `!= "yes"` and fails the other way. Executed: every typo persisted verbatim into the seam
     # dict the plan declares as "yes"|"no", where T01b re-measures against it.
     wrong = [f"{k}={answers[k]}" for k in _TASK_DECLARE_KEYS if answers.get(k, "yes") not in _YN]
     if wrong:
-        gaps.append("REFUSED — fabrik-task: --declare values must be yes|no: " + ", ".join(wrong))
+        gaps.append(f"{tag}: --declare values must be yes|no: " + ", ".join(wrong))
     if gaps:
         for g in gaps:
             _refuse(g)
@@ -4129,14 +4219,13 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
             try:
                 rel = full.resolve().relative_to(root)
             except (ValueError, OSError):
-                _refuse(
-                    f"REFUSED — fabrik-task: {p} is outside the repository — declare a repo path"
-                )
+                _refuse(f"{tag}: {p} is outside the repository — declare a repo path")
                 return 1, None
-        if full.is_dir() and not full.is_symlink():
+        if full.is_dir() and not full.is_symlink() and not spec:
             # A symlink TO a directory is still a declared file for git's purposes; only a real
-            # directory is the "declare files" correction.
-            _refuse(f"REFUSED — fabrik-task: {p} is a directory — declare files")
+            # directory is the "declare files" correction — on a task. A spec's surface is
+            # legitimately a directory (a new module), so a spec declares one as-is (D-858 fold 5).
+            _refuse(f"{tag}: {p} is a directory — declare files")
             return 1, None
         rels.append(rel.as_posix())
     # DISTINCT paths, not occurrences: `--file src/a.py` twice recorded the path twice (which
@@ -4155,6 +4244,7 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
     # unconditionally, that same absence raises here and the caller's arm refuses the start.
     head = _task_git(root, "rev-parse", "-q", "--verify", "HEAD")
     sha = head.stdout.strip() if head.returncode == 0 else ""
+    dirty_paths: list[str] = []
     if sha:
         for rel in rels:
             # LEXISTS, not `exists()`: a symlink whose target is gone is PRESENT to git and would
@@ -4166,9 +4256,19 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
                 # `git diff --quiet` reads an UNTRACKED path as CLEAN; ask git whether it tracks
                 # the path at all before believing that.
                 dirty = _task_git(root, "ls-files", "--error-unmatch", "--", rel).returncode != 0
+            if dirty and spec:
+                # A spec DESIGNS: the task's close re-measure this check protects never runs on
+                # it, and a sibling's WIP on the surface is exactly a design session's situation
+                # (D-858 fold 5) — a note and a recorded list, never a refusal.
+                dirty_paths.append(str(rel))
+                sys.stderr.write(
+                    f"[command_run] NOTE — {command}: {rel} dirty at start (a sibling's WIP on the "
+                    "declared surface) — recorded, not refused\n"
+                )
+                continue
             if dirty:
                 _refuse(
-                    f"REFUSED — fabrik-task: {rel} dirty at start; open the record before the "
+                    f"{tag}: {rel} dirty at start; open the record before the "
                     "work — or a sibling's WIP on your declared path: message the author"
                 )
                 return 1, None
@@ -4216,6 +4316,20 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
     if version == 2:
         hits = {r for r in rels if pat.search(r)} if sync_hit and pat is not None else set()
         # an unreadable or invalid switch file is labelled `invalid`, never `uncommitted`
+        if spec:
+            return _spec_admit_v2(
+                tl,
+                args,
+                sid,
+                root,
+                rels,
+                answers,
+                declared,
+                hits,
+                switch or ("invalid" if warn else None),
+                dirty_paths,
+                command,
+            )
         return _task_admit_v2(
             tl,
             args,
@@ -4227,7 +4341,7 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
             hits,
             switch or ("invalid" if warn else None),
         )
-    ignored = [
+    ignored = ([] if not spec else ["--file", "--declare"]) + [
         f"--{a.replace('_', '-')}"
         for a in ("appetite", "why", "from_downgrade")
         if getattr(args, a, None) is not None
@@ -4236,6 +4350,10 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
         sys.stderr.write(
             f"[command_run] note: {', '.join(ignored)} ignored — this repo runs lane v1\n"
         )
+    if spec:
+        # The v1 router below is the TASK's: it refuses `oneway` or a fourth file INTO
+        # /fabrik-spec, which on a spec start is refusing the spec into itself (D-858 fold 4).
+        return 0, None
 
     # The spec chain takes PRECEDENCE: oneway/tradeoffs or a fourth file name /fabrik-spec
     # even when the sync or heavy test also tripped. `mechanism=yes` is RECORDED, never a
@@ -4257,7 +4375,7 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
     elif answers["decision"] != "yes":
         lane = ("decision=no", "right-now + /fabrik-review-scoped")
     if lane:
-        _refuse(f"REFUSED — fabrik-task: {lane[0]} → {lane[1]}")
+        _refuse(f"{tag}: {lane[0]} → {lane[1]}")
         return 1, None
     return 0, declared
 
@@ -5242,9 +5360,22 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 f"window: start --command {_cmd} --phases {rec.get('phases')} --resume-from "
                 f"{rec.get('resume_seed') or _record_path(sid)}\n"
             )
+        # one read per start — the ungated NOTE and the `lane_gate` stamp below share it (A-S-5)
+        _spec_v2 = _cmd == _SPEC_COMMAND and _lane_version_at({"repo_root": _repo_root()}) == 2
         try:
             if _seed is not None:
                 pass  # the declaration is carried; neither the lane gate nor the flag guards run
+            elif _cmd == _SPEC_COMMAND and (
+                getattr(args, "file", None) or str(getattr(args, "declare", "") or "").strip()
+            ):
+                # The gate's other side (D-858): opt-in on the flags — a flagless spec start is
+                # today's, noted below as ungated. `--from-downgrade` names a TASK restarted
+                # from a spec and stays the task's.
+                if getattr(args, "from_downgrade", None) is not None:
+                    return _refuse("REFUSED — --from-downgrade belongs to --command fabrik-task")
+                _rc, _declared = _task_size_gate(args, sid, command=_SPEC_COMMAND)
+                if _rc:
+                    return _rc
             elif _cmd != _TASK_COMMAND:
                 if getattr(args, "file", None) or str(getattr(args, "declare", "") or "").strip():
                     return _refuse("REFUSED — --file/--declare belong to --command fabrik-task")
@@ -5262,6 +5393,16 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 ):
                     return _refuse(
                         "REFUSED — --appetite/--why/--from-downgrade belong to --command fabrik-task"
+                        + (
+                            " (on a fabrik-spec start, --appetite/--why ride with --file/--declare)"
+                            if _cmd == _SPEC_COMMAND
+                            else ""
+                        )
+                    )
+                if _spec_v2:
+                    sys.stderr.write(
+                        "[command_run] NOTE — fabrik-spec: lane gate not run — pass "
+                        "--file/--declare to size the brief at start (D-858)\n"
                     )
             else:
                 _rc, _declared = _task_size_gate(args, sid)
@@ -5275,7 +5416,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             # `ValueError`/`KeyError` from the `--declare k=v` parse. An exception that escapes
             # here becomes rc 0 with NO record at `:2557-2559` — a start that LOOKS like it
             # opened one. Its own template, so the arm is assertable by string and not only rc.
-            return _refuse(f"REFUSED — fabrik-task: start could not complete ({type(e).__name__})")
+            return _refuse(f"REFUSED — {_cmd}: start could not complete ({type(e).__name__})")
 
         # the windows earlier commands of this session COVERED, carried across this overwrite
         # (review P1-1). A record closed BEFORE the ledger existed holds its window only in its own
@@ -5366,6 +5507,15 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # OTHER command's record would change the record shape in ~46 repos for no reader.
         if _declared is not None:
             new["declared"] = _declared
+        if _cmd == _SPEC_COMMAND and (
+            _spec_v2 or (isinstance(_declared, dict) and _declared.get("gate") == 2)
+        ):
+            # every spec at lane v2 says whether the gate ran — the ungated population is
+            # counted from day one (D-858 fold 3); a resumed record keeps its stamp even if the
+            # switch moved since (the close's `_stamped` rule, A-S-4)
+            new["lane_gate"] = (
+                str(_declared.get("verdict")) if isinstance(_declared, dict) else "none"
+            )
         if _seed is not None:
             # ── carry the wall-blocked sitting forward (W-28f260c3). The record's own clock is THIS
             # sitting's; the original start rides beside it, and the gap is what active-time readers
@@ -5495,7 +5645,14 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             print(f"RECORD: {new.get('origin_started_at') or new['started_at']}")
             # D12 / W-25318990: say which lane admitted the run and, at v2, the commit that set
             # the switch — who may change `.fabrik/lane.json` is answered by its history.
-            if _declared.get("gate") == 2:
+            if _cmd == _SPEC_COMMAND:
+                # the gate's other side (D-858): the verdict, and the override's row when one
+                _srid = _declared.get("spec_refusal")
+                print(
+                    f"lane gate: {_declared.get('verdict')}"
+                    + (f" · spec-start refusal {_srid}" if _srid else "")
+                )
+            elif _declared.get("gate") == 2:
                 sw = _declared.get("lane_switch") or "uncommitted"
                 print(
                     f"lane: v2 (switch {sw}) · review: {_declared.get('review')} · appetite: "
@@ -5503,7 +5660,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 )
             else:
                 print("lane: v1")
-            if _declared.get("gate") == 2:
+            if _declared.get("gate") == 2 and _cmd == _TASK_COMMAND:
                 _task_tests_note(
                     Path(str(new.get("repo_root") or ".")), list(_declared.get("files") or [])
                 )
@@ -6694,12 +6851,32 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         _size = _spec_size({**rec, "surface": _late} if _late else rec)
         if _size:
             _lane_extra["size"] = _size
-        if args.cmd == "handoff" and str(rec.get("command") or "").lstrip("/") == "fabrik-spec":
+        _is_spec = str(rec.get("command") or "").lstrip("/") == _SPEC_COMMAND
+        if _is_spec:
+            # D-858: every spec close says whether the gate ran (`none` when the flags were
+            # omitted; absent on a record older than the gate), and which override row it owns.
+            if rec.get("lane_gate") is not None:
+                _lane_extra["lane_gate"] = str(rec.get("lane_gate"))
+            _srid = (rec.get("declared") or {}).get("spec_refusal") if _decl else None
+            if _srid:
+                _lane_extra["spec_refusal"] = str(_srid)
+        if args.cmd == "handoff" and _is_spec:
             # D9: a /fabrik-spec DOWNGRADE hands the work back to /fabrik-task naming the refusal;
-            # the id on this row makes the report's spec↔task join exact (T06).
-            _dg = _DOWNGRADE_REASON.match(str(getattr(args, "reason", "") or ""))
-            if _dg:
-                _lane_extra["from_downgrade"] = _dg.group(1)
+            # the id on this row makes the report's spec↔task join exact (T06). D-858: the
+            # no-refusal form writes `downgrade: no-refusal` and NO id — unless the start's own
+            # override row exists, which is then the exact join (an id field holds ids only).
+            _reason_text = str(getattr(args, "reason", "") or "")
+            _dg = _DOWNGRADE_REASON.match(_reason_text)
+            _own_rid = (rec.get("declared") or {}).get("spec_refusal") if _decl else None
+            if _dg or _DOWNGRADE_NOREF.match(_reason_text):
+                # the record's OWN override row is the ground truth; a reason's id is read only
+                # when the start wrote none (a pasted or stale id cannot mis-join, C-S-2)
+                _rid_final = str(_own_rid) if _own_rid else (_dg.group(1) if _dg else None)
+                if _rid_final:
+                    _lane_extra["from_downgrade"] = _rid_final
+                    _lane_extra["downgrade"] = "refusal"
+                else:
+                    _lane_extra["downgrade"] = "no-refusal"
         _task_fields = {**_task_fields, **_lane_extra}
     # Lane-independent and only when present, so a run that never restated its terminal keeps its
     # row shape: every close of an amended run says how often its goal was restated (kaizen 01M4DB7C7V).
