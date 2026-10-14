@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-24T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "27c7fc3bd4d27a3dce048a3ee5dcd1931e518759",
   "id": "W-911cab3b",
   "kind": "backlog",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "migrated-digest:746945c4e7aa",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "handoff-2026-10-06"
   ],
