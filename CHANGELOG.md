@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — deployer probe helpers for the Coolify-verb retirement: `app_dir`, `_host_env`, `probe_app`, `list_compose_projects`, `_parse_compose_ps` (2026-10-14)
+
+- `src/fabrik/orchestrator/deployer_ssh.py` (plan T01, spec D2/D3, invariant 3): `app_dir(spec)` names the candidate
+  directories `/opt/<n>` then `/opt/fabrik-<n>` (the second only when `<n>` does not already start with `fabrik-`), or a
+  local `source.path` normalised, which must be a direct child of `/opt` (`ProvisioningError` otherwise; `path: None` →
+  `/opt/<n>`); `SSHDeployer.probe_app(path)` runs a read-only `sudo sh -c '[ -f … ] …'` file test then `docker compose ps -a
+  --format json`, `shlex.quote` once per shell layer, and returns `{exists, ps, error}` — every failure is an `error`, never an
+  exception; `SSHDeployer.list_compose_projects(host)` runs `sudo docker compose ls -a --format json` under the host swap and
+  raises `RuntimeError` naming the host on a non-array body; `_parse_compose_ps` reads JSON Lines or an array into
+  `Service`/`State`/`Health`/`ExitCode` rows; `_target_vps_env` now delegates to the module-level `_host_env` context manager
+  (`"vps1"`, `None` and `""` are no-ops because the ssh driver's default alias is `vps`). `find_existing` is byte-identical.
+  Graders: `tests/orchestrator/test_deployer_probe.py` (34, red first on the missing imports) beside the unchanged
+  `tests/orchestrator/test_deployer_ssh.py` (171).
+
+### Fixed — `RollbackManager` drops its Coolify branch (2026-10-14)
+
+- `src/fabrik/orchestrator/rollback.py` (plan T07a, spec D7): the `coolify_client` ctor argument, its lazy property and
+  `_rollback_coolify` are gone; a `coolify` resource falls to the existing `Unknown resource type` warning; the docstrings
+  name `dns` alone. `src/fabrik/drivers/postgres.py`'s alias-watcher docstring no longer names `coolify_alias`.
+  `tests/orchestrator/test_rollback.py` rewrites the LIFO and continue-on-error tests onto surviving types;
+  `test_e2e_rollback.py` and `test_infrastructure.py` lose every `CoolifyClient` patch (82 tests green across the three).
+
+### Fixed — hub `/health` drops the dead Coolify dependency check; the `coolify_uuid` docstrings and env placeholders say what the keys hold now (2026-10-14)
+
+- `src/fabrik/health_app.py` (plan T07b, spec D5): `/health` aggregates `{"dns": …}` alone with the 200/503 rule intact and
+  stays a shallow liveness endpoint; the `CoolifyClient` import and `_check_coolify_sync` are gone. `compose.yaml` loses the
+  four `COOLIFY_*` environment lines (two were `:?`-required, so the hub image could not start without a dead token).
+  `src/fabrik/state.py` and `src/fabrik/orchestrator/context.py` describe `coolify_uuid` as the compose app name kept under
+  its historical key and list `compose`/`dns`/`monitor` as the resource types (spec D9 — the KEYS are unchanged);
+  `src/fabrik/config.py` and `.env.example` lose their commented Coolify readers and placeholder blocks.
+  `tests/test_health_app.py` (2, red first against the unchanged endpoint) beside the unmodified `tests/test_state.py` (32)
+  and `tests/test_sync_projects_state.py` (13).
+
 ### Fixed — `command_run.py step` finds a phase receipt a linked worktree holds (W-9fca9008, mail 01M48QZDFM) (2026-10-14)
 
 - `scripts/command_run.py`: the phase-review gate looked only under the record's repo_root, so a plan built in a worktree, with its receipts committed on the worktree branch, was refused at every phase boundary. The only way through was `--review-waived`, which records a skip that never happened.
