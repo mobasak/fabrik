@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec and delegated-reads: a store-naming rule rests on a census; a capped seat read answers in order (2026-10-14)
+
+The local-claims bullet now requires an executed census of each store's current members before a design rule that names stores (a matrix, an allowlist, an entity schema's fields) is written, with its invariants written against that census. `commands/_fragments/delegated-reads.md` (rendered into every command that includes it) now numbers a multi-part question in the brief, which tells the seat to answer the parts in order, each within its named share of the ~2 k, so a truncated return loses the tail, and an unreached part is asked again. Answers /fabrik-spec rows 1791945254 and 1791936747. Grader: the recurring-rules pin in `tests/test_spec_plan_lane_text.py`, extended and red on the previous text.
+
 ### Changed — /fabrik-data-contract: an unbuilt file is cited on its own line with the doc-links marker (2026-10-14)
 
 Phase 3 gains item 6: in any mode, the contract cites a file its spec has not built yet on a physical line of its own carrying the exact lowercase phrase the doc-links gate skips (`does not exist`, read by `_iter_refs` in `check_doc_links.py`); the gate skips the whole line, so no built file may share it. Answers row 1791942388 (web-ecommerce-factory: two pushes went red on Doc Link Integrity for a re-frozen contract's unbuilt files). A per-reference marker in the checker was mailed to infra. Grader: `tests/test_data_contract_recurring_rules.py::test_a_delta_citing_an_unbuilt_file_carries_the_doc_links_marker`, which also drives the checker on a marked, an unmarked and a capitalised line.
