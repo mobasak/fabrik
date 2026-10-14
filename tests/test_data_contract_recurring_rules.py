@@ -112,3 +112,5 @@ def test_a_refreeze_whose_deltas_touch_no_tabled_item_closes_without_a_bump() ->
         "not run."
     ) in phase0
     assert "bump `Version` (a zero-delta re-freeze, below, excepted), never a silent overwrite." in phase0
+    phase3 = _between(_norm(SRC), "## Phase 3", "## Phase 4")
+    assert "A zero-delta re-freeze (Phase 0) edits nothing, so its rows always go in the closing report." in phase3

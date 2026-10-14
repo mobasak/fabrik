@@ -160,7 +160,8 @@ The Pass Ledger lives in the contract's Pass Ledger section when it carries one,
 bumping re-freeze adds its own dated version entry there after that closing round, so its absence is never a finding in
 any round of the run. A run paused before that round (the Termination contract's no-seat pause) carries its rows
 so far in its `blocked --reason` (free text; `--feedback` is the capped usage line), and the resumed run copies
-them into the entry, or into the closing report when the contract has no ledger section.
+them into the entry, or into the closing report when the contract has no ledger section. A zero-delta re-freeze
+(Phase 0) edits nothing, so its rows always go in the closing report.
 Each pass checks ALL of:
 
 1. **Coverage** — every entity from the spec (Mode A) / schema (Mode B) is present; every GUI/form field maps to
