@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T23:56:55.252363Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9ca9b7a3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4V1BCW7B9BHMGTRHN1CFN79",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_feedback_report.py has no read-only view of past reject reasons, so D-711 audit seats cannot check a recurrence by its reason"
+}
