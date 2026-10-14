@@ -218,7 +218,7 @@ fabrik scaffold <project-name> --type <type>   # if project tree exists, this re
 # OR cleanest: delete and rescaffold from a directory that already has a remote.
 ```
 
-Reference path used by automation: `scripts/proof_run.py` lines 410–423 demonstrate the canonical sequence (scaffold → push → regenerate spec → apply).
+Reference path used by automation: `scripts/proof_run.py`'s `scaffold()` → `push_to_github()` → `regenerate_spec()` → `apply()` (called in that order from `process_type()`) demonstrates the canonical sequence (scaffold → push → regenerate spec → apply); the harness itself runs only with `--live`.
 
 ## Database Issues
 

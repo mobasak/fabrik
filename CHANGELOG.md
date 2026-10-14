@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `scripts/proof_run.py` refuses to run its live proof without `--live` (2026-10-14)
+
+- The harness parsed no argv, so ANY invocation — `--help` included — ran step 1's `fabrik destroy --yes --drop-data`,
+  `rm -rf /opt/<fixture>` and `gh repo delete` against the fleet; four review seats ran it on 2026-10-14 and destroyed
+  and re-scaffolded the `fabrik-test-saas-skeleton` fixture (`proof-logs/saas-skeleton-20261014T00*.log`). `parse_args()`
+  now runs before `main()` with a REQUIRED `--live`: a bare run exits 2, `--help` exits 0, both before any side effect;
+  there is no dry run and the docstring carries the cobra check. Grader `tests/test_proof_run_guard.py`: a static read
+  refuses to execute an unguarded file (the RED, proved in a throwaway worktree with the proof-log count unchanged), then
+  the real `__main__` block runs under `runpy` with module-global `subprocess`/`urlopen` and class-level `Path` fakes
+  recording zero calls; the review added `allow_abbrev=False` (a prefix such as `--li` is refused), an `if not
+  parse_args().live` check in the `__main__` block (a loosened parser cannot reach `main()`), a static WHITELIST of what the
+  module top level may contain (un-aliased imports, `Path`-only constants to plain names, undecorated defs, classes
+  on builtin or module-defined bases with no dunder assignment or hook def in the body, the `__main__` block without `else`) with the recording fakes installed before
+  every import as the second layer — defence in depth, neither a proof — the `__main__` block asserted by AST shape,
+  `load_env`'s `.env` read pinned to `Path.read_text`, a sentinel proving
+  `--live` reaches `main()` at its first `.env` read, and the escape variants as executable cases. Plan T08
+  (`docs/development/plans/2026-10-14-plan-1-coolify-verb-retirement/T08-script-rebases.md`) inherits the parser and
+  the grader; its spine's File Scope names the test and its never-execute rule now reads as a regression guard.
+
 ### Fixed — pgurl counts `requiressl` as an ssl key and pins its own IFS (2026-10-14)
 
 - `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` + `CONFIGURATION_TEMPLATE.md` (fabrik-lib 01M4VB91YA): libpq 17

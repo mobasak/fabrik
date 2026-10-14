@@ -12,7 +12,7 @@
     "spec": ""
   },
   "next": "re-read the spine's Pass Ledger rows 3-5 at the next touch of the plan (execution's first ticket); fix wording residue then, in the ticket's own commit",
-  "note": "",
+  "note": " · the 2026-10-14 right-now fix (the --live guard; docstring lines added twice in review) moved every proof_run.py line the spine's Pass 7/8 rows and T08's Scope cite (the two open() sites — dump_diagnostics' build log and process_type's run log — and load_env's read_text of the hub .env); those rows are history: when this item is worked, remap each cite by the symbol it names, never by a number read here. · tests/test_proof_run_guard.py (the --live guard's grader, 2026-10-14 review, round 7 RECORDED): the docstring says 'no dunder is assigned at module level' while the gate refuses dunder ASSIGNMENT targets only — a dunder bound by an import (`from os import __builtins__`) or a module-level `def __getattr__` is admitted (harmless under runpy's fresh namespace; a module __getattr__ fires only on a missing attribute); either reword to 'the target of a module-level assignment' or refuse dunder names inside bind() — and the walrus sentence understates: a lambda body walrus at module level is refused too (fails closed). · a relative import (`from . import x`) is admitted like any plain import and refused when it binds `Path`; the docstring's 'plain `import x` / `from x import y`' wording could say so.",
   "owner": "",
   "priority": 3,
   "status": "open",
