@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the daily janitor removes dead subagents' harness worktrees (W-18e66a92) (2026-10-14)
+
+- `scripts/scratch_sweep.py`: `--dead` (the 04:20 cron) now runs a harness pass over the hub's main checkout, `janitor_worktrees`. It takes only `.claude/worktrees/agent-<hex>` trees (never the named `fleet`/`intel`/`kaizen` worktrees) whose chain verdict is removable and that have had no commit or checkout for 3 days, and it runs no repo-wide `git worktree prune`. 21 such trees had accumulated, 6–8 days old.
+- An ignored file whose bytes equal a top-level file in the hub's `backups/` now counts as a creation copy. Every harness tree holds the `.worktreeinclude` copy of `.env`, and once main's `.env` was rotated (2026-10-12) that copy differed, so every older tree read `wt-ignored-data` forever. The two retired `.env` versions were archived to `backups/` once by hand.
+- A backup counts only when its file NAME contains the copy's basename, and it is opened without following links or blocking. The janitor reads each tree's own registration (git suffixes a colliding name), and `SCRATCH_SWEEP_JANITOR_REPO` names its repo, so the test suite can never reach the live hub. The classifier's own `git status` rewrites a tree's `index`, so dormancy reads `gitdir`/`HEAD`/`logs/HEAD` only.
+- Graded by 9 new tests, each seen red, with every new guard mutation-killed; full /fabrik-review converged in 3 rounds (4, 1, 0 confirmed). D-851.
+
 ### Changed — kaizen charter: the held-subject search reads `--reasons`, as /fabrik-command-improve does (2026-10-14)
 
 `docs/reference/agents/kaizen.md` now finds an already-held subject in the reason column of `command_feedback_report.py --reasons <cmd>` run without `--held`, not in the `--queue` header's tag line. That matches the D-711 clause /fabrik-command-improve gained at 5966b4176 (D-837). Grader: `tests/test_command_improve_drive.py`, red on the previous text.
