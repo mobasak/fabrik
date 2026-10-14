@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:23.294505Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8bc61173",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VHFP7SS1CD3WA57DGRBRZ0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "fabrik-researcher fetch-path rules: three gaps measured by four seats in one /fabrik-spec-review pass (2026-10-14)"
+}

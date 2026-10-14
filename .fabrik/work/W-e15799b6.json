@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:02.854443Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e15799b6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TQB61P3J71FMPGDHFMQHQ9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: Adopt the merge-request loop in fabrik-lib: DONE. Landed on fabrik-lib main as c86ed301 (fabrik-lib D-426), pushed."
+}

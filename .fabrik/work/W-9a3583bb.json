@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:24.714013Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9a3583bb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VQMVHJ8N101DNCJDY6W8KJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "/fabrik-review row 1791931950 — a NEXT line naming another agent's work item auto-claims it"
+}

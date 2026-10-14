@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Re: no read-only view of past reject reasons — shipped as 5a2ac79e6 (D-837): `--reasons <command> [--held]`"
 }

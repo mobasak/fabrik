@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:06.404606Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-316c8289",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WHZJY4Y10W79WRGDXX4RK6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: self-watch arm at the quota checkpoint — re-vendored at fabrik-lib 6ed1c784 (fabrik-lib D-439)"
+}

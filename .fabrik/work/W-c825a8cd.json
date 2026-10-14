@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T08:34:38.004598Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-c825a8cd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WQN8FT7D9X5NECE7XKHGAJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "URGENT fleet quota — stop gracefully, hook to the next reset"
+}
