@@ -74,7 +74,7 @@ constraints; OPEN the file and read them. Assemble the inventory from both direc
 - **Design → fields (Mode A):** from the spec, enumerate every entity and every user-facing field the design
   implies (what the user types, sees, filters, or the API accepts). Ground external field standards **live only
   if the design introduces one** (repo-first `grep docs/`, `docs/reference/`; then
-  `mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` →
+  `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` /
   `mcp__firecrawl__firecrawl_search`) — e.g. a country code (ISO 3166), a currency
   (ISO 4217), a phone format (E.164). Cite the URL + date; never invent a validation rule from memory.
   (These are ISO/RFC standards, not academic papers — the `fabrik-citation-verifier` MCP does not apply here.)

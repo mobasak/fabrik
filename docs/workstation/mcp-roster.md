@@ -57,11 +57,11 @@ Weight = measured RSS across live processes (per-window cost scales with window 
 |---|---|---|---|---|
 | **session-recall** | past-session search (`search_chats`/`get_chat`) — governance-mandated by ORIENT + commands | ALL repos | 201 MB / 4p | **ON everywhere** |
 | ~~context7~~ | live library/framework docs | **RETIRED (operator decision):** measured usage was 45 tool calls in the box's entire transcript history against hundreds for each search server, for 364 MB / 7 procs per window; official-docs `WebFetch` covers the need. Removed from every roster via `claude_rotate.py --sync-mcp` with every corpus reference swapped to official-docs WebFetch in the same change (phantom-arm law). Pool agents keep on-demand context7 via their own mcp.json (zero idle cost) | — | OFF everywhere |
-| **exa** | web search + raw fetch — grounding order #1 in every spec/review command | all repos, design/review phases | 183 MB / 4p | **ON everywhere** |
+| **exa** | web search + raw fetch — tier 2 (on a tier-1 miss, metered) in the research commands; the raw-fetch arm for fabrik-researcher | all repos, design/review phases | 183 MB / 4p | **ON everywhere** |
 | ~~github~~ | GitHub API (PRs, issues, code search) | **RETIRED (D-014):** every corpus ref swapped to the `gh` CLI (`gh search code`/`gh api` — authenticated, zero idle processes) in the same change; removed from every roster via the rotator | — | OFF everywhere |
-| brave-search | second search engine — NAMED in the grounding order of 6 pipeline commands that run in EVERY repo (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review) | all repos | 384 MB / 7p | **ON everywhere** (corpus-driven; scoping it off would plant a phantom arm fleet-wide) |
+| brave-search | tier-1 search engine — NAMED in the tier-1 grounding order of 9 pipeline commands that run in EVERY repo (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review, execute-plan, ui-design, vision) | all repos | 384 MB / 7p | **ON everywhere** (corpus-driven; scoping it off would plant a phantom arm fleet-wide) |
 | **firecrawl** | scrape/crawl (raw HTML) — fallback arm in 5 pipeline commands | ALL repos (D-013: universal, no exception) | light | **ON everywhere** — a startup crash here is a CORRUPTED npx cache entry: clear that one entry, never the whole `_npx`; the curl-swap candidate is DEAD per the ruling |
-| playwright | browser automation — fabrik-gui, /design-review, /fabrik-user-test; NEVER crawling (no grounding order names it — the research chain is exa/brave/firecrawl) | the 6 UI-bearing types | 102 MB / 2p | ON UI types only — **RULED (D-015)** |
+| playwright | browser automation — fabrik-gui, /design-review, /fabrik-user-test; NEVER crawling (no grounding order names it — the research chain is WebSearch/brave, then exa/firecrawl) | the 6 UI-bearing types | 102 MB / 2p | ON UI types only — **RULED (D-015)** |
 | chrome-devtools | deep browser debug/perf traces (Core-Web-Vitals in the Build-Verification Loop) | DECLARED in fabrik-gui's own mcpServers allow-list | 321 MB / 5p | ON web-GUI types (with playwright) — **RULED (D-015 + D-019: rides with playwright everywhere playwright is granted, overlays included — § ruling in full)** |
 | shadcn | SaaS UI component registry (MIT-B pair, operator-wired) | saas-skeleton | light | ON saas-skeleton only |
 | magicui | motion component registry (the pair's other half) | saas-skeleton | 99 MB / 2p | ON saas-skeleton only |
@@ -100,8 +100,8 @@ phantom arm (the wef 01M17XXF defect class).
 | Server | Evidence |
 |---|---|
 | `session-recall` | named by 22 commands + ORIENT mandate |
-| `exa` | grounding order #1 in 7 pipeline commands (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review, execute-plan) |
-| `brave-search` | named in the same grounding orders (6 commands) — every repo runs these |
+| `exa` | tier 2 (on a tier-1 miss) in 9 pipeline commands (spec, spec-review, plan-after-chat, plan-review, data-contract, docs-review, execute-plan, ui-design, vision) |
+| `brave-search` | named in the same grounding orders (9 commands), as tier 1 — every repo runs these |
 | `firecrawl` | RULED universal (D-013, "no exception") |
 | `postgres-pro` | RULED universal (D-020) — operator: "fix postgres-pro and wire it all type of projects" |
 | `serena` | RULED universal (D-021: adopt-and-wire) — the corpus names it for symbol-level grounding (plan-after-chat + review); unused-after-wiring = a measured retirement case |
@@ -146,7 +146,7 @@ vendored-client example prose, verified).
 ## Playwright — the ruling in full (D-015 + D-016)
 
 Playwright is NEVER a crawling tool: no grounding order in the corpus names it — the research chain
-is exa → brave → firecrawl (+ raw `curl`). Its job is the opposite direction: it drives **our own
+is WebSearch/WebFetch → brave, then exa → firecrawl on a miss (+ raw `curl`). Its job is the opposite direction: it drives **our own
 running screens** — navigate, click, type, screenshot at 375/768/1440, accessibility snapshots — for
 the Build-Verification Loop, `/design-review`, and `/fabrik-user-test`'s web branch. Firecrawl reads
 *other people's* sites; playwright verifies *ours*.

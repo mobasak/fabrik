@@ -71,7 +71,7 @@ whichever is wrong (transdoc: nine steps sat invisible for a week because nobody
 
 **A) External facts — re-verify LIVE, this session.** For EVERY external claim (API / SDK / endpoint / auth
 model / rate limit / **pricing** / library signature): re-fetch its cited source
-(`mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` →
+(`WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` /
 `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` (on the official library docs; `WebFetch` only to locate a page) → the `gh` CLI to read
 the dep's REAL repo/API/release when confirming a signature — `gh search code`/`gh api` (D-014 retired the github MCP)) and confirm the source **actually says what the
 spec claims** — re-open each cited URL (a standard/RFC → fetch the primary doc + quote the clause), treating
