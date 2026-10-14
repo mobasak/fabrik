@@ -69,7 +69,7 @@ def test_round_zero_cites_the_callee_in_both_review_contracts() -> None:
         want = (
             "listed before the probe runs; a fix that names an interface (a function, flag, field or verb) cites the "
             f"callee's signature and line range read {at}, and is re-read against that range before the pin; "
-            "a regex fix"
+            "a fix to a matcher, replacer, predicate or filter, a regex included"
         )
         assert want in zero, frag
 
@@ -85,7 +85,9 @@ def test_the_flip_copy_recipe_is_the_matrix_rows_method() -> None:
     ) in gate
 
 
-def test_plan_tickets_reruns_after_every_behavior_contract_edit_and_the_small_loop_flips_at_the_panel() -> None:
+def test_plan_tickets_reruns_after_every_behavior_contract_edit_and_the_small_loop_flips_at_the_panel() -> (
+    None
+):
     """Row 1791954506: a stale roll-up cost a round because check_plan_tickets was not re-run after ticket rows
     were edited mid-loop; and the Size: small joint loop flips both documents in the panel's approval commit."""
     text = _norm(REPO / "commands" / "_sources" / "fabrik-plan-review.md")

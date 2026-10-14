@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — term-edit: an artifact's executable rule runs every round, not only at the close (2026-10-15)
+
+- `commands/_fragments/term-edit.md` (rendered into 17 review-family commands): obligation (4) THE ARTIFACT'S OWN RULE joins the before-every-pin list — when the artifact states an executable rule (a classifier, state machine, truth table, comparator) it is run as a throwaway script over every case the artifact lists, at pass 1 and before any pin after a fix touched it; the closing round re-executes it and points at (4). Answers /fabrik-spec-review feedback row 1792014614 (a state contradiction read past in three delta rounds) and row 1791448830, rejected earlier as already landed at the close; pinned in `tests/test_spec_review_queue_pass.py`.
+- Fixed two pre-existing test reds: `commands/_sources/fabrik-review-scoped.md` now points seats at this repo's fleet-synced `.claude/workflows/fabrik-review-loop.js`, never the hub copy (`test_review_loop_workflow`); `tests/test_plan_review_recurring_rules.py` pins round zero's current wording.
+
 ### Changed — /fabrik-review-scoped: § Seat isolation applies to every brief that runs tests (2026-10-15)
 
 - `commands/_sources/fabrik-review-scoped.md` step 5: the probe catalogue's § Seat isolation is named shape-independent — a brief that runs tests runs them from an archive and derives its roots from what the tests import, read or run, never a hand-listed path set; the sentence locates the recipe (`PIN_IMPORT`/`PYTEST_PINS` in `/opt/fabrik/.claude/workflows/fabrik-review-loop.js`) instead of restating it. `commands/_fragments/review-probe-catalogue.md` header: "never all of them, § Seat isolation excepted". Answers feedback row 1792005608 and a six-reject recurrence; pinned in `tests/test_review_scoped_queue_pass.py`.

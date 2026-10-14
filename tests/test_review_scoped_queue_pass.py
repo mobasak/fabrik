@@ -55,9 +55,13 @@ def test_the_command_applies_seat_isolation_to_every_brief_that_runs_tests() -> 
     )
     assert "derived from what the tests import, read or run" in sentence
     assert "never a hand-listed path set" in sentence
-    assert "live in `/opt/fabrik/.claude/workflows/fabrik-review-loop.js`" in sentence, (
-        "the pointer must LOCATE the recipe by its HUB path — the command runs from every repo, and the "
-        "catalogue names the constants but not their file"
+    assert "live in this repo's `.claude/workflows/fabrik-review-loop.js`" in sentence, (
+        "the pointer must LOCATE the recipe — the catalogue names the constants but not their file; the path "
+        "is the REPO's own copy, which the sync manifest ships to every repo as an agent hook file "
+        "(test_review_loop_workflow forbids a source launching the hub copy)"
+    )
+    assert "/opt/fabrik/.claude/workflows/" not in sentence, (
+        "a source must never point seats at the hub copy"
     )
     assert "not restated here" in sentence
     for restatement in ("git archive", "ls-tree", "overlay", "chdir", "unless"):
