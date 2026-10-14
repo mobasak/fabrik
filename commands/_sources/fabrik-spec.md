@@ -10,7 +10,8 @@ it — until that spec is written and approved.
 
 **`--terminal` names both endings:** the `Size:` verdict lands in Phase 5 and `--terminal-amend` belongs to
 `/fabrik-task` alone, so start with `--terminal "the spec CONVERGED by /fabrik-spec-review and its approval
-gate answered, or — when Phase 5 writes Size: small — the DRAFT handed to /fabrik-plan-after-chat"`.
+gate answered, or — when Phase 5 writes Size: small — the DRAFT handed to /fabrik-plan-after-chat"`. A Phase 0
+DOWNGRADE is a `handoff`, not a terminal met, so it is named there and nowhere in `--terminal`.
 
 {{include:run-record}}
 {{include:orient}}
@@ -33,8 +34,30 @@ gate answered, or — when Phase 5 writes Size: small — the DRAFT handed to /f
   naming that same seed (handoff keeps a byte copy under `<state dir>/seeds/` and prints its path, also
   `resume_copy` on the run_close event, D-716 — carry that path into the restart, since the next `start`
   overwrites the record), and hand the operator to the `/fabrik-task --from-downgrade <refusal id>` restart
-  instead of writing a spec. No matching refusal, or one that no longer holds (the brief DOES carry a
-  one-way decision or an open trade-off) → proceed to the rest of Phase 0 unchanged.
+  instead of writing a spec. **No matching refusal does NOT end the check (operator ruling 2026-10-14, the
+  `docs/DECISIONS.md` row widening D9): most specs open with no lane attempt behind them — 9 refusals against
+  77 spec closes since lane v2 shipped, and no DOWNGRADE ever fired — so apply the lane's tests to the brief
+  HERE, before any research seat, approach or judge panel is dispatched.** Name the brief's surface as the
+  `--file` list `/fabrik-task start` would take, answer its six declarations (`decision`, `heavy`,
+  `mechanism`, `oneway`, `tradeoffs`, `consumers`), run the contract-path test over that list
+  (`specs/services/`, any `openapi*` JSON or YAML file or `*.schema.json` outside dependency directories, case
+  ignored — `task_lane.contract_hit` is the authority), put the lane's `--appetite` in minutes on it, and
+  estimate the diff by Phase 5's own `Size: small` rule (D-169: ≤ ~400 code lines AND ≤ 5 code files, tests
+  excluded); state the six answers, the hits, the appetite and the estimate on one line of the response.
+  `decision=yes`, `oneway=no`, `tradeoffs=no`, `consumers=internal`, no contract hit, an appetite within the
+  lane's 240 minutes and a small estimate ⇒ `/fabrik-task` work: write the same seed, its `## RESUME` naming
+  `/fabrik-task <the brief>` as the restart (no `--from-downgrade` — no refusal id exists; the seed carries
+  the six answers, the appetite and the estimate instead), and close with the same `handoff`, its
+  `--reason "DOWNGRADE: no-refusal — <the six answers, the estimate>"` (`command_run.py` joins a `DOWNGRADE:`
+  reason to a refusal only on an `LR-` id, so this form records no `from_downgrade` and mis-joins nothing).
+  The same answers with `decision=no` ⇒ a pure fix, which `/fabrik-task start` refuses too (row 4b): right-now
+  and `/fabrik-review-scoped` — the full `/fabrik-review` on a sync or heavy surface, as the lane table's
+  precedence rule for 4b with 1 or 1b says — closed
+  with the same seed and `handoff`, the `## RESUME` naming the fix and that review. A refusal that no longer
+  holds (the brief DOES carry a one-way decision or an open trade-off), or a
+  brief that trips one-way, a trade-off, `consumers=external`, a contract path, the 240-minute appetite or
+  either size bound → proceed to the rest of Phase 0 unchanged; Phase 5 re-estimates on the deltas as today —
+  small work that DOES need a design (D10) is still a spec.
 - Explore project context first: files, recent commits, existing `specs/`/`docs/`, `AFCL.md`.
 - **Epic-file intake (spec § Chain consolidation (d)):** when the argument is a file under
   `docs/development/epics/` (an already-decomposed epic, not a from-scratch idea), this run's
@@ -386,8 +409,8 @@ spec's plan is drafted before it and approved with it).
   takes the full section set; state the profile verdict either way.
 - **`Size: small` (spec § The delta D10) — estimate the diff, skip the review loop.** Before Phase 6,
   estimate the code diff this spec's own deltas will produce using D-169's rule (the same rule
-  `/fabrik-plan-after-chat` applies to a plan, `commands/_sources/fabrik-plan-after-chat.md:210-222`): code
-  lines and code files, tests excluded. **≤ ~400 code lines AND ≤ 5 code files ⇒ write
+  `/fabrik-plan-after-chat` applies to a plan, `commands/_sources/fabrik-plan-after-chat.md` § SIZE THE DIFF
+  BEFORE THE SHAPE): code lines and code files, tests excluded. **≤ ~400 code lines AND ≤ 5 code files ⇒ write
   `Size: small (≈<lines> lines, <files> files)` on its own line directly under `Status:`** — a separate key
   from `Profile:` above, since `Profile: delta` already names the BRIEF's own shape, not the code estimate.
   A `Size: small` spec skips `/fabrik-spec-review` entirely: after the self-review below, hand it straight

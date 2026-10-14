@@ -272,6 +272,59 @@ def test_fabrik_spec_phase0_downgrade_write_instruction_names_resume_heading_and
     assert "refusal id" in write_sentence
 
 
+def test_fabrik_spec_phase0_applies_the_lane_tests_when_no_refusal_row_exists():
+    """Operator ruling 2026-10-14 (widening spec D9; the recurrence of the HELD row
+    `downgrade-without-refusal`): most specs open with no `/fabrik-task` attempt behind them, so a
+    missing refusal row must not end the DOWNGRADE check. Phase 0 applies the six lane declarations,
+    the contract-path test and Phase 5's `Size: small` rule to the brief itself, BEFORE any seat, and a
+    small, reversible, internal brief hands off to `/fabrik-task <the brief>` with a reason form that
+    `command_run.py`'s `_DOWNGRADE_REASON` (an `LR-` id) cannot mis-join to a refusal."""
+    phase0 = _spec_phase0()
+    tail = _section(phase0, r"Only THEN close this run", r"Explore project context first")
+    flat = " ".join(tail.split())
+    # The no-refusal branch exists and runs before any seat (loose on wording, firm on the fact).
+    assert re.search(r"refusal\b.{0,80}\b(NOT|never) ends?\b", flat), flat
+    assert re.search(r"before any research seat", flat), flat
+    # The three tests the branch runs on the brief, each named: the mutants that dropped one survived.
+    assert "`task_lane.contract_hit` is the authority" in flat, flat
+    assert re.search(r"`--appetite` in minutes", flat), flat
+    for key in ("`decision`", "`heavy`", "`mechanism`", "`oneway`", "`tradeoffs`", "`consumers`"):
+        assert key in flat, key
+    # The gate's tokens WITH their values: a polarity flip (oneway=yes, consumers=external, "a
+    # contract hit", "over 240") must break this test, as the round-1 seats' mutants showed.
+    for tok in (
+        "`decision=yes`",
+        "`oneway=no`",
+        "`tradeoffs=no`",
+        "`consumers=internal`",
+        "no contract hit",
+        "an appetite within",
+        "240",
+        "`Size: small` rule (D-169",
+    ):
+        assert tok in flat, tok
+    # The pass verdict names the lane restart and a reason form no `LR-` join can mistake.
+    assert re.search(r"## RESUME`? naming `?/fabrik-task <the brief>", flat), flat
+    assert re.search(r'--reason "DOWNGRADE:\s*no-refusal\b', flat), flat
+    # `decision=no` is a pure fix: the lane refuses it (row 4b), so the branch must send it to
+    # right-now + /fabrik-review-scoped, never to `/fabrik-task <the brief>`.
+    assert re.search(r"`decision=no`.{0,120}/fabrik-review-scoped", flat), flat
+    # A heavy or sync pure fix owes the FULL review (task_lane.admit: decision=no + heavy/sync).
+    assert re.search(r"`decision=no`.{0,220}full `/fabrik-review`", flat), flat
+    # The trip list keeps every test's TRIPPING value, so a flipped or dropped item breaks this.
+    assert re.search(
+        r"trips one-way, a trade-off, `consumers=external`, a contract path, the 240-minute appetite"
+        r" or either size bound → proceed",
+        flat,
+    ), flat
+    # The refusal-keyed branch and its reason form are unchanged, and the no-refusal branch sits
+    # AFTER it — a cold agent reads the ledger first, then applies the tests itself.
+    assert re.search(r'--reason\s+"DOWNGRADE:\s*<[^>]*refusal id[^>]*>', phase0), phase0
+    assert phase0.index("`decision=yes`") > phase0.index("Only THEN close this run")
+    # Small work that DOES need a design stays a spec (D10): the branch names what still proceeds.
+    assert re.search(r"D10\b.{0,20}still a spec", flat), flat
+
+
 def test_fabrik_spec_names_both_endings_and_a_sanctioned_close(tmp_path, monkeypatch) -> None:
     """/fabrik-spec queue (kaizen D-711 audit, 9 rows): `--terminal` is fixed at start, the
     `Size: small` verdict that decides where the run ends lands in Phase 5, and command_run.py
