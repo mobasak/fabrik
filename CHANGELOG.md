@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped step 5: ruff findings are the lead's, and a sync-excluded repo runs the hub's ledger script (2026-10-14)
+
+Step 5's pre-pin ruff run still fixes what it reports, so the touched files stay format-clean for the completion gate. The brief now tells the seats that ruff's output is the lead's, so no seat reports a lint or format finding, including a pre-existing one (row 1791982905). The step also says every `review_loop_ledger.py` call in it runs as `python3 /opt/fabrik/scripts/review_loop_ledger.py` in a sync-excluded repo, because a vendored copy there may lack `pin` or `read --pins` (rows 1791982896, 1791981699). `tests/test_review_scoped_queue_pass.py` pins both.
+
 ### Changed — /fabrik-execute-plan: a wave checks the fleet's headroom first, and a plan-named checker is dry-run before its coders (2026-10-14)
 
 Before dispatching a wave, the dispatcher now acts on the fleet's band: at AMBER or RED it dispatches no new wave. At GREEN, when the `QUOTA:` line's `successor` reads `none`, it compares that line's `wall in` forecast with the wave's summed ticket `Appetite:` (a ticket without one counts as the 30-minute estimate the dispatch timeout uses). When the wall comes first, it says so on the Board, dispatches only the tickets that fit and holds the rest until the reset or a rotation, so no coder is cut mid-ticket (rows 1791975800, 1791971650). A ticket whose acceptance rests on a checker the plan names, such as an identity diff, now has that checker run once on a throwaway head of the ticket's unit (a scratch build the orchestrator never commits) before the coder starts, so the checker's gaps become Board tickets up front (rows 1791973720, 1791950554). `tests/test_execute_plan_queue_pass.py` pins both.
