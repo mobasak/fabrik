@@ -95,3 +95,14 @@ def test_the_store_census_covers_nested_members_and_shape_before_tickets() -> No
         " store, each read field's distinct values with counts, never a sample or one instance); a value an operator"
         " enters (a ref, an id, a config key) counts as a store, and the source that accepts it is censused too."
     ) in text
+
+
+def test_the_appetite_rule_says_check_plan_tickets_takes_a_plan_set_only() -> None:
+    """Row 1791966909: check_plan_tickets refuses a monolith path; a monolith is graded by check_plan_quality."""
+    text = re.sub(r"\s+", " ", SRC.read_text(encoding="utf-8"))
+    assert (
+        "`scripts/enforcement/check_plan_tickets.py --plan-dir <dir>` (a plan set only — it refuses a monolith file)"
+        " refuses a set carrying none; `check_plan_quality.py` grades every plan, a monolith included, but only under"
+        " `final_gate.py --systemic` and as a WARN while the plan is DRAFT/PLANNED, so a monolith's lines are"
+        " self-checked."
+    ) in text
