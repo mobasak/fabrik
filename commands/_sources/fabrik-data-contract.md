@@ -174,6 +174,11 @@ Each pass checks ALL of:
    every `personal`/`sensitive` category.
 5. **Re-freeze deltas (D-730)** — on a re-freeze confirmed by an approved spec, every change in the reconciled
    body is named by that spec's § Contract deltas; anything else STOPs before the Phase-4 flip.
+6. **Unbuilt files** — in any mode, the contract cites a file its spec has not built yet on a physical line of
+   its own (a bullet or table row with nothing else to check) that carries the exact lowercase marker of the
+   doc-links gate — `_iter_refs` in `scripts/enforcement/check_doc_links.py` — which is the phrase
+   `does not exist`; that gate skips the WHOLE line, so no built file shares it and the wrapped paragraph is never
+   the marker's home.
 
 After each pass, list what you reconciled (which `path:line` / spec sections you re-read) and what you changed,
 then run one MORE pass — the loop terminates ONLY at the Termination contract's closing round (`confirmed: 0`, md5-verified).

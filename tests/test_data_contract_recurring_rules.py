@@ -69,4 +69,33 @@ def test_an_approved_spec_naming_the_delta_is_the_refreeze_confirmation() -> Non
         "says it does and the interim versions touch none of its deltas."
     ) in phase0
     phase3 = _between(_norm(SRC), "## Phase 3", "## Phase 4")
-    assert "5. **Re-freeze deltas (D-730)** — on a re-freeze confirmed by an approved spec, every change in " in phase3
+    assert (
+        "5. **Re-freeze deltas (D-730)** — on a re-freeze confirmed by an approved spec, every change in "
+        in phase3
+    )
+
+
+def test_a_delta_citing_an_unbuilt_file_carries_the_doc_links_marker() -> None:
+    """Row 1791942388 (web-ecommerce-factory): two pushes went red on Doc Link Integrity because a re-frozen contract
+    cited, by repo-relative path, files its spec had not built yet. Phase 3 item 6 names the marker the link checker
+    honours, its exact phrase and its whole-line reach; the checker still honours it, lowercase only."""
+    import importlib.util
+
+    phase3 = _between(_norm(SRC), "1. **Coverage**", "After each pass")
+    assert (
+        "6. **Unbuilt files** — in any mode, the contract cites a file its spec has not built yet on a physical line"
+        " of its own (a bullet or table row with nothing else to check) that carries the exact lowercase marker of"
+        " the doc-links gate" in phase3
+    )
+    assert "that gate skips the WHOLE line, so no built file shares it" in phase3
+    spec = importlib.util.spec_from_file_location(
+        "check_doc_links", SRC.parents[2] / "scripts" / "enforcement" / "check_doc_links.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    marked = "- `src/pending/reader.py` — does not exist yet (built by the spec)."
+    unmarked = "- `src/pending/reader.py` — built by the spec."
+    capital = "- `src/pending/reader.py` — Does not exist yet."
+    assert list(mod._iter_refs(marked)) == []
+    assert list(mod._iter_refs(unmarked)) != []
+    assert list(mod._iter_refs(capital)) != []
