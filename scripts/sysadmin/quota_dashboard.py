@@ -3289,8 +3289,9 @@ def _edit_account_map(path: Path, key: str, value: object, what: str) -> tuple[i
     """Set (value) or clear (None) ONE account's entry in a {email: number} file the rotation reads
     (caps.json, thresholds.json), then re-render. 502 when the file cannot be read or parsed: rewriting
     it from {} would silently drop every other account's entry. Read-modify-write under a lock file
-    beside it (a second click, or the tick's auto-park on caps.json, could otherwise drop an entry),
-    written atomically. The caller validated `key` against the board and `value` against the loader."""
+    beside it (a second click or a second board could otherwise drop an entry — the tick only READS
+    these two files), written atomically. Every case-variant of the key is dropped first: the loaders
+    lowercase keys and the last duplicate wins, so a hand-written `OB@…` survived a clear of `ob@…`. The caller validated `key` against the board and `value` against the loader."""
     lock_path = path.with_name(path.name + ".lock")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -3307,9 +3308,9 @@ def _edit_account_map(path: Path, key: str, value: object, what: str) -> tuple[i
                 }
             if not isinstance(data, dict):
                 return 502, {"ok": False, "error": f"{path} is not a JSON object — fix it by hand"}
-            if value is None:
-                data.pop(key, None)
-            else:
+            for k in [k for k in data if str(k).lower() == key.lower()]:
+                del data[k]
+            if value is not None:
                 data[key] = value
             tmp = path.with_name(path.name + ".tmp")
             tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")

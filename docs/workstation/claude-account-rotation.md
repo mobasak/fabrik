@@ -521,7 +521,7 @@ stores (`~/.claude/manager-accounts/<name>/`). It retires at the M4 sweep — do
   routes to the pointer flip instead).
 - Legacy `--status` — per-store quota table; parked stores whose access token aged out show
   "parked — quota unknown until used (refresh token valid)" — the blindness the fleet view retires.
-- Legacy tick — `ROTATE_THRESHOLD` (98) switching with a 30-minute dwell, graceful-drain mail
+- Legacy tick — `ROTATE_THRESHOLD` (99 since 2026-10-14; per-account lines are fleet-mode only) switching with a 30-minute dwell, graceful-drain mail
   + one Telegram (24h suppress), keep-warm for parked snapshots.
 - `--capture-current` · `--drift-check` — snapshot the live chain (identity-gated); the cron
   and hook triggers are removed, the flags remain invocable by hand until the sweep.
