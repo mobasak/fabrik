@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec-review: code-flow fixes are invariants from the first edit; seat briefs use absolute paths (2026-10-14)
+
+A fix inside a spec section describing a code FLOW is written as invariants + touchpoints from its first edit, not only once the residue-pass rule forces a rewrite. `commands/_fragments/design-critique.md` now says that panel-delta residue raised after the scope-growth stop fired is `RECORDED — measured` on the backlog row, not confirmed, so it does not set the flip back; the round that fires the stop still does. `commands/_fragments/subagents-core.md` has the dispatcher write every pin, copy, fix and scratch path a brief names as a literal absolute path. Answers /fabrik-spec-review rows 1791937893 and 1791945243. Grader: `tests/test_spec_review_queue_pass.py`, red on the previous text; the pins in `tests/test_spec_plan_lane_text.py` and `tests/test_plan_review_recurring_rules.py` follow the new wording.
+
 ### Changed — /fabrik-spec and delegated-reads: a store-naming rule rests on a census; a capped seat read answers in order (2026-10-14)
 
 The local-claims bullet now requires an executed census of each store's current members before a design rule that names stores (a matrix, an allowlist, an entity schema's fields) is written, with its invariants written against that census. `commands/_fragments/delegated-reads.md` (rendered into every command that includes it) now numbers a multi-part question in the brief, which tells the seat to answer the parts in order, each within its named share of the ~2 k, so a truncated return loses the tail, and an unreached part is asked again. Answers /fabrik-spec rows 1791945254 and 1791936747. Grader: the recurring-rules pin in `tests/test_spec_plan_lane_text.py`, extended and red on the previous text.

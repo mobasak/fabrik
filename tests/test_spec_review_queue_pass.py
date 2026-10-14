@@ -52,3 +52,24 @@ def test_briefs_apply_the_probe_catalogue() -> None:
         "`/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE"
         in _norm()
     )
+
+
+def test_flow_fixes_panel_residue_and_absolute_brief_paths() -> None:
+    """Rows 1791937893 and 1791945243: a code-FLOW fix is invariants from its first edit; routed panel-delta
+    residue is recorded, never confirmed, so it keeps the flip; a brief's pin, copy and fix paths are absolute."""
+    assert (
+        "every fix inside such a section is written as invariants + touchpoints from its FIRST edit — not only "
+        "once the edit loop's TWO CONSECUTIVE RESIDUE PASSES rule forces a rewrite there — and never as a re-worded "
+        "sequence or new mechanism"
+    ) in _norm()
+    critique = _norm(ROOT / "commands" / "_fragments" / "design-critique.md")
+    assert (
+        "residue a delta round raises AFTER the stop fired is `RECORDED — measured` there (term-edit's scope-growth "
+        "stop), not confirmed, so it does not set the flip back, while the round that fires the stop confirms and "
+        "fixes its defects and does"
+    ) in critique
+    core = _norm(ROOT / "commands" / "_fragments" / "subagents-core.md")
+    assert (
+        "The dispatcher writes every pin, copy, fix and scratch path a brief names as a literal absolute path, never "
+        "one relative to a checkout or a placeholder the seat expands"
+    ) in core
