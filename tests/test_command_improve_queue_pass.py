@@ -162,3 +162,18 @@ def test_a_reject_reason_cites_a_line_the_command_reaches() -> None:
         " it loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites"
         " the command's current text)." in p2
     )
+
+
+def test_a_count_lives_at_its_list() -> None:
+    """W-66f398a3: a paragraph that says how MANY ("wrong in FIVE ways") away from its list goes stale when the next
+    edit adds an item, and Phase D's scoped review-fix rounds kept confirming that residue. The rule lives once, in
+    the hub CLAUDE.md's § Behavior, beside READ BEFORE YOU EDIT, which every hub session loads, including the review-fix loops
+    that never render /fabrik-command-improve's PHASE 3."""
+    text = re.sub(r"\s+", " ", (ROOT / "CLAUDE.md").read_text())
+    behavior = text[text.index("## Behavior") : text.index("## ⚠️ THE FIX DIRECTIVE")]
+    assert (
+        "- **A count lives at its list.** An enumeration states how many in the clause that opens the list, or not at"
+        " all (`the ways below`, never `five ways` a sentence away), and an edit that adds an item to a list, or"
+        " removes one, re-counts every place that list's count is stated. **A worked example is re-read** against"
+        " every caveat in its own paragraph before it is pinned or committed." in behavior
+    )

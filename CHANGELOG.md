@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — CLAUDE.md: a count lives at its list (2026-10-14)
+
+A new § Behavior bullet beside READ BEFORE YOU EDIT says an enumeration states how many in the clause that opens the list, or not at all; that an edit adding or removing a list item re-counts every place the count is stated; and that a worked example is re-read against every caveat in its own paragraph before it is pinned or committed. A count stated away from its list ("wrong in FIVE ways" beside a list that had grown to six) kept resurfacing as own-fix residue in Phase D's scoped review-fix rounds (W-66f398a3). The rule sits in the hub contract because every hub session loads it, the review-fix loops included. No check reads counts against lists; this is a prose obligation. Grader: `tests/test_command_improve_queue_pass.py::test_a_count_lives_at_its_list`.
+
 ### Added — every run gets a persistent scratch dir that survives a WSL /tmp wipe; `--restamp` no longer silently ignores `--range` (kaizen 01M4V0B03B) (2026-10-14)
 
 - `scripts/command_run.py`: `start` creates `<main checkout>/.tmp/runs/<session>/<command>-<record key>/` for every run, prints `SCRATCH: <path>` and records it as `scratch`. The session scratchpad under /tmp, where phase-2 measure.md, critique briefs and review pins lived, died with the WSL shutdown on 2026-10-13. A linked worktree's run writes to the main checkout, so `git worktree remove` at merge keeps it. A resumed run in a new session keeps its seed's dir when it lies under the run's root, even if the repo has since stopped ignoring it. A repo that does not ignore `.tmp` gets one untracked `.git/info/exclude` line, and if git still does not ignore the dir, no dir is made (the run starts anyway). `start` prunes dirs whose newest file is over 14 days old, never one a record or resume seed names, nor one holding a git worktree. Under a test (`COMMAND_RUN_DIR` or `PYTEST_CURRENT_TEST`) the scratch goes in the state dir, never a live checkout.

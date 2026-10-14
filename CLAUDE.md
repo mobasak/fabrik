@@ -108,6 +108,10 @@ FIX-FIRST (§ Behavior), never a silent fallback; a server only a reload restore
   something the file already says creates two sources of truth. If the subject genuinely has no home, add the
   heading deliberately and say in the commit why. ⚠️ A restatement in different words is the same defect and no
   grep will find it — that one is on your reading.
+- **A count lives at its list.** An enumeration states how many in the clause that opens the list, or not at all
+  (`the ways below`, never `five ways` a sentence away), and an edit that adds an item to a list, or removes one,
+  re-counts every place that list's count is stated. **A worked example is re-read** against every caveat in its
+  own paragraph before it is pinned or committed.
 - **Present before execute:** plan → approval → execute. Read-only calls (`Read`, `Grep`, `Glob`, `LS`) exempt.
 - **Plan-execution override:** when executing a pre-approved plan via `/execute-plan`, present-before-execute is
   suspended for the plan's scope — the plan IS the approval (task-end commits are always required per § EXIT; the
