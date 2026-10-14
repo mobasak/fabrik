@@ -167,3 +167,24 @@ def test_the_orchestrator_waits_for_its_coders_in_turn() -> None:
     pattern = _section("### Dispatch pattern", "### Model selection")
     assert pattern.count("run_in_background=False,") == 3
     assert pattern.count('model="sonnet",') == 3
+
+
+def test_a_small_sync_path_plan_runs_in_its_own_worktree() -> None:
+    """Row 1791912630: a Profile: small plan in the main checkout on a governance-sync path would distribute every
+    phase commit fleet-wide; it runs in an isolation worktree and reaches the fleet once, at the Finish merge."""
+    text = re.sub(r"\s+", " ", SRC.read_text(encoding="utf-8"))
+    assert (
+        "a small plan whose owned paths include a governance-sync trigger path (the `governance-sync` files-filter"
+        " in `.pre-commit-config.yaml`) runs in its own isolation worktree, step 8's `EnterWorktree` path even with"
+        " no other plan-lock active"
+    ) in text
+    assert "its phases still commit one by one, and the plan reaches the fleet ONCE" in text
+    assert (
+        "or this is a `Profile: small` plan whose owned paths include a governance-sync trigger path"
+        in text
+    )
+    assert "(step 8's concurrent-run or sync-path isolation; `BASE`" in text
+    assert (
+        "That hook run is the Finish sync; run `sync_enforcement_to_projects.py --force` by hand only when it"
+        " prints a sync failure."
+    ) in text

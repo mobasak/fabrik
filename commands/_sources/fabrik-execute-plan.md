@@ -55,9 +55,17 @@ TASK terminator, and the record is what proves the task is actually over.
    ticket files is NOT a set (run phase mode and report the anomaly). A
    monolith plan file runs the phase mode below verbatim. **A spine or monolith declaring `Profile: small`**
    (the line after `Status:`) runs its profile in either mode: every phase/ticket is coded INLINE by the
-   orchestrator in the main checkout (no worktree coder, no dispatch wait — a set's tickets carry
+   orchestrator in its own working tree (no worktree coder, no dispatch wait — a set's tickets carry
    `Complexity: inline`), `/fabrik-review-scoped` closes each phase/ticket, and the ONE heavy review and the
-   ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas; everything unnamed binds unchanged).
+   ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas; everything unnamed binds unchanged). In the
+   main checkout, a small plan whose owned paths include a governance-sync trigger path (the `governance-sync`
+   files-filter in `.pre-commit-config.yaml`) runs in its own isolation worktree, step 8's `EnterWorktree`
+   path even with no other plan-lock active, because every main-checkout commit on such a path distributes
+   fleet-wide and a worktree commit distributes nothing (`scripts/governance_sync_postcommit.sh`): its phases
+   still commit one by one, and the plan reaches the fleet ONCE, when Finish position (b) merges the branch
+   and the merge's own hook syncs it (post-merge over `ORIG_HEAD..HEAD`, or post-commit when a conflicted
+   merge is concluded with a commit). That hook run is the Finish sync; run
+   `sync_enforcement_to_projects.py --force` by hand only when it prints a sync failure.
 1. Read the plan file fully.
 2. Read `agents-fabrik.md` — the canonical infra + codebase map (`AGENTS.md` is a stub).
 3. Run `python scripts/select_rules.py` and read **every ACTIVE pack**.
@@ -157,11 +165,13 @@ TASK terminator, and the record is what proves the task is actually over.
      take the DEFAULT and say so: dispatch subagents on BRANCHES inside the agent's worktree — one branch
      per unit, same Merge Protocol, no nested worktree.
    - **Isolate concurrent runs — from the MAIN checkout only:** if you are in the main checkout and any
-     *other* plan-lock is `active`, run this plan in its **own git worktree, entered with `EnterWorktree`**
+     *other* plan-lock is `active`, or this is a `Profile: small` plan whose owned paths include a
+     governance-sync trigger path (§ Before You Start), run this plan in its **own git worktree, entered with
+     `EnterWorktree`**
      (the tool that puts THIS session in a worktree — `isolation:"worktree"` is the Agent tool's parameter
      for DISPATCHED coders, a different thing), so
-     two runs never share a working tree (ensure its `.venv`/deps exist before any gate runs there); if
-     yours is the only active run, the main checkout is fine. **Already in a linked worktree — a named
+     two runs never share a working tree (ensure its `.venv`/deps exist before any gate runs there); otherwise
+     the main checkout is fine. **Already in a linked worktree — a named
      agent's window, or an isolation tree a prior step created — work in place: that tree IS your
      isolation**, and a second orchestrator level would push the coders to a third, against the two-level
      rule above.
@@ -1163,8 +1173,8 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
 
 - **(a) Main checkout** (`BASE` = `master`): the commits already sit on the branch everything integrates
   on. Nothing to merge, nothing to remove; step 7 pushes it.
-- **(b) An isolation worktree THIS run created** (step 8's concurrent-run path; `BASE` = that tree's own
-  branch): **the run merges its own tree — but only after it has LEFT isolation, never from inside it.**
+- **(b) An isolation worktree THIS run created** (step 8's concurrent-run or sync-path isolation; `BASE` = that
+  tree's own branch): **the run merges its own tree — but only after it has LEFT isolation, never from inside it.**
   While the session is isolated the harness refuses every route into the main checkout (`git -C`,
   `--git-dir`/`GIT_DIR`/`GIT_WORK_TREE`, a `cd` redirect, any command whose cwd resolves there), so a
   merge attempted from the worktree does not fail cleanly — it is simply blocked. The sequence is
