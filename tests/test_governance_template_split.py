@@ -783,13 +783,25 @@ def test_the_lane_table_is_mirrored_into_the_fleet_template_row_for_row() -> Non
 
 
 def test_the_templates_mirrored_prose_matches_the_hubs() -> None:
-    """The lane table ships with three PROSE paragraphs — the precedence sentence, the no-code
-    clause and the tripwire — and the row-comparison above reads none of them. Executed: inverting
-    the template's no-code verdict to "take the `/fabrik-task` lane anyway", gutting the tripwire,
-    and deleting both paragraphs outright each passed the whole suite."""
+    """The lane table ships with four PROSE paragraphs — the precedence sentence, the under-doubt
+    default (D-858: `/fabrik-task` is the lane under doubt, the spec chain the exception a tripped
+    test earns), the no-code clause and the tripwire — and the row-comparison above reads none of
+    them. Executed: inverting the template's no-code verdict to "take the `/fabrik-task` lane
+    anyway", gutting the tripwire, and deleting both paragraphs outright each passed the whole
+    suite; the default paragraph was added 2026-10-14 after at least 52 of 77 specs since lane v2
+    never met the lane gate, so its mirror and its VERDICT are pinned here too."""
     hub_s = _step0_body((FABRIK / "CLAUDE.md").read_text(encoding="utf-8"))
     tpl_s = _step0_body((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"), _STEP0_END_TPL)
-    for lead in ("**No code surface at all**", "**Tripwire:**"):
+    # The default paragraph's VERDICT and its ordering: it sits between the table and the no-code
+    # clause in BOTH contracts, so a reader who stops at the table's last row still meets it first.
+    for s in (hub_s, tpl_s):
+        assert "**Under doubt the lane is `/fabrik-task`.**" in s, s[:200]
+        assert "The spec chain is the exception a tripped test earns" in s
+        # the closing verdict too — a round-1 seat deleted it from BOTH contracts and the mirror
+        # check (h == t) passed, so the mirror alone pins nothing about what the paragraph says
+        assert "feature-sized included, starts here." in s
+        assert s.index("| 6 |") < s.index("**Under doubt the lane is") < s.index("**No code surface at all**")
+    for lead in ("**Under doubt the lane is `/fabrik-task`.**", "**No code surface at all**", "**Tripwire:**"):
         assert lead in tpl_s, f"the template lost a mirrored paragraph: {lead}"
         h = hub_s[hub_s.index(lead) :].split("\n", 1)[0]
         t = tpl_s[tpl_s.index(lead) :].split("\n", 1)[0]
