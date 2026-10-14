@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "a field report on the three-window model asking for no change; its points are carried by the other open three-window reports",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "WHAT: Field report from tryton-crm agent-2 on the 3-window model (agent-1 merge owner in main checkout, agent-2/agent-3 in linked worktrees). The model works: on 2026-10-01 agent-2 shipped 5 items through merge requests (W-0a3fbc93, W-747166b1, W-9a7ff9b3, W-a9d13ade, W-3eeef471) with no lost work."
 }
