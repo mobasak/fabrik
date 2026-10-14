@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-data-contract: an unbuilt file is cited on its own line with the doc-links marker (2026-10-14)
+
+Phase 3 gains item 6: in any mode, the contract cites a file its spec has not built yet on a physical line of its own carrying the exact lowercase phrase the doc-links gate skips (`does not exist`, read by `_iter_refs` in `check_doc_links.py`); the gate skips the whole line, so no built file may share it. Answers row 1791942388 (web-ecommerce-factory: two pushes went red on Doc Link Integrity for a re-frozen contract's unbuilt files). A per-reference marker in the checker was mailed to infra. Grader: `tests/test_data_contract_recurring_rules.py::test_a_delta_citing_an_unbuilt_file_carries_the_doc_links_marker`, which also drives the checker on a marked, an unmarked and a capitalised line.
+
 ### Changed — /fabrik-command-improve: a reject search reads the rendered command; a seat rule lands in every home (2026-10-14)
 
 PHASE 2's D-711 paragraph now finds a reject's checked line by grepping the rendered command (every fragment, the appended close and every parameter), the files it points at and the loaded `CLAUDE.md`, then cites the line in its source file, and PHASE 2's targets and lock check admit a seat file under `commands/_agents/`. PHASE 3 says an edit to what a seat may do lands in every home a grep names (today subagents-core, the seat files under `commands/_agents/`, the seat-brief lists in fabrik-review and design-critique, convergence-prompts, and intel's `SEAT_ISOLATION` and `seat_guard.py`, mailed). Answers rows 1791941814 (a planned HELD reject missed a capped seat brief in `delegated-reads.md`) and 1791944106 (a never-execute seat rule first landed in one home). Grader: `tests/test_command_improve_queue_pass.py::test_a_reject_search_reads_the_render_and_a_seat_rule_lands_in_every_home`.
