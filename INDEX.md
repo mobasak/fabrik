@@ -49,6 +49,7 @@
 | **docs/reference/research/2026-09-23-ai-model-selection-currency-ledger.md** | Every fact the Claude Code docs seat of the `ai/00-ai-model-selection.md` currency turn returned, plus the second-engine check (31 rows), each dispositioned; the grounding behind D-364 |
 | **docs/reference/research/2026-09-23-saas-ui-currency-ledger.md** | Every fact the research and second-opinion seats of the `saas/60-saas-ui.md` currency turn returned (Core Web Vitals, WCAG 2.2, Lighthouse INP, `next/font`, Tailwind v4, ARIA APG, Paddle portal, Next.js proxy), each dispositioned (D-366) |
 | **docs/reference/research/2026-09-23-app-audit-log-currency-ledger.md** | Every fact the research and second-opinion seats of the `core/app-audit-log.md` currency turn returned (GDPR Art. 5/7, TTK Art. 82, VUK Art. 253, KVKK Art. 7, Paddle `transaction.completed` and retries, PostgreSQL advisory locks and ownership, pgcrypto), each dispositioned (D-368) |
+| **docs/reference/research/2026-10-14-one-door-lane-ledger.md** | Every fact the three research seats and the lead's own reads returned for the one-door lane spec (Bezos 2015/2016 letters, Google design docs, ADR significance criteria, Uber/Rust/Squarespace RFC tiers, Shape Up appetite, Netflix/Spotify paved roads, GitHub required checks, OPA Gatekeeper enforcement modes), 42 rows, each dispositioned — backs `docs/superpowers/specs/2026-10-14-one-door-lane-design.md` |
 | **docs/reference/research/2026-09-24-audit-log-everywhere-ledger.md** | Every fact the three research seats of the audit-log-everywhere spec returned (PostgreSQL ownership and default privileges, append-only field practice, live DSN role migration), one row each with its disposition — backs `docs/superpowers/specs/2026-09-24-audit-log-everywhere-design.md` and D-385 |
 | **docs/reference/research/2026-09-24-saas-launch-checklist-currency-ledger.md** | Every fact the five research seats of the `saas/88-saas-launch-checklist.md` currency turn returned (Paddle seller and refund policy, CCPA thresholds and opt-out link, Planet49 and EDPB fingerprinting, FingerprintJS licence, KVKK VERBIS exemption, KVKK Art. 11 vs GDPR, KDV Geçici 20 and export, hreflang and sitemaps, PgBouncer, Cloudflare caching, dispute thresholds, SOC 2), each dispositioned |
 | **docs/reference/research/2026-09-24-cost-budget-currency-ledger.md** | Every fact the two research seats of the `core/cost-budget.md` currency turn returned (Claude Code `total_cost_usd` semantics, `--max-budget-usd` / `--max-turns`, model aliases and API prices, OpenRouter usage accounting and per-key limits, verbalized-confidence calibration), each dispositioned |
@@ -1183,6 +1184,7 @@ docs/
 │   │   │   ├── verdict-context.json
 │   │   │   └── verdict-opdec.json
 │   │   ├── 2026-09-24-audit-log-everywhere-ledger.md
+│   │   ├── 2026-10-14-one-door-lane-ledger.md
 │   │   ├── 2026-09-24-cost-budget-currency-ledger.md
 │   │   ├── 2026-09-24-design-system-split-currency-ledger.md
 │   │   ├── 2026-09-24-multi-tenant-saas-currency-ledger.md
@@ -1323,6 +1325,7 @@ docs/
 │       ├── 2026-10-06-rotation-capability-probe-design.md
 │       ├── 2026-10-06-worktree-venv-isolation-design.md
 │       ├── 2026-10-13-mail-routing-design.md
+│       ├── 2026-10-14-one-door-lane-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
