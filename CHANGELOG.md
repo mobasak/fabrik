@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: MIRROR finds exact-set asserts; a copied mechanism keeps its settled failures (2026-10-14)
+
+MIRROR's readers of a changed record shape now include its stdout, found by grepping the tests for `== {` and `len(`; a mechanism copied from another script carries, as Behaviours tested here, the failure directions its tests and D-rows settled, and Phase 1 greps that script's docstrings too. The source's byte cap rises by the added bytes (D-row in this change). Answers /fabrik-task rows 1791935733 and 1791933860 (W-b4e1dfb2). Grader: `tests/test_fabrik_task_queue_pass.py`, red on the previous text.
+
 ### Changed — /fabrik-plan-after-chat: the store census reads shape, nested members and operator refs before drafting (2026-10-14)
 
 A data-derived rule's grounding now runs, before the plan's first phase or ticket is written, an executed census of each store it reads, cited in the plan's Evidence: its shape, nested items and required fields included, and its values (for a large store, distinct values with counts); a value an operator enters counts as a store too. Answers /fabrik-plan-after-chat row 1791950385. Grader: `tests/test_plan_after_chat_queue_pass.py`, red on the previous text.
