@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — 58-resilience: two counts no longer sit away from their lists (2026-10-14)
+
+The latch paragraph said "the bullet below enumerates — the four numbered" for points numbered above it; it now says "every way this item names above — each numbered point, the per-process dict, and a key that is not stable across the fleet". The Workers checklist said "All five queue-bloat-prevention mechanisms" far from the table it counted; it now says "Every mechanism in § Queue Bloat Prevention is wired" (W-f8d45bea, under CLAUDE.md § Behavior's "A count lives at its list"). Grader: `tests/test_rule_pack_scaffold_coverage.py::test_resilience_counts_live_at_their_lists`, which also checks the heading's "Five" against its table.
+
 ### Changed — CLAUDE.md: a count lives at its list (2026-10-14)
 
 A new § Behavior bullet beside READ BEFORE YOU EDIT says an enumeration states how many in the clause that opens the list, or not at all; that an edit adding or removing a list item re-counts every place the count is stated; and that a worked example is re-read against every caveat in its own paragraph before it is pinned or committed. A count stated away from its list ("wrong in FIVE ways" beside a list that had grown to six) kept resurfacing as own-fix residue in Phase D's scoped review-fix rounds (W-66f398a3). The rule sits in the hub contract because every hub session loads it, the review-fix loops included. No check reads counts against lists; this is a prose obligation. Grader: `tests/test_command_improve_queue_pass.py::test_a_count_lives_at_its_list`.
