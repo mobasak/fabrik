@@ -17,10 +17,10 @@
     "9c97fd535d21d2bfb1a46965c15dca6fcb6c6e8151dfbc72e5f6e88e76709e6c"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-14: 'we should not consume our account's quota' — backlog work goes through cloud dispatch on the credits, not local sessions; 'each has 250$ credits. when credits consumed, it must be paused'; 'sarp will be added later'",
   "owner": "",
   "priority": 2,
   "question": "Should I keep working through my 22 claimed items now (next is W-acdb5d4c, a `--sources-only` mode for `assemble_commands.py --check`), or stop here so ob's quota is saved for when you need it?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Should I keep working through my 22 claimed items now (next is W-acdb5d4c, a `--sources-only` mode for `assemble_commands.py --check`), or stop here so ob's quota is saved for when you need it?"
 }
