@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — a later-pass review seat opens its whole slice, and the seat's history clone never pushes (2026-10-14)
+
+- `.claude/workflows/fabrik-review-loop.js`: the later-pass seat head says to open every slice file and list it in files_read, to look for a NEW defect the fix introduced in a file no claim names. The gap check runs on every pass, and 296 of 2383 later-pass slices on the box had logged a gap and stayed open. The same head now bounds a NEW candidate the way term-edit.md does (a defect of a line inside the previous round's fix hunks, or a contradiction they created; one hop out is named in notes, never raised). Before this, it said an out-of-ledger candidate was "never counted" while the script counted it. The clone sentence calls the push URL a tripwire, not a guard, since an explicit path bypasses it, and a seat never runs `git push` in the clone. SEAT_ISOLATION's write verbs are a class (refs, index, tree, config or objects) with examples, `config`, `branch`, `tag`, `merge`, `rebase`, `fetch`, `pull` and `push` among them; `git worktree list` and `git remote -v` stay legal reads.
+- `docs/reference/review-loop-workflow.md`: the gaps and base_pin_dir rows say the same.
+- Graders in `tests/test_review_loop_workflow.py`, red before the change.
+
 ### Changed — review_loop_ledger.py pin's stdout is the JSON fragment alone, and seats get a route for git-history tests (2026-10-14)
 
 - `scripts/review_loop_ledger.py pin` prints its DIRTY, UNCHANGED and SKIPPED advisories on stderr. Stdout is the args fragment alone, one JSON document, which now also carries `dirty`, so a caller can hand stdout to a Workflow launch whole (kaizen 01M4V6VQ8V, /fabrik-review row 1791913338).
