@@ -339,3 +339,15 @@ def test_the_scope_paragraph_says_where_round_zero_and_rule_five_bind() -> None:
         "binds all five consumers alike, while round zero binds only a consumer that runs delta rounds — before its round"
         " one and before every re-dispatch — and rule (5) only a fix to a checker or a gate."
     ) in text
+
+
+def test_rule_three_pointer_is_opened_before_the_pin() -> None:
+    """W-c9b727ab: rule (3) let a restating sentence be replaced by 'at most a pointer to where the fact is
+    re-derivable' without anyone opening that pointer, so a pointer to a place that no longer holds the fact passed as
+    a deletion. The pointer is now read before the pin, as rule (2)'s sweep reads each mirror, and recorded."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
+    assert (
+        "replaced by at most a pointer to where the fact is re-derivable (each pointer OPENED before the pin and the"
+        " fact seen at it, then recorded by APPENDING one `· pointer: <path:line> read` per pointer to the Pass Ledger"
+        " row's `method:` cell, after its `; class rewrite` text), never by a re-cut of the claim;"
+    ) in text

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — term-coverage rule (3): a deletion's pointer is opened and its fact seen before the pin (2026-10-14)
+
+A restating sentence rule (3) deletes may be replaced by at most a pointer; the rule now requires each pointer be OPENED before the pin and the fact seen at it, recorded as one `· pointer: <path:line> read` per pointer in the Pass Ledger row's `method:` cell, the way rule (2) records the mirrors it read (W-c9b727ab). Like rule (2)'s `mirrors:` token it is a prose obligation: no gate parses it yet. Grader: `tests/test_review_queue_pass.py::test_rule_three_pointer_is_opened_before_the_pin`.
+
 ### Fixed — check_plan_tickets collapses a doubled slash, so `scripts//final_gate.py` no longer slips past Never-Route (fleet 01M4TQPCXT) (2026-10-14)
 
 - `scripts/enforcement/check_plan_tickets.py`: `_norm_path` collapsed `/./` and a `./` prefix but not `//`, so a Touches entry spelled `scripts//final_gate.py` was never-route under neither rule and a `Complexity: simple` ticket carrying it drew no error. The fixpoint loop now collapses doubled slashes too; the same normaliser feeds File Scope, and a fleet count found no plan-set path that the collapse re-keys. The review found that collapsing `//` turned `.//.` into an empty token, which `_list_paths` drops silently. The cause is older: the `./` prefix strip already did that to `./` and `./.`. Every repo-root spelling now normalises to `.` and reaches the repo-root ERROR. Graded by `test_a_doubled_slash_collapses_before_never_route` and `test_a_repo_root_spelling_never_normalises_to_empty`, each red before its fix.
