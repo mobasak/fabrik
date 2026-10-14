@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan: every coder dispatch runs in the foreground (2026-10-14)
+
+The board loop, D2 and § Dispatch pattern now dispatch coders as FOREGROUND Agent calls (`run_in_background=False`, added with `model=` to the three example calls), so the orchestrator's turn holds until the wave returns. A web-ecommerce-factory run used the default instead, ended its turn while two coders ran, and took 132 run-record Stop blocks, because the hook's stand-down covers stamped review seats only (infra mail 01M4VXJ4TQ). D2's dispatch timeout is now checked when each call returns; a coder that never returns is bounded only by the explicit command timeouts its brief demands. Grader: `tests/test_execute_plan_queue_pass.py::test_the_orchestrator_waits_for_its_coders_in_turn`.
+
 ### Fixed — 58-resilience: two counts no longer sit away from their lists (2026-10-14)
 
 The latch paragraph said "the bullet below enumerates — the four numbered" for points numbered above it; it now says "every way this item names above — each numbered point, the per-process dict, and a key that is not stable across the fleet". The Workers checklist said "All five queue-bloat-prevention mechanisms" far from the table it counted; it now says "Every mechanism in § Queue Bloat Prevention is wired" (W-f8d45bea, under CLAUDE.md § Behavior's "A count lives at its list"). Grader: `tests/test_rule_pack_scaffold_coverage.py::test_resilience_counts_live_at_their_lists`, which also checks the heading's "Five" against its table.

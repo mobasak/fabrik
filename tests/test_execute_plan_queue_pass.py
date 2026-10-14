@@ -144,3 +144,26 @@ def test_vendoring_copies_the_committed_blob_at_the_pinned_sha() -> None:
     )
     assert sentence in vendoring
     assert vendoring.count("working file") == 1
+
+
+def test_the_orchestrator_waits_for_its_coders_in_turn() -> None:
+    """Mail 01M4VXJ4TQ (infra): a web-ecommerce-factory run dispatched two coders with the Agent tool's default
+    (background), ended its turn while they ran, and took 132 run-record Stop blocks; the hook's stand-down covers
+    stamped review seats only. An Opus + Fable panel chose foreground waves."""
+    text = _norm()
+    assert (
+        "dispatch up to 3 coders in ONE message of FOREGROUND Agent calls (the turn holds until the wave returns)"
+        in text
+    )
+    assert (
+        "Every coder dispatch — a wave, a fixup, a salvage review, a re-dispatch — is a FOREGROUND Agent call, so"
+        " this check runs when the call returns, against the coder's wall-clock from dispatch;"
+        in text
+    )
+    assert (
+        "each passing `run_in_background=False`: they still run in parallel, and the turn holds until every one"
+        " returns." in text
+    )
+    pattern = _section("### Dispatch pattern", "### Model selection")
+    assert pattern.count("run_in_background=False,") == 3
+    assert pattern.count('model="sonnet",') == 3
