@@ -14,6 +14,8 @@ python3 scripts/cloud_dispatch.py list                      # accounts, fire pat
 python3 scripts/cloud_dispatch.py dispatch --slug fix-mail-tests --pick --task-file brief.md
 python3 scripts/cloud_dispatch.py wait --slug fix-mail-tests --timeout 1800   # --since <sha> overrides the ledger's pre-fire sha
 python3 scripts/cloud_dispatch.py log --account mob --session cse_01…
+python3 scripts/cloud_dispatch.py settle --slug fix-mail-tests   # or --all: ledger the run's cost; pause on exhaustion
+python3 scripts/cloud_dispatch.py pause can --reason "…" · unpause can · calibrate can --balance 212.40
 ```
 
 1. `dispatch` renders the payload — `TASK slug <s>.`, the task, then the fixed rules (not a hub
@@ -39,9 +41,10 @@ account, unregistered account) fires nothing and writes none
 task_sha256, session_id, url, via, status` with `status ∈ ok | unparsed | http_401 | http_429 |
 http_<n> | walled | chain_dead | error` — the exit code follows it: 1 unparsed, error or any other
 `http_<n>`, 3 for a rejected token or no qualifying account, 4 fire limit, 5 quota wall, 6 dead
-refresh chain. Shared flags `--registry`, `--fleet-root`, `--ledger` go before or after the verb;
-`list` takes `--no-status` and `--ledger-tail N`, `dispatch` takes `--task`/`--task-file` and
-`--force-new`, `wait` takes `--since`, `--timeout` and `--interval` (floored at 1 s).
+refresh chain, 7 a paused or expired account (§ The credit guard). Shared flags `--registry`,
+`--fleet-root`, `--ledger` go before or after the verb; `list` takes `--no-status` and
+`--ledger-tail N`, `dispatch` takes `--task`/`--task-file`, `--force-new` and `--allow-plan-usage`,
+`wait` takes `--since`, `--timeout` and `--interval` (floored at 1 s).
 
 ## Two fire paths
 
@@ -57,15 +60,69 @@ Edit → Add another trigger → API → Generate token (shown once); save it as
 ## `--pick`
 
 Spend the four credits evenly: a usable path first (token accounts before CLI ones; no account may
-be parked, and a CLI account's refresh chain must be neither expired nor expiring within a day), then
-the **fewest ledger dispatches in the last 7 days**, then the highest weekly %. A status row that
+be parked, paused or expired, and a CLI account's refresh chain must be neither expired nor expiring
+within a day), then the **fewest ledger dispatches in the last 7 days**, then the highest weekly %
+(the LOWEST under `--allow-plan-usage`: plan spend goes to the coolest account). A status row that
 is a cached reading older than 6 h does not qualify its account, and when no account qualifies the
 dispatch is REFUSED (exit 3, `no_account` — pass `--account`), never guessed. The weekly reading
 comes from `claude_rotate.py --status --json` — a live probe; `list --no-status` skips it.
 
+## The credit guard
+
+Operator rulings 2026-10-14: *"we should not consume our account's quota"* · *"each has 250$
+credits. when credits consumed, it must be paused"* · *"weekly usage is different than cloud 250$
+credits"*. The guard counts DOLLARS against each account's declared credit; the weekly plan reading
+is only an advisory.
+
+- **Cost per run.** `settle --slug <s>` (run by `wait` on success; `settle --all` by every
+  `dispatch` first) reads the run's raw events — `GET /v1/code/sessions/<cse>/events` (newest
+  first) with the account's OAuth ACCESS token from `~/.claude-fleet/<slug>/.credentials.json`,
+  read under the routine token's descriptor checks and never printed — and appends a `kind: settle`
+  row: the newest `result` event's cumulative `total_cost_usd` (Claude Code's list-price estimate;
+  measured $0.32 for the 4-minute probe), the token counts, `plan_5h`/`plan_7d` (0–1 fractions),
+  `using_overage` and the last `rate_limit_info` verbatim. The routine token cannot read it (401
+  `oauth_scope_insufficient`).
+- **The standby token lapses in hours** and no script-side refresh exists (the grant is CLI-only),
+  so when `expiresAt` has passed and a settle is owed, ONE in-place
+  `claude -p ok --max-turns 1 --tools ""` from the scratch dir rolls that account's chain
+  (sub-cent of plan, ledgered as `kind: token_refresh`, at most once per account per 8 h). A run
+  that still cannot be read is ledgered `settle_pending` (`/login` in that account's dir is the
+  remedy) and retried by the next `settle --all` — except a session whose token the API REFUSED
+  (401/429) within the last 8 h, which the automatic sweep leaves alone (`settle --slug` always
+  retries). A malformed `credit` block (claimed not a number ≥ 0, expires not `YYYY-MM-DD`) is a
+  registry error naming the field, refused at load by every verb.
+- **Spend** per account = the latest real-cost settle per fired session; every fired session with
+  no real cost yet is PROVISIONED at the margin from the moment of dispatch (never a free window;
+  settling twice never double-counts); `plan_usage` rows are excluded. `calibrate <slug> --balance
+  <usd>` records the balance the web shows (claude.ai/settings/usage — the only place it is
+  visible): spent = (claimed − balance) + the rows fired after it. Margin = `max($10, 10 % of
+  claimed)` ($25 on $250; `credit_margin_usd` overrides) — the estimate is not Anthropic's ledger
+  and parallel runs pass the check while in flight.
+- **Pause** = ledger rows `kind: pause|unpause` (latest wins) under the ledger's flock — never the
+  git-tracked registry, which a worktree, a checkout or a merge would silently un-pause. A settle
+  reads the rows, computes the spend and writes its settle row AND the pause row under ONE exclusive
+  lock (`LedgerTxn`), so two settles racing on the same account cannot each see only their own cost
+  and both pass the threshold. Automatic
+  when spent ≥ claimed − margin, or when the run drew on overage (`isUsingOverage` — recorded, not
+  yet trusted: the captured probe shows overage DISABLED on these accounts, so the dollar counter is
+  primary). A rise of the weekly plan reading on an IDLE account between two settles is printed as
+  an advisory, never a pause (the browser, a CLI fire and `log` all move it; the active account is
+  blind). `pause <slug> --reason` / `unpause <slug>` by hand.
+- **Refusals** (exit 7): `dispatch`/`--pick` refuse a paused account and any account within 6 h of
+  00:00 UTC on its `credit.expires` date (Anthropic's day, never this box's).
+  `--allow-plan-usage` bypasses both, tags the row `plan_usage: true`, picks the coolest weekly
+  reading and prints that it spends plan quota — the one sanctioned way to do so.
+- `list` prints per account `credit: spent · left · N unsettled · expires (in d) · PAUSED since
+  (reason)` and the ledger path it summed.
+
+Cobra line (D-253): the cheapest way to read "never paused" is to never settle — which is why an
+unsettled run is charged at the margin, not at zero; and the cheapest way to silence a pause is to
+edit the registry — which is why the pause state is not there.
+
 ## Registry and routines
 
-`.fabrik/cloud-routines.json` maps fleet slug → `trigger` (`trig_…`) + a `github` note. The four
+`.fabrik/cloud-routines.json` maps fleet slug → `trigger` (`trig_…`) + a `github` note + the static
+`credit: {claimed_usd, expires}` (optional top-level `credit_margin_usd`). The four
 registered accounts (ob, ozgurbasak, can, mob) each pushed a probe branch on 2026-10-14; sarp is
 parked and unregistered. Each routine: repo `mobasak/fabrik`, model sonnet, a placeholder one-off
 schedule (2027-01-01, empty payload = no-op), no connectors. A new account needs three steps, all
@@ -85,8 +142,9 @@ the local `gh` token — `/web-setup` is hidden headless; drive it through a pty
 - The repo's own hooks load in the clone: the hub's Stop hook ran inside a probe worker and offered
   it infra's work queue (it refused correctly, and the run ended); the rules forbid claims anyway.
 - Billing: cloud sessions draw the account's plan usage, promotional credit first; the credit
-  balance is visible only at claude.ai/settings/usage (no endpoint exposes it), so "credit spent vs
-  plan spent" is unobservable from the box.
+  balance is visible only at claude.ai/settings/usage (no endpoint exposes it) — the guard above
+  counts the per-run cost estimate against the declared credit and takes the web balance by
+  `calibrate` whenever the operator reads it.
 
 ## Related scripts
 

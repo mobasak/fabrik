@@ -902,3 +902,815 @@ def test_an_http_client_exception_on_the_api_path_is_ledgered(monkeypatch, tmp_p
     monkeypatch.setattr(cd, "_http_post", boom)
     assert cd.main(_args(tmp_path, fleet, account="ob")) == 1
     assert _ledger(tmp_path)[-1]["status"] == "error"
+
+
+# --- credit guard (design 2026-10-14 evening, Opus + Fable folds): cost rows, pause rows, expiry
+
+
+def _events(cost=0.3226484, plan_7d=0.26, plan_5h=0.05, overage=False, finished=True):
+    rl = {
+        "event_type": "rate_limit_event",
+        "payload": {
+            "rate_limit_info": {
+                "isUsingOverage": overage,
+                "overageDisabledReason": "out_of_credits",
+                "unifiedWindows": {
+                    "five_hour": {"utilization": plan_5h},
+                    "seven_day": {"utilization": plan_7d},
+                },
+            }
+        },
+    }
+    res = {
+        "event_type": "result",
+        "payload": {
+            "total_cost_usd": cost,
+            "usage": {"input_tokens": 66, "output_tokens": 545, "cache_read_input_tokens": 265564},
+        },
+    }
+    # newest-first, as the endpoint pages
+    return {"data": ([res] if finished else []) + [rl, rl], "resume_cursor": None}
+
+
+def _creds(fleet: Path, slug: str, token="sk-ant-oat01-ACCESS", mode=0o600, expires_in_s=3600.0):
+    import time as _t
+
+    p = fleet / slug / ".credentials.json"
+    p.write_text(
+        json.dumps(
+            {
+                "claudeAiOauth": {
+                    "accessToken": token,
+                    "expiresAt": int((_t.time() + expires_in_s) * 1000),
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    os.chmod(p, mode)
+    return p
+
+
+def _guard_registry(tmp_path, claimed=250, expires="2026-11-04", margin=None):
+    accounts = {
+        s: {"trigger": t, "github": "x", "credit": {"claimed_usd": claimed, "expires": expires}}
+        for s, t in TRIG.items()
+    }
+    data = {"version": 1, "repo": "r", "routine": "w", "accounts": accounts}
+    if margin is not None:
+        data["credit_margin_usd"] = margin
+    p = tmp_path / "cloud-routines.json"
+    p.write_text(json.dumps(data), encoding="utf-8")
+    return p
+
+
+def _g(tmp_path, fleet, reg, *more):
+    return [
+        "--registry",
+        str(reg),
+        "--fleet-root",
+        str(fleet),
+        "--ledger",
+        str(tmp_path / "state" / "ledger.jsonl"),
+        *more,
+    ]
+
+
+def test_settle_run_reads_the_newest_result_and_rate_limit_events():
+    row = cd.settle_run(_events()["data"])
+    assert row == {
+        **row,
+        "cost_usd": 0.3226484,
+        "input_tokens": 66,
+        "output_tokens": 545,
+        "cache_read_tokens": 265564,
+        "plan_5h": 0.05,
+        "plan_7d": 0.26,
+        "using_overage": False,
+        "finished": True,
+    }
+    assert row["rate_limit_info"]["overageDisabledReason"] == "out_of_credits", (
+        "the raw block is kept verbatim"
+    )
+    unfinished = cd.settle_run(_events(finished=False)["data"])
+    assert unfinished["cost_usd"] is None and unfinished["finished"] is False
+    two = cd.settle_run(
+        [
+            {"event_type": "result", "payload": {"total_cost_usd": 2.0}},
+            {"event_type": "result", "payload": {"total_cost_usd": 1.0}},
+        ]
+    )
+    assert two["cost_usd"] == 2.0, "the newest (first) cumulative result wins; never a sum"
+
+
+def test_the_access_token_is_read_from_a_0600_credentials_file_with_its_expiry(tmp_path):
+    fleet = _fleet(tmp_path, "ob")
+    _creds(fleet, "ob", expires_in_s=100)
+    tok, fresh = cd.read_access_token("ob", fleet)
+    assert tok == "sk-ant-oat01-ACCESS" and fresh is True
+    _creds(fleet, "ob", expires_in_s=-100)
+    assert cd.read_access_token("ob", fleet)[1] is False
+    os.chmod(fleet / "ob" / ".credentials.json", 0o644)
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.read_access_token("ob", fleet)
+    assert "0600" in str(exc.value) and "ACCESS" not in str(exc.value)
+    assert cd.read_access_token("can", _fleet(tmp_path, "can")) == (None, False)
+
+
+def test_fetch_run_events_refreshes_an_expired_token_by_the_in_place_probe_only(
+    monkeypatch, tmp_path
+):
+    fleet = _fleet(tmp_path, "ob")
+    _creds(fleet, "ob", expires_in_s=-10)
+    probes: list = []
+
+    def fake_probe(cfg, scratch):
+        probes.append(cfg)
+        _creds(fleet, "ob", token="sk-ant-oat01-FRESH", expires_in_s=3600)
+        return True
+
+    monkeypatch.setattr(cd, "_refresh_probe", fake_probe)
+    seen: dict = {}
+    monkeypatch.setattr(
+        cd, "_http_get", lambda u, h: seen.update(url=u, headers=h) or (200, json.dumps(_events()))
+    )
+    evs, refreshed = cd.fetch_run_events("ob", "cse_01ABCDEFGH", fleet)
+    assert len(evs) == 3 and refreshed is True and probes == [fleet / "ob"]
+    assert seen["url"].endswith("/v1/code/sessions/cse_01ABCDEFGH/events?limit=200")
+    assert seen["headers"]["Authorization"] == "Bearer sk-ant-oat01-FRESH"
+    # a fresh token never probes; a 401 never retries, never probes, never names the token
+    probes.clear()
+    monkeypatch.setattr(cd, "_http_get", lambda u, h: (401, "expired"))
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.fetch_run_events("ob", "cse_01ABCDEFGH", fleet)
+    assert "401" in str(exc.value) and "FRESH" not in str(exc.value) and probes == []
+    with pytest.raises(cd.DispatchError):
+        cd.fetch_run_events("ob", "session_01NOTCSE", fleet)
+
+
+def test_spent_counts_the_latest_settle_per_fired_run_and_unsettled_runs_at_the_margin():
+    now = 1_000_000.0
+    rows = [
+        {
+            "account": "ob",
+            "slug": "a",
+            "session_id": "cse_01A",
+            "status": "ok",
+            "ts": now - 3 * 86400,
+        },
+        {
+            "kind": "settle",
+            "account": "ob",
+            "session_id": "cse_01A",
+            "cost_usd": None,
+            "ts": now - 3 * 86400,
+        },
+        {
+            "kind": "settle",
+            "account": "ob",
+            "session_id": "cse_01A",
+            "cost_usd": 1.5,
+            "ts": now - 2 * 86400,
+        },  # re-settled: latest wins
+        {
+            "account": "ob",
+            "slug": "b",
+            "session_id": "cse_01B",
+            "status": "ok",
+            "ts": now - 2 * 86400,
+        },  # never settled → margin
+        {
+            "account": "ob",
+            "slug": "c",
+            "session_id": "cse_01C",
+            "status": "ok",
+            "ts": now - 3600,
+        },  # never settled → margin from dispatch
+        {
+            "account": "ob",
+            "slug": "d",
+            "session_id": None,
+            "status": "http_503",
+            "ts": now - 3 * 86400,
+        },  # never reached
+        {"account": "mob", "slug": "e", "session_id": "cse_01E", "status": "ok", "ts": now - 3600},
+        {
+            "kind": "settle",
+            "account": "mob",
+            "session_id": "cse_01E",
+            "cost_usd": 4.0,
+            "ts": now - 1800,
+        },
+    ]
+    assert cd.spent_usd(rows, "ob", margin=10) == 21.5
+    assert cd.spent_usd(rows, "mob", margin=10) == 4.0
+    assert cd.spent_usd(rows, "can", margin=10) == 0.0
+    assert cd.unsettled(rows, "ob") == ["b", "c"]
+
+
+def test_margin_is_proportional_with_a_floor_and_a_calibrated_balance_is_honoured(tmp_path, capsys):
+    reg = json.loads(_guard_registry(tmp_path, claimed=250).read_text())
+    assert cd.margin_of(reg, "ob") == 25.0
+    reg = json.loads(_guard_registry(tmp_path, claimed=50).read_text())
+    assert cd.margin_of(reg, "ob") == 10.0
+    reg = json.loads(_guard_registry(tmp_path, margin=3).read_text())
+    assert cd.margin_of(reg, "ob") == 3.0
+    reg_path = _guard_registry(tmp_path, claimed=250)
+    reg = json.loads(reg_path.read_text())
+    ledger = tmp_path / "ledger.jsonl"
+    cd.append_ledger(
+        ledger,
+        {"account": "ob", "slug": "a", "session_id": "cse_01A", "status": "ok", "ts": 1_000.0},
+    )
+    cd.append_ledger(
+        ledger,
+        {
+            "kind": "settle",
+            "account": "ob",
+            "session_id": "cse_01A",
+            "cost_usd": 30.0,
+            "ts": 1_000.0,
+        },
+    )
+    assert (
+        cd.main(
+            [
+                "calibrate",
+                "ob",
+                "--balance",
+                "200",
+                "--registry",
+                str(reg_path),
+                "--ledger",
+                str(ledger),
+            ]
+        )
+        == 0
+    )
+    assert "left 200.00" in capsys.readouterr().out
+    cal = cd.read_ledger(ledger)[-1]
+    assert cal == {**cal, "kind": "calibrate", "account": "ob", "balance_usd": 200.0}
+    cd.append_ledger(
+        ledger,
+        {
+            "account": "ob",
+            "slug": "b",
+            "session_id": "cse_01B",
+            "status": "ok",
+            "ts": cal["ts"] + 10,
+        },
+    )
+    cd.append_ledger(
+        ledger,
+        {
+            "kind": "settle",
+            "account": "ob",
+            "session_id": "cse_01B",
+            "cost_usd": 5.0,
+            "ts": cal["ts"] + 20,
+        },
+    )
+    cd.append_ledger(
+        ledger,
+        {
+            "account": "ob",
+            "slug": "p",
+            "session_id": "cse_01P",
+            "status": "ok",
+            "ts": cal["ts"] + 30,
+            "plan_usage": True,
+        },
+    )
+    cd.append_ledger(
+        ledger,
+        {
+            "kind": "settle",
+            "account": "ob",
+            "session_id": "cse_01P",
+            "cost_usd": 9.0,
+            "ts": cal["ts"] + 40,
+        },
+    )
+    rows = cd.read_ledger(ledger)
+    assert cd.credit_left(reg, "ob", rows) == 250.0 - 50.0 - 5.0, (
+        "the row fired before the calibration is inside the balance; a plan_usage row never counts"
+    )
+    assert (
+        cd.main(
+            [
+                "calibrate",
+                "nope",
+                "--balance",
+                "1",
+                "--registry",
+                str(reg_path),
+                "--ledger",
+                str(ledger),
+            ]
+        )
+        == 1
+    )
+
+
+@pytest.mark.parametrize(
+    ("spent", "settle", "want"),
+    [
+        (224.0, {"using_overage": False}, None),
+        (225.0, {"using_overage": False}, "spent"),
+        (1.0, {"using_overage": True}, "overage"),
+        (1.0, {"using_overage": None}, None),
+    ],
+)
+def test_decide_pause_fires_on_spend_and_overage_only(spent, settle, want):
+    reason = cd.decide_pause("can", spent=spent, claimed=250, margin=25.0, settle=settle)
+    assert (reason is None) == (want is None)
+    if want:
+        assert want in reason
+
+
+def test_plan_rise_is_advisory_never_a_pause():
+    note = cd.plan_rise_note({"plan_7d": 0.27}, {"plan_7d": 0.26}, account="can", active_slug="ob")
+    assert note and "0.260" in note and "0.270" in note
+    assert (
+        cd.plan_rise_note({"plan_7d": 0.27}, {"plan_7d": 0.26}, account="ob", active_slug="ob")
+        is None
+    )
+    assert (
+        cd.plan_rise_note({"plan_7d": 0.27}, {"plan_7d": 0.26}, account="can", active_slug=None)
+        is None
+    )
+    assert (
+        cd.plan_rise_note({"plan_7d": 0.10}, {"plan_7d": 0.26}, account="can", active_slug="ob")
+        is None
+    )
+    assert cd.plan_rise_note({"plan_7d": 0.27}, None, account="can", active_slug="ob") is None
+
+
+def test_pause_state_lives_in_the_ledger_and_the_latest_row_wins(tmp_path, capsys):
+    ledger = tmp_path / "ledger.jsonl"
+    reg = _guard_registry(tmp_path)
+    assert (
+        cd.main(
+            [
+                "pause",
+                "can",
+                "--reason",
+                "credit exhausted",
+                "--registry",
+                str(reg),
+                "--ledger",
+                str(ledger),
+            ]
+        )
+        == 0
+    )
+    rows = cd.read_ledger(ledger)
+    assert rows[-1] == {**rows[-1], "kind": "pause", "account": "can", "reason": "credit exhausted"}
+    assert cd.paused_of(rows, "can")["reason"] == "credit exhausted"
+    assert cd.paused_of(rows, "ob") is None
+    assert json.loads(reg.read_text(encoding="utf-8"))["accounts"]["can"].get("paused") is None, (
+        "the registry is never written"
+    )
+    assert cd.main(["unpause", "can", "--registry", str(reg), "--ledger", str(ledger)]) == 0
+    assert cd.paused_of(cd.read_ledger(ledger), "can") is None
+    assert (
+        cd.main(["pause", "nope", "--reason", "x", "--registry", str(reg), "--ledger", str(ledger)])
+        == 1
+    )
+
+
+def test_dispatch_and_pick_refuse_a_paused_account(monkeypatch, tmp_path, capsys, quiet_remote):
+    reg = _guard_registry(tmp_path)
+    fleet = _fleet(tmp_path, "ob", "can", token_for="ob")
+    ledger = tmp_path / "state" / "ledger.jsonl"
+    cd.append_ledger(
+        ledger, {"kind": "pause", "account": "can", "reason": "credit exhausted", "ts": 1.0}
+    )
+    monkeypatch.setattr(cd, "_run_claude", lambda *a, **k: (0, _stream("cse_01XYZABCDE")))
+    monkeypatch.setattr(
+        cd,
+        "_http_post",
+        lambda u, h, b: (200, '{"claude_code_session_id": "cse_01XYZABCDE"}', {}),
+    )
+    monkeypatch.setattr(
+        cd, "fleet_status", lambda: _status(("ob", 14.0, False, 30), ("can", 50.0, False, 30))
+    )
+    assert (
+        cd.main(
+            [
+                "dispatch",
+                "--slug",
+                "p",
+                "--account",
+                "can",
+                "--task",
+                "t",
+                *_g(tmp_path, fleet, reg),
+            ]
+        )
+        == 7
+    )
+    assert "paused" in capsys.readouterr().err
+    # can would WIN the pick on every other key (token path too, hotter weekly): the pause removes it
+    tok = fleet / "can" / "routine-token"
+    tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
+    os.chmod(tok, 0o600)
+    rc = cd.main(["dispatch", "--slug", "p2", "--pick", "--task", "t", *_g(tmp_path, fleet, reg)])
+    assert (
+        rc == 0 and json.loads(capsys.readouterr().out.strip().splitlines()[-1])["account"] == "ob"
+    )
+    rows = cd.read_ledger(ledger)
+    registry = json.loads(reg.read_text(encoding="utf-8"))
+    status = _status(("ob", 50.0, False, 30), ("can", 14.0, False, 30))
+    assert cd.pick_account(registry, status, rows, fleet, now=1_000_000.0)[0] == "ob"
+    assert (
+        cd.pick_account(registry, status, rows, fleet, now=1_000_000.0, allow_plan=True)[0] == "can"
+    ), "the flag ignores the pause and takes the COOLEST weekly reading"
+    # an expired account is out of the pick the same way (6 h before 00:00 UTC of its date)
+    registry["accounts"]["ob"]["credit"]["expires"] = "2026-11-04"
+    registry["accounts"]["can"]["credit"]["expires"] = "2026-12-01"
+    at_wall = cd.expiry_epoch("2026-11-04") - cd.EXPIRY_GUARD_S
+    cd.append_ledger(ledger, {"kind": "unpause", "account": "can", "ts": 2.0})
+    rows = cd.read_ledger(ledger)
+    status = _status(("ob", 50.0, False, 30, "live", 0), ("can", 14.0, False, 30, "live", 0))
+    assert cd.pick_account(registry, status, rows, fleet, now=at_wall)[0] == "can"
+    assert cd.pick_account(registry, status, rows, fleet, now=at_wall - 1)[0] == "ob"
+
+
+def test_expiry_is_utc_midnight_minus_the_guard_and_plan_usage_needs_the_flag(
+    monkeypatch, tmp_path, capsys, quiet_remote
+):
+    import calendar
+
+    fleet = _fleet(tmp_path, "can")
+    monkeypatch.setattr(cd, "_run_claude", lambda *a, **k: (0, _stream("cse_01XYZABCDE")))
+    expires = calendar.timegm((2026, 11, 4, 0, 0, 0))
+    assert cd.expiry_epoch("2026-11-04") == expires
+    reg = _guard_registry(tmp_path, expires="2026-11-04")
+    base = ["dispatch", "--slug", "p", "--account", "can", "--task", "t", *_g(tmp_path, fleet, reg)]
+    monkeypatch.setattr(cd.time, "time", lambda: expires - cd.EXPIRY_GUARD_S - 1)
+    assert cd.main(base) == 0
+    monkeypatch.setattr(cd.time, "time", lambda: expires - cd.EXPIRY_GUARD_S)
+    assert cd.main(base + ["--force-new"]) == 7
+    assert "expired" in capsys.readouterr().err
+    cd.append_ledger(
+        tmp_path / "state" / "ledger.jsonl",
+        {"kind": "pause", "account": "can", "reason": "r", "ts": 1.0},
+    )
+    assert cd.main(base + ["--force-new"]) == 7
+    assert cd.main(base + ["--force-new", "--allow-plan-usage"]) == 0, (
+        "the flag bypasses expiry AND pause"
+    )
+    out = capsys.readouterr()
+    assert "plan usage" in out.err.lower()
+    row = json.loads(out.out.strip().splitlines()[-1])
+    assert row["plan_usage"] is True and row["status"] == "ok"
+    assert cd.EXPIRY_GUARD_S == 6 * 3600
+
+
+def test_settle_verb_writes_the_cost_row_pauses_on_spend_and_is_idempotent(
+    monkeypatch, tmp_path, capsys
+):
+    reg = _guard_registry(tmp_path, claimed=1.0, margin=0.5)
+    fleet = _fleet(tmp_path, "ob", "can")
+    _creds(fleet, "can")
+    ledger = tmp_path / "state" / "ledger.jsonl"
+    cd.append_ledger(
+        ledger,
+        {
+            "account": "can",
+            "slug": "job1",
+            "session_id": "cse_01ABCDEFGH",
+            "status": "ok",
+            "ts": 1.0,
+        },
+    )
+    monkeypatch.setattr(cd, "_http_get", lambda u, h: (200, json.dumps(_events(cost=0.6))))
+    monkeypatch.setattr(cd, "active_slug", lambda: "ob")
+    assert cd.main(["settle", "--slug", "job1", *_g(tmp_path, fleet, reg)]) == 0
+    rows = cd.read_ledger(ledger)
+    assert rows[-2] == {
+        **rows[-2],
+        "kind": "settle",
+        "account": "can",
+        "slug": "job1",
+        "session_id": "cse_01ABCDEFGH",
+        "cost_usd": 0.6,
+        "spent_usd_total": 0.6,
+    }
+    assert rows[-1]["kind"] == "pause" and rows[-1]["reason"].startswith("spent")
+    out = capsys.readouterr()
+    assert "0.60" in out.out and "left" in out.out and "PAUSED" in out.err
+    assert cd.main(["settle", "--slug", "job1", *_g(tmp_path, fleet, reg)]) == 0
+    assert cd.spent_usd(cd.read_ledger(ledger), "can", margin=0.5) == 0.6, (
+        "settling twice never double-counts"
+    )
+    assert sum(r.get("kind") == "pause" for r in cd.read_ledger(ledger)) == 1, (
+        "an already-paused account is not re-paused"
+    )
+
+
+def test_an_unreadable_run_is_settle_pending_and_charged_at_the_margin(
+    monkeypatch, tmp_path, capsys
+):
+    reg = _guard_registry(tmp_path)
+    fleet = _fleet(tmp_path, "can")
+    ledger = tmp_path / "state" / "ledger.jsonl"
+    cd.append_ledger(
+        ledger,
+        {
+            "account": "can",
+            "slug": "job1",
+            "session_id": "cse_01ABCDEFGH",
+            "status": "ok",
+            "ts": 1_000_000.0,
+        },
+    )
+    probes: list = []
+    monkeypatch.setattr(
+        cd, "_refresh_probe", lambda cfg, scratch: probes.append(cfg) or False
+    )  # the wall
+    monkeypatch.setattr(cd.time, "time", lambda: 1_000_000.0 + 3600)
+    _creds(fleet, "can", expires_in_s=-10)  # written against the patched clock
+    assert cd.main(["settle", "--slug", "job1", *_g(tmp_path, fleet, reg)]) == 0
+    rows = cd.read_ledger(ledger)
+    assert rows[-1] == {**rows[-1], "kind": "settle", "status": "settle_pending", "cost_usd": None}
+    assert rows[-2] == {**rows[-2], "kind": "token_refresh", "account": "can", "ok": False}
+    out = capsys.readouterr()
+    assert "pending" in out.out and "/login" in out.err
+    assert cd.spent_usd(rows, "can", margin=25.0) == 25.0, (
+        "unreadable → provisional at the margin, from dispatch"
+    )
+    # a second settle within 8 h never probes again (one plan turn per account per 8 h)
+    assert cd.main(["settle", "--slug", "job1", *_g(tmp_path, fleet, reg)]) == 0
+    assert len(probes) == 1
+    # settle --all retries pending rows and, once readable, replaces the provisional charge
+    _creds(fleet, "can", expires_in_s=3600)
+    monkeypatch.setattr(cd, "_http_get", lambda u, h: (200, json.dumps(_events(cost=0.4))))
+    assert cd.main(["settle", "--all", *_g(tmp_path, fleet, reg)]) == 0
+    assert cd.spent_usd(cd.read_ledger(ledger), "can", margin=25.0) == 0.4
+    assert cd.unsettled(cd.read_ledger(ledger), "can") == []
+
+
+def test_wait_settles_automatically_on_success(monkeypatch, tmp_path, capsys):
+    reg = _guard_registry(tmp_path)
+    fleet = _fleet(tmp_path, "can")
+    _creds(fleet, "can")
+    ledger = tmp_path / "state" / "ledger.jsonl"
+    cd.append_ledger(
+        ledger,
+        {
+            "account": "can",
+            "slug": "job1",
+            "session_id": "cse_01ABCDEFGH",
+            "status": "ok",
+            "ts": 1.0,
+            "pre_fire_sha": None,
+        },
+    )
+    monkeypatch.setattr(cd, "_ls_remote", lambda branch: "aaa1111\trefs/heads/claude/job1\n")
+    monkeypatch.setattr(cd, "_tip_message", lambda branch, sha: f"done\n\n{cd.DONE_TRAILER} x\n")
+    monkeypatch.setattr(cd, "_http_get", lambda u, h: (200, json.dumps(_events(cost=0.42))))
+    monkeypatch.setattr(cd, "active_slug", lambda: "ob")
+    assert cd.main(["wait", "--slug", "job1", "--timeout", "0", *_g(tmp_path, fleet, reg)]) == 0
+    out = capsys.readouterr()
+    assert out.out.strip() == "aaa1111", "stdout is the tip sha alone — callers parse it"
+    assert "0.42" in out.err
+    assert any(r.get("kind") == "settle" for r in cd.read_ledger(ledger))
+
+
+def test_list_shows_spent_left_and_the_pause_state_and_names_the_ledger(tmp_path, capsys):
+    reg = _guard_registry(tmp_path)
+    fleet = _fleet(tmp_path, "ob", "can")
+    ledger = tmp_path / "ledger.jsonl"
+    cd.append_ledger(ledger, {"account": "ob", "session_id": "cse_01A", "status": "ok", "ts": 1.0})
+    cd.append_ledger(
+        ledger,
+        {"kind": "settle", "account": "ob", "session_id": "cse_01A", "cost_usd": 12.5, "ts": 1.0},
+    )
+    cd.append_ledger(
+        ledger, {"kind": "pause", "account": "can", "reason": "credit exhausted", "ts": 2.0}
+    )
+    assert (
+        cd.main(
+            [
+                "list",
+                "--no-status",
+                "--registry",
+                str(reg),
+                "--fleet-root",
+                str(fleet),
+                "--ledger",
+                str(ledger),
+            ]
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert (
+        "spent 12.50" in out
+        and "left 237.50" in out
+        and "PAUSED" in out
+        and "credit exhausted" in out
+    )
+    assert str(ledger) in out
+
+
+# --- the scoped review's round-1 findings (S-1 … S-6), each red on the pass-1 pin ------------------
+
+
+def test_settle_decides_the_pause_from_rows_read_under_the_ledger_lock(
+    monkeypatch, tmp_path, capsys
+):
+    """S-1: two settles of the same account racing — the second must see the first's cost."""
+    reg = _guard_registry(tmp_path, claimed=250, margin=25)
+    fleet = _fleet(tmp_path, "can")
+    _creds(fleet, "can")
+    ledger = tmp_path / "state" / "ledger.jsonl"
+    for sid in ("cse_01AAAAAAAA", "cse_01BBBBBBBB"):
+        cd.append_ledger(
+            ledger,
+            {
+                "account": "can",
+                "slug": sid[-4:].lower(),
+                "session_id": sid,
+                "status": "ok",
+                "ts": 1.0,
+            },
+        )
+    monkeypatch.setattr(cd, "_http_get", lambda u, h: (200, json.dumps(_events(cost=120.0))))
+    monkeypatch.setattr(cd, "active_slug", lambda: "ob")
+    real_txn = cd.LedgerTxn
+    seen: list = []
+
+    class Spy(real_txn):  # the rows a settle decides from are the rows under its own lock
+        def __enter__(self):
+            txn = super().__enter__()
+            seen.append(len(txn.rows))
+            return txn
+
+    monkeypatch.setattr(cd, "LedgerTxn", Spy)
+    assert cd.main(["settle", "--all", *_g(tmp_path, fleet, reg)]) == 0
+    rows = cd.read_ledger(ledger)
+    assert [r["kind"] for r in rows if "kind" in r] == ["settle", "settle", "pause"]
+    assert rows[-2]["spent_usd_total"] == 240.0 and rows[-1]["reason"].startswith("spent 240.00")
+    assert seen[-1] >= 3, "the second settle read the first settle's row under the lock"
+    # the lock is real: a writer holding it blocks the transaction until released
+    import fcntl as _f
+    import threading
+
+    order: list = []
+
+    def late():
+        with real_txn(ledger):
+            order.append("txn")
+
+    with open(ledger, "a", encoding="utf-8") as fh:
+        _f.flock(fh, _f.LOCK_EX)
+        th = threading.Thread(target=late)
+        th.start()
+        th.join(0.3)
+        order.append("release")
+        _f.flock(fh, _f.LOCK_UN)
+    th.join(5)
+    assert order == ["release", "txn"]
+
+
+def test_pick_counts_dispatch_rows_only_never_guard_rows(tmp_path):
+    """S-2: five settle rows on `a` are not five dispatches."""
+    reg = json.loads(_guard_registry(tmp_path).read_text())
+    fleet = _fleet(tmp_path, "ob", "can", token_for="ob")
+    tok = fleet / "can" / "routine-token"
+    tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
+    os.chmod(tok, 0o600)
+    now = 1_000_000.0
+    rows = [
+        {"account": "can", "slug": "x", "session_id": "cse_01X", "status": "ok", "ts": now - 60}
+    ]
+    rows += [
+        {"kind": k, "account": "ob", "session_id": "cse_01Y", "ts": now - 60}
+        for k in ("settle", "settle", "pause", "unpause", "calibrate", "token_refresh")
+    ]
+    status = _status(("ob", 10.0, False, 30), ("can", 10.0, False, 30))
+    slug, why = cd.pick_account(reg, status, rows, fleet, now=now)
+    assert slug == "ob" and "0 dispatch(es)" in why
+
+
+def test_a_fired_row_without_ts_still_counts_after_a_calibration():
+    """S-3: a malformed (ts-less) row is never read as 'before the calibration'."""
+    rows = [
+        {"kind": "calibrate", "account": "ob", "balance_usd": 250.0, "ts": 100.0},
+        {"account": "ob", "slug": "a", "session_id": "cse_01A", "status": "ok"},
+        {
+            "kind": "settle",
+            "account": "ob",
+            "session_id": "cse_01A",
+            "cost_usd": 200.0,
+            "ts": 200.0,
+        },
+    ]
+    assert cd.spent_usd(rows, "ob", margin=25, claimed=250) == 200.0
+
+
+def test_a_settle_row_of_another_account_never_settles_this_accounts_session():
+    """S-4: settle rows are scoped by account."""
+    rows = [
+        {"account": "victim", "slug": "v", "session_id": "cse_01SHARED", "status": "ok", "ts": 1.0},
+        {
+            "kind": "settle",
+            "account": "other",
+            "session_id": "cse_01SHARED",
+            "cost_usd": 0.0,
+            "ts": 2.0,
+        },
+    ]
+    assert cd.spent_usd(rows, "victim", margin=25) == 25.0
+    assert cd.unsettled(rows, "victim") == ["v"]
+
+
+@pytest.mark.parametrize(
+    ("credit", "field"),
+    [
+        ({"claimed_usd": 250, "expires": "not-a-date"}, "credit.expires"),
+        ({"claimed_usd": -1, "expires": "2026-11-04"}, "credit.claimed_usd"),
+        ({"claimed_usd": "lots", "expires": "2026-11-04"}, "credit.claimed_usd"),
+    ],
+)
+def test_a_malformed_credit_block_is_refused_at_load_for_every_verb(tmp_path, credit, field):
+    """S-5: one bad date is a registry error naming the field, not a fleet-wide pick abort."""
+    p = _guard_registry(tmp_path)
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data["accounts"]["can"]["credit"] = credit
+    p.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(cd.RegistryError) as exc:
+        cd.load_registry(p)
+    assert field in str(exc.value) and "can" in str(exc.value)
+    data["accounts"]["can"]["credit"] = {"claimed_usd": 250, "expires": "2026-11-04"}
+    data["credit_margin_usd"] = "free"
+    p.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(cd.RegistryError) as exc:
+        cd.load_registry(p)
+    assert "credit_margin_usd" in str(exc.value)
+
+
+def test_the_automatic_sweep_backs_off_a_refused_token_for_eight_hours(
+    monkeypatch, tmp_path, capsys
+):
+    """S-6: a fresh-but-refused token is not retried on every dispatch; `settle --slug` still is."""
+    reg = _guard_registry(tmp_path)
+    fleet = _fleet(tmp_path, "can")
+    ledger = tmp_path / "state" / "ledger.jsonl"
+    cd.append_ledger(
+        ledger,
+        {
+            "account": "can",
+            "slug": "job1",
+            "session_id": "cse_01ABCDEFGH",
+            "status": "ok",
+            "ts": 1.0,
+        },
+    )
+    monkeypatch.setattr(cd.time, "time", lambda: 1_000_000.0)
+    _creds(fleet, "can", expires_in_s=10 * 3600)  # fresh through the whole test: no probe path
+    monkeypatch.setattr(cd, "_refresh_probe", lambda cfg, scratch: pytest.fail("no probe owed"))
+    calls: list = []
+    monkeypatch.setattr(cd, "_http_get", lambda u, h: calls.append(u) or (401, "revoked"))
+    assert cd.main(["settle", "--all", *_g(tmp_path, fleet, reg)]) == 0
+    assert cd.main(["settle", "--all", *_g(tmp_path, fleet, reg)]) == 0
+    assert len(calls) == 1, "the sweep backed off"
+    assert cd.main(["settle", "--slug", "job1", *_g(tmp_path, fleet, reg)]) == 0
+    assert len(calls) == 2, "an explicit settle always retries"
+    monkeypatch.setattr(cd.time, "time", lambda: 1_000_000.0 + cd.REFRESH_MIN_S)
+    assert cd.main(["settle", "--all", *_g(tmp_path, fleet, reg)]) == 0
+    assert len(calls) == 3, "after 8 h the sweep retries"
+    assert cd.spent_usd(cd.read_ledger(ledger), "can", margin=25.0) == 25.0
+
+
+def test_the_plan_rise_advisory_fires_from_the_previous_settle_not_the_current_one(
+    monkeypatch, tmp_path, capsys
+):
+    """S-7 (closing round): the baseline is the settle BEFORE this one — a shadowed `rows` made it
+    this one, and the advisory could never fire."""
+    reg = _guard_registry(tmp_path)
+    fleet = _fleet(tmp_path, "can")
+    _creds(fleet, "can")
+    ledger = tmp_path / "state" / "ledger.jsonl"
+    for sid in ("cse_01AAAAAAAA", "cse_01BBBBBBBB"):
+        cd.append_ledger(
+            ledger,
+            {
+                "account": "can",
+                "slug": sid[-4:].lower(),
+                "session_id": sid,
+                "status": "ok",
+                "ts": 1.0,
+            },
+        )
+    monkeypatch.setattr(cd, "active_slug", lambda: "ob")
+    readings = iter([0.10, 0.30])
+    monkeypatch.setattr(
+        cd, "_http_get", lambda u, h: (200, json.dumps(_events(cost=0.1, plan_7d=next(readings))))
+    )
+    assert cd.main(["settle", "--all", *_g(tmp_path, fleet, reg)]) == 0
+    err = capsys.readouterr().err
+    assert "advisory" in err and "0.100 → 0.300" in err
