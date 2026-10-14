@@ -90,7 +90,9 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # backticked path and again at phase 3 for amended paths and new locks (row 1791868540).
 # D-843 (kaizen, 2026-10-14): 20060 -> 20285 — MIRROR greps tests for exact-set and line-count asserts on what the change
 # extends, and a copied mechanism carries its source's settled failures as Behaviours (rows 1791935733, 1791933860).
-SIZE_CAP = 20285
+# D-856 (kaizen, 2026-10-14): 20285 -> 20904 — MEASURE finds subprocess-run tests and red-proves a relied-on grader;
+# MIRROR finds vendored copies off the tracked tree; phase 3 names the live-store pin and re-runs MEASURE's slice (6 rows).
+SIZE_CAP = 20904
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: subprocess-run tests, a red-proved relied-on grader, vendored copies and the live-store pin (2026-10-14)
+
+Phase 1 MEASURE now finds the tests that run a declared file by subprocess, not only those that import it, by grepping for the file's name and every mode or flag the change extends. It also shows a grader the design relies on going red on a deliberately broken input. Phase 2's MIRROR search adds every vendored copy outside the tracked tree. Phase 3 pins a test that writes a live store to a tmp root (the hub's `tests/conftest.py` pins the mail root and state files; a work-store test passes a tmp repo) and re-runs MEASURE's test slice on the built tree before review. These answer six `/fabrik-task` feedback rows (D-856, which also raises the source's size cap from 20285 to 20904 bytes). `tests/test_command_improve_queue_pass.py` pins the new lines.
+
 ### Changed — review probe catalogue: a seat brief names the database connection the lead proved (2026-10-14)
 
 No `.env` reaches a review seat, so seats in three projects skipped a database test, re-implemented it or failed on password auth (`/fabrik-review-scoped` rows 1791980872, 1790801583 and 1791515801). The catalogue's seat-isolation section now says that a test that needs a database runs with the variable the suite reads (`TEST_DATABASE_URL`, an isolated `DATABASE_URL`) in place of the import-only `.invalid` dummy, and that a seat probe that must connect uses the same variable. Both connect over the form the lead proved by one connect before the pin, such as a unix-socket DSN where TCP `localhost` fails password auth, and the brief names the variable and the form. Where only a password form connects, the lead runs that test or probe itself and quotes its result; a password is never written into a brief. `tests/test_review_scoped_queue_pass.py` pins the clause.

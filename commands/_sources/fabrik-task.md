@@ -66,8 +66,9 @@ FIX DIRECTIVE step 1 whole — a failure reported with a command is replayed by 
 a reconstruction. Then, before phase 2 and any edit, each command and its output goes to
 `<run-scratch>/measure.md`, beside phase 2's `design.md`, never in
 it (a pasted line opening with a field word or a `#` moves the declared paths): the tests that
-import or grade the declared files, that slice and never the whole suite (a red now is
-pre-existing); `git fetch` and the declared paths diffed against the remote branch the work merges
+import, grade or run the declared files (grep the tests for each file's name and every mode or flag
+the change extends, since a test that runs a script by subprocess never imports it), that slice and
+never the whole suite (a red now is pre-existing); `git fetch` and the declared paths diffed against the remote branch the work merges
 into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings (and a copied script's),
 `/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack
 the rule already lives in; the population the change writes or thresholds measured (its readers
@@ -79,7 +80,7 @@ source read or a proxy: the tests that drive it by subprocess, the completion ga
 target layout, each callee a fail-open branch wraps and how it fails, whether a production path reaches the text,
 what a concurrent reader sees mid-write, a before/after hash of every file it writes, an independent parser for a
 parsed format, its operator-facing strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded)
-and per artifact class, whose commits a gate's new scope holds, and the whole output, not one field. Then
+and per artifact class, whose commits a gate's new scope holds, and the whole output, not one field; a grader the design relies on is shown red on a deliberately broken input, since a pass proves nothing until it can fail. Then
 `python scripts/select_rules.py --changed <the declared paths>` — the path-scoped form — and READ
 the packs it prints.
 
@@ -131,7 +132,7 @@ MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what cha
 each branch of a changed function, every resolver of the same identity, consumers of a moved or
 deleted file, other surfaces stating a changed claim, the gates that grade it — each found by an
 executed search, with the shape it now fails on and its cost measured, never estimated. The search is the
-whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs) under every spelling of the identifier and its rule's key
+whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs) and every vendored copy outside it (`find /opt` by the file's name) under every spelling of the identifier and its rule's key
 verbs — the literal path beside any constant, every party a text reaches, every reader of a changed record shape
 or stdout (grep its tests for `== {` and `len(`),
 the hub scripts the text tells a project to run, the file handing a new env var to the process and the spec, the
@@ -157,7 +158,7 @@ commit also carries phase 5's ledgers, so nothing is committed before phase 5. E
 and borrowed fixtures, EXECUTES an executable subject, runs hermetic (box env stripped, e.g. `env -u DATABASE_URL`) on production's transport and is red on base
 by its named assertion; every guard and threshold edge the change adds is mutated. Never run a formatter by hand beyond the declared paths. The gate helpers a new call shape must satisfy are read
 first, a removed duplicate is guarded behaviourally, never by text shape, a new threshold is derived in its
-comment, and a probe worktree carries the built dist a test reads at import.
+comment, and a probe worktree carries the built dist a test reads at import. A test that writes a live store pins it to a tmp root: the hub's `tests/conftest.py` already pins the mail root and the `~/.claude/state` files, a work-store test passes a tmp repo, and a new store gets its pin there; before phase 4, MEASURE's test slice re-runs on the built tree.
 
 ## Phase 4 — REVIEW
 
