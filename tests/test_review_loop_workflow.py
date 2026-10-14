@@ -1114,9 +1114,10 @@ def test_round_zero_enumerates_the_fixs_input_space_before_the_pin() -> None:
             "any other fix against the input classes its own shape implies, listed before the probe runs",
             # /fabrik-review-scoped row 1791973917: a narrowing PREDICATE fix met its earlier-confirmed
             # shapes one round at a time, since this clause used to name a regex fix only.
-            "a fix that narrows or widens what a matcher, predicate or filter accepts, a regex included, is drafted and"
-            " probed against every shape this review has confirmed so far and the field- or key-renamed variant of"
-            " each, all at once, never one patch per shape",
+            "a fix to a matcher, replacer, predicate or filter, a regex included, and above all one that narrows or"
+            " widens what it accepts, is drafted and probed against every shape this review has confirmed so far and,"
+            " where a shape names a field or key, against its renamed variant too, all at once, never one patch per"
+            " shape",
         ):
             assert needle in text, (name, needle)
         # term-coverage continues the clause past "every error path" (d4009c252) and term-edit joins

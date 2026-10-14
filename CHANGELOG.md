@@ -27,7 +27,7 @@ No `.env` reaches a review seat, so seats in three projects skipped a database t
 
 ### Changed — round zero: a narrowing fix replays every confirmed shape, not only a regex fix (2026-10-14)
 
-The round-zero probe in `term-edit.md` and `term-coverage.md` used to say only that "a regex fix is drafted against every confirmed shape at once". A predicate or filter fix that narrowed a candidate set therefore read as exempt, and a `/fabrik-review-scoped` run in fabrik-lib met its earlier-confirmed shapes one round at a time (feedback row 1791973917). The clause now covers any fix that narrows or widens what a matcher, predicate or filter accepts, a regex included. Such a fix is drafted and probed against every shape the review has confirmed so far and against the field- or key-renamed variant of each. `tests/test_review_loop_workflow.py` pins the new clause in both fragments.
+The round-zero probe in `term-edit.md` and `term-coverage.md` used to say only that "a regex fix is drafted against every confirmed shape at once". A predicate or filter fix that narrowed a candidate set therefore read as exempt, and a `/fabrik-review-scoped` run in fabrik-lib met its earlier-confirmed shapes one round at a time (feedback row 1791973917). The clause now covers any fix to a matcher, replacer, predicate or filter, a regex included, and above all one that narrows or widens what it accepts. Such a fix is drafted and probed against every shape the review has confirmed so far and, where a shape names a field or key, against its renamed variant too. `tests/test_review_loop_workflow.py` pins the new clause in both fragments.
 
 ### Changed — review probe catalogue: ruff on a read-only pin runs `--no-cache`; an equivalent mutant is discarded (2026-10-14)
 
