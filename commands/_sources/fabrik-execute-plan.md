@@ -471,7 +471,8 @@ FIRST dispatch commit flips spine Status: CONVERGED → IN-PROGRESS
 while the Board has non-terminal tickets:
     eligible = ⬜ tickets with every Depends: row ✅, no pending Serialized: barrier,
                and (spine carries Epic:) Touches inside the epic's owned_paths — an escape is refused → 🔴
-    dispatch up to 3 coders, Merge-Order position order, runtime per Complexity (D2)
+    dispatch up to 3 coders in ONE message of FOREGROUND Agent calls (the turn holds until the wave returns),
+               Merge-Order position order, runtime per Complexity (D2)
     when the WAVE's coders have all returned: its per-ticket review loop as ONE run, a slice per ticket (D4)
     merge in Merge Order: squash-apply code + Board flip + applied Deltas in ONE commit (D5)
     timeout / dead coder → salvage procedure (D6); 3 same-test strikes → 🔴, CONTINUE the Board
@@ -546,11 +547,14 @@ its Touches (contract violation → its diff is rejected at acceptance).
   Merge Order is an authoring defect `/fabrik-plan-review` should have caught).
 - **Dispatch timeout:** a coder with no result within 2× the ticket's plan-time estimate (no estimate
   stated → use 30 min as the estimate, i.e. a 60-minute timeout) → the D6 salvage procedure; 2
-  consecutive timeouts on one ticket → 🔴.
+  consecutive timeouts on one ticket → 🔴. Every coder dispatch — a wave, a fixup, a salvage
+  review, a re-dispatch — is a FOREGROUND Agent call, so this check runs when the call returns, against the
+  coder's wall-clock from dispatch; a coder that never returns holds the turn, and what bounds it is the
+  explicit command timeouts its brief demands (§ Dispatched subagents run their work SYNCHRONOUSLY).
 - **Coder runtime per `Complexity:` (all FIVE values):** **`inline`** (only under `Profile: small` —
   gate-enforced) → NO dispatch: the orchestrator codes the ticket itself in the main checkout and
   commits per D5 with `Agent-Role: orchestrator` + the ticket's `Agent-Task:` trailer — no worktree, no
-  polling loop · **`simple`** →
+  dispatch wait · **`simple`** →
   a NATIVE worktree coder (Sonnet) · **`complex`** → a NATIVE worktree coder (Sonnet; Opus when the ticket
   says design-heavy) — the pool is OFF (D-181, on top of D-170's sandbox suspension), so no `NO-POOL:` is
   owed<!-- POOL OFF (D-181): `simple` → `pick_models("code", prefer="value")` pool unit · `complex` → mid pool coder — both via `fanout("code", units=[{task, owned_paths: <ticket Touches>}…], mode="write")`; D-170 (2026-09-06: 3 of 3 pool coders failed — the write sandbox has no venv; 01M1V98VN3QNS73GCR3GYF9FXH) had already suspended them with `NO-POOL: sandbox` per ticket --> · **`never-route`** →
@@ -559,7 +563,7 @@ its Touches (contract violation → its diff is rejected at acceptance).
   AUTHOR'S CHOICE for non-never-route work the pool must not code (the Integration ticket always
   carries `Complexity: native` — a pool-tier Integration ticket is a gate ERROR). No `NO-POOL:` declaration is owed while the pool is OFF (D-181). Native coder tier: Sonnet default; Opus for design-heavy (auth
   flow/schema/migration design, concurrency); Haiku never codes. Concurrency: **3 coders**; when more
-  tickets are eligible than free slots, dispatch in `## Merge Order` position order (deterministic
+  tickets are eligible than a wave holds, fill each wave in `## Merge Order` position order (deterministic
   across runs, and it frees downstream `Depends:` earliest); **acceptance reviews serialize** (one at
   a time — the orchestrator's adjudication is serial anyway, and it meters the Opus stream).
 - **Dispatch economics (budgeted rules, not vibes):**
@@ -870,23 +874,32 @@ Report: list of files changed, tests passing (count), any issues encountered.
 
 ### Dispatch pattern
 
-Send ALL parallel subagents for a phase in a **single message** with multiple Agent tool calls. This runs them truly in parallel:
+Send ALL parallel subagents for a phase in a **single message** with multiple Agent tool calls, each passing
+`run_in_background=False`: they still run in parallel, and the turn holds until every one returns. The Agent
+tool's default is background, and a backgrounded wave lets the orchestrator end its turn while its coders
+run, which the Stop hook blocks (its stand-down covers stamped review seats only):
 
 ```python
 # Example: Phase B with 3 parallel subagents
 Agent(
     description="Phase B Task 4 — audit-log vendor",
     isolation="worktree",
+    run_in_background=False,
+    model="sonnet",
     prompt="You are executing Task 4 of the fabrik-lib integration plan..."
 )
 Agent(
     description="Phase B Task 5 — GDPR schema + routes",
     isolation="worktree",
+    run_in_background=False,
+    model="sonnet",
     prompt="You are executing Task 5 of the fabrik-lib integration plan..."
 )
 Agent(
     description="Phase B Task 6 — audit wiring",
     isolation="worktree",
+    run_in_background=False,
+    model="sonnet",
     prompt="You are executing Task 6 of the fabrik-lib integration plan..."
 )
 # All three dispatch in ONE message → true parallel execution

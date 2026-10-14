@@ -187,6 +187,9 @@ Treat every intended step as unproven until verified against the real code/schem
   common name drowns in false hits) — with `Grep` as the fallback and the tool for prose/config/cross-file
   strings the language server doesn't index.
 - For each table/field/migration, confirm it exists with the stated type/constraints in the real schema.
+- A rule the plan derives from data (a mapping, a ref rule, a classifier) names, for every value it reads,
+  the store that fills that value in the case the plan builds, and is grounded against those stores, never
+  against one existing instance's values.
 - For each external dependency or data source, **ground it to 100% truth NOW — never infer from training.**
   Repo-first (`grep docs/`, `docs/reference/`, `AFCL.md`); if unresolved, escalate to **live external
   research: `mcp__exa__web_search_exa` → `WebSearch` → `mcp__brave-search__brave_web_search` →
@@ -446,6 +449,11 @@ Context-Files entry(ies); READ budget measured against <root>; 0 finding(s)`. A 
 byte-identical to a run that graded nothing, so citing it is the un-denominated claim the
 bounded-search rule forbids. Under `Profile: small` the budget is waived outright (inline execution reads nothing cold); otherwise a single behavior that cannot fit the READ budget is a named BLOCKING unknown for the
 operator — one of the two non-self-service sizing cases (the other: the Integration slot already taken).
+
+**Size as you draft.** Write the spine first (the gate grades nothing in a dir without its same-stem spine),
+then run the emit gate after each ticket and read only its `READ budget` lines mid-draft, while Touches are
+still cheap to re-cut; the structural ERRORs of tickets not yet written close as the set completes. Build the
+spine's roll-up by copying the tickets' bulleted `Given` rows with a script, never by retyping them.
 
 **Worked ticket skeleton** (fenced — quoted content to the plan-CONTRACT gates;
 `docs_updater`'s checkbox counters stay RAW, so never fence a DONE-WHEN checklist; copy the

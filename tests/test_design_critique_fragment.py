@@ -121,3 +121,16 @@ def test_each_panel_holder_states_its_split_block(rendered, command) -> None:
     assert re.search(r"^\s*- Panel: .*→ split\s*$", window, re.M), (
         f"{command}.md: no split Panel line"
     )
+
+
+def test_a_delta_round_that_confirms_a_defect_takes_converged_back() -> None:
+    """Opus audit 2026-10-14 (on /fabrik-spec row 1791930659): CONVERGED is committed with its D-row before the
+    panel's ACCEPTED fold, so when that fold's delta round confirms a defect the text must say the Status goes back,
+    not only that it no longer "stands"; the flip carried a D-row, so its undoing supersedes it, and plan-review's
+    joint loop flips two documents. Scoped to spec-review and plan-review, both of which read DRAFT before the flip."""
+    text = re.sub(r"\s+", " ", FRAGMENT.read_text())
+    assert (
+        "`Status: CONVERGED` stands only if that round confirms 0 (else the next commit sets each document the flip"
+        " touched back to what it read before the flip, with a `docs/DECISIONS.md` row superseding the flip's row, and"
+        " the loop continues"
+    ) in text

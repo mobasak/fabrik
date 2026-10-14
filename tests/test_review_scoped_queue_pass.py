@@ -359,3 +359,42 @@ def test_the_lead_runs_the_leak_check_around_every_scoped_pass() -> None:
         " md5sum`, not the PIN digest) plus `git rev-parse HEAD`, `git status --porcelain --ignored` and `git stash list`"
         in _section(review, "- **The seats (native", "- **Every finder brief carries")
     )
+
+
+def test_a_brief_states_the_count_to_report_never_the_expected_one() -> None:
+    """/fabrik-review row 1791931043: a closing-pass brief that names the count, verdict or output the lead expects is a leading question;
+    no reached line said a brief must not carry it (Opus audit 2026-10-14: no governing line)."""
+    loop = _section(_norm(CAT), "## Loop bookkeeping", None)
+    assert (
+        "each brief embeds its ledger text and states what the seat must report (a count, a verdict, an output),"
+        " never the value the lead expects; the closing-pass brief"
+    ) in loop
+
+
+def test_the_run_record_section_yields_to_a_step_named_before_it() -> None:
+    """W-ae8fd45b: this command's 'classify the surface FIRST' sat two lines above the run-record include, whose
+    heading says the record is the FIRST act, and a heading beats the paragraph above it. The fragment's first line
+    now yields to a step the command names as running before the record; the command still names that step there."""
+    frag = _norm(ROOT / "commands" / "_fragments" / "run-record.md")
+    assert frag.startswith(
+        "## Run record — open it as this command's FIRST act A step this command's text names as running BEFORE the"
+        " record (`/fabrik-review-scoped`'s surface classification) runs first; then the record opens, unless that step"
+        " routed to another command, whose record replaces this one."
+    )
+    src = _norm(SRC)
+    assert src.index("**Before the record — classify the surface FIRST") < src.index(
+        "{{include:run-record}}"
+    )
+
+
+def test_term_edit_pin_clause_does_not_license_a_mid_window_edit() -> None:
+    """W-975b3652: term-edit's '(the seats read the pin; you edit the working tree)' read as
+    licensing an edit while seats run, against subagents-core's 'While seats are out you do not edit the pinned
+    files' in 14 of its 17 includers. Panel split (Opus parity, Fable reword); the repo's own rule against copying
+    a fragment's rule into another settles it as a reword that states WHEN."""
+    te = _norm(ROOT / "commands" / "_fragments" / "term-edit.md")
+    assert (
+        "never touch the pin while its seats run (the seats read the pin; you edit the working tree once every seat"
+        " has returned and you have read the pass)" in te
+    )
+    assert "(the seats read the pin; you edit the working tree)" not in te

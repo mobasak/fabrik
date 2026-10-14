@@ -479,3 +479,42 @@ def test_the_three_pass_row_texts_agree_on_cell_order_and_labels() -> None:
         assert crc._MODEL_TOK.search(cells[1]) or "<" in cells[1], ("finders second", row)
         assert cells[2].startswith("found:"), ("counters third", row)
         assert cells[3].startswith("method: "), ("method fourth, labelled", row)
+
+
+def test_restamp_refuses_range_and_names_the_real_remedy(repo: Path) -> None:
+    """kaizen 01M4V0B03B row 1791907300: `--restamp` silently ignored `--range` while its refusal said
+    "pass --range instead". It refuses the pair, rc 2, and every refusal names the two real remedies."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    before = out.read_text(encoding="utf-8")
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--restamp",
+            str(out),
+            "--range",
+            "HEAD~0..HEAD",
+            "--project-root",
+            str(repo),
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "--init --range" in r.stderr and "already passes" in r.stderr, r.stderr
+    assert out.read_text(encoding="utf-8") == before, "a refused restamp writes nothing"
+
+    _git(repo, "add", "app.py")
+    _git(repo, "commit", "-q", "-m", "reviewed")
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "--restamp", str(out), "--project-root", str(repo)],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "pass --range instead" not in r.stderr and "--init --range" in r.stderr, r.stderr

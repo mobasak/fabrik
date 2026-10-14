@@ -58,6 +58,7 @@ import math
 import os
 import posixpath
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -1193,6 +1194,191 @@ def _scrubbed_git_env() -> dict[str, str]:
     }
 
 
+# A run's persistent scratch (kaizen 01M4V0B03B): the session scratchpad lives under /tmp, which a WSL
+# shutdown clears, and it held everything a resumed run needs beyond this record (phase-2 measure.md,
+# critique briefs, review pins). `start` gives every run a dir under the MAIN checkout's `.tmp/runs/`
+# — seats may read it (never $HOME/.claude*), a linked worktree's run survives `git worktree remove`,
+# and scratch_sweep never touches `.tmp`, so `start` prunes it. COBRA (D-253): the cheapest way to
+# "have scratch" without the outcome is to keep writing to the /tmp scratchpad; the counter is the
+# printed SCRATCH path the command text names, not this code.
+SCRATCH_RETENTION_S = 14 * 86400
+_SCRATCH_EXCLUDE_LINE = "/.tmp/runs/"
+
+
+def _git_out(cwd: Path, *args: str) -> tuple[int, str]:
+    r = subprocess.run(
+        ["git", "-C", str(cwd), *args],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+        env=_scrubbed_git_env(),
+    )
+    return r.returncode, r.stdout.strip()
+
+
+def _scratch_main(repo_root: str) -> Path | None:
+    """The MAIN checkout of `repo_root`'s repository — the parent of its common git dir, so every
+    worktree of one repo shares one scratch root. None when it cannot be resolved."""
+    rc, common = _git_out(
+        Path(repo_root), "rev-parse", "--path-format=absolute", "--git-common-dir"
+    )
+    if rc != 0 or not common:
+        return None
+    common_p = Path(common)
+    return common_p.parent if common_p.name == ".git" else Path(repo_root)
+
+
+def _ensure_scratch_ignored(main: Path) -> str:
+    """'' once git ignores `.tmp/runs/` in `main`, else the reason it does not. Appends the exclude
+    line (untracked, shared by every worktree) only when `check-ignore` answers a clean NO, and only
+    once; re-checks after, because a `.gitignore` negation outranks info/exclude."""
+    probe = ".tmp/runs/x"
+    rc, _ = _git_out(main, "check-ignore", "-q", "--", probe)
+    if rc == 0:
+        return ""
+    if rc != 1:
+        return f"`git check-ignore` answered rc {rc} (a symlinked `.tmp` or `.tmp/runs`?)"
+    rc, excl = _git_out(main, "rev-parse", "--path-format=absolute", "--git-path", "info/exclude")
+    if rc != 0 or not excl:
+        return "the repo's info/exclude path did not resolve"
+    exclude = Path(excl)
+    try:
+        lines = exclude.read_text(encoding="utf-8").splitlines() if exclude.exists() else []
+        if _SCRATCH_EXCLUDE_LINE not in lines:
+            exclude.parent.mkdir(parents=True, exist_ok=True)
+            with exclude.open("a", encoding="utf-8") as fh:
+                if lines and lines[-1] != "":
+                    fh.write("\n")
+                fh.write(_SCRATCH_EXCLUDE_LINE + "\n")
+    except OSError as exc:
+        return f"info/exclude unwritable ({exc})"
+    rc, _ = _git_out(main, "check-ignore", "-q", "--", probe)
+    return "" if rc == 0 else "`.tmp/runs/` is still not ignored (a .gitignore negation?)"
+
+
+def _scratch_name(command: str, key: str) -> str:
+    return re.sub(r"[^0-9A-Za-z_-]+", "-", f"{command}-{key}").strip("-") or "run"
+
+
+def _newest_mtime(path: Path, stop_at: float = math.inf) -> float:
+    """The newest mtime anywhere under `path` (a write in a subdir never touches the run dir's own
+    mtime); returns at the first entry at or past `stop_at`, so a fresh run costs one hit, not a walk."""
+    newest = path.lstat().st_mtime
+    for dirpath, dirnames, filenames in os.walk(path, followlinks=False):
+        for name in dirnames + filenames:
+            try:
+                newest = max(newest, (Path(dirpath) / name).lstat().st_mtime)
+            except OSError:
+                continue
+            if newest >= stop_at:
+                return newest
+    return newest
+
+
+def _prune_scratch(root: Path, keep: set[Path], now: float | None = None) -> list[str]:
+    """Remove `<root>/<sid>/<run>` dirs whose NEWEST file is older than the retention, except those in
+    `keep` and any holding `.git` (a worktree pin is reported, never rm-rf'd); then empty `<sid>`
+    dirs. Any doubt skips the dir. Returns NOTE lines."""
+    now = time.time() if now is None else now
+    notes: list[str] = []
+    if not root.is_dir():
+        return notes
+    for sid_dir in sorted(root.iterdir()):
+        if sid_dir.is_symlink() or not sid_dir.is_dir():
+            continue
+        for run in sorted(sid_dir.iterdir()):
+            try:
+                if run.is_symlink() or not run.is_dir() or run.resolve() in keep:
+                    continue
+                cutoff = now - SCRATCH_RETENTION_S
+                if _newest_mtime(run, stop_at=cutoff) >= cutoff:
+                    continue
+                if (run / ".git").exists():
+                    notes.append(
+                        f"stale scratch {run} holds a git worktree — kept; remove it with `git worktree remove`"
+                    )
+                    continue
+                shutil.rmtree(run)
+            except OSError as exc:
+                notes.append(f"stale scratch {run} not pruned ({exc})")
+        try:
+            if not any(sid_dir.iterdir()):
+                sid_dir.rmdir()
+        except OSError:
+            pass
+    return notes
+
+
+def _scratch_referenced() -> set[Path]:
+    """Every `scratch` a record or a kept resume seed in the state dir names — never pruned."""
+    out: set[Path] = set()
+    state = _state_dir()
+    for pattern in ("*.json", "seeds/*.json"):
+        for f in state.glob(pattern):
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            for rec in [data, *((data.get("stack") or []) if isinstance(data, dict) else [])]:
+                val = rec.get("scratch") if isinstance(rec, dict) else None
+                if isinstance(val, str) and val:
+                    out.add(Path(val).resolve())
+    return out
+
+
+def _make_scratch(
+    repo_root: str,
+    sid: str,
+    command: str,
+    key: str,
+    seed: dict[str, Any] | None,
+    *,
+    root: Path | None = None,
+) -> tuple[Path | None, list[str]]:
+    """The run's persistent scratch dir, created — or (None, reasons) when it cannot be made safely.
+    Fails closed on the DIR (never an un-ignored dir in a tree) and the caller fails open on the RUN.
+    A resumed run keeps its seed's dir, or derives the path from the SEED's session (a resume after a
+    restart runs in a new session). An explicit `root` skips the repo and its exclude step."""
+    notes: list[str] = []
+    why = ""
+    if root is None:
+        if not repo_root:
+            return None, []
+        main = _scratch_main(repo_root)
+        if main is None:
+            return None, ["the repo's main checkout did not resolve"]
+        why = _ensure_scratch_ignored(main)
+        root = main / ".tmp" / "runs"
+    # a seed's dir is reused only when it lies under THIS root: never another repo's checkout, and
+    # never a live checkout while the test seam is on (review closing pass A)
+    prev = seed.get("scratch") if seed else None
+    kept: Path | None = None
+    if isinstance(prev, str) and prev and Path(prev).is_dir():
+        if Path(prev).resolve().is_relative_to(root.resolve()):
+            kept = Path(prev)
+        else:
+            notes.append(f"the seed's scratch {prev} is outside {root} — not reused")
+    if why and kept is None:
+        return None, [*notes, why]
+    if why:
+        # the seed's dir already exists and holds the run's artifacts: orphaning it would lose
+        # them, so it is reused — and the agent is told it is not ignored (review A3)
+        notes.append(f"{why} — reusing the seed's existing scratch {kept} anyway")
+    path: Path | None = kept
+    if seed and path is None:
+        if seed.get("session_id"):
+            path = root / _safe_sid(str(seed["session_id"])) / _scratch_name(command, key)
+    if path is None:
+        path = root / _safe_sid(sid) / _scratch_name(command, key)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return None, [f"cannot create {path} ({exc})"]
+    notes += _prune_scratch(root, keep={path.resolve(), *_scratch_referenced()})
+    return path, notes
+
+
 def _repo_root() -> str:
     """The toplevel of the repo the invoking shell is in at START time — "" if none.
 
@@ -1315,6 +1501,7 @@ _RESUME_CARRY = (
     "surface_adds",
     "waived_reviews",
     "phase_marks",
+    "scratch",
 )
 
 
@@ -5039,6 +5226,33 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # microseconds earlier, and `started_at` is second-truncated so WHICH ones would
         # depend on the second boundary), and never the PREVIOUS record's start, which
         # would filter the store by a finished run's clock.
+        # the run's persistent scratch (kaizen 01M4V0B03B) — fail closed on the dir, open on the run
+        _scratch_line = ""
+        try:
+            _scratch, _scratch_notes = _make_scratch(
+                str(new.get("repo_root") or ""),
+                sid,
+                str(new.get("command") or ""),
+                str(new.get("origin_started_at") or new.get("started_at") or ""),
+                _seed,
+                # under a test (either isolation style: COMMAND_RUN_DIR, or a HOME override with
+                # PYTEST_CURRENT_TEST) the scratch lives beside the isolated records, never in the
+                # checkout the suite runs from
+                root=(
+                    _state_dir() / "scratch"
+                    if os.environ.get("COMMAND_RUN_DIR") or os.environ.get("PYTEST_CURRENT_TEST")
+                    else None
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 — scratch must never refuse a start
+            _scratch, _scratch_notes = None, [f"{type(exc).__name__}: {exc}"]
+        if _scratch is not None:
+            new["scratch"] = str(_scratch)
+            _scratch_line = f"SCRATCH: {_scratch}"
+        else:
+            new.pop("scratch", None)
+        for _n in _scratch_notes:
+            sys.stderr.write(f"[command_run] NOTE — run scratch: {_n}\n")
         outbox["started_at"] = ""
         fields = _queue(
             new,
@@ -5060,8 +5274,12 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 f"{new.get('phase')}/{new.get('phases')} · commit window from "
                 f"{new.get('origin_started_at')} · gap {int((new.get('gap_s') or 0) // 60)} min"
                 + (
-                    " · the seed's session is not this one — its scratch directory belongs to a dead "
-                    "session"
+                    (
+                        " · resumed in a new session — the run's persistent scratch is kept (SCRATCH below)"
+                        if new.get("scratch") and new.get("scratch") == _seed.get("scratch")
+                        else " · the seed's session is not this one — its session scratchpad belongs to "
+                        "a dead session"
+                    )
                     if _rf.get("session_id") and _rf.get("session_id") != sid
                     else ""
                 )
@@ -5101,6 +5319,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 f"`done --command {new.get('command')}` and keep the outer: two records for "
                 "one invocation make the first `done` look like it failed.\n"
             )
+        if _scratch_line:
+            print(_scratch_line)
         _mcp_probe_advisory()
         return 0
 

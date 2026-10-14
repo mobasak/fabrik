@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T00:36:43.000505Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a1f66bad",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Read _seats_in_flight (.claude/hooks/final_gate_stop.py:671) against a3d02ca4's transcript around one stood_down->blocked flip: stamp expiry (25 min), a round recorded while seats still run, or the 8 MB tail missing the launch; fix the cause with a grader",
+  "note": "no hook or collector defect: the 132 run-record blocks in a3d02ca4 on 2026-10-13 are real early stops by a /fabrik-execute-plan orchestrator ending its turn while unstamped background coders ran; the stand-down covers stamped review seats only, by design (final_gate_stop.py:671). The missing orchestrator wait guidance is command wording, routed to kaizen as 01M4VXJ4TQ.",
+  "owner": "",
+  "priority": 1,
+  "status": "dropped",
+  "tags": [
+    "infra"
+  ],
+  "title": "Stop-hook run-record stand-down flaps during in-flight reviews: 124 of 132 real run-record blocks in web-ecommerce-factory session a3d02ca4 on 2026-10-13 landed within 30 min of a stood_down (69 within 5 min); drove premature_stop_rate 8%->20% (kaizen daily 01M4VJK8QB)"
+}

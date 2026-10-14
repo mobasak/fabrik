@@ -2324,6 +2324,67 @@ def _lane_text(doc: dict) -> str:
     return "\n".join(lines)
 
 
+def reasons(command: str, ledger: Path | None, held_only: bool = False) -> tuple[str, int]:
+    """``(text, rc)`` for ``--reasons``: the REJECTED rows of one command from the answered index —
+    the read-only view a D-711 audit needs, since tag names alone cannot find a subject held under a
+    near-synonym (kaizen 01M4V1BCW7). Newest REJECT first (`at`; a guarded float of the string `ts`
+    handle breaks ties and covers a row without `at`). Loud on a missing index (rc 1): for this view a
+    silent zero reads as "nothing held", the unsafe answer — `--queue`'s fail-open is the safe one
+    because it over-reports work. COBRA (D-253): the cheapest pass of an audit is to grep only the tag
+    column; the reason text is the column that carries the subject."""
+    command = command.strip().lstrip("/")
+    path = _answered_path(ledger)
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace") if path is not None else None
+    except OSError:
+        text = None
+    if text is None:
+        return f"reasons: index {path} is not a readable file — no rejected rows can be shown", 1
+
+    def _f(value: object) -> float:
+        try:
+            out = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return 0.0
+        return out if math.isfinite(out) else 0.0
+
+    seen = 0
+    rejected: list[tuple[float, float, str, str, str]] = []
+    for ln in text.splitlines():
+        try:
+            row = json.loads(ln)
+        except ValueError:
+            continue
+        if not isinstance(row, dict) or str(row.get("command") or "") != command:
+            continue
+        seen += 1
+        if str(row.get("commit") or "") != "rejected":
+            continue
+        reason = str(row.get("reason") or "")
+        tags = ",".join(sorted(_held_tags(reason)))
+        rejected.append(
+            (_f(row.get("at")), _f(row.get("ts")), _ts_key(row.get("ts")), tags, reason)
+        )
+    tagged = sum(1 for r in rejected if r[3])
+    shown = [r for r in rejected if r[3]] if held_only else rejected
+    shown.sort(key=lambda r: (r[0], r[1]), reverse=True)
+    head = (
+        f"reasons: {len(shown)} of {len(rejected)} rejected row(s) of /{command} — {tagged} with a "
+        f"HELD tag{' · held only' if held_only else ''} · index {path}"
+    )
+    if not seen:
+        head += f" — the index holds NO row of any kind for /{command}; check the command name"
+    out = [head]
+
+    def _esc(text: str) -> str:  # every column, so one rejected row is always one 3-field line
+        text = text.replace("\\", "\\\\").replace("\t", "\\t")
+        return text.replace("\n", "\\n").replace("\r", "\\r")
+
+    for _at, _ts, handle, tags, reason in shown:
+        out.append(f"{_esc(handle)}\t{tags or '-'}\t{_esc(reason)}")
+    return "\n".join(out), 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Per-command optimisation report over the feedback ledger."
@@ -2369,7 +2430,18 @@ def main(argv: list[str] | None = None) -> int:
             "verdict — needs --rows and --reason (≥20 characters; a reject is final)"
         ),
     )
-    ap.add_argument("--reason", default="", help="--reject: why the verdict is wrong, in full")
+    ap.add_argument("--reason", default=None, help="--reject: why the verdict is wrong, in full")
+    ap.add_argument(
+        "--reasons",
+        default=None,
+        metavar="COMMAND",
+        help=(
+            "print one command's REJECTED rows from the answered index — TAB-separated `<ts> <held "
+            "tags or -> <reason>`, newest reject first — and exit (read-only; rc 1 when the index "
+            "is unreadable). Large: redirect to a file and grep it"
+        ),
+    )
+    ap.add_argument("--held", action="store_true", help="--reasons: only rows carrying a HELD: tag")
     ap.add_argument(
         "--depths",
         action="store_true",
@@ -2410,6 +2482,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--ledger", type=Path, default=None)
     a = ap.parse_args(argv)
+    if a.held and a.reasons is None:
+        ap.error("--held narrows --reasons; pass --reasons COMMAND with it")
+    if a.reason is not None and a.reject is None:
+        # a dropped `s` in `--reasons` parsed as this write flag and ran the full report silently;
+        # `is not None`, so an empty `--reason ""` is refused too (scoped review round 1)
+        ap.error(
+            "--reason is --reject's text"
+            + ("" if a.reasons is not None else "; did you mean --reasons COMMAND?")
+        )
     _lane_clash = [
         n
         for n, v in (
@@ -2443,6 +2524,49 @@ def main(argv: list[str] | None = None) -> int:
     # `a.ledger or _default_ledger()` was the bug: `Path("")` is `PosixPath(".")`, which is TRUTHY
     # and a directory, so a caller-computed empty path silently read the CWD and reported zero rows.
     ledger = a.ledger if a.ledger is not None else _default_ledger()
+    if a.reasons is not None:
+        _with = [
+            n
+            for n, v in (
+                ("--queue", a.queue is not None),
+                ("--observer-rank", a.observer_rank),
+                ("--mark-answered", a.mark_answered is not None),
+                ("--reject", a.reject is not None),
+                ("--depths", a.depths),
+                ("--take", a.take is not None),
+                ("--stages", a.stages),
+                ("--lane", a.lane),
+                ("--rows", bool(a.rows)),
+                ("--commit", bool(a.commit)),
+                ("--json", a.json),
+                ("--command", a.command is not None),
+                ("--since", a.since is not None),
+                ("--agent", a.agent is not None),
+                ("--repo", a.repo != ap.get_default("repo")),
+            )
+            if v
+        ]
+        # first, so the REFUSED line too survives a non-UTF-8 stdout; restored after, so an
+        # in-process caller keeps its own error policy (scoped review round 1)
+        _errors = getattr(sys.stdout, "errors", None)
+        with contextlib.suppress(AttributeError, ValueError):
+            sys.stdout.reconfigure(errors="replace")  # type: ignore[union-attr]
+        try:
+            if _with:
+                print(
+                    f"REFUSED — --reasons is a read-only view and runs alone ({', '.join(_with)})."
+                )
+                return 2
+            if a.ledger is not None and (str(a.ledger) in ("", ".") or a.ledger.is_dir()):
+                print(f"REFUSED — --ledger {str(a.ledger)!r} is not a ledger file.")
+                return 2
+            view, rc = reasons(a.reasons, ledger, held_only=a.held)
+            print(view, file=sys.stderr if rc else sys.stdout)
+            return rc
+        finally:
+            if _errors:
+                with contextlib.suppress(AttributeError, ValueError):
+                    sys.stdout.reconfigure(errors=_errors)  # type: ignore[union-attr]
     if a.ledger is not None and not a.ledger.is_file():
         # NOT an error: a repo whose agents have never closed a command has no ledger, and an empty
         # report is the honest answer there (pinned by its own grader). But a typo and an empty
@@ -2485,7 +2609,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         handles = [t.strip() for t in str(a.rows or "").split(",") if t.strip()]
-        written, msg = reject(a.reject, handles, a.reason, a.repo, ledger=ledger)
+        written, msg = reject(a.reject, handles, a.reason or "", a.repo, ledger=ledger)
         print(msg)
         return 0 if (written or msg.startswith("nothing to do")) else 1
     if a.take is not None:

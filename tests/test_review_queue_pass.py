@@ -328,3 +328,26 @@ def test_a_seat_reads_git_history_from_a_shared_clone_not_a_worktree() -> None:
         " red-on-revert overlays"
         " the revert on its archive copy" in iso
     )
+
+
+def test_the_scope_paragraph_says_where_round_zero_and_rule_five_bind() -> None:
+    """W-eaa66f83: term-coverage's scope paragraph said every obligation 'binds all five consumers alike' while round
+    zero (:16) runs before round one and every re-dispatch of a consumer that runs delta rounds, which a certification
+    gauntlet runs only where its own text names one, and rule (5) governs only a fix to a checker or a gate."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
+    assert (
+        "binds all five consumers alike, while round zero binds only a consumer that runs delta rounds — before its round"
+        " one and before every re-dispatch — and rule (5) only a fix to a checker or a gate."
+    ) in text
+
+
+def test_rule_three_pointer_is_opened_before_the_pin() -> None:
+    """W-c9b727ab: rule (3) let a restating sentence be replaced by 'at most a pointer to where the fact is
+    re-derivable' without anyone opening that pointer, so a pointer to a place that no longer holds the fact passed as
+    a deletion. The pointer is now read before the pin, as rule (2)'s sweep reads each mirror, and recorded."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text())
+    assert (
+        "replaced by at most a pointer to where the fact is re-derivable (each pointer OPENED before the pin and the"
+        " fact seen at it, then recorded by APPENDING one `· pointer: <path:line> read` per pointer to the Pass Ledger"
+        " row's `method:` cell, after its `; class rewrite` text), never by a re-cut of the claim;"
+    ) in text

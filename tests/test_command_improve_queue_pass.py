@@ -145,7 +145,7 @@ def test_phase_three_checks_an_added_rule_on_the_edit_and_its_origin_case() -> N
     p3 = _phase("## PHASE 3", "## PHASE 4")
     assert (
         "and must be obeyable in each. A rule the edit adds is checked before PHASE 4's pin on the edit's own grader and"
-        " sentence, which obey it, and on the case that raised it, which it must flag. A sentence that describes"
+        " sentence, which obey it, and on the case that raised it, which it must flag. A mechanism the edit adds"
         in p3
     )
 
@@ -161,4 +161,46 @@ def test_a_reject_reason_cites_a_line_the_command_reaches() -> None:
         " reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running"
         " it loads — never one that only exists elsewhere in the corpus (PHASE 1's answered-row reject already cites"
         " the command's current text)." in p2
+    )
+
+
+def test_a_count_lives_at_its_list() -> None:
+    """W-66f398a3: a paragraph that says how MANY ("wrong in FIVE ways") away from its list goes stale when the next
+    edit adds an item, and Phase D's scoped review-fix rounds kept confirming that residue. The rule lives once, in
+    the hub CLAUDE.md's § Behavior, beside READ BEFORE YOU EDIT, which every hub session loads, including the review-fix loops
+    that never render /fabrik-command-improve's PHASE 3."""
+    text = re.sub(r"\s+", " ", (ROOT / "CLAUDE.md").read_text())
+    behavior = text[text.index("## Behavior") : text.index("## ⚠️ THE FIX DIRECTIVE")]
+    assert (
+        "- **A count lives at its list.** An enumeration states how many in the clause that opens the list, or not at"
+        " all (`the ways below`, never `five ways` a sentence away), and an edit that adds an item to a list, or"
+        " removes one, re-counts every place that list's count is stated. **A worked example is re-read** against"
+        " every caveat in its own paragraph before it is pinned or committed." in behavior
+    )
+
+
+def test_a_rule_lands_where_its_writers_load_it_and_a_mechanism_meets_its_consumer() -> None:
+    """Rows 1791937927 and 1791940094 (kaizen's own closes, 2026-10-14): a count rule first written per command
+    never reached the review-fix loops that wrote the stale count, and a panel's coder time box was written in
+    before anyone checked that D6, the step meant to read its `TIMEOUT:` token, never reads it. The placement rule
+    is § Drive's consistency rule (which the row names), PHASE 2 may target the home it names, and PHASE 3 checks a
+    mechanism against its consumer."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    drive = text[text.index("## Drive") : text.index("## PHASE 1")]
+    assert (
+        "a rule that binds more than this command lives where every loop that WRITES the text it governs loads it"
+        " — a fragment those commands INCLUDE, else the `CLAUDE.md` or pack they all load — never restated per"
+        " command;" in drive
+    )
+    p2 = _phase("## PHASE 2", "## PHASE 3")
+    assert (
+        "or to the fragment, pack or `CLAUDE.md` that § Drive's consistency rule sends a shared rule to."
+        in p2
+    )
+    assert "names them), § Drive's home for a shared rule, or the pack you would edit" in p2
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    assert (
+        "A mechanism the edit adds — a token, a field, a report shape, a panel's proposal included — is checked"
+        " against the step or code that must consume it, and is written in only when that consumer reads it or"
+        " this edit wires it in." in p3
     )
