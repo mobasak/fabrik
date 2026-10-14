@@ -3926,3 +3926,113 @@ def test_a_section_toggle_never_writes_back_a_stale_open_list(tmp_path, monkeypa
     steps = [{"pane": 0, "store": {"repo-open:fabrik": '["=kaizen"]'}, "toggle": "infra"}]
     out = _run_owner_js(page, {}, steps)
     assert json.loads(out["storage"]["repo-open:fabrik"]) == ["=kaizen", "=infra"]
+
+
+# ── per-account weekly caps from the board (operator ask 2026-10-14) ───────────────────────────
+
+
+def _caps_env(tmp_path, monkeypatch, seed: dict | None):
+    caps = tmp_path / "caps.json"
+    if seed is not None:
+        caps.write_text(json.dumps(seed))
+    monkeypatch.setenv("QUOTA_DASH_CAPS_FILE", str(caps))
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    return qd, stub, caps
+
+
+def test_cap_without_the_custom_header_is_refused(tmp_path, monkeypatch):
+    """`/cap` writes caps.json — the same CSRF guard as `/switch` and `/park`."""
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, {"mob@ocoron.com": 99})
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(f"{base}/cap", b'{"account": "sarp@ocoron.com", "cap": 80}')
+        assert status == 403, body
+        assert json.loads(caps.read_text()) == {"mob@ocoron.com": 99}
+    finally:
+        httpd.shutdown()
+
+
+def test_cap_rejects_an_unknown_account_or_a_bad_value(tmp_path, monkeypatch):
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, {"mob@ocoron.com": 99})
+    httpd, base = _serve(qd)
+    try:
+        for bad in (
+            b'{"account": "nobody@x.com", "cap": 80}',
+            b'{"account": "sarp@ocoron.com", "cap": "80"}',
+            b'{"account": "sarp@ocoron.com", "cap": 150}',
+            b'{"account": "sarp@ocoron.com", "cap": -1}',
+            b'{"account": "sarp@ocoron.com", "cap": true}',
+            b'{"account": "sarp@ocoron.com"}',
+        ):
+            status, body = _post(f"{base}/cap", bad, {qd.SWITCH_HEADER: "1"})
+            assert status == 400, (bad, body)
+        assert json.loads(caps.read_text()) == {"mob@ocoron.com": 99}
+    finally:
+        httpd.shutdown()
+
+
+def test_cap_set_and_clear_write_caps_json_and_regenerate(tmp_path, monkeypatch):
+    """One click sets (or clears, with null) ONE account's weekly cap, keeps every other entry,
+    lowercases the key the rotation loader compares on, and re-renders the board."""
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, {"mob@ocoron.com": 99})
+    httpd, base = _serve(qd)
+    try:
+        before = _calls(stub)
+        status, body = _post(
+            f"{base}/cap", b'{"account": "SARP@ocoron.com", "cap": 80}', {qd.SWITCH_HEADER: "1"}
+        )
+        assert status == 200 and body["ok"] is True, body
+        assert json.loads(caps.read_text()) == {"mob@ocoron.com": 99, "sarp@ocoron.com": 80}
+        assert ["--status", "--json"] in _calls(stub)[len(before) :]  # re-rendered after the write
+        status, body = _post(
+            f"{base}/cap", b'{"account": "sarp@ocoron.com", "cap": null}', {qd.SWITCH_HEADER: "1"}
+        )
+        assert status == 200 and body["ok"] is True, body
+        assert json.loads(caps.read_text()) == {"mob@ocoron.com": 99}
+        assert caps.with_name("caps.json.tmp").exists() is False
+    finally:
+        httpd.shutdown()
+
+
+def test_cap_never_overwrites_an_unreadable_caps_file(tmp_path, monkeypatch):
+    """A caps.json that does not parse is refused, not replaced — rewriting it from {} would
+    silently drop every other account's reserve."""
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, None)
+    caps.write_text("{not json")
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(
+            f"{base}/cap", b'{"account": "sarp@ocoron.com", "cap": 80}', {qd.SWITCH_HEADER: "1"}
+        )
+        assert status == 502, body
+        assert caps.read_text() == "{not json"
+    finally:
+        httpd.shutdown()
+
+
+def test_cap_on_a_missing_caps_file_creates_it(tmp_path, monkeypatch):
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, None)
+    assert not caps.exists()
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(
+            f"{base}/cap", b'{"account": "sarp@ocoron.com", "cap": 0}', {qd.SWITCH_HEADER: "1"}
+        )
+        assert status == 200, body
+        assert json.loads(caps.read_text()) == {"sarp@ocoron.com": 0}
+    finally:
+        httpd.shutdown()
+
+
+def test_every_row_offers_a_cap_control_showing_the_current_cap(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", _multi_payload)
+    html = qd.generate()
+    for acct in _multi_payload()["accounts"]:
+        email = acct["email"]
+        cap = acct.get("weekly_cap")
+        assert f'class="capin" data-email="{email}"' in html, email
+        want = f'value="{int(cap)}"' if cap is not None else 'value=""'
+        row = html[html.index(f'class="capin" data-email="{email}"') :][:200]
+        assert want in row, (email, row)
+        assert f'class="switch capset" data-email="{email}"' in html, email

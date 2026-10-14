@@ -28,6 +28,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import math
 import os
@@ -95,6 +96,14 @@ _JSON = OUT_DIR / "quota.json"
 # The fleet's active-account pointer (a symlink). Read on every view so a flip — by the tick, a
 # --switch, or the button — regenerates the board at once instead of waiting out the floor.
 _POINTER = Path(os.getenv("QUOTA_DASH_POINTER", str(Path.home() / ".claude-fleet" / "active")))
+# The rotation's per-account WEEKLY caps (`claude_rotate._caps_file`: {email: cap%}, the operator's
+# browser reserve; 0 parks). The board edits it in place — same root as the rotation reads.
+_CAPS_FILE = Path(
+    os.getenv(
+        "QUOTA_DASH_CAPS_FILE",
+        str(Path(os.getenv("CLAUDE_FLEET_ROOT", str(Path.home() / ".claude-fleet"))) / "caps.json"),
+    )
+)
 
 # ── The OpenRouter pool balance: the fleet's OTHER quota ──────────────────────────────────────
 # Until 2026-09-04 nothing on this box watched it. The pool ran to -$0.0015 of $225 and three
@@ -842,7 +851,7 @@ def _row(acct: dict, active: str | None, rank: str | None = None, posture: objec
         f"{cell(s_left, s_used, five.get('resets_at_epoch'), _FIVE_HOUR_S, _posture_sub(posture, 'five_hour') if is_active else '')}"
         f"{cell(w_left, w_used, seven.get('resets_at_epoch'), _SEVEN_DAY_S, _posture_sub(posture, 'seven_day') if is_active else '')}"
         f"{cell(f_left, f_used, fable.get('resets_at_epoch'), _SEVEN_DAY_S, _posture_sub(posture, 'fable') if is_active else '')}"
-        f"{_switch_cell(slug, is_active, email, parked)}"
+        f"{_switch_cell(slug, is_active, email, parked, cap)}"
         "</tr>"
     )
 
@@ -904,7 +913,9 @@ def _pending_row(slug: str) -> str:
     )
 
 
-def _switch_cell(slug: str, is_active: bool, email: str = "", parked: bool = False) -> str:
+def _switch_cell(
+    slug: str, is_active: bool, email: str = "", parked: bool = False, cap: object = None
+) -> str:
     """The manual controls. `switch →` on every row that is NOT the active pointer (switching to
     the account you are already on is not a rotation) and not PARKED (a parked account is out of
     service until enabled); `disable`/`enable` on every row with an email — the operator parks an
@@ -920,6 +931,15 @@ def _switch_cell(slug: str, is_active: bool, email: str = "", parked: bool = Fal
         toggle = (
             f' <button type="button" class="switch park" data-email="{escape(email)}" '
             f'data-verb="{verb}" title="{escape(tip)}">{label}</button>'
+        )
+        # the weekly cap, editable in place: empty + cap = clear; 0 parks (the loader's contract)
+        cap_value = "" if cap is None or parked else str(int(cap))
+        toggle += (
+            f' <span class="capctl" title="Weekly cap for {escape(email)} — the fleet never picks it at or '
+            f'over this %, the rest is your browser reserve; empty clears, 0 parks">'
+            f'<input type="number" min="0" max="100" step="1" class="capin" '
+            f'data-email="{escape(email)}" value="{cap_value}" placeholder="cap %">'
+            f'<button type="button" class="switch capset" data-email="{escape(email)}">cap</button></span>'
         )
     if parked:
         return f'<td class="act"><span class="muted">parked</span>{toggle}</td>'
@@ -2659,6 +2679,8 @@ def render(
    border:1px solid var(--accent); color:var(--accent); background:transparent; cursor:pointer; }}
  button.switch:hover {{ background:color-mix(in srgb, var(--accent) 12%, transparent); }}
  button.switch[disabled] {{ opacity:.5; cursor:progress; }}
+ .capctl {{ white-space:nowrap; margin-left:6px; }}
+ .capin {{ width:4.6em; font:inherit; font-size:13px; padding:5px 6px; border-radius:8px; border:1px solid var(--line, #888); background:transparent; color:inherit; margin-right:4px; }}
  @media (max-width:720px) {{ .num {{ width:auto; }} th:nth-child(1) {{ width:40%; }} }}
  nav.tabs {{ display:flex; gap:6px; margin-bottom:14px; border-bottom:1px solid var(--line); }}
  nav.tabs button {{ font:inherit; font-size:13.5px; font-weight:600; padding:8px 14px; border:1px solid transparent;
@@ -2812,7 +2834,29 @@ every session bound to the pointer follows it — no restart.</footer>
         .catch(function (e) {{ alert("Request failed: " + e); btn.disabled = false; }});
     }});
   }});
-  document.querySelectorAll("button.switch:not(.park)").forEach(function (btn) {{
+  document.querySelectorAll("button.capset").forEach(function (btn) {{
+    btn.addEventListener("click", function () {{
+      var email = btn.getAttribute("data-email");
+      var inp = btn.parentNode.querySelector("input.capin");
+      var raw = inp ? inp.value.trim() : "";
+      var cap = raw === "" ? null : Number(raw);
+      if (cap !== null && (!Number.isInteger(cap) || cap < 0 || cap > 100)) {{ alert("cap must be a whole number 0–100, or empty to clear"); return; }}
+      var ask = cap === null ? "Clear the weekly cap on " + email + "?" : "Set the weekly cap on " + email + " to " + cap + "%?" + (cap === 0 ? "\\n\\n0 PARKS it." : "");
+      if (!confirm(ask)) {{ return; }}
+      btn.disabled = true;
+      fetch("/cap", {{method: "POST", cache: "no-store",
+        headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},
+        body: JSON.stringify({{account: email, cap: cap}})}})
+        .then(function (r) {{ return r.json().then(function (j) {{ return [r.status, j]; }}); }})
+        .then(function (sj) {{
+          if (sj[0] === 200 && sj[1].ok) {{ location.reload(); return; }}
+          alert("Cap failed (" + sj[0] + "):\n" + (sj[1].error || JSON.stringify(sj[1])));
+          btn.disabled = false;
+        }})
+        .catch(function (e) {{ alert("Request failed: " + e); btn.disabled = false; }});
+    }});
+  }});
+  document.querySelectorAll("button.switch:not(.park):not(.capset)").forEach(function (btn) {{
     btn.addEventListener("click", function () {{
       var slug = btn.getAttribute("data-slug");
       if (!confirm("Switch the active account to " + slug + " now?\\n\\nEvery Claude session bound to the pointer follows it — no restart needed.")) {{ return; }}
@@ -3184,6 +3228,65 @@ def switch_account(slug: object) -> tuple[int, dict]:
     return _run_rotate(["--switch", slug])
 
 
+def set_account_cap(email: object, cap: object) -> tuple[int, dict]:
+    """Set (int 0..100) or clear (None) ONE account's weekly cap in caps.json — the file
+    `claude_rotate._caps_file` reads — then re-render. 400 for anything the board did not render
+    or a value the loader would not accept (a bool is a typo, not a cap); 502 when the file cannot
+    be read or parsed, because rewriting it from {} would silently drop every other reserve.
+    Read-modify-write under a lock file beside it (the tick's auto-park and a second click could
+    otherwise drop each other's entry), written atomically."""
+    if not isinstance(email, str) or email.lower() not in _known_emails():
+        return 400, {"ok": False, "error": f"unknown account {email!r} — not on the board"}
+    if cap is not None and (
+        isinstance(cap, bool) or not isinstance(cap, int) or not 0 <= cap <= 100
+    ):
+        return 400, {"ok": False, "error": "cap must be a whole number 0..100, or null to clear"}
+    key = email.lower()
+    lock_path = _CAPS_FILE.with_name(_CAPS_FILE.name + ".lock")
+    try:
+        _CAPS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "w") as lk:
+            fcntl.flock(lk, fcntl.LOCK_EX)
+            try:
+                caps = json.loads(_CAPS_FILE.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                caps = {}
+            except ValueError as e:
+                return 502, {
+                    "ok": False,
+                    "error": f"{_CAPS_FILE} is not valid JSON ({e}) — fix it by hand",
+                }
+            if not isinstance(caps, dict):
+                return 502, {
+                    "ok": False,
+                    "error": f"{_CAPS_FILE} is not a JSON object — fix it by hand",
+                }
+            if cap is None:
+                caps.pop(key, None)
+            else:
+                caps[key] = int(cap)
+            tmp = _CAPS_FILE.with_name(_CAPS_FILE.name + ".tmp")
+            tmp.write_text(json.dumps(caps, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            os.replace(tmp, _CAPS_FILE)
+    except OSError as exc:
+        return 502, {"ok": False, "error": f"cannot write {_CAPS_FILE}: {exc}"[:400]}
+    sys.stderr.write(
+        f"quota_dashboard: cap {key} -> {'cleared' if cap is None else str(cap) + '%'} ({_CAPS_FILE})\n"
+    )
+    _rerender()
+    return 200, {"ok": True, "caps": caps}
+
+
+def _rerender() -> None:
+    """After a board-driven mutation: invalidate the banner cache and render the board NOW."""
+    with _budget_lock:  # the banner's own 60 s cache would show the OLD account's headroom
+        _budget_cache.update(ts=0.0, html="")
+        _budget_cache["gen"] += 1  # and a probe already in flight may not land its result
+    # fresh render NOW — bypasses the floor on purpose; at most one probe per click, and none when
+    # a pre-switch probe is still in flight (it re-kicks for this generation when it lands)
+    generate()
+
+
 def _run_rotate(verb_args: list[str]) -> tuple[int, dict]:
     """Run one validated rotation-CLI verb, then invalidate the banner and re-render the board."""
     try:
@@ -3198,12 +3301,7 @@ def _run_rotate(verb_args: list[str]) -> tuple[int, dict]:
     if proc.returncode != 0:
         err = (proc.stderr.strip() or proc.stdout.strip() or f"exit {proc.returncode}")[:400]
         return 502, {"ok": False, "error": err}
-    with _budget_lock:  # the banner's own 60 s cache would show the OLD account's headroom
-        _budget_cache.update(ts=0.0, html="")
-        _budget_cache["gen"] += 1  # and a probe already in flight may not land its result
-    # fresh render NOW — bypasses the floor on purpose; at most one probe per click, and none when
-    # a pre-switch probe is still in flight (it re-kicks for this generation when it lands)
-    generate()
+    _rerender()
     return 200, {"ok": True, "output": proc.stdout.strip()[:400]}
 
 
@@ -3225,7 +3323,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 (stdlib interface)
         path = self.path.split("?", 1)[0]
-        if path not in ("/switch", "/park"):
+        if path not in ("/switch", "/park", "/cap"):
             self.send_error(404)
             return
         if not self.headers.get(SWITCH_HEADER):
@@ -3249,7 +3347,14 @@ class _Handler(BaseHTTPRequestHandler):
             return
         slug = (body or {}).get("account") if isinstance(body, dict) else None
         t0 = time.time()
-        if path == "/park":
+        if path == "/cap":
+            if not isinstance(body, dict) or "cap" not in body:
+                self._json(
+                    400, {"ok": False, "error": "body needs a cap (0..100) or null to clear"}
+                )
+                return
+            status, out = set_account_cap(slug, body.get("cap"))
+        elif path == "/park":
             status, out = park_account(slug, body.get("park") if isinstance(body, dict) else None)
         else:
             status, out = switch_account(slug)
