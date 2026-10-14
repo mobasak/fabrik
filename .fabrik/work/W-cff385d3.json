@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "Watchdog cost-budget currency: retired default models, registrar-injected FABRIK_ANALYTICS_URL, cost_ledger GRANTs, zero-cap semantics, fleet re-vendor"
 }

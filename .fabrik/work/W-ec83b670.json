@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "**Hub DR — measured recovery against a real billed test hub**. `fabrik vultr drill hub` is shipped but the hub bootstrap is ~90 min and the path is heavier than the spoke. End-to-end \"vps1 disk die"
 }

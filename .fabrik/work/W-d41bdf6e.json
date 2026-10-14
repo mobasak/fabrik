@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "saas/88 line 56: drop the 'scaffold's terms/privacy are placeholders' warning once the legal-pages build ships"
 }

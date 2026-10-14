@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "Deploy-time guard: no '[set LEGAL_…]' marker ships on /terms, /privacy, /refund or /cookies"
 }

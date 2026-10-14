@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "Kaizen observer tiers 2–3 are DEFERRED behind tier 1 and one kappa experiment (2026-09-11, owner: fleet)"
 }
