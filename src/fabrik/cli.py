@@ -395,26 +395,13 @@ def _emit_glitchtip_webhook_reminder(spec_path: str) -> None:
 @cli.command()
 @click.argument("spec_path", type=click.Path(exists=True), required=False)
 @click.option("--secrets", "-s", multiple=True, help="Secret in KEY=VALUE format")
-@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
-@click.option("--skip-dns", is_flag=True, help="Skip DNS record creation")
-@click.option("--skip-deploy", is_flag=True, help="Skip deployment (render files only)")
+@click.option(
+    "--yes",
+    "-y",
+    is_flag=True,
+    help="accepted for compatibility; the orchestrator path never prompts",
+)
 @click.option("--dry-run", is_flag=True, help="Simulate deployment without making changes")
-@click.option(
-    "--use-orchestrator",
-    is_flag=True,
-    hidden=True,
-    help="DEPRECATED: orchestrator is the default since 2026-05-05 (G1). Flag is a no-op kept for backward compatibility.",
-)
-@click.option(
-    "--legacy",
-    is_flag=True,
-    help=(
-        "G1 escape hatch: use the pre-orchestrator pipeline (render + DNS + "
-        "deploy_to_coolify only, NO InfrastructureProvisioner). Skips "
-        "GlitchTip, Gatus, Authelia, Backrest, Meilisearch, Grafana, and "
-        "Postgres registrars. Do NOT use for new deploys."
-    ),
-)
 @click.option("--skip-health-check", is_flag=True, help="Skip health check verification")
 @click.option(
     "--keep-on-failure",
@@ -442,28 +429,23 @@ def apply(
     spec_path: str | None,
     secrets: tuple,
     yes: bool,
-    skip_dns: bool,
-    skip_deploy: bool,
     dry_run: bool,
-    use_orchestrator: bool,
-    legacy: bool,
     skip_health_check: bool,
     keep_on_failure: bool,
     target_vps: str | None,
 ):
     """Deploy a service from spec.
 
-    As of 2026-05-05 (G1), the orchestrator pipeline is the default — this
-    runs the full 7-registrar sweep (postgres, gatus, backrest, glitchtip,
-    grafana, authelia, meilisearch). Pass --legacy to force the legacy
-    render-only path; --use-orchestrator is accepted as a no-op for
-    backward compatibility with proof_run.py and older docs.
+    The orchestrator pipeline is the single deploy path — it runs the full
+    7-registrar sweep (postgres, gatus, backrest, glitchtip, grafana,
+    authelia, meilisearch). --yes is accepted as a no-op for backward
+    compatibility with proof_run.py and older docs; the orchestrator path
+    never prompts for confirmation.
 
     Example:
         fabrik apply specs/my-api.yaml -s API_KEY=xxx
-        fabrik apply specs/my-api.yaml --yes  # Skip confirmation
+        fabrik apply specs/my-api.yaml --yes  # accepted, never prompts
         fabrik apply specs/my-api.yaml --dry-run  # Simulate deployment
-        fabrik apply specs/my-api.yaml --legacy  # OLD path, no registrars
     """
     # If no spec path was given, resolve it from the current project
     # directory's project.yaml (the convenience the old `deploy` command
@@ -507,202 +489,48 @@ def apply(
         key, value = s.split("=", 1)
         secrets_dict[key] = value
 
-    if use_orchestrator:
-        click.echo(
-            "ℹ️  --use-orchestrator is deprecated (orchestrator is now the "
-            "default since 2026-05-05). Flag accepted as no-op."
-        )
+    if secrets_dict:
+        for key, value in secrets_dict.items():
+            os.environ[key] = value
+    orchestrator = DeploymentOrchestrator()
+    ctx = orchestrator.deploy(
+        Path(spec_path),
+        dry_run=dry_run,
+        skip_health_check=skip_health_check,
+        keep_on_failure=keep_on_failure,
+        target_vps=target_vps,
+    )
 
-    # Default: orchestrator pipeline. Legacy path only when explicitly requested.
-    if not legacy:
-        if secrets_dict:
-            for key, value in secrets_dict.items():
-                os.environ[key] = value
-        orchestrator = DeploymentOrchestrator()
-        ctx = orchestrator.deploy(
-            Path(spec_path),
-            dry_run=dry_run,
-            skip_health_check=skip_health_check,
-            keep_on_failure=keep_on_failure,
-            target_vps=target_vps,
-        )
-
-        if ctx.state == DeploymentState.COMPLETE:
-            if ctx.registrar_failures:
-                # A shape-required step that did not happen must not exit
-                # green (01M1CKEK: needs_cache deploy shipped with no
-                # REDIS_URL under a ✅). The app is up and nothing rolled
-                # back — re-run `fabrik apply` after fixing; registrars
-                # are idempotent.
-                click.echo(
-                    f"⚠️  Deployment finished but {len(ctx.registrar_failures)} "
-                    f"registrar(s) FAILED — the deployed system is incomplete:"
-                )
-                for failure in ctx.registrar_failures:
-                    click.echo(f"   ✗ {failure}")
-                _emit_glitchtip_webhook_reminder(spec_path)
-                _post_deploy_sync()
-                raise SystemExit(2)
-            click.echo(f"✅ Deployment complete: {ctx.deployed_url or ctx.spec.get('domain')}")
+    if ctx.state == DeploymentState.COMPLETE:
+        if ctx.registrar_failures:
+            # A shape-required step that did not happen must not exit
+            # green (01M1CKEK: needs_cache deploy shipped with no
+            # REDIS_URL under a ✅). The app is up and nothing rolled
+            # back — re-run `fabrik apply` after fixing; registrars
+            # are idempotent.
+            click.echo(
+                f"⚠️  Deployment finished but {len(ctx.registrar_failures)} "
+                f"registrar(s) FAILED — the deployed system is incomplete:"
+            )
+            for failure in ctx.registrar_failures:
+                click.echo(f"   ✗ {failure}")
             _emit_glitchtip_webhook_reminder(spec_path)
             _post_deploy_sync()
-            raise SystemExit(0)
-        elif ctx.state == DeploymentState.ROLLED_BACK:
-            click.echo(f"⚠️  Deployment failed and rolled back: {ctx.error}")
-            for failure in ctx.registrar_failures:
-                click.echo(f"   ✗ also failed earlier (non-fatal): {failure}")
-            raise SystemExit(1)
-        else:
-            click.echo(f"❌ Deployment failed: {ctx.error}")
-            for failure in ctx.registrar_failures:
-                click.echo(f"   ✗ also failed earlier (non-fatal): {failure}")
-            raise SystemExit(1)
-
-    # Load spec
-    try:
-        spec = load_spec(spec_path)
-    except Exception as e:
-        click.echo(f"Error loading spec: {e}", err=True)
+            raise SystemExit(2)
+        click.echo(f"✅ Deployment complete: {ctx.deployed_url or ctx.spec.get('domain')}")
+        _emit_glitchtip_webhook_reminder(spec_path)
+        _post_deploy_sync()
+        raise SystemExit(0)
+    elif ctx.state == DeploymentState.ROLLED_BACK:
+        click.echo(f"⚠️  Deployment failed and rolled back: {ctx.error}")
+        for failure in ctx.registrar_failures:
+            click.echo(f"   ✗ also failed earlier (non-fatal): {failure}")
         raise SystemExit(1)
-
-    # Resolve project path from spec id
-    project_path = Path(f"/opt/{spec.id}")
-
-    # Load secrets from project .env file if it exists
-    env_file = project_path / ".env"
-    if env_file.exists():
-        try:
-            for line in env_file.read_text().splitlines():
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, value = line.split("=", 1)
-                    key = key.strip()
-                    value = value.strip()
-                    # Only load if it's a secret (in from_env list)
-                    if key in spec.secrets.from_env and key not in secrets_dict:
-                        secrets_dict[key] = value
-        except Exception as e:
-            click.echo(f"⚠️  Warning: Failed to read .env file: {e}", err=True)
-
-    # Auto-pull secrets from environment (command-line and .env take precedence)
-    for key in spec.secrets.from_env:
-        if key not in secrets_dict:
-            env_value = os.getenv(key)
-            if env_value:
-                secrets_dict[key] = env_value
-            else:
-                click.echo(f"⚠️  Warning: {key} not found in environment", err=True)
-
-    # Auto-read secrets from files (command-line and env take precedence)
-    for env_var, file_path in spec.secrets.from_file.items():
-        if env_var not in secrets_dict:
-            try:
-                secrets_dict[env_var] = Path(file_path).read_text()
-            except FileNotFoundError:
-                click.echo(f"⚠️  Warning: File not found: {file_path}", err=True)
-            except Exception as e:
-                click.echo(f"⚠️  Warning: Failed to read {file_path}: {e}", err=True)
-
-    # Check required secrets
-    missing_secrets = [k for k in spec.secrets.required if k not in secrets_dict]
-    if missing_secrets:
-        click.echo(f"Error: Missing required secrets: {', '.join(missing_secrets)}", err=True)
-        click.echo("Provide them with: -s KEY=VALUE", err=True)
-        raise SystemExit(1)
-
-    # Confirm
-    if not yes:
-        click.echo(f"About to deploy: {spec.id}")
-        click.echo(f"  Domain: {spec.domain}")
-        click.echo(f"  Template: {spec.template}")
-        if not click.confirm("Proceed?"):
-            click.echo("Aborted.")
-            raise SystemExit(0)
-
-    click.echo()
-    click.echo(f"🚀 Deploying {spec.id}...")
-    click.echo()
-
-    # Step 1: Render template
-    click.echo("📁 Step 1: Generating deployment files...")
-    try:
-        output = render_template(spec, secrets=secrets_dict)
-        for _filename, path in output.items():
-            click.echo(f"   ✅ {path}")
-    except Exception as e:
-        click.echo(f"   ❌ Error: {e}", err=True)
-        raise SystemExit(1)
-    click.echo()
-
-    # Step 2: DNS
-    if not skip_dns and spec.domain:
-        click.echo("🌐 Step 2: Creating DNS record...")
-        try:
-            # Extract subdomain from domain
-            # e.g., myapi.vps1.ocoron.com -> myapi.vps1, ocoron.com
-            split = _split_domain_for_dns(spec.domain)
-            if split:
-                subdomain, base_domain = split
-
-                vps_ip = os.getenv("VPS_IP")
-                if not vps_ip:
-                    click.echo("   ⚠️  VPS_IP not set — skipping DNS", err=True)
-                else:
-                    dns = DNSClient()
-                    dns_result = dns.add_subdomain(base_domain, subdomain, vps_ip)
-                    if dns_result.get("success") is False:
-                        message = dns_result.get("message", "unknown error")
-                        click.echo(f"   ⚠️  DNS service error: {message}")
-                    else:
-                        click.echo(f"   ✅ DNS: {spec.domain} -> {vps_ip}")
-            else:
-                click.echo("   ⚠️  Skipping DNS: domain format not recognized")
-        except Exception as e:
-            click.echo(f"   ⚠️  DNS error (non-fatal): {e}")
     else:
-        click.echo("🌐 Step 2: DNS skipped")
-    click.echo()
-
-    # Step 3: Coolify deployment
-    if not skip_deploy:
-        click.echo("🐳 Step 3: Deploying to Coolify...")
-        try:
-            # Read compose file
-            compose_path = Path(f"apps/{spec.id}/compose.yaml")
-            if not compose_path.exists():
-                compose_path = Path(f"apps/{spec.id}/docker-compose.yaml")
-            if not compose_path.exists():
-                raise FileNotFoundError(f"No compose file in apps/{spec.id}/")
-            compose_content = compose_path.read_text()
-
-            # Deploy (legacy Coolify path — broken post-migration, see Phase 11-2)
-            from fabrik.deploy import deploy_to_coolify
-
-            result = deploy_to_coolify(spec.id, compose_content)
-            if result["status"] == "created":
-                click.echo(f"   ✅ Created app: {spec.id}")
-            else:
-                click.echo(f"   ✅ Redeployed: {spec.id}")
-            click.echo(f"   ℹ️  UUID: {result['uuid']}")
-        except Exception as e:
-            click.echo(f"   ❌ Coolify error: {e}", err=True)
-            raise SystemExit(1)
-    else:
-        click.echo("🐳 Step 3: Coolify deployment skipped")
-    click.echo()
-
-    # Summary
-    click.echo("=" * 60)
-    click.echo(f"✅ Deployed: {spec.id}")
-    click.echo("=" * 60)
-    click.echo()
-    if spec.domain:
-        click.echo(f"🌐 URL: https://{spec.domain}")
-    click.echo(f"📁 Files: apps/{spec.id}/")
-    _post_deploy_sync()
-    click.echo()
-    click.echo("Verify deployment:")
-    click.echo(f"  fabrik status {spec_path}")
+        click.echo(f"❌ Deployment failed: {ctx.error}")
+        for failure in ctx.registrar_failures:
+            click.echo(f"   ✗ also failed earlier (non-fatal): {failure}")
+        raise SystemExit(1)
 
 
 @cli.command()
@@ -924,8 +752,8 @@ def logs(
     multiple=True,
     help=(
         "Surgical destroy: tear down ONLY the named registrar(s) and skip "
-        "everything else (no Coolify app delete, no DNS removal, no file "
-        "cleanup). Repeatable: --partial gatus --partial backrest. T2-02 G-F5."
+        "everything else (no DNS removal, no file cleanup). Repeatable: "
+        "--partial gatus --partial backrest. T2-02 G-F5."
     ),
 )
 @click.option(
@@ -964,12 +792,12 @@ def destroy(
     """Tear down every resource ``fabrik apply`` created for SPEC_PATH.
 
     Reverses ``InfrastructureProvisioner`` step-for-step (MeiliSearch,
-    Authelia, GlitchTip, Backrest, Gatus, Postgres) before deleting the
-    Coolify app, DNS record, and local project tree. Driven by the
+    Authelia, GlitchTip, Backrest, Gatus, Postgres) before tearing down the
+    Docker Compose stack, DNS record, and local project tree. Driven by the
     spec's ``shape`` block — no live-state polling required.
 
-    Pre-fix this command only deleted the Coolify app and TODO'd DNS;
-    every other registrar leaked. See ``orchestrator/destroyer.py``.
+    Pre-fix this command only tore down the Docker Compose stack and
+    TODO'd DNS; every other registrar leaked. See ``orchestrator/destroyer.py``.
 
     Examples:
         fabrik destroy specs/services/my-api.yaml
@@ -1110,8 +938,8 @@ def destroy(
         raise SystemExit(0)
 
     # T2-02 G-F5 partial-destroy branch: surgical per-registrar teardown.
-    # Bypasses the full destroy_deployment pipeline; no DNS, no Coolify
-    # app delete, no file cleanup. Useful for removing orphan rules or
+    # Bypasses the full destroy_deployment pipeline; no DNS removal, no
+    # compose teardown, no file cleanup. Useful for removing orphan rules or
     # backing out a single registrar without rolling back the whole service.
     if partial:
         from fabrik.orchestrator.destroyer import HANDLER_ARGS, HANDLER_FUNCS
@@ -1157,12 +985,12 @@ def destroy(
         click.echo("  - Backrest backup plan        (if shape.has_persistent_data)")
         click.echo("  - Gatus uptime endpoint       (if shape.is_public + domain)")
         click.echo("  - Postgres database           (only with --drop-data)")
-        click.echo("  - Coolify application")
+        click.echo("  - Docker Compose stack")
         if not keep_dns and spec.domain:
             click.echo(f"  - DNS A record for {spec.domain}")
         # Local project files are NEVER deleted by destroy — source code
         # and git repos in WSL /opt/ are preserved. Only VPS-side resources
-        # (Coolify app, DNS, registrars) are torn down.
+        # (compose stack, DNS, registrars) are torn down.
         if not drop_data:
             click.echo()
             click.echo(
@@ -2466,7 +2294,7 @@ def domain_provision(
 ):
     """Provision domain — DNS, CDN, WAF, and search engine setup.
 
-    Runs the full pre-Coolify-deploy sequence:
+    Runs the full pre-deploy sequence:
       1. Creates Cloudflare zone + DNS records
       2. Enables DNSSEC, Tiered Cache, Page Shield, WAF
       3. Registers with Bing/IndexNow (and Google/GA4 if requested)
@@ -2537,7 +2365,7 @@ def domain_provision(
 @click.argument("domain_name")
 @click.option("--wait", is_flag=True, help="Poll until ready (max 120s)")
 def domain_ready(domain_name: str, wait: bool):
-    """Check if domain is ready for Coolify deployment.
+    """Check if domain is ready for deployment.
 
     Example:
         fabrik domain ready tojlo.com
