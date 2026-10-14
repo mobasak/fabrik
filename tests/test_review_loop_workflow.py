@@ -61,6 +61,26 @@ def test_every_finder_schema_requires_files_read_and_candidates() -> None:
         assert field in required.group(1), f"FINDINGS must require {field}"
 
 
+def test_the_ledger_status_labels_name_the_defect() -> None:
+    """W-729416b3: the schema a pass ≥ 2 seat fills offers exactly the defect-named labels, and its description
+    uses them; an old run's STILL_TRUE/NOW_FALSE rows still close their claims, because no reader branches on the
+    label (the NOW_FALSE fixtures below prove it)."""
+    m = re.search(r"const FINDINGS\s*=\s*\{(.*?)\n\}", _script(), re.S)
+    assert m, "no FINDINGS schema"
+    enum = re.search(r"status:\s*\{\s*enum:\s*\[([^\]]*)\]", m.group(1))
+    assert enum, "ledger_status.status has no enum"
+    assert [x.strip().strip("'\"") for x in enum.group(1).split(",")] == ["DEFECT_PRESENT", "DEFECT_ABSENT", "NEW"]
+    assert "DEFECT_PRESENT it persists, DEFECT_ABSENT it is absent" in m.group(1)
+    # every workflow seat runs as fabrik-reviewer, so its system prompt carries the same vocabulary (both B3 design
+    # critiques: a JS-only rename leaves a Haiku seat two label sets in one context)
+    agent = (ROOT / "commands" / "_agents" / "fabrik-reviewer.md").read_text(encoding="utf-8")
+    # review B3 r1 B-S1: the spaced form is a second vocabulary too — the agent spells the schema's exact tokens
+    for old in ("STILL_TRUE", "NOW_FALSE", "STILL TRUE", "NOW FALSE", "DEFECT PRESENT", "DEFECT ABSENT"):
+        assert old not in agent, old
+    assert "`DEFECT_PRESENT` the defect persists · `DEFECT_ABSENT` it is absent" in agent
+    assert "each label says what is true of the\nDEFECT, never of the claim" in agent
+
+
 def test_every_seat_names_its_model_and_effort_and_no_run_is_resumed() -> None:
     body = _script()
     sites = [m.start() for m in re.finditer(r"\bagent\(", body)]
@@ -551,11 +571,15 @@ def test_a_later_pass_prompt_defines_its_ledger_status_on_the_defect_and_every_s
     ]
     _, _, prompts = _harness(args, {})
     finder = prompts["find:S:sonnet"]
-    assert "STILL_TRUE means the defect is still there" in finder, (
+    # W-729416b3 (mail 01M48MQ2HS): the label names the DEFECT, not the claim's truth — a Haiku seat read a
+    # re-verified claim as "true" and labelled 11 then 14 of 14-16 fixed defects STILL_TRUE with the definition
+    # already in the brief
+    assert "DEFECT_PRESENT means the defect is still there" in finder, (
         "pass ≥ 2 keys the status on the DEFECT (R-3)"
     )
-    assert "NOW_FALSE means the claimed defect is absent" in finder
-    assert "ONLY the STILL_TRUE and NEW rows" in finder, "a fix that holds is never a candidate"
+    assert "DEFECT_ABSENT means the claimed defect is absent" in finder
+    assert "ONLY the DEFECT_PRESENT and NEW rows" in finder, "a fix that holds is never a candidate"
+    assert "STILL_TRUE" not in finder and "NOW_FALSE" not in finder, "one vocabulary per prompt"
     assert "StructuredOutput" in prompts["find:S:haiku"], (
         "every finder is told to finish with the schema"
     )

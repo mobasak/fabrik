@@ -87,13 +87,13 @@ const FINDINGS = {
     candidates: { type: 'array', items: CANDIDATE },
     ledger_status: {
       type: 'array',
-      description: 'pass ≥ 2 only: one row per ledger claim; each claim states a DEFECT — STILL_TRUE it persists, NOW_FALSE it is gone, NEW the fix introduced one',
+      description: 'pass ≥ 2 only: one row per ledger claim; each claim states a DEFECT — DEFECT_PRESENT it persists, DEFECT_ABSENT it is absent, NEW the fix introduced one',
       items: {
         type: 'object',
         required: ['id', 'status', 'command', 'output'],
         properties: {
           id: { type: 'string' },
-          status: { enum: ['STILL_TRUE', 'NOW_FALSE', 'NEW'] },
+          status: { enum: ['DEFECT_PRESENT', 'DEFECT_ABSENT', 'NEW'] },
           command: { type: 'string' },
           output: { type: 'string' },
         },
@@ -229,7 +229,7 @@ const PYTEST_PINS = ` For a PYTEST run the recipe is not enough: pytest resolves
 function finderPrompt(slice, model, retry = false) {
   const ledger = slice.ledger && slice.ledger.length
   const head = ledger
-    ? `PASS ${args.pass} — you are the ${model} seat that owned slice ${slice.name} in round 1. Every ledger claim states a DEFECT as it was raised. Re-verify each by EXECUTION and report it in ledger_status (command + output each): STILL_TRUE means the defect is still there, NOW_FALSE means the claimed defect is absent (the fix holds, or an earlier refutation still holds — re-run and never cited), NEW is a defect the fix itself introduced. EVERY claim in YOUR ledger is re-executed, an earlier refutation included (term-coverage.md: a quiet round 1's claims are all open to its closing pass), and a ledger_status row with no command and output re-verifies nothing; a claim refuted in an earlier pass and NOT in your ledger is closed (D-206). Candidates are ONLY the STILL_TRUE and NEW rows (a NOW_FALSE row is never a candidate) — never a REPORT ONLY claim; a NEW candidate is a defect of a line INSIDE the previous round's fix hunks, or a live contradiction those hunks created with a sentence of the same section; a defect one hop out (a caller, a callee, a neighbouring section, a pre-existing claim) is never raised — name it in notes with a destination (D-230). Open EVERY slice file and list it in files_read on this pass too: a fix hunk can sit in a file no claim names, and a slice file no seat lists keeps the slice open.`
+    ? `PASS ${args.pass} — you are the ${model} seat that owned slice ${slice.name} in round 1. Every ledger claim states a DEFECT as it was raised. Re-verify each by EXECUTION and report it in ledger_status (command + output each): DEFECT_PRESENT means the defect is still there, DEFECT_ABSENT means the claimed defect is absent (the fix holds, or an earlier refutation still holds — re-run and never cited), NEW is a defect the fix itself introduced. EVERY claim in YOUR ledger is re-executed, an earlier refutation included (term-coverage.md: a quiet round 1's claims are all open to its closing pass), and a ledger_status row with no command and output re-verifies nothing; a claim refuted in an earlier pass and NOT in your ledger is closed (D-206). Candidates are ONLY the DEFECT_PRESENT and NEW rows (a DEFECT_ABSENT row is never a candidate) — never a REPORT ONLY claim; a NEW candidate is a defect of a line INSIDE the previous round's fix hunks, or a live contradiction those hunks created with a sentence of the same section; a defect one hop out (a caller, a callee, a neighbouring section, a pre-existing claim) is never raised — name it in notes with a destination (D-230). Open EVERY slice file and list it in files_read on this pass too: a fix hunk can sit in a file no claim names, and a slice file no seat lists keeps the slice open.`
     : `PASS 1 — you are the ${model} finder for slice ${slice.name}: ${slice.models.length > 1 ? `one of ${slice.models.length} finders over this whole slice (the others: ${slice.models.filter((m) => m !== model).join(', ')}; never coordinate, candidates are unioned and every one is executed by the orchestrator)` : 'the ONLY finder over this slice (every candidate is executed by a refuter and the orchestrator)'}. RECALL first: surface every candidate with a concrete failure scenario and an EXECUTABLE check; never drop a half-believed one.`
   const files = slice.files.map((f) => `  - ${f}`).join('\n')
   const ledgerText = ledger
