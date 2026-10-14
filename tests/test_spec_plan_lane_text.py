@@ -452,10 +452,16 @@ def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch)
 
     text = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
     panel = norm((REPO / "commands" / "_fragments" / "judge-panel.md").read_text(encoding="utf-8"))
+    reads = norm((REPO / "commands" / "_fragments" / "delegated-reads.md").read_text(encoding="utf-8"))
+    assert ("a question with several parts is numbered in the brief, which tells the seat to answer the parts in "
+            "order, each within its named share of that ~2 k, so a truncated return loses the tail, not the middle, "
+            "and a part the return never reaches is asked again, never read as empty.") in reads
     assert ("every premise the brief states about the codebase, every mechanism the design relies on (\"X fires\", "
             "\"Y catches this\"), every design rule (an algebra, a classifier) and every runtime-state claim is EXECUTED "
             "this session, its command and output cited in the spec, and Phase 3 waits on it as on the BLOCKING bullet "
-            "below. An executed in-repo measurement outranks a web answer about the repo's own code; a vendored or "
+            "below. A design rule that names stores (a matrix, an allowlist, an entity schema's fields) is preceded by an "
+            "executed census of each store's current members, and its invariants are written against that census, "
+            "never against one member. An executed in-repo measurement outranks a web answer about the repo's own code; a vendored or "
             "installed third-party package's behaviour stays an external claim under this gate.") in text
     assert ("the machine-readable schema when one exists (an OpenAPI endpoint names the parameters), the error-code page "
             "beside the endpoint page when the design retries or re-sends, and a design that survives both readings when "

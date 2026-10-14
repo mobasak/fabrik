@@ -126,7 +126,9 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
 - **Local claims are executed, not cited:** every premise the brief states about the codebase, every mechanism
   the design relies on ("X fires", "Y catches this"), every design rule (an algebra, a classifier) and every
   runtime-state claim is EXECUTED this session, its command and output cited in the spec, and Phase 3 waits on it
-  as on the BLOCKING bullet below. An executed in-repo measurement outranks a web answer about the repo's own
+  as on the BLOCKING bullet below. A design rule that names stores (a matrix, an allowlist, an entity schema's
+  fields) is preceded by an executed census of each store's current members, and its invariants are written against
+  that census, never against one member. An executed in-repo measurement outranks a web answer about the repo's own
   code; a vendored or installed third-party package's behaviour stays an external claim under this gate.
 - **Freshness (CLAUDE.md):** the research must be run in THIS session. An external claim with no fresh cited
   source is a defect.
