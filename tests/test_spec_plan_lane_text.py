@@ -367,9 +367,9 @@ def test_fabrik_spec_review_fetches_live_and_keeps_mechanism_in_the_plan() -> No
     assert "WebFetch" not in quote_rule, "a WebFetch reply is not a raw source"
     d = norm(_section(src, r"^\*\*D\) Completeness", r"^\*\*E\) Fabrik"))
     assert ("A section describing a code FLOW states its invariants and touchpoints (what must hold, which paths it "
-            "touches); the executable sequence belongs to the plan, so when the edit loop's TWO CONSECUTIVE RESIDUE "
-            "PASSES rule forces a rewrite inside such a section, the rewrite re-shapes it to invariants + touchpoints "
-            "rather than re-wording the sequence.") in d
+            "touches); the executable sequence belongs to the plan, so every fix inside such a section is written as "
+            "invariants + touchpoints from its FIRST edit — not only once the edit loop's TWO CONSECUTIVE RESIDUE "
+            "PASSES rule forces a rewrite there — and never as a re-worded sequence or new mechanism.") in d
     te = (REPO / "commands" / "_fragments" / "term-edit.md").read_text(encoding="utf-8")
     assert "(3) **TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE**" in te, "the rule the review names moved"
     spec = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
@@ -421,7 +421,7 @@ def test_fabrik_plan_after_chat_tells_the_gates_truth() -> None:
             "counts twice there too)") in text
     assert "each row on ONE physical line, since the gate reads only the first line of a wrapped row" in text
     assert "surface those and stop" not in text
-    assert "(`/fabrik-plan-review`'s Small-spec exception, which flips the spec first or in the same commit)" in text
+    assert "(`/fabrik-plan-review`'s Small-spec exception, which flips both in the panel's approval commit)" in text
     assert ("or a cited spec that is not CONVERGED and carries no `Size: small` (`check_stage_artifacts.py` refuses "
             "a plan flip over ANY") in text
     assert ("any other goes to `/fabrik-spec-review` first) — surface those and close with `python3 "
@@ -452,10 +452,19 @@ def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch)
 
     text = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
     panel = norm((REPO / "commands" / "_fragments" / "judge-panel.md").read_text(encoding="utf-8"))
+    reads = norm((REPO / "commands" / "_fragments" / "delegated-reads.md").read_text(encoding="utf-8"))
+    assert ("a question with several parts is numbered in the brief, which tells the seat to answer the parts in "
+            "order, each within its named share of that ~2 k, so a truncated return loses the tail, not the middle, "
+            "and a part the return never reaches is asked again, never read as empty.") in reads
     assert ("every premise the brief states about the codebase, every mechanism the design relies on (\"X fires\", "
             "\"Y catches this\"), every design rule (an algebra, a classifier) and every runtime-state claim is EXECUTED "
-            "this session, its command and output cited in the spec, and Phase 3 waits on it as on the BLOCKING bullet "
-            "below. An executed in-repo measurement outranks a web answer about the repo's own code; a vendored or "
+            "this session, its command and output cited in the spec (a key, token or credential in that output is "
+            "described by its kind, length and a non-secret prefix, never pasted, its BEGIN line included: the "
+            "`detect-private-key` commit hook refuses a private-key PEM header), and Phase 3 waits on it as on the "
+            "BLOCKING bullet "
+            "below. A design rule that names stores (a matrix, an allowlist, an entity schema's fields) is preceded by an "
+            "executed census of each store's current members, and its invariants are written against that census, "
+            "never against one member. An executed in-repo measurement outranks a web answer about the repo's own code; a vendored or "
             "installed third-party package's behaviour stays an external claim under this gate.") in text
     assert ("the machine-readable schema when one exists (an OpenAPI endpoint names the parameters), the error-code page "
             "beside the endpoint page when the design retries or re-sends, and a design that survives both readings when "

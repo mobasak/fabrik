@@ -567,8 +567,8 @@ library/framework version, protocol/standard — ground it to **CURRENT truth**,
   fresh grounding) → **repo-first** (`grep docs/`, `docs/reference/`, `AFCL.md`,
   `docs/LESSONS_LEARNT.md`) → **own-history** (session-recall MCP — a hit is a LEAD, not a citation; a
   past conversation records what we *concluded then*, and pricing/limits/endpoints go stale — re-ground
-  live before it enters the Vision Summary) → then **LIVE**: `mcp__exa__web_search_exa` →
-  `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` →
+  live before it enters the Vision Summary) → then **LIVE**: `WebSearch`/`WebFetch` →
+  `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` /
   `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` → `mcp__context7` (library docs) → `mcp__github`
   (read a dependency's actual source / latest release).
 - Capture the **real** endpoint / auth model / limits / **pricing**, and **cite the source URL + the date

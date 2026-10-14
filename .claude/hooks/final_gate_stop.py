@@ -1265,6 +1265,64 @@ def _urgent_sidecar(sid: str | None) -> Path:
     return _counter_path(sid).with_suffix(".urgent")
 
 
+def _arm_sidecar(sid: str | None) -> Path:
+    """`<tempdir>/fabrik-gate-stop-<sid>.urgent-arm` — present once THIS consumption of the self-watch
+    has had its one arm block. Unlinked whenever the lock reads held (the next consumption gets its
+    own block) and when no hold is in force (W-117b1916)."""
+    return _counter_path(sid or "nosession").with_suffix(".urgent-arm")
+
+
+def _arm_order(sid: str | None, cwd: str) -> str | None:
+    """W-117b1916 — the ARM checkpoint item, or None. The rotation tick's relief wake (`.holdlifted`)
+    reaches ONLY a session whose selfwatch.lock is held, and one arm is one wake (D-356), so a
+    window that pauses at urgent-90 or at the wall with a consumed watch sleeps through the reset.
+    The decision is the prompt notice's own (`selfwatch_check.arm_state`, loaded by absolute path
+    from `$FABRIK_HUB_ROOT` or /opt/fabrik); a held lock clears this consumption's arm sidecar; any
+    load or probe failure adds nothing (fail-open). Supersedes D-718 at the Stop site.
+
+    ⚠️ COBRA (D-253): the item reads only "lock held", so a `nohup`, Agent-subagent or FOREGROUND
+    arm, or another session's sid, satisfies it without producing a wake (D-718: those wake
+    nothing); the item names the background form, and an unblocked owed arm lands in the kaizen
+    stream as `stood_down cause=unarmed`."""
+    if not sid or sid == "nosession":
+        return None
+    try:
+        hub = (os.environ.get("FABRIK_HUB_ROOT") or "/opt/fabrik").rstrip("/") or "/opt/fabrik"
+        spec = importlib.util.spec_from_file_location(
+            "_fgs_selfwatch", Path(hub) / "scripts" / "sysadmin" / "selfwatch_check.py"
+        )
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        state = mod.arm_state(sid, cwd)
+        if state == "armed":
+            with contextlib.suppress(OSError):
+                _arm_sidecar(sid).unlink(missing_ok=True)
+            return None
+        if state != "arm":
+            return None
+        return (
+            "ARM the self-watch — the relief wake reaches only an armed watch: "
+            f'Bash(run_in_background: true, command: "bash {mod.ARM} {mod._safe(sid)}") '
+            "(a background task of this session, never nohup or foreground)"
+        )
+    except BaseException:  # a hub module that exits or raises at import must not cost the Stop
+        return None
+
+
+def _claim_arm_block(sid: str | None) -> bool:
+    """True when this consumption's arm sidecar was written NOW — the one arm block it gets."""
+    side = _arm_sidecar(sid)
+    if side.exists():
+        return False
+    try:
+        side.write_text(str(time.time()))
+    except OSError:
+        return False
+    return True
+
+
 def _urgent_checkpoint(
     root: Path,
     sid: str | None,
@@ -1292,6 +1350,7 @@ def _urgent_checkpoint(
     items: list[str] = []
     owed: list[str] = []
     stood: list[tuple[str, dict]] = []
+    arm = _arm_order(sid, str(root))
     dirty = _dirty_paths(root)
     mine = sorted(
         rel
@@ -1338,6 +1397,9 @@ def _urgent_checkpoint(
         owed.append("the waiting merge request — python3 scripts/merge_request.py merge")
         stood.append(("merge-request", {}))
     side = _urgent_sidecar(sid)
+    if arm and not side.exists() and not _arm_sidecar(sid).exists():
+        items.append(arm)  # rides the episode's one block; the arm sidecar marks it spent below
+        stood.append(("unarmed", {}))
     blockable = bool(items) and bool(sid) and sid != "nosession" and not side.exists()
     if blockable:
         # Write FIRST, block only if it landed: an unwritable sidecar would otherwise block every
@@ -1347,6 +1409,27 @@ def _urgent_checkpoint(
             side.write_text(str(time.time()))
         except OSError:
             blockable = False
+    if blockable and arm and arm in items:
+        _claim_arm_block(sid)
+    elif not blockable and arm and _claim_arm_block(sid):
+        # the episode's block is spent (or nothing else was owed with no sidecar to write) and the
+        # watch was consumed since: ONE arm-only block per consumption — the other debts still owed
+        # are recorded as stood down, exactly as on a Stop that blocks nothing
+        for cause, fields in stood:
+            if cause == "unarmed":
+                continue  # the arm is this block's own item, recorded once as blocked below
+            _kaizen(
+                "stop_block",
+                ev_sid,
+                cause=cause,
+                outcome="stood_down",
+                tier=_STAMP_TIER_URGENT,
+                **fields,
+            )
+        _kaizen("stop_block", ev_sid, cause="unarmed", outcome="blocked", tier=_STAMP_TIER_URGENT)
+        return _URGENT_PREFIX + arm + ". Then end the turn."
+    elif arm and ("unarmed", {}) not in stood:
+        stood.append(("unarmed", {}))
     if blockable:
         _kaizen(
             "stop_block",
@@ -1361,8 +1444,9 @@ def _urgent_checkpoint(
             + " · ".join(items)
             + ". "
             + (f"Still owed after the reset: {'; '.join(owed)}. " if owed else "")
-            + "The gate was not evaluated at the urgent tier. This block fires ONCE per episode — "
-            "after the checkpoint, end the turn; the wall tier follows if the quota runs out."
+            + "The gate was not evaluated at the urgent tier. This block fires ONCE per episode"
+            + (" (a self-watch consumed later earns one arm-only block)" if arm else "")
+            + " — after the checkpoint, end the turn; the wall tier follows if the quota runs out."
         )
     for cause, fields in stood:
         _kaizen(
@@ -1581,19 +1665,81 @@ def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = N
     if not surfaces and not tokens:
         return set()
     for s in surfaces:
-        for raw in _SURFACE_SPLIT.split(s):
-            if not raw:
-                continue
-            tok = raw[2:] if raw.startswith("./") else raw
-            # `.` is a path character, so a surface written as a SENTENCE keeps its full stop on
-            # the token and the exemption silently fails — a false BLOCK, the thing T5.2 exists to
-            # end (round 1, seat finding F7). ONLY `.`: `,`, `;` and `:` are not in the splitter's
-            # class, so it has already ended the token at them and stripping them here was dead
-            # (round 2, seat finding 10 — the same unreachable-code class as round 1's C-R3).
-            tok = tok.rstrip(".")
-            if tok:
-                tokens.add(tok)
+        tokens |= _surface_tokens(s)
     return {f for f in authored if f in tokens}
+
+
+def _surface_tokens(surface: str) -> set[str]:
+    """The whole-token path names a free-text `--surface` carries — ONE parse for the running
+    review's exemption and the closed reviews' record (W-bdcff87a), so the two cannot disagree on
+    what a surface names."""
+    tokens: set[str] = set()
+    for raw in _SURFACE_SPLIT.split(surface):
+        if not raw:
+            continue
+        tok = raw[2:] if raw.startswith("./") else raw
+        # `.` is a path character, so a surface written as a SENTENCE keeps its full stop on
+        # the token and the exemption silently fails — a false BLOCK, the thing T5.2 exists to
+        # end (round 1, seat finding F7). ONLY `.`: `,`, `;` and `:` are not in the splitter's
+        # class, so it has already ended the token at them and stripping them here was dead
+        # (round 2, seat finding 10 — the same unreachable-code class as round 1's C-R3).
+        tok = tok.rstrip(".")
+        if tok:
+            tokens.add(tok)
+    return tokens
+
+
+def _closed_review_named(
+    rec: object, authored: dict[str, int], committed: dict[str, int]
+) -> set[str]:
+    """The paths a CLOSED `done` review of this session NAMED after they were last touched
+    (W-bdcff87a, site-provisioner 01M49X4BZT): `command_run.py` records `{surface, adds, closed}` in
+    `reviewed_surfaces` at every review-family `done`, nested included, and carries the list for the
+    session. A nested review stamps no reach and its window starts after an earlier edit, so before
+    this a file reviewed only by nested reviews stayed unreviewed for good.
+
+    An EDITED path is named when an entry closed at or after its edit — judged by the edit, never a
+    later commit, or the commit the uncommitted cause orders would re-block it. A COMMIT-ONLY path
+    is named within `_COMMIT_GRACE_S` after a close, the commit rule `_unreviewed_spontaneous_files`
+    already applies. The record and every parked `stack` frame are read, never `nested` (the pop
+    joins the same entries into the caller, so reading both would count them twice). Closed entries
+    are history, read whatever the live state — only a `done` writes them. An entry whose `closed`
+    is not a number, or lies beyond now + `_CLOCK_SKEW_TOLERANCE_S` (a clock ahead would clear
+    every later edit), is skipped, and so is a touch of 0 (an unreadable time): every malformed shape fails
+    CLOSED. Edits are the FLOORED set, so an edit older than the floor never shields a fresh commit.
+
+    ⚠️ COBRA (D-253), stated: naming a file in a trivial review's surface clears it — the contract a
+    RUNNING review already has (T5.2) and a top-level `done` review's whole-session reach-back
+    already grants (D-574); the review still owes its rounds to reach `done`. And a surface that
+    mentions a path to EXCLUDE it now clears it durably (the cost `_surface_reviewed` states, no
+    longer bounded by the run's life), still no wider than that reach-back."""
+    if not isinstance(rec, dict) or not (authored or committed):
+        return set()
+    ceiling = time.time() + _CLOCK_SKEW_TOLERANCE_S
+    named: set[str] = set()
+    for holder in [rec, *_seq(rec, "stack")]:
+        entries = holder.get("reviewed_surfaces") if isinstance(holder, dict) else None
+        for e in entries if isinstance(entries, list) else []:
+            if not isinstance(e, dict):
+                continue
+            closed = e.get("closed")
+            # a non-number would raise in the comparisons below; NaN compares false everywhere and
+            # a bool reads as 0/1, so neither can ever reach a real touch — no guard is owed them
+            if not isinstance(closed, (int, float)) or closed > ceiling:
+                continue
+            surface, adds = e.get("surface"), e.get("adds")
+            tokens = _surface_tokens(surface) if isinstance(surface, str) else set()
+            tokens |= {a for a in adds if isinstance(a, str)} if isinstance(adds, list) else set()
+            for f in tokens:
+                # a touch of 0 is an UNREADABLE time — no proof of order, so never cleared
+                if f in authored:
+                    if authored[f] > 0 and closed >= authored[f]:
+                        named.add(f)
+                elif (
+                    f in committed and committed[f] > 0 and closed + _COMMIT_GRACE_S >= committed[f]
+                ):
+                    named.add(f)
+    return named
 
 
 def _unreviewed_spontaneous(
@@ -1708,6 +1854,9 @@ def _unreviewed_spontaneous_files(
     # exempts them by name exactly as it exempts an Edit-written file (T5.2).
     committed = _commit_files(root, commits, floor) if commits and root is not None else {}
     named = _surface_reviewed(rec, {**committed, **authored}, sid)  # once per stop, not per file
+    # the FLOORED edits: an edit older than the floor is not this session's work, so a fresh commit
+    # of that path is judged by the commit leg, never shielded by a review of the old edit (C2)
+    named |= _closed_review_named(rec, _this_sessions_edits(authored, floor), committed)
     scoped = {f: ts for f, ts in _this_sessions_edits(authored, floor).items() if f not in named}
     names = _unreviewed_code_file_names(scoped, windows)
     if names and root is not None:
@@ -4399,6 +4548,35 @@ def main(argv: list[str]) -> int:
                 if not urgent:
                     with contextlib.suppress(OSError):
                         _urgent_sidecar(sid).unlink(missing_ok=True)
+                    # W-117b1916: the wall yields everything (D-158) — but one arm-only block per
+                    # consumption first, so the lift's wake has a watch to reach; the arm is one of
+                    # quota_stop.py's allowed calls. A SessionStart never blocks.
+                    _warm = None if "--baseline" in argv else _arm_order(sid, str(root))
+                    if _warm and _claim_arm_block(sid):
+                        _kaizen(
+                            "stop_block", ev_sid, cause="unarmed", outcome="blocked",
+                            tier=_STAMP_TIER_WALLED,
+                        )  # fmt: skip
+                        sys.stdout.write(
+                            json.dumps(
+                                {
+                                    "decision": "block",
+                                    "reason": "FLEET QUOTA AT THE WALL — before you stop: "
+                                    + _warm
+                                    + ". Then end the turn.",
+                                }
+                            )
+                            + "\n"
+                        )
+                        return 0
+                    if _warm:  # owed, but this consumption's block is spent: record the debt
+                        _kaizen(
+                            "stop_block",
+                            ev_sid,
+                            cause="unarmed",
+                            outcome="stood_down",
+                            tier=_STAMP_TIER_WALLED,
+                        )
                     _kaizen("stop_allowed_quota_hold", ev_sid)
                     _store_decision(_ta, sid, judged, _repo)
                     return 0
@@ -4407,6 +4585,8 @@ def main(argv: list[str]) -> int:
         if not urgent:  # the episode is over (or never began): the next urgent one gets its block
             with contextlib.suppress(OSError):
                 _urgent_sidecar(sid).unlink(missing_ok=True)
+            with contextlib.suppress(OSError):
+                _arm_sidecar(sid).unlink(missing_ok=True)
 
         # SessionStart: record the inherited failing set, then always allow.
         # RESUME/COMPACT keep the ORIGINAL baseline: a revived session (the

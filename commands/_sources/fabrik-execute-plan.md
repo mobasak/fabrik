@@ -55,9 +55,17 @@ TASK terminator, and the record is what proves the task is actually over.
    ticket files is NOT a set (run phase mode and report the anomaly). A
    monolith plan file runs the phase mode below verbatim. **A spine or monolith declaring `Profile: small`**
    (the line after `Status:`) runs its profile in either mode: every phase/ticket is coded INLINE by the
-   orchestrator in the main checkout (no worktree coder, no dispatch wait — a set's tickets carry
+   orchestrator in its own working tree (no worktree coder, no dispatch wait — a set's tickets carry
    `Complexity: inline`), `/fabrik-review-scoped` closes each phase/ticket, and the ONE heavy review and the
-   ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas; everything unnamed binds unchanged).
+   ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas; everything unnamed binds unchanged). In the
+   main checkout, a small plan whose owned paths include a governance-sync trigger path (the `governance-sync`
+   files-filter in `.pre-commit-config.yaml`) runs in its own isolation worktree, step 8's `EnterWorktree`
+   path even with no other plan-lock active, because every main-checkout commit on such a path distributes
+   fleet-wide and a worktree commit distributes nothing (`scripts/governance_sync_postcommit.sh`): its phases
+   still commit one by one, and the plan reaches the fleet ONCE, when Finish position (b) merges the branch
+   and the merge's own hook syncs it (post-merge over `ORIG_HEAD..HEAD`, or post-commit when a conflicted
+   merge is concluded with a commit). That hook run is the Finish sync; run
+   `sync_enforcement_to_projects.py --force` by hand only when it prints a sync failure.
 1. Read the plan file fully.
 2. Read `agents-fabrik.md` — the canonical infra + codebase map (`AGENTS.md` is a stub).
 3. Run `python scripts/select_rules.py` and read **every ACTIVE pack**.
@@ -157,11 +165,13 @@ TASK terminator, and the record is what proves the task is actually over.
      take the DEFAULT and say so: dispatch subagents on BRANCHES inside the agent's worktree — one branch
      per unit, same Merge Protocol, no nested worktree.
    - **Isolate concurrent runs — from the MAIN checkout only:** if you are in the main checkout and any
-     *other* plan-lock is `active`, run this plan in its **own git worktree, entered with `EnterWorktree`**
+     *other* plan-lock is `active`, or this is a `Profile: small` plan whose owned paths include a
+     governance-sync trigger path (§ Before You Start), run this plan in its **own git worktree, entered with
+     `EnterWorktree`**
      (the tool that puts THIS session in a worktree — `isolation:"worktree"` is the Agent tool's parameter
      for DISPATCHED coders, a different thing), so
-     two runs never share a working tree (ensure its `.venv`/deps exist before any gate runs there); if
-     yours is the only active run, the main checkout is fine. **Already in a linked worktree — a named
+     two runs never share a working tree (ensure its `.venv`/deps exist before any gate runs there); otherwise
+     the main checkout is fine. **Already in a linked worktree — a named
      agent's window, or an isolation tree a prior step created — work in place: that tree IS your
      isolation**, and a second orchestrator level would push the coders to a third, against the two-level
      rule above.
@@ -212,7 +222,7 @@ When you encounter uncertainty, resolve it yourself in this order — do NOT ask
 | 4 | `agents-fabrik.md` (the canonical map; `AGENTS.md` is a stub) | Infra map, service topology, DB schemas |
 | 5 | `docs/` + `AFCL.md` | Configuration, troubleshooting, known friction |
 | 6 | `grep` / `Read` the codebase | Existing patterns, function signatures, imports |
-| 7 | official-docs `WebFetch` (library detail) → `mcp__exa__web_search_exa` / `WebSearch` / `WebFetch` / `mcp__brave-search__brave_web_search` | 3rd-party API + library docs (cite URL) — the plan already grounded these; this is only for a detail it missed |
+| 7 | official-docs `WebFetch` (library detail) → `WebSearch` / `WebFetch` / `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` | 3rd-party API + library docs (cite URL) — the plan already grounded these; this is only for a detail it missed |
 | 8 | **STOP and ask the user** | Only after 3 failed resolution attempts across levels 1-7 |
 
 Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missing: <what you need>`
@@ -510,6 +520,11 @@ its Touches (contract violation → its diff is rejected at acceptance).
   run the coders' tests yourself (that collapses coder and reviewer — the separation is what
   catches the findings). The failure PRESENTS as "BLOCKED: missing infra"; it is a missing
   capability grant — check the settings first. The probe covers the LANE it dispatches to: the native lane's `permissions.allow` above; a pool lane (when re-enabled) its allowlist carrying the repo's venv paths — a precondition that probes one lane while dispatching to another certifies nothing (01M2803TM, 01M1S923X).
+- **A plan-named checker is dry-run before its tickets' coders.** When a ticket's acceptance rests on a
+  checker the plan names (an identity diff, a parity script, a snapshot compare), run it once on a
+  throwaway head of the ticket's unit, a scratch build the orchestrator makes before the coder is dispatched
+  and never commits (it is no ticket code); a gap it reports, or a shape
+  it cannot see, becomes a ticket added to the Board up front rather than a find in review.
 - **The orchestrator writes NO ticket code**, with exactly ONE exception — trivial ≤1-file/≤50-LOC
   **strictly-mechanical** inline edits (**no-new-logic** defined: no conditional/loop/function-body
   change). Any orchestrator-authored fixup is bound by the same numeric limits, lands **inside the
@@ -586,6 +601,12 @@ its Touches (contract violation → its diff is rejected at acceptance).
     what closed; any other run's seats stay reserved — D-191). The partition is what the surface HAS, so a
     named trigger (diff >~400 net LOC · never-route surface · a repeat-failed round) means MORE slices or units,
     not a bigger cap. Grounding fan-outs: one unit per independent dependency, never per file.
+  - **Headroom before a wave:** act on the fleet's band — at AMBER or RED dispatch no new wave and say so
+    on the Board. At GREEN, when the `QUOTA:` line's `successor` reads `none`, compare its
+    `wall in ~<m>m` forecast for the hot window with the wave's summed ticket `Appetite:` (no
+    `Appetite:`, as in a pre-rollout plan → the 30-minute estimate the dispatch timeout above uses); when the
+    wall comes first, say so on the Board, dispatch only the tickets that fit, and hold the rest until
+    `claude_rotate.py --status` (the authority) shows the reset or a rotation, so no coder is cut mid-ticket with only its WIP checkpoints.
   - **Quota-pause terminal:** a native call failing on quota exhaustion (not a transient error) → the
     plan PAUSES: lock `status: "paused"`, Board preserved, spine stays IN-PROGRESS; resume on quota
     reset/rotation. **The Opus floor is never substitutable downward** (the `Profile: small` per-ticket
@@ -1163,8 +1184,8 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
 
 - **(a) Main checkout** (`BASE` = `master`): the commits already sit on the branch everything integrates
   on. Nothing to merge, nothing to remove; step 7 pushes it.
-- **(b) An isolation worktree THIS run created** (step 8's concurrent-run path; `BASE` = that tree's own
-  branch): **the run merges its own tree — but only after it has LEFT isolation, never from inside it.**
+- **(b) An isolation worktree THIS run created** (step 8's concurrent-run or sync-path isolation; `BASE` = that
+  tree's own branch): **the run merges its own tree — but only after it has LEFT isolation, never from inside it.**
   While the session is isolated the harness refuses every route into the main checkout (`git -C`,
   `--git-dir`/`GIT_DIR`/`GIT_WORK_TREE`, a `cd` redirect, any command whose cwd resolves there), so a
   merge attempted from the worktree does not fail cleanly — it is simply blocked. The sequence is

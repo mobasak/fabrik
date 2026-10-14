@@ -167,3 +167,41 @@ def test_the_orchestrator_waits_for_its_coders_in_turn() -> None:
     pattern = _section("### Dispatch pattern", "### Model selection")
     assert pattern.count("run_in_background=False,") == 3
     assert pattern.count('model="sonnet",') == 3
+
+
+def test_a_small_sync_path_plan_runs_in_its_own_worktree() -> None:
+    """Row 1791912630: a Profile: small plan in the main checkout on a governance-sync path would distribute every
+    phase commit fleet-wide; it runs in an isolation worktree and reaches the fleet once, at the Finish merge."""
+    text = re.sub(r"\s+", " ", SRC.read_text(encoding="utf-8"))
+    assert (
+        "a small plan whose owned paths include a governance-sync trigger path (the `governance-sync` files-filter"
+        " in `.pre-commit-config.yaml`) runs in its own isolation worktree, step 8's `EnterWorktree` path even with"
+        " no other plan-lock active"
+    ) in text
+    assert "its phases still commit one by one, and the plan reaches the fleet ONCE" in text
+    assert (
+        "or this is a `Profile: small` plan whose owned paths include a governance-sync trigger path"
+        in text
+    )
+    assert "(step 8's concurrent-run or sync-path isolation; `BASE`" in text
+    assert (
+        "That hook run is the Finish sync; run `sync_enforcement_to_projects.py --force` by hand only when it"
+        " prints a sync failure."
+    ) in text
+
+
+def test_a_wave_checks_fleet_headroom_and_a_plan_checker_is_dry_run() -> None:
+    """Rows 1791975800 and 1791971650: a coder cut by the quota wall mid-ticket; rows 1791973720 and
+    1791950554: a plan's identity diff showed its gaps only after a coder moved a type."""
+    text = _norm()
+    for needle in (
+        "**Headroom before a wave:** act on the fleet's band — at AMBER or RED dispatch no new wave and say so"
+        " on the Board.",
+        "when the `QUOTA:` line's `successor` reads `none`, compare its `wall in ~<m>m` forecast for the hot"
+        " window with the wave's summed ticket `Appetite:`",
+        "**A plan-named checker is dry-run before its tickets' coders.** When a ticket's acceptance rests on a"
+        " checker the plan names (an identity diff, a parity script, a snapshot compare), run it once on a"
+        " throwaway head of the ticket's unit, a scratch build the orchestrator makes before the coder is dispatched"
+        " and never commits (it is no ticket code)",
+    ):
+        assert needle in text, needle

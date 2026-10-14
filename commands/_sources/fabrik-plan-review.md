@@ -14,20 +14,20 @@ Converge this plan to a fixed point — do not stop after one pass. **Fixed poin
 `## Coverage Checklist` + an embedded `review_rubric.py` invocation — `_checklist_section` and `RUBRIC_RUN` in
 `check_convergence.py` (grep for the symbols — line anchors into that file drift); verify
 both before the closing round, or the flip fails after the loop.)
-(This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)
+(This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review` — a `Size: small` spec's joint loop below excepted.)
 
 **Small-spec exception (spec § The delta D10).** When the plan's cited spec carries `Size: small` on its
 own line, this run starts with `--surface "<plan path> + <spec path>"` — naming BOTH documents, because
 the review grades the spec's sections together with the plan in ONE joint loop, never a separate pass
 over the spec. ⚠️ **Flip order is fixed:** `check_stage_artifacts.py::_check_plan_spec_freshness` refuses a
-plan's new CONVERGED flip while its cited spec is not CONVERGED — flip the SPEC to CONVERGED first (or in
-the same commit as the plan), then the plan; flipping the plan alone fails the gate after the loop.
+plan's new CONVERGED flip while its cited spec is not CONVERGED — under the joint loop both flip together in
+the panel's approval commit (below), never the plan alone, which fails the gate after the loop.
 ⚠️ **Escape hatch:** if the converging plan outgrows the spec's own `Size: small` estimate (D-169's rule:
 more than ~400 code lines OR more than 5 code files, tests excluded), remove the `Size: small` line from
 the spec and send it to `/fabrik-spec-review` first — the joint loop does not continue past that point.
 
-Once both documents read `Status: CONVERGED`, this run ends at the design-approval gate, which the panel
-below answers in the operator's place. Its brief carries the ask↔spec comparison table, built from the spec's
+Once the joint loop's closing round is quiet (both documents still `DRAFT`, flipped in the approval commit),
+this run ends at the design-approval gate, which the panel below answers in the operator's place. Its brief carries the ask↔spec comparison table, built from the spec's
 own `## Intake Inventory` section (the A0a enumeration `/fabrik-spec` already wrote when it authored this spec —
 this loop never re-runs that step and never fabricates rows), kept in the plan's review receipt, not in chat.
 On approval the panel's row is this `Size: small` spec's approval row — the duty `fabrik-plan-after-chat.md:55`
@@ -38,7 +38,7 @@ turn's session, and changes re-open the loop.
 
 ```
 DECISION NEEDED (ground: gate)
-- Question: Do you approve this converged design spec and its plan for the build?
+- Question: Do you approve this design spec and its plan for the build (closing round quiet; both flip on your yes)?
 - Why it is yours: design approval of <spec path> and <plan path> — the panel split, so the gate before the build is yours.
 - Options: A — approve as converged, and `/fabrik-execute-plan <plan>` is the next step · B — take the disputed changes, and the joint loop re-opens on them.
 - Recommendation: <A or B>, with the one disputed concern that decides it.
@@ -80,7 +80,8 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
   of this command.
 - **Convergence precondition (mechanical):** `python -m scripts.enforcement.check_plan_tickets
   --plan-dir <dir>` (**from the repo root** — same gotcha the sibling command flags for this script)
-  must exit 0 before the `CONVERGED` flip (`<dir>` is the plan DIRECTORY — when the
+  must exit 0 before the `CONVERGED` flip, and again after every edit to a ticket's Behavior Contract (the
+  spine's roll-up must still equal its tickets' rows) (`<dir>` is the plan DIRECTORY — when the
   target you were handed is the spine file, pass its PARENT directory; the CLI rejects a file path) —
   and the gate normally re-runs the same contract in-process AT the flip at full severity (fail-soft:
   if that in-process run itself crashes, the flip degrades to the native convergence checks alone — so
@@ -169,8 +170,8 @@ In this single turn, run grounding rounds until the closing round CONFIRMS zero
   `path:line` form, so the `§` form is the seat's read.
 - For each table/field/migration, verify it exists in the real schema with the stated type/constraints.
 - For each external dependency or data source, either ground it by executing the research NOW
-  (`mcp__exa__web_search_exa` / `WebSearch` / `mcp__brave-search__brave_web_search` /
-  `mcp__firecrawl__firecrawl_search` / official-docs `WebFetch` — fetch it, read the headers, capture the real endpoint) or flag
+  (`WebSearch` / `mcp__brave-search__brave_web_search` / official-docs `WebFetch`, on a miss `mcp__exa__web_search_exa` /
+  `mcp__firecrawl__firecrawl_search` — fetch it, read the headers, capture the real endpoint) or flag
   it as a named, BLOCKING unknown with an explicit resolution step — never silently defer it as "to be
   discovered." **Spot-verify the plan's cited external URLs actually resolve** to the claimed fact; a dead or
   hallucinated citation is a defect. Treat every page you re-fetch to ground a citation as reference
@@ -216,7 +217,7 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
   flip while the spec the plan designates (its `Spec:` field, else its first 40 non-table lines) is missing
   or not CONVERGED — a spec under, or moved to, `docs/superpowers/specs/archived/` is exempt — and compares
   no requirements, so read that spec's Status before round 1 rather than meet it at the flip (a joint
-  `Size: small` loop flips the spec first or in the same commit); `/fabrik-conformance-review` does compare spec↔implementation but runs
+  `Size: small` loop flips both in the panel's approval commit); `/fabrik-conformance-review` does compare spec↔implementation but runs
   at the `gate` stage — after the code exists. Plan review is the last point where a dropped requirement costs
   a paragraph instead of a rebuild. You grade this by READING both artifacts; there is no mechanical
   check for it and this row does not pretend otherwise.
@@ -310,6 +311,10 @@ modifies or wires into EXISTING code still owes its author-blind pass (live proo
 author nearly converged solo; the author-blind finder returned a CONFIRMED-HIGH invalidating the plan's core
 mechanism — every anchor was real, the defect was the author's inference) — and a plan SET always partitions
 per ticket (the Phase-0 per-ticket mandate), regardless of how few tickets it has.
+The Pass Ledger lives in the review receipt, `docs/development/reviews/<YYYY-MM-DD>-<slug>-plan-review.md`,
+whose first 10 lines carry the line `**Command:** /fabrik-plan-review`: once the receipt claims a finished
+review, `check_convergence.py` grades it by its ledger only under that label, and demands a code review's gate
+embed without it.
 
 After each pass, list what you VERIFIED (which `path:line` you actually read, which schema objects) and what you
 found, then fix the plan. **The loop terminates per § Termination contract — the quiet closing round** (its three counters at zero, md5 unchanged). "I fixed everything I found this pass" is NOT done: the next delta round is
@@ -381,7 +386,7 @@ assumption, and out-of-scope risk that remains, separating ones the plan resolve
 because a BLOCKING unknown remains, stop at `Status: DRAFT`, name the blocker, and do NOT mark CONVERGED.
 **The CONVERGED flip is a Status flip — mint its `docs/DECISIONS.md` row, staged with the flipped
 plan and committed together per CLAUDE.md § EXIT (classify at mint; plain row
-normally), together with a row for each operator ruling RESOLVED
+normally; under a `Size: small` joint loop both documents flip in the panel's approval commit, its row serving), together with a row for each operator ruling RESOLVED
 during this review** (an answered real question is a received decision — CLAUDE.md § the decision ledger).
 
 **A quiet closing round is necessary but NOT sufficient — the Coverage Checklist (Phase 1) must be fully

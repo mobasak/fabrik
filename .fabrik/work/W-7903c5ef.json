@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "fixed by W-800579be at 9e0dade83 (D-816, 2026-10-13): the resync refreshes stale worktree copies and check_synced_unmodified names the remedy. Measured 2026-10-14 in the reporter's own worktree /opt/site-provisioner/.claude/worktrees/sp2 after the 09:23 resync: scripts/merge_request.py and 60-watchdog.md md5 equal hub=main=wt, synced.lock identical to main, worktree-synced.lock present",
   "owner": "infra",
   "priority": 1,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "waits-2026-10-13"
   ],

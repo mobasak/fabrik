@@ -54,13 +54,17 @@ already exists as an unfrozen skeleton. **A DRAFT stub is meant to be edited thr
 STOP** (the explicit exception to CLAUDE.md's "file exists = STOP" — that rule guards against clobbering *real* content, and a
 placeholder stub has none). Modes A/B rewrite its body from the design/schema; Mode C fills it. **Only if the
 file is already `FROZEN`** do you STOP and ask; on the user's confirmation, proceed as a **re-freeze** — bump
-`Version`, never a silent overwrite. An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds its approval — a row naming the
+`Version` (a zero-delta re-freeze, below, excepted), never a silent overwrite. An approved spec is that confirmation (D-730) when `docs/DECISIONS.md` holds its approval — a row naming the
 spec's path that records the panel's `→ both-approve` or the operator's approving answer (a DRAFT or CONVERGED-flip row is
 not one) — and its § Contract deltas (the section a `Profile: delta` spec carries; a spec without one still
 stops) names the change: cite that row and the spec in the re-freeze's D-row and
 proceed. Anything else still stops: no approval row, or any field, column, type, validation, PII, reference or enum
 change the deltas do not name, which Phase 3's closing round re-checks before the Phase-4 flip. A `Version` that
 moved since the spec renumbers only when the spec says it does and the interim versions touch none of its deltas.
+When no delta (an empty § Contract deltas included) changes anything the contract records — a table row, an
+enum value, a retention row, a house rule, a reconciliation note — the re-freeze is zero-delta: Phases 1–3 still
+run and confirm the body unchanged, then Phase 4 bumps no `Version` and edits nothing, its D-row cites the
+approval row and the spec and says no recorded item changed, and the re-freeze close-out does not run.
 
 ## Phase 1 — Build the field inventory (dual-source, grounded, adversarial)
 
@@ -70,7 +74,7 @@ constraints; OPEN the file and read them. Assemble the inventory from both direc
 - **Design → fields (Mode A):** from the spec, enumerate every entity and every user-facing field the design
   implies (what the user types, sees, filters, or the API accepts). Ground external field standards **live only
   if the design introduces one** (repo-first `grep docs/`, `docs/reference/`; then
-  `mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` →
+  `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` /
   `mcp__firecrawl__firecrawl_search`) — e.g. a country code (ISO 3166), a currency
   (ISO 4217), a phone format (E.164). Cite the URL + date; never invent a validation rule from memory.
   (These are ISO/RFC standards, not academic papers — the `fabrik-citation-verifier` MCP does not apply here.)
@@ -138,6 +142,11 @@ project-level and light). Per section:
   `PII` ∈ `none | personal | sensitive` (sensitive = KVKK Art. 6 / GDPR Art. 9); an operator/actor audit
   identifier (`changed_by`, `reviewed_by`, set from the app user) is `personal`. `references` = the
   `entity.column` a FK points at, or `—`. A GUI field folded into a jsonb key is written `column.jsonkey`.
+  A `validation` cell whose rule is a format the project defines itself (a URL shape, a key or code format) is written
+  as the regex itself, in backticks (a `|` inside it escaped as `\|` for the table and unescaped when probed), never
+  prose, and in the same edit is probed against each guard that consumes it (the request schema, form validator or DB
+  constraint) with one value it must accept and one it must refuse; a cited standard (RFC 5322, E.164) or a bound
+  (`≤255`) stays as written, and a field no guard enforces yet gets a reconciliation note naming the missing guard.
 - **Enum registry** — the template's `Enum | Backing | Allowed values` table: one row per enum (bare name in
   `Enum`; in `Backing` one of the template legend's six tokens `native` · `CHECK` · `app` · `doc` · `file` · `unconstrained`, whole-cell `token`, `token (note)` or `a / b` — `check_data_contract_legend.py` WARNs on any other cell; values in `Allowed values`). In the per-entity `type` column an enum
   field is written `enum:<x>` (native PG enum) or `chk:<x>` (CHECK-constraint-backed) — real schemas encode most
@@ -153,10 +162,11 @@ project-level and light). Per section:
 
 Run repeated reconciliation passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged — is reached.
 The Pass Ledger lives in the contract's Pass Ledger section when it carries one, else in the closing report; a
-re-freeze adds its own dated version entry there after that closing round, so its absence is never a finding in
+bumping re-freeze adds its own dated version entry there after that closing round, so its absence is never a finding in
 any round of the run. A run paused before that round (the Termination contract's no-seat pause) carries its rows
 so far in its `blocked --reason` (free text; `--feedback` is the capped usage line), and the resumed run copies
-them into the entry, or into the closing report when the contract has no ledger section.
+them into the entry, or into the closing report when the contract has no ledger section. A zero-delta re-freeze
+(Phase 0) edits nothing, so its rows always go in the closing report.
 Each pass checks ALL of:
 
 1. **Coverage** — every entity from the spec (Mode A) / schema (Mode B) is present; every GUI/form field maps to
@@ -174,6 +184,11 @@ Each pass checks ALL of:
    every `personal`/`sensitive` category.
 5. **Re-freeze deltas (D-730)** — on a re-freeze confirmed by an approved spec, every change in the reconciled
    body is named by that spec's § Contract deltas; anything else STOPs before the Phase-4 flip.
+6. **Unbuilt files** — in any mode, the contract cites a file its spec has not built yet on a physical line of
+   its own (a bullet or table row with nothing else to check) that carries the exact lowercase marker of the
+   doc-links gate — `_iter_refs` in `scripts/enforcement/check_doc_links.py` — which is the phrase
+   `does not exist`; that gate skips the WHOLE line, so no built file shares it and the wrapped paragraph is never
+   the marker's home.
 
 After each pass, list what you reconciled (which `path:line` / spec sections you re-read) and what you changed,
 then run one MORE pass — the loop terminates ONLY at the Termination contract's closing round (`confirmed: 0`, md5-verified).

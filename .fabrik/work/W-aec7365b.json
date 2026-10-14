@@ -19,6 +19,7 @@
   "priority": 2,
   "status": "open",
   "tags": [
+    "waits-operator-resume",
     "waits-quota-reset"
   ],
   "title": "Promtail is END-OF-LIFE (2026-03-02) and the fleet still ships logs with it (2026-09-03, owner: fleet + operator window)"

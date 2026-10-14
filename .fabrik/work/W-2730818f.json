@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "`_tick_telegram`'s torn-above and symlinked-artifact verdicts are asserted by wording only — an executed grader is owed (2026-09-13, owner: fleet)"
 }

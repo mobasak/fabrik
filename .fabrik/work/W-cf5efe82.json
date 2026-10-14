@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:05.835345Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-cf5efe82",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VSA5WQ465B76NZS1490K3S",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: SB-id reservation — landed at fabrik-lib defb6e7a (fabrik-lib D-435), local, no hub change needed"
+}

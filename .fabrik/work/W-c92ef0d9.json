@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T02:48:45.949397Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c92ef0d9",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "census each command's receipt shape (does it carry a Pass Ledger with confirmed counters?) before adding its name to _DESIGN_REVIEW_COMMAND",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "gate"
+  ],
+  "title": "check_convergence.py: route the other design-family review receipts (/fabrik-ui-design-review, /fabrik-flows-review, /fabrik-deploy-plan-review, /design-review) to the Pass-Ledger proof like spec/plan-review (W-39d8d1fd OUT; none live-false-failing — tryton's /design-review receipt passes today only via a gate embed)"
+}

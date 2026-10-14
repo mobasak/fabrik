@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "repo": "https://github.com/mobasak/fabrik",
+  "routine": "fabrik-cloud-worker",
+  "accounts": {
+    "ob": {"trigger": "trig_017R8tyRMuERiJUybgTu3uxG", "github": "/web-setup replaced with the local gh token 2026-10-14; probe branch pushed"},
+    "ozgurbasak": {"trigger": "trig_01JjZvVkpqNyMLu2QiWUX9f6", "github": "/web-setup replaced with the local gh token 2026-10-14; probe branch pushed"},
+    "can": {"trigger": "trig_01Gj9mnrWKTKs6zFXsVP2Hr5", "github": "/web-setup replaced with the local gh token 2026-10-14; probe branch pushed"},
+    "mob": {"trigger": "trig_01Wq3b7n3dr6CnbVVg4RszeQ", "github": "/web-setup replaced with the local gh token 2026-10-14; probe branch pushed"}
+  }
+}

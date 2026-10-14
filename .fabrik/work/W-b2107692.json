@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T06:08:36.275414Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-b2107692",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4W2D1N85K96C8V0473CMXT7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "review-loop Workflow seats can still execute a destructive script — SEAT_ISOLATION and the refuter brief need the never-execute rule kaizen added to subagents-core and fabrik-reviewer.md"
+}

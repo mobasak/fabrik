@@ -773,9 +773,12 @@ def _subject(text: str) -> str:
     return ""
 
 
-def _lib_owner_of(text: str) -> Routing:
+def _lib_owner_of(text: str, from_repo: str = "fabrik") -> Routing:
     """fabrik-lib's module owner (D7), read in place from its own module map: a cited path
-    under `_opt_root()/fabrik-lib/<module>/…`, or a backticked bare token equal to a module."""
+    under `_opt_root()/fabrik-lib/<module>/…`, a relative `<module>/…` path (not when the
+    sender's own repo has that top-level folder), or a backticked bare token equal to a
+    HYPHENATED module name. A bare single-word module name never routes, but a second owner
+    it names leaves the mail unaddressed."""
     lib = _opt_root() / "fabrik-lib"
     try:
         owners_map = json.loads((lib / _LIB_MAP_REL).read_text(encoding="utf-8"))["owners"]
@@ -793,12 +796,36 @@ def _lib_owner_of(text: str) -> Routing:
         if isinstance(m, str)
     }
     prefix = str(lib).rstrip("/") + "/"
+    sender = _opt_root() / from_repo if from_repo and from_repo != "fabrik-lib" else None
     found: dict[str, str] = {}
+    weak: set[str] = set()
     for tok in _cited_tokens(text):
-        module = tok[len(prefix) :].split("/", 1)[0] if tok.startswith(prefix) else tok
+        # A module is named by a PATH — absolute under fabrik-lib, or relative `<module>/…` — or by
+        # a bare token only when the name is hyphenated: 13 of fabrik-lib's module names are
+        # ordinary words (`account`, `storage`, `rag`), and a bare one is no evidence the mail is
+        # about that module (W-c687ce60). Fails toward the sentinel's bare arm.
+        absolute = tok.startswith(prefix)
+        if not absolute:
+            tok = tok.rstrip("/")  # `doc-crawl/` names the module as `doc-crawl` does
+        if absolute or "/" in tok:
+            rel = _rel_under(tok[len(prefix) :] if absolute else tok)
+            if rel is None or "/" not in rel and not absolute:
+                continue
+            module = rel.split("/", 1)[0]
+            # the sender's own `docs-site/` or `rag/` is its folder, not fabrik-lib's module
+            if not absolute and sender is not None and (sender / module).is_dir():
+                continue
+        elif "-" in tok:
+            module = tok
+        else:
+            if tok in module_owner:
+                weak.add(module_owner[tok])
+            continue
         if module in module_owner:
             found.setdefault(module, module_owner[module])
     owners = sorted(set(found.values()))
+    if owners and weak - set(owners):
+        return Routing(None, sorted(set(owners) | weak), "", "module-owners")
     if len(owners) == 1:
         module = next(iter(found))
         return Routing(owners[0], owners, f"module {module}", "module-owners")
@@ -823,7 +850,7 @@ def owner_of(
     caller already made — a map, or None for "no map" — so one send reads the file once and its
     owner and switches agree; leave it out and owner_of reads the map itself."""
     if mailbox == "fabrik-lib":
-        return _lib_owner_of(text)
+        return _lib_owner_of(text, from_repo)
     data = _load_map() if map_data is _UNSET_MAP else cast("dict | None", map_data)
     if data is None:
         return _NO_ROUTING
@@ -1470,7 +1497,14 @@ def send(
             )
         if routing.map_version:
             routed.append(_map_owner_header(routing))
-    elif to == "fabrik-lib" and not to_agent:
+    elif (
+        to == "fabrik-lib"
+        and not to_agent
+        and not broadcast
+        # any threaded send: a fabrik-lib send is never refused for lacking an addressee,
+        # so the hub's forged---re concern (reply kind only) does not apply here (W-c687ce60)
+        and not re
+    ):
         # D7: addressed at send, by construction — no second writer on the inbox, no race
         # with `claim`. Several owners or none leave the mail for the sentinel's bare arm.
         try:
@@ -1481,7 +1515,8 @@ def send(
             )
         except Exception:  # noqa: BLE001 — fail-open by contract (spec D3e)
             lib = _NO_ROUTING
-        if lib.owner and _SAFE_NAME.fullmatch(lib.owner):
+        # never the sender itself: a module's author citing its own module asks someone else
+        if lib.owner and _SAFE_NAME.fullmatch(lib.owner) and lib.owner != _sender_role():
             to_agent = lib.owner
             routed.append(_routed_line("map", "", lib.owner, f"module map ({lib.reason})"))
     # AFTER every refusal, BEFORE minting: a hint must never change whether a

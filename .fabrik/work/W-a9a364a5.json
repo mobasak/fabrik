@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "already done: d5860f596 (W-28f260c3, on master) — a wall-closed run is resumed with resumed_from carrying the reason",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "command_run.py keeps `blocked --reason` (blocked_reason) but nothing reads it back, and the next `start` overwrites the record"
 }

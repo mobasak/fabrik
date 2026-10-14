@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T10:00:09.641112Z",
+  "creator": "infra",
+  "evidence": "3849a1772c3b05fe5e1b55c79f9f3fdab699cd3b",
+  "id": "W-c687ce60",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "in mail.py :1473-1486 add 'not broadcast and not (kind == reply and re)' like the hub leg; require a cited path or a module name in a code path context, not a bare backticked word; recognise <module>/… relative paths; tests per case; full /fabrik-review (mail.py is governance-synced)",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "done",
+  "title": "mail.py fabrik-lib leg (switches.fabrik_lib_address) misroutes: it addresses replies and broadcasts too (a dev2 thread reply citing `payments` went to fabrik-lib-dev1; a broadcast got an agent), and any backticked word equal to a module name (`account`, `storage`, `alerting`) addresses the mail; relative fabrik-lib paths are not recognised — fix, then turn the switch on (fabrik-lib agreed, D-429)"
+}

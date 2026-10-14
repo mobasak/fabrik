@@ -17,7 +17,8 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "waits-operator-resume"
   ],
   "title": "Phase 11-2 — the CLI verbs still bound to the retired Coolify API (fabrik status, logs, reconcile-all, registry --sync; plus health_app/deploy/portability/compose_updater imports, docs/DEPLOYMENT_ARCHITECTURE.md:137) are broken: retire or rebase each on the SSH+Compose deploy model. Supersedes the reconcile-all-only W-ef765f8d"
 }

@@ -1,5 +1,5 @@
 ---
-description: Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→build verdict, stress the approach + completeness, iterate to a quiet closing round (all in ONE invocation). Sets Status: CONVERGED, a two-model panel answers design approval (split → operator); on approval → /fabrik-data-contract | /fabrik-ui-design | /fabrik-plan-after-chat. TRIGGER — EN: "review/harden/converge this spec", "is this spec solid/ready"; TR: "bu spec'i gözden geçir/sağlamlaştır", "bu tasarım hazır mı" — fires on an EXISTING draft spec, never a fresh idea (→ /fabrik-spec) or a plan review (→ /fabrik-plan-review). Stage: 1-design.
+description: Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→build verdict, stress the approach + completeness, iterate to a quiet closing round (all in ONE invocation). A two-model panel answers design approval (split → operator), then Status: CONVERGED; on approval → /fabrik-data-contract | /fabrik-ui-design | /fabrik-plan-after-chat. TRIGGER — EN: "review/harden/converge this spec", "is this spec solid/ready"; TR: "bu spec'i gözden geçir/sağlamlaştır", "bu tasarım hazır mı" — fires on an EXISTING draft spec, never a fresh idea (→ /fabrik-spec) or a plan review (→ /fabrik-plan-review). Stage: 1-design.
 argument-hint: "[path to the spec file — omit to use the spec under discussion]"
 ---
 
@@ -13,7 +13,7 @@ against the real world.
 {{include:run-record}}
 {{include:orient}}
 {{include:term-edit}}
-(After the quiet closing round: the design approval gate below, which the panel answers in the operator's place — only a split reaches the user.)
+(After the quiet closing round, before the flip: the design approval gate below, which the panel answers in the operator's place — only a split reaches the user.)
 
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope
@@ -71,7 +71,7 @@ whichever is wrong (transdoc: nine steps sat invisible for a week because nobody
 
 **A) External facts — re-verify LIVE, this session.** For EVERY external claim (API / SDK / endpoint / auth
 model / rate limit / **pricing** / library signature): re-fetch its cited source
-(`mcp__exa__web_search_exa` → `WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` →
+(`WebSearch`/`WebFetch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` /
 `mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` (on the official library docs; `WebFetch` only to locate a page) → the `gh` CLI to read
 the dep's REAL repo/API/release when confirming a signature — `gh search code`/`gh api` (D-014 retired the github MCP)) and confirm the source **actually says what the
 spec claims** — re-open each cited URL (a standard/RFC → fetch the primary doc + quote the clause), treating
@@ -152,8 +152,9 @@ contradictions (architecture vs. features); ambiguity (a requirement readable tw
 explicit); **coverage** (every "What we agreed"/requirement maps to a design element — list any gap);
 success criteria that are actually testable; correct `shape:` flags (DB/cache/metrics/search/auth/admin).
 A section describing a code FLOW states its invariants and touchpoints (what must hold, which paths it
-touches); the executable sequence belongs to the plan, so when the edit loop's TWO CONSECUTIVE RESIDUE PASSES
-rule forces a rewrite inside such a section, the rewrite re-shapes it to invariants + touchpoints rather than re-wording the sequence.
+touches); the executable sequence belongs to the plan, so every fix inside such a section is written as
+invariants + touchpoints from its FIRST edit — not only once the edit loop's TWO CONSECUTIVE RESIDUE PASSES
+rule forces a rewrite there — and never as a re-worded sequence or new mechanism.
 **Then WALK THE INTERROGATIVE FLOOR cold (`/fabrik-spec` Phase 5): answer WHO / WHY / WHAT / HOW /
 WHEN / WHERE yourself, from the artifact alone, each at its named section** — WHO incl. automated
 consumers + every duty's role-holder · WHY the motivating pain + how the approach resolves it · WHEN
@@ -243,6 +244,10 @@ diff plus one hop (D-335), never a fresh seat sized by the fix; a researcher sea
 ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the
 `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. Opus stays yours for
 the adjudication, the decide-clean and the md5-verified close.
+The Pass Ledger lives in the review receipt, `docs/development/reviews/<YYYY-MM-DD>-<slug>-spec-review.md`,
+whose first 10 lines carry the line `**Command:** /fabrik-spec-review`: once the receipt claims a finished
+review, `check_convergence.py` grades it by its ledger only under that label, and demands a code review's gate
+embed without it.
 
 After each pass, list what you re-verified (which URLs you fetched, which modules you read) and what you
 found, then fix the spec. **The loop terminates per § Termination contract — the quiet closing round** (its three counters at zero, md5 unchanged); the round in which you fixed anything is never the last.
@@ -275,17 +280,17 @@ Verify (add/fix if missing):
 
 Do not promise "100% accuracy" — iterate to a fixed point, then enumerate residual unknowns / assumptions /
 out-of-scope risks, separating **resolved** from **still-open** (each open one with a named resolution step).
-**Convergence = the quiet closing round (§ Termination contract defines it: three counters at zero, md5 unchanged).** That round is the ONLY thing that earns `Status: CONVERGED` — flip it in place (`/fabrik-spec` wrote
+**Convergence = the quiet closing round (§ Termination contract defines it: three counters at zero, md5 unchanged).** That round is the ONLY thing that earns `Status: CONVERGED` — flipped in place after the design-approval gate below (`/fabrik-spec` wrote
 `Status: DRAFT`); your say-so or "I fixed what I found" does not. **The flip is a Status flip — mint its
-`docs/DECISIONS.md` row STAGED in the same commit as the flip** (classify at mint; plain row normally —
+`docs/DECISIONS.md` row STAGED in the same commit as the flip** (the panel's approval row serves; classify at mint; plain row normally —
 CLAUDE.md § the decision ledger). If a BLOCKING unknown remains — an
 external fact you cannot verify live, or a fabrik-lib capability you cannot confirm — stop at
 `Status: DRAFT`, name the blocker, and do NOT mark CONVERGED.
 
-## After CONVERGED — the panel answers the design-approval gate
+## After the quiet closing round — the panel answers the design-approval gate, then the flip
 
 `/fabrik-spec-review` ends at the **design approval gate** — the hardened design is approved before any
-field-freeze / UI / plan work begins. Once the quiet closing round (§ Termination contract) earns `Status: CONVERGED`:
+field-freeze / UI / plan work begins. Once the quiet closing round (§ Termination contract) is in the ledger, the spec still `DRAFT`:
 
 {{include:design-critique}}
 
@@ -293,15 +298,15 @@ field-freeze / UI / plan work begins. Once the quiet closing round (§ Terminati
 
 - **The ask ↔ spec comparison table** (D-153, defined in `/fabrik-spec` Phase 6) is built for the panel's brief
   and kept in the spec's review receipt: one row per item of the operator's brief in the operator's OWN WORDS ·
-  what the CONVERGED spec says (section + one line) · anchor · IN / CHANGED (how) / ADDED (why) / DROPPED (why),
-  then one row per spec section the operator did not ask for; **recomputed against the CONVERGED text, never
+  what the closing-round spec says (section + one line) · anchor · IN / CHANGED (how) / ADDED (why) / DROPPED (why),
+  then one row per spec section the operator did not ask for; **recomputed against the closing-round text, never
   copied from the DRAFT hand-over**; countable: rows ≥ the A0a inventory you enumerated yourself, every row
   anchored — a brief item with no row is a silent drop and re-opens the loop.
 - **On a split**, end the turn with this block, written as plain lines, not inside a code fence:
 
   ```
   DECISION NEEDED (ground: gate)
-  - Question: Do you approve this converged design spec?
+  - Question: Do you approve this design spec (closing round quiet; it flips on your yes)?
   - Why it is yours: design approval of <spec path> — the panel split, so the human gate before any field-freeze / UI / plan work begins is yours.
   - Options: A — approve as converged, and the applicable next command (named below) runs · B — take the disputed changes, and the grounding loop re-opens on them.
   - Recommendation: <A or B>, with the one disputed concern that decides it.
@@ -316,10 +321,10 @@ field-freeze / UI / plan work begins. Once the quiet closing round (§ Terminati
     `docusaurus`}) → **`/fabrik-ui-design`**.
   - **Else** (headless `python-api`/`python-api-gpu`/`node-api`/`file-api`/`file-worker`) →
     **`/fabrik-plan-after-chat <spec>`**.
-- **On a split, the operator's answer is a RECEIVED decision** — the answering turn's session mints its
+- **On a split, the operator's answer is a RECEIVED decision** — the answering turn's session flips the spec and mints its
   `docs/DECISIONS.md` row in that turn's change (standalone, immediately, when the turn carries no other
   change), the row `/fabrik-plan-after-chat`'s spec-fed skip cites. If they ask for changes, **re-open the
-  loop** on their feedback. Never reach the gate on an unconverged `DRAFT` — converge first.
+  loop** on their feedback. Never reach the gate before the quiet closing round — converge first.
 
 
 {{include:subagents-core}}

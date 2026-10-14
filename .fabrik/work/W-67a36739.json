@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "a self-correction to an earlier finding, informational only — no change asked",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "Correction to 01M3WXMWCKAVEFTEXWMRNKPJA7 (EXECUTED plans the check cannot read): 8 of the 9 are legacy-format closures, not 5."
 }

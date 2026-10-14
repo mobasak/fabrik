@@ -67,12 +67,42 @@ def test_a_derived_rule_is_grounded_on_its_stores_and_the_emit_gate_runs_per_tic
     assert (
         "- A rule the plan derives from data (a mapping, a ref rule, a classifier) names, for every value it reads,"
         " the store that fills that value in the case the plan builds, and is grounded against those stores, never"
-        " against one existing instance's values." in text
+        " against one existing instance's values:" in text
     )
     assert (
         "**Size as you draft.** Write the spine first (the gate grades nothing in a dir without its same-stem"
-        " spine), then run the emit gate after each ticket and read only its `READ budget` lines mid-draft, while"
+        " spine). Before writing each ticket, measure its Touches plus Context Files with the shape decision's"
+        " `find … wc -c`, minus the exempt shared reads, packs and generated artifacts the gate drops, against"
+        " `READ_BUDGET_BYTES`. A file the coder only reads that would put the ticket over is cited inline as"
+        " `path:line` with the quoted lines instead of listed, only when those lines are all the coder needs from it"
+        " (the cold-agent simulation decides); a file the ticket edits that alone exceeds the budget goes to the"
+        " set's single `Integration: true` ticket."
+        " Then run the emit gate after each ticket and read only its `READ budget` lines mid-draft, while"
         " Touches are still cheap to re-cut; the structural ERRORs of tickets not yet written close as the set"
         " completes. Build the spine's roll-up by copying the tickets' bulleted `Given` rows with a script, never"
         " by retyping them." in text
     )
+
+
+def test_the_store_census_covers_nested_members_and_shape_before_tickets() -> None:
+    """Row 1791950385 (a recurrence): the census missed nested item members, operator refs and shapes, found in bulk
+    at review. The census is bounded (distinct values with counts) and its output cited in Evidence."""
+    text = _flat()
+    assert (
+        "never against one existing instance's values: before the plan's first phase or ticket is written, an executed"
+        " census of each store, its command and output cited in the plan's Evidence, reads its shape (every field and"
+        " its type, recursing into nested items and marking which are required) and the values it holds (for a large"
+        " store, each read field's distinct values with counts, never a sample or one instance); a value an operator"
+        " enters (a ref, an id, a config key) counts as a store, and the source that accepts it is censused too."
+    ) in text
+
+
+def test_the_appetite_rule_says_check_plan_tickets_takes_a_plan_set_only() -> None:
+    """Row 1791966909: check_plan_tickets refuses a monolith path; a monolith is graded by check_plan_quality."""
+    text = re.sub(r"\s+", " ", SRC.read_text(encoding="utf-8"))
+    assert (
+        "`scripts/enforcement/check_plan_tickets.py --plan-dir <dir>` (a plan set only — it refuses a monolith file)"
+        " refuses a set carrying none; `check_plan_quality.py` grades every plan, a monolith included, but only under"
+        " `final_gate.py --systemic` and as a WARN while the plan is DRAFT/PLANNED, so a monolith's lines are"
+        " self-checked."
+    ) in text

@@ -9,8 +9,9 @@ file, not its scrollback. So:
 
     review_loop_ledger.py read RUN_DIR [--out FILE] [--box MIN]
         RUN_DIR is the run's transcript dir (the Workflow launch prints it; it holds `journal.jsonl` and one
-        `agent-<id>.jsonl` per seat). Writes {seats, candidates, verdicts, ledger_status} to FILE and prints a
-        compact table. Every seat carries its MINUTES, from its transcript's first and last timestamp — the
+        `agent-<id>.jsonl` per seat). Writes {seats, candidates, verdicts, ledger_status, ledger_flags} to FILE
+        and prints a compact table; `ledger_flags` prints as ledger CONTRADICTION / DISAGREE (advisory,
+        `ledger_flags`). Every seat carries its MINUTES, from its transcript's first and last timestamp — the
         Workflow API has no per-agent timeout, so an overrun is only ever visible here (`OVER BOX`; one refuter
         ran 59 minutes against a 12-minute box on 2026-09-23). A seat with no result row is `NO RESULT` — or
         `RUNNING` while the workflow's run file is absent (`workflow_state`: the read then exits 5), and an ended
@@ -310,7 +311,41 @@ def read_run(run: Path, box: float | None) -> dict:
                 )
             for v in result.get("verdicts") or []:
                 doc["verdicts"].append({**v, "seat": label})
+    doc["ledger_flags"] = ledger_flags(doc)
     return doc
+
+
+# A legacy label reads as its successor, so a run that mixes the two vocabularies compares like with like
+# (W-729416b3: STILL_TRUE / NOW_FALSE named the claim's truth, and a Haiku seat read a re-verified claim as true)
+_LEGACY_STATUS = {"STILL_TRUE": "DEFECT_PRESENT", "NOW_FALSE": "DEFECT_ABSENT"}
+
+
+def ledger_flags(doc: dict) -> list[dict]:
+    """ADVISORY flags over a later pass's ledger rows — printed for the lead, never a gate.
+
+    `contradiction`: a seat reported a defect PRESENT (or NEW) and raised no candidate at all — the shape of the label
+    inversion in mail 01M48MQ2HS (161 of 587 such seats on the box, 104 of them Haiku). A REPORT ONLY (recorded)
+    claim legitimately raises none, which is why this is a flag. `disagree`: two seats gave one id different
+    statuses. Cobra: a seat avoids the flag by raising any candidate; the refuter executes every candidate, so a
+    fake one costs the seat a refuted verdict the lead sees."""
+    by_seat: dict[str, list[dict]] = {}
+    for s in doc["ledger_status"]:
+        by_seat.setdefault(str(s.get("seat")), []).append(s)
+    raised = {str(c.get("seat")) for c in doc["candidates"]}
+    flags: list[dict] = []
+    seen: dict[str, dict[str, str]] = {}
+    for seat, rows in by_seat.items():
+        for s in rows:
+            status = _LEGACY_STATUS.get(str(s.get("status")), str(s.get("status")))
+            sid = str(s.get("id"))
+            seen.setdefault(sid, {})[seat] = status
+            # both labels a candidate must back (review B3 r1 A-S1: NEW alone was never flagged)
+            if status in ("DEFECT_PRESENT", "NEW") and seat not in raised:
+                flags.append({"kind": "contradiction", "seat": seat, "id": sid})
+    for sid, statuses in seen.items():
+        if len(set(statuses.values())) > 1:
+            flags.append({"kind": "disagree", "id": sid, "statuses": statuses})
+    return flags
 
 
 def _one(x: object, n: int) -> str:
@@ -349,6 +384,15 @@ def _print(doc: dict) -> None:
         print(
             f"ledger {s.get('id')} {s.get('status')} ({s.get('seat')}{', READ 0 FILES' if s.get('read_no_file') else ''}) — {_one(s.get('output'), 160)}"
         )
+    for f in doc.get("ledger_flags") or []:
+        if f["kind"] == "contradiction":
+            print(
+                f"ledger CONTRADICTION {f['id']} ({f['seat']}) — a defect reported PRESENT and no candidate raised: "
+                "re-execute it yourself (a REPORT ONLY claim raises none by design)"
+            )
+        else:
+            said = " · ".join(f"{k}: {v}" for k, v in sorted(f["statuses"].items()))
+            print(f"ledger DISAGREE {f['id']} — {said}: re-execute it yourself")
     tot = [s["tokens"] for s in doc["seats"] if s.get("tokens")]
     if tot:
         print(

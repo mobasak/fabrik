@@ -186,8 +186,8 @@ approval D-820). It is applied ONCE, at send, and every later reader shows its r
   anywhere; a trailing `/` is a directory prefix. `topics` match the body's `Subject:` line and
   only ever ADVISE: with no owned path, a single topic match fills the header with reason
   `topic "…"` and every reader shows it, but it never addresses mail and `route-report` does
-  not count it as the map's. `switches.auto_address` and `switches.fabrik_lib_address` ship
-  `false`. `scripts/enforcement/check_beat_owners.py` (a gate check) refuses an unknown owner, a
+  not count it as the map's. `switches.auto_address` is ON (operator, 2026-10-14) and
+  `switches.fabrik_lib_address` is ON (W-c687ce60; see the fabrik-lib bullet). `scripts/enforcement/check_beat_owners.py` (a gate check) refuses an unknown owner, a
   rule without `source`, a malformed or dead pattern, a rule fully shadowed by later rules of
   another owner, a beat whose rules cover every tracked file, and an unknown switch; it reports the unowned count with its denominator.
 - **At send** (hub-bound only): the cited paths — backticked tokens and `dir/…/file:line` tokens
@@ -213,9 +213,14 @@ approval D-820). It is applied ONCE, at send, and every later reader shows its r
   The send-time map's own trail lines and a first address given to unaddressed mail are not
   re-routes. `auto_address` is switched on by a one-line map commit only
   after kaizen reviews that the map beats the sender (spec § Lifecycle).
-- **fabrik-lib.** With `switches.fabrik_lib_address` on, an unaddressed send to `fabrik-lib`
-  whose cited modules all belong to one owner in fabrik-lib's `.fabrik/module-owners.json` is
-  addressed to that owner; it is off until the sentinel agrees.
+- **fabrik-lib.** With `switches.fabrik_lib_address` on (the sentinel agreed, fabrik-lib D-429),
+  an unaddressed, unthreaded (no `--re`), non-broadcast send to `fabrik-lib` whose cited modules
+  all belong to one owner in fabrik-lib's `.fabrik/module-owners.json` is addressed to that owner,
+  never to the sending agent itself. A module counts when cited as a path — absolute under
+  `/opt/fabrik-lib/<module>` (with or without a tail), or relative `<module>/…` unless the sender's own repo has that
+  top-level folder — or as a backticked HYPHENATED module name (`doc-crawl`). A bare single-word
+  name (`rag`, `account`) never routes on its own, but a second owner it names leaves the mail for
+  the sentinel (W-c687ce60).
 
 ## Kinds + the ack contract
 

@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "/fabrik-task over scripts/command_run.py run-record lifecycle",
-  "note": "",
+  "note": "already done: W-28f260c3 (d5860f596) — blocked --wall seeds the record, start --resume-from carries it, the commit binding reads origin_epoch (command_run.py:1285); used live on 2026-10-14",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "kaizen-01m4n1k909"
   ],

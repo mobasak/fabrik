@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T08:34:38.638692Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-2d357d1c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WQVPAFVBM8VXZV6JRP14MM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: PIN_IMPORT placement for Agent-tool seats — done at 8364d13e8 on worktree-kaizen; row 1791927763 marked answered"
+}

@@ -1388,6 +1388,7 @@ docs/
 | [docs/README.md](docs/README.md) | The docs/ tree's charter and folder map — one role per folder |
 | [preplans/README.md](docs/preplans/README.md) | Preplans folder — stage 1 of the Fabrik lifecycle, captured intent before `fabrik scaffold` |
 | [workstation/kaizen.md](docs/workstation/kaizen.md) | The kaizen continuous-improvement loop on this box — the daily measurement half and the analysis half |
+| [workstation/cloud-dispatch.md](docs/workstation/cloud-dispatch.md) | Cloud subagents that spend the per-account cloud-session credit: `scripts/cloud_dispatch.py` fires a fleet account's claude.ai routine (`.fabrik/cloud-routines.json`), waits for its `claude/<slug>` branch, reads its log (D-857) |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration guide - credentials, architecture, troubleshooting |
 | [DEPLOYMENT_ARCHITECTURE.md](docs/DEPLOYMENT_ARCHITECTURE.md) | Deploy code architecture reference |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
@@ -1899,6 +1900,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [fleet-doc-audit-2026-09-23.md](docs/infrastructure/probe-reports/fleet-doc-audit-2026-09-23.md) | Dated fleet doc-freshness report (2026-09-23 cron run) |
 | [fleet-doc-audit-2026-09-30.md](docs/infrastructure/probe-reports/fleet-doc-audit-2026-09-30.md) | Dated fleet doc-freshness report (2026-09-30 cron run) |
 | [fleet-doc-audit-2026-10-07.md](docs/infrastructure/probe-reports/fleet-doc-audit-2026-10-07.md) | Dated fleet doc-freshness report (2026-10-07 cron run) |
+| [fleet-doc-audit-2026-10-14.md](docs/infrastructure/probe-reports/fleet-doc-audit-2026-10-14.md) | Dated fleet doc-freshness report (2026-10-14 cron run) |
 | [fleet-doc-audit-latest.md](docs/infrastructure/probe-reports/fleet-doc-audit-latest.md) | Newest fleet doc-freshness report (cron-regenerated weekly; dated copies alongside, e.g. fleet-doc-audit-2026-08-07.md) |
 | [fleet_doc_audit.py](scripts/fleet_doc_audit.py) | Weekly fleet-wide doc-freshness audit (wake-proof via weekly_catchup.sh hourly stamp check) — mechanical rot probes over every /opt project (code-vs-docs lag, per-doc staleness ≥14d, untracked key docs, template stub sentinels, registry-obligated missing docs) → dated report in docs/infrastructure/probe-reports/. Truth-level fixes route to /fabrik-doc-converge or /fabrik-docs-review in the flagged project. Since 2026-09-02 it also INDEXES its dated report (INDEX.md row before the -latest anchor) and self-commits INDEX.md only when INDEX.md was clean before the run — never sweeping a sibling's WIP. |
 | [test_fleet_doc_audit.py](tests/test_fleet_doc_audit.py) | 12 tests — the audit's pure probes (lag arithmetic incl. no-code/docs-newer cases, stub-sentinel counting, registry basename compare, never-committed labelling) + the INDEX self-indexing helper (inserts one row before the -latest anchor, matched by link TARGET; idempotent; no anchor → no write) + `index_is_clean()` (HEAD-based, so a staged sibling edit is dirty). |

@@ -17,7 +17,7 @@ this page is where a new cleanup rule gets written.
 | `cleanup-weekly.ps1` | `C:\Users\user\scripts\` (Windows) | Task Scheduler `Fabrik-WeeklyCleanup`, **Sun 04:00** | Windows Temp, crash dumps, WU downloads |
 | `compact-wsl.bat` | `C:\Users\user\OneDrive - Tojlo Solutions LLC\Desktop\` | manual | WSL vhdx compaction |
 | `flush_subagent_outboxes.py` | `/opt/fabrik/scripts/kilo-benchmarks/` (WSL) | **daily 06:00** via `daily_refresh.sh` **+ every boot** via `wsl_startup_hook.sh` | drains `.tmp/subagents/pg_outbox*.jsonl` — see § E |
-| `scratch_sweep.py --dead --apply` | `/opt/fabrik/scripts/` (WSL) | cron **04:20 daily** — ✅ INSTALLED (verified in `crontab -l` 2026-09-20) | DEAD sessions' scratch under `/tmp/claude-<uid>` — see § F |
+| `scratch_sweep.py --dead --apply` | `/opt/fabrik/scripts/` (WSL) | cron **04:20 daily** — ✅ INSTALLED (verified in `crontab -l` 2026-09-20) | DEAD sessions' scratch under `/tmp/claude-<uid>`, and the hub's dormant `.claude/worktrees/agent-<hex>` harness trees — see § F |
 | `agent_memory.sh cron` | `/opt/fabrik/scripts/sysadmin/` (WSL) | **hourly** via `weekly_catchup.sh`, fires once a day — ✅ INSTALLED 2026-09-20 | RAM: asserts the four `vm.*` knobs and reports. It does NOT reclaim swap — that is operator-run (D-318) — see § G |
 
 ---
@@ -190,6 +190,17 @@ signal, AND its own directory is idle past 7 days. A gone pid is NOT a finished 
 keeps the sid across exactly the network deaths, context fills and quota holds this tool serves.
 Measured 2026-09-08: 18 sids had a gone-pid sessions file and a live directory, and all 18 were
 younger than 7 days — one of them 8 minutes old.
+
+**The janitor's harness pass (W-18e66a92).** A dead subagent's `.claude/worktrees/agent-<hex>` tree
+is never removed by the session that made it — that session is gone — so `--dead` also classifies
+the hub's MAIN checkout (`janitor_worktrees`): only `agent-` + 16 or more hex directly under
+`.claude/worktrees/` (the named `fleet`/`intel`/`kaizen` trees are peers' and never taken), only a
+`wt-removable` chain verdict, only after 3 days with no commit or checkout in the tree (the newest of
+its registration's `gitdir`, `HEAD` and `logs/HEAD` — never `index`, which the classifier's own
+`git status` rewrites), and never a repo-wide `git worktree prune`. Its merged branch goes with
+`git branch -d`. A tree's `.worktreeinclude` copy of `.env` counts as a creation copy when its bytes
+equal a top-level file in the hub's `backups/` whose NAME contains the copy's basename (`hub.env.retired-<md5>.backup.<ts>` for `.env`; `_preserved_in_backups`): after a `.env` rotation,
+archive the retired version there once, or every older tree stays `wt-ignored-data`.
 
 **The cron line — ✅ INSTALLED.** Verified present in `crontab -l` on 2026-09-20; the operator
 placed it after this section was written. Kept here because it is the line to restore if the

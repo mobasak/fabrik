@@ -46,6 +46,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -65,11 +66,14 @@ REFUSAL_SET = """NEVER TOUCHES (hard-coded; this text is printed by --help and b
   * a symlink's target — a symlinked entry is `unclassified` and is never followed
   * a HARNESS-owned worktree (<repo>/.claude/worktrees/**, or a .git/worktrees/<n>/CLAUDE_BASE
     marker) unless --include-harness AND its own chain verdict is wt-removable
+    — and in --dead only the hub's `.claude/worktrees/agent-<hex>` trees, dormant 3 days by their
+    last commit or checkout, with no repo-wide `git worktree prune`
   * a worktree this session did not create (wt-foreign) unless --foreign-older-than DURATION, and
     then ONLY when its own chain verdict is wt-removable — merged, clean, unlocked and unheld; a
     dormant tree whose registration is merely STALE stays wt-foreign, because acting on it runs
     the REPO-WIDE `git worktree prune` and would drop other sessions' registrations too
-  * a worktree holding IGNORED files outside the cache allowlist (wt-ignored-data), or a directory
+  * a worktree holding IGNORED files outside the cache allowlist (wt-ignored-data) — an ignored
+    copy whose bytes sit in the main checkout's backups/ under a name naming it is not data — or a directory
     git does not register (wt-orphan-dir)
   * a worktree whose dirt is ENTIRELY the governance sync's own output (wt-sync-only), and a clean
     worktree whose branch is not merged (wt-unmerged), unless --include-unmerged: then the FOLDER
@@ -1452,6 +1456,9 @@ def run_dead_mode(args: argparse.Namespace) -> int:
             print(REFUSAL_SET)
             print(render(rows, gaps=gaps, allowed=_allowed_classes(args)))
             apply_rows(rows, _allowed_classes(args), proc_root=_proc_root())
+            hub = _janitor_repo_root()
+            if hub is not None:
+                janitor_worktrees(hub, _now(), _proc_root(), apply=True)
         return RC_OK
     out = render(
         rows,
@@ -1462,6 +1469,9 @@ def run_dead_mode(args: argparse.Namespace) -> int:
     )
     if out:  # `print("")` is a blank line, and --brief promises ZERO bytes
         print(out)
+    hub = _janitor_repo_root()
+    if hub is not None:
+        janitor_worktrees(hub, _now(), _proc_root(), apply=False, brief=args.brief)
     return RC_OK
 
 
@@ -1790,12 +1800,82 @@ def _rebuildable(
         return True
     if _is_sync_materialised(wt, rel):  # a current or older committed version of its hub source
         return True
-    if main_path is None or not (main_path / rel).is_file():
+    if main_path is None:
+        return False
+    if ignored and _preserved_in_backups(main_path, data, rel):
+        return True
+    if not (main_path / rel).is_file():
         return False
     try:
         return data == (main_path / rel).read_bytes()
     except OSError:
         return False
+
+
+# The main checkout's `backups/` index — size -> top-level regular files — keyed on the directory's
+# own mtime so a file archived mid-run is seen (W-18e66a92).
+_BACKUP_INDEX: dict[str, tuple[int, dict[int, list[Path]]]] = {}
+
+
+def _preserved_in_backups(main_path: Path, data: bytes, rel: str) -> bool:
+    """True when `data` — a NON-EMPTY ignored file's bytes — equals a top-level regular file in the
+    main checkout's `backups/` (the sanctioned secrets archive, CLAUDE.md § Pointers): a stale
+    `.worktreeinclude` copy whose bytes are preserved is not data (W-18e66a92). Only IGNORED files
+    reach here — an untracked file is someone's work whatever it equals. Fails CLOSED: an empty file,
+    a symlinked or non-directory `backups/`, a symlinked, unreadable or non-regular entry never match.
+    The backup's NAME must name the file it preserves (`hub.env.retired-….backup` for `.env`): a
+    short generic file may share its bytes with an unrelated backup (review S1). Each candidate is
+    opened `O_NOFOLLOW|O_NONBLOCK` and `fstat`-checked before it is read, because the index is cached
+    on the directory's mtime and an entry swapped for a FIFO or a symlink inside one tick would
+    otherwise hang the janitor or be followed (review C3).
+    COBRA: the cheapest way to make a tree removable is to copy its bytes into backups/ — which
+    preserves them, the outcome this rule exists for."""
+    name = Path(rel.rstrip("/")).name
+    if not data or not name:
+        return False
+    root = main_path / "backups"
+    try:
+        if root.is_symlink() or not root.is_dir():
+            return False
+        stamp = root.stat().st_mtime_ns
+    except OSError:
+        return False
+    cached = _BACKUP_INDEX.get(str(root))
+    if cached is None or cached[0] != stamp:
+        index: dict[int, list[Path]] = {}
+        try:
+            with os.scandir(root) as it:
+                for e in it:
+                    try:
+                        if e.is_file(follow_symlinks=False):
+                            index.setdefault(e.stat(follow_symlinks=False).st_size, []).append(
+                                Path(e.path)
+                            )
+                    except OSError:
+                        continue
+        except OSError:
+            return False
+        cached = (stamp, index)
+        _BACKUP_INDEX[str(root)] = cached
+    for candidate in cached[1].get(len(data), []):
+        if name not in candidate.name:
+            continue
+        try:
+            fd = os.open(candidate, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        except OSError:
+            continue
+        try:
+            st = os.fstat(fd)
+            if not stat.S_ISREG(st.st_mode) or st.st_size != len(data):
+                continue
+            with os.fdopen(os.dup(fd), "rb") as fh:
+                if fh.read(len(data) + 1) == data:
+                    return True
+        except OSError:
+            continue
+        finally:
+            os.close(fd)
+    return False
 
 
 def _ignored_data(repo_wt: Path, main_path: Path | None = None) -> list[str]:
@@ -2171,7 +2251,9 @@ def _not_sync_only_now(path: Path, branch: str, repo: Path) -> str:
     return ""
 
 
-def apply_worktrees(repo: Path, rows: list[Row], allowed: set[str], out=sys.stdout) -> int:
+def apply_worktrees(
+    repo: Path, rows: list[Row], allowed: set[str], out=sys.stdout, prune: bool = True
+) -> int:
     """`git worktree remove` (never `--force`) then `git branch -d` (never `-D`).
 
     A SQUASH-merged branch is not an ancestor, so `-d` REFUSES it: the worktree goes and the branch
@@ -2221,13 +2303,121 @@ def apply_worktrees(repo: Path, rows: list[Row], allowed: set[str], out=sys.stdo
             # A SQUASH-merged branch is not an ancestor, so `-d` refuses it. The worktree is gone
             # and the branch survives with git's own words — the conservative end state, never -D.
             print(f"  branch {branch} kept — git: {msg_b.strip().splitlines()[0]}", file=out)
-    if removed:
+    if removed and prune:
         # Only after we actually removed something, and said so: `git worktree prune` is REPO-WIDE
         # and drops other sessions' stale registrations too, so running it unconditionally made a
         # zero-candidate apply mutate the repo silently (round-3, sub-threshold).
         print("PRUNED stale registrations (repo-wide `git worktree prune`)", file=out)
         _git(repo, "worktree", "prune")
     return removed
+
+
+# ── the janitor's harness pass (W-18e66a92) ─────────────────────────────────────────────────────
+# A dead subagent's harness worktree is never removed by the session that made it (that session is
+# gone) and `--worktrees` cannot run from cron (no session start resolves). `--dead` therefore runs
+# this pass over the hub's MAIN checkout: only `<repo>/.claude/worktrees/agent-<hex>` trees (work.py's
+# `_HARNESS_RE`; the named `fleet`/`intel`/`kaizen` trees are peers' and never taken), only when the
+# chain says removable AND the registration shows no commit or checkout for HARNESS_DORMANT_S, and never a
+# repo-wide `git worktree prune`. A removed tree's MERGED branch goes with `git branch -d`, as every
+# `--worktrees --apply` does; its commits stay reachable.
+HARNESS_DORMANT_S = 3 * 24 * 3600
+_HARNESS_NAME_RE = re.compile(r"agent-[0-9a-f]{16,}")
+
+
+def _janitor_repo_root() -> Path | None:
+    """The MAIN checkout of the repo this script lives in — a linked worktree's copy resolves to it
+    through the common git dir, so the pass never runs against a worktree's own `.git` file."""
+    # The seam (review C1): the existing `--dead --apply` tests run this script as a subprocess, and
+    # a repo derived from `__file__` alone pointed them at the LIVE hub. Set, it names the repo;
+    # set and empty, the pass is skipped.
+    seam = os.environ.get("SCRATCH_SWEEP_JANITOR_REPO")
+    if seam is not None:
+        return Path(seam) if seam and Path(seam).is_dir() else None
+    here = Path(__file__).resolve().parent
+    rc, out = _git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if rc != 0 or not out.strip():
+        return None
+    common = Path(out.strip().splitlines()[0])
+    return common.parent if common.name == ".git" else None
+
+
+def _tree_registration(repo: Path, tree: Path) -> Path | None:
+    """The tree's OWN registration dir, read from its `.git` file (`gitdir: <meta>`), and only when
+    that dir sits in `repo/.git/worktrees/`. Git suffixes a colliding basename (`agent-x1`), so
+    `repo/.git/worktrees/<basename>` can be ANOTHER tree's registration (review C2)."""
+    try:
+        text = (tree / ".git").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if not text.startswith("gitdir:"):
+        return None
+    meta = Path(text[len("gitdir:") :].strip())
+    try:
+        if meta.parent.resolve() != (repo / ".git" / "worktrees").resolve():
+            return None
+    except OSError:
+        return None
+    return meta
+
+
+def _last_git_activity(meta: Path) -> float | None:
+    """The newest mtime of the registration's gitdir, HEAD and logs/HEAD — the last commit or
+    checkout in the tree, not its creation. Never `index`: the classifier's own `git status`
+    rewrites it, so every run would read every tree as active (measured on the fixture). A tree
+    with uncommitted work is caught by the chain as dirty, so HEAD's movement is the activity left."""
+    stamps: list[float] = []
+    for rel in ("gitdir", "HEAD", "logs/HEAD"):
+        try:
+            stamps.append((meta / rel).stat().st_mtime)
+        except OSError:
+            continue
+    return max(stamps) if stamps else None
+
+
+def janitor_worktrees(
+    repo: Path,
+    now: float,
+    proc_root: Path,
+    apply: bool,
+    out=sys.stdout,
+    brief: bool = False,
+) -> list[Row]:
+    """Classify, and with `apply` remove, the dormant harness worktrees of `repo`."""
+    rows = classify_worktrees(repo, now, proc_root, now, True, HARNESS_DORMANT_S)
+    try:
+        home = (repo / ".claude" / "worktrees").resolve()
+    except OSError:
+        return []
+    picked: list[Row] = []
+    for r in rows:
+        p = Path(r.path)
+        if p.parent.resolve() != home or not _HARNESS_NAME_RE.fullmatch(p.name):
+            continue
+        if r.cls == "wt-harness":
+            meta = _tree_registration(repo, p)
+            last = None if meta is None else _last_git_activity(meta)
+            if last is None or now - last < HARNESS_DORMANT_S:
+                r = Row(
+                    r.path,
+                    r.kind,
+                    "wt-foreign",
+                    "harness tree with recent git activity — not dormant",
+                    "" if last is None else f"last git activity {_human(now - last)} ago",
+                )
+            else:
+                r = Row(
+                    r.path,
+                    r.kind,
+                    r.cls,
+                    "dormant harness tree, merged and clean — the janitor removes it",
+                    f"last git activity {_human(now - last)} ago",
+                )
+        picked.append(r)
+    if picked and not brief:
+        print(render(picked, allowed={"wt-harness"}), file=out)
+    if apply:
+        apply_worktrees(repo, picked, {"wt-harness"}, out=out, prune=False)
+    return picked
 
 
 def run_worktrees_mode(args: argparse.Namespace) -> int:

@@ -17,7 +17,8 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "rules"
+    "rules",
+    "waits-operator-resume"
   ],
   "title": "core/25-data-postgres mandates Alembic, but an emitted saas-skeleton ships no Alembic baseline (server/db/schema.sql is its only DDL path)"
 }

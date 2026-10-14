@@ -197,10 +197,88 @@ def test_a_rule_lands_where_its_writers_load_it_and_a_mechanism_meets_its_consum
         "or to the fragment, pack or `CLAUDE.md` that § Drive's consistency rule sends a shared rule to."
         in p2
     )
-    assert "names them), § Drive's home for a shared rule, or the pack you would edit" in p2
+    assert (
+        "names them), a seat file under `commands/_agents/`, § Drive's home for a shared rule, or the pack you would edit"
+        in p2
+    )
     p3 = _phase("## PHASE 3", "## PHASE 4")
     assert (
         "A mechanism the edit adds — a token, a field, a report shape, a panel's proposal included — is checked"
         " against the step or code that must consume it, and is written in only when that consumer reads it or"
         " this edit wires it in." in p3
     )
+
+
+def test_a_reject_search_reads_the_render_and_a_seat_rule_lands_in_every_home() -> None:
+    """Rows 1791941814 and 1791944106 (kaizen's own closes, 2026-10-14): a planned HELD reject said /fabrik-spec Phase 0
+    dispatches no capped seat brief, but delegated-reads.md, which it includes, does; and a never-execute seat rule was
+    first written into subagents-core alone. The reject search reads the rendered command; a seat rule goes to every
+    home a grep names, and PHASE 2 admits the agent files those homes include."""
+    p2 = re.sub(r"\s+", " ", _phase("## PHASE 2", "## PHASE 3"))
+    assert (
+        "to FIND that line, grep the rendered command (`~/.claude/commands/<command>.md`: every fragment, the"
+        " appended close and every parameter), each file it points at for the rule, and the loaded `CLAUDE.md` for"
+        " the row's subject, then cite the line in the file it renders from." in p2
+    )
+    assert "to a seat file under `commands/_agents/` (PHASE 3's seat rules)" in p2
+    assert (
+        "names them), a seat file under `commands/_agents/`, § Drive's home for a shared rule" in p2
+    )
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "An edit to what a SEAT may do lands everywhere seat rules live, since a rule in one home is not in force in"
+        " the others: `command grep -rln -E '<two or more phrases of the neighbouring seat rule>' commands"
+        " .claude/workflows .claude/hooks docs/reference` names them" in p3
+    )
+    for home in (
+        "commands/_fragments/subagents-core.md",
+        "commands/_sources/fabrik-review.md",
+        "commands/_fragments/design-critique.md",
+        "docs/reference/convergence-prompts.md",
+        ".claude/workflows/fabrik-review-loop.js",
+        ".claude/hooks/seat_guard.py",
+        "commands/_agents/fabrik-reviewer.md",
+    ):
+        assert (ROOT / home).exists(), home
+    assert "const SEAT_ISOLATION" in (ROOT / ".claude/workflows/fabrik-review-loop.js").read_text()
+
+
+def test_a_row_prescribing_how_the_command_works_goes_to_the_panel_first() -> None:
+    """Row 1791961631: a row whose prescribed step contradicts another line of the command is a decision."""
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "A row that prescribes how the command works — a step, an order, a commit or a hand-off, not a wording — and"
+        " contradicts a line that reading finds is a decision (a NEW mechanism still routes per PHASE 2), settled"
+        ' before the first draft in CLAUDE.md § Autonomy\'s order ("the self-service sources first", then the Opus +'
+        " Fable panel), and the draft is that answer."
+    ) in p3
+
+
+def test_the_held_subject_search_reads_the_reasons_view() -> None:
+    """Mail 01M4VX84J0 (infra, D-837): the held-subject search greps `--reasons` output by reason, not by tag."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    assert (
+        "Before rejecting, search earlier reject reasons for the subject: `python3"
+        " /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject"
+        " is still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason),"
+        " so grep its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the"
+        " output into an audit seat's scratch, never the seat."
+    ) in text
+
+
+def test_fabrik_task_third_queue_pass_lines() -> None:
+    """/fabrik-task rows 1791971413, 1791966319, 1791953313, 1791973990, 1791958891, 1791975925 (D-856):
+    subprocess-run tests found by name, a relied-on grader red-proved, vendored copies searched, the
+    live-store pin named, and MEASURE's slice re-run on the built tree."""
+    text = re.sub(r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-task.md").read_text())
+    for needle in (
+        "the tests that import, grade or run the declared files (grep the tests for each file's name and every mode"
+        " or flag the change extends, since a test that runs a script by subprocess never imports it)",
+        "a grader the design relies on is shown red on a deliberately broken input, since a pass proves nothing"
+        " until it can fail",
+        "and every vendored copy outside it (`find /opt` by the file's name)",
+        "A test that writes a live store pins it to a tmp root: the hub's `tests/conftest.py` already pins the mail"
+        " root and the `~/.claude/state` files, a work-store test passes a tmp repo, and a new store gets its pin there",
+        "before phase 4, MEASURE's test slice re-runs on the built tree.",
+    ):
+        assert needle in text, needle

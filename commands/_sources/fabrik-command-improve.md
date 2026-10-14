@@ -163,16 +163,22 @@ and stop; do not invent an edit to justify the run.
 
 Group the rows by what they are actually about, then choose the group that (a) the most rows name,
 and (b) you can express as a CONCRETE change to `commands/_sources/<command>.md`, to one of the
-fragments that command renders, to the rule pack it cites, or to the fragment, pack or `CLAUDE.md` that § Drive's
-consistency rule sends a shared rule to. Name the rows you are answering by `ts`. ⚠️ **A `.windsurf/rules/` edit is a FLEET-WIDE
+fragments that command renders, to the rule pack it cites, to a seat file under `commands/_agents/` (PHASE 3's seat
+rules), or to the fragment, pack or `CLAUDE.md` that § Drive's consistency rule sends a shared rule to. Name the rows you are answering by `ts`. ⚠️ **A `.windsurf/rules/` edit is a FLEET-WIDE
 change** — that directory is a governance-sync trigger, so a commit there distributes to ~46 repos
 on the post-commit hook. Make it only if it is correct for all of them, and say so in the commit;
 one hub agent's verdict is not evidence about 46 projects.
 
 **What one row earns (D-711).** A one-off verdict is edited only when it shows the command text WRONG or MISLEADING;
 valid one-off advice is rejected with `HELD:<subject>` first in the reason, then the checked `path:line`, its
-quote and why that text is not wrong. Before rejecting, search earlier reject reasons for the subject (the
-queue's `held (all time):` line lists the held tags once any exist): a subject already held is a recurrence and
+quote and why that text is not wrong; to FIND that line, grep the rendered command
+(`~/.claude/commands/<command>.md`: every fragment, the appended close and every parameter), each file it
+points at for the rule, and the loaded `CLAUDE.md` for the row's subject, then cite the line in the file
+it renders from. Before rejecting, search earlier reject reasons for the subject: `python3
+/opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject is
+still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason), so grep
+its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the output into an
+audit seat's scratch, never the seat. A subject already held is a recurrence and
 is edited, never re-rejected — `--reject` warns on one but still writes it. An Opus seat audits the advice set
 for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command
 reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it
@@ -183,8 +189,8 @@ Three shapes are NOT yours to apply here, and each has a destination:
 
 - **the file you would WRITE is lock-owned.** RESOLVE THE TARGET FIRST, THEN READ THE LOCKS. Key it
   on the write TARGET — `commands/_sources/<command>.md`, one of the fragments that command renders
-  (`command grep -n 'include:' commands/_sources/<command>.md` names them), § Drive's home for a shared
-  rule, or the pack you would edit — never on what the verdict talks about: a verdict phrased about behaviour names no file and
+  (`command grep -n 'include:' commands/_sources/<command>.md` names them), a seat file under `commands/_agents/`,
+  § Drive's home for a shared rule, or the pack you would edit — never on what the verdict talks about: a verdict phrased about behaviour names no file and
   still lands in one. ONLY THEN read the locks: `python3 -c` over `.fabrik/plan-locks/*.json`,
   keeping the files whose `status` is `"active"` and testing your write target against their
   **`owned_paths`** list — name that key, a guess like `files` returns `[]` and reads as "no lock
@@ -216,7 +222,15 @@ rule lives), the target's own routing rules (state the overlap), its fan-out par
 whose executor — lead, seat or fixer — acts on the sentence (place it where that reader looks, never
 contradicting who drives), every branch the sentence's subject can bind (a pronoun for "the review"
 binds each review the step can pick), and the --help and argument handling of any script the sentence
-works around (a mode may already cover the blind spot).
+works around (a mode may already cover the blind spot). A row that prescribes how the command works — a step, an
+order, a commit or a hand-off, not a wording — and contradicts a line that reading finds is a decision (a NEW
+mechanism still routes per PHASE 2), settled before the first draft in CLAUDE.md § Autonomy's order ("the
+self-service sources first", then the Opus + Fable panel), and the draft is that answer. An edit to
+what a SEAT may do lands everywhere seat rules live, since a rule in one home is not in force in the others:
+`command grep -rln -E '<two or more phrases of the
+neighbouring seat rule>' commands .claude/workflows .claude/hooks docs/reference` names them — today `subagents-core.md`, each seat file under
+`commands/_agents/`, the seat-brief lists in `fabrik-review.md` and `design-critique.md`,
+`convergence-prompts.md`, and intel's `SEAT_ISOLATION` and `seat_guard.py` (mailed, never edited here).
 
 **Commands are rules, not changelogs:** write the new text in the present tense as the rule, and
 DELETE what it replaces. The history lives in git.

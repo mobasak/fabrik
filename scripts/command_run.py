@@ -1652,7 +1652,7 @@ _WALL_HINT = re.compile(r"quota|exhaust|\bwall\b|(?-i:\bRED\b)", re.I)
 # sitting's clock — budget, appetite, tokens and wall_s count ACTIVE time; the original start
 # rides beside it as `origin_epoch`/`origin_started_at` + `gap_s`), `dispatch` (a per-round
 # reservation siblings subtract for 25 min — stale by construction), `stack` (rebuilt from the
-# live record), `covered`/`first_review_reach`/`event_seq`/`session_id`/`repo_root`/`agent`/
+# live record), `covered`/`first_review_reach`/`reviewed_surfaces`/`event_seq`/`session_id`/`repo_root`/`agent`/
 # `account` (the session's), `state`/`wall`/`blocked_reason`/`resume`/`resume_copy`/
 # `resume_seed`/`usage`/`feedback`/`feedback_to`/`feedback_text`/`closed_by`/`evidence`/
 # `nested`/`child_closed_ts` (the closed sitting's own).
@@ -1693,6 +1693,34 @@ def _effective_start(rec: dict[str, Any]) -> float | None:
 # The commands whose closed window reaches back to the previous covered window's close: a review
 # reviews the session's work SINCE the last run, so that span is covered by its contract.
 REVIEW_FAMILY = frozenset({"fabrik-review", "fabrik-review-scoped"})
+
+
+# The stored surface's cap (W-bdcff87a): an entry rides every later record of the session and the
+# Stop hook parses it on every stop. 4000 chars holds the longest surfaces the corpus writes; a path
+# past the cap is simply not named, so the cap fails CLOSED (the file stays owed a review).
+_REVIEWED_SURFACE_CAP = 4000
+
+
+def _carried_reviewed_surfaces(prev: dict) -> list:
+    """`prev`'s well-shaped `reviewed_surfaces` entries — a str surface, a list of str adds and a
+    positive int `closed`; anything else is dropped here, so one corrupt entry never rides on."""
+    out = []
+    rs = prev.get("reviewed_surfaces")
+    for e in rs if isinstance(rs, list) else []:
+        if not isinstance(e, dict):
+            continue
+        surface, adds, closed = e.get("surface"), e.get("adds"), e.get("closed")
+        if (
+            isinstance(surface, str)
+            and isinstance(adds, list)
+            and all(isinstance(x, str) for x in adds)
+            and isinstance(closed, int)
+            and not isinstance(closed, bool)
+            and closed > 0
+        ):
+            out.append({"surface": surface, "adds": list(adds), "closed": closed})
+    return out
+
 
 #: One repo path as the Stop hook's `_SURFACE_SPLIT` reads a token — the COMPLEMENT of that
 #: splitter's class, so a path `surface --add` accepts is exactly one token there. A second copy
@@ -5329,6 +5357,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             # by the next `start`. Without this the first review's reach lasted exactly until the
             # session's next command (Phase C review round 1, F5).
             "first_review_reach": None if parent else _finite_ts(rec.get("first_review_reach")),
+            # every review-family `done` of the session, by what it NAMED (W-bdcff87a) — carried
+            # like `covered` and for the same reason; a nested child starts empty and its entries
+            # join the caller at the pop
+            "reviewed_surfaces": [] if parent else _carried_reviewed_surfaces(rec),
         }
         # Set CONDITIONALLY, not as a key of the literal above: a `declared: None` on every
         # OTHER command's record would change the record shape in ~46 repos for no reader.
@@ -6734,6 +6766,24 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     # (pre-cutoff) close records it on the record too, even though it writes no ledger row
     if (getattr(args, "surface", "") or "").strip():
         rec["surface"] = args.surface.strip()
+    if rec.get("command") in REVIEW_FAMILY and args.cmd == "done":
+        # W-bdcff87a: what this review NAMED, kept for the rest of the session. Written AFTER the
+        # late `--surface` above so a review named at its close counts; `done` only, for the
+        # reason the reach-back is done-only (reader F1) — a blocked review reviewed nothing.
+        _adds = [
+            a["path"]
+            for a in (rec.get("surface_adds") or [])
+            if isinstance(a, dict) and isinstance(a.get("path"), str) and a["path"]
+        ]
+        _rs = _carried_reviewed_surfaces(rec)
+        _rs.append(
+            {
+                "surface": str(rec.get("surface") or "")[:_REVIEWED_SURFACE_CAP],
+                "adds": _adds,
+                "closed": int(rec["updated_ts"]),
+            }
+        )
+        rec["reviewed_surfaces"] = _rs
     _pending_row: dict[str, Any] | None = None
     _fb_line: str | None = None
     if _usage_fields and _usage_is_required(rec):
@@ -6805,6 +6855,13 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # them as an unstamped fan-out (fleet, 2026-09-08: a parent counted its nested review's 7)
         parent["child_closed_ts"] = time.time()
         parent.setdefault("nested", []).append(closed)
+        # the child's named surfaces join the caller, deduped (W-bdcff87a); `nested` keeps its
+        # whole-child copy, which the Stop hook never reads, so nothing is counted twice
+        _joined = _carried_reviewed_surfaces(parent)
+        for _e in _carried_reviewed_surfaces(rec):
+            if _e not in _joined:
+                _joined.append(_e)
+        parent["reviewed_surfaces"] = _joined
         # The counter belongs to the SESSION, not to the record that happens to hold it —
         # a restored parent must keep ascending from where the nested run left off.
         parent["event_seq"] = rec.get("event_seq")

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T04:20:43.300077Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e581f45c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide whether a design ledger must carry confirmed: tokens (closes the fail-open) and whether the reader keys on _LEDGER_LINE table rows only (closes the prose refusals); probes p5/p6 in the W-39d8d1fd review receipt",
+  "note": "obsolete: the section reader whose residues it named was deleted in round 4 of the W-39d8d1fd review; the replacement's costs are stated in D-842",
+  "owner": "",
+  "priority": 3,
+  "status": "dropped",
+  "tags": [
+    "gate"
+  ],
+  "title": "check_convergence.py design-receipt Pass-Ledger reader: residues routed by the W-39d8d1fd scope-growth stop — a heading inside the ledger table area ends the section and later rows go ungraded (fail-open, old grammar); counter-bearing prose inside the section, a newest-first ledger and an H1 '# Pass Ledger' refuse honest receipts (fail-closed)"
+}

@@ -23,7 +23,9 @@ tokens.
 ⚠️ **Neither generic line above is this lane's** — `command_run.py` REFUSES a `fabrik-task` `start`
 without `--file`/`--declare` and a `done` without `--commit`; paste the SIZE line and phase 5's close.
 `handoff` is the record's third sanctioned terminal (`AGENT_CLOSED_STATES`): UPGRADE uses it.
-`<sid>` is `$CLAUDE_CODE_SESSION_ID` — one spelling, or phase 5's `cat` reads a path phase 2 never wrote.
+`<run-scratch>` is the `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, so it survives a WSL
+`/tmp` wipe and the worktree's removal) — one spelling, or phase 5's `cat` reads a path phase 2 never wrote; with no
+`SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>`.
 
 ## SIZE — phase 0 is the `start` itself
 
@@ -51,7 +53,7 @@ The tool prints either CORRECTIONS, each naming itself (a DIRTY declared path ma
 WIP — message the author, never stage it), or a LANE verdict naming where the work belongs. Read
 every line: flag gaps print together, path checks stop at the first. ⚠️ `sync lane test SKIPPED` on
 stderr means the hub filter was unreadable — that test did NOT run. **A refusal is the answer, not an obstacle**: take the named lane, no record was opened. On
-success it prints `RECORD: <started_at>` — paste it into the phase-2 path.
+success it prints `RECORD: <started_at>` and `SCRATCH: <path>` — the second is `<run-scratch>`.
 
 ⚠️ **COBRA (D-253).** The cheapest way to satisfy this gate without producing the outcome is to
 UNDER-DECLARE here and touch more at phase 3; the counter is phase 5's re-measure of this run's own
@@ -62,11 +64,12 @@ commit. All twelve cobras and their counters are § Constraints C3 of
 
 FIX DIRECTIVE step 1 whole — a failure reported with a command is replayed by that command, never
 a reconstruction. Then, before phase 2 and any edit, each command and its output goes to
-`<scratchpad>/fabrik-task/<sid>/<started_at>/measure.md`, beside phase 2's `design.md`, never in
+`<run-scratch>/measure.md`, beside phase 2's `design.md`, never in
 it (a pasted line opening with a field word or a `#` moves the declared paths): the tests that
-import or grade the declared files, that slice and never the whole suite (a red now is
-pre-existing); `git fetch` and the declared paths diffed against the remote branch the work merges
-into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings,
+import, grade or run the declared files (grep the tests for each file's name and every mode or flag
+the change extends, since a test that runs a script by subprocess never imports it), that slice and
+never the whole suite (a red now is pre-existing); `git fetch` and the declared paths diffed against the remote branch the work merges
+into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings (and a copied script's),
 `/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack
 the rule already lives in; the population the change writes or thresholds measured (its readers
 are MIRROR's) — every writer, every occurrence of the shape it admits, every host it runs on, and
@@ -77,14 +80,15 @@ source read or a proxy: the tests that drive it by subprocess, the completion ga
 target layout, each callee a fail-open branch wraps and how it fails, whether a production path reaches the text,
 what a concurrent reader sees mid-write, a before/after hash of every file it writes, an independent parser for a
 parsed format, its operator-facing strings in every worker it feeds, a count repo-wide (`.venv`/`.claude` excluded)
-and per artifact class, whose commits a gate's new scope holds, and the whole output, not one field. Then
+and per artifact class, whose commits a gate's new scope holds, and the whole output, not one field; a grader the design relies on is shown red on a deliberately broken input, since a pass proves nothing until it can fail. Then
 `python scripts/select_rules.py --changed <the declared paths>` — the path-scoped form — and READ
 the packs it prints.
 
 ## Phase 2 — DESIGN, where it will be minted
 
 Write six fields — **PROBLEM · APPROACH · DECISION (reversible?) · MIRROR · OUT · TERMINAL** — to
-`<scratchpad>/fabrik-task/<sid>/<started_at>/design.md`.
+`<run-scratch>/design.md`. A mechanism copied from another script carries,
+as Behaviours tested here (several may share one), the failure directions its tests and D-rows settled.
 
 {{include:design-critique}}
 
@@ -103,7 +107,7 @@ backticks under `APPROACH:`/`MIRROR:`; `--design` lands ONCE. Record them:
 
 ```bash
 python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \
-  --design <scratchpad>/fabrik-task/<sid>/<started_at>/design.md
+  --design <run-scratch>/design.md
 ```
 
 If MEASURE or the critiques changed what ends the run, restate it with
@@ -128,8 +132,9 @@ MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what cha
 each branch of a changed function, every resolver of the same identity, consumers of a moved or
 deleted file, other surfaces stating a changed claim, the gates that grade it — each found by an
 executed search, with the shape it now fails on and its cost measured, never estimated. The search is the
-whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs) under every spelling of the identifier and its rule's key
-verbs — the literal path beside any constant, every party a text reaches, every reader of a changed record shape,
+whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs) and every vendored copy outside it (`find /opt` by the file's name) under every spelling of the identifier and its rule's key
+verbs — the literal path beside any constant, every party a text reaches, every reader of a changed record shape
+or stdout (grep its tests for `== {` and `len(`),
 the hub scripts the text tells a project to run, the file handing a new env var to the process and the spec, the
 parser a read config belongs to, whether a normalised form is what readers receive, the form a ported validator's source validates, the first-or-every rule for a
 repeating field, the paths guarded code opens and the env each reads, and for a registration or allowlist the
@@ -153,7 +158,7 @@ commit also carries phase 5's ledgers, so nothing is committed before phase 5. E
 and borrowed fixtures, EXECUTES an executable subject, runs hermetic (box env stripped, e.g. `env -u DATABASE_URL`) on production's transport and is red on base
 by its named assertion; every guard and threshold edge the change adds is mutated. Never run a formatter by hand beyond the declared paths. The gate helpers a new call shape must satisfy are read
 first, a removed duplicate is guarded behaviourally, never by text shape, a new threshold is derived in its
-comment, and a probe worktree carries the built dist a test reads at import.
+comment, and a probe worktree carries the built dist a test reads at import. A test that writes a live store pins it to a tmp root: the hub's `tests/conftest.py` already pins the mail root and the `~/.claude/state` files, a work-store test passes a tmp repo, and a new store gets its pin there; before phase 4, MEASURE's test slice re-runs on the built tree.
 
 ## Phase 4 — REVIEW
 
@@ -181,9 +186,9 @@ capture line (v1 keeps it uncommitted), and the review is sized to the runway.
 5. Commit with explicit pathspecs + provenance trailers, **chaining the capture off the commit** (the window never closes — a sibling landing inside is captured instead):
 
 ```bash
-mkdir -p <scratchpad>/fabrik-task/<sid>/<started_at> \
+mkdir -p <run-scratch> \
   && <your § EXIT commit: pathspecs, trailers via -F, private-index for shared-append files> \
-  && git rev-parse -q --verify HEAD >> <scratchpad>/fabrik-task/<sid>/<started_at>/commit.sha || exit 1
+  && git rev-parse -q --verify HEAD >> <run-scratch>/commit.sha || exit 1
 ```
 
 6. § EXIT's push ladder (never `--force`), then close — the capture file, not a post-ladder `HEAD`
@@ -191,7 +196,7 @@ mkdir -p <scratchpad>/fabrik-task/<sid>/<started_at> \
 
 ```bash
 python3 scripts/command_run.py done --command fabrik-task \
-  --commit $(cat <scratchpad>/fabrik-task/<sid>/<started_at>/commit.sha) \
+  --commit $(cat <run-scratch>/commit.sha) \
   --evidence "<what proves the terminal condition>" --feedback "<the four fields>"
 ```
 
@@ -223,7 +228,7 @@ downgrades mid-run:
 
 ```bash
 python3 scripts/command_run.py handoff --command fabrik-task \
-  --resume <scratchpad>/fabrik-task/<sid>/<started_at>/design.md \
+  --resume <run-scratch>/design.md \
   --reason "UPGRADE: <token> — <the test crossed>" --feedback "<the four fields>"
 ```
 

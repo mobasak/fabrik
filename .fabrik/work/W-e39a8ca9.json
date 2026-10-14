@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-execute-plan never says how the orchestrator waits for its background coders: 132 run-record Stop blocks in one session on 2026-10-13 (premature_stop_rate 8%->20%)"
 }

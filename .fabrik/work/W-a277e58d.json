@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:07.025850Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a277e58d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WPGZAK1D30988510DF587H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: spec-review and plan-review never name the receipt or its `**Command:**` line — done at 78d4ad769 on worktree-kaizen"
+}

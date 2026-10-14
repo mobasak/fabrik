@@ -17,6 +17,11 @@ from hypothesis import Phase, settings
 for _var in ("CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS", "CLAUDE_CODE_SUBAGENT_MODEL_FORCE"):
     os.environ.pop(_var, None)
 
+# No test writes the live mailbox: a `monkeypatch.undo()` inside a test also undoes the fixture that
+# redirected FABRIK_MAIL_ROOT, and four test mails reached fabrik-lib's real inbox (01M4WZ36J6). The
+# process-level default below survives any undo; a test that wants a root still sets its own.
+os.environ["FABRIK_MAIL_ROOT"] = tempfile.mkdtemp(prefix="pytest-mail-root-")
+
 settings.register_profile(
     "ci",
     max_examples=100,

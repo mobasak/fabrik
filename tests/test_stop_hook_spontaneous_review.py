@@ -968,3 +968,134 @@ def test_malformed_surface_adds_are_inert_never_a_crash():
     for spelled in ("./scripts/pre.py", "././scripts/pre.py", "scripts/pre.py."):
         widened = {**rec, "surface_adds": [{"path": spelled, "at": "x"}]}
         assert fgs._surface_reviewed(widened, authored) == {"scripts/pre.py"}, spelled
+
+
+# --- W-bdcff87a: a CLOSED review that named a path clears that path's earlier edit ----------------
+#
+# `reviewed_surfaces` is what `command_run.py` records at every review-family `done`, nested or
+# not: `{surface, adds, closed}`. The record below is the shape the writer leaves after a
+# /fabrik-execute-plan whose only review was nested: no reach, windows that start after the edit.
+
+
+def _plan_record(start: int, reviewed: object) -> dict:
+    return {
+        "command": "fabrik-execute-plan",
+        "state": "done",
+        "started_epoch": float(start),
+        "updated_ts": start + 20,
+        "covered": [[start, start + 10], [start, start + 20]],
+        "first_review_reach": None,
+        "reviewed_surfaces": reviewed,
+    }
+
+
+def test_a_closed_nested_review_that_named_the_file_clears_its_earlier_edit():
+    now = int(time.time())
+    start, edit = now - 600, now - 900
+    named = [{"surface": "uncommitted: api/x.py", "adds": [], "closed": start + 10}]
+    rec = _plan_record(start, named)
+    assert fgs._unreviewed_spontaneous_files(
+        _plan_record(start, []), {"api/x.py": edit}, edit - 60
+    ) == ["api/x.py"], (
+        "control: without the record of the review, the edit is unclearable (the reported bug)"
+    )
+    assert fgs._unreviewed_spontaneous_files(rec, {"api/x.py": edit}, edit - 60) == []
+    assert fgs._unreviewed_spontaneous_files(rec, {"api/other.py": edit}, edit - 60) == [
+        "api/other.py"
+    ], "only the NAMED path is cleared"
+    # an `adds` path is named exactly as a surface token is
+    rec_adds = _plan_record(start, [{"surface": "", "adds": ["api/z.py"], "closed": start + 10}])
+    assert fgs._unreviewed_spontaneous_files(rec_adds, {"api/z.py": edit}, edit - 60) == []
+    # the commit legs: an EDITED file committed after the close is still judged by its edit; a
+    # COMMIT-ONLY file is named within the existing commit grace after the close, never beyond it
+    closed = start + 10
+    got = fgs._closed_review_named(
+        rec,
+        {"api/x.py": edit},
+        {"api/x.py": closed + 60},
+    )
+    assert got == {"api/x.py"}, got
+    assert fgs._closed_review_named(rec, {}, {"api/x.py": closed + 60}) == {"api/x.py"}
+    late = int(closed + fgs._COMMIT_GRACE_S + 60)
+    assert fgs._closed_review_named(rec, {}, {"api/x.py": late}) == set()
+
+
+def test_an_edit_after_the_naming_review_closed_stays_unreviewed():
+    now = int(time.time())
+    start = now - 600
+    rec = _plan_record(start, [{"surface": "api/x.py", "adds": [], "closed": start + 10}])
+    after = start + 100  # outside every window and after the review that named the file
+    assert fgs._unreviewed_spontaneous_files(rec, {"api/x.py": after}, start - 600) == ["api/x.py"]
+
+
+def test_a_parked_frames_closed_review_still_names_its_files():
+    now = int(time.time())
+    start, edit = now - 600, now - 900
+    parent = {**_plan_record(start, [{"surface": "api/x.py", "adds": [], "closed": start + 10}])}
+    parent["state"] = "running"
+    child = {
+        "command": "fabrik-review-scoped",
+        "state": "running",
+        "started_epoch": float(now - 5),
+        "updated_ts": now,
+        "covered": [],
+        "first_review_reach": None,
+        "reviewed_surfaces": [],
+        "stack": [parent],
+    }
+    assert fgs._unreviewed_spontaneous_files(child, {"api/x.py": edit}, edit - 60) == []
+
+
+def test_a_corrupt_or_future_reviewed_surface_entry_is_skipped():
+    now = int(time.time())
+    start, edit = now - 600, now - 900
+    junk = [
+        "junk",
+        None,
+        {"surface": "api/x.py", "adds": [], "closed": True},
+        {"surface": "api/x.py", "adds": [], "closed": float("inf")},
+        {"surface": "api/x.py", "adds": [], "closed": float("nan")},
+        {"surface": "api/x.py", "adds": [], "closed": "1791960000"},
+        {"surface": "api/x.py", "adds": [], "closed": now + 3600},  # a clock ahead of real time
+        {"surface": 5, "adds": "api/x.py", "closed": start + 10},
+        {"surface": "api/x.py", "adds": [], "closed": edit - 10},  # closed BEFORE the edit
+    ]
+    for reviewed in (junk, "notalist", {"closed": start}, None):
+        rec = _plan_record(start, reviewed)
+        assert fgs._unreviewed_spontaneous_files(rec, {"api/x.py": edit}, edit - 60) == [
+            "api/x.py"
+        ], reviewed
+
+
+def test_an_edit_with_no_readable_timestamp_is_never_cleared_by_a_name():
+    """Round 1, C1: an unreadable edit time reads as 0, and `closed >= 0` held for every entry — a
+    review that closed BEFORE the edit would clear it. No proof of order, no clearing."""
+    now = int(time.time())
+    rec = _plan_record(now - 600, [{"surface": "api/x.py", "adds": [], "closed": now - 590}])
+    assert fgs._unreviewed_spontaneous_files(rec, {"api/x.py": 0}, now - 3600) == ["api/x.py"]
+    assert fgs._closed_review_named(rec, {}, {"api/x.py": 0}) == set()
+
+
+def test_an_old_edit_below_the_floor_never_shields_a_fresh_commit(monkeypatch):
+    """Round 1, C2: an edit older than the sixth cause's floor is not this session's work, so a
+    review that named it long ago must not clear a FRESH commit of the same path — the commit leg
+    judges it, as it did before."""
+    now = int(time.time())
+    rec = {
+        **_plan_record(
+            now - 7200, [{"surface": "api/x.py", "adds": [], "closed": now - 40 * 3600}]
+        ),
+        "covered": [[now - 7200, now - 7100]],
+    }
+    monkeypatch.setattr(fgs, "_commit_files", lambda root, commits, floor: {"api/x.py": now - 10})
+    monkeypatch.setattr(fgs, "_withdrawn_edits", lambda root, names, floor: set())
+    monkeypatch.setattr(fgs, "_ignored_paths", lambda root, names: set())
+    got = fgs._unreviewed_spontaneous_files(
+        rec,
+        {"api/x.py": now - 48 * 3600},
+        now - 3600,
+        None,
+        root=Path("."),
+        commits=[("abc", 1, 1)],
+    )
+    assert got == ["api/x.py"], got

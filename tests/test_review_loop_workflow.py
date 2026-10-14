@@ -61,6 +61,26 @@ def test_every_finder_schema_requires_files_read_and_candidates() -> None:
         assert field in required.group(1), f"FINDINGS must require {field}"
 
 
+def test_the_ledger_status_labels_name_the_defect() -> None:
+    """W-729416b3: the schema a pass ≥ 2 seat fills offers exactly the defect-named labels, and its description
+    uses them; an old run's STILL_TRUE/NOW_FALSE rows still close their claims, because no reader branches on the
+    label (the NOW_FALSE fixtures below prove it)."""
+    m = re.search(r"const FINDINGS\s*=\s*\{(.*?)\n\}", _script(), re.S)
+    assert m, "no FINDINGS schema"
+    enum = re.search(r"status:\s*\{\s*enum:\s*\[([^\]]*)\]", m.group(1))
+    assert enum, "ledger_status.status has no enum"
+    assert [x.strip().strip("'\"") for x in enum.group(1).split(",")] == ["DEFECT_PRESENT", "DEFECT_ABSENT", "NEW"]
+    assert "DEFECT_PRESENT it persists, DEFECT_ABSENT it is absent" in m.group(1)
+    # every workflow seat runs as fabrik-reviewer, so its system prompt carries the same vocabulary (both B3 design
+    # critiques: a JS-only rename leaves a Haiku seat two label sets in one context)
+    agent = (ROOT / "commands" / "_agents" / "fabrik-reviewer.md").read_text(encoding="utf-8")
+    # review B3 r1 B-S1: the spaced form is a second vocabulary too — the agent spells the schema's exact tokens
+    for old in ("STILL_TRUE", "NOW_FALSE", "STILL TRUE", "NOW FALSE", "DEFECT PRESENT", "DEFECT ABSENT"):
+        assert old not in agent, old
+    assert "`DEFECT_PRESENT` the defect persists · `DEFECT_ABSENT` it is absent" in agent
+    assert "each label says what is true of the\nDEFECT, never of the claim" in agent
+
+
 def test_every_seat_names_its_model_and_effort_and_no_run_is_resumed() -> None:
     body = _script()
     sites = [m.start() for m in re.finditer(r"\bagent\(", body)]
@@ -551,11 +571,15 @@ def test_a_later_pass_prompt_defines_its_ledger_status_on_the_defect_and_every_s
     ]
     _, _, prompts = _harness(args, {})
     finder = prompts["find:S:sonnet"]
-    assert "STILL_TRUE means the defect is still there" in finder, (
+    # W-729416b3 (mail 01M48MQ2HS): the label names the DEFECT, not the claim's truth — a Haiku seat read a
+    # re-verified claim as "true" and labelled 11 then 14 of 14-16 fixed defects STILL_TRUE with the definition
+    # already in the brief
+    assert "DEFECT_PRESENT means the defect is still there" in finder, (
         "pass ≥ 2 keys the status on the DEFECT (R-3)"
     )
-    assert "NOW_FALSE means the claimed defect is absent" in finder
-    assert "ONLY the STILL_TRUE and NEW rows" in finder, "a fix that holds is never a candidate"
+    assert "DEFECT_ABSENT means the claimed defect is absent" in finder
+    assert "ONLY the DEFECT_PRESENT and NEW rows" in finder, "a fix that holds is never a candidate"
+    assert "STILL_TRUE" not in finder and "NOW_FALSE" not in finder, "one vocabulary per prompt"
     assert "StructuredOutput" in prompts["find:S:haiku"], (
         "every finder is told to finish with the schema"
     )
@@ -1088,7 +1112,12 @@ def test_round_zero_enumerates_the_fixs_input_space_before_the_pin() -> None:
             "a recursive or fallback helper against cycles, depth and each container type",
             "a trim or window at exactly one record's length",
             "any other fix against the input classes its own shape implies, listed before the probe runs",
-            "a regex fix is drafted against every confirmed shape at once, never one patch per shape",
+            # /fabrik-review-scoped row 1791973917: a narrowing PREDICATE fix met its earlier-confirmed
+            # shapes one round at a time, since this clause used to name a regex fix only.
+            "a fix to a matcher, replacer, predicate or filter, a regex included, and above all one that narrows or"
+            " widens what it accepts, is drafted and probed against every shape this review has confirmed so far and,"
+            " where a shape names a field or key, against its renamed variant too, all at once, never one patch per"
+            " shape",
         ):
             assert needle in text, (name, needle)
         # term-coverage continues the clause past "every error path" (d4009c252) and term-edit joins
@@ -2255,6 +2284,41 @@ def test_every_seat_is_told_how_to_run_a_git_history_test() -> None:
         assert "ANY verb that changes its refs, index, tree, config or objects, these being examples only" in p, label
         assert "push, config, branch, tag, merge, rebase" in p, label
         assert "(`git worktree list` and `git remote -v` only read)" in p, label
+
+
+def test_no_seat_executes_an_unread_or_destructive_script() -> None:
+    """kaizen 01M4W2D1N8 (/fabrik-plan-review row 1791938982): four plan-review seats ran scripts/proof_run.py, which
+    has no argument parsing, to confirm what it does, and destroyed a live fixture. The rule kaizen put in
+    subagents-core.md and the agent house rules rides in the Workflow's own seat constants too, and the refuter's
+    "run it" names the exception, so a refuter handed such a check returns it unverified."""
+    _, _, prompts = _harness(
+        _ARGS, {"find:S:sonnet": {**_FULL_READ, "candidates": [_cand("S-S1", 3)]}}
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        assert "read a script before you EXECUTE it, its `--help` included" in p, label
+        assert (
+            "never execute one that deletes, deploys, provisions, writes outside SCRATCH or contacts a non-local host"
+            in p
+        ), label
+        assert "whatever binary does it" in p and "cite the lines and return that claim unverified" in p, label
+        # both B4 design critiques: every route that runs the script's code counts, and a test that runs one is read first
+        assert "executing includes importing it and calling a function, `runpy`, a test that runs it" in p, label
+        assert "read each script a test runs before the run" in p, label
+        assert "run a script file the read-before-execute rule allows as" in p, label
+    refute = prompts["refute:S"]
+    assert "A re-read is not execution — run it, unless the never-execute rule forbids the check" in refute
+    assert "the command is your read of the cited lines and the output is those lines" in refute
+    assert "(a check the never-execute rule forbids is the one exception, below)" in refute
+    # a later pass has no unverified status: the forbidden claim gets no row, so closeCheck keeps it open (fail closed)
+    args = {**_ARGS, "pass": 2, "slices": [{**_ARGS["slices"][0], "ledger": _LEDGER_ROW}]}
+    _, _, later = _harness(args, {"find:S:sonnet": _FULL_READ, "find:S:haiku": _FULL_READ})
+    assert "a claim whose check the never-execute rule forbids gets NO ledger_status row" in later["find:S:sonnet"]
+    # review B4 r1 A-S3: and the no-row route really fails closed — both seats leave the forbidden claim out
+    notes = {**_FULL_READ, "notes": "unverified: never-execute rule, lines 840-868", "ledger_status": []}
+    ledger, _ = _run_ledger(args, {"find:S:sonnet": notes, "find:S:haiku": notes})
+    s = ledger["slices"][0]
+    assert not s["closable"] and "ledger claim S-S1 not re-verified by any seat" in s["open"], s["open"]
 
 
 def test_a_later_pass_seat_is_told_to_read_its_whole_slice() -> None:

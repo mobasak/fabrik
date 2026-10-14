@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "registrar: mint fabrik-lib payments' fulfilment-worker role (INSERT+SELECT on purchases plus its two RLS policies) once fabrik-lib defines it — today nothing writes purchases (fabrik-lib payments/db/schema.sql, Phase D) and the ingest role must NOT get the grant (mails 01M35P4T/01M35P9V)"
 }

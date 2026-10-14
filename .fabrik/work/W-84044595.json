@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "already done: check_print_ban.py's print( regex has a word-character lookbehind (:111, incident 01M3ZHT9HB)",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "WHAT — false positive in the synced print ban: `scripts/enforcement/check_print_ban.py::scan_file_for_pattern` matches the bare substring \"print(\", so any call to a function whose name ENDS in \"print\" (`_fingerprint(`, `blueprint(`, `reprint(`) reds the completion gate as \"print()/console.log() foun"
 }

@@ -149,7 +149,8 @@ def test_catalogue_holds_the_two_recurring_probes() -> None:
         in (_section(cat, "## Prose and docs fixes", "## Seat isolation"))
     )
     assert (
-        "on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the same path"
+        "on a copy: ruff `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff"
+        " writes `.ruff_cache` in its working directory and fails inside a read-only pin without `--no-cache`"
         in (_section(cat, "## Seat isolation", "## Loop bookkeeping"))
     )
 
@@ -351,3 +352,66 @@ def test_rule_three_pointer_is_opened_before_the_pin() -> None:
         " fact seen at it, then recorded by APPENDING one `· pointer: <path:line> read` per pointer to the Pass Ledger"
         " row's `method:` cell, after its `; class rewrite` text), never by a re-cut of the claim;"
     ) in text
+
+
+def test_an_agent_tool_seat_gets_the_pin_import_placement() -> None:
+    """Mail 01M4W155SB (intel): the Agent-tool seat list states PIN_IMPORT's sys.path placement and its -P condition
+    and points at the recipe, and the pointed-at recipe still says the same."""
+    assert (
+        "never `sys.path.insert` the live tree, puts the directory that holds the top-level import name"
+        " (`<extract>/src` for `import fabrik`) at the index of the first entry ending in `site-packages` or"
+        " `dist-packages` (at the end when there is none), never at index 0, where a package named like a stdlib"
+        " module shadows the stdlib, runs every probe as `python -P -B` with any PYTHONPATH entries dropped from"
+        " sys.path (without `-P` the working directory, the live repo, sits ahead of the extract) — `PIN_IMPORT` in"
+        " `.claude/workflows/fabrik-review-loop.js` is the recipe"
+    ) in _norm(SRC)
+    js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text(encoding="utf-8")
+    recipe = js[js.index("const PIN_IMPORT") : js.index("const SEAT_ISOLATION")]
+    assert (
+        "at the index of the first entry ending in site-packages or dist-packages, or at the end when"
+        in recipe
+    )
+    assert "never at index 0" in recipe
+    assert "run every probe as \\`python -P -B\\`" in recipe
+    assert "drop its entries from sys.path" in recipe
+
+
+def test_an_equivalent_mutant_is_discarded_never_reported_as_a_test_gap() -> None:
+    """Row 1791937766: a no-op mutant (an f-string that renders the same) survived and was reported as a gap; both
+    homes of the mutant rule now require a survivor to change observable behaviour first."""
+    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert (
+        "shown applied by a diff of the copy against the pin, never a grep count; a survivor is reported only once"
+        " shown to change observable behaviour (an output, return value, exit code, raised exception or written state"
+        " diffed against the unmutated copy), and an equivalent mutant, a named one included, is struck with that diff"
+        " quoted, never reported as a test gap"
+    ) in cov
+    assert (
+        "survivors reported only once shown to change observable behaviour (an output, return value, exit code, raised"
+        " exception or written state diffed against the unmutated copy), and an equivalent mutant is struck with that"
+        " diff quoted, never a test gap"
+    ) in _norm(CAT)
+
+
+def test_fourth_review_queue_pass_lines() -> None:
+    """/fabrik-review queue, fourth pass (2026-10-14): overlay copy and pin currency (1791933800, 1791937887,
+    1791958467, 1791961253, 1791965991, 1791967675, 1791972544, 1791958633, 1791971384), write-path isolation
+    seams (1791935553), visible text of real builds (1791936682, 1791950533, 1791953413, 1791958187), re-vendor
+    tests that assume a co-located hub (1791959728), identity keys (1791982821) and predicate readers (1791985566)."""
+    text = _norm(CAT)
+    for needle in (
+        "a fix's identity or dedup key (byte vs text read, line endings, recycled ids such as inode reuse),",
+        "every reader of a changed predicate's verdict (a notice, message or wall line that reads the same hold), named"
+        " before the closing round.",
+        "and whether that test assumes a co-located hub tree, so a standalone run of it is a known false red;",
+        "a change that writes outside its state dir: every isolation seam its callers' tests use (`COMMAND_RUN_DIR`, a"
+        " `HOME` or `TMPDIR` override), each shown to land under its own root by listing the live checkout after the suite.",
+        "a page-type or reader move: base and head are built and each page's visible text and heading outline (h1-h3"
+        " counts) are diffed independently of any identity diff the change ships",
+        "a seat copies each file to its own path or runs `cp -r <pin>/. <dest>/` then `chmod -R u+w <dest>`, never"
+        " `cp -r <pin> <dest>` onto a directory that exists",
+        "`git archive` omits untracked files, so the pin also carries the gitignored inputs the tests read (the repo's"
+        " `.worktreeinclude` list, `.env` excepted)",
+        "Each later pass's brief names its own pin dir and digest, cut after the last fix, never the round-1 pin,",
+    ):
+        assert needle in text, needle

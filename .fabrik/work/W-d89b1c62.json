@@ -17,7 +17,8 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "adoption"
+    "adoption",
+    "waits-2026-10-21"
   ],
   "title": "Fleet adoption of the three-agent worktree model: 39 repos read UNDECLARED on 2026-09-30 and were each mailed the adopt recipe (ack required, operator's D-444/D-445 words); 3 had adopted (fabrik-lib, trade-intelligence, tryton-crm)"
 }

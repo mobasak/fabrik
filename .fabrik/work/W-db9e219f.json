@@ -17,7 +17,8 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "rules"
+    "rules",
+    "waits-operator-resume"
   ],
   "title": "mobile-app scaffold pins @testing-library/react-native at the previous major (13.3.x); the current stable major (v14) makes render/fireEvent/act async"
 }

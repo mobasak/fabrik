@@ -232,3 +232,130 @@ def test_the_printed_arm_order_carries_the_sanitized_sid(tmp_path):
     out = _run(tmp_path, sid="ab c;touch x")
     assert "selfwatch_arm.sh ab_c_touch_x" in out, out
     assert "touch x" not in out
+
+
+def test_the_notice_text_is_unchanged(tmp_path):
+    """W-117b1916: `arm_state` moved main's gates; main's arm notice must stay BYTE-identical."""
+    out = _run(tmp_path)
+    arm = f"{_selfwatch.HUB_ROOT}/scripts/sysadmin/selfwatch_arm.sh"
+    assert out == (
+        "## ⚠️ SELF-WATCH NOT ARMED (mechanical check, every prompt)\n"
+        "No process holds this session's `selfwatch.lock`, so a mid-stream death would wait "
+        'for a human "proceed". ARM IT NOW — one background Bash task; once the lock is held '
+        "this notice stops:\n"
+        f'`Bash(run_in_background: true, command: "bash {arm} {SID}")`\n'
+        "(The literal sid above is required — an empty arg exits the watch as you arm it. ONE "
+        "wake per arm (D-356): after a wake this notice returns — re-arm. Never a Monitor arm "
+        "(it ends within 30 minutes) and never a `nohup … &` arm. Authority: "
+        "docs/workstation/hooks-index.md.)\n"
+    )
+
+
+def test_arm_state_matches_the_notice_gates(tmp_path, monkeypatch):
+    """W-117b1916: the Stop checkpoint reads the SAME decision the prompt notice prints from."""
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    watch = tmp_path / "claude-selfwatch.sh"
+    watch.write_text("#!/bin/sh\n")
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    for k in ("CLAUDE_MESH_HEADLESS", "FABRIK_HEADLESS", "CLAUDE_MESH_AUTONOMOUS"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setattr(_selfwatch, "WATCH", watch)
+    state = _selfwatch.arm_state
+    assert state(SID, "/opt/x") == "arm"
+    assert state("", "/opt/x") == "skip"
+    assert state(SID, "/home/x") == "skip"
+    monkeypatch.setenv("FABRIK_HEADLESS", "1")
+    assert state(SID, "/opt/x") == "skip"
+    monkeypatch.delenv("FABRIK_HEADLESS")
+    fd = _hold_lock(tmp_path)
+    try:
+        assert state(SID, "/opt/x") == "armed"
+    finally:
+        os.close(fd)
+    os.chmod(locks, 0o500)
+    try:
+        assert state(SID, "/opt/x").startswith("unwritable:lock ")
+    finally:
+        os.chmod(locks, 0o700)
+    monkeypatch.setattr(_selfwatch, "WATCH", tmp_path / "absent")
+    assert state(SID, "/opt/x") == "skip"
+
+
+def test_a_fifo_at_the_lock_path_never_hangs_the_decision(tmp_path):
+    """W-117b1916 review: the Stop hook reads this decider too — a FIFO at the lock path blocked the
+    O_RDONLY open forever. A non-regular lock is not armed, and no arm is ordered onto it."""
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    os.mkfifo(locks / f"{SID}.selfwatch.lock")
+    watch = tmp_path / "w.sh"
+    watch.write_text("#!/bin/sh\n")
+    code = (
+        "import importlib.util as u,sys;"
+        f"s=u.spec_from_file_location('m',{str(HOOK)!r});m=u.module_from_spec(s);s.loader.exec_module(m);"
+        f"from pathlib import Path;m.WATCH=Path({str(watch)!r});"
+        f"print(m.arm_state({SID!r},'/opt/x'))"
+    )
+    env = {**os.environ, "CLAUDE_SOUND_LOCKDIR": str(locks)}
+    for k in ("CLAUDE_MESH_HEADLESS", "FABRIK_HEADLESS", "CLAUDE_MESH_AUTONOMOUS"):
+        env.pop(k, None)
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=20, env=env
+    ).stdout.strip()
+    assert out.startswith("unwritable:") and "not a regular file" in out, out
+
+
+def test_a_fifo_swapped_in_after_the_type_check_never_hangs(tmp_path, monkeypatch):
+    """Round-2 review N3: the type check and the open must be ONE operation — a check by path
+    (`lstat`) that reads a regular file, then an open that meets a FIFO, blocked forever."""
+    import threading
+
+    spec = _ilu.spec_from_file_location("swc_n3", HOOK)
+    m = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    fifo = locks / f"{SID}.selfwatch.lock"
+    os.mkfifo(fifo)
+    regular = tmp_path / "regular"
+    regular.write_text("")
+    real_lstat = os.lstat
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    monkeypatch.setattr(
+        os,
+        "lstat",
+        lambda p, *a, **k: real_lstat(regular) if str(p) == str(fifo) else real_lstat(p, *a, **k),
+    )
+    got: list[bool] = []
+    t = threading.Thread(target=lambda: got.append(m._armed(SID)), daemon=True)
+    t.start()
+    t.join(5)
+    if t.is_alive():  # release the hung reader so the suite can continue
+        os.close(os.open(fifo, os.O_WRONLY | os.O_NONBLOCK))
+        t.join(5)
+        raise AssertionError("_armed hung on a FIFO that appeared after its type check")
+    assert got == [False]
+
+
+def test_a_held_lock_without_read_permission_still_reads_armed(tmp_path, monkeypatch):
+    """Round-3 review: HEAD found a held lock in /proc/locks before any open, so a lock its reader
+    may not open still read armed; the one-open decider must keep that verdict, not raise."""
+    if os.geteuid() == 0:
+        import pytest
+
+        pytest.skip("root opens a 0000 file")
+    spec = _ilu.spec_from_file_location("swc_r3", HOOK)
+    m = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    lock = locks / f"{SID}.selfwatch.lock"
+    fd = os.open(lock, os.O_WRONLY | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock.chmod(0)
+        monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+        assert m._armed(SID) is True
+    finally:
+        lock.chmod(0o644)
+        os.close(fd)

@@ -381,11 +381,11 @@ def test_validator_self_skips_without_a_map(tmp_path):
 
 def _lib(env) -> Path:
     lib = env["opt"] / "fabrik-lib"
-    for mod in ("rag", "ocr", "payments"):
+    for mod in ("rag", "ocr", "payments", "doc-crawl"):
         (lib / mod).mkdir(parents=True)
         (lib / mod / "README.md").write_text("x", encoding="utf-8")
     owners = {
-        "fabrik-lib-dev1": ["rag"],
+        "fabrik-lib-dev1": ["rag", "doc-crawl"],
         "fabrik-lib-dev2": ["payments"],
         "fabrik-lib-sentinel": ["ocr"],
     }
@@ -398,7 +398,7 @@ def _lib(env) -> Path:
 
 def test_fabrik_lib_leg_only_with_the_switch_and_one_owner(env):
     _lib(env)
-    single = "the `rag` module is slow"
+    single = "the `rag/rag/store.py:12` module is slow"
     p = mail.send(to="fabrik-lib", kind="finding", body=single, frm="alpha")
     assert "agent" not in mail._parse(p.read_text(encoding="utf-8"))
     _write_map(env["opt"], switches={"fabrik_lib_address": True})
@@ -408,7 +408,7 @@ def test_fabrik_lib_leg_only_with_the_switch_and_one_owner(env):
     p = mail.send(
         to="fabrik-lib",
         kind="finding",
-        body=f"`{env['opt']}/fabrik-lib/ocr/README.md` and `rag`",
+        body=f"`{env['opt']}/fabrik-lib/ocr/README.md` and `rag/README.md`",
         frm="alpha",
     )
     assert "agent" not in mail._parse(p.read_text(encoding="utf-8"))
@@ -419,6 +419,68 @@ def test_fabrik_lib_leg_only_with_the_switch_and_one_owner(env):
     )
     assert mail._parse(p.read_text(encoding="utf-8"))["agent"] == "fabrik-lib-sentinel"
     assert not _lines(p, "routed")
+
+
+def test_fabrik_lib_leg_never_addresses_a_reply_or_a_broadcast(env):
+    """W-c687ce60: the hub leg spares a thread reply and a broadcast; the fabrik-lib leg did
+    not, so a reply in a dev2 thread citing a dev1 module was re-addressed to dev1."""
+    _lib(env)
+    _write_map(env["opt"], switches={"fabrik_lib_address": True})
+    body = "the `doc-crawl` module is slow"
+    control = mail.send(to="fabrik-lib", kind="finding", body=body, frm="alpha")
+    assert mail._parse(control.read_text(encoding="utf-8")).get("agent") == "fabrik-lib-dev1"
+    p = mail.send(
+        to="fabrik-lib", kind="reply", body=body, frm="alpha", re="01M4ZZZZZZZZZZZZZZZZZZZZZZ"
+    )
+    assert "agent" not in mail._parse(p.read_text(encoding="utf-8")), "a thread reply"
+    p = mail.send(to="fabrik-lib", kind="finding", body=body, frm="alpha", broadcast=True, ack="no")
+    assert "agent" not in mail._parse(p.read_text(encoding="utf-8")), "a broadcast"
+
+
+def test_a_single_word_module_routes_only_as_a_path(env):
+    """W-c687ce60: `account`, `storage` and `rag` are ordinary words — a bare backticked one is
+    no evidence the mail is about that module. A path is; so is a hyphenated module name."""
+    _lib(env)
+    _write_map(env["opt"], switches={"fabrik_lib_address": True})
+
+    def agent_of(body):
+        p = mail.send(to="fabrik-lib", kind="finding", body=body, frm="alpha")
+        return mail._parse(p.read_text(encoding="utf-8")).get("agent")
+
+    assert agent_of("the `rag` cache is cold") is None, "a bare single word"
+    assert agent_of("see `rag/rag/store.py:12`") == "fabrik-lib-dev1", "a relative module path"
+    assert agent_of("the `doc-crawl` module") == "fabrik-lib-dev1", "a hyphenated module name"
+    assert agent_of("the `doc-crawl/` dir") == "fabrik-lib-dev1", "a trailing slash"
+    assert agent_of("`rag/` is slow") is None, "a single word with a slash is no path"
+    assert agent_of("`rag`, `payments` and `ocr` are words here") is None
+
+
+def test_fabrik_lib_leg_spares_threads_senders_and_their_own_folders(env, monkeypatch):
+    """W-c687ce60 critiques: a threaded finding, the module's own author, the sender's own
+    `rag/` folder and a `..` climb never address; a bare word naming a second owner unaddresses."""
+    _lib(env)
+    _write_map(env["opt"], switches={"fabrik_lib_address": True})
+
+    def agent_of(body, frm="alpha", **kw):
+        p = mail.send(to="fabrik-lib", kind="finding", body=body, frm=frm, **kw)
+        return mail._parse(p.read_text(encoding="utf-8")).get("agent")
+
+    path = "see `rag/rag/store.py:12`"
+    assert agent_of(path) == "fabrik-lib-dev1", "control"
+    assert agent_of(path, re="01M4ZZZZZZZZZZZZZZZZZZZZZZ") is None, "a threaded finding"
+    assert agent_of("see `rag/../payments/x.py`") is None, "a `..` climb"
+    assert agent_of("`rag/x.py` but the `payments` side too") is None, "a bare second owner"
+    (env["opt"] / "beta" / "rag").mkdir(parents=True)
+    (env["opt"] / "beta" / "payments").write_text("a file, not a folder", encoding="utf-8")
+    with monkeypatch.context() as m:
+        m.setattr(mail, "_current_repo", lambda: "beta")
+        assert agent_of("see `payments/x.py`", frm="beta") == "fabrik-lib-dev2", "a file"
+    with monkeypatch.context() as m:
+        m.setattr(mail, "_current_repo", lambda: "beta")
+        assert agent_of(path, frm="beta") is None, "the sender's own rag/ folder"
+    assert agent_of(path) == "fabrik-lib-dev1", "control, after the sender-repo patch"
+    monkeypatch.setattr(mail, "_sender_role", lambda: "fabrik-lib-dev1")
+    assert agent_of(path) is None, "never the sender itself"
 
 
 # --- review round 1 (Phase A scoped review) — each test is red on its defect ----------------------
@@ -501,11 +563,11 @@ def test_an_unsafe_fabrik_lib_owner_key_is_never_written(env):
     }
     (lib / ".fabrik" / "module-owners.json").write_text(json.dumps(bad), encoding="utf-8")
     _write_map(env["opt"], switches={"fabrik_lib_address": True})
-    for body in ("`rag`", "`ocr`"):
+    for body in ("`rag/x.py`", "`ocr/x.py`"):  # paths: a bare word no longer routes
         p = mail.send(to="fabrik-lib", kind="request", body=body, frm="alpha", ack="required")
         fm = mail._parse(p.read_text(encoding="utf-8"))
         assert "agent" not in fm and fm["ack"] == "required"
-    p = mail.send(to="fabrik-lib", kind="request", body="`payments`", frm="alpha")
+    p = mail.send(to="fabrik-lib", kind="request", body="`payments/x.py`", frm="alpha")
     assert mail._parse(p.read_text(encoding="utf-8"))["agent"] == "fabrik-lib-dev2"
 
 

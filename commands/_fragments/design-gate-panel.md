@@ -12,11 +12,11 @@ operator would — approve it, or name the changes it wants first — and opens 
    overrules the operator's stand-in. When Fable is unavailable, the second Opus seat stands in and the Panel
    line adds `fable unavailable: <reason>`.
 2. **Revise.** Apply every ACCEPTED change to the artifact and to any linked artifact it makes stale, then run
-   the ONE delta round the critique step names. spec-review and plan-review keep `Status: CONVERGED` only on its
-   `confirmed 0`; flows-review and ui-design-review bump `Version:`, re-run the closing round and rewrite
+   the ONE delta round the critique step names. spec-review and plan-review flip `Status: CONVERGED` only on its
+   `confirmed 0`, in the step-3 commit; flows-review and ui-design-review bump `Version:`, re-run the closing round and rewrite
    `Independently reviewed: v<N+1>`.
 3. **Record.** Mint the approval row (`python3 scripts/decisions.py --reserve-id .`), staged with the
-   revisions: the artifact path and its final md5, each change the panel caused, and the line
+   revisions and that flip: the artifact path and its final md5, each change the panel caused, and the line
    `Panel: opus="<its VERDICT line>" fable="<its VERDICT line>" → both-approve`, each quoted whole. The ask↔spec
    comparison table is still built — in the artifact or its review receipt, not in chat. Commit and push.
 4. **Brief the operator** in at most ten lines under the heading `PANEL APPROVED (<artifact path>)`: what the

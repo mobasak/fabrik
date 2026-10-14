@@ -206,7 +206,13 @@ third-party API. Partition, don't skip (moot while every seat is native — D-18
   a mutant counts as dead only as `/opt/fabrik/commands/_fragments/term-coverage.md` rule (4) says, never on an
   exit code alone ·
   never bare-grep a tracked path — `git show <sha>:<path> > <scratch>/<file>`, redirected like any large output, because a large stdout is saved by the harness under `$HOME` · a seat that MEASURES by importing code
-  imports the PIN (a `git archive <sha>` extract with the pinned files overlaid), never `sys.path.insert` the live tree, and prints the module's `__file__` beside every result (a
+  imports the PIN (a `git archive <sha>` extract with the pinned files overlaid),
+  never `sys.path.insert` the live tree, puts the directory that holds the top-level import name (`<extract>/src`
+  for `import fabrik`) at the index of the first entry ending in `site-packages` or `dist-packages` (at the end
+  when there is none), never at index 0, where a package named like a stdlib module shadows the stdlib, runs every
+  probe as `python -P -B` with any PYTHONPATH entries dropped from sys.path (without `-P` the working directory,
+  the live repo, sits ahead of the extract) — `PIN_IMPORT` in `.claude/workflows/fabrik-review-loop.js`
+  is the recipe — and prints the module's `__file__` beside every result (a
   sibling's uncommitted edit in the live tree once fed three measurements) · a later pass's brief
   states the ledger's high-water mark — its last row id and the receipt's sha at dispatch — never a
   hand-typed row range · every helper or probe file a seat writes goes in its OWN scratch dir
@@ -474,7 +480,7 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`c
 - ⚠️ **The closing pass is the round-1 seats re-verifying their OWN slices** (the same two seats per slice — its Sonnet and its Haiku, D-344; never a fresh whole-artifact reader, D-335) — the fix diff is YOUR
   work, and `62-using-subagents.md` § Role separation binds: the loop-closing pass's finder work runs in a context
   that did not author the artifact. **A closing pass that dispatched no finder seat may not close**; the hygiene script and
-  your own execution never close a review alone. Under the workflow, pass 2 and the closing pass are NEW `Workflow` invocations with `pass: <n>`, the next pass number (unbounded), and each slice's `ledger` in `args`, built from the pass file with `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json --ids <the confirmed ids>` (it prints `{name, ledger}` rows: each `ledger` goes on the `args.slices` entry of the same `name`, which keeps its `files`) — each claim stated as the DEFECT — `STILL_TRUE` the defect persists · `NOW_FALSE` it is gone (the fix holds) · `NEW` a defect the fix introduced — never `resumeFromRunId` (a resumed run re-runs the fan-out; `/opt/fabrik/docs/reference/review-loop-workflow.md`). A pass whose ledger reads `closable: false` does not close the review, whatever its pass number: ≤ 3 passes is a target, never a cap.
+  your own execution never close a review alone. Under the workflow, pass 2 and the closing pass are NEW `Workflow` invocations with `pass: <n>`, the next pass number (unbounded), and each slice's `ledger` in `args`, built from the pass file with `python3 scripts/review_loop_ledger.py next <scratch>/pass-<n>.json --ids <the confirmed ids>` (it prints `{name, ledger}` rows: each `ledger` goes on the `args.slices` entry of the same `name`, which keeps its `files`) — each claim stated as the DEFECT — `DEFECT_PRESENT` the defect persists · `DEFECT_ABSENT` it is absent (the fix holds, or an earlier refutation still holds — re-run and never cited) · `NEW` a defect the fix introduced (an older run's `STILL_TRUE` / `NOW_FALSE` rows read as `DEFECT_PRESENT` / `DEFECT_ABSENT`, and `review_loop_ledger.py read` flags a seat that reports a defect present but raises no candidate, and two seats that disagree) — never `resumeFromRunId` (a resumed run re-runs the fan-out; `/opt/fabrik/docs/reference/review-loop-workflow.md`). A pass whose ledger reads `closable: false` does not close the review, whatever its pass number: ≤ 3 passes is a target, never a cap.
 - **Every Coverage Checklist row is adjudicated** (CLEAN / FIXED / REFUTED / RECORDED), the delta round
   returned **`confirmed: 0` and `fixed: 0` with `unexecuted:` 0 or absent**, it carried the owning seats,
   and the mechanical gates are green (run, embedded and flipped in the receipt ORDER § Reporting states) → **EXIT** (the Termination
