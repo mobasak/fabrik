@@ -17,9 +17,10 @@ box: execute it, or name in the brief why the shape does not have it.
 - Trace the entry path: the first caller that reaches the fixed function; enumerate every call shape through a new
   branch and every input path of a shared reader; trace each rationale sentence's mechanism to the code, and execute
   every "X only when Y" claim the fix adds.
-- Enumerate the fix's input class whole (boundary, empty, unset, mandated, non-dict/non-string, every Unicode whitespace
-  class, the real committed files' shapes counted by an independent parser) and probe it again before each delta; keep
-  an adversarial input list for the fix's own new edges; enumerate each guard's ESCAPE VARIANTS in both directions —
+- Enumerate the fix's input class whole (boundary, empty, unset, mandated, non-dict/non-string, a fix's identity or
+  dedup key (byte vs text read, line endings, recycled ids such as inode reuse), every Unicode whitespace class, the
+  real committed files' shapes counted by an independent parser) and probe it again before each delta; keep an
+  adversarial input list for the fix's own new edges; enumerate each guard's ESCAPE VARIANTS in both directions —
   false green and false red — committing the positive/negative probe list beside it.
 - Name the defect's class and grep the whole class (every site, sibling guards, every scaffold type, recursively,
   vendored venvs and `.claude/worktrees` excluded) before patching one instance; diff sibling implementations side by
@@ -46,16 +47,17 @@ box: execute it, or name in the brief why the shape does not have it.
 
 ## The brief's hunt lines (name the ones the shape has)
 - Callers and consumers: every caller of a changed exit code, output line or gated script; every consumer of a changed
-  prompt output, of import-time side effects, of a flipped Status (generated indexes) or of a renamed name (link fields,
-  hand-kept indexes); callers that use a normaliser's return value; a pure helper's own return contract, not only what
-  its callers observe; the line that copies a template-emitted claim; every gate grading the old name; every reader of a
-  changed or vendored file's text that never imports it (a scaffold fold such as
+  prompt output, of import-time side effects, of a flipped Status (generated indexes) or of a renamed name (link
+  fields, hand-kept indexes); callers that use a normaliser's return value; a pure helper's own return contract, not
+  only what its callers observe; the line that copies a template-emitted claim; every gate grading the old name; every
+  reader of a changed or vendored file's text that never imports it (a scaffold fold such as
   `src/fabrik/scaffold.py::_audit_log_schema_block`, a drift or sync checker), found by the lead grepping the hub and
-  the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a glob
-  that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by
+  the fleet repos for the file's path, basename and directory and reading `scripts/fabrik_synced_manifest.py` for a
+  glob that covers it (a covered file is also read through each project's `.fabrik/synced.lock` by
   `scripts/enforcement/check_synced_unmodified.py`), each hit that reads the file named in the brief; every outbound
   sink a production-reaching test can touch; every actor touching an RLS table; placeholder resolution per consumer;
-  repo-wide service lists and absence statements.
+  repo-wide service lists and absence statements; every reader of a changed predicate's verdict (a notice, message or
+  wall line that reads the same hold), named before the closing round.
 - Parsers: the producer's real output contract first, then the parsing model before tokens; lossy cases (duplicate
   keys, ordering, whitespace), regex/strip edges (a regex redactor is also timed on a 100k-character input and probed
   at its truncation edges), the request-target grammar for URLs, comment and brace shapes for config, the real
@@ -68,7 +70,9 @@ box: execute it, or name in the brief why the shape does not have it.
   the rule's cost on the previous behaviour; the reader reports each escape shape as executed or read.
 - State and concurrency: who waits on a new lock and behind what; new module-level state reset on every return; every
   value a changed predicate sees from each writer (0 vs NULL); whether a filtered counter keeps its own records; which
-  fixture scopes run before an autouse pin; an env-leak fix where `delenv` on an absent key records nothing.
+  fixture scopes run before an autouse pin; an env-leak fix where `delenv` on an absent key records nothing; a change
+  that writes outside its state dir: every isolation seam its callers' tests use (`COMMAND_RUN_DIR`, a `HOME` or
+  `TMPDIR` override), each shown to land under its own root by listing the live checkout after the suite.
 - Failure paths: what a fix does when its own fallback fails; the configuration-failure path; a fail-soft mail or
   report path fed malformed stored data; a shell chain whose failing step must fail the chain (a gate line gates the
   commit, never only prints); a dry-run and write path diffed field by field; a validator's direct-call path.
@@ -76,24 +80,28 @@ box: execute it, or name in the brief why the shape does not have it.
   machine-parsed section markers; a literal pipe inside a table cell; a moved reference and which sentence branch
   reaches it; each mechanism claim at every lane or version it names; `git check-ignore` on the bare directory;
   defects split between a hook and its generator; a changed compose overlay read through its merged render (`docker
-  compose -f <base> -f <overlay> config`), where precedence and port exposure show.
+  compose -f <base> -f <overlay> config`), where precedence and port exposure show; a page-type or reader move: base
+  and head are built and each page's visible text and heading outline (h1-h3 counts) are diffed independently of any
+  identity diff the change ships, and the preview server runs on each language root, since a dist diff cannot see dev-
+  or preview-only settings.
 - The premise: the authoritative seat attacks the work item's premise and a ported heuristic's premise, not only the
   implementation; ask whether an existing mechanism or fragment already covers the class, and whether the check fits a
-  boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to a
-  `fabrik-researcher` seat whose brief names the version the repo pins or deploys (its lockfile or spec line) and asks
-  for the claim at that version; a claim about what a dependency accepts or does (a guard over its keys, a docs sentence
-  about its behaviour) is checked against every case the dependency defines for the keys or behaviour the claim covers
-  — each branch and alias in its source at that version, else its versioned reference docs plus an executed probe —
-  never only the cases the author listed; a seat names the whole input class of a finding it raises; a re-vendor brief
-  hands the
-  seats the lead's executed byte-identity result (the diff command and its output) as a claim to attack — the diff reads
-  the source's COMMITTED blob at the SHA the copy records (a `VENDORED-FROM` header, else the `Vendored-From:` trailer
-  of the commit that vendored it; HEAD when neither does: `git -C <source> show <sha>:<source path>`) against the copy
-  minus that header, never the source's working file, where a sibling's uncommitted edit reads as drift — and the brief
-  names the source's own regression test for the file at that SHA, run with its import path pointed at the copy (or says
-  the source has none); they re-run that command and that test first, then spend on what byte identity cannot show: the
-  vendored copy's own header, every importer of it, and every name it reads from each module vendored beside it (its
-  `from … import` names and each `module.attr` use), each shown present in that module's copy.
+  boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to
+  a `fabrik-researcher` seat whose brief names the version the repo pins or deploys (its lockfile or spec line) and
+  asks for the claim at that version; a claim about what a dependency accepts or does (a guard over its keys, a docs
+  sentence about its behaviour) is checked against every case the dependency defines for the keys or behaviour the
+  claim covers — each branch and alias in its source at that version, else its versioned reference docs plus an
+  executed probe — never only the cases the author listed; a seat names the whole input class of a finding it raises;
+  a re-vendor brief hands the seats the lead's executed byte-identity result (the diff command and its output) as a
+  claim to attack — the diff reads the source's COMMITTED blob at the SHA the copy records (a `VENDORED-FROM` header,
+  else the `Vendored-From:` trailer of the commit that vendored it; HEAD when neither does: `git -C <source> show
+  <sha>:<source path>`) against the copy minus that header, never the source's working file, where a sibling's
+  uncommitted edit reads as drift — and the brief names the source's own regression test for the file at that SHA, run
+  with its import path pointed at the copy (or says the source has none) and whether that test assumes a co-located
+  hub tree, so a standalone run of it is a known false red; they re-run that command and that test first, then spend
+  on what byte identity cannot show: the vendored copy's own header, every importer of it, and every name it reads
+  from each module vendored beside it (its `from … import` names and each `module.attr` use), each shown present in
+  that module's copy.
 
 ## Graders
 - Grade the PROPERTY across every example, never one spelling; a new assertion must fail when its subject is absent
@@ -194,6 +202,13 @@ box: execute it, or name in the brief why the shape does not have it.
   red; a seen-red on a DB-writing script names its sandbox; a ledger row whose fix landed in a file outside the pin (a
   CHANGELOG or ledger hunk) has that file pinned next pass, or the brief names it, so the seat never reads the base
   copy.
+- Overlay and pin currency: the brief lists every pinned path, dot-dirs (`.fabrik/`) included; a seat copies each file
+  to its own path or runs `cp -r <pin>/. <dest>/` then `chmod -R u+w <dest>`, never `cp -r <pin> <dest>` onto a
+  directory that exists, and checks each overlaid file's md5 against the manifest before its first run. `git archive`
+  omits untracked files, so the pin also carries the gitignored inputs the tests read (the repo's `.worktreeinclude`
+  list, `.env` excepted) and any sibling-repo symlink they follow. Each later pass's brief names its own pin dir and
+  digest, cut after the last fix, never the round-1 pin, and seat scratch dirs from earlier rounds are kept until the
+  close, so a seat re-runs its saved probes.
 
 ## Loop bookkeeping
 - Run `dispatch_headroom.py` before the pin, then stamp `command_run.py dispatch --seats <SEATS + one refuter per

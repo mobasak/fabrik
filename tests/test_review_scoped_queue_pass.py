@@ -83,7 +83,9 @@ def test_a_revendor_brief_hands_the_byte_identity_result_as_a_claim() -> None:
         " <source> show <sha>:<source path>`) against the copy minus that"
         " header, never the source's working file, where a sibling's uncommitted edit reads as drift — and the brief"
         " names the source's own regression test for the file at that SHA, run with its import path pointed at the"
-        " copy (or says the source has none); they re-run that command and that test first, then spend on what byte identity cannot show: the"
+        " copy (or says the source has none) and whether that test assumes a co-located hub tree, so a standalone"
+        " run of it is a known false red; they re-run that command and that test first, then spend on what byte"
+        " identity cannot show: the"
         " vendored copy's own header, every importer of it, and every name it reads from each module vendored"
         " beside it (its `from … import` names and each `module.attr` use), each shown present in that module's copy."
         in premise

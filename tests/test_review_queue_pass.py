@@ -391,3 +391,27 @@ def test_an_equivalent_mutant_is_discarded_never_reported_as_a_test_gap() -> Non
         " exception or written state diffed against the unmutated copy), and an equivalent mutant is struck with that"
         " diff quoted, never a test gap"
     ) in _norm(CAT)
+
+
+def test_fourth_review_queue_pass_lines() -> None:
+    """/fabrik-review queue, fourth pass (2026-10-14): overlay copy and pin currency (1791933800, 1791937887,
+    1791958467, 1791961253, 1791965991, 1791967675, 1791972544, 1791958633, 1791971384), write-path isolation
+    seams (1791935553), visible text of real builds (1791936682, 1791950533, 1791953413, 1791958187), re-vendor
+    tests that assume a co-located hub (1791959728), identity keys (1791982821) and predicate readers (1791985566)."""
+    text = _norm(CAT)
+    for needle in (
+        "a fix's identity or dedup key (byte vs text read, line endings, recycled ids such as inode reuse),",
+        "every reader of a changed predicate's verdict (a notice, message or wall line that reads the same hold), named"
+        " before the closing round.",
+        "and whether that test assumes a co-located hub tree, so a standalone run of it is a known false red;",
+        "a change that writes outside its state dir: every isolation seam its callers' tests use (`COMMAND_RUN_DIR`, a"
+        " `HOME` or `TMPDIR` override), each shown to land under its own root by listing the live checkout after the suite.",
+        "a page-type or reader move: base and head are built and each page's visible text and heading outline (h1-h3"
+        " counts) are diffed independently of any identity diff the change ships",
+        "a seat copies each file to its own path or runs `cp -r <pin>/. <dest>/` then `chmod -R u+w <dest>`, never"
+        " `cp -r <pin> <dest>` onto a directory that exists",
+        "`git archive` omits untracked files, so the pin also carries the gitignored inputs the tests read (the repo's"
+        " `.worktreeinclude` list, `.env` excepted)",
+        "Each later pass's brief names its own pin dir and digest, cut after the last fix, never the round-1 pin,",
+    ):
+        assert needle in text, needle
