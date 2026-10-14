@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review probe catalogue: ruff on a read-only pin runs `--no-cache`; an equivalent mutant is discarded (2026-10-14)
+
+The catalogue's seat-isolation line now gives ruff on a copy as `--no-cache --config <repo>/pyproject.toml`. Ruff writes `.ruff_cache` in its working directory and fails inside a read-only pin, which was executed: the plain form failed and `--no-cache` passed. Both homes of the mutant rule (`term-coverage.md` rule 4 and the catalogue's Mutants line) now report a surviving mutant only once it is shown to change observable behaviour (an output, return value, exit code, raised exception or written state), so an equivalent mutant such as a no-op f-string is struck with its diff quoted, never reported as a test gap. The /fabrik-task lane test is also re-pointed at `<run-scratch>`, which f97ecaf5e had left red. Answers /fabrik-review-scoped rows 1791943423 and 1791937766. Graders: `tests/test_review_queue_pass.py`, red on the previous text.
+
 ### Changed — /fabrik-plan-after-chat: `check_plan_tickets` is named for plan sets only (2026-10-14)
 
 The Appetite rule named `check_plan_tickets.py` beside `check_plan_quality.py` for every plan, so a monolith author ran it and got a usage refusal. It now says `check_plan_tickets.py --plan-dir <dir>` takes a plan set only and refuses a monolith file, and that `check_plan_quality.py` grades every plan only under `final_gate.py --systemic`, as a WARN while the plan is DRAFT/PLANNED, so a monolith's Appetite lines are self-checked. Answers /fabrik-plan-after-chat row 1791966909. Grader: `tests/test_plan_after_chat_queue_pass.py`, red on the previous text.

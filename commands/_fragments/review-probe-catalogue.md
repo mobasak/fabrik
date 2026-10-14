@@ -110,9 +110,11 @@ box: execute it, or name in the brief why the shape does not have it.
   first; pin the exact stdout line a count reads; a lock-order fix ships an executed concurrency probe.
 - Mutants: one per new comparison or constant AND one against every existing assertion whose input changed, each
   anchored on a token the formatter cannot rewrap, the mutated line shown changed before a green is trusted, survivors
-  reported; a counter or guard is gutted in the same round to show it can fail; a regression test fails when the
-  caller is reverted; one reader mutates the guarded behaviour; graders are written, and named, before the next round
-  goes out.
+  reported only once shown to change observable behaviour (an output, return value, exit code, raised exception or
+  written state diffed against the unmutated copy), and an equivalent mutant is struck with that diff quoted, never
+  a test gap; a counter or guard is gutted in the same round
+  to show it can fail; a regression test fails when the caller is reverted; one reader mutates the guarded
+  behaviour; graders are written, and named, before the next round goes out.
 - Test hygiene: a test stub records what it RECEIVED; a timing test is repeated 10× under its mutation; isolation is
   proven by a reversed-order run and by removing the fixture; a state-mutating grader leaves nothing on teardown;
   non-ASCII literals are checked by bytes; the whole suite directory of a changed test runs; a golden value is pinned
@@ -170,7 +172,8 @@ box: execute it, or name in the brief why the shape does not have it.
   that test's red-on-revert overlays the revert on the clone. Branch, worktree and stash state the test creates lands
   in the clone's own `.git`; only a test that reads the live checkout's own branches, worktrees or stash runs in the
   lead's throwaway worktree. Ruff and mypy run from the repo root with the repo's own config (on a copy: ruff
-  `--config <repo>/pyproject.toml`, mypy `--config-file` with the same path); tests run by exact node id. A script a
+  `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff writes `.ruff_cache` in
+  its working directory and fails inside a read-only pin without `--no-cache`); tests run by exact node id. A script a
   seat runs is run from its archive copy with every path argument under scratch (a script may treat any argument as a
   write path), and the pin carries the changed files' one-hop callees that are repo files (`review_loop_ledger.py pin`
   refuses the whole list when one path is missing, a symlink or outside the repo root).
