@@ -189,7 +189,11 @@ Treat every intended step as unproven until verified against the real code/schem
 - For each table/field/migration, confirm it exists with the stated type/constraints in the real schema.
 - A rule the plan derives from data (a mapping, a ref rule, a classifier) names, for every value it reads,
   the store that fills that value in the case the plan builds, and is grounded against those stores, never
-  against one existing instance's values.
+  against one existing instance's values: before the plan's first phase or ticket is written, an executed census
+  of each store, its command and output cited in the plan's Evidence, reads its shape (every field and its type,
+  recursing into nested items and marking which are required) and the values it holds (for a large store, each
+  read field's distinct values with counts, never a sample or one instance); a value an operator enters (a ref,
+  an id, a config key) counts as a store, and the source that accepts it is censused too.
 - For each external dependency or data source, **ground it to 100% truth NOW — never infer from training.**
   Repo-first (`grep docs/`, `docs/reference/`, `AFCL.md`); if unresolved, escalate to **live external
   research: `mcp__exa__web_search_exa` → `WebSearch` → `mcp__brave-search__brave_web_search` →
