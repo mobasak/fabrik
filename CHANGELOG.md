@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review probe catalogue: a seat brief names the database connection the lead proved (2026-10-14)
+
+No `.env` reaches a review seat, so seats in three projects skipped a database test, re-implemented it or failed on password auth (`/fabrik-review-scoped` rows 1791980872, 1790801583 and 1791515801). The catalogue's seat-isolation section now says that a test that needs a database runs with the variable the suite reads (`TEST_DATABASE_URL`, an isolated `DATABASE_URL`) in place of the import-only `.invalid` dummy, and that a seat probe that must connect uses the same variable. Both connect over the form the lead proved by one connect before the pin, such as a unix-socket DSN where TCP `localhost` fails password auth, and the brief names the variable and the form. Where only a password form connects, the lead runs that test or probe itself and quotes its result; a password is never written into a brief. `tests/test_review_scoped_queue_pass.py` pins the clause.
+
 ### Fixed — fabrik-mail's fabrik-lib addressing leg spares threads and senders, and is switched on (2026-10-14)
 
 - `scripts/mail.py`: an unaddressed send to `fabrik-lib` is addressed to the one module owner only when it is unthreaded and not a broadcast, never to the sender's own role; a module counts as an absolute `/opt/fabrik-lib/<m>` path, a relative `<m>/…` path (not the sender's own top-level folder, `..` refused), or a backticked hyphenated name; a bare single-word name never routes but a second owner it names unaddresses the mail (W-c687ce60, D-853).
@@ -23,7 +27,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — round zero: a narrowing fix replays every confirmed shape, not only a regex fix (2026-10-14)
 
-The round-zero probe in `term-edit.md` and `term-coverage.md` used to say only that "a regex fix is drafted against every confirmed shape at once". A predicate or filter fix that narrowed a candidate set therefore read as exempt, and a `/fabrik-review-scoped` run in fabrik-lib met its earlier-confirmed shapes one round at a time (feedback row 1791973917). The clause now covers any fix that narrows or widens what a matcher, predicate or filter accepts, a regex included. Such a fix is drafted and probed against every shape the review has confirmed so far and against the field- or key-renamed variant of each. `tests/test_review_loop_workflow.py` pins the new clause in both fragments.
+The round-zero probe in `term-edit.md` and `term-coverage.md` used to say only that "a regex fix is drafted against every confirmed shape at once". A predicate or filter fix that narrowed a candidate set therefore read as exempt, and a `/fabrik-review-scoped` run in fabrik-lib met its earlier-confirmed shapes one round at a time (feedback row 1791973917). The clause now covers any fix to a matcher, replacer, predicate or filter, a regex included, and above all one that narrows or widens what it accepts. Such a fix is drafted and probed against every shape the review has confirmed so far and, where a shape names a field or key, against its renamed variant too. `tests/test_review_loop_workflow.py` pins the new clause in both fragments.
 
 ### Changed — review probe catalogue: ruff on a read-only pin runs `--no-cache`; an equivalent mutant is discarded (2026-10-14)
 
