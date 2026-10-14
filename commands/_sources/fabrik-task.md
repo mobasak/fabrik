@@ -23,7 +23,9 @@ tokens.
 ⚠️ **Neither generic line above is this lane's** — `command_run.py` REFUSES a `fabrik-task` `start`
 without `--file`/`--declare` and a `done` without `--commit`; paste the SIZE line and phase 5's close.
 `handoff` is the record's third sanctioned terminal (`AGENT_CLOSED_STATES`): UPGRADE uses it.
-`<sid>` is `$CLAUDE_CODE_SESSION_ID` — one spelling, or phase 5's `cat` reads a path phase 2 never wrote.
+`<run-scratch>` is the `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, so it survives a WSL
+`/tmp` wipe and the worktree's removal) — one spelling, or phase 5's `cat` reads a path phase 2 never wrote; with no
+`SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>`.
 
 ## SIZE — phase 0 is the `start` itself
 
@@ -51,7 +53,7 @@ The tool prints either CORRECTIONS, each naming itself (a DIRTY declared path ma
 WIP — message the author, never stage it), or a LANE verdict naming where the work belongs. Read
 every line: flag gaps print together, path checks stop at the first. ⚠️ `sync lane test SKIPPED` on
 stderr means the hub filter was unreadable — that test did NOT run. **A refusal is the answer, not an obstacle**: take the named lane, no record was opened. On
-success it prints `RECORD: <started_at>` — paste it into the phase-2 path.
+success it prints `RECORD: <started_at>` and `SCRATCH: <path>` — the second is `<run-scratch>`.
 
 ⚠️ **COBRA (D-253).** The cheapest way to satisfy this gate without producing the outcome is to
 UNDER-DECLARE here and touch more at phase 3; the counter is phase 5's re-measure of this run's own
@@ -62,7 +64,7 @@ commit. All twelve cobras and their counters are § Constraints C3 of
 
 FIX DIRECTIVE step 1 whole — a failure reported with a command is replayed by that command, never
 a reconstruction. Then, before phase 2 and any edit, each command and its output goes to
-`<scratchpad>/fabrik-task/<sid>/<started_at>/measure.md`, beside phase 2's `design.md`, never in
+`<run-scratch>/measure.md`, beside phase 2's `design.md`, never in
 it (a pasted line opening with a field word or a `#` moves the declared paths): the tests that
 import or grade the declared files, that slice and never the whole suite (a red now is
 pre-existing); `git fetch` and the declared paths diffed against the remote branch the work merges
@@ -84,7 +86,7 @@ the packs it prints.
 ## Phase 2 — DESIGN, where it will be minted
 
 Write six fields — **PROBLEM · APPROACH · DECISION (reversible?) · MIRROR · OUT · TERMINAL** — to
-`<scratchpad>/fabrik-task/<sid>/<started_at>/design.md`. A mechanism copied from another script carries,
+`<run-scratch>/design.md`. A mechanism copied from another script carries,
 as Behaviours tested here (several may share one), the failure directions its tests and D-rows settled.
 
 {{include:design-critique}}
@@ -104,7 +106,7 @@ backticks under `APPROACH:`/`MIRROR:`; `--design` lands ONCE. Record them:
 
 ```bash
 python3 scripts/command_run.py step --phase 2 --title "design: <that path>" \
-  --design <scratchpad>/fabrik-task/<sid>/<started_at>/design.md
+  --design <run-scratch>/design.md
 ```
 
 If MEASURE or the critiques changed what ends the run, restate it with
@@ -183,9 +185,9 @@ capture line (v1 keeps it uncommitted), and the review is sized to the runway.
 5. Commit with explicit pathspecs + provenance trailers, **chaining the capture off the commit** (the window never closes — a sibling landing inside is captured instead):
 
 ```bash
-mkdir -p <scratchpad>/fabrik-task/<sid>/<started_at> \
+mkdir -p <run-scratch> \
   && <your § EXIT commit: pathspecs, trailers via -F, private-index for shared-append files> \
-  && git rev-parse -q --verify HEAD >> <scratchpad>/fabrik-task/<sid>/<started_at>/commit.sha || exit 1
+  && git rev-parse -q --verify HEAD >> <run-scratch>/commit.sha || exit 1
 ```
 
 6. § EXIT's push ladder (never `--force`), then close — the capture file, not a post-ladder `HEAD`
@@ -193,7 +195,7 @@ mkdir -p <scratchpad>/fabrik-task/<sid>/<started_at> \
 
 ```bash
 python3 scripts/command_run.py done --command fabrik-task \
-  --commit $(cat <scratchpad>/fabrik-task/<sid>/<started_at>/commit.sha) \
+  --commit $(cat <run-scratch>/commit.sha) \
   --evidence "<what proves the terminal condition>" --feedback "<the four fields>"
 ```
 
@@ -225,7 +227,7 @@ downgrades mid-run:
 
 ```bash
 python3 scripts/command_run.py handoff --command fabrik-task \
-  --resume <scratchpad>/fabrik-task/<sid>/<started_at>/design.md \
+  --resume <run-scratch>/design.md \
   --reason "UPGRADE: <token> — <the test crossed>" --feedback "<the four fields>"
 ```
 

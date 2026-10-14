@@ -470,7 +470,7 @@ def test_measure_lists_what_phase_1_executes_before_the_design() -> None:
     for needle in (
         "a failure reported with a command is replayed by that command, never a reconstruction",
         "before phase 2 and any edit, each command and its output goes to",
-        "`<scratchpad>/fabrik-task/<sid>/<started_at>/measure.md`, beside phase 2's `design.md`, never in it",
+        "`<run-scratch>/measure.md`, beside phase 2's `design.md`, never in it",
         "that slice and never the whole suite (a red now is pre-existing)",
         "`git fetch` and the declared paths diffed against the remote branch the work merges into",
         "(`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote)",
@@ -830,3 +830,28 @@ def test_phase_two_restates_the_terminal_with_the_design() -> None:
         '--terminal-amend "the narrowed terminal"'
     )
     assert args is not None and args.terminal_amend == "the narrowed terminal"
+
+
+def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
+    """Mail 01M4VV3BD3 (infra, D-836): /tmp died in a WSL shutdown, so the phase-2/5 files go under the
+    persistent SCRATCH path `start` prints; the session scratchpad is only the fallback when start prints no SCRATCH line."""
+    raw = _source_text()
+    text = _norm(raw)
+    assert (
+        "`<run-scratch>` is the `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, so it survives a"
+        " WSL `/tmp` wipe and the worktree's removal)"
+    ) in text
+    assert "with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>`." in text
+    assert "<scratchpad>/fabrik-task/<sid>/<started_at>" not in raw
+    assert raw.count("<run-scratch>") == 9
+    for site in (
+        "`<run-scratch>/measure.md`, beside phase 2's `design.md`",
+        "`<run-scratch>/design.md`. A mechanism copied",
+        "--design <run-scratch>/design.md",
+        "mkdir -p <run-scratch> \\",
+        ">> <run-scratch>/commit.sha || exit 1",
+        "--commit $(cat <run-scratch>/commit.sha)",
+        "--resume <run-scratch>/design.md",
+        "`SCRATCH: <path>` — the second is `<run-scratch>`.",
+    ):
+        assert site in raw, site
