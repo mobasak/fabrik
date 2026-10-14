@@ -149,7 +149,8 @@ def test_catalogue_holds_the_two_recurring_probes() -> None:
         in (_section(cat, "## Prose and docs fixes", "## Seat isolation"))
     )
     assert (
-        "on a copy: ruff `--config <repo>/pyproject.toml`, mypy `--config-file` with the same path"
+        "on a copy: ruff `--no-cache --config <repo>/pyproject.toml`, mypy `--config-file` with the same path; ruff"
+        " writes `.ruff_cache` in its working directory and fails inside a read-only pin without `--no-cache`"
         in (_section(cat, "## Seat isolation", "## Loop bookkeeping"))
     )
 
@@ -373,3 +374,20 @@ def test_an_agent_tool_seat_gets_the_pin_import_placement() -> None:
     assert "never at index 0" in recipe
     assert "run every probe as \\`python -P -B\\`" in recipe
     assert "drop its entries from sys.path" in recipe
+
+
+def test_an_equivalent_mutant_is_discarded_never_reported_as_a_test_gap() -> None:
+    """Row 1791937766: a no-op mutant (an f-string that renders the same) survived and was reported as a gap; both
+    homes of the mutant rule now require a survivor to change observable behaviour first."""
+    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert (
+        "shown applied by a diff of the copy against the pin, never a grep count; a survivor is reported only once"
+        " shown to change observable behaviour (an output, return value, exit code, raised exception or written state"
+        " diffed against the unmutated copy), and an equivalent mutant, a named one included, is struck with that diff"
+        " quoted, never reported as a test gap"
+    ) in cov
+    assert (
+        "survivors reported only once shown to change observable behaviour (an output, return value, exit code, raised"
+        " exception or written state diffed against the unmutated copy), and an equivalent mutant is struck with that"
+        " diff quoted, never a test gap"
+    ) in _norm(CAT)
