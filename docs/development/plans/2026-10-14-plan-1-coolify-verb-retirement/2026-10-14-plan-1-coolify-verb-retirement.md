@@ -78,7 +78,7 @@ Intake: 25 items — 23 IN, 2 OUT-OF-SCOPE (I19 → W-53f8a3f3; I22 → W-2191a0
 | T02 | `fabrik status` prints the last apply and the live containers | T01 | ⛓️ | ✅ | `56cee1a7f` |
 | T03 | `fabrik reconcile-all` reads the deployed set from Compose; `refresh_infrastructure` walks `app_dir` | T01, T02 | ⛓️ | ✅ | `68eeb35f6` |
 | T04 | `fabrik projects --sync` re-scans `/opt`; the registry loses its Coolify fields | T03 | ⛓️ | ✅ | `686b6e871` |
-| T05 | `fabrik apply` loses its legacy flags; `deploy.py` is deleted; cli wording | T04 | ⛓️ | ⬜ | |
+| T05 | `fabrik apply` loses its legacy flags; `deploy.py` is deleted; cli wording | T04 | ⛓️ | ✅ | `2a7f0fb38` |
 | T06 | export/import drop the Coolify section; legacy members counted | T05 | ⛓️ | ⬜ | |
 | T07a | `RollbackManager` loses its Coolify branch; vestigial patches leave the orchestrator tests | — | ⚡ | ✅ | `665b04272` |
 | T07b | hub `/health` drops the Coolify check; state and context words; env placeholders go | — | ⚡ | ✅ | `e8367785b` |

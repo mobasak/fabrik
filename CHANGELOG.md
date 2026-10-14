@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `fabrik apply` loses `--legacy`/`--use-orchestrator`/`--skip-dns`/`--skip-deploy`; `deploy.py` retired (2026-10-14)
+
+- `src/fabrik/cli.py` (plan T05, spec D1): the orchestrator pipeline is now the ONLY path — `apply`'s legacy
+  fall-through (spec load, `/opt/<id>/.env` secret reads, the confirm prompt, render, DNS, `deploy_to_coolify`) and its
+  four gating options are removed; a stale flag now gets click's own `No such option` (exit 2) instead of a deprecated
+  no-op. `--yes` stays as a stated compatibility no-op ("accepted for compatibility; the orchestrator path never
+  prompts") because `scripts/proof_run.py` and older docs still pass it. `src/fabrik/deploy.py` (the disabled
+  `deploy_to_coolify` shim, its only importer the removed fall-through) is deleted. `destroy`'s preview and `--partial`
+  help and the `domain provision`/`domain ready` docstrings drop their remaining "Coolify" wording (spec D10); the one
+  `Coolify` left in `cli.py` is `export`'s docstring, T06's. Graders: `tests/test_cli_apply_flags.py` (NEW, 12 — the
+  four stale flags refused, `--yes --dry-run` reaching a faked orchestrator once, `deploy.py` gone with no importer,
+  the wording).
+
 ### Changed — `fabrik projects --sync` runs the project scanner instead of the retired Coolify client (2026-10-14)
 
 - `src/fabrik/cli.py` (plan T04, spec D4): `--sync` runs `scripts/sync_projects.py` as the same subprocess `fabrik scan`

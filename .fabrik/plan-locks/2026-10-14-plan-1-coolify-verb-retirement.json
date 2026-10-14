@@ -124,6 +124,15 @@
       "started_at": "2026-10-14T07:56:20.819121+00:00",
       "updated_at": "2026-10-14T08:47:00.233491+00:00",
       "coder_commit": "686b6e871"
+    },
+    "T05": {
+      "state": "merged",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a72c2addb854d27c1",
+      "branch": "worktree-agent-a72c2addb854d27c1",
+      "base_commit": "370f9bf56",
+      "started_at": "2026-10-14T08:48:39.493544+00:00",
+      "updated_at": "2026-10-14T10:46:22.589996+00:00",
+      "coder_commit": "2a7f0fb38"
     }
   }
 }
