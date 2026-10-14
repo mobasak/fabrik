@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a file reviewed only by NESTED reviews no longer stays "unreviewed spontaneous work" forever (W-bdcff87a) (2026-10-14)
+
+- `scripts/command_run.py`: every review-family `done`, nested included, records what it NAMED — `{surface, adds, closed}` — in a session-durable `reviewed_surfaces` list. `start` carries it like `covered` (a nested child starts empty, its entries join the caller at the pop), and a late `done --surface` is the one recorded; `blocked`/`handoff` record nothing.
+- `.claude/hooks/final_gate_stop.py`: the sixth cause clears an edited path a closed entry names when the entry closed at or after the edit (a commit-only path within the existing commit grace of the close), reading the record and its parked frames. A nested review stamps no reach and its window starts after an earlier edit, so before this an edit made before a session's first run and reviewed only inside `/fabrik-execute-plan` blocked 3/3 every time (site-provisioner 01M49X4BZT, 01M4AH24H7). The running-surface parse is now one helper, `_surface_tokens`, shared by both readers.
+- Graded by 10 new tests, each seen red, and 13 mutants each killed; the record-shape pin gains `reviewed_surfaces`. The review closed three more holes: an unreadable edit time of 0, an edit older than the floor shielding a fresh commit, and a non-list `reviewed_surfaces` wedging `done`. The pre-existing loss of a reaped nested child's parked lists is W-a2361e7b.
+
 ### Fixed — the quota checkpoint makes sure a pausing window's self-watch is armed, so the relief wake can reach it (W-117b1916) (2026-10-14)
 
 - `.claude/hooks/final_gate_stop.py`: the rotation tick's relief wake (`.holdlifted`) reaches only a session whose `selfwatch.lock` is held, and one arm is one wake, so a window that paused at urgent-90 or at the wall after its watch had woken once slept through the reset (five mails, operator-reported). At urgent-90 the checkpoint block now carries an ARM item (the background `selfwatch_arm.sh <sid>` order), and a watch consumed later in the episode earns one arm-only block; at the wall the same arm-only block fires once per consumption before the yield. Fail-open on any load or probe error (D-844, superseding D-718 at the Stop site).
