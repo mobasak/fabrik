@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-data-contract: a re-freeze whose spec deltas touch no tabled item closes without a bump (2026-10-14)
+
+Phase 0 now names the zero-delta outcome: when no delta of an approved spec changes anything the contract records, Phases 1–3 still run and confirm the body unchanged, then Phase 4 bumps no `Version` and edits nothing, the D-row cites the approval row and the spec, and the re-freeze close-out does not run. Answers /fabrik-data-contract row 1791945393. Grader: `tests/test_data_contract_recurring_rules.py`, red on the previous text.
+
 ### Changed — /fabrik-spec-review: code-flow fixes are invariants from the first edit; seat briefs use absolute paths (2026-10-14)
 
 A fix inside a spec section describing a code FLOW is written as invariants + touchpoints from its first edit, not only once the residue-pass rule forces a rewrite. `commands/_fragments/design-critique.md` now says that panel-delta residue raised after the scope-growth stop fired is `RECORDED — measured` on the backlog row, not confirmed, so it does not set the flip back; the round that fires the stop still does. `commands/_fragments/subagents-core.md` has the dispatcher write every pin, copy, fix and scratch path a brief names as a literal absolute path. Answers /fabrik-spec-review rows 1791937893 and 1791945243. Grader: `tests/test_spec_review_queue_pass.py`, red on the previous text; the pins in `tests/test_spec_plan_lane_text.py` and `tests/test_plan_review_recurring_rules.py` follow the new wording.
