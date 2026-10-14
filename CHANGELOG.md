@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — rotation flips at 99% by default, per-account flip lines and weekly caps editable from the quota board (2026-10-14)
+
+- `scripts/sysadmin/claude_rotate.py` (operator: "98% hook is to restrictive, can we make it 99% except ob@ocoron.com";
+  "give me an option to be able to set thresholds manually in the gui"): `ROTATE_THRESHOLD` default 98 → **99**
+  (superseding D-201); a new `<fleet root>/thresholds.json` (`{"email": pct}`, `_thresholds_file()`, same never-halt
+  loader contract as `caps.json`) carries an account's own flip line, resolved by `_row_threshold()` in the candidate
+  verdict, the flip-away leg, the walled-active predicate, the picture and the relief bar; status rows carry it as
+  `session_threshold`. ob@ keeps 98 there. The aro-wake twin stays byte-identical.
+- `scripts/sysadmin/quota_dashboard.py`: every account row gains a `cap` input (`POST /cap` → caps.json, 0–100, empty
+  clears, 0 parks) and a `rotate at` input (`POST /threshold` → thresholds.json, 50–100, empty = default), both behind
+  the custom-header CSRF guard, board-known accounts only, locked atomic read-modify-write, refusing to rewrite an
+  unparseable file; the trigger reads each account's own line (`_trip_line`); `TRIGGER_THRESHOLD` default 99.
+- Graders: the default pinned at 99, a thresholds.json loader test, an override tripping the flip leg and excluding a
+  target at its own line, eight `/cap` and `/threshold` route + render tests; fixtures built on the old 98 line pin it.
+
 ### Changed — `fabrik apply` loses `--legacy`/`--use-orchestrator`/`--skip-dns`/`--skip-deploy`; `deploy.py` retired (2026-10-14)
 
 - `src/fabrik/cli.py` (plan T05, spec D1): the orchestrator pipeline is now the ONLY path — `apply`'s legacy

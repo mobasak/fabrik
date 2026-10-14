@@ -2905,8 +2905,61 @@ def _rotate_threshold() -> float:
     NEXT move of this line can be measured instead of argued.
 
     The weekly leg is governed by the account's ``caps.json`` cap when one exists (the cap IS the
-    operator's weekly rule) and by this threshold otherwise — see ``_fleet_flip_leg``."""
-    return _env_float("ROTATE_THRESHOLD", 98.0)
+    operator's weekly rule) and by this threshold otherwise — see ``_fleet_flip_leg``.
+
+    2026-10-14: default **99** (operator: "98% hook is to restrictive, can we make it 99% except
+    ob@ocoron.com" — supersedes D-201's 98). The exception is a ROW, not a branch: an account may carry
+    its own line in ``<fleet_root>/thresholds.json`` (:func:`_thresholds_file`, editable from the quota
+    board), and every per-account decision reads it through :func:`_row_threshold`. The cost of the extra
+    point is the one this docstring measures: an account read AT the line walls before the next look a
+    little more often; the relief wake still holds a walled session instead of letting it die."""
+    return _env_float("ROTATE_THRESHOLD", 99.0)
+
+
+def _thresholds_file() -> dict[str, float]:
+    """Per-account flip lines: ``<fleet_root>/thresholds.json`` = {"email": pct} (operator 2026-10-14).
+
+    Overrides :func:`_rotate_threshold` for ONE account on the session leg (and on the weekly leg when
+    the account has no ``caps.json`` cap — the cap stays the weekly rule). Same fail direction as
+    :func:`_caps_file`: missing → none; unreadable or the wrong shape → loud stderr + none (a broken
+    file must never halt rotation); a non-number entry (a bool is a typo) is skipped with a warning;
+    values clamp to 0..100; keys lowercase. ⚠️ COBRA: the cheapest way to look "tuned" is to raise
+    every account's line to 100 — that is a wall, not a threshold; the board refuses values over 100
+    and under 50, this loader only clamps."""
+    path = _fleet_root() / "thresholds.json"
+    try:
+        raw = path.read_text()
+    except FileNotFoundError:
+        return {}
+    except OSError as e:
+        sys.stderr.write(f"claude_rotate: cannot read {path} ({e}) — default thresholds\n")
+        return {}
+    try:
+        data = json.loads(raw)
+    except ValueError as e:
+        sys.stderr.write(f"claude_rotate: {path} is not valid JSON ({e}) — default thresholds\n")
+        return {}
+    if not isinstance(data, dict):
+        sys.stderr.write(f"claude_rotate: {path} is not a JSON object — default thresholds\n")
+        return {}
+    out: dict[str, float] = {}
+    for email, thr in data.items():
+        if isinstance(thr, bool) or not isinstance(thr, (int, float)) or not math.isfinite(thr):
+            sys.stderr.write(
+                f"claude_rotate: {path}: threshold for {email!r} is not a number ({thr!r}) — skipped\n"
+            )
+            continue
+        out[str(email).lower()] = float(min(100, max(0, thr)))
+    return out
+
+
+def _row_threshold(row: dict | None, default: float) -> float:
+    """The flip line for ONE account row: its ``session_threshold`` (from thresholds.json) when set,
+    else *default* (the fleet line). The one place the per-account exception is resolved."""
+    v = (row or {}).get("session_threshold")
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return default
+    return float(v)
 
 
 def _tick_inner() -> int:
@@ -3575,6 +3628,7 @@ def _flip_candidate_verdict(
     an exclusion predicate drifting apart IS the churn bug). The cached-unverifiable outcome is
     not a predicate here — it is :func:`_validated_pick`'s live verdict — so the diagnostic
     names it from the row's ``source``/``age_s`` instead."""
+    threshold = _row_threshold(row, threshold)  # the account's own line (thresholds.json) wins
     slug = _account_flip_dir(row.get("slugs") or [])
     utils: dict[str, float | None] = {}
     for key in ("five_hour", "seven_day"):
@@ -4341,6 +4395,7 @@ def _fleet_account_rows(
             pending.append(entry)
     cache = _load_usage_cache()
     caps = _account_caps()
+    thresholds = _thresholds_file()
     accounts: list[dict] = []
     cache_dirty = False
     # The stale-reading refresh pings are allocated BEFORE the pass below, oldest reading
@@ -4376,6 +4431,8 @@ def _fleet_account_rows(
             "refresh_expires_slug": soonest[1] if soonest else None,
             "identity_mismatches": [],
             "weekly_cap": caps.get(email.lower()),
+            # the account's own flip line (thresholds.json) — None = the fleet default
+            "session_threshold": thresholds.get(email.lower()),
             "cap_walled": False,
             # the operator's out-of-service mark (`--park`), so a reader need not re-derive it
             "parked": _is_parked(caps.get(email.lower())),
@@ -4784,13 +4841,13 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
     # default the session trip line since 2026-10-06) — the first cut compared the SESSION window against the trip
     # threshold, so a row spent past the bar but under the trip read `unavailable` (non-author
     # pass over 58041dbd + the strict-bar grader, 2026-09-07)
-    session_bar = _env_float("ROTATE_TARGET_SESSION_MAX_PCT", thr)
     active_email = next(
         (str(r.get("email")) for r in accounts if active_slug in (r.get("slugs") or [])), None
     )
     rows: list[dict] = []
     for row in accounts:
         _slug, utils, reason = _flip_candidate_verdict(row, thr)
+        row_thr = _row_threshold(row, thr)
         fv, wv = utils.get("five_hour"), utils.get("seven_day")
         cap = row.get("weekly_cap")
         fh, wk = row.get("five_hour"), row.get("seven_day")
@@ -4801,7 +4858,9 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
         # strict at the picker's bar (`> session_max`, R5) OR at the trip threshold on the
         # session window (the picker refuses `a window >= thr` too) — replacing one with the
         # other left a row between a raised bar and the trip reading `unavailable` (native N7)
-        session_spent = fv is not None and (fv > session_bar or fv >= thr)
+        session_spent = fv is not None and (
+            fv > _env_float("ROTATE_TARGET_SESSION_MAX_PCT", row_thr) or fv >= row_thr
+        )
         weekly_walled = _weekly_blocked(row.get("seven_day"), cap)  # the relief writer's reading
         if active_slug is not None and active_slug in (row.get("slugs") or []):
             state = "active"
@@ -4818,7 +4877,7 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
             state = "weekly-exhausted"
         elif session_spent:
             state = "session-exhausted"
-        elif wv is not None and wv >= thr:
+        elif wv is not None and wv >= row_thr:
             # under its cap but over the picker's target line on the WEEKLY window: not a wall
             # (the tick keeps it active) and not a target either until that window resets —
             # mob@ at 0/97 under cap 99 read as "unavailable" on the first cut (scoped review)
@@ -6247,6 +6306,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     # cap IS the operator's weekly rule; read the LIVE values from caps.json, never from here — an
     # earlier cut of this comment quoted four of them and two had gone stale) and at the threshold
     # otherwise.
+    threshold = _row_threshold(row, threshold)  # the active account's own line, when it has one
     cap = row.get("weekly_cap")
     weekly_thr = float(cap) if cap is not None else threshold
     # PROJECTED trip: reading + the burn since the previous tick (see _tick_burn) — a line that
@@ -6400,7 +6460,7 @@ def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool
     utils = _row_utils(row)
     if not _row_has_reading(row):
         return False, row  # no reading → no claim
-    return _flip_churn_excluded(utils, row.get("weekly_cap"), threshold), row
+    return _flip_churn_excluded(utils, row.get("weekly_cap"), _row_threshold(row, threshold)), row
 
 
 def _clear_stamp(stamp: Path) -> bool:
@@ -6645,7 +6705,9 @@ def _next_session_relief(
         # The PICKER's bar, not the drain threshold: `_flip_candidate_verdict` refuses a target
         # whose session is over ROTATE_TARGET_SESSION_MAX_PCT (default the trip line), so relief
         # promised past that bar named an instant at which nothing was pickable (closing review P3-2).
-        session_bar = _env_float("ROTATE_TARGET_SESSION_MAX_PCT", _rotate_threshold())
+        session_bar = _env_float(
+            "ROTATE_TARGET_SESSION_MAX_PCT", _row_threshold(row, _rotate_threshold())
+        )
         # STRICT, like the picker (`utils["five_hour"] > session_max`): at exactly the bar the
         # picker takes the account now, so it is not waiting on anything (R5)
         session_spent = su is not None and su > session_bar

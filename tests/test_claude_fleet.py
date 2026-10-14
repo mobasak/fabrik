@@ -54,6 +54,15 @@ def _no_real_capability_probe(monkeypatch):
     monkeypatch.setattr(cr, "_probe_account", lambda *a, **k: "ok")
 
 
+@pytest.fixture(autouse=True)
+def _pre_2026_10_14_flip_line(monkeypatch):
+    """This file's fixtures were built around the 98 flip line (D-201): their active accounts sit at
+    98.x readings that must trip. The default became 99 on 2026-10-14 (operator: "make it 99% except
+    ob"), graded in tests/test_claude_rotate_v2.py; these tests grade exclusion and flip MECHANISMS, so
+    they keep the line they were written against. A test that sets ROTATE_THRESHOLD itself still wins."""
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")
+
+
 def _canonical(tmp_path, monkeypatch):
     """A fake ~/.claude + ~/.claude.json + an empty fleet root. Returns (fleet, cdir, home)."""
     home = tmp_path / "home"

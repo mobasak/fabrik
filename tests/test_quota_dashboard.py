@@ -779,6 +779,7 @@ def test_the_trigger_runs_the_tick_under_the_cron_lock_and_off_the_loop_thread(
     """The cron runs `flock -n ~/.claude/state/rotate.lock … --tick`; the board's tick must take the
     SAME lock (two ticks deciding at once is the double-flip race) and must not stall the probe
     loop for up to TICK_TIMEOUT_S — it runs on its own thread, which the trigger returns."""
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")  # fixture built on the pre-2026-10-14 line
     lockfile = tmp_path / "rotate.lock"
     qd, stub = _tick_env(tmp_path, monkeypatch, session=98.5, QUOTA_DASH_ROTATE_LOCK=str(lockfile))
     assert lockfile == qd.ROTATE_LOCK
@@ -815,7 +816,7 @@ def test_dashboard_trigger_default_matches_the_tick_default(tmp_path, monkeypatc
     # 98 since 2026-09-08 (D-201). The literal is pinned deliberately — deriving BOTH sides from
     # the code would let the two drift together silently, which is the only failure this grader
     # exists to catch. Update it in the same change that moves the constants, never after.
-    assert qd.TRIGGER_THRESHOLD == cr._rotate_threshold() == 98.0
+    assert qd.TRIGGER_THRESHOLD == cr._rotate_threshold() == 99.0
     # and the no-successor mail must stay BELOW the flip line: with a successor the flip is the
     # remedy, without one this is, and it needs runway. 90 < 98 is the design (D-201).
     assert qd.DRAIN_TRIGGER_THRESHOLD < qd.TRIGGER_THRESHOLD
@@ -4036,3 +4037,76 @@ def test_every_row_offers_a_cap_control_showing_the_current_cap(tmp_path, monkey
         row = html[html.index(f'class="capin" data-email="{email}"') :][:200]
         assert want in row, (email, row)
         assert f'class="switch capset" data-email="{email}"' in html, email
+
+
+# ── per-account rotate thresholds from the board (operator 2026-10-14) ─────────────────────────
+
+
+def _thr_env(tmp_path, monkeypatch, seed: dict | None):
+    f = tmp_path / "thresholds.json"
+    if seed is not None:
+        f.write_text(json.dumps(seed))
+    monkeypatch.setenv("QUOTA_DASH_THRESHOLDS_FILE", str(f))
+    monkeypatch.setenv("QUOTA_DASH_CAPS_FILE", str(tmp_path / "caps.json"))
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    return qd, stub, f
+
+
+def test_threshold_set_clear_and_refusals(tmp_path, monkeypatch):
+    qd, stub, f = _thr_env(tmp_path, monkeypatch, {"mob@ocoron.com": 98})
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(
+            f"{base}/threshold", b'{"account": "sarp@ocoron.com", "threshold": 97}'
+        )
+        assert status == 403, body
+        for bad in (
+            b'{"account": "nobody@x.com", "threshold": 97}',
+            b'{"account": "sarp@ocoron.com", "threshold": 49}',
+            b'{"account": "sarp@ocoron.com", "threshold": 101}',
+            b'{"account": "sarp@ocoron.com", "threshold": "97"}',
+            b'{"account": "sarp@ocoron.com", "threshold": false}',
+            b'{"account": "sarp@ocoron.com"}',
+        ):
+            status, body = _post(f"{base}/threshold", bad, {qd.SWITCH_HEADER: "1"})
+            assert status == 400, (bad, body)
+        assert json.loads(f.read_text()) == {"mob@ocoron.com": 98}
+        status, body = _post(
+            f"{base}/threshold",
+            b'{"account": "SARP@ocoron.com", "threshold": 97}',
+            {qd.SWITCH_HEADER: "1"},
+        )
+        assert status == 200 and body["ok"], body
+        assert json.loads(f.read_text()) == {"mob@ocoron.com": 98, "sarp@ocoron.com": 97}
+        status, body = _post(
+            f"{base}/threshold",
+            b'{"account": "mob@ocoron.com", "threshold": null}',
+            {qd.SWITCH_HEADER: "1"},
+        )
+        assert status == 200 and body["ok"], body
+        assert json.loads(f.read_text()) == {"sarp@ocoron.com": 97}
+    finally:
+        httpd.shutdown()
+
+
+def test_every_row_offers_a_threshold_control_and_the_trigger_reads_the_override(
+    tmp_path, monkeypatch
+):
+    qd = _load(tmp_path, monkeypatch)
+
+    def payload():
+        p = _multi_payload()
+        p["accounts"][0]["session_threshold"] = 97.0
+        return p
+
+    monkeypatch.setattr(qd, "_probe", payload)
+    html = qd.generate()
+    for acct in payload()["accounts"]:
+        email = acct["email"]
+        assert f'class="thrin" data-email="{email}"' in html, email
+        assert f'class="switch thrset" data-email="{email}"' in html, email
+    first = payload()["accounts"][0]["email"]
+    row = html[html.index(f'class="thrin" data-email="{first}"') :][:220]
+    assert 'value="97"' in row, row
+    assert qd._trip_line(payload()["accounts"][0]) == 97.0
+    assert qd._trip_line(payload()["accounts"][1]) == qd.TRIGGER_THRESHOLD

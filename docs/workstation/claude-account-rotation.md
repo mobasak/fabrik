@@ -63,7 +63,7 @@ survives it.
 
 The `*/5` tick reads every account dir (it discovers them, nothing enumerates them), then decides (`_fleet_flip_leg`, `claude_rotate.py`):
 
-- **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **98** — operator rule D-201, *"switch as soon as it reaches 98%"*: an account read AT the line walls more often at 98 than at 95, but the relief wake (D-177/D-178/D-180) holds a walled session and wakes it when relief lands instead of letting it die; the fleet tick ledgers one `{"event": "tick", "pct": …}` row per tick for the ACTIVE account's SESSION window, graded by `test_the_fleet_tick_ledgers_the_active_session_reading`, so the next tuning has evidence. ONE helper
+- **Flip-away trigger:** the active account reaches its flip line — its own entry in `<fleet root>/thresholds.json` (`{"email": pct}`, `_thresholds_file()`, read through `_row_threshold()` at every per-account decision; editable from the quota board's `rotate at` control) or else `ROTATE_THRESHOLD` (default **99** since 2026-10-14 — operator: *"98% hook is to restrictive, can we make it 99% except ob@ocoron.com"*, so ob@ carries `98` in thresholds.json; this superseded D-201's 98, *"switch as soon as it reaches 98%"*: an account read AT the line walls more often at 98 than at 95, but the relief wake (D-177/D-178/D-180) holds a walled session and wakes it when relief lands instead of letting it die; the fleet tick ledgers one `{"event": "tick", "pct": …}` row per tick for the ACTIVE account's SESSION window, graded by `test_the_fleet_tick_ledgers_the_active_session_reading`, so the next tuning has evidence. ONE helper
   `_rotate_threshold()` feeds every call site, and `quota_dashboard.TRIGGER_THRESHOLD` is pinned equal to it
   by a grader) on either the 5-hour or the weekly window — **on the PROJECTED reading**
   (D-103): each leg trips on reading + the burn since the previous tick, remembered per
@@ -107,7 +107,7 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   or `--status`, never this page, for the numbers.** At weekly ≥ cap the account flips away
   whatever its session says.
   **A target must have 5h budget:** its session reading must be KNOWN and
-  ≤ `ROTATE_TARGET_SESSION_MAX_PCT` (default = `ROTATE_THRESHOLD`, the **98** session line since 2026-10-06 — "available" means below its own walls, the 85 drain band no longer narrows it) — a weekly reading alone proves nothing about
+  ≤ `ROTATE_TARGET_SESSION_MAX_PCT` (default = the account's flip line — `thresholds.json` or `ROTATE_THRESHOLD`, **99** since 2026-10-14, the session line since 2026-10-06 — "available" means below its own walls, the 85 drain band no longer narrows it) — a weekly reading alone proves nothing about
   the session window, and a sibling near its own session wall would be flipped to and away from on
   the next tick. A cached standby whose 5h reset time has already passed is read as 0% (an idle
   account cannot burn fleet quota; the window rolled over — the board applies the same rule). A candidate ranked off
@@ -131,7 +131,7 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   a walled active with a headroom sibling is relieved by the same tick since trips are dwell-exempt). The same tick
   writes the `fleet-exhausted` stamp, ⚠️ **naming on its SECOND line WHICH arm wrote it (D-306)** —
   `walled` for the wall itself, `urgent-90` for the 90-line warning, which fires EIGHT points
-  earlier on the default `ROTATE_THRESHOLD` of 98, because that runway is what a graceful stop
+  earlier on the default `ROTATE_THRESHOLD` of 99 (it was 98 until 2026-10-14), because that runway is what a graceful stop
   needs. ⚠️ That eight-point gap is entirely on the SESSION window: `urgent` tests `five_hour`
   alone, while a `caps.json` cap is applied to `seven_day` alone, so a cap never shortens this
   runway — it walls a DIFFERENT window and can open an episode at `walled` with the session cool. Line 1 stays the resume promise
