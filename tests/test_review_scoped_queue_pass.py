@@ -398,3 +398,30 @@ def test_term_edit_pin_clause_does_not_license_a_mid_window_edit() -> None:
         " has returned and you have read the pass)" in te
     )
     assert "(the seats read the pin; you edit the working tree)" not in te
+
+
+def test_a_database_test_runs_with_the_connection_the_lead_proved() -> None:
+    """/fabrik-review-scoped rows 1791980872, 1790801583 and 1791515801: three projects' seats skipped,
+    re-implemented or failed a database test because no `.env` reaches a seat. The brief names the variable
+    and the connection form the lead proved by one connect, and a seat's own database probe is covered too."""
+    iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
+    assert (
+        "a test that needs a database (the suite skips or fails it without a database variable: no `.env` is"
+        " copied, and the `.invalid` dummy serves imports only) runs with the variable the suite reads"
+        " (`TEST_DATABASE_URL`, an isolated `DATABASE_URL`) in place of that dummy, and a seat probe that must connect"
+        " uses the same variable; both connect over the form the lead proved by one connect before the pin (a"
+        " unix-socket DSN where TCP `localhost` fails password auth), the variable and the form named in the brief, and"
+        " where only a password form connects the lead runs that test or probe itself and quotes its result, never"
+        " writing the password into a brief"
+    ) in iso
+
+
+def test_step_five_keeps_ruff_findings_off_seats_and_names_the_hub_ledger() -> None:
+    """Rows 1791982905 (a seat reported pre-existing HEAD formatting as a finding) and 1791982896 + 1791981699
+    (a sync-excluded repo's vendored review_loop_ledger.py has no `pin` verb; hand-made pins twice)."""
+    text = _norm(SRC)
+    assert "the brief says ruff's output is the lead's, so a seat reports no lint or format finding, pre-existing or not" in text
+    assert (
+        "(every `review_loop_ledger.py` call in this step runs as `python3 /opt/fabrik/scripts/review_loop_ledger.py` in a"
+        " sync-excluded repo, since a vendored copy there may lack `pin` or `read --pins`)"
+    ) in text

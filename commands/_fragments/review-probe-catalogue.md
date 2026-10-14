@@ -184,9 +184,16 @@ box: execute it, or name in the brief why the shape does not have it.
   ready probe harness file, never promising a tool the seat does not have (the Write tool); a claim only the home
   directory can settle is recorded up front for the lead.
 - Every file a grader reads is pinned, the uncommitted module under test included; a "nothing changed for readers"
-  claim is proven on a pinned input; a concurrent sibling run on a shared DB is a known false red; a seen-red on a
-  DB-writing script names its sandbox; a ledger row whose fix landed in a file outside the pin (a CHANGELOG or ledger
-  hunk) has that file pinned next pass, or the brief names it, so the seat never reads the base copy.
+  claim is proven on a pinned input; a test that needs a database (the suite skips or fails it without a database
+  variable: no `.env` is copied, and the `.invalid` dummy serves imports only) runs with the variable the suite reads
+  (`TEST_DATABASE_URL`, an isolated `DATABASE_URL`) in place of that dummy, and a seat probe that must connect uses
+  the same variable; both connect over the form the lead proved by one connect before the pin (a unix-socket DSN where
+  TCP `localhost` fails password auth), the variable and the form named in the brief, and where only a password form
+  connects the lead runs that test or probe itself and quotes its result, never writing the password into a brief, so
+  no seat skips the test, re-implements it or probes auth; a concurrent sibling run on a shared DB is a known false
+  red; a seen-red on a DB-writing script names its sandbox; a ledger row whose fix landed in a file outside the pin (a
+  CHANGELOG or ledger hunk) has that file pinned next pass, or the brief names it, so the seat never reads the base
+  copy.
 
 ## Loop bookkeeping
 - Run `dispatch_headroom.py` before the pin, then stamp `command_run.py dispatch --seats <SEATS + one refuter per
