@@ -454,8 +454,13 @@ byte-identical to a run that graded nothing, so citing it is the un-denominated 
 bounded-search rule forbids. Under `Profile: small` the budget is waived outright (inline execution reads nothing cold); otherwise a single behavior that cannot fit the READ budget is a named BLOCKING unknown for the
 operator — one of the two non-self-service sizing cases (the other: the Integration slot already taken).
 
-**Size as you draft.** Write the spine first (the gate grades nothing in a dir without its same-stem spine),
-then run the emit gate after each ticket and read only its `READ budget` lines mid-draft, while Touches are
+**Size as you draft.** Write the spine first (the gate grades nothing in a dir without its same-stem spine).
+Before writing each ticket, measure its Touches plus Context Files with the shape decision's `find … wc -c`,
+minus the exempt shared reads, packs and generated artifacts the gate drops, against `READ_BUDGET_BYTES`. A
+file the coder only reads that would put the ticket over is cited inline as `path:line` with the quoted lines
+instead of listed, only when those lines are all the coder needs from it (the cold-agent simulation decides);
+a file the ticket edits that alone exceeds the budget goes to the set's single `Integration: true` ticket.
+Then run the emit gate after each ticket and read only its `READ budget` lines mid-draft, while Touches are
 still cheap to re-cut; the structural ERRORs of tickets not yet written close as the set completes. Build the
 spine's roll-up by copying the tickets' bulleted `Given` rows with a script, never by retyping them.
 

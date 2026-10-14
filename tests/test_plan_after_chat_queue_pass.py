@@ -71,7 +71,13 @@ def test_a_derived_rule_is_grounded_on_its_stores_and_the_emit_gate_runs_per_tic
     )
     assert (
         "**Size as you draft.** Write the spine first (the gate grades nothing in a dir without its same-stem"
-        " spine), then run the emit gate after each ticket and read only its `READ budget` lines mid-draft, while"
+        " spine). Before writing each ticket, measure its Touches plus Context Files with the shape decision's"
+        " `find … wc -c`, minus the exempt shared reads, packs and generated artifacts the gate drops, against"
+        " `READ_BUDGET_BYTES`. A file the coder only reads that would put the ticket over is cited inline as"
+        " `path:line` with the quoted lines instead of listed, only when those lines are all the coder needs from it"
+        " (the cold-agent simulation decides); a file the ticket edits that alone exceeds the budget goes to the"
+        " set's single `Integration: true` ticket."
+        " Then run the emit gate after each ticket and read only its `READ budget` lines mid-draft, while"
         " Touches are still cheap to re-cut; the structural ERRORs of tickets not yet written close as the set"
         " completes. Build the spine's roll-up by copying the tickets' bulleted `Given` rows with a script, never"
         " by retyping them." in text

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-after-chat: measure a ticket's READ set before writing it (2026-10-14)
+
+Size-as-you-draft now measures each ticket's Touches plus Context Files (minus what the gate exempts) against `READ_BUDGET_BYTES` before the ticket is written; a read-only file that would put it over is cited inline (`path:line` and the quoted lines) only when those lines are all the coder needs, and an edited file that alone exceeds the budget goes to the Integration ticket. Answers /fabrik-plan-after-chat row 1791954526 (a recurrence of 1791939165). Grader: the Size-as-you-draft pin in `tests/test_plan_after_chat_queue_pass.py`, red on the previous text.
+
 ### Changed — Research chains run the two-tier ladder: exa only on a tier-1 miss (2026-10-14)
 
 Nine command sources (spec, spec-review, data-contract, plan-after-chat, ui-design, vision, docs-review, execute-plan, plan-review) and the fabrik-researcher seat now name `WebSearch` / `WebFetch` / brave first and the metered exa search only on a miss, as the operator ruled in D-337; `docs/workstation/mcp-roster.md` no longer calls exa "grounding order #1". Decided by an Opus + Fable panel (both `align`) on a transcript measurement: 1,028 tier-1 calls against 77 exa calls, 61 of them with no tier-1 call before them. Grader: `tests/test_research_tier_order.py`, a corpus-wide property, red on the previous text. W-911cab3b.
