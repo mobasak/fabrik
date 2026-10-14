@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `fabrik reconcile-all` reads the deployed set from Compose; `refresh_infrastructure` walks `app_dir` on the spec's host (2026-10-14)
+
+- `src/fabrik/cli.py` (plan T03, spec D3, invariant 2): `reconcile-all` no longer queries Coolify — it reads
+  `docker compose ls -a --format json` ONCE per distinct target host (`spec.target_vps`, default `vps1`) and reconciles a
+  spec whose project `Name` is `<n>`/`fabrik-<n>` or whose `ConfigFiles` entry lives in one of its `app_dir` candidates;
+  every failure is a row, never an abort (`skipped — no compose project (no containers) on <host>`,
+  `host-unreachable — <error>`, `error — <message>` for a spec defect or a refresh failure, cut at 80 characters); the
+  host is named and read BEFORE the per-spec checks, so exit 1 when no named host could be read, and under `--yes` on any
+  `host-unreachable`/`error`/`spec-error`/`lock-timeout` row, otherwise 0; `--filter` matches the file stem BEFORE the
+  spec loads. `src/fabrik/orchestrator/__init__.py`'s `refresh_infrastructure` takes `target_vps` (flag > spec > `vps1`),
+  probes each `app_dir` candidate with `probe_app` on that host — only the walk swaps hosts, hub-side registrars stay on
+  vps1 (the 2026-06-02 revert) — reports an unreachable host as `could not reach <host>`, names every probed directory
+  when none holds a `compose.yaml`, and records the matched directory's basename as the app name;
+  `redeploy --refresh-infra` passes its `--target-vps` through. Graders: `tests/test_reconcile_all_deployed_set.py`
+  (35 — 29 from the coder, 22 red first, the invariant-2 exit rule as a 17-case battery; 6 from the wave-3 review, each
+  killing a mutant the coder's suite let live), `tests/orchestrator/test_refresh_infrastructure.py` rewritten onto
+  `probe_app` stubs keyed by path (5), `tests/test_state.py` re-stubbed (32).
+
 ### Changed — `fabrik status` drops the dead Coolify check, prints the last apply and the live containers (2026-10-14)
 
 - `src/fabrik/cli.py` (plan T02, spec D2): after the `apps/<id>` block, a **Last apply** section from the state record

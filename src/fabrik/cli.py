@@ -1261,7 +1261,7 @@ def vps_sync(dry_run: bool):
     is_flag=True,
     help=(
         "Re-run only the InfrastructureProvisioner against an existing app "
-        "(no Coolify rebuild). Requires --spec. Closes DEPLOYMENT.md §9.9 G2."
+        "(no image rebuild). Requires --spec. Closes DEPLOYMENT.md §9.9 G2."
     ),
 )
 @click.option(
@@ -1279,7 +1279,8 @@ def vps_sync(dry_run: bool):
     help=(
         "W3: which host the app lives on. Resolution order: this flag > "
         "state file `.fabrik/state/<app>.json::target_vps` > vps1. Required "
-        "to be correct on multi-host fleet — otherwise redeploy hits the wrong host."
+        "to be correct on multi-host fleet — otherwise redeploy hits the wrong host; "
+        "with --refresh-infra: this flag > the spec's target_vps > vps1."
     ),
 )
 def redeploy(
@@ -1314,7 +1315,9 @@ def redeploy(
             if dry_run:
                 click.echo("   (dry-run — no changes will be applied)")
             orch = DeploymentOrchestrator()
-            ctx = orch.refresh_infrastructure(spec_path=spec, dry_run=dry_run)
+            ctx = orch.refresh_infrastructure(
+                spec_path=spec, dry_run=dry_run, target_vps=target_vps
+            )
             if ctx.registrar_failures:
                 # Same contract as `apply` (01M1CKEK): a required step that
                 # did not happen must not exit green — and this refresh path
@@ -1574,18 +1577,28 @@ def app_role_check_cmd(spec_path: str):
 def reconcile_all(yes: bool, filters: tuple):
     """Walk every deployed spec, re-run infrastructure registrars (T2-02 G-F2).
 
-    Uses ``orchestrator.refresh_infrastructure()`` per spec. A per-spec
-    file lock from ``fabrik.locks_local.file_lock`` prevents two
-    concurrent invocations from racing on the same spec.
+    "Deployed" is what Compose knows: each distinct target host (``spec.target_vps``,
+    default vps1) is asked ONCE for ``docker compose ls -a``, and a spec is deployed when a
+    project's ``Name`` is ``<n>``/``fabrik-<n>`` or a ``ConfigFiles`` entry lives in one of
+    its ``app_dir`` candidates. Uses ``orchestrator.refresh_infrastructure()`` per spec. A
+    per-spec file lock from ``fabrik.locks_local.file_lock`` prevents two concurrent
+    invocations from racing on the same spec.
+
+    A probe failure is a row, never an abort. Exit 1 when no named host could be read, and
+    under ``--yes`` also on any ``host-unreachable``/``error``/``spec-error``/``lock-timeout``
+    row; a dry run reports its failure rows and exits 0.
 
     Examples:
         fabrik reconcile-all --filter translator      # dry-run, scoped
         fabrik reconcile-all --yes                    # apply across fleet
     """
-    from fabrik.drivers.coolify import CoolifyClient
+    import posixpath
+
     from fabrik.drivers.glitchtip import webhook_registration_reminder
     from fabrik.locks_local import file_lock
     from fabrik.orchestrator import DeploymentOrchestrator
+    from fabrik.orchestrator.deployer_ssh import SSHDeployer, app_dir
+    from fabrik.orchestrator.exceptions import ProvisioningError
 
     specs_dir = FABRIK_ROOT / "specs" / "services"
     spec_paths = sorted(specs_dir.glob("*.yaml"))
@@ -1593,31 +1606,52 @@ def reconcile_all(yes: bool, filters: tuple):
         click.echo("No specs found.", err=True)
         raise SystemExit(1)
 
-    try:
-        coolify = CoolifyClient()
-        deployed = {a.get("name", "") for a in coolify.list_applications()}
-    except Exception as e:
-        click.echo(f"Failed to query Coolify: {e}", err=True)
-        raise SystemExit(1)
-
     orch = DeploymentOrchestrator()
+    deployer = SSHDeployer()
+    hosts: dict[str, list[dict] | Exception] = {}  # one `compose ls` per host per run
     summary: list[tuple[str, str, str]] = []  # (spec_id, status, detail)
     reminders: list[str] = []  # Phase 7: operator-manual GlitchTip webhook steps
 
     for sp in spec_paths:
+        # The filter reads the file stem BEFORE the load, so a broken spec outside it is silent.
+        if filters and not any(f in sp.stem for f in filters):
+            continue
         try:
             spec = load_spec(str(sp))
         except Exception as e:
             summary.append((sp.stem, "spec-error", str(e)))
             continue
-        if filters and not any(f in spec.id for f in filters):
+        # The host is NAMED and read (once) before any per-spec check, so a spec defect never
+        # hides a dead host from invariant 2's "no host could be read" exit rule.
+        host = spec.target_vps or "vps1"
+        if host not in hosts:
+            try:
+                hosts[host] = deployer.list_compose_projects(host)
+            except Exception as e:  # noqa: BLE001 — a transport failure or an unparsable body
+                hosts[host] = e
+        try:
+            candidates = app_dir(spec)
+        except ProvisioningError as e:  # a spec defect, not the host's — its row wins
+            summary.append((spec.id, "error", str(e)[:80]))
             continue
-        # G-G1 candidate-list lookup
-        candidates = [spec.id]
-        if not spec.id.startswith("fabrik-"):
-            candidates.append(f"fabrik-{spec.id}")
-        if not any(c in deployed for c in candidates):
-            summary.append((spec.id, "skipped", "no Coolify app"))
+        projects = hosts[host]
+        if isinstance(projects, Exception):
+            summary.append((spec.id, "host-unreachable", str(projects)))
+            continue
+        name = spec.name or spec.id
+        names = {name, f"fabrik-{name}"}
+        dirs = set(candidates)
+        deployed = any(
+            p.get("Name") in names
+            or any(
+                posixpath.dirname(f.strip()) in dirs
+                for f in str(p.get("ConfigFiles") or "").split(",")
+                if f.strip()
+            )
+            for p in projects
+        )
+        if not deployed:
+            summary.append((spec.id, "skipped", f"no compose project (no containers) on {host}"))
             continue
 
         try:
@@ -1647,6 +1681,13 @@ def reconcile_all(yes: bool, filters: tuple):
         click.echo()
         for r in reminders:
             click.echo(r)
+
+    # Invariant 2: a dead fleet never reads as "reconciled" (the cheap way past the table).
+    if hosts and all(isinstance(v, Exception) for v in hosts.values()):
+        raise SystemExit(1)
+    failing = {"host-unreachable", "error", "spec-error", "lock-timeout"}
+    if yes and any(status in failing for _, status, _ in summary):
+        raise SystemExit(1)
 
 
 @cli.command()

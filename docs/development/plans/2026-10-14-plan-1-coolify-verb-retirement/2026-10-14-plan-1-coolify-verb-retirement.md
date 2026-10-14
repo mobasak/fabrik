@@ -76,7 +76,7 @@ Intake: 25 items — 23 IN, 2 OUT-OF-SCOPE (I19 → W-53f8a3f3; I22 → W-2191a0
 |---|---|---|---|---|---|
 | T01 | deployer helpers: `app_dir`, `_host_env`, `probe_app`, `list_compose_projects`, `_parse_compose_ps` | — | ⚡ | ✅ | `d64847a49` |
 | T02 | `fabrik status` prints the last apply and the live containers | T01 | ⛓️ | ✅ | `56cee1a7f` |
-| T03 | `fabrik reconcile-all` reads the deployed set from Compose; `refresh_infrastructure` walks `app_dir` | T01, T02 | ⛓️ | ⬜ | |
+| T03 | `fabrik reconcile-all` reads the deployed set from Compose; `refresh_infrastructure` walks `app_dir` | T01, T02 | ⛓️ | ✅ | `68eeb35f6` |
 | T04 | `fabrik projects --sync` re-scans `/opt`; the registry loses its Coolify fields | T03 | ⛓️ | ⬜ | |
 | T05 | `fabrik apply` loses its legacy flags; `deploy.py` is deleted; cli wording | T04 | ⛓️ | ⬜ | |
 | T06 | export/import drop the Coolify section; legacy members counted | T05 | ⛓️ | ⬜ | |
