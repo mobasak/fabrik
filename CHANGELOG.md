@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `fabrik projects --sync` runs the project scanner instead of the retired Coolify client (2026-10-14)
+
+- `src/fabrik/cli.py` (plan T04, spec D4): `--sync` runs `scripts/sync_projects.py` as the same subprocess `fabrik scan`
+  runs (`python3 <script>`, cwd `FABRIK_ROOT`; a missing script exits 1, a non-zero scanner exit is re-raised and nothing
+  is listed) BEFORE the registry is read, so the listing shows what the scanner just wrote; the Coolify block
+  (`CoolifyClient.list_applications`, `registry.update(..., coolify_uuid=…)`) is gone; help texts: `--sync` "Re-scan /opt
+  and merge the deploy state before listing", `--status` "Filter by status (ready/development)" — `deployed` had the
+  Coolify sync as its only writer. `src/fabrik/registry.py`: `Project.coolify_uuid`/`coolify_name` and their
+  `to_dict`/`from_dict` lines are removed; a `data/projects.yaml` row still carrying the keys loads its other fields
+  unchanged. Graders: `tests/test_projects_sync.py` (NEW, 8 — the read-after-subprocess order proven by a fake scanner
+  that rewrites the registry file; a failing scanner's exit code propagates with no stale listing),
+  `tests/test_sync_has_user_guide.py` unchanged (5).
+
 ### Changed — `fabrik reconcile-all` reads the deployed set from Compose; `refresh_infrastructure` walks `app_dir` on the spec's host (2026-10-14)
 
 - `src/fabrik/cli.py` (plan T03, spec D3, invariant 2): `reconcile-all` no longer queries Coolify — it reads

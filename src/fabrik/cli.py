@@ -1691,39 +1691,29 @@ def reconcile_all(yes: bool, filters: tuple):
 
 
 @cli.command()
-@click.option("--status", "-s", help="Filter by status (deployed/ready/development)")
-@click.option("--sync", is_flag=True, help="Sync with Coolify first")
+@click.option("--status", "-s", help="Filter by status (ready/development)")
+@click.option("--sync", is_flag=True, help="Re-scan /opt and merge the deploy state before listing")
 def projects(status: str | None, sync: bool):
     """List all tracked projects in /opt."""
     from fabrik.registry import ProjectRegistry
 
-    registry = ProjectRegistry()
-
     if sync:
-        click.echo("🔄 Syncing with Coolify...")
-        try:
-            from dotenv import load_dotenv
+        import subprocess
 
-            load_dotenv()
-            from fabrik.drivers.coolify import CoolifyClient
+        sync_script = FABRIK_ROOT / "scripts" / "sync_projects.py"
+        if not sync_script.exists():
+            click.echo(f"ERROR: {sync_script} not found")
+            raise SystemExit(1)
 
-            coolify = CoolifyClient()
-            apps = coolify.list_applications()
-            for app in apps:
-                name = app.get("name", "").replace("fabrik-", "")
-                if name in registry.projects:
-                    registry.update(
-                        name,
-                        status="deployed",
-                        coolify_uuid=app.get("uuid"),
-                        coolify_name=app.get("name"),
-                        domain=app.get("fqdn"),
-                    )
-            registry.save()
-            click.echo(f"   ✅ Synced {len(apps)} Coolify apps")
-        except Exception as e:
-            click.echo(f"   ⚠️ Sync error: {e}")
-        click.echo()
+        result = subprocess.run(
+            ["python3", str(sync_script)],
+            cwd=str(FABRIK_ROOT),
+        )
+
+        if result.returncode != 0:
+            raise SystemExit(result.returncode)
+
+    registry = ProjectRegistry()
 
     projs = registry.list(status=status)
 
