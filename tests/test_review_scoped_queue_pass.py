@@ -30,6 +30,56 @@ def test_the_command_points_at_the_catalogue_before_the_first_pin() -> None:
     assert CAT.exists()
 
 
+def test_the_command_applies_seat_isolation_to_every_brief_that_runs_tests() -> None:
+    """Row 1792005608 and six earlier verdicts asked for archive roots derived from the test imports; the
+    catalogue's § Seat isolation already says so, but the command sent the lead there only for lines that
+    'match the change's SHAPE', so a hand-written brief kept listing paths by hand. The command now names
+    § Seat isolation as shape-independent and the derived-roots rule in one sentence, pointing at the
+    catalogue for the recipe. Mutants: drop 'whatever the shape' (the shape-keyed pointer returns), drop
+    'never a hand-listed path set' (the rule the rows asked for is gone), or restate the recipe's commands
+    here (two sources of truth) — each fails one assertion below."""
+    src = _norm(SRC)
+    # its own sentence, after the SHAPE-keyed list ends — spliced into that list, the SHAPE filter reads as
+    # governing it (round-1 Sonnet finding)
+    assert "runs found missing. Its § Seat isolation applies whole, whatever the shape" in src
+    sentence = _section(
+        src,
+        "Its § Seat isolation applies whole, whatever the shape",
+        "⚠️ **A brief states the QUESTION",
+    )
+    assert "in every brief that runs tests" in sentence
+    # "an archive" alone let a brief archive HEAD, which moves under concurrent sessions (round-3 Opus finding)
+    assert "run from an archive of the pin's base SHA, never the live tree or HEAD" in sentence
+    assert "tests run against an archive of the pinned SHA" not in sentence, (
+        "that is the catalogue's own wording (§ Seat isolation) — a verbatim copy is a second source"
+    )
+    assert "derived from what the tests import, read or run" in sentence
+    assert "never a hand-listed path set" in sentence
+    assert "live in `/opt/fabrik/.claude/workflows/fabrik-review-loop.js`" in sentence, (
+        "the pointer must LOCATE the recipe by its HUB path — the command runs from every repo, and the "
+        "catalogue names the constants but not their file"
+    )
+    assert "not restated here" in sentence
+    for restatement in ("git archive", "ls-tree", "overlay", "chdir", "unless"):
+        assert restatement not in sentence, (
+            f"{restatement!r}: the recipe belongs to the workflow, not here"
+        )
+    js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text()
+    assert "const PIN_IMPORT" in js and "const PYTEST_PINS" in js, "the pointer's target moved"
+    assert "the root conftest.py, the pytest config" in js, (
+        "the recipe no longer takes the conftest"
+    )
+    cat = _norm(CAT)
+    assert (
+        "never all of them, § Seat isolation excepted: it applies whole in every brief that runs tests"
+        in cat
+    ), "the catalogue's own header still says 'never all of them' without the exception"
+    iso = _section(cat, "## Seat isolation", "## Loop bookkeeping")
+    assert "The recipe names its roots by what the tests import" in iso, (
+        "the pointer's target moved"
+    )
+
+
 def test_the_catalogue_sections_hold_their_probes() -> None:
     """One anchor line per section, so a section moved or dropped fails here."""
     cat = _norm(CAT)
@@ -422,7 +472,10 @@ def test_step_five_keeps_ruff_findings_off_seats_and_names_the_hub_ledger() -> N
     """Rows 1791982905 (a seat reported pre-existing HEAD formatting as a finding) and 1791982896 + 1791981699
     (a sync-excluded repo's vendored review_loop_ledger.py has no `pin` verb; hand-made pins twice)."""
     text = _norm(SRC)
-    assert "the brief says ruff's output is the lead's, so a seat reports no lint or format finding, pre-existing or not" in text
+    assert (
+        "the brief says ruff's output is the lead's, so a seat reports no lint or format finding, pre-existing or not"
+        in text
+    )
     assert (
         "(every `review_loop_ledger.py` call in this step runs as `python3 /opt/fabrik/scripts/review_loop_ledger.py` in a"
         " sync-excluded repo, since a vendored copy there may lack `pin` or `read --pins`)"
