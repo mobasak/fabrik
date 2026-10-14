@@ -20,9 +20,11 @@ present. FAIL-OPEN: any exception → silent exit 0; a check must never block a 
 
 from __future__ import annotations
 
+import errno
 import fcntl
 import json
 import os
+import stat
 import sys
 from pathlib import Path
 
@@ -121,18 +123,35 @@ def _feedback_order(sid: str, cwd: str) -> str:
 
 def _armed(sid: str, suffix: str = "selfwatch") -> bool:
     path = _lock_dir() / f"{_safe(sid)}.{suffix}.lock"
-    if not path.exists():
-        return False
-    st = os.stat(path)
-    if _held_per_proc_locks(st):
-        return True
-    # The decider: a non-blocking SHARED flock probe. A held exclusive lock (the watcher's)
-    # refuses it at once; a shared probe never blocks a reader and is released within
-    # microseconds, so it cannot hand the watcher's own `flock -n` a false "already armed" the
-    # way an exclusive probe could (B6). O_RDONLY — flock needs no write access, and O_WRONLY
-    # raised on a read-only lock file, which a bare except then swallowed into silence (B4).
-    fd = os.open(str(path), os.O_RDONLY)
+    # ONE open decides the type and probes the lock: a check by path then an open by path could
+    # meet a FIFO swapped in between and block forever — the Stop hook's quota checkpoint reads
+    # this decider too (W-117b1916 review). O_NONBLOCK makes a FIFO open return at once and
+    # O_NOFOLLOW refuses a symlink; the watcher's lock is a plain regular file.
     try:
+        fd = os.open(str(path), os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return False
+    except PermissionError:
+        # a lock this reader may not open: /proc/locks still answers by inode with no open at all
+        st = os.lstat(path)
+        if stat.S_ISREG(st.st_mode) and _held_per_proc_locks(st):
+            return True
+        raise
+    except OSError as e:
+        if e.errno == errno.ELOOP:
+            return False
+        raise
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            return False
+        if _held_per_proc_locks(st):
+            return True
+        # The decider: a non-blocking SHARED flock probe. A held exclusive lock (the watcher's)
+        # refuses it at once; a shared probe never blocks a reader and is released within
+        # microseconds, so it cannot hand the watcher's own `flock -n` a false "already armed" the
+        # way an exclusive probe could (B6). O_RDONLY — flock needs no write access, and O_WRONLY
+        # raised on a read-only lock file, which a bare except then swallowed into silence (B4).
         try:
             fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -143,20 +162,49 @@ def _armed(sid: str, suffix: str = "selfwatch") -> bool:
         os.close(fd)
 
 
+def _headless() -> bool:
+    # headless: the reviver sets CLAUDE_MESH_HEADLESS, the declared spawners set FABRIK_HEADLESS —
+    # a `claude -p` worker HAS Monitor unless `--tools` removes it, and obeying the order burns
+    # its timeout (intel, 01M3C9BH)
+    return (
+        os.environ.get("CLAUDE_MESH_HEADLESS") == "1"
+        or os.environ.get("FABRIK_HEADLESS") == "1"
+        or os.environ.get("CLAUDE_MESH_AUTONOMOUS") == "1"
+    )
+
+
+def arm_state(sid: str, cwd: str) -> str:
+    """The ONE self-watch decision, shared by this prompt notice and the quota checkpoint's Stop
+    (`.claude/hooks/final_gate_stop.py::_arm_order`, W-117b1916): `"skip"` (no sid, headless or
+    autonomous, a cwd outside /opt, or no watcher binary — no order is ever owed), `"armed"` (a
+    process holds the lock), `"unwritable:<what>"` (an order would die at once — say what is
+    wrong instead) or `"arm"` (order the arm). Raises on a probe failure; callers fail open."""
+    if not sid or _headless():
+        return "skip"
+    # `SELFWATCH_OPT_ROOT` is a TEST seam only (the Stop hook's suites build their project in
+    # a temp dir); unset, the gate is the box's `/opt` tree exactly as before
+    opt = (os.environ.get("SELFWATCH_OPT_ROOT") or "/opt").rstrip("/") or "/opt"
+    if not (cwd == opt or cwd.startswith(opt + "/")) or not WATCH.is_file():
+        return "skip"
+    if _armed(sid):
+        return "armed"
+    locks = _lock_dir()
+    lock = locks / f"{_safe(sid)}.selfwatch.lock"
+    if locks.exists() and not os.access(locks, os.W_OK):
+        return f"unwritable:lock DIR `{locks}`"
+    if lock.is_symlink() or (lock.exists() and not lock.is_file()):
+        return f"unwritable:lock FILE `{lock}` (not a regular file)"
+    if lock.exists() and not os.access(lock, os.W_OK):
+        return f"unwritable:lock FILE `{lock}`"
+    return "arm"
+
+
 def main() -> int:
     try:
         payload = json.loads(sys.stdin.read() or "{}")
         sid = str(payload.get("session_id") or "")
         cwd = str(payload.get("cwd") or os.getcwd())
-        if (
-            not sid
-            # headless: the reviver sets CLAUDE_MESH_HEADLESS, the declared spawners set
-            # FABRIK_HEADLESS — a `claude -p` worker HAS Monitor unless `--tools` removes it,
-            # and obeying the order burns its timeout (intel, 01M3C9BH)
-            or os.environ.get("CLAUDE_MESH_HEADLESS") == "1"
-            or os.environ.get("FABRIK_HEADLESS") == "1"
-            or os.environ.get("CLAUDE_MESH_AUTONOMOUS") == "1"
-        ):
+        if not sid or _headless():
             return 0
         # the kaizen feedback-watch order first: it is gated on the HUB tree (`_in_hub`), never on
         # the `/opt` prefix or the self-watch binary below, which belong to the self-watch alone
@@ -164,18 +212,11 @@ def main() -> int:
         order = _feedback_order(sid, cwd)
         if order:
             print(order)
-        if not (cwd == "/opt" or cwd.startswith("/opt/")) or not WATCH.is_file():
+        state = arm_state(sid, cwd)
+        if state in ("skip", "armed"):
             return 0
-        if _armed(sid):
-            return 0
-        locks = _lock_dir()
-        lock = locks / f"{_safe(sid)}.selfwatch.lock"
-        unwritable = (
-            f"lock DIR `{locks}`"
-            if locks.exists() and not os.access(locks, os.W_OK)
-            else (f"lock FILE `{lock}`" if lock.exists() and not os.access(lock, os.W_OK) else "")
-        )
-        if unwritable:
+        if state.startswith("unwritable:"):
+            unwritable = state.split(":", 1)[1]
             # B5/P2-10: the watcher opens its lock with `exec 9>"$lock"`, which fails on an
             # unwritable dir AND on an unwritable file — ordering an arm here loops forever
             # ("arm → dies → arm"). Say what is actually wrong.

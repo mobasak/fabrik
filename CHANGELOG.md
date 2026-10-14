@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the quota checkpoint makes sure a pausing window's self-watch is armed, so the relief wake can reach it (W-117b1916) (2026-10-14)
+
+- `.claude/hooks/final_gate_stop.py`: the rotation tick's relief wake (`.holdlifted`) reaches only a session whose `selfwatch.lock` is held, and one arm is one wake, so a window that paused at urgent-90 or at the wall after its watch had woken once slept through the reset (five mails, operator-reported). At urgent-90 the checkpoint block now carries an ARM item (the background `selfwatch_arm.sh <sid>` order), and a watch consumed later in the episode earns one arm-only block; at the wall the same arm-only block fires once per consumption before the yield. Fail-open on any load or probe error (D-844, superseding D-718 at the Stop site).
+- `scripts/sysadmin/selfwatch_check.py`: the notice's gates moved into `arm_state(sid, cwd)`, which the prompt notice and the Stop checkpoint now share; the notice text is byte-identical (pinned by a golden test). `SELFWATCH_OPT_ROOT` is a test seam for the `/opt` gate.
+- Graded by 15 new tests in `tests/test_stop_hook_quota_hold_exemption.py` and `tests/test_selfwatch_check.py`, each seen red. The review also closed a hang: a FIFO at the lock path blocked the decider's read forever. `_armed` now decides with ONE non-blocking, non-following open and `fstat`, so a non-regular lock reads as not armed and is never armed onto, and a held lock the reader may not open still reads armed through `/proc/locks`. The rotation tick's vendored copy of the decider gets the same refusal in W-14c96fdc. Windows paused with no stamp (AMBER, RED with a successor) are a separate item, W-a6f51c0b.
+
 ### Fixed — `check_convergence.py` grades a spec-review or plan-review receipt by its own Pass Ledger, not a final_gate embed (W-39d8d1fd, mail 01M493W8G3) (2026-10-14)
 
 - `scripts/enforcement/check_convergence.py`: a finished receipt under `docs/development/reviews/` had to embed a `final_gate` success block, the proof a CODE review owes. A `/fabrik-spec-review` or `/fabrik-plan-review` receipt reviews a design document, so its honest close was refused, and authors bolted on a gate run that proved nothing (web-ecommerce-factory). `check_review_coverage.py` never grades such a receipt, so that embed was the only rule on it.
