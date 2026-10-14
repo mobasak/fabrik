@@ -2281,6 +2281,41 @@ def test_every_seat_is_told_how_to_run_a_git_history_test() -> None:
         assert "(`git worktree list` and `git remote -v` only read)" in p, label
 
 
+def test_no_seat_executes_an_unread_or_destructive_script() -> None:
+    """kaizen 01M4W2D1N8 (/fabrik-plan-review row 1791938982): four plan-review seats ran scripts/proof_run.py, which
+    has no argument parsing, to confirm what it does, and destroyed a live fixture. The rule kaizen put in
+    subagents-core.md and the agent house rules rides in the Workflow's own seat constants too, and the refuter's
+    "run it" names the exception, so a refuter handed such a check returns it unverified."""
+    _, _, prompts = _harness(
+        _ARGS, {"find:S:sonnet": {**_FULL_READ, "candidates": [_cand("S-S1", 3)]}}
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        assert "read a script before you EXECUTE it, its `--help` included" in p, label
+        assert (
+            "never execute one that deletes, deploys, provisions, writes outside SCRATCH or contacts a non-local host"
+            in p
+        ), label
+        assert "whatever binary does it" in p and "cite the lines and return that claim unverified" in p, label
+        # both B4 design critiques: every route that runs the script's code counts, and a test that runs one is read first
+        assert "executing includes importing it and calling a function, `runpy`, a test that runs it" in p, label
+        assert "read each script a test runs before the run" in p, label
+        assert "run a script file the read-before-execute rule allows as" in p, label
+    refute = prompts["refute:S"]
+    assert "A re-read is not execution — run it, unless the never-execute rule forbids the check" in refute
+    assert "the command is your read of the cited lines and the output is those lines" in refute
+    assert "(a check the never-execute rule forbids is the one exception, below)" in refute
+    # a later pass has no unverified status: the forbidden claim gets no row, so closeCheck keeps it open (fail closed)
+    args = {**_ARGS, "pass": 2, "slices": [{**_ARGS["slices"][0], "ledger": _LEDGER_ROW}]}
+    _, _, later = _harness(args, {"find:S:sonnet": _FULL_READ, "find:S:haiku": _FULL_READ})
+    assert "a claim whose check the never-execute rule forbids gets NO ledger_status row" in later["find:S:sonnet"]
+    # review B4 r1 A-S3: and the no-row route really fails closed — both seats leave the forbidden claim out
+    notes = {**_FULL_READ, "notes": "unverified: never-execute rule, lines 840-868", "ledger_status": []}
+    ledger, _ = _run_ledger(args, {"find:S:sonnet": notes, "find:S:haiku": notes})
+    s = ledger["slices"][0]
+    assert not s["closable"] and "ledger claim S-S1 not re-verified by any seat" in s["open"], s["open"]
+
+
 def test_a_later_pass_seat_is_told_to_read_its_whole_slice() -> None:
     """kaizen 01M4VNPMAZ (/fabrik-review row 1791927763): the files_read gap check runs on every pass, but a
     ledger-only seat read only its claims' files — 296 of 2383 later-pass slices on the box logged a gap and stayed
