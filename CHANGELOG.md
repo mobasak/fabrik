@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review seats label a later-pass claim by its defect, and `read` flags a present defect with no candidate (2026-10-14)
+
+- `.claude/workflows/fabrik-review-loop.js`: the pass-2+ `ledger_status` labels are DEFECT_PRESENT, DEFECT_ABSENT and NEW (were STILL_TRUE and NOW_FALSE), in the schema enum, its description and the later-pass brief. Haiku seats read STILL_TRUE as "the claim is true" and labelled fixed defects present (mail 01M48MQ2HS: 11, then 14, of 14-16 rows), with the definition already in the brief. No reader branches on the label, so an older run's rows still close their claims.
+- `commands/_agents/fabrik-reviewer.md` (every workflow seat's system prompt) and `commands/_sources/fabrik-review.md` use the same labels. The agent file's later-pass paragraph takes B2's rule: open every slice file, and a NEW candidate is bounded by the fix hunks.
+- `scripts/review_loop_ledger.py read` prints two advisory flags, never a gate. CONTRADICTION: a seat reports a defect present and raises no candidate (161 of 587 such seats on the box, 104 of them Haiku). DISAGREE: two seats give one id different statuses.
+- A flag on "passing output under DEFECT_PRESENT" was measured and rejected. 151 of 1034 STILL_TRUE rows have pass-shaped output, and the sampled ones are legitimate test-gap rows, where the mutant still passing IS the defect.
+
 ### Changed — a later-pass review seat opens its whole slice, and the seat's history clone never pushes (2026-10-14)
 
 - `.claude/workflows/fabrik-review-loop.js`: the later-pass seat head says to open every slice file and list it in files_read, to look for a NEW defect the fix introduced in a file no claim names. The gap check runs on every pass, and 296 of 2383 later-pass slices on the box had logged a gap and stayed open. The same head now bounds a NEW candidate the way term-edit.md does (a defect of a line inside the previous round's fix hunks, or a contradiction they created; one hop out is named in notes, never raised). Before this, it said an out-of-ledger candidate was "never counted" while the script counted it. The clone sentence calls the push URL a tripwire, not a guard, since an explicit path bypasses it, and a seat never runs `git push` in the clone. SEAT_ISOLATION's write verbs are a class (refs, index, tree, config or objects) with examples, `config`, `branch`, `tag`, `merge`, `rebase`, `fetch`, `pull` and `push` among them; `git worktree list` and `git remote -v` stay legal reads.
