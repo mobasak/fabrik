@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "merge request 01M4XVEH4PAB9WJZJQKZ728ZQD already landed on master as 8bdccad9c (sibling infra window); this mail item is its duplicate",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "branch: worktree-kaizen"
 }
