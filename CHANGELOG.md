@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — round zero: a narrowing fix replays every confirmed shape, not only a regex fix (2026-10-14)
+
+The round-zero probe in `term-edit.md` and `term-coverage.md` used to say only that "a regex fix is drafted against every confirmed shape at once". A predicate or filter fix that narrowed a candidate set therefore read as exempt, and a `/fabrik-review-scoped` run in fabrik-lib met its earlier-confirmed shapes one round at a time (feedback row 1791973917). The clause now covers any fix that narrows or widens what a matcher, predicate or filter accepts, a regex included. Such a fix is drafted and probed against every shape the review has confirmed so far and against the field- or key-renamed variant of each. `tests/test_review_loop_workflow.py` pins the new clause in both fragments.
+
 ### Changed — review probe catalogue: ruff on a read-only pin runs `--no-cache`; an equivalent mutant is discarded (2026-10-14)
 
 The catalogue's seat-isolation line now gives ruff on a copy as `--no-cache --config <repo>/pyproject.toml`. Ruff writes `.ruff_cache` in its working directory and fails inside a read-only pin, which was executed: the plain form failed and `--no-cache` passed. Both homes of the mutant rule (`term-coverage.md` rule 4 and the catalogue's Mutants line) now report a surviving mutant only once it is shown to change observable behaviour (an output, return value, exit code, raised exception or written state), so an equivalent mutant such as a no-op f-string is struck with its diff quoted, never reported as a test gap. The /fabrik-task lane test is also re-pointed at `<run-scratch>`, which f97ecaf5e had left red. Answers /fabrik-review-scoped rows 1791943423 and 1791937766. Graders: `tests/test_review_queue_pass.py`, red on the previous text.
