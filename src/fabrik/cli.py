@@ -728,6 +728,12 @@ def status(spec_path: str):
     Example:
         fabrik status specs/my-api.yaml
     """
+    # The last apply, from the persisted state record, plus a live
+    # read-only container probe over ssh.
+    import fabrik.state as state_module
+    from fabrik.orchestrator.deployer_ssh import SSHDeployer, _host_env, _parse_compose_ps, app_dir
+    from fabrik.orchestrator.exceptions import ProvisioningError
+
     # Load spec
     try:
         spec = load_spec(spec_path)
@@ -735,13 +741,21 @@ def status(spec_path: str):
         click.echo(f"Error loading spec: {e}", err=True)
         raise SystemExit(1)
 
+    # A local source outside /opt (or an invalid app name) is a spec defect,
+    # caught before any output or ssh call — same shape as the load failure above.
+    try:
+        candidates = app_dir(spec)
+    except ProvisioningError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1) from e
+
     click.echo(f"Status for: {spec.id}")
     click.echo()
 
     # Check if files exist
-    app_dir = Path(f"apps/{spec.id}")
-    if app_dir.exists():
-        files = list(app_dir.iterdir())
+    scaffold_dir = Path(f"apps/{spec.id}")
+    if scaffold_dir.exists():
+        files = list(scaffold_dir.iterdir())
         click.echo(f"📁 Generated files: {len(files)}")
         for f in files:
             click.echo(f"   {f.name}")
@@ -749,37 +763,59 @@ def status(spec_path: str):
         click.echo("📁 No generated files (run 'fabrik apply' first)")
     click.echo()
 
-    # Check Coolify
-    click.echo("🐳 Coolify status:")
-    try:
-        from fabrik.drivers.coolify import CoolifyClient
+    click.echo("Last apply:")
+    record = state_module.load(spec.id)
+    if not isinstance(record, dict):
+        # ``state.load`` returns ANY parsed JSON; a hand-edited or corrupt record must
+        # never crash a read-only verb (invariant 2) — it reads as no record.
+        record = None
+    if record is None:
+        click.echo("   no state record — never applied from this checkout")
+    else:
+        click.echo(f"   applied_at: {record.get('applied_at') or ''}")
+        click.echo(f"   git_sha: {str(record.get('git_sha') or '')[:12]}")
+        click.echo(f"   target_vps: {record.get('target_vps') or ''}")
+        rows = record.get("registrars_applied")
+        rows = rows if isinstance(rows, list) else []
+        types = [str(r.get("type") or "?") for r in rows if isinstance(r, dict)]
+        click.echo(f"   registrars_applied: {', '.join(types)}")
+        failures = record.get("registrar_failures")
+        if not isinstance(failures, list):  # a scalar is ONE row, never iterated element-wise
+            failures = [failures] if failures else []
+        for failure in failures:
+            if not isinstance(failure, dict):
+                failure = {"error": failure}
+            who = failure.get("registrar") or "?"
+            click.echo(f"   registrar_failure: {who}: {failure.get('error') or ''}")
+    click.echo()
 
-        coolify = CoolifyClient()
-        apps = coolify.list_applications()
-        # G-G1 (T1-02): Coolify-deployed Fabrik services are registered with a
-        # `fabrik-` prefix on the application name (e.g. spec.id="proxy" → app
-        # name="fabrik-proxy"). The pre-fix single-variant lookup returned
-        # "Found in Coolify: None" for every fabrik-prefixed app. The
-        # startswith guard prevents `fabrik-fabrik-proxy` double-prefix when
-        # the spec.id is already prefixed (e.g. fabrik-citation-verifier).
-        candidates = [spec.id]
-        if not spec.id.startswith("fabrik-"):
-            candidates.append(f"fabrik-{spec.id}")
-        matching = [a for a in apps if a.get("name") in candidates]
-        if matching:
-            app = matching[0]
-            # G-G1 follow-up: `app.get('fqdn', 'N/A')` returned the literal
-            # `None` when fqdn IS present in the dict but set to None/empty
-            # (true for non-public services like site-provisioner whose
-            # domain is delegated to a different controller). Fall back to
-            # the app name so the operator sees a useful identifier instead
-            # of the string "None".
-            fqdn = app.get("fqdn") or app.get("name") or "N/A"
-            click.echo(f"   ✅ Found in Coolify: {fqdn}")
-        else:
-            click.echo("   ❌ Not found in Coolify")
-    except Exception as e:
-        click.echo(f"   ⚠️  Could not check: {e}")
+    click.echo("Live containers:")
+    host = spec.target_vps or "vps1"
+    record_host = record.get("target_vps") if record else None
+    if record_host and record_host != host:
+        click.echo(f"   host: {host} (last apply recorded {record_host})")
+    else:
+        click.echo(f"   host: {host}")
+
+    deployer = SSHDeployer()
+    with _host_env(host):
+        for path in candidates:
+            result = deployer.probe_app(path)
+            if not result["exists"]:
+                if result["error"] is not None:
+                    click.echo(f"   ⚠️ could not reach {host}: {result['error']}")
+                    break
+                click.echo(f"   no {path}/compose.yaml on {host}")
+                continue
+            if result["error"] is not None:
+                click.echo(f"   ⚠️ could not read containers on {host}: {result['error']}")
+                break
+            for row in _parse_compose_ps(result["ps"]):
+                health = row["Health"]
+                if health in ("", "none"):  # moby's "none" reads like "" (spec invariant 3)
+                    health = "no healthcheck" if row["State"] == "running" else "—"
+                click.echo(f"   {row['Service']} · {row['State']} · {health} · {row['ExitCode']}")
+            break
 
 
 @cli.command()

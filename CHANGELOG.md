@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `fabrik status` drops the dead Coolify check, prints the last apply and the live containers (2026-10-14)
+
+- `src/fabrik/cli.py` (plan T02, spec D2): after the `apps/<id>` block, a **Last apply** section from the state record
+  (`applied_at`, `git_sha[:12]`, `target_vps`, the `registrars_applied` types, every `registrar_failures` row — or
+  `no state record — never applied from this checkout`) and a **Live containers** section that walks `app_dir(spec)` with
+  `SSHDeployer.probe_app` under `_host_env(spec.target_vps)` and prints `Service · State · Health · ExitCode` rows (a
+  running row's empty Health reads `no healthcheck`, an exited row's `—`); `no <dir>/compose.yaml on <host>` per absent
+  candidate, `⚠️ could not reach <host>: <error>` / `⚠️ could not read containers on <host>: <error>` on a failure, exit 0 in
+  every probe outcome; an `app_dir` ProvisioningError (a local source outside `/opt`) prints `Error: <message>` and exits 1
+  before any ssh call. The lazy `CoolifyClient` import is gone; the local `app_dir` Path is renamed `scaffold_dir` so the
+  helper is never shadowed. Graders: `tests/test_cli_status_live.py` (9, red-on-revert against the pre-rebase function).
+
 ### Added — deployer probe helpers for the Coolify-verb retirement: `app_dir`, `_host_env`, `probe_app`, `list_compose_projects`, `_parse_compose_ps` (2026-10-14)
 
 - `src/fabrik/orchestrator/deployer_ssh.py` (plan T01, spec D2/D3, invariant 3): `app_dir(spec)` names the candidate
