@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-spec start should run the lane gate itself — the DOWNGRADE check is blind to a spec that never tried /fabrik-task (operator ruling 2026-10-14)"
 }
