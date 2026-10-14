@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-review row 1791927763 — a later-pass seat brief should restate the files_read rule on a ledger-only pass; plus a PIN_IMPORT placement gap for Agent-tool seats"
 }
