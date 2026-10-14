@@ -219,8 +219,12 @@ rule lives), the target's own routing rules (state the overlap), its fan-out par
 whose executor — lead, seat or fixer — acts on the sentence (place it where that reader looks, never
 contradicting who drives), every branch the sentence's subject can bind (a pronoun for "the review"
 binds each review the step can pick), and the --help and argument handling of any script the sentence
-works around (a mode may already cover the blind spot). An edit to what a SEAT may do lands everywhere seat rules
-live, since a rule in one home is not in force in the others: `command grep -rln -E '<two or more phrases of the
+works around (a mode may already cover the blind spot). A row that prescribes how the command works — a step, an
+order, a commit or a hand-off, not a wording — and contradicts a line that reading finds is a decision (a NEW
+mechanism still routes per PHASE 2), settled before the first draft in CLAUDE.md § Autonomy's order ("the
+self-service sources first", then the Opus + Fable panel), and the draft is that answer. An edit to
+what a SEAT may do lands everywhere seat rules live, since a rule in one home is not in force in the others:
+`command grep -rln -E '<two or more phrases of the
 neighbouring seat rule>' commands .claude/workflows .claude/hooks docs/reference` names them — today `subagents-core.md`, each seat file under
 `commands/_agents/`, the seat-brief lists in `fabrik-review.md` and `design-critique.md`,
 `convergence-prompts.md`, and intel's `SEAT_ISOLATION` and `seat_guard.py` (mailed, never edited here).
