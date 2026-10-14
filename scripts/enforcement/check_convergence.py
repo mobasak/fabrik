@@ -21,7 +21,9 @@ changed/untracked files under the plans/ and reviews/ dirs (cheap — git status
          review file exists, so this is what forces one to exist.
   docs/development/reviews/*.md 'reviewed' / 'converged' / 'sign-off'
       -> requires an embedded fenced block containing '"status": "success"'
-         (a real `final_gate --json` run) and >=1 per-phase verdict.
+         (a real `final_gate --json` run) and >=1 per-phase verdict — EXCEPT a
+         /fabrik-spec-review or /fabrik-plan-review receipt, whose last Pass-Ledger
+         counter row must be a quiet round instead (W-39d8d1fd).
 
 Ceiling (by design): this enforces evidence *presence* and mechanical green —
 never truth. It makes an unproven convergence claim fail the gate and leaves an
@@ -1281,6 +1283,53 @@ def _header_status_claims(text: str) -> bool:
     return not _UNFINISHED_STATUS.match(value)
 
 
+# W-39d8d1fd (web-ecommerce-factory 01M493W8G3): a /fabrik-spec-review or /fabrik-plan-review
+# receipt reviews a DESIGN document, so a code-review final_gate embed proves nothing about it — and
+# check_review_coverage.py never grades it (no Coverage Checklist heading: not its subject). It is
+# routed by the FIRST `Command:` label in the header zone (any case, a list/quote marker or bold
+# allowed; a table cell, a dash separator or other exotic spellings do NOT route — they keep the
+# embed demand, fail-closed), when that label's first token is one of the two commands and the
+# receipt has no Coverage Checklist heading (a checklist marks a code review, whatever it is
+# labelled). Unlike the substring sniff check_review_coverage retired (COMMAND_MARK) the route never
+# SKIPS: a miss keeps the embed demand and a hit is graded by the design proof below. Cobra
+# (D-253): relabelling a checklist-free code receipt swaps the embed for a ledger whose last
+# counter row is quiet — a different proof, never none.
+_COMMAND_LABEL = re.compile(
+    r"^[ \t]*(?:[-*>][ \t]*)*\**[ \t]*command[ \t]*\**[ \t]*:[ \t]*\**[ \t]*(?P<v>[^\n]*)",
+    re.I | re.M,
+)
+_DESIGN_REVIEW_COMMAND = re.compile(r"`?/fabrik-(?:spec|plan)-review(?![\w/:-]|\.\w)", re.I)
+
+
+def _is_design_receipt(header: str, text: str, checklist_head: re.Pattern[str]) -> bool:
+    """Routing: the FIRST header `Command:` label leads with a design-review command, and no live
+    (unquoted) Coverage Checklist heading marks the receipt a code review."""
+    m = _COMMAND_LABEL.search(header)
+    if not m or not _DESIGN_REVIEW_COMMAND.match(m.group("v")):
+        return False
+    return not any(checklist_head.match(ln) for ln in _blank_quoted(text).splitlines())
+
+
+def _design_review_fails(rel: Path, text: str) -> list[str]:
+    """The design-receipt proof is the module's ONE Pass-Ledger law, the closing-row rule a plan's
+    flip already answers to (`_closing_row_fail`): the receipt carries `confirmed:` counters on its
+    `| Pass N |` rows (the D-206 grammar) and the LAST such row reads `confirmed: 0`. Rounds 2-4 of
+    the W-39d8d1fd review cut a bespoke section reader three ways and each cut opened a new hole, so
+    it was deleted, not patched (D-278). STATED COSTS (D-842): a pre-D-206 ledger with no
+    `confirmed:` counter is refused (fail-closed); a later table row elsewhere in the receipt that
+    carries a `confirmed:` counter is read as a round — a nonzero one refuses an honest receipt, a
+    zero one after a loud ledger passes it — exactly as on a plan spine."""
+    rows = [m.group(0) for m in _PASS_ROW.finditer(_blank_quoted(text))]
+    if not any(_CONFIRMED_TOKEN.search(r) for r in rows):
+        return [
+            f"{rel}: a /fabrik-spec-review or /fabrik-plan-review receipt claims a finished review "
+            "but no `| Pass N |` row carries a `confirmed:` counter (the D-206 grammar) — record "
+            "the rounds, or mark the header Status IN-PROGRESS"
+        ]
+    closing = _closing_row_fail(text)
+    return [f"{rel}: {closing} — a design review's Pass Ledger"] if closing else []
+
+
 def _check_review(root: Path, path: Path) -> list[str]:
     if not path.exists():
         return []
@@ -1292,10 +1341,20 @@ def _check_review(root: Path, path: Path) -> list[str]:
     # sanctioned mid-loop state (check_review_coverage._in_progress is the ONE
     # definition, imported so the two graders cannot drift); the flip re-arms this.
     try:
-        from .check_review_coverage import _in_progress  # noqa: PLC0415 — local: soft dep
+        from .check_review_coverage import (  # noqa: PLC0415 — local: soft dep
+            CHECKLIST_HEAD,
+            _in_progress,
+            _normalized,
+            _strip_fences,
+        )
     except ImportError:  # direct-script invocation
         sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-        from scripts.enforcement.check_review_coverage import _in_progress  # noqa: PLC0415
+        from scripts.enforcement.check_review_coverage import (  # noqa: PLC0415
+            CHECKLIST_HEAD,
+            _in_progress,
+            _normalized,
+            _strip_fences,
+        )
     if _in_progress(text):
         return []
     # Claims are read on fence-STRIPPED text — a fenced claim word is a quotation
@@ -1304,6 +1363,9 @@ def _check_review(root: Path, path: Path) -> list[str]:
     if not by_header and not _claims_reviewed(FENCE_STRIP.sub("", text)):
         return []
     rel = path.relative_to(root)
+    header = _strip_fences("".join(_normalized(text).splitlines(keepends=True)[:10]))
+    if _is_design_receipt(header, text, CHECKLIST_HEAD):
+        return _design_review_fails(rel, text)
     fails: list[str] = []
     # A receipt graded only for its header Status has no claim WORD to explain the red, so the
     # first failure names the trigger and the honest ways out.
@@ -1485,7 +1547,9 @@ def main() -> int:
             print(f"  - {x}")
         print(
             "Fix: supply the required evidence (Evidence section, file:line citations, a"
-            " fenced command-output block, an embedded final_gate success), or drop the claim."
+            " fenced command-output block, an embedded final_gate success — or, for a"
+            " /fabrik-spec-review or /fabrik-plan-review receipt, a quiet closing Pass-Ledger"
+            " round), or drop the claim."
         )
         return 1
     return 0
