@@ -119,9 +119,9 @@ The hub's 535 open items (and each repo's own store) are scored once under D4 �
 
 - Option B (multi-window repos split; single-window repos keep one agent) — operator, 2026-10-14.
 - The seven jobs, including job 7 (status, never content) — operator, 2026-10-14.
-- Sonnet for the coordinator, the panel for hard calls — the author's choice from the research (ma-2, ma-5); approval pending at the design-approval gate.
-- Impact × effort with derived priority, effort measured in quota — the operator's framework (Impact vs Effort); the quota unit is the author's inference (pr-18), approval pending at the design-approval gate.
-- The coordinator's name `coordinator` — the author's choice, approval pending at the design-approval gate.
+- Sonnet for the coordinator, the panel for hard calls — the author's choice from the research (ma-2, ma-5); approved at the design-approval gate (D-868).
+- Impact × effort with derived priority, effort measured in quota — the operator's framework (Impact vs Effort); the quota unit is the author's inference (pr-18), approved at the design-approval gate (D-868).
+- The coordinator's name `coordinator` — the author's choice, approved at the design-approval gate (D-868).
 - **Plans, narrowed from the approved wording** ("the ticket board shows what was actually merged; a finished plan is marked done and archived; a stalled plan is flagged and its lock released when its session is dead"): the finished-plan mark and archive stay the coordinator's; a LIVE run's board stays the executing orchestrator's write surface (`scripts/enforcement/check_plan_tickets.py:27-28`), and freeing a dead run's lock stays an operator act (`scripts/enforcement/check_plan_lock_release.py:130-131`), so the coordinator flags those two instead of writing them. Changing either rule is a separate decision, not this spec's.
 - Shared-runtime acts keep today's rule (sequenced by the merge owner, run by the owning ticket) — job 4.
 
