@@ -520,6 +520,11 @@ its Touches (contract violation → its diff is rejected at acceptance).
   run the coders' tests yourself (that collapses coder and reviewer — the separation is what
   catches the findings). The failure PRESENTS as "BLOCKED: missing infra"; it is a missing
   capability grant — check the settings first. The probe covers the LANE it dispatches to: the native lane's `permissions.allow` above; a pool lane (when re-enabled) its allowlist carrying the repo's venv paths — a precondition that probes one lane while dispatching to another certifies nothing (01M2803TM, 01M1S923X).
+- **A plan-named checker is dry-run before its tickets' coders.** When a ticket's acceptance rests on a
+  checker the plan names (an identity diff, a parity script, a snapshot compare), run it once on a
+  throwaway head of the ticket's unit, a scratch build the orchestrator makes before the coder is dispatched
+  and never commits (it is no ticket code); a gap it reports, or a shape
+  it cannot see, becomes a ticket added to the Board up front rather than a find in review.
 - **The orchestrator writes NO ticket code**, with exactly ONE exception — trivial ≤1-file/≤50-LOC
   **strictly-mechanical** inline edits (**no-new-logic** defined: no conditional/loop/function-body
   change). Any orchestrator-authored fixup is bound by the same numeric limits, lands **inside the
@@ -596,6 +601,12 @@ its Touches (contract violation → its diff is rejected at acceptance).
     what closed; any other run's seats stay reserved — D-191). The partition is what the surface HAS, so a
     named trigger (diff >~400 net LOC · never-route surface · a repeat-failed round) means MORE slices or units,
     not a bigger cap. Grounding fan-outs: one unit per independent dependency, never per file.
+  - **Headroom before a wave:** act on the fleet's band — at AMBER or RED dispatch no new wave and say so
+    on the Board. At GREEN, when the `QUOTA:` line's `successor` reads `none`, compare its
+    `wall in ~<m>m` forecast for the hot window with the wave's summed ticket `Appetite:` (no
+    `Appetite:`, as in a pre-rollout plan → the 30-minute estimate the dispatch timeout above uses); when the
+    wall comes first, say so on the Board, dispatch only the tickets that fit, and hold the rest until
+    `claude_rotate.py --status` (the authority) shows the reset or a rotation, so no coder is cut mid-ticket with only its WIP checkpoints.
   - **Quota-pause terminal:** a native call failing on quota exhaustion (not a transient error) → the
     plan PAUSES: lock `status: "paused"`, Board preserved, spine stays IN-PROGRESS; resume on quota
     reset/rotation. **The Opus floor is never substitutable downward** (the `Profile: small` per-ticket
