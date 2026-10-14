@@ -19,10 +19,25 @@ On any failure → stop the loop, dump diagnostics, exit non-zero.
 
 Runs unattended. All output streamed to both stdout and
 /opt/fabrik/proof-logs/<type>-<ts>.log.
+
+LIVE AND DESTRUCTIVE -- ``--live`` is REQUIRED. Step 1 alone runs
+``fabrik destroy --yes --drop-data``, ``rm -rf /opt/<name>`` and ``gh repo
+delete`` against the real fleet, so the ``__main__`` block calls
+``parse_args()`` BEFORE ``main()``: a bare invocation exits 2 and ``--help``
+exits 0, both before any side effect (2026-10-14: four review seats ran
+``proof_run.py --help`` on the unguarded script and it destroyed and
+re-scaffolded the ``fabrik-test-saas-skeleton`` fixture). There is no dry
+run: the flag is an acknowledgement, not a mode. Cobra check (D-253): the
+cheapest way past the guard is to type ``--live`` reflexively, which is why
+the flag's help text says what the proof destroys, and why a review seat
+never runs this file at all -- only its grader (the plan set
+``docs/development/plans/2026-10-14-plan-1-coolify-verb-retirement/``
+§ Execution Discipline). Graded by ``tests/test_proof_run_guard.py``.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
@@ -840,6 +855,50 @@ def write_proof(results: list[dict]) -> None:
     PROOF_FILE.write_text("\n".join(lines) + "\n")
 
 
+# --- the live guard ---------------------------------------------------------
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Refuse the live proof without an explicit ``--live``.
+
+    ``main()`` destroys and re-creates real projects on the fleet, so the
+    ``__main__`` block calls this FIRST: a bare invocation exits 2 and
+    ``--help`` exits 0, both before ``main()`` runs (incident 2026-10-14); a
+    prefix such as ``--li`` is refused too (``allow_abbrev=False``), and the
+    caller reads ``.live`` rather than trusting the parser alone. Graded by
+    ``tests/test_proof_run_guard.py``, which runs the real ``__main__`` block
+    under ``runpy`` with the primitives behind every subprocess-run destroy,
+    scaffold and ``gh`` call and the Cloudflare ``urlopen`` faked (the Coolify
+    driver's ``httpx``, ``Path.open``, ``Path.exists``, ``open()`` and
+    ``time.sleep`` are not) -- ``load_env``'s ``.env`` read is the first call
+    ``main()`` makes, so a regression is caught there before any of those.
+    """
+    parser = argparse.ArgumentParser(
+        prog="proof_run.py",
+        allow_abbrev=False,  # `--li` is not an acknowledgement: the flag is typed whole or refused
+        description=(
+            "Live end-to-end deploy proof for every scaffold type. DESTRUCTIVE: "
+            "before each type it runs fabrik destroy --yes --drop-data, rm -rf "
+            "/opt/<fixture> and gh repo delete, then scaffolds, pushes and applies."
+        ),
+        epilog=(
+            "PROOF_ONLY=<type> limits the loop to that one scaffold type; a name not in "
+            "SCAFFOLD_TYPES runs no type at all and still writes PROOF.md with an empty table."
+        ),
+    )
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        required=True,
+        help=(
+            "run the destructive live proof: per type, fabrik destroy --yes --drop-data, "
+            "rm -rf /opt/<fixture> and gh repo delete, then scaffold, push and apply "
+            "(required; there is no dry run)"
+        ),
+    )
+    return parser.parse_args(argv)
+
+
 def main() -> int:
     env = load_env()
     results: list[dict] = []
@@ -866,4 +925,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # argparse already refused a bare run; this holds even if the parser is ever loosened
+    if not parse_args().live:
+        sys.exit(2)
     sys.exit(main())

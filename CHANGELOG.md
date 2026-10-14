@@ -12,6 +12,37 @@ All notable changes to this project will be documented in this file.
 - `step` computes the scan once, and only for phase-gated commands.
 - Graded by `tests/test_command_run_phase_worktree.py` (17 tests; each guard killed a mutant, the two literal-pathspec flags as a pair). Glob characters in a receipt name are literal, and a symlinked receipt hashes as git does. A run rooted inside a linked worktree still ages root's own receipts by mtime, which is unchanged from before this fix and filed as W-3c082de1.
 
+### Fixed — `scripts/proof_run.py` refuses to run its live proof without `--live` (2026-10-14)
+
+- The harness parsed no argv, so ANY invocation — `--help` included — ran step 1's `fabrik destroy --yes --drop-data`,
+  `rm -rf /opt/<fixture>` and `gh repo delete` against the fleet; four review seats ran it on 2026-10-14 and destroyed
+  and re-scaffolded the `fabrik-test-saas-skeleton` fixture (`proof-logs/saas-skeleton-20261014T00*.log`). `parse_args()`
+  now runs before `main()` with a REQUIRED `--live`: a bare run exits 2, `--help` exits 0, both before any side effect;
+  there is no dry run and the docstring carries the cobra check. Grader `tests/test_proof_run_guard.py`: a static read
+  refuses to execute an unguarded file (the RED, proved in a throwaway worktree with the proof-log count unchanged), then
+  the real `__main__` block runs under `runpy` with module-global `subprocess`/`urlopen` and class-level `Path` fakes
+  recording zero calls; the review added `allow_abbrev=False` (a prefix such as `--li` is refused), an `if not
+  parse_args().live` check in the `__main__` block (a loosened parser cannot reach `main()`), a static WHITELIST of what the
+  module top level may contain (un-aliased imports, `Path`-only constants to plain names, undecorated defs, classes
+  on builtin or module-defined bases with no dunder assignment or hook def in the body, the `__main__` block without `else`) with the recording fakes installed before
+  every import as the second layer — defence in depth, neither a proof — the `__main__` block asserted by AST shape,
+  `load_env`'s `.env` read pinned to `Path.read_text`, a sentinel proving
+  `--live` reaches `main()` at its first `.env` read, and the escape variants as executable cases. Plan T08
+  (`docs/development/plans/2026-10-14-plan-1-coolify-verb-retirement/T08-script-rebases.md`) inherits the parser and
+  the grader; its spine's File Scope names the test and its never-execute rule now reads as a regression guard.
+
+### Fixed — pgurl counts `requiressl` as an ssl key and pins its own IFS (2026-10-14)
+
+- `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` + `CONFIGURATION_TEMPLATE.md` (fabrik-lib 01M4VB91YA): libpq 17
+  still honours the deprecated `requiressl`, which REWRITES sslmode — `?sslmode=verify-full&requiressl=0` connected at
+  `prefer` past the duplicate-key arm. The key count now runs inside the existing `for kv` loop over
+  `ssl|sslmode|requiressl` (the enumerated pairing arm is gone), and the loop pins `IFS=" "` inside the subshell —
+  the review found the new count read the CALLER's IFS, so a root shell after `IFS=:` let the duplicate through
+  (executed: rc 0 before, refused after, caller IFS untouched). Graders in `tests/test_scaffold_doc_seeding.py`:
+  three requiressl pairings refused, `requiressl=1` alone passes, the IFS loop under `IFS=:` and `IFS=`, and `set -f`
+  pinned by a glob that matches a file in the cwd (red with `set -f` removed). `scaffold.py` schema headers name
+  `requiressl`.
+
 ### Fixed — the GATE row's final_gate.py line cites follow an 11-line move, and the grader now checks range ends (2026-10-14)
 
 - `CLAUDE.md`, `templates/governance/CLAUDE.md`: the setup-error and tier cites moved from `:3326-3343`/`:3345-3351` to `:3337-3354`/`:3356-3362`. infra's 7bef5f4cd (D-827) shifted final_gate.py by 11 lines and left `tests/test_governance_template_split.py` red. The grader checked only each range's START line, so it gains `_GATE_CITE_ENDS`, which asserts every range's last line too (shown red on a wrong end).
@@ -77,18 +108,6 @@ A restating sentence rule (3) deletes may be replaced by at most a pointer; the 
 ### Changed — libs/health_probe re-vendored at fabrik-lib 0e44811c (2026-10-13)
 
 - `libs/health_probe/health_probe.py` and `fingerprint.py` now match fabrik-lib 0e44811c. `load_env`'s docstring now also names a truthy `PYTHON_DOTENV_DISABLED` as a reason it returns False and loads nothing (the hub's finding 01M4V9BKD2). No behaviour change. `tests/test_scaffold_deploy_contract.py`'s vendoring-header test passes again.
-
-### Fixed — pgurl counts `requiressl` as an ssl key and pins its own IFS (2026-10-14)
-
-- `templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md` + `CONFIGURATION_TEMPLATE.md` (fabrik-lib 01M4VB91YA): libpq 17
-  still honours the deprecated `requiressl`, which REWRITES sslmode — `?sslmode=verify-full&requiressl=0` connected at
-  `prefer` past the duplicate-key arm. The key count now runs inside the existing `for kv` loop over
-  `ssl|sslmode|requiressl` (the enumerated pairing arm is gone), and the loop pins `IFS=" "` inside the subshell —
-  the review found the new count read the CALLER's IFS, so a root shell after `IFS=:` let the duplicate through
-  (executed: rc 0 before, refused after, caller IFS untouched). Graders in `tests/test_scaffold_doc_seeding.py`:
-  three requiressl pairings refused, `requiressl=1` alone passes, the IFS loop under `IFS=:` and `IFS=`, and `set -f`
-  pinned by a glob that matches a file in the cwd (red with `set -f` removed). `scaffold.py` schema headers name
-  `requiressl`.
 
 ### Fixed — the scaffold parity stub's ".env loaded nothing" message names PYTHON_DOTENV_DISABLED (2026-10-13)
 
