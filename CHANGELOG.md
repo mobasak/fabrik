@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the lane table states its default: under doubt the lane is /fabrik-task (2026-10-14)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § Orient step 0: one paragraph after the lane table's row 6 — under doubt the lane is `/fabrik-task`, the spec chain is the exception a tripped test earns, a mid-build trip upgrades cheaply while a needless spec spends its research and judge seats first (at least 52 of 77 specs since lane v2 never met the lane gate, D-858). Operator ruling 2026-10-14 (D-859); fabrik-lib's hand-kept copy requested by mail 01M4XTZ9PZRMTJV4HJ5D49M60G. Pinned hub↔template in `tests/test_governance_template_split.py`.
+
 ### Changed — /fabrik-spec Phase 0 applies the lane tests when no refusal row exists (2026-10-14)
 
 - `commands/_sources/fabrik-spec.md` Phase 0: a missing lane-refusal row no longer ends the DOWNGRADE check. Before any research seat, approach or judge panel, the spec answers the six lane declarations, runs the contract-path test and Phase 5's `Size: small` rule on the brief; a small, reversible, internal brief with a decision (`decision=yes`) hands off to `/fabrik-task <the brief>` with `--reason "DOWNGRADE: no-refusal — …"`, a pure fix (`decision=no`) goes right-now with the review row 4b names, and anything that trips a test proceeds as today. Operator ruling 2026-10-14 (D-858, widening lane spec D9); the code half (a `/fabrik-spec start` gate, an LR row for a spec start, the no-refusal reason in the downgrade share) is mailed to infra. Pinned in `tests/test_spec_plan_lane_text.py`.
