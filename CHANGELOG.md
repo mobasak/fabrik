@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review: an Agent-tool seat that imports the pin is told where on sys.path the extract goes (2026-10-14)
+
+The seat-brief rule in /fabrik-review now gives the pin import's placement and its condition: the directory that holds the top-level import name goes at the index of the first entry ending in `site-packages` or `dist-packages` (at the end when there is none), never at index 0, where a package named like a stdlib module shadows the stdlib, and every probe runs as `python -P -B` with PYTHONPATH entries dropped, since without `-P` the live repo sits ahead of the extract. It points at `PIN_IMPORT` in `.claude/workflows/fabrik-review-loop.js` for the recipe. Workflow seats already got this rule; Agent-tool seats did not. Answers intel's mail 01M4W155SB. Grader: `tests/test_review_queue_pass.py`, which also checks that the recipe still says the same and is red on the previous text.
+
 ### Changed — /fabrik-spec-review and /fabrik-plan-review name their receipt and its `**Command:**` line (2026-10-14)
 
 Each command now says that its Pass Ledger lives in `docs/development/reviews/<YYYY-MM-DD>-<slug>-{spec,plan}-review.md`, and that the receipt's first 10 lines carry `**Command:** /fabrik-{spec,plan}-review`. Once a receipt claims a finished review, `check_convergence.py` grades it by its ledger only under that label (W-39d8d1fd), and without the label it demands a code review's gate embed. Before this, no producer emitted the label the gate keys on. Answers infra's mail 01M4W4ZWTZ. Grader: `tests/test_spec_review_queue_pass.py`, which drives the router on the line as written and is red on the previous text.

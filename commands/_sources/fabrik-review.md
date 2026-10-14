@@ -206,7 +206,13 @@ third-party API. Partition, don't skip (moot while every seat is native — D-18
   a mutant counts as dead only as `/opt/fabrik/commands/_fragments/term-coverage.md` rule (4) says, never on an
   exit code alone ·
   never bare-grep a tracked path — `git show <sha>:<path> > <scratch>/<file>`, redirected like any large output, because a large stdout is saved by the harness under `$HOME` · a seat that MEASURES by importing code
-  imports the PIN (a `git archive <sha>` extract with the pinned files overlaid), never `sys.path.insert` the live tree, and prints the module's `__file__` beside every result (a
+  imports the PIN (a `git archive <sha>` extract with the pinned files overlaid),
+  never `sys.path.insert` the live tree, puts the directory that holds the top-level import name (`<extract>/src`
+  for `import fabrik`) at the index of the first entry ending in `site-packages` or `dist-packages` (at the end
+  when there is none), never at index 0, where a package named like a stdlib module shadows the stdlib, runs every
+  probe as `python -P -B` with any PYTHONPATH entries dropped from sys.path (without `-P` the working directory,
+  the live repo, sits ahead of the extract) — `PIN_IMPORT` in `.claude/workflows/fabrik-review-loop.js`
+  is the recipe — and prints the module's `__file__` beside every result (a
   sibling's uncommitted edit in the live tree once fed three measurements) · a later pass's brief
   states the ledger's high-water mark — its last row id and the receipt's sha at dispatch — never a
   hand-typed row range · every helper or probe file a seat writes goes in its OWN scratch dir
