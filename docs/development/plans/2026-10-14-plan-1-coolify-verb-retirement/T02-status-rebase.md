@@ -2,7 +2,7 @@
 Appetite: 45
 
 ## Scope
-Implements `spec § The delta` D2's verb half (`docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md:142`) in `src/fabrik/cli.py:723-784`: after the `apps/<id>` block (`:740-749`) the Coolify block (`:752-784`, its lazy `from fabrik.drivers.coolify import CoolifyClient` at `:755`) is replaced by (a) a **Last apply** section from `fabrik.state.load(spec.id)` and (b) a **Live containers** section that walks `app_dir(spec)` with `SSHDeployer().probe_app(path)` under `_host_env(spec.target_vps)` and prints `_parse_compose_ps` rows — all three from T01 — with the messages and the exit-0 rule spec D2 states. A spec defect found by `app_dir` (a local path outside `/opt`) is printed as `Error: <message>` and exits 1, like a spec that fails to load (`cli.py:732-736`) — a plan decision, since the spec does not name this case for `status`. DO-NOT: touch `reconcile-all`, `projects` or `apply` (T03, T04, T05), or `deployer_ssh.py` (T01).
+Implements `spec § The delta` D2's verb half (`docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md:142`) in `src/fabrik/cli.py:723-784`: after the `apps/<id>` block (`:741-750`) the Coolify block (`:752-782`, its lazy `from fabrik.drivers.coolify import CoolifyClient` at `:755`) is replaced by (a) a **Last apply** section from `fabrik.state.load(spec.id)` and (b) a **Live containers** section that walks `app_dir(spec)` with `SSHDeployer().probe_app(path)` under `_host_env(spec.target_vps)` and prints `_parse_compose_ps` rows — all three from T01 — with the messages and the exit-0 rule spec D2 states. A spec defect found by `app_dir` (a local path outside `/opt`) is printed as `Error: <message>` and exits 1, like a spec that fails to load (`cli.py:732-736`) — a plan decision, since the spec does not name this case for `status`. DO-NOT: touch `reconcile-all`, `projects` or `apply` (T03, T04, T05), or `deployer_ssh.py` (T01).
 
 Depends: T01
 Parallel: ⛓️
@@ -12,7 +12,7 @@ Docs: none (`docs/reference/fabrik-cli-reference.md:268-274` is T10a's)
 
 ## Touches
 - src/fabrik/cli.py — PRIMARY PATH
-- tests/test_cli_status_live.py
+- tests/test_cli_status_live.py — NEW
 
 ## Behavior Contract
 - **Given** a state record for the spec carrying `applied_at`, a 40-character `git_sha`, `target_vps: vps2`, two `registrars_applied` types and one `registrar_failures` row, **When** `fabrik status <spec>` runs with `probe_app` faked, **Then** the Last-apply section prints the timestamp, the sha truncated to 12 characters, `vps2`, both types and the failure row (spec § The delta D2a).

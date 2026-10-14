@@ -13,7 +13,7 @@ Docs: none (`docs/reference/fabrik-cli-reference.md:346-354` is T10a's — alrea
 ## Touches
 - src/fabrik/cli.py — PRIMARY PATH
 - src/fabrik/registry.py
-- tests/test_projects_sync.py
+- tests/test_projects_sync.py — NEW
 - tests/test_sync_has_user_guide.py
 
 ## Behavior Contract
