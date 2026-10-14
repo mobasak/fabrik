@@ -88,6 +88,9 @@ first-class is unusable as shipped.
 - The background service worker registers only `runtime.onInstalled` (onboarding tab, context menu) — `src/fabrik/scaffold.py:5268-5288`.
 - The server's CORS is a regex over every extension origin — `src/fabrik/scaffold.py:5867-5876`; its routes are `/health` and `/` — `src/fabrik/scaffold.py:5879-5893`.
 - The Traefik CORS middleware is a regex over every extension origin — `src/fabrik/scaffold.py:5991`.
+- `templates/chrome-extension/compose.yaml.j2` (rendered by `src/fabrik/template_renderer.py:156`) carries its own
+  Traefik CORS labels (`accesscontrolalloworigin=chrome-extension://*`, its lines 17-22) and
+  `CORS_ORIGINS=${CORS_ORIGINS:-chrome-extension://*}` (its line 27).
 - `.env.example` names `PORT`, `NODE_ENV`, `SERVICE_NAME` only — `src/fabrik/scaffold.py:6060-6068`.
 - `.gitignore` already ignores `*.key` and `*.pem` through `_COMMON_GITIGNORE_PATTERNS` — `src/fabrik/scaffold.py:668-673`, written at `src/fabrik/scaffold.py:6071-6088`.
 - `templates/chrome-extension/defaults.yaml` sets `CORS_ORIGINS: "chrome-extension://*"`.
@@ -197,9 +200,10 @@ One seat's dissent is folded below: before the first release, dev builds have a 
      when `EXTENSION_ID` is set, and the existing dev regex only when it is unset.
    - At startup with no `EXTENSION_ID` it logs a structured `cors_any_extension_origin` warning, so an open regex in
      production is visible in Loki rather than silent.
-   - The Traefik CORS middleware label (`src/fabrik/scaffold.py:5991`) moves to the exact-match
-     `accesscontrolalloworiginlist=chrome-extension://${EXTENSION_ID}`, with compose's own interpolation, when the
-     project sets it.
+   - The Traefik CORS middleware (`src/fabrik/scaffold.py:5986-5996`: the five `{name}-cors` header labels and the
+     router's `middlewares={name}-cors`) is removed from the emitted `compose.yaml`. Preflights then reach FastAPI, and its
+     exact-origin `CORSMiddleware` is the single CORS authority. `templates/chrome-extension/compose.yaml.j2` drops the
+     same labels (its lines 17-22) and its `CORS_ORIGINS=${CORS_ORIGINS:-chrome-extension://*}` line (line 27).
    - `templates/chrome-extension/defaults.yaml` `CORS_ORIGINS: "chrome-extension://*"` is replaced by an `EXTENSION_ID`
      entry. Nothing reads `CORS_ORIGINS` in the emitted server; the plan confirms with a grep.
    - CORS is defence in depth for the service worker's own calls: Chrome lets extension pages and the service worker
@@ -246,6 +250,10 @@ One seat's dissent is folded below: before the first release, dev builds have a 
   uses a periodic alarm.
 - **Fail closed when `EXTENSION_ID` is unset** (refuse to start). A brand-new project before its first key would refuse to
   run in dev. The visible startup warning plus the `89` § 7 checklist gate is the lighter control.
+- **An exact-origin Traefik label with compose interpolation** (`accesscontrolalloworiginlist=chrome-extension://${EXTENSION_ID}`).
+  `_write_canonical_compose` writes literal Traefik label values (its invariant 4,
+  `src/fabrik/scaffold.py:1029-1031`: such a label once reached Traefik verbatim). Two CORS layers would also have to
+  agree, where FastAPI alone, fed by `EXTENSION_ID`, is one source.
 
 ## Contract deltas
 
@@ -333,6 +341,7 @@ Graders in `tests/test_scaffold.py`, each watched red first:
   8. `.gitignore` names `extension/.keys/`.
   9. `INSTALL.md` carries the four steps, the keep-Developer-mode-on note and the `ExtensionDeveloperModeSettings` caveat.
   10. The Makefile's `release-ext` writes a `.sha256` and never publishes.
+  11. The emitted `compose.yaml` and the `compose.yaml.j2` template carry no `-cors` Traefik label and no `CORS_ORIGINS`.
 
 ## Decisions taken
 
