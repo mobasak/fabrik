@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: a reject search reads the rendered command; a seat rule lands in every home (2026-10-14)
+
+PHASE 2's D-711 paragraph now finds a reject's checked line by grepping the rendered command (every fragment, the appended close and every parameter), the files it points at and the loaded `CLAUDE.md`, then cites the line in its source file, and PHASE 2's targets and lock check admit a seat file under `commands/_agents/`. PHASE 3 says an edit to what a seat may do lands in every home a grep names (today subagents-core, the seat files under `commands/_agents/`, the seat-brief lists in fabrik-review and design-critique, convergence-prompts, and intel's `SEAT_ISOLATION` and `seat_guard.py`, mailed). Answers rows 1791941814 (a planned HELD reject missed a capped seat brief in `delegated-reads.md`) and 1791944106 (a never-execute seat rule first landed in one home). Grader: `tests/test_command_improve_queue_pass.py::test_a_reject_search_reads_the_render_and_a_seat_rule_lands_in_every_home`.
+
 ### Changed — review seats never execute an unread or world-changing script (2026-10-14)
 
 `commands/_fragments/subagents-core.md` (the seat-isolation paragraph, in 21 commands) and the native reviewer's house rules in `commands/_agents/fabrik-reviewer.md` now make a seat read a script before it executes it (`--help` included) and forbid executing one that deletes, deploys, provisions, writes outside its scratch dir or contacts a non-local host, even when a check asks it to; the seat cites the lines and returns the claim `unverified`. Answers /fabrik-plan-review row 1791938982: four seats ran `scripts/proof_run.py`, which has no argument parsing, and destroyed a live fixture. The Workflow seats' `SEAT_ISOLATION` mirror was mailed to intel. Grader: `tests/test_plan_review_queue_pass.py::test_a_seat_never_executes_a_script_that_acts_outside_its_scratch`.

@@ -197,10 +197,47 @@ def test_a_rule_lands_where_its_writers_load_it_and_a_mechanism_meets_its_consum
         "or to the fragment, pack or `CLAUDE.md` that § Drive's consistency rule sends a shared rule to."
         in p2
     )
-    assert "names them), § Drive's home for a shared rule, or the pack you would edit" in p2
+    assert (
+        "names them), a seat file under `commands/_agents/`, § Drive's home for a shared rule, or the pack you would edit"
+        in p2
+    )
     p3 = _phase("## PHASE 3", "## PHASE 4")
     assert (
         "A mechanism the edit adds — a token, a field, a report shape, a panel's proposal included — is checked"
         " against the step or code that must consume it, and is written in only when that consumer reads it or"
         " this edit wires it in." in p3
     )
+
+
+def test_a_reject_search_reads_the_render_and_a_seat_rule_lands_in_every_home() -> None:
+    """Rows 1791941814 and 1791944106 (kaizen's own closes, 2026-10-14): a planned HELD reject said /fabrik-spec Phase 0
+    dispatches no capped seat brief, but delegated-reads.md, which it includes, does; and a never-execute seat rule was
+    first written into subagents-core alone. The reject search reads the rendered command; a seat rule goes to every
+    home a grep names, and PHASE 2 admits the agent files those homes include."""
+    p2 = re.sub(r"\s+", " ", _phase("## PHASE 2", "## PHASE 3"))
+    assert (
+        "to FIND that line, grep the rendered command (`~/.claude/commands/<command>.md`: every fragment, the"
+        " appended close and every parameter), each file it points at for the rule, and the loaded `CLAUDE.md` for"
+        " the row's subject, then cite the line in the file it renders from." in p2
+    )
+    assert "to a seat file under `commands/_agents/` (PHASE 3's seat rules)" in p2
+    assert (
+        "names them), a seat file under `commands/_agents/`, § Drive's home for a shared rule" in p2
+    )
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "An edit to what a SEAT may do lands everywhere seat rules live, since a rule in one home is not in force in"
+        " the others: `command grep -rln -E '<two or more phrases of the neighbouring seat rule>' commands"
+        " .claude/workflows .claude/hooks docs/reference` names them" in p3
+    )
+    for home in (
+        "commands/_fragments/subagents-core.md",
+        "commands/_sources/fabrik-review.md",
+        "commands/_fragments/design-critique.md",
+        "docs/reference/convergence-prompts.md",
+        ".claude/workflows/fabrik-review-loop.js",
+        ".claude/hooks/seat_guard.py",
+        "commands/_agents/fabrik-reviewer.md",
+    ):
+        assert (ROOT / home).exists(), home
+    assert "const SEAT_ISOLATION" in (ROOT / ".claude/workflows/fabrik-review-loop.js").read_text()
