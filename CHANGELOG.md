@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task: a run's files live in the SCRATCH path `start` prints (2026-10-14)
+
+The phase-1, phase-2 and phase-5 files (`measure.md`, `design.md`, `commit.sha`) and the `--design`/`--resume` paths now name `<run-scratch>`, which is the `SCRATCH:` path `command_run.py start` prints under `<main checkout>/.tmp/runs/` (D-836). It replaces the session scratchpad under `/tmp`, which a WSL shutdown wiped. The scratchpad remains only as the fallback when `start` prints no `SCRATCH:` line. Answers infra's mail 01M4VV3BD3 and /fabrik-task rows 1791906916, 1791907380 and 1791907099. Grader: `tests/test_fabrik_task_source.py`, red on the previous text.
+
 ### Changed — /fabrik-command-improve: the held-subject search reads `--reasons` by reason text (2026-10-14)
 
 Before a reject, D-711's search for an already-held subject now runs `/opt/fabrik/scripts/command_feedback_report.py --reasons <command>` without `--held` and greps the reason column. Tags rarely match a near-synonym: fabrik-review's 236 tagged rejects carry 235 distinct tags. The orchestrator runs it and pins the output into an audit seat's scratch. Answers infra's mail 01M4VX84J0 (D-837). Grader: `tests/test_command_improve_queue_pass.py`, red on the previous text.
