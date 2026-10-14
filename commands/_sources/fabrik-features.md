@@ -31,7 +31,13 @@ Operate on the current project (cwd). **Two sanctioned modes (REFRESH may run sc
   rows here transcribe it, which is why a row with no spec basis is invented scope)
   walks the journeys that must serve it, before the contract freezes fields for it, before the UI designs
   screens for it. No code sweep; the convergence loop runs spec↔rows bidirectionally (every spec
-  capability a row, every row traceable to the spec — a row with no spec basis is invented scope). A Planned row
+  capability a row, every row traceable to the spec — a row with no spec basis is invented scope). A Planned row's
+  Description states the behaviour as Phase 2 asks of every row, then carries `Spec §<n>:` and EVERY condition of
+  its clause — each when, unless, only-if, limit or other condition, wherever in the spec it sits, a neighbouring
+  sentence or a table cell included — in the spec's own words or figures, quoted as whole spans cut only at their
+  ends, never inside, never reworded and never elided with `…`, the section cited for each span (`Spec §3: … ·
+  §7: …`, on the row's one table line): a paraphrase still traces to the spec, and still drops the condition the
+  plan then builds without. A Planned row
   that points at existing code it extends cites a SYMBOL in a named file (`src/billing.py::charge`), never a line
   number — on a tree other agents commit to, a line moves before the plan reads it — and the plan re-grounds it.
   A row citing a work item (`W-xxxxxxxx`) resolves to `.fabrik/work/W-xxxxxxxx.json` in the store of the repo
@@ -39,7 +45,8 @@ Operate on the current project (cwd). **Two sanctioned modes (REFRESH may run sc
 - **REFRESH (post-build, the certify-time default):** the CODE is the source of truth — the full
   multi-modal sweep below. **Planned-row reconciliation:** a `(Planned)` row whose capability now ships
   flips to shipped (drop the marker, fill or re-ground Endpoint/Module + how-to-exercise — an EARLY symbol of
-  the code it extended is not the new endpoint); a `(Planned)` row with NO
+  the code it extended is not the new endpoint; its `Spec §<n>:` conditions stay on the row until a test asserts
+  each); a `(Planned)` row with NO
   code at certification time is un-shipped scope — surface it to the operator, never silently delete; a
   shipped capability with no Planned row is scope creep or an honest addition — surface which. An operator
   disposition received on either (drop / keep-planned / adopt) is a RECEIVED decision — its
