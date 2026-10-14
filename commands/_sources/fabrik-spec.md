@@ -125,7 +125,9 @@ library, framework, protocol, standard — ground it to **CURRENT truth**, never
   readings when two vendor pages contradict each other.
 - **Local claims are executed, not cited:** every premise the brief states about the codebase, every mechanism
   the design relies on ("X fires", "Y catches this"), every design rule (an algebra, a classifier) and every
-  runtime-state claim is EXECUTED this session, its command and output cited in the spec, and Phase 3 waits on it
+  runtime-state claim is EXECUTED this session, its command and output cited in the spec (a key, token or credential
+  in that output is described by its kind, length and a non-secret prefix, never pasted, its BEGIN line included:
+  the `detect-private-key` commit hook refuses a private-key PEM header), and Phase 3 waits on it
   as on the BLOCKING bullet below. A design rule that names stores (a matrix, an allowlist, an entity schema's
   fields) is preceded by an executed census of each store's current members, and its invariants are written against
   that census, never against one member. An executed in-repo measurement outranks a web answer about the repo's own

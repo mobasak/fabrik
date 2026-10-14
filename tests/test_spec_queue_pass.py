@@ -32,13 +32,18 @@ def test_an_amendment_states_no_external_facts_in_words_the_check_reads() -> Non
     m = re.search(r"`(This amendment adds no external facts beyond [^`]+)`", s1a)
     assert m, "1a gives no amendment recipe"
     assert check_spec_convergence.NO_EXTERNAL_RE.search(m.group(1))
-    assert not check_spec_convergence.NO_EXTERNAL_RE.search("This amendment adds no new external facts.")
+    assert not check_spec_convergence.NO_EXTERNAL_RE.search(
+        "This amendment adds no new external facts."
+    )
 
 
 def test_a_best_practice_seat_carries_the_1a_facts() -> None:
     """Row 1791761722."""
     s1c = _section("### 1c", "## Phase 2")
-    assert "A 1c (best-practice) seat is dispatched after the 1a facts it rests on are grounded or executed" in s1c
+    assert (
+        "A 1c (best-practice) seat is dispatched after the 1a facts it rests on are grounded or executed"
+        in s1c
+    )
     assert "the 1a wave and the 1c wave are two dispatches" in s1c
 
 
@@ -66,7 +71,8 @@ def test_the_check_skips_a_draft_and_grades_its_flipped_copy(tmp_path: Path, cap
     for finding in ("SILENT-1a", "APPROACH-FLOOR", "NO-PERSONAS", "NO-LIFECYCLE", "NO-INTAKE"):
         assert finding in flipped, finding
     recipe = draft.replace("DRAFT", "CONVERGED").replace(
-        "adds no new external facts.", "adds no external facts beyond docs/x-design.md, last verified live 2026-09-01."
+        "adds no new external facts.",
+        "adds no external facts beyond docs/x-design.md, last verified live 2026-09-01.",
     )
     graded = _grade(tmp_path, recipe, capsys)
     assert "SILENT-1a" not in graded and "APPROACH-FLOOR" in graded
@@ -75,11 +81,26 @@ def test_the_check_skips_a_draft_and_grades_its_flipped_copy(tmp_path: Path, cap
 def test_researcher_quotes_schema_and_versions_from_a_raw_fetch() -> None:
     """Row 1791275601."""
     text = _flat(RESEARCHER)
-    assert "on an HTML docs page a schema field or a parameter name is quoted from the raw arm" in text
+    assert (
+        "on an HTML docs page a schema field or a parameter name is quoted from the raw arm" in text
+    )
     assert "JSON/XML and version claims keep rule 3's routing" in text
 
 
 def test_the_skip_line_routes_an_as_built_revision_to_an_amendment() -> None:
     """Row 1791859866: a CONVERGED spec's as-built re-freeze had no named home in the description."""
     desc = next(line for line in SRC.read_text().splitlines() if line.startswith("description:"))
-    assert "an as-built revision of a CONVERGED spec stays here as an amendment (`Profile: delta`)" in desc
+    assert (
+        "an as-built revision of a CONVERGED spec stays here as an amendment (`Profile: delta`)"
+        in desc
+    )
+
+
+def test_local_claim_output_describes_key_material_never_pastes_it() -> None:
+    """Row 1791966633: the spec cites each local claim's output, and the commit hook refuses a private-key PEM header."""
+    text = re.sub(r"\s+", " ", SRC.read_text(encoding="utf-8"))
+    assert (
+        "its command and output cited in the spec (a key, token or credential in that output is described by its"
+        " kind, length and a non-secret prefix, never pasted, its BEGIN line included: the `detect-private-key`"
+        " commit hook refuses a private-key PEM header)"
+    ) in text

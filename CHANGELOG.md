@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec: key material in a local claim's cited output is described, never pasted (2026-10-14)
+
+/fabrik-spec cites each executed local claim's command and output in the spec, and nothing said to redact what that output may hold. A probe that printed a PEM header was quoted, and the `detect-private-key` commit hook refused the spec. The rule now says a key, token or credential in that output is described by its kind, length and a non-secret prefix and never pasted, its BEGIN line included, since the hook refuses a private-key PEM header. Answers /fabrik-spec row 1791966633. Graders: `tests/test_spec_queue_pass.py` (new) and the re-pinned `tests/test_spec_plan_lane_text.py`, red on the previous text.
+
 ### Changed — kaizen charter: the held-subject search reads `--reasons`, as /fabrik-command-improve does (2026-10-14)
 
 `docs/reference/agents/kaizen.md` now finds an already-held subject in the reason column of `command_feedback_report.py --reasons <cmd>` run without `--held`, not in the `--queue` header's tag line. That matches the D-711 clause /fabrik-command-improve gained at 5966b4176 (D-837). Grader: `tests/test_command_improve_drive.py`, red on the previous text.
