@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — per-account flip lines: no early fleet wall, cap-governed weekly wall, crash-proof loaders (2026-10-14)
+
+- The `/fabrik-review` of the D-855 change found these defects; each fix ships with a test proven red on the old code.
+  - An account's own line no longer walls it below the urgent tier. A board value of 85 used to write the fleet's hard hold at 87. A line under 90 now still flips the account at that line, but walls it at the fleet line, so the urgent warning keeps its runway (`_wall_line`).
+  - A capped active account is walled on its cap, not its line, matching the flip leg.
+  - The walled notice is judged on the same line as the hold: it names the 5-hour window when that window tripped, and says PARKED for a parked account.
+  - The flip leg judges siblings on the fleet line.
+  - Each `--status` picture row carries its own `trip` line.
+- `caps.json` and `thresholds.json` now survive a giant integer or a non-UTF-8 byte. Both loaders route values through `_usable_ts`, and the bad file is treated as unreadable instead of killing every tick.
+- The board's caps and thresholds writer drops every case-variant of an account key. Two new tests cover it: one proves the file lock serialises writers, and the session-crossing test now isolates the flip tier.
+- The legacy-tick line in `docs/workstation/claude-account-rotation.md` says 99.
+
 ### Changed — rotation flips at 99% by default, per-account flip lines and weekly caps editable from the quota board (2026-10-14)
 
 - `scripts/sysadmin/claude_rotate.py` (operator: "98% hook is to restrictive, can we make it 99% except ob@ocoron.com";

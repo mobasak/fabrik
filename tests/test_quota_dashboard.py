@@ -709,15 +709,24 @@ def test_the_server_probes_on_its_own_cadence_without_a_viewer(tmp_path, monkeyp
 def test_the_active_account_crossing_the_session_threshold_triggers_the_tick_at_once(
     tmp_path, monkeypatch
 ):
-    """Operator rule: rotate as soon as the 5h window hits 98%. The board, which now probes every
-    20s, invokes the rotation tick the moment the ACTIVE account's session ≥ ROTATE_THRESHOLD —
-    once per cooldown, never at 90%."""
+    """Operator rule: rotate as soon as the 5h window hits the flip line. The board, which probes
+    every 20s, invokes the rotation tick the moment the ACTIVE account's session ≥ ROTATE_THRESHOLD —
+    once per cooldown. The drain tier is pushed to 100 so ONLY the flip tier can fire here (a literal
+    98.2 under the 99 default passed on the drain tier with the flip check dead — D-855 review)."""
     monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
-    qd, stub = _tick_env(tmp_path, monkeypatch, session=86.0, QUOTA_DASH_TRIGGER_COOLDOWN_S="60")
+    qd, stub = _tick_env(
+        tmp_path,
+        monkeypatch,
+        session=86.0,
+        QUOTA_DASH_TRIGGER_COOLDOWN_S="60",
+        ROTATE_URGENT_DRAIN_PCT="100",
+    )
     qd.generate()
     assert qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None
     assert not [c for c in _calls(stub) if c[:1] == ["--tick"]]
-    (tmp_path / "stub_rotate.py.payload").write_text(json.dumps(_payload(session=98.2)))
+    (tmp_path / "stub_rotate.py.payload").write_text(
+        json.dumps(_payload(session=qd.TRIGGER_THRESHOLD + 0.2))
+    )
     qd.generate()
     payload = json.loads(qd._JSON.read_text())
     t = qd._maybe_trigger_rotation(payload)
@@ -4110,3 +4119,35 @@ def test_every_row_offers_a_threshold_control_and_the_trigger_reads_the_override
     assert 'value="97"' in row, row
     assert qd._trip_line(payload()["accounts"][0]) == 97.0
     assert qd._trip_line(payload()["accounts"][1]) == qd.TRIGGER_THRESHOLD
+
+
+def test_the_account_map_writer_drops_case_variants_and_holds_the_lock(tmp_path, monkeypatch):
+    """D-855 review: a hand-written `OB@…` survived a board clear of `ob@…` (the loaders lowercase and
+    the last duplicate wins), and no grader died when the flock was removed. The writer must drop every
+    case-variant, and a write must WAIT while another holder has `<file>.lock`."""
+    import fcntl
+    import threading
+
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_rerender", lambda: None)
+    f = tmp_path / "thresholds.json"
+    f.write_text(json.dumps({"OB@ocoron.com": 60, "x@y.co": 97}))
+    status, _body = qd._edit_account_map(f, "ob@ocoron.com", None, "thresholds")
+    assert status == 200 and json.loads(f.read_text()) == {"x@y.co": 97}
+    status, _body = qd._edit_account_map(f, "x@y.co", 95, "thresholds")
+    assert json.loads(f.read_text()) == {"x@y.co": 95}
+
+    done = threading.Event()
+    th = threading.Thread(
+        target=lambda: (qd._edit_account_map(f, "z@y.co", 90, "thresholds"), done.set())
+    )
+    with open(tmp_path / "thresholds.json.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        th.start()
+        try:
+            assert not done.wait(0.5), "the writer did not wait for the lock holder"
+            assert "z@y.co" not in json.loads(f.read_text())
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+    th.join(5)
+    assert done.is_set() and json.loads(f.read_text()) == {"x@y.co": 95, "z@y.co": 90}
