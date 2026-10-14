@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `command_run.py step` finds a phase receipt a linked worktree holds (W-9fca9008, mail 01M48QZDFM) (2026-10-14)
+
+- `scripts/command_run.py`: the phase-review gate looked only under the record's repo_root, so a plan built in a worktree, with its receipts committed on the worktree branch, was refused at every phase boundary. The only way through was `--review-waived`, which records a skip that never happened.
+- The gate now also searches every registered worktree of the repo (`git worktree list --porcelain -z`, skipping bare and prunable entries; each git call has a 5 s timeout). A sibling tree offers only NEW evidence: a receipt whose content root's index already holds is skipped, and a sibling receipt is aged by the author time of the last commit that added or changed it, following exact renames only, not by its mtime, because `worktree add` re-stamps checked-out files and a rebase re-stamps committer times; a receipt untracked in its tree keeps its mtime. When the record names a dated plan, a sibling receipt must start with that plan's `<date>-plan-<n>` prefix (an undated stem binds nothing, a stated cost), since another worktree usually holds another session's plan, and the refusal names the prefix. Replication is checked by hashing the blob in-process, so a refused phase costs 0.7 to 1.0 s on a 25-tree hub.
+- An unreadable sibling is skipped, never fatal. A git failure keeps today's root-only search, and the refusal says which.
+- `step` computes the scan once, and only for phase-gated commands.
+- Graded by `tests/test_command_run_phase_worktree.py` (17 tests; each guard killed a mutant, the two literal-pathspec flags as a pair). Glob characters in a receipt name are literal, and a symlinked receipt hashes as git does. A run rooted inside a linked worktree still ages root's own receipts by mtime, which is unchanged from before this fix and filed as W-3c082de1.
+
 ### Fixed — the GATE row's final_gate.py line cites follow an 11-line move, and the grader now checks range ends (2026-10-14)
 
 - `CLAUDE.md`, `templates/governance/CLAUDE.md`: the setup-error and tier cites moved from `:3326-3343`/`:3345-3351` to `:3337-3354`/`:3356-3362`. infra's 7bef5f4cd (D-827) shifted final_gate.py by 11 lines and left `tests/test_governance_template_split.py` red. The grader checked only each range's START line, so it gains `_GATE_CITE_ENDS`, which asserts every range's last line too (shown red on a wrong end).

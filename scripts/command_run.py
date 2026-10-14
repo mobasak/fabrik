@@ -1001,7 +1001,12 @@ def _plan_stem(rec: dict[str, Any]) -> str | None:
 
 
 def _phase_review_exists(
-    root: str, phase: int, *, plan_stem: str | None = None, since: float | None = None
+    root: str,
+    phase: int,
+    *,
+    plan_stem: str | None = None,
+    since: float | None = None,
+    scan: tuple[list[Path], str, dict[str, str]] | None = None,
 ) -> bool:
     """Is there a review artifact for ``phase`` under docs/development/reviews/?
 
@@ -1024,9 +1029,7 @@ def _phase_review_exists(
     job, and it can finally do it because it now has a subject.
     """
     if not root:
-        return False
-    d = Path(root) / "docs" / "development" / "reviews"
-    if not d.is_dir():
+        _REVIEW_SCAN["note"] = ""  # a call that scans nothing leaves no stale coverage note
         return False
     # DELIMITED, not substring: `phase-1` is a prefix of `phase-10`, so a bare `in`
     # let a phase-10 review satisfy phase 1 — a project that reviews only its last
@@ -1078,31 +1081,199 @@ def _phase_review_exists(
     plan_prefix = (
         re.compile(re.escape(prefix_m.group(0)) + r"(?![0-9a-z])", re.I) if prefix_m else None
     )
-    try:
-        for f in d.rglob("*.md"):
-            if not f.is_file():
+    # a sibling's receipt binds to this plan by its dated `<date>-plan-<n>` prefix. STATED COST
+    # (review r4, D-278 delete-over-patch): a stem without that prefix binds nothing in a sibling —
+    # three rounds of whole-stem matching each cross-accepted another plan or refused an honest one
+    sibling_bind = plan_prefix
+    # W-9fca9008 (mail 01M48QZDFM): a plan built in a worktree commits its receipts on the worktree
+    # branch, so root (the record's repo_root, usually the main checkout) is searched FIRST and then
+    # every other registered worktree of the same repository. A SIBLING tree offers only NEW
+    # evidence: `git worktree add` re-stamps every checked-out file with the checkout time, so a
+    # receipt whose content root already tracks is replicated history and is skipped, and a
+    # sibling's receipt is aged by the AUTHOR time of the last commit that added or changed it,
+    # following renames (a rebase re-stamps the committer time; a rename is not new evidence;
+    # mtime only while untracked there). When the record names its plan, a sibling's receipt must
+    # carry that plan's stem or prefix — another worktree is usually another session's plan.
+    # Each tree is read on its own — an unreadable sibling never hides root's receipt.
+    # `step` asks once per earlier phase: it passes one `review_scan(root)` for all of them
+    trees, scan_note, root_tracked = scan if scan is not None else review_scan(root)
+    _REVIEW_SCAN["note"] = scan_note
+    for i, tree in enumerate(trees):
+        d = tree / "docs" / "development" / "reviews"
+        sibling = i > 0
+        try:
+            if not d.is_dir():
                 continue
-            is_ticket = bool(ticket.search(f.name))
-            phase_named = phase_pat.search(f.name) or (letter_pat and letter_pat.search(f.name))
-            if not (is_ticket or phase_named):
-                continue
-            try:
-                # NON-EMPTY: `touch` created a complete silent bypass. This still binds
-                # existence, not quality — but an empty file is not even existence.
-                st = f.stat()
-            except OSError:
-                continue
-            if st.st_size <= 0:
-                continue
-            if is_ticket and plan_stem:
-                return True
-            if since is None or st.st_mtime >= float(since) - 2.0:
-                return True
-            if plan_prefix and plan_prefix.match(f.name):
-                return True
-    except OSError:
-        return False  # unreadable → treat as absent; the refusal names how to waive
+            for f in d.rglob("*.md"):
+                if not f.is_file():
+                    continue
+                is_ticket = bool(ticket.search(f.name))
+                phase_named = phase_pat.search(f.name) or (letter_pat and letter_pat.search(f.name))
+                if not (is_ticket or phase_named):
+                    continue
+                try:
+                    # NON-EMPTY: `touch` created a complete silent bypass. This still binds
+                    # existence, not quality — but an empty file is not even existence.
+                    st = f.stat()
+                except OSError:
+                    continue
+                if st.st_size <= 0:
+                    continue
+                rel = f.relative_to(tree).as_posix()
+                if (
+                    sibling
+                    and rel in root_tracked
+                    and _blob_of(tree, rel, root_tracked[rel]) == root_tracked[rel]
+                ):
+                    continue  # replicated history, re-stamped by the checkout — not new evidence
+                if is_ticket and plan_stem:
+                    return True
+                if sibling and sibling_bind and not sibling_bind.match(f.name):
+                    continue  # another worktree's plan is not this plan's evidence
+                age = _committed_at(tree, f) if sibling else None
+                when = st.st_mtime if age is None else age
+                if since is None or when >= float(since) - 2.0:
+                    return True
+                if plan_prefix and plan_prefix.match(f.name):
+                    return True
+        except OSError:
+            continue  # an unreadable tree is skipped; the refusal names how to waive
     return False
+
+
+def _sibling_bind_label(plan_stem: str) -> str | None:
+    """The `<date>-plan-<n>` prefix a sibling worktree's receipt must start with for this plan, or
+    None when the stem has none (no sibling binding then — review r4)."""
+    m = re.match(r"\d{4}-\d{2}-\d{2}-plan-[^-\s]+", plan_stem, re.I)
+    return m.group(0) if m else None
+
+
+# The last `_phase_review_exists` scan's coverage, for the refusal to state (W-9fca9008 review).
+_REVIEW_SCAN: dict[str, str] = {"note": ""}
+
+
+def review_scan(root: str) -> tuple[list[Path], str, dict[str, str]]:
+    """``(trees, note, root_tracked)`` for `_phase_review_exists` — computed once per `step`."""
+    trees, note = _review_trees(root)
+    return trees, note, (_tracked_reviews(Path(root)) if len(trees) > 1 else {})
+
+
+_WORKTREE_LIST_TIMEOUT_S = 5
+
+
+def _review_trees(root: str) -> tuple[list[Path], str]:
+    """``(trees, note)``: root first, then every other registered worktree of its repository
+    (``git worktree list --porcelain -z``; ``bare`` and ``prunable`` entries skipped; de-duplicated
+    by resolved path). Any git failure or timeout falls back to ``[root]`` — today's refusal — and
+    the note says the scan was skipped."""
+    base = Path(root)
+    trees = [base]
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(base), "worktree", "list", "--porcelain", "-z"],
+            capture_output=True,
+            text=True,
+            timeout=_WORKTREE_LIST_TIMEOUT_S,
+            check=False,
+            env=_scrubbed_git_env(),
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return trees, f"worktree scan skipped ({type(exc).__name__}), root only"
+    if r.returncode != 0:
+        return trees, "root only (not a git worktree)"
+    seen = {base.resolve()}
+    path: Path | None = None
+    skip = False
+    for field in [*r.stdout.split("\0"), ""]:
+        if field.startswith("worktree "):
+            path, skip = Path(field[len("worktree ") :]), False
+        elif field in ("bare",) or field.startswith("prunable"):
+            skip = True
+        elif field == "" and path is not None:
+            if not skip and path.is_dir() and path.resolve() not in seen:
+                seen.add(path.resolve())
+                trees.append(path)
+            path = None
+    return trees, f"searched {len(trees)} tree(s): root and its registered worktrees"
+
+
+def _tracked_reviews(root: Path) -> dict[str, str]:
+    """The review receipts root's index tracks, as ``{repo-relative posix path: blob id}``; empty on
+    failure."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-s", "-z", "--", "docs/development/reviews"],
+            capture_output=True,
+            text=True,
+            timeout=_WORKTREE_LIST_TIMEOUT_S,
+            check=False,
+            env=_scrubbed_git_env(),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    if r.returncode != 0:
+        return {}
+    out: dict[str, str] = {}
+    for rec in r.stdout.split("\0"):
+        meta, _, path = rec.partition("\t")  # `<mode> <blob> <stage>\t<path>`
+        parts = meta.split()
+        if path and len(parts) == 3:
+            out[path] = parts[1]
+    return out
+
+
+def _git_line(tree: Path, *args: str) -> str | None:
+    """One git query's stripped stdout in ``tree``, or None on any failure."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(tree), *args],
+            capture_output=True,
+            text=True,
+            timeout=_WORKTREE_LIST_TIMEOUT_S,
+            check=False,
+            env=_scrubbed_git_env(),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def _blob_of(tree: Path, rel: str, like: str) -> str | None:
+    """The git blob id of ``rel``'s raw bytes in ``tree``, hashed in-process (one subprocess per
+    candidate cost ~25 s on a 25-tree hub — review r2), with sha256 when ``like`` (the index's id)
+    is 64 hex long. Clean/smudge filters (autocrlf) are not applied: such a copy reads as changed
+    and falls through to commit-time aging, which still refuses replicated history."""
+    p = tree / rel
+    try:
+        # git stores a symlink as a blob of its TARGET PATH, never the target's bytes (review r3)
+        data = os.fsencode(os.readlink(p)) if p.is_symlink() else p.read_bytes()
+    except OSError:
+        return None
+    h = hashlib.sha256() if len(like) == 64 else hashlib.sha1(usedforsecurity=False)
+    h.update(b"blob %d\0" % len(data))
+    h.update(data)
+    return h.hexdigest()
+
+
+def _committed_at(tree: Path, f: Path) -> float | None:
+    """The AUTHOR time of the last commit that added or changed ``f`` in ``tree``, following renames
+    (a pure rename is not new content), or None while it is untracked there (its mtime is then an
+    honest write time). A checkout re-stamps mtimes and a rebase re-stamps committer times; neither
+    moves the author time."""
+    try:
+        rel = f.relative_to(tree).as_posix()
+    except ValueError:
+        return None
+    # `--literal-pathspecs`: a `[x]` or `*` in a receipt name is a name, never a glob (review r3)
+    if not _git_line(tree, "--literal-pathspecs", "ls-files", "--", rel):
+        return None  # untracked here (new, or removed and rewritten): its mtime is honest
+    # `-M100%`: follow EXACT renames only — the default 50% similarity follows a fresh receipt
+    # into an older one written from the same template and dates it by that file's add (review r2)
+    out = _git_line(
+        tree, "--literal-pathspecs", "log", "-1", "--follow", "-M100%", "--diff-filter=AM",
+        "--format=%at", "--", rel,
+    )  # fmt: skip
+    return float(out) if out and out.isdigit() else None
 
 
 def _since_label(rec: dict[str, Any]) -> str:
@@ -5336,18 +5507,27 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # EVERY intermediate phase, not just the immediate predecessor: `step --phase 5`
         # from phase 1 only ever demanded phase 4's artifact, so 2 and 3 vanished
         # silently. Report the LOWEST unreviewed phase — that is the one to go back to.
-        prev = next(
-            (
-                n
-                for n in range(1, target)
-                if not _phase_review_exists(
-                    str(rec.get("repo_root") or ""),
-                    n,
-                    plan_stem=_plan_stem(rec),
-                    since=_finite_ts(rec.get("origin_epoch") or rec.get("started_epoch")),
-                )
-            ),
-            0,
+        _root = str(rec.get("repo_root") or "")
+        _gated = str(rec.get("command") or "").strip().lower() in PHASE_REVIEW_COMMANDS
+        # the worktree scan costs ~0.5 s on a hub with 24 trees: only a gated command pays it
+        _scan = review_scan(_root) if _gated and _root and target > 1 else None
+        prev = (
+            0
+            if not _gated
+            else next(
+                (
+                    n
+                    for n in range(1, target)
+                    if not _phase_review_exists(
+                        _root,
+                        n,
+                        plan_stem=_plan_stem(rec),
+                        since=_finite_ts(rec.get("origin_epoch") or rec.get("started_epoch")),
+                        scan=_scan,
+                    )
+                ),
+                0,
+            )
         )
         if prev >= 1 and str(rec.get("command") or "").strip().lower() in PHASE_REVIEW_COMMANDS:
             if args.review_waived:
@@ -5363,7 +5543,17 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             else:
                 print(
                     f"REFUSED — phase {prev} has no review artifact under "
-                    "docs/development/reviews/, so there is nothing for the review gate to "
+                    "docs/development/reviews/"
+                    + (f" ({_REVIEW_SCAN['note']})" if _REVIEW_SCAN.get("note") else "")
+                    + (
+                        " — a receipt in another worktree counts only when its name starts "
+                        f"with `{_bind}`"
+                        if (_bind := _sibling_bind_label(_plan_stem(rec) or ""))
+                        and _scan
+                        and len(_scan[0]) > 1
+                        else ""
+                    )
+                    + ", so there is nothing for the review gate to "
                     "read. Emit it as either shape: PHASE mode a filename containing "
                     f"`phase-{prev}`"
                     + (f" (or `phase-{chr(64 + prev)}`)" if 1 <= prev <= 26 else "")
