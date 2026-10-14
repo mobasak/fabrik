@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the GATE row's final_gate.py line cites follow an 11-line move, and the grader now checks range ends (2026-10-14)
+
+- `CLAUDE.md`, `templates/governance/CLAUDE.md`: the setup-error and tier cites moved from `:3326-3343`/`:3345-3351` to `:3337-3354`/`:3356-3362`. infra's 7bef5f4cd (D-827) shifted final_gate.py by 11 lines and left `tests/test_governance_template_split.py` red. The grader checked only each range's START line, so it gains `_GATE_CITE_ENDS`, which asserts every range's last line too (shown red on a wrong end).
+
 ### Added — `command_feedback_report.py --reasons <command> [--held]`: a read-only view of rejected feedback rows and their reasons (kaizen 01M4V1BCW7) (2026-10-14)
 
 - `scripts/command_feedback_report.py`: `--queue` printed only held tag names, but fabrik-review's 236 tagged rejects carry 235 distinct tags, so a D-711 audit cannot find a subject held under a near-synonym by tag. `--reasons` prints each rejected row's ts handle, tags and reason text, newest reject first (by `at`, since every index `ts` is a string). `--held` narrows to tagged rows. It is read-only and runs alone. It exits rc 1 with a stderr line on an unreadable index, never a silent "nothing held". It survives a non-UTF-8 stdout. A stray `--reason` without `--reject`, the one-letter near-miss that used to run the full report silently, and `--held` without `--reasons` are both refused rc 2. Graded by seven red-first tests in `tests/test_command_feedback_report.py`; `docs/reference/command-run-protocol.md` names the view.
