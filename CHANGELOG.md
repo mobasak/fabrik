@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan: a small sync-path plan runs in its own worktree (2026-10-14)
+
+In the main checkout, a `Profile: small` plan whose owned paths include a governance-sync trigger path now runs in its own isolation worktree (step 8's `EnterWorktree` path), because every main-checkout commit on such a path distributes fleet-wide: its phases still commit one by one, and the plan reaches the fleet once, when Finish position (b) merges the branch and the merge's own hook syncs it. Decided by an Opus + Fable panel over committing once at Finish, which broke the resume rule, the per-phase commit and the Finish review range. Answers /fabrik-execute-plan row 1791912630. Grader: `tests/test_execute_plan_queue_pass.py`, red on the previous text.
+
 ### Changed — /fabrik-data-contract: a checkable validation cell is a probed regex (2026-10-14)
 
 Phase 2's per-entity table rules now write a validation cell whose rule is a format the project defines itself (a URL shape, a key or code format) as the regex itself, probed in the same edit against each guard that consumes it with one value it must accept and one it must refuse; a cited standard or a bound stays as written, and a field no guard enforces yet gets a reconciliation note. Answers /fabrik-data-contract row 1791957889 (a recurrence of probe-from-table-cells). Grader: `tests/test_data_contract_recurring_rules.py`, red on the previous text.
