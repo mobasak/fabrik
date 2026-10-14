@@ -48,7 +48,10 @@ def test_the_panel_delta_round_shares_the_scope_growth_window() -> None:
         "(else the next commit sets each document the flip touched back to what it read before the flip, with a "
         "`docs/DECISIONS.md` row superseding the flip's row, and the loop continues — that round is a delta round "
         "of the same loop, so its own-fix defects count "
-        "in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row); an "
+        "in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row — "
+        "residue a delta round raises AFTER the stop fired is `RECORDED — measured` there (term-edit's scope-growth "
+        "stop), not confirmed, so it does not set the flip back, while the round that fires the stop confirms and "
+        "fixes its defects and does); an "
         "OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift; in "
         "`/fabrik-task`"
     ) in accepted

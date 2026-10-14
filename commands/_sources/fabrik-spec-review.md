@@ -152,8 +152,9 @@ contradictions (architecture vs. features); ambiguity (a requirement readable tw
 explicit); **coverage** (every "What we agreed"/requirement maps to a design element — list any gap);
 success criteria that are actually testable; correct `shape:` flags (DB/cache/metrics/search/auth/admin).
 A section describing a code FLOW states its invariants and touchpoints (what must hold, which paths it
-touches); the executable sequence belongs to the plan, so when the edit loop's TWO CONSECUTIVE RESIDUE PASSES
-rule forces a rewrite inside such a section, the rewrite re-shapes it to invariants + touchpoints rather than re-wording the sequence.
+touches); the executable sequence belongs to the plan, so every fix inside such a section is written as
+invariants + touchpoints from its FIRST edit — not only once the edit loop's TWO CONSECUTIVE RESIDUE PASSES
+rule forces a rewrite there — and never as a re-worded sequence or new mechanism.
 **Then WALK THE INTERROGATIVE FLOOR cold (`/fabrik-spec` Phase 5): answer WHO / WHY / WHAT / HOW /
 WHEN / WHERE yourself, from the artifact alone, each at its named section** — WHO incl. automated
 consumers + every duty's role-holder · WHY the motivating pain + how the approach resolves it · WHEN
