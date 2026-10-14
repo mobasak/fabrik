@@ -24,7 +24,7 @@ keys-sorted alphabetically for stable diffs::
     {
       "applied_at":          "<ISO 8601 UTC>",
       "coolify_app_name":    "<id or fabrik-<id>>",
-      "coolify_uuid":        "<24-char alphanumeric uuid or null>",
+      "coolify_uuid":        "<compose app name — the app directory under /opt — kept under its historical key>",
       "domain":              "<FQDN or empty>",
       "git_sha":             "<40-char or empty if not in git>",
       "registrar_failures":  [
@@ -50,7 +50,7 @@ failed). A file written before the field existed has no key at all.
 The caller (``DeploymentOrchestrator._persist_state``) filters
 ``registrars_applied`` to entries whose ``type`` is in
 ``fabrik.orchestrator.infrastructure._REGISTRAR_ORDER`` — deploy-tier
-``ResourceRecord`` types (``dns``, ``coolify``, ``files``, etc.) never
+``ResourceRecord`` types (``dns``, ``compose``, ``files``, etc.) never
 appear because the state file is the *registrar* manifest, not the full
 *resource* manifest. ``state.save()`` itself trusts the input and only
 stamps ``data_bearing`` per type.
@@ -162,10 +162,11 @@ def save(
         spec_id: The spec's ``id`` field (e.g. ``"translator"``).
         spec_path: Absolute path to the source spec YAML.
         spec_hash: SHA256 of the canonical spec content.
-        coolify_uuid: 24-char Coolify resource UUID, or ``None`` for
-            registrars-only flows where there is no Coolify app.
+        coolify_uuid: The compose app name — the app directory under
+            ``/opt`` — kept under this historical key; ``None`` for
+            registrars-only flows where there is no compose app.
         coolify_app_name: ``<id>`` or ``fabrik-<id>`` — whichever name
-            Coolify exposes the app under (per T1 G-G1 logic).
+            the deploy exposes the app under (per T1 G-G1 logic).
         registrars_applied: Raw list of registrar dicts from the caller.
             Each must have at least ``type``, ``id``, ``status`` keys.
             ``data_bearing`` is set automatically by this function from

@@ -12,7 +12,7 @@ from fabrik.orchestrator.states import DeploymentState
 class ResourceRecord:
     """Track a created resource for potential rollback."""
 
-    resource_type: str  # "dns", "coolify", "monitor"
+    resource_type: str  # "dns", "compose", "monitor"
     resource_id: str
     created_at: datetime = field(default_factory=datetime.now)
     metadata: dict[str, Any] = field(default_factory=dict)

@@ -187,7 +187,7 @@ def _orchestrator():
         [],
     )
     orch.deployer = MagicMock()
-    orch.deployer.find_existing.return_value = {"name": "svc", "status": "", "path": "/opt/svc"}
+    orch.deployer.probe_app.return_value = {"exists": True, "ps": "", "error": None}
     return orch
 
 

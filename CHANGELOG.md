@@ -75,6 +75,110 @@ Each command now says that its Pass Ledger lives in `docs/development/reviews/<Y
 - Such a receipt is now recognised by the FIRST `Command:` label in its header (its first token, in any case, with list, quote or bold markup), and never when it carries a Coverage Checklist heading. It is graded by the same closing-row law a plan's Pass Ledger answers to: its `| Pass N |` rows carry `confirmed:` counters, read past fences, code spans and HTML comments, and the last one reads 0. Other spellings keep the embed demand.
 - Graded by 17 new tests (34 cases) in `tests/test_check_convergence.py`; every guard was killed by a mutant. Across 1679 receipts on the box, 3 fleet receipts route: two web-ecommerce-factory receipts pass, and trade-intelligence's plan review (closed on the retired scope-growth stop) fails the next time it changes.
 
+### Changed — rotation flips at 99% by default, per-account flip lines and weekly caps editable from the quota board (2026-10-14)
+
+- `scripts/sysadmin/claude_rotate.py` (operator: "98% hook is to restrictive, can we make it 99% except ob@ocoron.com";
+  "give me an option to be able to set thresholds manually in the gui"): `ROTATE_THRESHOLD` default 98 → **99**
+  (superseding D-201); a new `<fleet root>/thresholds.json` (`{"email": pct}`, `_thresholds_file()`, same never-halt
+  loader contract as `caps.json`) carries an account's own flip line, resolved by `_row_threshold()` in the candidate
+  verdict, the flip-away leg, the walled-active predicate, the picture and the relief bar; status rows carry it as
+  `session_threshold`. ob@ keeps 98 there. The aro-wake twin stays byte-identical.
+- `scripts/sysadmin/quota_dashboard.py`: every account row gains a `cap` input (`POST /cap` → caps.json, 0–100, empty
+  clears, 0 parks) and a `rotate at` input (`POST /threshold` → thresholds.json, 50–100, empty = default), both behind
+  the custom-header CSRF guard, board-known accounts only, locked atomic read-modify-write, refusing to rewrite an
+  unparseable file; the trigger reads each account's own line (`_trip_line`); `TRIGGER_THRESHOLD` default 99.
+- Graders: the default pinned at 99, a thresholds.json loader test, an override tripping the flip leg and excluding a
+  target at its own line, eight `/cap` and `/threshold` route + render tests; fixtures built on the old 98 line pin it.
+
+### Changed — `fabrik apply` loses `--legacy`/`--use-orchestrator`/`--skip-dns`/`--skip-deploy`; `deploy.py` retired (2026-10-14)
+
+- `src/fabrik/cli.py` (plan T05, spec D1): the orchestrator pipeline is now the ONLY path — `apply`'s legacy
+  fall-through (spec load, `/opt/<id>/.env` secret reads, the confirm prompt, render, DNS, `deploy_to_coolify`) and its
+  four gating options are removed; a stale flag now gets click's own `No such option` (exit 2) instead of a deprecated
+  no-op. `--yes` stays as a stated compatibility no-op ("accepted for compatibility; the orchestrator path never
+  prompts") because `scripts/proof_run.py` and older docs still pass it. `src/fabrik/deploy.py` (the disabled
+  `deploy_to_coolify` shim, its only importer the removed fall-through) is deleted. `destroy`'s preview and `--partial`
+  help and the `domain provision`/`domain ready` docstrings drop their remaining "Coolify" wording (spec D10); the one
+  `Coolify` left in `cli.py` is `export`'s docstring, T06's. Graders: `tests/test_cli_apply_flags.py` (NEW, 12 — the
+  four stale flags refused, `--yes --dry-run` reaching a faked orchestrator once, `deploy.py` gone with no importer,
+  the wording).
+
+### Changed — `fabrik projects --sync` runs the project scanner instead of the retired Coolify client (2026-10-14)
+
+- `src/fabrik/cli.py` (plan T04, spec D4): `--sync` runs `scripts/sync_projects.py` as the same subprocess `fabrik scan`
+  runs (`python3 <script>`, cwd `FABRIK_ROOT`; a missing script exits 1, a non-zero scanner exit is re-raised and nothing
+  is listed) BEFORE the registry is read, so the listing shows what the scanner just wrote; the Coolify block
+  (`CoolifyClient.list_applications`, `registry.update(..., coolify_uuid=…)`) is gone; help texts: `--sync` "Re-scan /opt
+  and merge the deploy state before listing", `--status` "Filter by status (ready/development)" — `deployed` had the
+  Coolify sync as its only writer. `src/fabrik/registry.py`: `Project.coolify_uuid`/`coolify_name` and their
+  `to_dict`/`from_dict` lines are removed; a `data/projects.yaml` row still carrying the keys loads its other fields
+  unchanged. Graders: `tests/test_projects_sync.py` (NEW, 8 — the read-after-subprocess order proven by a fake scanner
+  that rewrites the registry file; a failing scanner's exit code propagates with no stale listing),
+  `tests/test_sync_has_user_guide.py` unchanged (5).
+
+### Changed — `fabrik reconcile-all` reads the deployed set from Compose; `refresh_infrastructure` walks `app_dir` on the spec's host (2026-10-14)
+
+- `src/fabrik/cli.py` (plan T03, spec D3, invariant 2): `reconcile-all` no longer queries Coolify — it reads
+  `docker compose ls -a --format json` ONCE per distinct target host (`spec.target_vps`, default `vps1`) and reconciles a
+  spec whose project `Name` is `<n>`/`fabrik-<n>` or whose `ConfigFiles` entry lives in one of its `app_dir` candidates;
+  every failure is a row, never an abort (`skipped — no compose project (no containers) on <host>`,
+  `host-unreachable — <error>`, `error — <message>` for a spec defect or a refresh failure, cut at 80 characters); the
+  host is named and read BEFORE the per-spec checks, so exit 1 when no named host could be read, and under `--yes` on any
+  `host-unreachable`/`error`/`spec-error`/`lock-timeout` row, otherwise 0; `--filter` matches the file stem BEFORE the
+  spec loads. `src/fabrik/orchestrator/__init__.py`'s `refresh_infrastructure` takes `target_vps` (flag > spec > `vps1`),
+  probes each `app_dir` candidate with `probe_app` on that host — only the walk swaps hosts, hub-side registrars stay on
+  vps1 (the 2026-06-02 revert) — reports an unreachable host as `could not reach <host>`, names every probed directory
+  when none holds a `compose.yaml`, and records the matched directory's basename as the app name;
+  `redeploy --refresh-infra` passes its `--target-vps` through. Graders: `tests/test_reconcile_all_deployed_set.py`
+  (35 — 29 from the coder, 22 red first, the invariant-2 exit rule as a 17-case battery; 6 from the wave-3 review, each
+  killing a mutant the coder's suite let live), `tests/orchestrator/test_refresh_infrastructure.py` rewritten onto
+  `probe_app` stubs keyed by path (5), `tests/test_state.py` re-stubbed (32).
+
+### Changed — `fabrik status` drops the dead Coolify check, prints the last apply and the live containers (2026-10-14)
+
+- `src/fabrik/cli.py` (plan T02, spec D2): after the `apps/<id>` block, a **Last apply** section from the state record
+  (`applied_at`, `git_sha[:12]`, `target_vps`, the `registrars_applied` types, every `registrar_failures` row — or
+  `no state record — never applied from this checkout`) and a **Live containers** section that walks `app_dir(spec)` with
+  `SSHDeployer.probe_app` under `_host_env(spec.target_vps)` and prints `Service · State · Health · ExitCode` rows (a
+  running row's empty Health reads `no healthcheck`, an exited row's `—`); `no <dir>/compose.yaml on <host>` per absent
+  candidate, `⚠️ could not reach <host>: <error>` / `⚠️ could not read containers on <host>: <error>` on a failure, exit 0 in
+  every probe outcome; an `app_dir` ProvisioningError (a local source outside `/opt`) prints `Error: <message>` and exits 1
+  before any ssh call. The lazy `CoolifyClient` import is gone; the local `app_dir` Path is renamed `scaffold_dir` so the
+  helper is never shadowed. Graders: `tests/test_cli_status_live.py` (9, red-on-revert against the pre-rebase function).
+
+### Added — deployer probe helpers for the Coolify-verb retirement: `app_dir`, `_host_env`, `probe_app`, `list_compose_projects`, `_parse_compose_ps` (2026-10-14)
+
+- `src/fabrik/orchestrator/deployer_ssh.py` (plan T01, spec D2/D3, invariant 3): `app_dir(spec)` names the candidate
+  directories `/opt/<n>` then `/opt/fabrik-<n>` (the second only when `<n>` does not already start with `fabrik-`), or a
+  local `source.path` normalised, which must be a direct child of `/opt` (`ProvisioningError` otherwise; `path: None` →
+  `/opt/<n>`); `SSHDeployer.probe_app(path)` runs a read-only `sudo sh -c '[ -f … ] …'` file test then `docker compose ps -a
+  --format json`, `shlex.quote` once per shell layer, and returns `{exists, ps, error}` — every failure is an `error`, never an
+  exception; `SSHDeployer.list_compose_projects(host)` runs `sudo docker compose ls -a --format json` under the host swap and
+  raises `RuntimeError` naming the host on a non-array body; `_parse_compose_ps` reads JSON Lines or an array into
+  `Service`/`State`/`Health`/`ExitCode` rows; `_target_vps_env` now delegates to the module-level `_host_env` context manager
+  (`"vps1"`, `None` and `""` are no-ops because the ssh driver's default alias is `vps`). `find_existing` is byte-identical.
+  Graders: `tests/orchestrator/test_deployer_probe.py` (34, red first on the missing imports) beside the unchanged
+  `tests/orchestrator/test_deployer_ssh.py` (171).
+
+### Fixed — `RollbackManager` drops its Coolify branch (2026-10-14)
+
+- `src/fabrik/orchestrator/rollback.py` (plan T07a, spec D7): the `coolify_client` ctor argument, its lazy property and
+  `_rollback_coolify` are gone; a `coolify` resource falls to the existing `Unknown resource type` warning; the docstrings
+  name `dns` alone. `src/fabrik/drivers/postgres.py`'s alias-watcher docstring no longer names `coolify_alias`.
+  `tests/orchestrator/test_rollback.py` rewrites the LIFO and continue-on-error tests onto surviving types;
+  `test_e2e_rollback.py` and `test_infrastructure.py` lose every `CoolifyClient` patch (82 tests green across the three).
+
+### Fixed — hub `/health` drops the dead Coolify dependency check; the `coolify_uuid` docstrings and env placeholders say what the keys hold now (2026-10-14)
+
+- `src/fabrik/health_app.py` (plan T07b, spec D5): `/health` aggregates `{"dns": …}` alone with the 200/503 rule intact and
+  stays a shallow liveness endpoint; the `CoolifyClient` import and `_check_coolify_sync` are gone. `compose.yaml` loses the
+  four `COOLIFY_*` environment lines (two were `:?`-required, so the hub image could not start without a dead token).
+  `src/fabrik/state.py` and `src/fabrik/orchestrator/context.py` describe `coolify_uuid` as the compose app name kept under
+  its historical key and list `compose`/`dns`/`monitor` as the resource types (spec D9 — the KEYS are unchanged);
+  `src/fabrik/config.py` and `.env.example` lose their commented Coolify readers and placeholder blocks.
+  `tests/test_health_app.py` (2, red first against the unchanged endpoint) beside the unmodified `tests/test_state.py` (32)
+  and `tests/test_sync_projects_state.py` (13).
+
 ### Fixed — `command_run.py step` finds a phase receipt a linked worktree holds (W-9fca9008, mail 01M48QZDFM) (2026-10-14)
 
 - `scripts/command_run.py`: the phase-review gate looked only under the record's repo_root, so a plan built in a worktree, with its receipts committed on the worktree branch, was refused at every phase boundary. The only way through was `--review-waived`, which records a skip that never happened.

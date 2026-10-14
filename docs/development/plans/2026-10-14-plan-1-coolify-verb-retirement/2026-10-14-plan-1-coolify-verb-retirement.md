@@ -1,6 +1,6 @@
 # Plan — the Coolify-bound verbs move to SSH + Compose and the Coolify code leaves the tree (W-36571dff)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: delta
 **Owner:** fleet
 Spec: docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md (CONVERGED, panel-approved D-828; md5 35e84255394b562cfa1097570fd05f1d, 454 lines)
@@ -74,14 +74,14 @@ Intake: 25 items — 23 IN, 2 OUT-OF-SCOPE (I19 → W-53f8a3f3; I22 → W-2191a0
 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
-| T01 | deployer helpers: `app_dir`, `_host_env`, `probe_app`, `list_compose_projects`, `_parse_compose_ps` | — | ⚡ | ⬜ | |
-| T02 | `fabrik status` prints the last apply and the live containers | T01 | ⛓️ | ⬜ | |
-| T03 | `fabrik reconcile-all` reads the deployed set from Compose; `refresh_infrastructure` walks `app_dir` | T01, T02 | ⛓️ | ⬜ | |
-| T04 | `fabrik projects --sync` re-scans `/opt`; the registry loses its Coolify fields | T03 | ⛓️ | ⬜ | |
-| T05 | `fabrik apply` loses its legacy flags; `deploy.py` is deleted; cli wording | T04 | ⛓️ | ⬜ | |
+| T01 | deployer helpers: `app_dir`, `_host_env`, `probe_app`, `list_compose_projects`, `_parse_compose_ps` | — | ⚡ | ✅ | `d64847a49` |
+| T02 | `fabrik status` prints the last apply and the live containers | T01 | ⛓️ | ✅ | `56cee1a7f` |
+| T03 | `fabrik reconcile-all` reads the deployed set from Compose; `refresh_infrastructure` walks `app_dir` | T01, T02 | ⛓️ | ✅ | `68eeb35f6` |
+| T04 | `fabrik projects --sync` re-scans `/opt`; the registry loses its Coolify fields | T03 | ⛓️ | ✅ | `686b6e871` |
+| T05 | `fabrik apply` loses its legacy flags; `deploy.py` is deleted; cli wording | T04 | ⛓️ | ✅ | `2a7f0fb38` |
 | T06 | export/import drop the Coolify section; legacy members counted | T05 | ⛓️ | ⬜ | |
-| T07a | `RollbackManager` loses its Coolify branch; vestigial patches leave the orchestrator tests | — | ⚡ | ⬜ | |
-| T07b | hub `/health` drops the Coolify check; state and context words; env placeholders go | — | ⚡ | ⬜ | |
+| T07a | `RollbackManager` loses its Coolify branch; vestigial patches leave the orchestrator tests | — | ⚡ | ✅ | `665b04272` |
+| T07b | hub `/health` drops the Coolify check; state and context words; env placeholders go | — | ⚡ | ✅ | `e8367785b` |
 | T08 | the four hub scripts bound to the driver are rebased | T01, T05 | ⚡ | ⬜ | |
 | T09 | the Coolify modules, their tests and the two dead scripts are deleted in one commit | T06, T07a, T07b, T08 | ⛓️ | ⬜ | |
 | T10a | the reference, module and operations docs stop calling the verbs broken | T09 | ⚡ | ⬜ | |
@@ -745,3 +745,24 @@ Still open, each with its resolution step:
 - R-open-1 — R1's reading (the downed-but-present stacks `reconcile-all` would now skip; whether a container still carries `label=coolify.serviceName=meilisearch`; the Authelia configuration volume path). Resolution: the orchestrator runs R1 before T03's dispatch and pastes the output into § Evidence; T03, T06 and T08 receive it as a file.
 - R-open-2 — the appetite: 780 minutes across the set; A + B + C (T01–T09, T08 included) = 615 against the spec's 600 (inside the panel's 450–650); T10a/T10b/T11 (165) are the named spill. Resolution: `/fabrik-execute-plan` passes each ticket's `Appetite:` at `step`; past 2× on any ticket, re-plan the remainder with `/fabrik-plan-after-chat`.
 - R-open-4 — `docs/infrastructure/`'s 79 live generated lines stay stale until W-53f8a3f3 runs the rebased scripts against vps1 (read-only). Resolution: that item, after this plan is EXECUTED.
+
+## RESUME
+
+Paused 2026-10-14 ~14:30 on the operator's word ("after finishing this work pause") after T05 landed. The
+`/fabrik-execute-plan` record closed with `handoff`; this block is its successor.
+
+- **Landed and pushed on `worktree-fleet`** (tip `d04816986`): T01 `e7057ec0a` · T07a `5365e5378` · T07b `6e14058f4` ·
+  T02 `1e0e2a45b` · T03 `db66c78fa` · T04 `370f9bf56` · T05 `d04816986` — each behind its own CONVERGED nested
+  `/fabrik-review` (receipts `docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-T0{1,2,3,4,5}-review.md`).
+- **Open rows** (Board above): T06 (ready — Depends T05 ✅), T08 (ready — Depends T01, T05 ✅), T09 (after T06, T07a,
+  T07b, T08), T10a/T10b (after T09), T11 (after T10a, T10b). Phase-C minutes spent so far ≈ 420 of the 615 appetite.
+- **Next act:** re-open `/fabrik-execute-plan docs/development/plans/2026-10-14-plan-1-coolify-verb-retirement/`
+  (W-36571dff), `step --phase 6`, dispatch the T06 coder (Sonnet, own worktree, base `d04816986`) — its brief is drafted
+  as a scratch artifact in the fleet session; re-derive it from `T06-portability-coolify-section.md` if the scratch is
+  gone — then T08, T09, and the spill tickets.
+- **Carried findings for later tickets** (from the T05 receipt): `cli._split_domain_for_dns` is dead → T09 removes it
+  and rewords `orchestrator/destroyer.py:131`; `scripts/proof_run.py:533` still passes `--use-orchestrator` → T08;
+  stale `--legacy`/`--skip-*` mentions in `docs/reference/modules/deployment-orchestrator.md`,
+  `docs/reference/fabrik-cli-reference.md:117,129`, `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md:629,1212` → T10a/T10b;
+  the `destroy` preview omits the unconditional watchdog-governance teardown and the destroyer probes `/opt/<name>`
+  only (never `/opt/fabrik-<name>`) → backlog, outside this plan.

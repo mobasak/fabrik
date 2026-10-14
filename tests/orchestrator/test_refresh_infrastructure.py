@@ -41,20 +41,25 @@ def orchestrator():
     )
     # Stub provisioner so we can assert it's called.
     orch.infrastructure_provisioner = MagicMock()
-    # Stub deployer so find_existing doesn't do real SSH.
+    # Stub deployer so probe_app doesn't do real SSH.
     orch.deployer = MagicMock()
     return orch
+
+
+def _probes(by_path):
+    """A ``probe_app`` stub keyed by PATH; an unlisted path is absent."""
+    absent = {"exists": False, "ps": "", "error": None}
+    return lambda path: by_path.get(path, absent)
+
+
+PRESENT = {"exists": True, "ps": "", "error": None}
 
 
 class TestRefreshInfrastructure:
     """Validate the refresh-only flow."""
 
     def test_resolves_uuid_and_calls_provisioner(self, orchestrator, spec_path):
-        orchestrator.deployer.find_existing.side_effect = lambda name: (
-            {"name": "refresh-test", "status": "", "path": "/opt/refresh-test"}
-            if name == "refresh-test"
-            else None
-        )
+        orchestrator.deployer.probe_app.side_effect = _probes({"/opt/refresh-test": PRESENT})
 
         ctx = orchestrator.refresh_infrastructure(spec_path=spec_path)
 
@@ -65,31 +70,29 @@ class TestRefreshInfrastructure:
 
     def test_falls_back_to_fabrik_prefix(self, orchestrator, spec_path):
         """Apps may live under /opt/fabrik-<name>/ on the VPS."""
-        orchestrator.deployer.find_existing.side_effect = lambda name: (
-            {"name": "fabrik-refresh-test", "status": "", "path": "/opt/fabrik-refresh-test"}
-            if name == "fabrik-refresh-test"
-            else None
-        )
+        orchestrator.deployer.probe_app.side_effect = _probes({"/opt/fabrik-refresh-test": PRESENT})
 
         ctx = orchestrator.refresh_infrastructure(spec_path=spec_path)
 
         assert ctx.coolify_uuid == "fabrik-refresh-test"
 
     def test_raises_when_app_not_found(self, orchestrator, spec_path):
-        orchestrator.deployer.find_existing.return_value = None
+        orchestrator.deployer.probe_app.side_effect = _probes({})
 
-        with pytest.raises(ProvisioningError, match="No compose app found"):
+        with pytest.raises(
+            ProvisioningError,
+            match=(
+                "No compose app found on vps1: no compose.yaml in "
+                "/opt/refresh-test/ or /opt/fabrik-refresh-test/"
+            ),
+        ):
             orchestrator.refresh_infrastructure(spec_path=spec_path)
 
         orchestrator.infrastructure_provisioner.provision.assert_not_called()
 
     def test_skips_dns_and_deploy(self, orchestrator, spec_path):
         """Refresh must not touch DNS, the deployer.deploy, or the verifier."""
-        orchestrator.deployer.find_existing.return_value = {
-            "name": "refresh-test",
-            "status": "",
-            "path": "/opt/refresh-test",
-        }
+        orchestrator.deployer.probe_app.side_effect = _probes({"/opt/refresh-test": PRESENT})
         orchestrator.verifier = MagicMock()
 
         with patch.object(orchestrator, "_provision_dns") as mock_dns:
@@ -100,11 +103,7 @@ class TestRefreshInfrastructure:
         orchestrator.verifier.verify.assert_not_called()
 
     def test_provisioner_failure_wrapped_as_provisioning_error(self, orchestrator, spec_path):
-        orchestrator.deployer.find_existing.return_value = {
-            "name": "refresh-test",
-            "status": "",
-            "path": "/opt/refresh-test",
-        }
+        orchestrator.deployer.probe_app.side_effect = _probes({"/opt/refresh-test": PRESENT})
         orchestrator.infrastructure_provisioner.provision.side_effect = RuntimeError("boom")
 
         with pytest.raises(ProvisioningError, match="Infrastructure refresh failed"):

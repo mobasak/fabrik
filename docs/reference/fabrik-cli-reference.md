@@ -454,7 +454,7 @@ See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md` for the WP-specific a
 |---|---|
 | `scaffold`, `new` | `src/fabrik/scaffold.py` |
 | `preplan` | `src/fabrik/preplan.py` |
-| `apply` | `orchestrator/DeploymentOrchestrator.deploy()` (default) — legacy `--legacy` path: `deploy.py::deploy_to_coolify` |
+| `apply` | `orchestrator/DeploymentOrchestrator.deploy()` — the only path since 2026-10-14 (plan T05, spec D1; the `--legacy` path and `deploy.py` are gone) |
 | `deploy` | `deploy_router.route_deploy()` — project-based dispatch over orchestrator |
 | `redeploy` | `orchestrator/deployer_ssh.SSHDeployer.redeploy()` |
 | `destroy` | `orchestrator/destroyer.destroy_deployment()` (default) or `destroy_from_state()` (`--use-state`) |
