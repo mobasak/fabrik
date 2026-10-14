@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-after-chat: the store census reads shape, nested members and operator refs before drafting (2026-10-14)
+
+A data-derived rule's grounding now runs, before the plan's first phase or ticket is written, an executed census of each store it reads, cited in the plan's Evidence: its shape, nested items and required fields included, and its values (for a large store, distinct values with counts); a value an operator enters counts as a store too. Answers /fabrik-plan-after-chat row 1791950385. Grader: `tests/test_plan_after_chat_queue_pass.py`, red on the previous text.
+
 ### Changed — /fabrik-data-contract: a re-freeze whose spec deltas touch no tabled item closes without a bump (2026-10-14)
 
 Phase 0 now names the zero-delta outcome: when no delta of an approved spec changes anything the contract records, Phases 1–3 still run and confirm the body unchanged, then Phase 4 bumps no `Version` and edits nothing, the D-row cites the approval row and the spec, and the re-freeze close-out does not run. Answers /fabrik-data-contract row 1791945393. Grader: `tests/test_data_contract_recurring_rules.py`, red on the previous text.
