@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: the held-subject search reads `--reasons` by reason text (2026-10-14)
+
+Before a reject, D-711's search for an already-held subject now runs `/opt/fabrik/scripts/command_feedback_report.py --reasons <command>` without `--held` and greps the reason column. Tags rarely match a near-synonym: fabrik-review's 236 tagged rejects carry 235 distinct tags. The orchestrator runs it and pins the output into an audit seat's scratch. Answers infra's mail 01M4VX84J0 (D-837). Grader: `tests/test_command_improve_queue_pass.py`, red on the previous text.
+
 ### Changed — /fabrik-review: an Agent-tool seat that imports the pin is told where on sys.path the extract goes (2026-10-14)
 
 The seat-brief rule in /fabrik-review now gives the pin import's placement and its condition: the directory that holds the top-level import name goes at the index of the first entry ending in `site-packages` or `dist-packages` (at the end when there is none), never at index 0, where a package named like a stdlib module shadows the stdlib, and every probe runs as `python -P -B` with PYTHONPATH entries dropped, since without `-P` the live repo sits ahead of the extract. It points at `PIN_IMPORT` in `.claude/workflows/fabrik-review-loop.js` for the recipe. Workflow seats already got this rule; Agent-tool seats did not. Answers intel's mail 01M4W155SB. Grader: `tests/test_review_queue_pass.py`, which also checks that the recipe still says the same and is red on the previous text.

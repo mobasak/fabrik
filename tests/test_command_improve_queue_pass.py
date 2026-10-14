@@ -252,3 +252,15 @@ def test_a_row_prescribing_how_the_command_works_goes_to_the_panel_first() -> No
         ' before the first draft in CLAUDE.md § Autonomy\'s order ("the self-service sources first", then the Opus +'
         " Fable panel), and the draft is that answer."
     ) in p3
+
+
+def test_the_held_subject_search_reads_the_reasons_view() -> None:
+    """Mail 01M4VX84J0 (infra, D-837): the held-subject search greps `--reasons` output by reason, not by tag."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    assert (
+        "Before rejecting, search earlier reject reasons for the subject: `python3"
+        " /opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject"
+        " is still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason),"
+        " so grep its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the"
+        " output into an audit seat's scratch, never the seat."
+    ) in text

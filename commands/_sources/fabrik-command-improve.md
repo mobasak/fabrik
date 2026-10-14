@@ -174,8 +174,11 @@ valid one-off advice is rejected with `HELD:<subject>` first in the reason, then
 quote and why that text is not wrong; to FIND that line, grep the rendered command
 (`~/.claude/commands/<command>.md`: every fragment, the appended close and every parameter), each file it
 points at for the rule, and the loaded `CLAUDE.md` for the row's subject, then cite the line in the file
-it renders from. Before rejecting, search earlier reject reasons for the subject (the
-queue's `held (all time):` line lists the held tags once any exist): a subject already held is a recurrence and
+it renders from. Before rejecting, search earlier reject reasons for the subject: `python3
+/opt/fabrik/scripts/command_feedback_report.py --reasons <command>`, without `--held` (an untagged reject is
+still a final hold), prints a header and then one line per rejected row (handle, tags or `-`, reason), so grep
+its REASON column, since a near-synonym matches no tag; the orchestrator runs it and pins the output into an
+audit seat's scratch, never the seat. A subject already held is a recurrence and
 is edited, never re-rejected — `--reject` warns on one but still writes it. An Opus seat audits the advice set
 for misfiled text defects before any advice is rejected. A reject reason here cites a line the queue's command
 reaches — rendered into it, pointed at or run by it for that rule, or in the `CLAUDE.md` the session running it
