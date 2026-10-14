@@ -1832,8 +1832,9 @@ def _load_remote_allocations() -> dict[str, Any]:
 def _write_remote_allocations(payload: dict[str, Any], *, dry_run: bool = False) -> None:
     """Atomic write of ``allocations.json`` via tee → /tmp → sudo mv.
 
-    Mirrors the pattern in ``fabrik.orchestrator.coolify_alias`` — write
-    to a tmp file, then chown/chmod/mv in a single ssh round. Concurrent
+    Mirrors the write-to-tmp-then-mv pattern used elsewhere in this
+    codebase — write to a tmp file, then chown/chmod/mv in a single
+    ssh round. Concurrent
     writers (cron + manual) cannot leave the file half-written; the worst
     case is that one writer's payload overwrites the other's. WSL-side
     serialization is provided by ``file_lock`` in ``register_allocation``
