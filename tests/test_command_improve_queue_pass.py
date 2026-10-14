@@ -241,3 +241,14 @@ def test_a_reject_search_reads_the_render_and_a_seat_rule_lands_in_every_home() 
     ):
         assert (ROOT / home).exists(), home
     assert "const SEAT_ISOLATION" in (ROOT / ".claude/workflows/fabrik-review-loop.js").read_text()
+
+
+def test_a_row_prescribing_how_the_command_works_goes_to_the_panel_first() -> None:
+    """Row 1791961631: a row whose prescribed step contradicts another line of the command is a decision."""
+    p3 = re.sub(r"\s+", " ", _phase("## PHASE 3", "## PHASE 4"))
+    assert (
+        "A row that prescribes how the command works — a step, an order, a commit or a hand-off, not a wording — and"
+        " contradicts a line that reading finds is a decision (a NEW mechanism still routes per PHASE 2), settled"
+        ' before the first draft in CLAUDE.md § Autonomy\'s order ("the self-service sources first", then the Opus +'
+        " Fable panel), and the draft is that answer."
+    ) in p3

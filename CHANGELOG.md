@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: a row that prescribes how a command works goes to the panel first (2026-10-14)
+
+PHASE 3 now says that when a row prescribes a step, an order, a commit or a hand-off, and that prescription contradicts a line the pre-draft reading finds, the choice is a decision, settled before the first draft in CLAUDE.md § Autonomy's order: the self-service sources first, then the Opus + Fable panel. A NEW mechanism still routes per PHASE 2. Answers /fabrik-command-improve row 1791961631. The /fabrik-execute-plan pass drafted a row's literal "commit once" mechanism, which broke seven contract sites until the panel overturned it. Grader: `tests/test_command_improve_queue_pass.py`, red on the previous text.
+
 ### Changed — /fabrik-execute-plan: a small sync-path plan runs in its own worktree (2026-10-14)
 
 In the main checkout, a `Profile: small` plan whose owned paths include a governance-sync trigger path now runs in its own isolation worktree (step 8's `EnterWorktree` path), because every main-checkout commit on such a path distributes fleet-wide: its phases still commit one by one, and the plan reaches the fleet once, when Finish position (b) merges the branch and the merge's own hook syncs it. Decided by an Opus + Fable panel over committing once at Finish, which broke the resume rule, the per-phase commit and the Finish review range. Answers /fabrik-execute-plan row 1791912630. Grader: `tests/test_execute_plan_queue_pass.py`, red on the previous text.
