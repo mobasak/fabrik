@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped: § Seat isolation applies to every brief that runs tests (2026-10-15)
+
+- `commands/_sources/fabrik-review-scoped.md` step 5: the probe catalogue's § Seat isolation is named shape-independent — a brief that runs tests runs them from an archive and derives its roots from what the tests import, read or run, never a hand-listed path set; the sentence locates the recipe (`PIN_IMPORT`/`PYTEST_PINS` in `/opt/fabrik/.claude/workflows/fabrik-review-loop.js`) instead of restating it. `commands/_fragments/review-probe-catalogue.md` header: "never all of them, § Seat isolation excepted". Answers feedback row 1792005608 and a six-reject recurrence; pinned in `tests/test_review_scoped_queue_pass.py`.
+
 ### Changed — one-door lane plan + spec APPROVED by the Opus + Fable panel and flipped CONVERGED (2026-10-15)
 
 - `docs/development/plans/2026-10-14-plan-2-one-door-lane.md` and `docs/superpowers/specs/2026-10-14-one-door-lane-design.md` flip `Status: DRAFT → CONVERGED` in one commit (D-865): six review rounds (the `Size: small` joint loop), the panel's 16 accepted changes folded — top-level-only door checks with `nested`/`downgrade` outcomes, `render_q1()`, `small-named`, the joined kill denominator, the over-route alarm and the `deny` bar, `_is_hub` kept off `_sync_verdict`, `deny_after_days` dropped. Receipt: `docs/development/reviews/2026-10-14-one-door-lane-plan-review.md`. Next: `/fabrik-execute-plan docs/development/plans/2026-10-14-plan-2-one-door-lane.md` (code owner infra).

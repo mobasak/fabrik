@@ -1,8 +1,9 @@
 # Review probe catalogue
 
 The probes earlier review runs found missing, by when they apply. Read the lines that match the change's SHAPE — never
-all of them — before every pin, the first and each delta, and while writing every brief. Each is a step, not a check
-box: execute it, or name in the brief why the shape does not have it.
+all of them, § Seat isolation excepted: it applies whole in every brief that runs tests — before every pin, the first
+and each delta, and while writing every brief. Each is a step, not a check box: execute it, or name in the brief why
+the shape does not have it.
 
 ## Before the first pin, and again before each delta pin (the lead executes)
 - Run the changed artifact end to end when it can run (an emitted one-liner run as emitted, under its real shell), and
