@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — hub mail routing: `auto_address` is on; the fabrik-lib leg stays off until it spares replies (2026-10-14)
+
+- `.fabrik/beat-owners.json`: `switches.auto_address` is now true, so a hub-bound send that names no agent is addressed to the map's path owner instead of being refused. It never overrides an explicit addressee, a thread reply or a broadcast. `switches.fabrik_lib_address` stays false: the review found the fabrik-lib leg addressing replies and broadcasts and matching common backticked words as module names (W-c687ce60). D-852.
+
 ### Fixed — the daily janitor removes dead subagents' harness worktrees (W-18e66a92) (2026-10-14)
 
 - `scripts/scratch_sweep.py`: `--dead` (the 04:20 cron) now runs a harness pass over the hub's main checkout, `janitor_worktrees`. It takes only `.claude/worktrees/agent-<hex>` trees (never the named `fleet`/`intel`/`kaizen` worktrees) whose chain verdict is removable and that have had no commit or checkout for 3 days, and it runs no repo-wide `git worktree prune`. 21 such trees had accumulated, 6–8 days old.
