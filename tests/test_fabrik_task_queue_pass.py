@@ -1,6 +1,6 @@
 """/fabrik-task feedback queue answered in one pass (D-735) — each rule sits in the phase that owns it.
 
-Rows answered: the /fabrik-task queue of 2026-10-11 (the commit's trailer lists every `ts`). Each test
+Rows answered: the /fabrik-task queue of 2026-10-11, then later passes (each commit's trailer lists its `ts`). Each test
 pins one subject's rule inside the section a reader of that phase reads, so a rule moved to the wrong
 phase or dropped fails here.
 """
@@ -146,3 +146,18 @@ def test_the_plan_lock_check_runs_before_the_design_is_recorded() -> None:
     assert "a declared path or one backticked in APPROACH/MIRROR inside another lock's `owned_paths` is a STOP" in design
     build = text[text.index("## Phase 3 — BUILD") : text.index("## Phase 4 — REVIEW")]
     assert "Re-run phase 2's plan-lock check first: a `--design-amend` path or a lock taken since is the same STOP." in build
+
+
+def test_measure_finds_exact_set_asserts_and_behaviours_carry_a_copied_scripts_settled_failures() -> None:
+    """Rows 1791935733 (exact-set and line-count asserts on an extended record, found late) and 1791933860
+    (a mirrored hub mechanism re-opened a fail-open the hub design had already settled), W-b4e1dfb2."""
+    assert (
+        "every reader of a changed record shape or stdout (grep its tests for `== {` and `len(`),"
+    ) in _section("## Phase 2", "## Phase 3")
+    assert (
+        "the prior record grepped — `docs/DECISIONS.md`, the files' docstrings (and a copied script's),"
+    ) in _section("## Phase 1", "## Phase 2")
+    assert (
+        "A mechanism copied from another script carries, as Behaviours tested here (several may share one), the"
+        " failure directions its tests and D-rows settled."
+    ) in _section("## Phase 2", "## Phase 3")

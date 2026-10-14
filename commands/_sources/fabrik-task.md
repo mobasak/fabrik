@@ -66,7 +66,7 @@ a reconstruction. Then, before phase 2 and any edit, each command and its output
 it (a pasted line opening with a field word or a `#` moves the declared paths): the tests that
 import or grade the declared files, that slice and never the whole suite (a red now is
 pre-existing); `git fetch` and the declared paths diffed against the remote branch the work merges
-into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings,
+into (`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote); the prior record grepped — `docs/DECISIONS.md`, the files' docstrings (and a copied script's),
 `/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one, the fragment or pack
 the rule already lives in; the population the change writes or thresholds measured (its readers
 are MIRROR's) — every writer, every occurrence of the shape it admits, every host it runs on, and
@@ -84,7 +84,8 @@ the packs it prints.
 ## Phase 2 — DESIGN, where it will be minted
 
 Write six fields — **PROBLEM · APPROACH · DECISION (reversible?) · MIRROR · OUT · TERMINAL** — to
-`<scratchpad>/fabrik-task/<sid>/<started_at>/design.md`.
+`<scratchpad>/fabrik-task/<sid>/<started_at>/design.md`. A mechanism copied from another script carries,
+as Behaviours tested here (several may share one), the failure directions its tests and D-rows settled.
 
 {{include:design-critique}}
 
@@ -129,7 +130,8 @@ each branch of a changed function, every resolver of the same identity, consumer
 deleted file, other surfaces stating a changed claim, the gates that grade it — each found by an
 executed search, with the shape it now fails on and its cost measured, never estimated. The search is the
 whole tracked tree (tests, their pinned strings and hardcoded values, `commands/`, UI, docs) under every spelling of the identifier and its rule's key
-verbs — the literal path beside any constant, every party a text reaches, every reader of a changed record shape,
+verbs — the literal path beside any constant, every party a text reaches, every reader of a changed record shape
+or stdout (grep its tests for `== {` and `len(`),
 the hub scripts the text tells a project to run, the file handing a new env var to the process and the spec, the
 parser a read config belongs to, whether a normalised form is what readers receive, the form a ported validator's source validates, the first-or-every rule for a
 repeating field, the paths guarded code opens and the env each reads, and for a registration or allowlist the

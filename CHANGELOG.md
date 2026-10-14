@@ -57,6 +57,10 @@ All notable changes to this project will be documented in this file.
 
 - `scripts/command_feedback_report.py`: `--queue` printed only held tag names, but fabrik-review's 236 tagged rejects carry 235 distinct tags, so a D-711 audit cannot find a subject held under a near-synonym by tag. `--reasons` prints each rejected row's ts handle, tags and reason text, newest reject first (by `at`, since every index `ts` is a string). `--held` narrows to tagged rows. It is read-only and runs alone. It exits rc 1 with a stderr line on an unreadable index, never a silent "nothing held". It survives a non-UTF-8 stdout. A stray `--reason` without `--reject`, the one-letter near-miss that used to run the full report silently, and `--held` without `--reasons` are both refused rc 2. Graded by seven red-first tests in `tests/test_command_feedback_report.py`; `docs/reference/command-run-protocol.md` names the view.
 
+### Changed — /fabrik-task: MIRROR finds exact-set asserts; a copied mechanism keeps its settled failures (2026-10-14)
+
+MIRROR's readers of a changed record shape now include its stdout, found by grepping the tests for `== {` and `len(`; a mechanism copied from another script carries, as Behaviours tested here, the failure directions its tests and D-rows settled, and Phase 1 greps that script's docstrings too. The source's byte cap rises by the added bytes (D-row in this change). Answers /fabrik-task rows 1791935733 and 1791933860 (W-b4e1dfb2). Grader: `tests/test_fabrik_task_queue_pass.py`, red on the previous text.
+
 ### Changed — /fabrik-plan-after-chat: the store census reads shape, nested members and operator refs before drafting (2026-10-14)
 
 A data-derived rule's grounding now runs, before the plan's first phase or ticket is written, an executed census of each store it reads, cited in the plan's Evidence: its shape, nested items and required fields included, and its values (for a large store, distinct values with counts); a value an operator enters counts as a store too. Answers /fabrik-plan-after-chat row 1791950385. Grader: `tests/test_plan_after_chat_queue_pass.py`, red on the previous text.
