@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec-review and /fabrik-plan-review name their receipt and its `**Command:**` line (2026-10-14)
+
+Each command now says that its Pass Ledger lives in `docs/development/reviews/<YYYY-MM-DD>-<slug>-{spec,plan}-review.md`, and that the receipt's first 10 lines carry `**Command:** /fabrik-{spec,plan}-review`. Once a receipt claims a finished review, `check_convergence.py` grades it by its ledger only under that label (W-39d8d1fd), and without the label it demands a code review's gate embed. Before this, no producer emitted the label the gate keys on. Answers infra's mail 01M4W4ZWTZ. Grader: `tests/test_spec_review_queue_pass.py`, which drives the router on the line as written and is red on the previous text.
+
 ### Changed — /fabrik-command-improve: a row that prescribes how a command works goes to the panel first (2026-10-14)
 
 PHASE 3 now says that when a row prescribes a step, an order, a commit or a hand-off, and that prescription contradicts a line the pre-draft reading finds, the choice is a decision, settled before the first draft in CLAUDE.md § Autonomy's order: the self-service sources first, then the Opus + Fable panel. A NEW mechanism still routes per PHASE 2. Answers /fabrik-command-improve row 1791961631. The /fabrik-execute-plan pass drafted a row's literal "commit once" mechanism, which broke seven contract sites until the panel overturned it. Grader: `tests/test_command_improve_queue_pass.py`, red on the previous text.

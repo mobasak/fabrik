@@ -244,6 +244,10 @@ diff plus one hop (D-335), never a fresh seat sized by the fix; a researcher sea
 ledger, and an unchanged URL is never re-fetched. When the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the
 `Agent` tool in ONE message with the same briefs, and the Pass Ledger's row notes `shape: agent-tool`. Opus stays yours for
 the adjudication, the decide-clean and the md5-verified close.
+The Pass Ledger lives in the review receipt, `docs/development/reviews/<YYYY-MM-DD>-<slug>-spec-review.md`,
+whose first 10 lines carry the line `**Command:** /fabrik-spec-review`: once the receipt claims a finished
+review, `check_convergence.py` grades it by its ledger only under that label, and demands a code review's gate
+embed without it.
 
 After each pass, list what you re-verified (which URLs you fetched, which modules you read) and what you
 found, then fix the spec. **The loop terminates per § Termination contract — the quiet closing round** (its three counters at zero, md5 unchanged); the round in which you fixed anything is never the last.
