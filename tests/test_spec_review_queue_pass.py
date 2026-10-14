@@ -73,3 +73,31 @@ def test_flow_fixes_panel_residue_and_absolute_brief_paths() -> None:
         "The dispatcher writes every pin, copy, fix and scratch path a brief names as a literal absolute path, never "
         "one relative to a checkout or a placeholder the seat expands"
     ) in core
+
+
+def test_both_design_reviews_name_the_receipt_and_the_command_line_the_gate_routes_on(
+    tmp_path: Path,
+) -> None:
+    """Mail 01M4W4ZWTZ: check_convergence routes a design receipt by its header `Command:` line, so each review
+    command names its receipt path and that line, and the line as written routes through the real checker."""
+    from scripts.enforcement import check_convergence as cc
+
+    ledger = (
+        "\n## Pass Ledger\n| Pass 1 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 |\n"
+    )
+    for kind in ("spec", "plan"):
+        text = _norm(SOURCES / f"fabrik-{kind}-review.md")
+        assert (
+            "The Pass Ledger lives in the review receipt,"
+            f" `docs/development/reviews/<YYYY-MM-DD>-<slug>-{kind}-review.md`, whose first 10 lines carry the line"
+            f" `**Command:** /fabrik-{kind}-review`: once the receipt claims a finished review,"
+            " `check_convergence.py` grades it by its ledger only under that label, and demands a code review's"
+            " gate embed without it."
+        ) in text
+        line = re.search(r"`(\*\*Command:\*\* /fabrik-" + kind + r"-review)`", text).group(1)
+        inside = tmp_path / f"{kind}-inside.md"
+        inside.write_text(f"# Review\n\n**Status:** CONVERGED\n{line}\n{ledger}")
+        assert cc._check_review(tmp_path, inside) == []
+        past = tmp_path / f"{kind}-past.md"
+        past.write_text("# Review\n\n**Status:** CONVERGED\n" + "x\n" * 7 + f"{line}\n{ledger}")
+        assert cc._check_review(tmp_path, past)

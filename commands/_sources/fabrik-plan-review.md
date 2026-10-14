@@ -311,6 +311,10 @@ modifies or wires into EXISTING code still owes its author-blind pass (live proo
 author nearly converged solo; the author-blind finder returned a CONFIRMED-HIGH invalidating the plan's core
 mechanism — every anchor was real, the defect was the author's inference) — and a plan SET always partitions
 per ticket (the Phase-0 per-ticket mandate), regardless of how few tickets it has.
+The Pass Ledger lives in the review receipt, `docs/development/reviews/<YYYY-MM-DD>-<slug>-plan-review.md`,
+whose first 10 lines carry the line `**Command:** /fabrik-plan-review`: once the receipt claims a finished
+review, `check_convergence.py` grades it by its ledger only under that label, and demands a code review's gate
+embed without it.
 
 After each pass, list what you VERIFIED (which `path:line` you actually read, which schema objects) and what you
 found, then fix the plan. **The loop terminates per § Termination contract — the quiet closing round** (its three counters at zero, md5 unchanged). "I fixed everything I found this pass" is NOT done: the next delta round is

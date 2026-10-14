@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec-review and /fabrik-plan-review name their receipt and its `**Command:**` line (2026-10-14)
+
+Each command now says that its Pass Ledger lives in `docs/development/reviews/<YYYY-MM-DD>-<slug>-{spec,plan}-review.md`, and that the receipt's first 10 lines carry `**Command:** /fabrik-{spec,plan}-review`. Once a receipt claims a finished review, `check_convergence.py` grades it by its ledger only under that label (W-39d8d1fd), and without the label it demands a code review's gate embed. Before this, no producer emitted the label the gate keys on. Answers infra's mail 01M4W4ZWTZ. Grader: `tests/test_spec_review_queue_pass.py`, which drives the router on the line as written and is red on the previous text.
+
 ### Fixed — a file reviewed only by NESTED reviews no longer stays "unreviewed spontaneous work" forever (W-bdcff87a) (2026-10-14)
 
 - `scripts/command_run.py`: every review-family `done`, nested included, records what it NAMED — `{surface, adds, closed}` — in a session-durable `reviewed_surfaces` list. `start` carries it like `covered` (a nested child starts empty, its entries join the caller at the pop), and a late `done --surface` is the one recorded; `blocked`/`handoff` record nothing.
