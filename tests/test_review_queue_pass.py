@@ -415,3 +415,60 @@ def test_fourth_review_queue_pass_lines() -> None:
         "Each later pass's brief names its own pin dir and digest, cut after the last fix, never the round-1 pin,",
     ):
         assert needle in text, needle
+
+
+def test_a_fix_is_probed_against_every_shape_the_form_it_replaces_held() -> None:
+    """Rows 1792001701 and 1792016553 (fabrik-review): a closing pass accepted a selector-to-id fix that dropped the
+    scoped shape the selector had matched, and a restored test guard that covered fewer pages and languages than
+    the test it replaced; 22 of 542 rejected reasons had already named the mirror clause, so the held subject
+    recurs and is edited (D-711). Phase 3's verify-the-fix list gains the question — the shapes enumerated from the
+    OLD form and listed in the fix's ledger row — and the catalogue's closing-pass brief re-checks every replaced
+    form against them. Mutants: delete the question, drop 'EVERY shape', drop 'before the fix is drafted', 'never
+    from the new one' to 'or from the new one', drop a named shape, drop a cite, move the question or a shape past
+    its '?', drop the catalogue's re-check — each fails an assertion (the question is bounded by its own '?', so a
+    clause moved elsewhere in the paragraph is not found)."""
+    text = _norm(SRC)
+    para = _section(
+        text, "verify the FIX, not just the finding", "**Never apply a fix you can't stand behind"
+    )
+    head = "does the new form still hold EVERY shape the form it replaces held"
+    assert head in para, "the question left Phase 3's verify-the-fix list"
+    rest = para[para.index(head) :]
+    assert "?" in rest, "the question lost its question mark"
+    q = rest[: rest.index("?") + 1]
+    assert q.endswith(
+        'population before it widens or narrows", asked here of every replaced form)?'
+    ), q[-80:]
+    assert (
+        "the shapes enumerated from the OLD form before the fix is drafted, never from the new one, and listed in"
+        " the fix's Pass Ledger `method:` cell beside its `round-zero probe` note"
+    ) in q, (
+        "the enumeration, its source and its record are one contiguous clause; an insertion breaks it"
+    )
+    for shape in (
+        "a selector replaced by an id or a scoped lookup",
+        "a guard replaced by a narrower one",
+        "a restored test by one covering fewer pages or languages",
+    ):
+        assert shape in q, shape
+    # the two cites quote their sources, which must still carry the quoted words
+    cite_cat = "what a replaced guard covered that its replacement does not"
+    cite_cov = "against its live population before it widens or narrows"
+    assert cite_cat in q and cite_cov in q
+    assert cite_cat in _norm(CAT), "the cite names a catalogue line that no longer exists"
+    cov = _norm(ROOT / "commands" / "_fragments" / "term-coverage.md")
+    assert cite_cov in cov, "the cite names a round-zero clause that no longer exists"
+    assert "; round-zero probe — <what>" in cov, (
+        "the method-cell note the question points at is gone"
+    )
+    assert "for a matcher or replacer" in q, (
+        "the cite must name the subject term-coverage gives the phrase"
+    )
+    assert "matcher clause" not in q, "an invented label a reader cannot grep for"
+    assert "or from the new one" not in q
+    assert "2026-" not in q, "a rule carries no dated incident"
+    # the closing-pass seats re-check the lead's enumeration, so the lead's step is not the only reader
+    assert (
+        "the closing-pass brief has every seat list each slice file it read, by path, and re-check every fix that"
+        " replaced a form against the shapes the OLD form held, as the fix's ledger row lists them"
+    ) in _norm(CAT)

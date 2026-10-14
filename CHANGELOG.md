@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review: a fix is checked against every shape the form it replaces held (2026-10-15)
+
+- `commands/_sources/fabrik-review.md` Phase 3, the verify-the-fix question list: one question added — does the new form still hold EVERY shape the form it replaces held (a selector replaced by an id or a scoped lookup, a guard replaced by a narrower one, a restored test covering fewer pages or languages), the shapes enumerated from the OLD form before the fix is drafted, never from the new one, and listed in the fix's Pass Ledger `method:` cell beside its `round-zero probe` note — quoting the probe catalogue's "what a replaced guard covered that its replacement does not" and the discipline `term-coverage` round zero states for a matcher or replacer, "against its live population before it widens or narrows", asked here of every replaced form. `commands/_fragments/review-probe-catalogue.md`'s closing-pass row: every closing seat re-checks each replaced form against the shapes the OLD form held, as the ledger row lists them. Answers feedback rows 1792001701 and 1792016553, a held subject that recurred (D-711). Pinned by `tests/test_review_queue_pass.py::test_a_fix_is_probed_against_every_shape_the_form_it_replaces_held`.
+
 ### Changed — term-edit: an artifact's executable rule runs every round, not only at the close (2026-10-15)
 
 - `commands/_fragments/term-edit.md` (rendered into 17 review-family commands): obligation (4) THE ARTIFACT'S OWN RULE joins the before-every-pin list — when the artifact states an executable rule (a classifier, state machine, truth table, comparator) it is run as a throwaway script over every case the artifact lists, at pass 1 and before any pin after a fix touched it; the closing round re-executes it and points at (4). Answers /fabrik-spec-review feedback row 1792014614 (a state contradiction read past in three delta rounds) and row 1791448830, rejected earlier as already landed at the close; pinned in `tests/test_spec_review_queue_pass.py`.
