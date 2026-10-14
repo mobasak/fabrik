@@ -65,7 +65,7 @@ def test_flow_fixes_panel_residue_and_absolute_brief_paths() -> None:
     critique = _norm(ROOT / "commands" / "_fragments" / "design-critique.md")
     assert (
         "residue a delta round raises AFTER the stop fired is `RECORDED — measured` there (term-edit's scope-growth "
-        "stop), not confirmed, so it does not set the flip back, while the round that fires the stop confirms and "
+        "stop), not confirmed, so it does not hold the flip, while the round that fires the stop confirms and "
         "fixes its defects and does"
     ) in critique
     core = _norm(ROOT / "commands" / "_fragments" / "subagents-core.md")

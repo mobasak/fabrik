@@ -123,14 +123,19 @@ def test_each_panel_holder_states_its_split_block(rendered, command) -> None:
     )
 
 
-def test_a_delta_round_that_confirms_a_defect_takes_converged_back() -> None:
-    """Opus audit 2026-10-14 (on /fabrik-spec row 1791930659): CONVERGED is committed with its D-row before the
-    panel's ACCEPTED fold, so when that fold's delta round confirms a defect the text must say the Status goes back,
-    not only that it no longer "stands"; the flip carried a D-row, so its undoing supersedes it, and plan-review's
-    joint loop flips two documents. Scoped to spec-review and plan-review, both of which read DRAFT before the flip."""
+def test_the_converged_flip_waits_for_the_panels_delta_round() -> None:
+    """/fabrik-plan-review row 1791954506 (decided by an Opus + Fable panel, both flip-after-panel): flipping before
+    the panel made a confirming delta round revert the flip with a superseding row (D-432 -> D-435 -> D-437 in the
+    reporting project), and check_convergence skips an artifact already CONVERGED at HEAD, so the delta round's
+    confirmed row went ungraded. The flip now waits for that round; the revert survives only for an artifact
+    already CONVERGED when it is re-reviewed."""
     text = re.sub(r"\s+", " ", FRAGMENT.read_text())
     assert (
-        "`Status: CONVERGED` stands only if that round confirms 0 (else the next commit sets each document the flip"
-        " touched back to what it read before the flip, with a `docs/DECISIONS.md` row superseding the flip's row, and"
-        " the loop continues"
+        "and the `Status: CONVERGED` flip waits for that round: it is written only on its `confirmed 0`, in the commit"
+        " that mints the approval row (a round that confirms more leaves the artifact `DRAFT` and the loop continues"
     ) in text
+    assert (
+        "an artifact already CONVERGED at HEAD, re-reviewed, goes back to `DRAFT` with a row superseding its flip row"
+        " until such a round confirms 0"
+    ) in text
+    assert "flip touched back" not in text

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Review commands flip CONVERGED after the design panel, not before (2026-10-14)
+
+`commands/_fragments/design-critique.md` and `design-gate-panel.md` now hold the `Status: CONVERGED` flip until the panel's ACCEPTED-concern delta round confirms 0, and write it in the approval commit; the flip-then-revert path survives only for an artifact already CONVERGED when it is re-reviewed. /fabrik-spec-review, /fabrik-plan-review (its `Size: small` joint loop) and /fabrik-spec say the same; /fabrik-plan-review also re-runs `check_plan_tickets` after every edit to a ticket's Behavior Contract. Decided by an Opus + Fable panel (both flip-after-panel). Answers /fabrik-plan-review row 1791954506. Graders: `tests/test_design_critique_fragment.py::test_the_converged_flip_waits_for_the_panels_delta_round` and `tests/test_plan_review_recurring_rules.py::test_plan_tickets_reruns_after_every_behavior_contract_edit_and_the_small_loop_flips_at_the_panel`, red on the previous text.
+
 ### Changed — /fabrik-plan-after-chat: measure a ticket's READ set before writing it (2026-10-14)
 
 Size-as-you-draft now measures each ticket's Touches plus Context Files (minus what the gate exempts) against `READ_BUDGET_BYTES` before the ticket is written; a read-only file that would put it over is cited inline (`path:line` and the quoted lines) only when those lines are all the coder needs, and an edited file that alone exceeds the budget goes to the Integration ticket. Answers /fabrik-plan-after-chat row 1791954526 (a recurrence of 1791939165). Grader: the Size-as-you-draft pin in `tests/test_plan_after_chat_queue_pass.py`, red on the previous text.

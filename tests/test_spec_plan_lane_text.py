@@ -421,7 +421,7 @@ def test_fabrik_plan_after_chat_tells_the_gates_truth() -> None:
             "counts twice there too)") in text
     assert "each row on ONE physical line, since the gate reads only the first line of a wrapped row" in text
     assert "surface those and stop" not in text
-    assert "(`/fabrik-plan-review`'s Small-spec exception, which flips the spec first or in the same commit)" in text
+    assert "(`/fabrik-plan-review`'s Small-spec exception, which flips both in the panel's approval commit)" in text
     assert ("or a cited spec that is not CONVERGED and carries no `Size: small` (`check_stage_artifacts.py` refuses "
             "a plan flip over ANY") in text
     assert ("any other goes to `/fabrik-spec-review` first) — surface those and close with `python3 "

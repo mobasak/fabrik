@@ -155,10 +155,10 @@ def test_plan_review_small_spec_exception_runs_one_joint_loop() -> None:
     )
 
 
-def test_plan_review_small_spec_exception_flips_the_spec_before_the_plan() -> None:
+def test_plan_review_small_spec_exception_flips_both_in_the_approval_commit() -> None:
     """The T05a note: `check_stage_artifacts.py::_check_plan_spec_freshness` refuses a plan's new
-    CONVERGED flip while its cited spec is not CONVERGED — so the exception must flip the SPEC to
-    CONVERGED first (or in the same commit), then the plan."""
+    CONVERGED flip while its cited spec is not CONVERGED — so the exception flips both documents
+    together, in the panel's approval commit (row 1791954506), never the plan alone."""
     section = _plan_review_small_spec_section()
     assert_affirmed(
         section,
@@ -167,7 +167,7 @@ def test_plan_review_small_spec_exception_flips_the_spec_before_the_plan() -> No
     )
     assert_affirmed(
         section,
-        "flip the SPEC to CONVERGED first (or in the same commit as the plan), then the plan",
+        "under the joint loop both flip together in the panel's approval commit (below), never the plan alone",
     )
 
 
