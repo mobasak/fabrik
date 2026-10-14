@@ -15,6 +15,14 @@ All notable changes to this project will be documented in this file.
 - A backup counts only when its file NAME contains the copy's basename, and it is opened without following links or blocking. The janitor reads each tree's own registration (git suffixes a colliding name), and `SCRATCH_SWEEP_JANITOR_REPO` names its repo, so the test suite can never reach the live hub. The classifier's own `git status` rewrites a tree's `index`, so dormancy reads `gitdir`/`HEAD`/`logs/HEAD` only.
 - Graded by 9 new tests, each seen red, with every new guard mutation-killed; full /fabrik-review converged in 3 rounds (4, 1, 0 confirmed). D-851.
 
+### Changed — /fabrik-plan-after-chat: `check_plan_tickets` is named for plan sets only (2026-10-14)
+
+The Appetite rule named `check_plan_tickets.py` beside `check_plan_quality.py` for every plan, so a monolith author ran it and got a usage refusal. It now says `check_plan_tickets.py --plan-dir <dir>` takes a plan set only and refuses a monolith file, and that `check_plan_quality.py` grades every plan only under `final_gate.py --systemic`, as a WARN while the plan is DRAFT/PLANNED, so a monolith's Appetite lines are self-checked. Answers /fabrik-plan-after-chat row 1791966909. Grader: `tests/test_plan_after_chat_queue_pass.py`, red on the previous text.
+
+### Changed — /fabrik-spec: key material in a local claim's cited output is described, never pasted (2026-10-14)
+
+/fabrik-spec cites each executed local claim's command and output in the spec, and nothing said to redact what that output may hold. A probe that printed a PEM header was quoted, and the `detect-private-key` commit hook refused the spec. The rule now says a key, token or credential in that output is described by its kind, length and a non-secret prefix and never pasted, its BEGIN line included, since the hook refuses a private-key PEM header. Answers /fabrik-spec row 1791966633. Graders: `tests/test_spec_queue_pass.py` (new) and the re-pinned `tests/test_spec_plan_lane_text.py`, red on the previous text.
+
 ### Changed — kaizen charter: the held-subject search reads `--reasons`, as /fabrik-command-improve does (2026-10-14)
 
 `docs/reference/agents/kaizen.md` now finds an already-held subject in the reason column of `command_feedback_report.py --reasons <cmd>` run without `--held`, not in the `--queue` header's tag line. That matches the D-711 clause /fabrik-command-improve gained at 5966b4176 (D-837). Grader: `tests/test_command_improve_drive.py`, red on the previous text.

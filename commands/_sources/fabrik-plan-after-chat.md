@@ -250,9 +250,12 @@ The profile's floor is about an hour of execution; larger than that ⇒ the shap
 shapes.** Write `Appetite: <minutes>` on its own line for every ticket (spine+ticket set), before its first
 `##`–`######` heading (the only zone the gate reads in a ticket), or for every phase (monolith), inside its
 own `## Phase <id>` section — state a number you actually expect THAT phase/ticket to take, never a placeholder.
-`scripts/enforcement/check_plan_tickets.py` and `check_plan_quality.py` refuse a plan carrying none, for
-plans dated on or after the rollout (older plans are not re-graded). `/fabrik-execute-plan` passes it at
-`step --phase N --appetite <m>` and prints `elapsed <m>/<appetite>` at the phase marker; past 2×
+`scripts/enforcement/check_plan_tickets.py --plan-dir <dir>` (a plan set only — it refuses a monolith file)
+refuses a set carrying none; `check_plan_quality.py` grades every plan, a monolith included, but only under
+`final_gate.py --systemic` and as a WARN while the plan is DRAFT/PLANNED, so a monolith's lines are
+self-checked. Both apply to plans dated on or after the rollout (older plans are not re-graded).
+`/fabrik-execute-plan` passes it at `step --phase N --appetite <m>` and prints `elapsed <m>/<appetite>`
+at the phase marker; past 2×
 elapsed it prints the standing order to stop and re-plan the rest of the phase with
 `/fabrik-plan-after-chat`, and the close records `phase_marks: <n>` / `over_appetite_phases: <k>` — an order and
 a recorded verdict, never a forced cancel.
