@@ -496,3 +496,10 @@ def test_the_sessions_subagent_knobs_never_reach_the_suite():
         cwd=str(REPO),
     )
     assert r.returncode == 0 and "1 passed" in r.stdout, r.stdout[-1500:]
+
+
+def test_no_test_can_fall_back_to_the_live_mail_root(monkeypatch):
+    """01M4WZ36J6: an undone monkeypatch fell back to /opt/fabrik-mail; the session default holds."""
+    monkeypatch.setenv("FABRIK_MAIL_ROOT", "/elsewhere")
+    monkeypatch.undo()
+    assert not os.environ["FABRIK_MAIL_ROOT"].startswith("/opt/fabrik-mail")

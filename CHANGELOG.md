@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fabrik-mail's fabrik-lib addressing leg spares threads and senders, and is switched on (2026-10-14)
+
+- `scripts/mail.py`: an unaddressed send to `fabrik-lib` is addressed to the one module owner only when it is unthreaded and not a broadcast, never to the sender's own role; a module counts as an absolute `/opt/fabrik-lib/<m>` path, a relative `<m>/…` path (not the sender's own top-level folder, `..` refused), or a backticked hyphenated name; a bare single-word name never routes but a second owner it names unaddresses the mail (W-c687ce60, D-853).
+- `.fabrik/beat-owners.json`: `switches.fabrik_lib_address` on (fabrik-lib D-429).
+- `tests/conftest.py`: `FABRIK_MAIL_ROOT` defaults to a scratch dir for the whole session, so an undone monkeypatch can never write the live mailbox (four test mails reached fabrik-lib's inbox, 01M4WZ36J6).
+
 ### Changed — hub mail routing: `auto_address` is on; the fabrik-lib leg stays off until it spares replies (2026-10-14)
 
 - `.fabrik/beat-owners.json`: `switches.auto_address` is now true, so a hub-bound send that names no agent is addressed to the map's path owner instead of being refused. It never overrides an explicit addressee, a thread reply or a broadcast. `switches.fabrik_lib_address` stays false: the review found the fabrik-lib leg addressing replies and broadcasts and matching common backticked words as module names (W-c687ce60). D-852.
