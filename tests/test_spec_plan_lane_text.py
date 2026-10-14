@@ -462,7 +462,9 @@ def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch)
             "two vendor pages contradict each other.") in text
     assert ("The brief carries only the approaches that survive 1b-bis's hard constraints and the Phase 3 cuts (fewer "
             "than two: say so and return to 1c for another), any precedent quoted in its exact lines beside every "
-            "approach it bears on, every count from an executed probe; each seat prices each approach's mechanism "
+            "approach it bears on, and every count and every local claim a ranking rests on, each from an executed "
+            "probe with its command and output beside it (an external fact carries its cited URL instead); each "
+            "seat prices each approach's mechanism "
             "against Fabrik's hard constraints and the stack it runs on.") in panel
     assert ("verify every factual claim a dissent rests on first, fold a confirmed dissent's gap into the design (a fold "
             "that changes the ranked approach's mechanism re-dispatches the panel)") in panel

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — judge panel: every local claim in the brief carries its executed probe (2026-10-14)
+
+`commands/_fragments/judge-panel.md` (rendered into /fabrik-spec Phase 3) now requires the panel brief to carry every count and every local claim a ranking rests on, each from an executed probe with its command and output beside it, while an external fact carries its cited URL; before, only counts were bound, and without their command and output. Answers /fabrik-spec row 1791937897. Grader: the existing pin in `tests/test_spec_plan_lane_text.py`, updated and red on the previous text.
+
 ### Changed — /fabrik-command-improve: a shared rule lives where its writers load it; a mechanism meets its consumer (2026-10-14)
 
 § Drive's consistency rule now puts a rule that binds more than one command where every loop that writes the text it governs loads it (a fragment those commands include, else the `CLAUDE.md` or pack they all load), and PHASE 2's targets and lock check admit each of those homes. PHASE 3 now checks a mechanism the edit adds against the step or code that must consume it, and writes it in only when that consumer reads it or the edit wires it in. Answers rows 1791937927 and 1791940094: the count rule was first written per command, where the review-fix loops never read it, and a panel's coder time box was written in before anyone checked that D6 never reads its `TIMEOUT:` token. Grader: `tests/test_command_improve_queue_pass.py::test_a_rule_lands_where_its_writers_load_it_and_a_mechanism_meets_its_consumer`; the adjacent origin-case pin moved to the new joint.
