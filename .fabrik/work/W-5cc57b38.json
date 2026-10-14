@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-spec-review and /fabrik-plan-review never tell the author to write a `**Command:**` header line or where the receipt goes, and the convergence gate now keys on that line (W-39d8d1fd)"
 }

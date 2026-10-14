@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "review-loop Workflow seats can still execute a destructive script — SEAT_ISOLATION and the refuter brief need the never-execute rule kaizen added to subagents-core and fabrik-reviewer.md"
 }
