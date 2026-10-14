@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — kaizen charter: the held-subject search reads `--reasons`, as /fabrik-command-improve does (2026-10-14)
+
+`docs/reference/agents/kaizen.md` now finds an already-held subject in the reason column of `command_feedback_report.py --reasons <cmd>` run without `--held`, not in the `--queue` header's tag line. That matches the D-711 clause /fabrik-command-improve gained at 5966b4176 (D-837). Grader: `tests/test_command_improve_drive.py`, red on the previous text.
+
 ### Changed — /fabrik-task: a run's files live in the SCRATCH path `start` prints (2026-10-14)
 
 The phase-1, phase-2 and phase-5 files (`measure.md`, `design.md`, `commit.sha`) and the `--design`/`--resume` paths now name `<run-scratch>`, which is the `SCRATCH:` path `command_run.py start` prints under `<main checkout>/.tmp/runs/` (D-836). It replaces the session scratchpad under `/tmp`, which a WSL shutdown wiped. The scratchpad remains only as the fallback when `start` prints no `SCRATCH:` line. Answers infra's mail 01M4VV3BD3 and /fabrik-task rows 1791906916, 1791907380 and 1791907099. Grader: `tests/test_fabrik_task_source.py`, red on the previous text.
