@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "A VENDORED file has no staleness detector — the glitchtip scrubber moved 9 times in one day and every gap was silent (2026-09-05, owner: fleet)"
 }
