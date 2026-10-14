@@ -351,3 +351,25 @@ def test_rule_three_pointer_is_opened_before_the_pin() -> None:
         " fact seen at it, then recorded by APPENDING one `· pointer: <path:line> read` per pointer to the Pass Ledger"
         " row's `method:` cell, after its `; class rewrite` text), never by a re-cut of the claim;"
     ) in text
+
+
+def test_an_agent_tool_seat_gets_the_pin_import_placement() -> None:
+    """Mail 01M4W155SB (intel): the Agent-tool seat list states PIN_IMPORT's sys.path placement and its -P condition
+    and points at the recipe, and the pointed-at recipe still says the same."""
+    assert (
+        "never `sys.path.insert` the live tree, puts the directory that holds the top-level import name"
+        " (`<extract>/src` for `import fabrik`) at the index of the first entry ending in `site-packages` or"
+        " `dist-packages` (at the end when there is none), never at index 0, where a package named like a stdlib"
+        " module shadows the stdlib, runs every probe as `python -P -B` with any PYTHONPATH entries dropped from"
+        " sys.path (without `-P` the working directory, the live repo, sits ahead of the extract) — `PIN_IMPORT` in"
+        " `.claude/workflows/fabrik-review-loop.js` is the recipe"
+    ) in _norm(SRC)
+    js = (ROOT / ".claude" / "workflows" / "fabrik-review-loop.js").read_text(encoding="utf-8")
+    recipe = js[js.index("const PIN_IMPORT") : js.index("const SEAT_ISOLATION")]
+    assert (
+        "at the index of the first entry ending in site-packages or dist-packages, or at the end when"
+        in recipe
+    )
+    assert "never at index 0" in recipe
+    assert "run every probe as \\`python -P -B\\`" in recipe
+    assert "drop its entries from sys.path" in recipe
