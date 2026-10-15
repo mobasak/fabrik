@@ -696,7 +696,7 @@ def test_a_non_finite_marker_time_is_doubt_never_consumed(
     assert folder.exists(), out
 
 
-@pytest.mark.parametrize("raw", ["-1e999", "1e999", "-1e400"])
+@pytest.mark.parametrize("raw", ["-1e999", "1e999", "-1e400", "9" * 400, "-" + "9" * 400])
 def test_an_overflowing_marker_time_is_doubt_never_consumed(
     raw: str, harness: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

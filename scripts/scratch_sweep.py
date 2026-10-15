@@ -407,10 +407,24 @@ def _finite_float(text: str) -> float:
     return value
 
 
+def _finite_int(text: str) -> int:
+    """An integer literal no float can hold: every time reader converts with `float()`, which
+    raises OverflowError and aborted the sweep — refused here instead, like the other two."""
+    value = int(text)
+    try:
+        float(value)
+    except OverflowError:
+        raise ValueError(
+            f"an integer too large for a time in a run marker ({len(text)} digits)"
+        ) from None
+    return value
+
+
 def read_owner(folder: Path) -> dict | None:
     """The parsed `.owner` marker; None when it is missing, unreadable or not a JSON object.
 
-    `NaN` / `Infinity` / `-Infinity` and overflowing literals such as `-1e999` are refused (F10):
+    `NaN` / `Infinity` / `-Infinity`, overflowing literals such as `-1e999` and integers no float can
+    hold are refused (F10):
     `json.loads` accepts them, and a NaN or -inf time read as a past close or creation made a
     clobbered marker CONSUMED at every reader of it (`judge_run_folder`, `gap_keeps`,
     `write_size_report`). A marker nested past the recursion limit is refused too, never a crash
@@ -418,7 +432,9 @@ def read_owner(folder: Path) -> dict | None:
     """
     try:
         text = (folder / OWNER_NAME).read_text(encoding="utf-8")
-        data = json.loads(text, parse_constant=_refuse_constant, parse_float=_finite_float)
+        data = json.loads(
+            text, parse_constant=_refuse_constant, parse_float=_finite_float, parse_int=_finite_int
+        )
     except (OSError, ValueError, RecursionError):
         return None
     return data if isinstance(data, dict) else None
