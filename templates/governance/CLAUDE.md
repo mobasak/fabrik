@@ -245,7 +245,14 @@ Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, n
    `wt-prunable`; foreign (registered before this process) is never removed; a harness worktree
    (`<repo>/.claude/worktrees/`) is listed only unless `--include-harness` and already removable. It never touches
    transcripts, `~/.claude/state` (beyond its own lock), docker, another live session's scratch, or `tasks/`; a
-   DEAD session's scratch is the daily janitor's. **In a linked worktree, finished work is a merge request:** when
+   DEAD session's scratch is the daily janitor's.
+   **A `/fabrik-*` run's disposable bulk goes in its `RUN-SCRATCH:` folder** — the folder of the run that uses
+   it, seat copies under its `seat-<n>/` subfolders, pins and probes beside them, never loose in the scratchpad;
+   name that folder as the scratch path in every seat brief, because a seat reads its brief, not this file. The
+   folder goes once its run is consumed, from a live session too (`/opt/fabrik/docs/reference/command-run-protocol.md`
+   § A run's disposable folder (run-bound scratch)); durable artifacts stay under `SCRATCH:`, and a
+   `RUN-SCRATCH: none — <why>` line, or none at all, falls back to the scratchpad.
+   **In a linked worktree, finished work is a merge request:** when
    the branch's work is finished, run `python3 scripts/merge_request.py request --review <the closing run
    record or review receipt> [--item <W-id>]` and send the `SendMessage` lines it prints — a pushed branch without a
    request is unfinished, the merge owner merges it, and on exit 4 (a partial send) never re-run it; in a repo with

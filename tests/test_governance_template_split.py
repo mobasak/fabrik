@@ -200,6 +200,11 @@ T6_CLAIMS = (
     "committing by PATHSPEC",
     "`git diff --cached --name-only` for a STAGED commit, `git diff HEAD -- <paths>` for a PATHSPEC "
     "commit",
+    # W-a7bdd766 (2026-10-15) — run-bound scratch shipped at 1da14fcd7 but neither contract told an
+    # agent to use it, so seat copies kept landing loose in the session scratchpad (D-879's residue).
+    "**A `/fabrik-*` run's disposable bulk goes in its `RUN-SCRATCH:` folder**",
+    "never loose in the scratchpad",
+    "a seat reads its brief, not this file",
 )
 
 
