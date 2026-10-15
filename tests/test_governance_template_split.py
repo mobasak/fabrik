@@ -209,8 +209,8 @@ T6_CLAIMS = (
 
 
 def test_the_shared_tree_commit_rules_are_identical_in_both_contracts() -> None:
-    """T6 Behavior Contract: the hub's CLAUDE.md and the fleet template carry the same three
-    sentences, byte for byte.
+    """T6 Behavior Contract: the hub's CLAUDE.md and the fleet template carry every T6_CLAIMS
+    span exactly once each, byte for byte.
 
     The two files are deliberately NOT byte-identical overall — the hub's is the hub agents' own
     contract — so nothing binds a shared rule across them except a grader like this one. A rule
