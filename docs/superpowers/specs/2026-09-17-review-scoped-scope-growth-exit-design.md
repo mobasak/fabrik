@@ -201,9 +201,10 @@ arm that was written during authoring, refuted four ways in review, and delibera
 row was minted with that text and rows are immutable.
 
 **RULING 1 — the fragment's reading is canonical.** An omitted round occupies its window slot and can
-never qualify. Three reasons stand, in order — one further reason was withdrawn below once the review found it
-attributed a consequence to the wrong provision — and the last is external, unavailable to the attempt: it is what actually ships to agents in 22 rendered commands;
-it is the only reading that never invents a number the agent did not state (the row's "read as
+never qualify. Three reasons stand, (i), (ii) and (iv) — the deadlock reason listed between (ii) and (iv) was
+withdrawn in the ⚠️ note below once the review found it attributed a consequence to the wrong provision — and
+(i) is external, unavailable to the attempt: (i) it is what actually ships to agents in 22 rendered commands;
+(ii) it is the only reading that never invents a number the agent did not state (the row's "read as
 own-fix == confirmed" fabricates the worst case, and fabricating data to trip a stop is the
 over-classification mirror the fragment's own COBRA note forbids); and the row's arm was refuted on
 the merits before shipping — deadlocking every review whose round 1 legitimately omits the counter. ⚠️ **Precisely: the deadlock is

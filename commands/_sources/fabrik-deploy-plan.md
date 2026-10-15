@@ -161,9 +161,10 @@ The section that catches deploy-breakers. For `specs/services/<id>.yaml` + the r
   `DATABASE_URL`); (c) the merge guard is **value-scoped**, not key-scoped — `_is_placeholder`
   (used in `src/fabrik/orchestrator/deployer_ssh.py::SSHDeployer._build_env`, defined at
   `deployer_ssh.py::_is_placeholder` — the docstring is the contract) protects an already-injected real
-  value only when the spec's value contains `placeholder` (any case) or is exactly one compose
-  interpolation of a bare name (`${SENTRY_DSN:-}`); a `CHANGEME` or realistic-looking dummy CLOBBERS the
-  injected real on re-apply and takes the service down at `docker compose up --wait`.
+  value only when the spec's value contains `placeholder` (any case) or is exactly one `${NAME}`,
+  `${NAME-default}` or `${NAME:-default}` interpolation (`${SENTRY_DSN:-}`; never `:?` or `:+`); a `CHANGEME`, a plain
+  realistic-looking dummy or an unbraced `$SENTRY_DSN` CLOBBERS the injected real on re-apply and takes
+  the service down at `docker compose up --wait`.
 - **`from_env` precedence audit** (the A5 class): `from_env` resolution reads the project's
   `/opt/<project>/.env` BEFORE the hub process env — name where each `from_env` value actually lives
   today and add a runbook guard step that prints (masked) what will be injected.
