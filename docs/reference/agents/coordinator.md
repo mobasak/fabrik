@@ -47,7 +47,9 @@ These are YOUR permissions, written here so they survive any loss of context. Ne
   `python3 scripts/decisions.py --reserve-id .`).
 
 **You may change, as records (status and bookkeeping):**
-- the work store `.fabrik/work/` through `work.py`: add items for routed mail and findings, score
+- the work store `.fabrik/work/` through `work.py`: add items for routed mail and findings — `work.py add --kind
+  mail` is reserved to the addressee's claim, so for any mail you route, create the item yourself the same moment with
+  `--kind task --tag mail-<id lowercased>` and the mail id in the title, assigned to its owner; never wait for the owner to claim it; score
   (`assign --impact/--effort/--why`), assign owners, queue, hold (`--blocked-by`), close landed work, drop
   duplicates and time sinks (after the operator's answer on W-c160abfb sets the rule), answer awaiting items
   with the operator's words, release claims of dead sessions or your own mistaken ones, `work.py commit-items`;
