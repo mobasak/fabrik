@@ -2628,7 +2628,8 @@ def pause_agent(repo: object, agent: object, action: object, why: object = "") -
     hub = _FABRIK_ROOT / "scripts" / "work.py"
     base = [sys.executable, str(hub), "--repo", target["main"]]
     if action == "pause":
-        note = " ".join(str(why or "").split())[:200]
+        # a NUL or a lone surrogate makes subprocess raise ValueError/UnicodeEncodeError: drop them
+        note = " ".join("".join(c for c in str(why or "") if c.isprintable() or c.isspace()).split())[:200]
         argv = [*base, "pause", "--by=dashboard", f"--why={note}", "--", agent]
     else:  # the marker the row showed: a pause keyed by the window's tree carries the tree's name
         argv = [*base, "resume", "--", str((target.get("paused") or {}).get("name") or agent)]
@@ -2639,7 +2640,7 @@ def pause_agent(repo: object, agent: object, action: object, why: object = "") -
     except subprocess.TimeoutExpired:
         return 502, {"ok": False, "error": "work.py timed out — nothing confirmed; the next refresh "
                                            "is authoritative"}
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         return 502, {"ok": False, "error": f"work.py could not run: {exc}"[:400]}
     _repos_cache = None  # the next page build shows the change
     if r.returncode:
@@ -2652,6 +2653,7 @@ def _agents_block() -> str:
     try:
         data = _status_module().collect_box(_opt_root())
     except Exception as exc:  # the Repos panes below never depend on this block
+        _publish_pause_targets([])  # no board, no buttons: an older frame's pair acts on nothing
         return (
             '<section class="agents"><h2>Agents — every repo</h2><div class="banner crit">Agents '
             f"unreadable — {escape(type(exc).__name__)}: {escape(str(exc))}</div></section>"
@@ -2829,15 +2831,19 @@ _REPOS_PICK_JS = (
     "  if (!b || b.disabled) { return; }"
     '  var repo = b.getAttribute("data-repo"), agent = b.getAttribute("data-agent"),'
     '   action = b.getAttribute("data-action");'
+    '  if (!repo || !agent || (action !== "pause" && action !== "resume")) { return; }'
     '  if (!confirm((action === "pause" ? "Pause " : "Resume ") + agent + " in " + repo + "?"'
     '   + (action === "pause" ? " It stops starting new work at its next turn boundary." : ""))) { return; }'
     "  b.disabled = true;"
     '  fetch("/agent-pause", {method: "POST", cache: "no-store",'
     f'   headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},'
     "   body: JSON.stringify({repo: repo, agent: agent, action: action})})"
-    "  .then(function (r) { return r.json().then(function (j) { return [r.status, j]; }); })"
+    # a non-JSON answer (a proxy's error page) is the server's answer, never "unreachable"
+    '  .then(function (r) { return r.json().catch(function () { return {error: "HTTP " + r.status}; })'
+    "   .then(function (j) { return [r.status, j]; }); })"
     "  .then(function (sj) {"
-    "   if (sj[0] === 200 && sj[1].ok) { refreshRepos(true); return; }"
+    '   if (sj[0] === 200 && sj[1].ok) { b.textContent = action === "pause" ? "paused" : "resumed";'
+    "    refreshRepos(true); return; }"
     '   b.disabled = false; b.title = (sj[1] && sj[1].error) || "failed";'
     '   b.textContent = "failed — retry " + action; })'
     '  .catch(function () { b.disabled = false; b.textContent = "server unreachable — retry " + action; });'

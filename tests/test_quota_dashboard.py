@@ -4401,6 +4401,30 @@ def test_agent_pause_acts_as_the_operator(tmp_path, monkeypatch):
     assert status == 200 and not _paused_marker(shop, "tree1").exists(), out
 
 
+def test_agent_pause_refuses_buttonless_rows_and_odd_input(tmp_path, monkeypatch):
+    """The review's round-1 findings, each pinned: a row with no button (no config.json) is refused; a
+    NUL or a lone surrogate in the reason is dropped, never an uncaught error; a failed board build
+    leaves no older build's pairs to act on."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    bare = _work_repo(_opt(), "bare", [])  # a work dir, no config.json
+    _run_record("s1", agent="wef1", state="done", command="fabrik-task", repo_root=str(shop))
+    _run_record("s3", agent="bob", state="done", command="fabrik-task", repo_root=str(bare.resolve()))
+    qd = _load(tmp_path, monkeypatch)
+    qd._repos_page(fresh=True)
+    assert qd.pause_agent("bare", "bob", "pause")[0] == 400
+    status, out = qd.pause_agent("shop", "wef1", "pause", "a\x00b\ud800c")
+    assert status == 200, out
+    assert json.loads(_paused_marker(shop, "wef1").read_text())["why"] == "abc"
+
+    def broken():
+        raise RuntimeError("box unreadable")
+
+    monkeypatch.setattr(qd, "_status_module", broken)
+    assert "Agents unreadable" in qd._agents_block()
+    assert qd._PAUSE_TARGETS == {}
+
+
 def test_agent_rows_pause_and_resume_buttons(tmp_path, monkeypatch):
     """Rows show Pause, or Resume with who paused; no button for "(unnamed)" or a store-less repo; the
     delegated handler POSTs only after confirm() and then forces a fresh refresh."""

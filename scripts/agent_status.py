@@ -21,7 +21,8 @@ recover it after losing context (operator 2026-10-15, D-880). Nothing here is st
 (the reader itself). ``--json`` prints the full data. ``--json --all`` is the BOX view instead
 (``collect_box``, W-7159f8e2 — the dashboard's Agents block): every repo under ``--opt`` (default
 FABRIK_OPT_DIR, else /opt) with a work store or an agent, its agents being the open windows (/proc),
-the run records of that repo in the last 7 days and the claim holders. ``--session-start`` is the
+the run records of that repo in the last 7 days and the claim holders, plus each agent's pause
+(work.py ``_paused``) and whether the repo's own work.py carries the ``pause`` verb. ``--session-start`` is the
 coordinator's SessionStart hook (``.claude/settings.json``, its own entry, so its own 10,000-character
 output budget): it prints only for the distributor, never in a ``claude -p`` child, one line when the
 identity is unknown, one line on any error, and always exits 0. The three modules are the hub's own,
@@ -40,6 +41,7 @@ import json
 import math
 import os
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -53,6 +55,7 @@ ROLE_CUT = 1400  # characters of one role's block before "… N more"
 TOTAL_CUT = 7000  # whole text output — inside the 10,000-character hook cap with the header
 MERGES_SHOWN = 3
 NEXT_SHOWN = 3
+WORK_PY_MAX = 4 * 1024 * 1024  # bytes of a repo's work.py read for its pause verb (the hub's is ~0.3 MB)
 # the Stop hook's DEFAULT stale bound (final_gate_stop.py _STALE_H_DEFAULT): older = likely a dead session.
 # Its COMMAND_RUN_STALE_H override is not read: 0 there means "never trap me", which here would mark all stale.
 STALE_H = 12
@@ -361,7 +364,7 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
             # the last 7 days, in any state (the same agent a nameless main window is named after) —
             # never every agent that once ran a command there
             "merge_owner": bool(main_agent) and n == main_agent,
-            "paused": _pause_of(paused, n, win_trees.get(n, set()) | ({n} if trees[n] != main else set())),
+            "paused": _pause_of(paused, n, win_trees.get(n, set())),
             "can_pause": has_config and bool(_NAME_RE.fullmatch(n)),
             "pause_honoured": honoured,
         })
@@ -370,14 +373,19 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
 
 
 def _pause_of(paused: dict[str, dict], name: str, trees: set[str]) -> dict | None:
-    """The pause covering an agent — its own name first, else a tree its window sits in — with the
-    marker's NAME, the one a resume must lift (W-7159f8e2 part 3; the rule is work.py's `_is_paused`)."""
-    for key in [name, *sorted(trees)]:
-        if key in paused:
-            rec = paused[key]
-            return {"name": key, "by": str(rec.get("by") or "?"), "at": rec.get("at") or 0,
-                    "why": str(rec.get("why") or "")}
-    return None
+    """The pause covering an agent — its own name first, else the tree its windows sit in — with the
+    marker's NAME, the one a resume must lift (W-7159f8e2 part 3; the rule is work.py's `_is_paused`,
+    which is per WINDOW: a tree pause shows on the row only when it covers every window the agent has,
+    so a second window in an unpaused tree never reads as paused)."""
+    if name in paused:
+        key = name
+    elif trees and trees <= set(paused):
+        key = sorted(trees)[0]
+    else:
+        return None
+    rec = paused[key]
+    return {"name": key, "by": str(rec.get("by") or "?"), "at": rec.get("at") or None,
+            "why": str(rec.get("why") or "")}
 
 
 def _pause_support(work: ModuleType, main: Path) -> tuple[dict[str, dict], bool, bool]:
@@ -393,9 +401,16 @@ def _pause_support(work: ModuleType, main: Path) -> tuple[dict[str, dict], bool,
         has_config = bool(work._has_store(main))
     except Exception:  # noqa: BLE001
         has_config = False
+    # only a REGULAR file, read bounded (a FIFO would hang the whole box view — work.py's own
+    # `_paused` guards its markers the same way), and the verb as a top-level def, never a comment
+    honoured = False
+    src = main / "scripts" / "work.py"
     try:
-        honoured = "def cmd_pause" in (main / "scripts" / "work.py").read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+        if stat.S_ISREG(src.stat().st_mode):
+            with src.open("rb") as fh:
+                text = fh.read(WORK_PY_MAX).decode("utf-8", "replace")
+            honoured = re.search(r"^def cmd_pause\(", text, re.M) is not None
+    except OSError:
         honoured = False
     return pauses, has_config, honoured
 
