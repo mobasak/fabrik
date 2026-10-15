@@ -145,3 +145,65 @@ def test_both_design_reviews_name_the_receipt_and_the_command_line_the_gate_rout
         past = tmp_path / f"{kind}-past.md"
         past.write_text("# Review\n\n**Status:** CONVERGED\n" + "x\n" * 7 + f"{line}\n{ledger}")
         assert cc._check_review(tmp_path, past)
+
+
+def test_an_accepted_panel_change_is_written_as_required_behaviour() -> None:
+    """Row 1792016473 (infra, the coordinator-role spec review): pass 5's seven residue findings came from
+    panel fixes written as mechanism text; the panel step said only 'apply every ACCEPTED change', and Phase 1
+    D's invariants rule was never pointed at from the panel section. Now: Phase 1 D's rule covers a parenthesis
+    or example and the one-way decision the spec must settle (one rule for loop fixes and panel fixes alike);
+    the After-the-quiet-closing-round list points a panel change at that rule and translates a seat's proposed
+    mechanism to the behaviour it secures; the shared panel step 2 tells every includer to write the change as
+    its command's own fix-shape rule says. The row's other half (the closing round passes --slices) is already
+    stated at design-critique.md and is asserted here so it stays. Mutants: delete the bullet, move it after the
+    comparison-table bullet, drop 'translated to the behaviour it secures', drop D's parenthesis clause or its
+    decision clause, append 'where practical' to the bullet, drop the fragment's pointer — each fails an
+    assertion (the bullet is bounded from its head to the next list item)."""
+    text = _norm()
+    # ONE rule, in Phase 1 D, for every fix in a flow section — the panel path points at it, never restates it
+    rule = (
+        "every fix inside such a section is written as invariants + touchpoints from its FIRST edit — not only"
+        " once the edit loop's TWO CONSECUTIVE RESIDUE PASSES rule forces a rewrite there — and never as a"
+        " re-worded sequence or new mechanism. That holds in the sentence itself and in a parenthesis or example"
+        " beside it; a change that is itself a decision the spec must settle states the decision (naming what it"
+        " chose) and the constraint it imposes, never the steps that carry it out."
+    )
+    assert rule in text, (
+        "Phase 1 D's rule lost its parenthesis clause or its one-way decision clause"
+    )
+    assert (
+        "A section describing a code FLOW states its invariants and touchpoints (what must hold, which paths it"
+        " touches); the executable sequence belongs to the plan, so " + rule
+    ) in text, "D's flow-sentence head (what 'such a section' refers to) is gone"
+    after = text[text.index("## After the quiet closing round") :]
+    head = "- **An ACCEPTED panel change is a fix under Phase 1 D's flow rule — this command's fix-shape rule**"
+    assert head in after, "the panel-fix bullet left the After-the-quiet-closing-round section"
+    start = after.index(head)
+    assert after.index("{{include:design-gate-panel}}") < start, (
+        "the bullet sits after the panel include"
+    )
+    bullet = after[start : after.index(" - **", start + len(head))]
+    assert (
+        bullet.startswith(head)
+        and "**The ask ↔ spec comparison table**" in after[start + len(bullet) :][:80]
+    ), "the bullet is the first list item after the include, right before the comparison table"
+    assert (
+        "(invariants + touchpoints, never a re-worded sequence or new mechanism): a seat's proposed mechanism is"
+        " translated to the behaviour it secures, and its verb, flag or sequence is left to the plan."
+    ) in bullet, "the pointer, the translation rule and the plan boundary are one contiguous clause"
+    assert bullet.rstrip().endswith("left to the plan."), bullet[-80:]
+    for weakener in ("where practical", "where possible", "optionally", "should", "unless"):
+        assert weakener not in bullet.lower(), weakener
+    panel = _norm(ROOT / "commands" / "_fragments" / "design-gate-panel.md")
+    assert (
+        "Apply every ACCEPTED change to the artifact — written as this command's own fix-shape rule says, where"
+        " it states one — and to any linked artifact it makes stale"
+    ) in panel, "the shared step 2 must point every includer at its command's own fix-shape rule"
+    assert (
+        "approval row lists each change as written — a translated mechanism is listed as the behaviour it secures —"
+        " and the delta round's seats check each one in the revised artifact."
+    ) in panel, "the Cobra counter must count a translated change as made"
+    critique = _norm(ROOT / "commands" / "_fragments" / "design-critique.md")
+    assert "with every slice an earlier round stated re-stated in `--slices`" in critique, (
+        "the panel delta round's --slices restatement (the row's other half) is already stated there"
+    )

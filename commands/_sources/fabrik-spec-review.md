@@ -154,7 +154,9 @@ success criteria that are actually testable; correct `shape:` flags (DB/cache/me
 A section describing a code FLOW states its invariants and touchpoints (what must hold, which paths it
 touches); the executable sequence belongs to the plan, so every fix inside such a section is written as
 invariants + touchpoints from its FIRST edit — not only once the edit loop's TWO CONSECUTIVE RESIDUE PASSES
-rule forces a rewrite there — and never as a re-worded sequence or new mechanism.
+rule forces a rewrite there — and never as a re-worded sequence or new mechanism. That holds in the sentence
+itself and in a parenthesis or example beside it; a change that is itself a decision the spec must settle states
+the decision (naming what it chose) and the constraint it imposes, never the steps that carry it out.
 **Then WALK THE INTERROGATIVE FLOOR cold (`/fabrik-spec` Phase 5): answer WHO / WHY / WHAT / HOW /
 WHEN / WHERE yourself, from the artifact alone, each at its named section** — WHO incl. automated
 consumers + every duty's role-holder · WHY the motivating pain + how the approach resolves it · WHEN
@@ -296,6 +298,9 @@ field-freeze / UI / plan work begins. Once the quiet closing round (§ Terminati
 
 {{include:design-gate-panel}}
 
+- **An ACCEPTED panel change is a fix under Phase 1 D's flow rule — this command's fix-shape rule** (invariants +
+  touchpoints, never a re-worded sequence or new mechanism): a seat's proposed mechanism is translated to the
+  behaviour it secures, and its verb, flag or sequence is left to the plan.
 - **The ask ↔ spec comparison table** (D-153, defined in `/fabrik-spec` Phase 6) is built for the panel's brief
   and kept in the spec's review receipt: one row per item of the operator's brief in the operator's OWN WORDS ·
   what the closing-round spec says (section + one line) · anchor · IN / CHANGED (how) / ADDED (why) / DROPPED (why),
