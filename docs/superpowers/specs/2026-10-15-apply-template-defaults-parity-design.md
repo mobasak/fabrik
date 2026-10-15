@@ -87,7 +87,7 @@ DIFF translator.yaml {'gatus': 'apply=False plan=True', 'prometheus': 'apply=Fal
 - `src/fabrik/orchestrator/validator.py:183-207` — `SpecValidator.load_spec`: raw load, mapping check, no merge.
 - `src/fabrik/orchestrator/validator.py:331-343` — `load_and_validate` → `load_spec` → `validate` →
   `compute_spec_hash`; called by the orchestrator at `src/fabrik/orchestrator/__init__.py:137` and `:481`.
-- `src/fabrik/spec_loader.py:905-919` — `infra:` is the documented negative override (`<registrar>: false`).
+- `src/fabrik/spec_loader.py:906-920` — `infra:` is the documented negative override (`<registrar>: false`).
 - `.fabrik/state/` holds no state file for any of the four live specs (`ls .fabrik/state`: 7 files, none of them).
 
 ## The delta
