@@ -13,8 +13,8 @@
     "plan": "",
     "spec": ""
   },
-  "next": "/fabrik-spec seeded with the design.md named in the note (UPGRADE: tradeoffs)",
-  "note": "UPGRADE 2026-10-15 (intel, /fabrik-task handoff): spec-chain work — a trade-off the build cannot settle. (A) isolation: 'worktree' on the review-loop agent() calls vs (B) a PreToolUse write-deny under the repo root in .claude/hooks/seat_guard.py. Seed with the measured costs of A and B and the RESUME block: /opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-task-2026-10-15T22-15-12-0300/design.md; the red grader for A is red-test.diff beside it. Next: /fabrik-spec seeded with that file.",
+  "next": "/fabrik-plan-review docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md (after the quota hold lifts)",
+  "note": "UPGRADE 2026-10-15 (intel, /fabrik-task handoff): spec-chain work — a trade-off the build cannot settle. (A) isolation: 'worktree' on the review-loop agent() calls vs (B) a PreToolUse write-deny under the repo root in .claude/hooks/seat_guard.py. Seed with the measured costs of A and B and the RESUME block: /opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-task-2026-10-15T22-15-12-0300/design.md; the red grader for A is red-test.diff beside it. Next: /fabrik-spec seeded with that file.\nCHECKPOINT 2026-10-15 (intel, quota hold D-915): spec docs/superpowers/specs/2026-10-15-review-seat-write-isolation-design.md DRAFT Size: small (D-913, D-914); plan docs/development/plans/2026-10-15-plan-2-review-seat-write-isolation.md DRAFT Profile: small, grounded by 3 seats, not yet reviewed. Resume: `command_run.py start --resume-from <the fabrik-plan-after-chat wall seed>`, then /fabrik-plan-review <plan> (joint loop, flips both, Opus+Fable approval panel), then /fabrik-execute-plan.",
   "owner": "intel",
   "priority": 3,
   "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",

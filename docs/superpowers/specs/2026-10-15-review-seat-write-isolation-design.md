@@ -1,7 +1,7 @@
 # Review seats — write isolation in the seat guard (design)
 
 Status: DRAFT
-Size: small (≈260 lines across `.claude/hooks/seat_guard.py`, `tests/test_seat_guard.py`, `.claude/settings.json` and `docs/workstation/hooks-index.md`)
+Size: small (≈300 lines across `.claude/hooks/seat_guard.py`, `tests/test_seat_guard.py` and `docs/workstation/hooks-index.md`)
 Profile: delta
 Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791209046, 1791049341, 1791225410) · upgraded from `/fabrik-task` on `tradeoffs` (design seed `/opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-task-2026-10-15T22-15-12-0300/design.md`)
 
@@ -31,24 +31,31 @@ Work item: W-72dfd448 · seed: mail 01M4PHYNXJ (/fabrik-review verdict rows 1791
 
 ## Goal
 
-A review seat cannot write outside its scratch directory by mistake — not with the Write, Edit or NotebookEdit tools, and
-not with a shell command whose destination is a literal path — on BOTH dispatch paths, without changing the seats'
+A review seat cannot write outside its scratch directory by mistake — it holds no file-writing tool, and a shell command
+whose destination is a literal path outside scratch is refused — on BOTH dispatch paths, without changing the seats'
 working directory, their briefs, or the lead session.
 
-## What exists today (grounded, read at b2e1069dd)
+## What exists today (grounded, read at 4efc5d325)
 
-- `.claude/hooks/seat_guard.py:62` — `SEAT_TYPES = frozenset({"fabrik-reviewer"})`; `decide()` at `:564-584` returns ""
-  for any payload without `agent_id` or with another `agent_type`, so the lead and every other agent type are untouched.
+- `commands/_agents/fabrik-reviewer.md:4` — `tools: Read, Grep, Glob, Bash`: a review seat has NO Write, Edit or
+  NotebookEdit tool, and `:15` tells it to write a probe file with a `printf … > <absolute path>` redirect. Every write a
+  seat makes is therefore a Bash write.
+- `.claude/hooks/seat_guard.py:62` — `SEAT_TYPES = frozenset({"fabrik-reviewer"})`; `decide()` (`:564-582`) returns ""
+  at `:566-567` for any payload without `agent_id` or with another `agent_type`, so the lead and every other agent type
+  are untouched.
 - `.claude/hooks/seat_guard.py:283-293` — `_in_scratch()` already defines the scratch roots: the payload's
   `scratchpad_dir`, and `/tmp/` except another session's `/tmp/claude-<uid>/<slug>/<sid>/`; a `$`-bearing or substituted
   path is treated as NOT scratch (fail closed for a write).
-- `.claude/hooks/seat_guard.py:504-560` — `_scan()` tokenises quote-aware, follows `cd`/`pushd`/subshell scope, recurses
+- `.claude/hooks/seat_guard.py:504-561` — `_scan()` tokenises quote-aware, follows `cd`/`pushd`/subshell scope, recurses
   into `bash -c` and `$(…)`, and denies kills and git writes outside scratch; an untokenisable command is denied only when
-  it names a git write or a kill (`:510-517`).
+  it names a git write or a kill (`:510-517`); recursion stops at depth 3 (`:518`, `:548`).
 - `.claude/hooks/seat_guard.py:228-229` — `_simple_commands()` DROPS a redirect's target (`skip_next = True`): today a
   `> path` is invisible to every rule.
-- `.claude/hooks/seat_guard.py:611-646` — `main()` returns at once unless `tool_name == "Bash"`, and fails open on any
-  exception (the charter: a guard bug never blocks a seat).
+- `.claude/hooks/seat_guard.py:611-647` — `main()` returns at once unless `tool_name == "Bash"` (`:616-617`), and fails
+  open on any exception (`:620-627`; the charter: a guard bug never blocks a seat).
+- `.claude/hooks/seat_guard.py:286` — `_in_scratch()` calls `os.path.realpath`, which resolves a RELATIVE path against
+  the hook process's cwd, not the seat's; `_git_reason` is correct only because `_git_parse` joins `ctx["cwd"]` first
+  (`:339`, `:342`).
 - `.claude/settings.json:145-155` — the hook is registered with `"matcher": "Bash"` only.
 - `.claude/workflows/fabrik-review-loop.js:139` — Workflow slices default to `agentType: 'fabrik-reviewer'`, so Workflow
   seats already carry the agent type the guard keys on; `:252` and `:266` carry the prose rule this change backs
@@ -57,10 +64,11 @@ working directory, their briefs, or the lead session.
 
 ## External dependencies (fetched 2026-10-15)
 
-- PreToolUse hooks fire inside subagents and the input carries `agent_id` and `agent_type`; Write and Edit carry an
-  absolute `tool_input.file_path`; `permissionDecision: "deny"` blocks the call and shows Claude the reason —
-  https://code.claude.com/docs/en/hooks (WebFetch). NotebookEdit is governed by `Edit(...)` rules and carries
-  `notebook_path` — https://code.claude.com/docs/en/tools-reference (WebFetch).
+- PreToolUse hooks "also run inside subagents … the input carries the `agent_id` and `agent_type` common input fields
+  that identify the subagent"; `permissionDecision: "deny"` blocks the call and shows Claude the reason; a matcher of
+  only letters and `|` is "Exact string, or list of exact strings" — https://code.claude.com/docs/en/hooks (WebFetch,
+  exa, re-fetched 2026-10-15 by the plan's grounding seat). The built-in tool table lists Edit, Write and NotebookEdit and
+  no MultiEdit — https://code.claude.com/docs/en/tools-reference (exa).
 - There is no per-subagent cwd or write-path option; a hook keyed on `agent_type` is the documented way to scope a
   subagent — https://code.claude.com/docs/en/sub-agents and https://code.claude.com/docs/en/permissions (WebFetch);
   permissions "isn't a security boundary … Use both for defense-in-depth" (same page).
@@ -85,43 +93,48 @@ working directory, their briefs, or the lead session.
 
 ## The delta — B: widen the seat guard (judge panel 3/3)
 
-1. **Tool writes.** `main()` also handles `Write`, `Edit` and `NotebookEdit`: for a seat payload, the destination
-   (`tool_input.file_path`, or `notebook_path`) is resolved with `realpath`; outside `_in_scratch()` the call is denied
-   with the reason *"seat guard: a review seat writes only under its scratch dir — <path> is outside it"*. Exact: the path
-   is absolute by contract, so this half has no blind spot.
-2. **Shell writes with a literal destination.** `_simple_commands()` keeps each output redirect's target (`>`, `>>`,
-   `>|`, `&>`, `&>>`) with its command instead of dropping it; `/dev/*` targets and fd duplications (`>&1`, `2>&1`,
-   `>&-`) stay allowed. `_scan()` gains a write rule: the destination operands of `tee`, `cp`/`mv`/`install`/`rsync`/`ln`
-   (the last operand, or `-t <dir>`), `rm`/`rmdir`/`touch`/`mkdir`/`truncate` (every operand), `sed -i`, `perl -i`,
-   `dd of=` and every redirect target are resolved against the tracked `cwd` and must lie in `_in_scratch()`. A copy FROM
-   the live tree INTO scratch stays allowed — only destinations are checked.
+1. **No file-writing tool — pinned, not hooked.** A seat already holds no Write, Edit or NotebookEdit tool
+   (`commands/_agents/fabrik-reviewer.md:4`), so a tool-write deny would never fire. A test pins that tool list instead,
+   so a future edit that grants a write tool fails the suite and has to bring its own guard. The hook's matcher stays
+   `Bash` and `.claude/settings.json` is not touched.
+2. **Shell writes with a literal destination.** `_simple_commands()` keeps each OUTPUT redirect's target (`>`, `>>`,
+   `>|`, `&>`, `&>>`, and `>& <file>`) with its command instead of dropping it, and drops an fd number written before a
+   redirect (`2>`) from the words; `/dev/*` targets, fd duplications (`>&2`, `2>&1`, `>&-`) and input redirects are never
+   destinations. `_scan()` gains a write rule, run before every `continue` so a redirect on a `cd` or `bash -c` line is
+   seen: the destinations of `tee`, `cp`/`mv`/`install`/`rsync`/`ln` (the last operand, or `-t <dir>` /
+   `--target-directory=`), `rm`/`rmdir`/`touch`/`mkdir`/`truncate` (every operand, each verb's value-taking options
+   skipped), `sed` and `perl` with `i` in a flag cluster or `--in-place` (the file operands), `dd of=` and every redirect
+   target are joined to the tracked `cwd` and must lie in `_in_scratch()`. A destination starting with `~` is outside
+   scratch. A copy FROM the live tree INTO scratch stays allowed — only destinations are checked.
 3. **Unparseable.** The existing fallback (`:510-517`) also denies an untokenisable command that names one of those write
-   verbs or an output redirect.
-4. **Registration.** `.claude/settings.json`'s seat-guard matcher becomes `Bash|Write|Edit|NotebookEdit`, in the reviewed
-   commit only (the main checkout's settings are live for every session).
-5. **Docs.** The `docs/workstation/hooks-index.md` row for `seat_guard.py` names the new matcher and the write rule, and
-   states the blind spot.
+   verbs as a word or an output redirect — never on a bare `echo` (an unterminated quote with no write stays allowed).
+4. **Docs.** The `docs/workstation/hooks-index.md` row for `seat_guard.py` names the write rule and states the blind
+   spot.
 
 **The blind spot, stated (COBRA, D-253):** the cheapest way past the rule is a write the Bash string does not show — an
-interpreter (`python -c "open(p,'w')"`, `shutil.rmtree`), a script file, a variable holding the path (fail-closed only when
-the variable is the destination itself). The guard is defence-in-depth against ACCIDENTAL writes, not a boundary against an
+interpreter (`python -c "open(p,'w')"`, `shutil.rmtree`), a script file, a write whose destinations come from stdin or a
+search (`xargs rm`, `find -delete`, `find -exec`), a write nested deeper than the scanner's three levels of `bash -c`/`$(…)`,
+a side-effect write by a tool run in the live tree (`pytest`'s `.pytest_cache`), and a variable holding the path
+(fail-closed only when the variable is the destination itself). The guard is defence-in-depth against ACCIDENTAL writes, not a boundary against an
 adversarial seat; the brief's prose stays as the second layer. **Tripwire:** a confirmed seat write to a live tree through
 an interpreter re-opens this design with approach D (below) or a filesystem-level fence.
 
 ## Contract deltas
 
-- The seat hook's matcher widens from `Bash` to `Bash|Write|Edit|NotebookEdit` — a synced registration (fleet-wide).
-- A seat's Bash command with a literal write destination outside scratch, previously allowed, is now refused. **MIRROR —
-  the shapes that now fail:** a seat that writes a report straight into the repo (`> docs/…`), a refuter that "fixes" a
-  file in place, a seat whose brief names a repo-relative scratch path (`.tmp/…` under the live tree — the D-836 SCRATCH
-  root `<main>/.tmp/runs/<sid>/` is NOT under `/tmp` and is refused unless the build adds it as a scratch root; the build
-  adds the session's own `<main>/.tmp/runs/<sid>/` so a brief that uses SCRATCH keeps working).
+- A seat's Bash command with a literal write destination outside scratch, previously allowed, is now refused (the
+  hook file is fleet-synced). **MIRROR — the shapes that now fail:** a seat that writes a report straight into the repo
+  (`> docs/…`), a refuter that "fixes" a file in place, and a seat whose brief names a scratch path outside `/tmp` and its
+  `scratchpad_dir` — such as the D-836 SCRATCH root `<main>/.tmp/runs/<sid>/`. A census of every seat brief on the hub
+  (32 files: `commands/_sources/`, `commands/_fragments/`, the review-loop script, the agent definition, the two reference
+  docs) found none: every brief names `RUN-SCRATCH` (`docs/reference/command-run-protocol.md:620`, under the session
+  scratchpad), and SCRATCH is named for the orchestrator's own writes only. So no scratch root is added.
+- The tool list of `fabrik-reviewer` becomes a tested contract: granting it Write/Edit/NotebookEdit fails a test.
 - Non-seat agents and the lead: no change.
 
 ## Lifecycle
 
-- **Adoption:** ships with the next merge of `worktree-intel`; the post-merge sync distributes the hook and matcher to
-  every synced repo.
+- **Adoption:** ships with the next merge of `worktree-intel`; the post-merge sync distributes the hook to every
+  synced repo.
 - **Growth, with measured triggers:** a new seat agent type joins `SEAT_TYPES` only when it is read-only by contract; a new
   write verb joins the list when a refused-or-missed seat write names it.
 - **Retirement:** the rule retires when Claude Code offers a per-subagent filesystem fence (a sandbox or write-path option
@@ -129,19 +142,20 @@ an interpreter re-opens this design with approach D (below) or a filesystem-leve
 
 ## Cost
 
-One hook file (+≈120 lines), its tests (+≈120 lines), one matcher string, one doc row. No disk, no retention, no brief
-change. Hook latency: one more python start per seat Write/Edit (the Bash path already pays it).
+One hook file (+≈130 lines), its tests (+≈160 lines), one doc row. No disk, no retention, no brief or settings change.
+No new hook invocation: the Bash hook already runs on every seat command.
 
 ## Validation
 
 Each behaviour gets a test in `tests/test_seat_guard.py`, seen red first:
 
-1. A seat `Write`/`Edit`/`NotebookEdit` to a path outside scratch is denied; the same tool inside its scratch is allowed.
+1. The `fabrik-reviewer` agent definition grants no Write, Edit or NotebookEdit tool.
 2. The lead (no `agent_id`) and a non-seat agent type writing anywhere are allowed.
 3. A seat redirect to a live path (`echo x > Makefile` with cwd = the repo) is denied; `> /dev/null`, `2>&1` and a redirect
    into scratch are allowed.
 4. A seat `cp <live> <scratch>/` is allowed; `cp <scratch>/x Makefile`, `rm -rf <live dir>`, `sed -i … <live file>`,
-   `perl -i … <live file>`, `tee <live file>` and `dd of=<live file>` are denied; `cd <scratch> && touch x` is allowed.
+   `perl -pi … <live file>`, `tee <live file>`, `dd of=<live file>`, `touch ~/x` and a write on a `cd`/`bash -c` line are
+   denied; `cd <scratch> && touch x`, `mkdir -p <scratch>/d 2>/dev/null` and `truncate -s 0 <scratch>/f` are allowed.
 5. An untokenisable command naming a write verb is denied.
 6. `main()` with the new tool names emits the deny envelope; a crash inside the new path still fails open.
 
@@ -171,12 +185,11 @@ natural home.
 
 ## Documentation landing sites
 
-- `docs/workstation/hooks-index.md` — the `seat_guard.py` row (matcher, write rule, blind spot).
+- `docs/workstation/hooks-index.md` — the `seat_guard.py` row (write rule, blind spot).
 - `CHANGELOG.md` — one `### Changed` entry.
 - The module docstring of `.claude/hooks/seat_guard.py` — the rule, its limits and the COBRA line.
 
 ## Open / blocking unknowns
 
-None. The one live fact the build must confirm — that a Workflow `agent()` seat's Write payload carries `agent_type:
-"fabrik-reviewer"` — is already true of its Bash payloads (the same hook input), so a red-to-green test on synthetic
-payloads plus one live seat probe in the build closes it.
+None. The guard keys on the Bash payload's `agent_type`, which the hook already reads for every seat today (the git and
+kill rules); the build adds one live seat probe of the new rule.
