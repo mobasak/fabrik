@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the hub hands merge ownership and work distribution to the coordinator (2026-10-15)
+
+`supersedes D-453: MERGE OWNER: coordinator` (D-874); `.fabrik/work/config.json` sets `distributor: coordinator`,
+`queue_floor: 1` and `coordinator_mode: true`; `.fabrik/beat-owners.json` maps the `merge request` and `work item`
+topics to the coordinator. `CLAUDE.md` § Shared repo, § EXIT and § Autonomy, `docs/reference/agents/infra.md` and
+`docs/reference/multi-agent-operating-model.md` name the coordinator as agent-1 and put infra in
+`.claude/worktrees/infra`; the phrase graders in `tests/test_governance_template_split.py` follow. Plan
+`2026-10-15-plan-1-coordinator-role` Phase C — lands on master only when the coordinator window is live.
 ### Changed — /fabrik-review: the probe catalogue gains a Deletions hunt row (2026-10-15)
 
 - `commands/_fragments/review-probe-catalogue.md` § The brief's hunt lines: a Deletions row (a change that deletes a
