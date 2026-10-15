@@ -591,11 +591,9 @@ def status(spec_path: str):
     click.echo()
 
     click.echo("Last apply:")
+    # ``state.load`` returns None for a missing, unreadable or non-object record, so a
+    # hand-edited or corrupt record never crashes a read-only verb (invariant 2).
     record = state_module.load(spec.id)
-    if not isinstance(record, dict):
-        # ``state.load`` returns ANY parsed JSON; a hand-edited or corrupt record must
-        # never crash a read-only verb (invariant 2) — it reads as no record.
-        record = None
     if record is None:
         click.echo("   no state record — never applied from this checkout")
     else:
@@ -1520,7 +1518,12 @@ def reconcile_all(yes: bool, filters: tuple):
 
 
 @cli.command()
-@click.option("--status", "-s", help="Filter by status (ready/development)")
+@click.option(
+    "--status",
+    "-s",
+    help="Filter by status: ready/development after `fabrik scan`, "
+    "production/development/archived/paused after --sync",
+)
 @click.option("--sync", is_flag=True, help="Re-scan /opt and merge the deploy state before listing")
 def projects(status: str | None, sync: bool):
     """List all tracked projects in /opt."""

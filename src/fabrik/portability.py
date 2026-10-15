@@ -201,7 +201,7 @@ def _collect_specs(fabrik_root: Path) -> dict[str, str]:
 
 def _collect_state(fabrik_root: Path) -> dict[str, dict[str, Any]]:
     """Read every ``.fabrik/state/<id>.json`` and STRIP ``coolify_uuid``
-    (regenerated on import). Other fields kept verbatim.
+    (the compose app name, re-derived from the spec on import). Other fields kept verbatim.
 
     Archived ``_destroyed/`` entries are excluded — they describe past
     deploys, not current state.
@@ -586,27 +586,26 @@ def import_bundle(
 
     with tarfile.open(tarball, "r:gz") as tar:
         members = tar.getmembers()
+        # One normalised name per member, so a `tar -C dir .` bundle (./-prefixed) reads the same.
+        by_name = {m.name.removeprefix("./"): m for m in members}
         names = [m.name.removeprefix("./") for m in members]
         plan["sections"]["total_entries"] = len(names)
 
         # Read manifest if present
-        try:
-            manifest_member = tar.getmember("manifest.json")
+        plan["manifest"] = None
+        manifest_member = by_name.get("manifest.json")
+        if manifest_member is not None:
             f = tar.extractfile(manifest_member)
             if f:
                 plan["manifest"] = json.loads(f.read().decode("utf-8"))
-        except KeyError:
-            plan["manifest"] = None
 
         # Read secrets-redacted.json — populate the to-repopulate list
-        try:
-            secrets_member = tar.getmember("secrets-redacted.json")
+        secrets_member = by_name.get("secrets-redacted.json")
+        if secrets_member is not None:
             f = tar.extractfile(secrets_member)
             if f:
                 redacted = json.loads(f.read().decode("utf-8"))
                 plan["secrets_to_repopulate"] = sorted(redacted.keys())
-        except KeyError:
-            pass
 
         # Index sections by prefix
         prefixes = ("specs/", "state/", "monitoring/", "authelia/", "backrest/")

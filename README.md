@@ -556,7 +556,7 @@ fabrik import /tmp/vps1-base.tar.gz                      # dry-run plan on targe
 fabrik import /tmp/vps1-base.tar.gz --apply              # stubbed real run (import path untested in epic)
 ```
 
-Bundle contents: `specs/`, `.fabrik/state/` (UUIDs stripped), monitoring configs, Authelia + Backrest configs, redacted `.env` key list, restore README. **Security invariants** (test-enforced): NO plaintext secret values, NO infrastructure UUIDs, NO private-key references in the bundle. Import is shipped untested in this epic — real roundtrip lands with vps2 stand-up. Live sample: 44 KB tarball, 26 apps, 348 redacted keys, zero UUID leaks. (Pre-2026-05-30 bundles also stripped Coolify Applications + Services + Projects; that code was deleted at 9c02e8c86.)
+Bundle contents: `specs/`, `.fabrik/state/` (UUIDs stripped), monitoring configs, Authelia + Backrest configs, redacted `.env` key list, restore README. **Security invariants** (test-enforced): NO plaintext secret values, NO infrastructure UUIDs, NO private-key references in the bundle. Import is shipped untested in this epic — real roundtrip lands with vps2 stand-up. The original sample run (before the Coolify retirement) produced a 44 KB tarball with 348 redacted keys and zero UUID leaks. (Pre-2026-05-30 bundles also stripped Coolify Applications + Services + Projects; that code was deleted at 9c02e8c86.)
 
 ### 5. State-Driven Destroy (T4-02)
 

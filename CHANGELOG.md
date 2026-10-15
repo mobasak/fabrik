@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the Coolify-verb retirement plan is EXECUTED: every verb runs over SSH + Compose and the Coolify code is gone (2026-10-15)
+
+- **What:** plan 2026-10-14-plan-1-coolify-verb-retirement (W-36571dff) closed with ticket T11: the capability index re-ran clean (neither deleted script is listed), `docs/development/capability-defects.md` was regenerated, the V8 census reads 0 of 1373 tracked files and `vulture` 0 items, and the whole-plan Finish review (`docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-review.md`) converged 11 → 3 → 0. Its fixes: `fabrik.state.load` returns `None` for a record that is not a JSON object or not UTF-8 (status, audit-registrars and destroy --use-state no longer crash on one); `fabrik import` reads the manifest and secret list of a `./`-prefixed bundle; `fabrik projects --status` help names both registry vocabularies; the rollback and state docstrings and five docs match the code.
+- **Why:** spec docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md § Validation V8-V10; the deletion commit is 9c02e8c86 (D-901).
+
 ### Changed — fourteen docs say what `apply`, `status`, `logs` and `reconcile-all` do now (2026-10-15)
 
 - **What:** the reference, module, operations and root docs (`docs/reference/fabrik-cli-reference.md`, `architecture.md`, `modules/drivers.md`, `modules/deployment-orchestrator.md`, `health-monitoring.md`, `docs/SERVICES.md`, `TROUBLESHOOTING.md`, `operations/deployment.md`, `workflows/FABRIK_SCAFFOLD_WORKFLOW.md`, `docs/DEPLOYMENT_ARCHITECTURE.md`, `docs/CONFIGURATION.md`, `agents-fabrik.md`, `README.md` and the `EXTERNAL_SYSTEMS.md` DNS row) drop the removed `apply` flags, describe `status`'s Last-apply and Live-containers sections, name `reconcile-all` as a live SSH verb, and name the Coolify modules as removed at 9c02e8c86. Driver and test counts, CLI line anchors and the `destroy` flags were re-derived from the code.

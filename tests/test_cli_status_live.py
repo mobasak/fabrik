@@ -107,8 +107,8 @@ class TestLastApply:
         ],
     )
     def test_odd_record_shapes_never_crash_the_verb(self, tmp_path, _state_dir, payload, expected):
-        """``state.load`` returns ANY parsed JSON; a read-only verb tolerates every shape (invariant 2) —
-        a scalar where a list belongs is ONE row, never iterated character by character."""
+        """A read-only verb tolerates every record shape (invariant 2): a non-object record reads as
+        none, and a scalar where a list belongs is ONE row, never iterated character by character."""
         spec_path = _write_spec(tmp_path, "demo")
         _write_state(_state_dir, "demo", payload)
         with patch.object(

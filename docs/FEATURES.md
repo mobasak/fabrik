@@ -684,10 +684,12 @@ these files.
 | Command | How it uses state |
 |---------|------------------|
 | `fabrik apply` | Writes state after successful deploy |
+| `fabrik status` | Prints a **Last apply** section from the state record (`applied_at`, `git_sha`, `target_vps`, `registrars_applied`, `registrar_failures`) beside a **Live containers** probe over SSH (`deployer_ssh.probe_app`) |
 | `fabrik destroy --use-state` | Reads state to replay exact teardown (see [State-Driven Destroy](#state-driven-destroy)) |
 | `fabrik audit-registrars` | Reads each state file's `target_vps` and reports recorded `registrar_failures` (exit 2) alongside the live drift check (see [Registrar Audit](#registrar-audit--reconcile)) |
 | `fabrik verify --spec registrars` | Reads state for postcondition gate |
 | `fabrik export` | Bundles state files into portability tarball (UUIDs stripped) |
+| `fabrik projects --sync` | Runs `scripts/sync_projects.py`, which rescans `/opt/*` and merges each state file's deploy block into `data/projects.yaml` before the list prints |
 | `fabrik review` | Writes `.fabrik/review/<ts>.md` — diff + spec + registrars bundled for review |
 
 ### Directory Structure
@@ -728,7 +730,7 @@ Registrars that create persistent data (postgres, redis, meilisearch) are marked
 Every `fabrik apply` writes a per-spec state file (T2-01) capturing which registrars fired. T2-02 layers four operator commands on top of that foundation:
 
 - **`fabrik audit-registrars`** — Compares each spec's shape-resolved registrars (what SHOULD be live) to the VPS's actual state (postgres `\l`, gatus `apps/<id>.yaml`, authelia config rules, backrest `config.json` plans, glitchtip project API, meilisearch index, prometheus scrape jobs, redis `assignments.json`). Outputs a pivot table or JSON. Exit 2 if any `missing`.
-- **`fabrik reconcile-all`** — Walks every deployed spec, holds a per-spec file lock (T2-01 `locks_local.file_lock`), re-runs `DeploymentOrchestrator.refresh_infrastructure` per spec. Dry-run by default; `--yes` to apply. `--filter <substr>` to scope.
+- **`fabrik reconcile-all`** — Walks every deployed spec, holds a per-spec file lock (T2-01 `locks_local.file_lock`), re-runs `DeploymentOrchestrator.refresh_infrastructure` per spec. "Deployed" is what Compose knows: each target host is asked once for `docker compose ls -a` (`deployer_ssh.list_compose_projects`), and an unreachable host is a row, never an abort. Dry-run by default; `--yes` to apply. Either mode exits 1 when no host could be read; under `--yes` any failure row also exits 1, while a dry run prints its failure rows and exits 0. `--filter <substr>` to scope.
 - **`fabrik verify <domain> --spec registrars`** — Single-domain postcondition check using the YAML-driven `PostconditionChecker`. Fails on any `missing` registrar.
 - **`fabrik destroy --partial <reg>`** — Surgical un-registration without touching DNS, the running compose stack, or local files. Repeatable: `--partial gatus --partial backrest`. Backed by module-level `HANDLER_ARGS` / `HANDLER_FUNCS` exports in `orchestrator/destroyer.py` (also consumed by T4-02).
 
@@ -878,7 +880,7 @@ Two invariants the vision insists on (Stage 3 — Proper Registration) are now l
 
 - **Phase 0** — data-bearing guard. Scans state's `registrars_applied` for `data_bearing: true` entries; refuses pre-flight if `--drop-data` not set.
 - **Phase 1** — canonical reverse-order registrar teardown using `reversed(_REGISTRAR_ORDER)`: `prometheus → meilisearch → authelia → grafana → glitchtip → backrest → gatus → redis → postgres`. Order is enforced because postgres-last avoids FK violations against authelia session rows. Grafana is intentionally skipped (annotations are decorative). Dispatch uses T2-02's module-level `HANDLER_FUNCS` + `HANDLER_ARGS` maps.
-- **Phase 2** — Compose stack teardown on the VPS (always: `docker compose down -v` + `rm -rf /opt/<name>`), DNS (gated by `--keep-dns` + spec domain), local files (gated by `--keep-files`).
+- **Phase 2** — Compose stack teardown on the VPS (always: `docker compose down -v` + `rm -rf /opt/<name>`), DNS (gated by `--keep-dns` + spec domain); local project files are never deleted (`keep_files=True` is hard-coded).
 - **On success** — `state.archive_destroyed(spec.id)` moves `<id>.json` → `_destroyed/<id>.json.<UTC-ts>`. State file is the deploy-state record; the archive preserves the audit trail without leaving the file in place to confuse future audits.
 - **Mutually exclusive with `--partial`** — both flags exist for distinct surgical purposes (per-registrar vs. per-state-file). The combination errors out (exit 2).
 - **Handler exception → bounded error.** A single failing destroyer doesn't abort the rest of the teardown; the failure goes into the report as an `error` ActionResult and `--use-state` exits 2 so CI can catch it.

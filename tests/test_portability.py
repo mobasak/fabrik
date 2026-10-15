@@ -533,6 +533,23 @@ class TestImportBundle:
         assert plan["sections"]["specs"] == 1
         assert plan["ignored_legacy"] == 1
 
+    def test_dot_slash_manifest_and_secrets_are_read(self, tmp_path):
+        bundle = tmp_path / "dot.tar.gz"
+        members = {
+            "./manifest.json": json.dumps({"version": 1}).encode(),
+            "./secrets-redacted.json": json.dumps(
+                {"B_KEY": "<redacted>", "A_KEY": "<redacted>"}
+            ).encode(),
+        }
+        with tarfile.open(bundle, "w:gz") as tar:
+            for name, body in members.items():
+                info = tarfile.TarInfo(name=name)
+                info.size = len(body)
+                tar.addfile(info, io.BytesIO(body))
+        plan = portability.import_bundle(bundle, dry_run=True)
+        assert plan["manifest"] == {"version": 1}
+        assert plan["secrets_to_repopulate"] == ["A_KEY", "B_KEY"]
+
     def test_clean_bundle_has_no_ignored_legacy_key(self, tmp_path):
         plan = portability.import_bundle(self._make_bundle(tmp_path), dry_run=True)
         assert "ignored_legacy" not in plan

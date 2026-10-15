@@ -258,6 +258,8 @@ fabrik reconcile-all --filter my-api        # dry-run, scoped to one
 fabrik reconcile-all --yes                  # apply across fleet
 ```
 
+A spec counts as deployed when its target host's `docker compose ls -a` lists a project named `<name>`/`fabrik-<name>` or one whose config file lives in an `app_dir` candidate; a host that cannot be read becomes a row, never an abort. A dry run prints its failure rows and exits 0; `--yes` exits 1 on any `host-unreachable`, `error`, `spec-error` or `lock-timeout` row, and either mode exits 1 when no host could be read.
+
 ---
 
 ## Status & Logs
@@ -424,10 +426,10 @@ fabrik export [--output <path>] [--include-data] [--skip-remote]
 **Purpose:** Restore a previously-exported bundle.
 
 ```bash
-fabrik import <bundle.tar.gz> [--real-run]
+fabrik import <bundle.tar.gz> [--apply]
 ```
 
-`--real-run` actually mutates; without it, dry-run only.
+`--apply` executes the restore plan; without it, dry-run only (parse and print the plan). A pre-retirement bundle's `coolify/` members are counted and ignored.
 
 ---
 

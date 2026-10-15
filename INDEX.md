@@ -1143,6 +1143,7 @@ docs/
 │       ├── 2026-10-14-plan-1-coolify-verb-retirement-T06-review.md
 │       ├── 2026-10-14-plan-1-coolify-verb-retirement-T09-review.md
 │       ├── 2026-10-14-plan-1-coolify-verb-retirement-T10-review.md
+│       ├── 2026-10-14-plan-1-coolify-verb-retirement-review.md
 │       ├── 2026-10-14-plan-tickets-doubled-slash-review.md
 │       ├── 2026-10-14-research-tier-order-review.md
 │       ├── 2026-10-14-resilience-counts-at-lists-review.md
