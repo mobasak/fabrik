@@ -29,6 +29,16 @@ All notable changes to this project will be documented in this file.
 
 - `judge_run_folder` believed any numeric `closed_at`, so a clobbered `done` marker with `closed_at` 0 or -1e308 read as a long-past close and its folder was removed (F13, W-de2c34c1). Per D-900 (Opus + Fable panel), the close is now unknown — ACTIVE under INV-1 — when `created` is missing, non-numeric, a bool or in the future, or when `closed_at` is earlier than `created` minus the clock margin, or when `closed_at` lies in the future; applied where the marker is read, never in `classify_run_folder` (the `.trash-*` path builds `closed_at` 0.0). Residual: any `closed_at` between `created` minus the margin and now minus the grace is believed, so a co-clobber of both fields within the margin (`created` 0 and `closed_at` 0) still reads as a past close. So a legitimate run is not kept for ever, `command_run.py`'s close re-stamps a missing, non-finite or future `created` with the run's true start (`started_epoch`), never `now` (which would strip `gap_keeps`' protection from the run's writers), and leaves it unknown when no start is known; `--retire` invents no creation time and says when every sweep will keep the folder; the size report names a `done` folder whose close cannot be vouched for. Tests: `test_a_close_time_the_marker_cannot_vouch_for_is_doubt` (7 cases red first, on a gap-free `/proc` so a live daemon's gap cannot mask them, plus a consumed control and a vouched margin edge), the heal, retire, report and zero-close-reason tests.
 
+### Changed — review catalogue: a hand-written seat brief sends seats to the pin-import recipe (2026-10-15)
+
+`commands/_fragments/review-probe-catalogue.md` § Seat isolation: a brief the lead writes itself tells each seat to
+read and follow `PIN_IMPORT` (and `PYTEST_PINS` for pytest) in `.claude/workflows/fabrik-review-loop.js`, giving the
+values its placeholders stand for, and carries no import recipe of its own — a pins dir on `sys.path` alone, or
+pytest's `--rootdir` at a copy, imports the live checkout's installed package. § Seat isolation now binds every brief
+that runs tests or imports pinned code (the catalogue header and `/fabrik-review-scoped`). Answers /fabrik-review-scoped
+rows 1792082763 and 1792081436, the 15th and 16th on the subject; pinned by
+`tests/test_review_scoped_queue_pass.py::test_a_hand_written_brief_points_seats_at_the_pin_import_recipe_and_an_import_brief_is_isolated_too`.
+
 ### Changed — plan execution: an operator-owned gate step ends behind a gate DECISION, closed handoff (2026-10-15)
 
 Both contracts' plan-execution override and `/fabrik-execute-plan`'s halt rule, close list and first non-negotiable: a step the plan assigns to the
