@@ -1271,6 +1271,7 @@ def test_a_pause_is_shown_and_fails_paused(tmp_path, monkeypatch):
     assert "work.py resume" not in block and "ready —" not in block, block
     _paused_dir(repo).joinpath("w2.json").write_text("{not json", encoding="utf-8")
     _paused_dir(repo).joinpath("w3.json.abc123.tmp").write_text("{}", encoding="utf-8")
+    _paused_dir(repo).joinpath("Up.json").write_text("{}", encoding="utf-8")  # no agent name: no pause
     assert _stop(trees["w2"], {**env, "CLAUDE_AGENT": "w2"})["role"] == "paused"
     agents = {a["agent"]: a for a in _queue(repo, env)["agents"]}
     assert agents["w2"]["paused_by"] and not agents["w3"].get("paused_by")
