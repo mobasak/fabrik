@@ -3,7 +3,8 @@
 **Last Updated:** 2026-04-22
 
 > **⚠️ Partially pre-migration vintage.** Lines mentioning `ServiceDeployer` /
-> "Coolify mutations" / "Coolify status" describe the pre-2026-05 deploy path.
+> "Coolify mutations" / "Coolify status" describe the pre-2026-05 deploy path
+> (`deployer_coolify.py`, which defined `ServiceDeployer`, was removed at 9c02e8c86).
 > Today `deployer_ssh.py` (SSH + Docker Compose) is the active deployer; the
 > orchestrator's overall structure (shape-driven registrars, verifier, rollback)
 > is unchanged. See [docs/operations/deployment.md](../../operations/deployment.md)
@@ -17,9 +18,7 @@ The orchestrator module (`src/fabrik/orchestrator/`) provides unified end-to-end
 
 ```text
 fabrik apply --dry-run spec.yaml   # Simulate deployment (orchestrator, no mutations)
-fabrik apply spec.yaml              # Full deployment — the orchestrator IS the default
-fabrik apply --legacy spec.yaml     # Force the deprecated render-only legacy path
-# (--use-orchestrator is accepted as a no-op for backward compat)
+fabrik apply spec.yaml              # Full deployment — the orchestrator is the only path
 ```
 
 ---
@@ -51,14 +50,13 @@ fabrik apply --legacy spec.yaml     # Force the deprecated render-only legacy pa
 | `secrets.py` | 137 | `SecretsManager` — `get()` precedence: env vars → project `.env` → CSPRNG generate (`secrets.choice()`, 32-char alphanumeric). (NB the orchestrator `from_env` path reads `.env` before env vars — the two paths differ.) |
 | `validator.py` | 343 | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` — pydantic + SSRF check + idempotency hash |
 | `deployer_ssh.py` | — | **`SSHDeployer.deploy(ctx)` (current)** — idempotent `docker compose up -d` over SSH; validates compose for template/docker/git sources; waits for container Up |
-| `deployer_coolify.py` | — | Legacy Coolify-API deployer (PATCH/POST `dockercompose` + `deploy(force=True)`) — retained on disk, non-functional since Coolify decommissioned 2026-05-30 |
 | `infrastructure.py` | 1002 | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` — shape-driven dispatcher invoked between Deploy and Verify; runs postgres (+`DATABASE_URL` inject) → redis (+`REDIS_URL`) → gatus → backrest → glitchtip+DSN → grafana annotation → authelia rules (+ `^/api/` bypass) → meilisearch → prometheus → watchdog; a `depends.postgres`/`depends.postgres_seed`/`depends.redis` beside a false or absent flag is named in the skip reason and logged at WARNING (`depends_contradiction`, W-81524f52) |
 | `verifier.py` | 542 | `DeploymentVerifier.verify(ctx)` — HTTP 200 on the path declared in `spec["health"]["path"]` (see Lesson 32 — was previously hardcoded to `/health` via a silent fallback that masked all non-`/health` deploys as 404s; fixed B23, 2026-04-28), DNS resolves, Authelia-middleware + api-bypass checks. Workers (no HTTP) skip the HTTP probe — the compose healthcheck is the proof (B35). DSN verification lives in the glitchtip registrar, not here; `check_ssl()` exists as a standalone helper, not called by `verify()`. |
 | `rollback.py` | 452 | `RollbackManager.rollback(ctx)` — LIFO reverse-order cleanup. DB drops are **logged for operator, not auto-executed**; config mutations and ephemeral resources (annotations, projects, DNS records) are auto-cleaned |
 | `destroyer.py` | 813 | `destroy_from_state()` + per-registrar `_destroy_*` teardown (reverse order) — the `fabrik destroy` path |
 | `vultr_drill.py` / `vultr_provision.py` / `vultr_state.py` | — | The `fabrik vultr` DR-drill + permanent-spoke provisioning subsystem (see `docs/reference/fabrik-vultr.md`) |
 | `gpu_rent.py` + `gpu_*.py` (5 modules) | — | On-demand GPU rental across RunPod/Modal/Vast (see `docs/operations/gpu-rent.md`) |
-| `sysadmin_tokens.py` / `coolify_alias.py` | — | Spoke sysadmin token pool · legacy Docker-network alias helper |
+| `sysadmin_tokens.py` | — | Spoke sysadmin token pool |
 
 ---
 
@@ -87,17 +85,14 @@ else:
 # Dry run (simulates all steps — always uses orchestrator)
 fabrik apply --dry-run specs/my-app.yaml
 
-# Full deployment — the orchestrator pipeline is the DEFAULT (since 2026-05-05)
+# Full deployment — the orchestrator pipeline is the only path
 fabrik apply specs/my-app.yaml
-
-# Deprecated render-only legacy path (explicit opt-in only)
-fabrik apply --legacy specs/my-app.yaml
 
 # Project-based deploy (reads /opt/<name>/project.yaml, routes by type)
 cd /opt/my-app && fabrik apply
 ```
 
-The orchestrator pipeline is the default for every `fabrik apply` invocation (dry-run included); `--legacy` is the only way off it.
+The orchestrator pipeline is the only path for every `fabrik apply` invocation (dry-run included); the former `--legacy` and `--use-orchestrator` flags were removed in the Coolify retirement.
 
 ---
 

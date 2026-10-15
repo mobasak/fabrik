@@ -83,9 +83,9 @@ Intake: 25 items — 23 IN, 2 OUT-OF-SCOPE (I19 → W-53f8a3f3; I22 → W-2191a0
 | T07a | `RollbackManager` loses its Coolify branch; vestigial patches leave the orchestrator tests | — | ⚡ | ✅ | `665b04272` |
 | T07b | hub `/health` drops the Coolify check; state and context words; env placeholders go | — | ⚡ | ✅ | `e8367785b` |
 | T08 | the four hub scripts bound to the driver are rebased | T01, T05 | ⚡ | ✅ | `91f8bb357` |
-| T09 | the Coolify modules, their tests and the two dead scripts are deleted in one commit | T06, T07a, T07b, T08 | ⛓️ | ✅ | this commit (`git log --grep 'T09 —'`) |
-| T10a | the reference, module and operations docs stop calling the verbs broken | T09 | ⚡ | ⬜ | |
-| T10b | the root docs, the configuration doc and the infra map say what the hub does now | T09 | ⚡ | ⬜ | |
+| T09 | the Coolify modules, their tests and the two dead scripts are deleted in one commit | T06, T07a, T07b, T08 | ⛓️ | ✅ | `9c02e8c86` |
+| T10a | the reference, module and operations docs stop calling the verbs broken | T09 | ⚡ | ✅ | this commit (`git log --grep 'T10a + T10b —'`) |
+| T10b | the root docs, the configuration doc and the infra map say what the hub does now | T09 | ⚡ | ✅ | this commit (`git log --grep 'T10a + T10b —'`) |
 | T11 | Integration: the capability index, the two over-budget docs, the whole-plan gate and the receipt | T10a, T10b | ⛓️ | ⬜ | |
 
 ## Merge Order

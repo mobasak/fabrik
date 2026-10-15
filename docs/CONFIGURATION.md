@@ -49,10 +49,10 @@ Coolify API Token section — REMOVED 2026-06-02 (coolify-residue-cleanup plan).
 
 Coolify was fully removed from vps1 on 2026-05-30 (no containers, no binary;
 only /data/coolify/ filesystem residue remains). The active deploy path is
-SSH + Docker Compose (`fabrik apply`). The legacy CLI commands (`fabrik status`,
-`fabrik logs`, `fabrik reconcile-all`) that historically talked to the Coolify
-API are now non-functional and listed under "Known broken" in the SSH-deployer
-archived plan.
+SSH + Docker Compose (`fabrik apply`). `fabrik status` (last apply from the state record, plus a
+read-only container probe over ssh), `fabrik reconcile-all` (the `docker compose ls -a` projects per target
+host, then `refresh_infrastructure` per spec) and `fabrik projects --sync` (`scripts/sync_projects.py`, which
+rescans `/opt/*` into the project registry) no longer touch the removed API; `fabrik logs` queries Loki.
 
 New projects never needed a Coolify API token. The `.env.example` placeholder blocks (nine `COOLIFY_*` names:
 `COOLIFY_URL`, `COOLIFY_API_URL`, `COOLIFY_API_TOKEN`, `COOLIFY_ADMIN_EMAIL`, `COOLIFY_ADMIN_PASSWORD`, the server,
@@ -660,10 +660,9 @@ VPS_SSH_KEY=  # Remove from .env
 <!--
 "Coolify API 401" troubleshooting section — REMOVED 2026-06-02.
 
-Coolify is fully removed from vps1 (2026-05-30). The legacy CLI commands
-that used to call the Coolify API (`fabrik status`, `fabrik logs`,
-`fabrik reconcile-all`) are non-functional and listed under "Known broken"
-in the archived SSH-deployer plan. New troubleshooting starts from
+Coolify is fully removed from vps1 (2026-05-30). The verbs that once called the Coolify API
+(`fabrik status`, `fabrik logs`, `fabrik reconcile-all`) now run over ssh and Loki and carry no
+Coolify credential. New troubleshooting starts from
 `docs/operations/deployment.md` (`fabrik apply` / SSH + Docker Compose).
 -->
 

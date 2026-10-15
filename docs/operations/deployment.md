@@ -310,7 +310,7 @@ Runs **after** the container is up. Each registrar is gated by the spec's `shape
 - Iterates `ctx.created_resources` in **reverse order** (LIFO — most-recent first)
 - Each resource type has a cleanup handler:
   - `compose` → `SSHDeployer.delete()` (`docker compose down -v` + `rm -rf /opt/<name>`)
-  - `coolify` → legacy Coolify app removal (pre-migration deployments only)
+  - `coolify` → no handler (the Coolify API was retired; the type now falls to the unknown-type warning)
   - `dns` → `CloudflareClient.delete_record_by_name()` (the rollback `dns_client` defaults to `CloudflareClient`; `DNSClient` itself only exposes `delete_record()`)
   - `monitor` → legacy monitor resource cleanup
   - `gatus` → `remove_endpoint()`
@@ -485,9 +485,8 @@ Fix: add shape flag, run `fabrik redeploy --refresh-infra --spec <spec>`.
 # Check which registrars are live vs expected for a spec
 fabrik audit-registrars --spec specs/services/<name>.yaml
 
-# Reconcile all specs against live VPS state
-# NOTE: reconcile-all is currently broken (still imports CoolifyClient — Phase 11-2 migration pending)
-# fabrik reconcile-all --yes
+# Reconcile all specs against live VPS state (dry-run by default; --yes applies)
+fabrik reconcile-all --yes
 
 # Verify deploy health + registrar presence
 fabrik verify <domain> --spec deploy
@@ -604,6 +603,6 @@ The watchdog sidecar's `:8889` ingest receives GlitchTip's Slack-compatible enve
 | Date | Change |
 |---|---|
 | 2026-06-15 | Documented `--target-vps` multi-host targeting + resolution order on apply/redeploy/destroy; fixed broken `DEPLOYMENT_ARCHITECTURE.md` relative link. |
-| 2026-05-28 | Full rewrite: Coolify API → SSH + Docker Compose deployer. All procedures updated. |
+| 2026-05-28 | Full rewrite: Coolify API (since retired) → SSH + Docker Compose deployer. All procedures updated. |
 | 2026-05-08 | GlitchTip SDK integration; leaked secrets redacted; Grafana file-provisioning |
 | 2026-05-07 | Promtail noise filter; Gatus stable DNS alias architecture |

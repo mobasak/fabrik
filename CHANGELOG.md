@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — fourteen docs say what `apply`, `status`, `logs` and `reconcile-all` do now (2026-10-15)
+
+- **What:** the reference, module, operations and root docs (`docs/reference/fabrik-cli-reference.md`, `architecture.md`, `modules/drivers.md`, `modules/deployment-orchestrator.md`, `health-monitoring.md`, `docs/SERVICES.md`, `TROUBLESHOOTING.md`, `operations/deployment.md`, `workflows/FABRIK_SCAFFOLD_WORKFLOW.md`, `docs/DEPLOYMENT_ARCHITECTURE.md`, `docs/CONFIGURATION.md`, `agents-fabrik.md`, `README.md` and the `EXTERNAL_SYSTEMS.md` DNS row) drop the removed `apply` flags, describe `status`'s Last-apply and Live-containers sections, name `reconcile-all` as a live SSH verb, and name the Coolify modules as removed at 9c02e8c86. Driver and test counts, CLI line anchors and the `destroy` flags were re-derived from the code.
+- **Why:** plan 2026-10-14-plan-1-coolify-verb-retirement tickets T10a and T10b (spec D10); the wave's `/fabrik-review` (`docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-T10-review.md`) confirmed and fixed 19 doc defects.
+
 ### Removed — the Coolify modules, their tests and two dead scripts (2026-10-15)
 
 - **What:** `src/fabrik/drivers/coolify.py`, `src/fabrik/orchestrator/deployer_coolify.py`, `src/fabrik/drivers/compose_updater.py`, `src/fabrik/orchestrator/coolify_alias.py`, their four test files, `scripts/health_check_autonomous.py` and `scripts/migrate_db_rename.py` are deleted; `src/fabrik/drivers/__init__.py` no longer imports or exports `CoolifyClient` (one commit, so no import is ever left unresolved), and `scripts/enforcement/check_health.py`'s pattern list drops `check_coolify`. The plan's import census (`drivers.coolify`, `CoolifyClient`, `deployer_coolify`, `compose_updater`, `coolify_alias`, `deploy_to_coolify` over src, scripts, tests and templates outside the archives) reads 0 of the 1373 tracked files under src, scripts, tests and templates outside the archives (908 of them .py).
