@@ -1302,3 +1302,149 @@ def test_a_pause_is_shown_and_fails_paused(tmp_path, monkeypatch):
     item = _add(trees["w1"], env, "task", "named in NEXT")
     w.on_harvest(trees["w1"], session=SID, next_text=f"NEXT: {item} — named in NEXT")
     assert not (repo / ".git" / "fabrik-work" / "claims" / f"{item}.json").exists()
+
+
+# ── verdict: the operator's accept / reject / comment (W-e1f1a1bd) ─────────────────────────────
+
+
+def _decision(repo: Path, env: dict) -> str:
+    """An awaiting-operator decision (only the Stop harvest mints one; `add` refuses the kind)."""
+    item = _add(repo, env, "task", "a gate")
+    path = repo / ".fabrik" / "work" / f"{item}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data.update(kind="decision", status="awaiting-operator")
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return item
+
+
+def _verdict(repo: Path, env: dict, item: str, action: str, text: str = "") -> subprocess.CompletedProcess[str]:
+    opts = [f"--text={text}"] if text else []
+    return run(["verdict", *opts, "--by=dashboard", "--", item, action], env, repo)
+
+
+def test_verdict_is_the_operators_only(tmp_path):
+    """An agent name or an unnamed Claude session is refused — stricter than pause's rule, which
+    admits a named agent; nothing is written."""
+    env, repo, _trees = _setup(tmp_path)
+    item = _add(repo, env)
+    named = _verdict(repo, env, item, "comment", "hi")
+    assert named.returncode == 1 and "operator" in named.stderr
+    session = _verdict(repo, {**_operator(env), "CLAUDE_CODE_SESSION_ID": "s1"}, item, "comment", "hi")
+    assert session.returncode == 1
+    assert "comments" not in _items(repo)[item]
+    assert _verdict(repo, _operator(env), item, "comment", "hi").returncode == 0
+
+
+def test_verdict_accept(tmp_path):
+    """Accept answers an awaiting decision; on any other open item it adds operator-accepted and
+    removes waits-operator-review (the hold), keeping the owner; an awaiting non-decision is refused."""
+    env, repo, _trees = _setup(tmp_path)
+    op = _operator(env)
+    gate = _decision(repo, env)
+    r = _verdict(repo, op, gate, "accept", "go ahead")
+    assert r.returncode == 0, r.stderr
+    closed = _items(repo)[gate]
+    assert closed["status"] == "done" and closed["note"] == "accepted: go ahead"
+    held = _add(repo, env)
+    _assign(repo, env, held, "w1", "--tag", "waits-operator-review", "--tag", "dashboard")
+    r = _verdict(repo, op, held, "accept")
+    assert r.returncode == 0, r.stderr
+    it = _items(repo)[held]
+    assert it["status"] == "open" and it["owner"] == "w1"
+    assert it["tags"] == ["dashboard", "operator-accepted"]
+    odd = _decision(repo, env)
+    path = repo / ".fabrik" / "work" / f"{odd}.json"
+    path.write_text(json.dumps({**json.loads(path.read_text()), "kind": "task"}), encoding="utf-8")
+    refused = _verdict(repo, op, odd, "accept")
+    assert refused.returncode == 1 and "decision" in refused.stderr
+
+
+def test_verdict_reject(tmp_path):
+    """Reject drops an owned open item with the operator's words and answers an awaiting decision as
+    rejected; reject needs text; another session's live claim refuses it."""
+    env, repo, trees = _setup(tmp_path, workers=("w1",), present=("w1",))
+    op = _operator(env)
+    owned = _add(repo, env)
+    _assign(repo, env, owned, "w1")
+    assert _verdict(repo, op, owned, "reject").returncode == 1  # no text
+    r = _verdict(repo, op, owned, "reject", "not needed")
+    assert r.returncode == 0, r.stderr
+    it = _items(repo)[owned]
+    assert it["status"] == "dropped" and it["note"] == "rejected by the operator: not needed"
+    gate = _decision(repo, env)
+    assert _verdict(repo, op, gate, "reject", "no").returncode == 0
+    assert _items(repo)[gate]["note"] == "rejected: no"
+    claimed = _add(repo, env)
+    _assign(repo, env, claimed, "w1")
+    _commit_store(repo, env)
+    _git(trees["w1"], env, "merge", "-q", "master")
+    c = run(["claim", claimed, "--session", SID], {**env, "CLAUDE_AGENT": "w1"}, trees["w1"])
+    assert c.returncode == 0, c.stderr
+    fenced = _verdict(repo, op, claimed, "reject", "stop")
+    assert fenced.returncode == 1 and "claim" in fenced.stderr
+    assert _items(repo)[claimed]["status"] == "open"
+
+
+def test_verdict_comment_logs_every_call(tmp_path):
+    """Every call appends {at, by, via, action, text} to `comments`; the text is one printable line
+    capped at 200; comment needs text; a resolved item is refused."""
+    env, repo, _trees = _setup(tmp_path)
+    op = _operator(env)
+    item = _add(repo, env)
+    assert _verdict(repo, op, item, "comment").returncode == 1
+    assert _verdict(repo, op, item, "comment", "first\tline\x07 " + "x" * 300).returncode == 0
+    assert _verdict(repo, op, item, "accept").returncode == 0
+    log = _items(repo)[item]["comments"]
+    assert [c["action"] for c in log] == ["comment", "accept"]
+    first = log[0]
+    assert first["by"] == "operator" and first["via"] == "dashboard" and first["at"] > 0
+    assert first["text"].startswith("first line ") and len(first["text"]) == 200
+    assert "\x07" not in first["text"]
+    assert log[1]["text"] == ""
+    assert run(["verdict", "--", item, "comment"], op, repo).returncode == 1
+    done = _add(repo, env)
+    assert _verdict(repo, op, done, "reject", "gone").returncode == 0
+    assert _verdict(repo, op, done, "comment", "late").returncode == 1
+
+
+def test_verdict_refusals_each_stand_alone(tmp_path):
+    """Review round 1: each refusal is proven on its own — a resolved item with no closed marker, an
+    item closed in another tree whose file here still reads open, another session's claim on ACCEPT,
+    and a `comments` that is not a list (refused, never overwritten); an awaiting item that is no
+    decision still takes a comment; a hand-edited string tag stays one tag."""
+    env, repo, trees = _setup(tmp_path, workers=("w1",), present=("w1",))
+    op = _operator(env)
+    items = repo / ".fabrik" / "work"
+
+    def edit(item: str, **fields) -> None:
+        path = items / f"{item}.json"
+        path.write_text(json.dumps({**json.loads(path.read_text()), **fields}), encoding="utf-8")
+
+    resolved = _add(repo, env)
+    edit(resolved, status="done")
+    r = _verdict(repo, op, resolved, "comment", "x")
+    assert r.returncode == 1 and "already done" in r.stderr
+    elsewhere = _add(repo, env)
+    claimed = _add(repo, env)
+    _assign(repo, env, claimed, "w1")
+    _commit_store(repo, env)
+    _git(trees["w1"], env, "merge", "-q", "master")
+    assert _verdict(trees["w1"], op, elsewhere, "reject", "gone").returncode == 0  # closed in w1's tree
+    r = _verdict(repo, op, elsewhere, "comment", "x")  # main's file still reads open
+    assert r.returncode == 1 and "another working tree" in r.stderr
+    assert run(["claim", claimed, "--session", SID], {**env, "CLAUDE_AGENT": "w1"}, trees["w1"]).returncode == 0
+    r = _verdict(repo, op, claimed, "accept")
+    assert r.returncode == 1 and "claim" in r.stderr
+    assert _verdict(repo, op, claimed, "comment", "fine to note").returncode == 0  # comment never fences
+    odd = _add(repo, env)
+    edit(odd, status="awaiting-operator")
+    assert _verdict(repo, op, odd, "comment", "seen").returncode == 0
+    bad = _add(repo, env)
+    edit(bad, comments={"x": 1})
+    r = _verdict(repo, op, bad, "comment", "y")
+    assert r.returncode == 1 and "not a list" in r.stderr
+    assert json.loads((items / f"{bad}.json").read_text())["comments"] == {"x": 1}
+    stringy = _add(repo, env)
+    edit(stringy, tags="abc")
+    assert _verdict(repo, op, stringy, "accept").returncode == 0
+    assert _items(repo)[stringy]["tags"] == ["abc", "operator-accepted"]

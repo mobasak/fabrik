@@ -3656,7 +3656,8 @@ def test_a_malformed_item_or_a_file_store_stays_inside_its_repo(tmp_path, monkey
     assert 'class="banner crit"' in bad_pane and "bad item" in bad_pane
     flat = page.split('data-repo="flat"')[1].split('<div class="repo"')[0]
     assert 'class="banner crit"' in flat and "not a directory" in flat
-    names = re.findall(r'<option value="([^"]+)"', page)
+    picker = page.split('<select id="repo-pick">')[1].split("</select>")[0]  # not the tag box's datalist
+    names = re.findall(r'<option value="([^"]+)"', picker)
     assert sorted(names) == ["bad", "fabrik", "flat"]  # the symlinked alias is not listed twice
 
 
@@ -4435,6 +4436,175 @@ def test_agent_pause_refuses_buttonless_rows_and_odd_input(tmp_path, monkeypatch
     assert qd._repos_cache is None
 
 
+# ── Accept / Reject / comment per work item (operator 2026-10-15, W-e1f1a1bd) ──────────────────────
+
+
+def _store_item(repo: Path, title: str, *tags: str) -> str:
+    """A real item in a real store, added by the hub's work.py as the operator (tagged when asked)."""
+    env = {"PATH": os.environ["PATH"], "HOME": str(repo.parent), "GIT_CONFIG_NOSYSTEM": "1"}
+    r = subprocess.run([sys.executable, str(_HUB_WORK), "add", "--kind", "task", "--title", title],
+                       cwd=repo, env=env, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    item = Path(r.stdout.strip().splitlines()[-1]).stem
+    if tags:
+        path = repo / ".fabrik" / "work" / f"{item}.json"
+        path.write_text(json.dumps({**json.loads(path.read_text()), "tags": list(tags)}))
+    return item
+
+
+def _item(repo: Path, item: str) -> dict:
+    return json.loads((repo / ".fabrik" / "work" / f"{item}.json").read_text())
+
+
+def test_item_verdict_endpoint_is_guarded(tmp_path, monkeypatch):
+    """POST /item-verdict refuses without the custom header, for an item the board never listed, for an
+    unknown action and for a reject with no words — and runs nothing; a failed build lists no pairs."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    item = _store_item(shop, "a task")
+    qd = _load(tmp_path, monkeypatch)
+    qd._repos_page(fresh=True)
+    httpd, base = _serve(qd)
+    try:
+        body = json.dumps({"repo": "shop", "item": item, "action": "comment", "text": "hi"}).encode()
+        assert _post(base + "/item-verdict", body)[0] == 403  # no X-Quota-Dash header
+        hdr = {qd.SWITCH_HEADER: "1"}
+        ghost = json.dumps({"repo": "shop", "item": "W-00000000", "action": "accept"}).encode()
+        assert _post(base + "/item-verdict", ghost, hdr)[0] == 400
+        bad = json.dumps({"repo": "shop", "item": item, "action": "delete"}).encode()
+        assert _post(base + "/item-verdict", bad, hdr)[0] == 400
+        mute = json.dumps({"repo": "shop", "item": item, "action": "reject", "text": " \x00 "}).encode()
+        assert _post(base + "/item-verdict", mute, hdr)[0] == 400
+        blank = json.dumps({"repo": "shop", "item": item, "action": "comment", "text": ""}).encode()
+        assert _post(base + "/item-verdict", blank, hdr)[0] == 400  # refused here, never a 502
+        assert "comments" not in _item(shop, item) and _item(shop, item)["status"] == "open"
+        assert _post(base + "/item-verdict", body, hdr)[0] == 200
+    finally:
+        httpd.shutdown()
+    assert _item(shop, item)["comments"][-1]["text"] == "hi"
+    qd._ITEM_TARGETS = {}  # a restarted server: the first write rebuilds the board once, then acts
+    assert qd.item_verdict("shop", item, "comment", "again")[0] == 200
+    assert _item(shop, item)["comments"][-1]["text"] == "again"
+
+    def broken(_opt):
+        raise RuntimeError("stores unreadable")
+
+    monkeypatch.setattr(qd, "_collect_work", broken)
+    assert "Work stores unreadable" in qd._repos_body()
+    assert qd._ITEM_TARGETS == {}
+
+
+def test_item_verdict_acts_as_the_operator(tmp_path, monkeypatch):
+    """A board verdict runs the hub's work.py as the OPERATOR against the recorded main checkout even
+    when the server carries an agent identity, a session id and a GIT_DIR; a `-`-led reason is kept
+    (the options sit before `--`); accept lifts the review hold; reject drops an owned item."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    decoy = _store_repo("decoy")
+    held = _store_item(shop, "held", "waits-operator-review")
+    owned = _store_item(shop, "owned")
+    path = shop / ".fabrik" / "work" / f"{owned}.json"
+    path.write_text(json.dumps({**json.loads(path.read_text()), "owner": "wef1"}))
+    qd = _load(tmp_path, monkeypatch)
+    qd._repos_page(fresh=True)
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-of-some-agent")
+    monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
+    status, out = qd.item_verdict("shop", owned, "reject", "--repo=/etc not needed")
+    assert status == 200, out
+    gone = _item(shop, owned)
+    assert gone["status"] == "dropped" and gone["note"] == "rejected by the operator: --repo=/etc not needed"
+    assert gone["comments"][-1] == {**gone["comments"][-1], "by": "operator", "via": "dashboard", "action": "reject"}
+    status, out = qd.item_verdict("shop", held, "accept")
+    assert status == 200, out
+    assert _item(shop, held)["tags"] == ["operator-accepted"]
+    assert not list((decoy / ".fabrik" / "work").glob("W-*.json"))
+
+
+_TAGS_DOM = r"""
+const spec = JSON.parse(process.argv[process.argv.length - 1]);
+const gets = [], store = {}; if (spec.stored !== null) { store["repo-tag"] = spec.stored; }
+global.localStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } };
+const rows = spec.rows.map((t) => ({ hidden: false, getAttribute: () => t }));
+const box_ = (v) => ({ value: v, getAttribute: (k) => ({"data-repo": "shop", "data-item": "W-0000000a"})[k] });
+let inputs = spec.typed.map(box_);
+const opts = spec.known.map((v) => ({ value: v }));
+let onInput = null;
+const box = { value: "", addEventListener: (t, f) => { if (t === "input") { onInput = f; } } };
+// #live: a swap (innerHTML set) rebuilds every comment box empty, as the browser does
+const cur = { querySelector: () => ({ textContent: "read 10:00:00" }) };
+Object.defineProperty(cur, "innerHTML", { set: () => { inputs = inputs.map(() => box_("")); }, get: () => "" });
+const nw = { innerHTML: "NEW", querySelector: () => ({ textContent: "read 10:00:20" }) };
+const inBox = { tagName: "INPUT", id: "", closest: (sel) => (sel === "#live" ? cur : null) };
+global.document = { hidden: false, activeElement: spec.focused ? inBox : null,
+  getElementById: (id) => (id === "tag-pick" ? box : id === "live" ? cur : null),
+  querySelectorAll: (sel) => (sel === "tr[data-tags]" ? rows : sel === "#tag-list option" ? opts
+    : sel === "input.iv-text" ? inputs : []),
+  addEventListener: () => {} };
+global.window = { scrollY: 0, scrollTo: () => {}, getSelection: () => "", frameElement: null };
+global.DOMParser = function () { this.parseFromString = () => ({ getElementById: () => nw }); };
+global.fetch = (url) => { gets.push(url); return Promise.resolve({ ok: true, text: () => Promise.resolve("x") }); };
+global.setInterval = () => {};
+eval(spec.script);
+const first = rows.map((r) => r.hidden);
+box.value = spec.typeTag; if (onInput) { onInput(); }
+const after = rows.map((r) => r.hidden);
+refreshRepos(spec.force);
+setTimeout(() => console.log(JSON.stringify({first, after, gets, stored: store["repo-tag"],
+  values: inputs.map((x) => x.value)})), 30);
+"""
+
+
+def test_item_rows_verdict_buttons_and_tag_filter(tmp_path, monkeypatch):
+    """Rows carry Accept, Reject, a comment box and their tags; the last comment shows; an awaiting
+    item that is no decision gets the box only; the tag box filters rows, falls back to every row for
+    a stored tag no longer on the page, and a refresh never wipes a comment being typed."""
+    import shutil
+
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    plain = _store_item(shop, "plain", "waits-operator-review")
+    odd = _store_item(shop, "odd")
+    path = shop / ".fabrik" / "work" / f"{odd}.json"
+    path.write_text(json.dumps({**json.loads(path.read_text()), "status": "awaiting-operator"}))
+    qd = _load(tmp_path, monkeypatch)
+    qd._repos_page(fresh=True)
+    assert qd.item_verdict("shop", plain, "comment", "<b>look</b>")[0] == 200
+    page = qd._repos_page(fresh=True)
+    row = page.split(f"<code>{plain}</code>")[0].rsplit("<tr", 1)[1] + page.split(f"<code>{plain}</code>")[1].split("</tr>")[0]
+    assert 'data-tags="waits-operator-review"' in row
+    assert 'data-action="accept"' in row and 'data-action="reject"' in row and 'class="iv-text"' in row
+    assert "operator comment: &lt;b&gt;look&lt;/b&gt;" in row
+    odd_row = page.split(f"<code>{odd}</code>")[1].split("</tr>")[0]
+    assert 'class="iv-text"' in odd_row and "iv-btn" not in odd_row
+    assert '<option value="waits-operator-review">' in page and 'id="tag-pick"' in page
+    node = shutil.which("node") or shutil.which("nodejs")
+    if not node:
+        pytest.skip("node is not installed: the tag box cannot be executed")
+    script = page.split("<script>")[1].split("</script>")[0]
+    base = {"script": script, "rows": ["a waits-operator-review", "b"], "known": ["a", "b", "waits-operator-review"]}
+    runs = {}
+    for name, extra in {
+        "stale": {"stored": "gone", "typeTag": "waits-operator-review", "typed": [""], "force": False},
+        "kept": {"stored": "b", "typeTag": "b", "typed": ["half a thought"], "force": False},
+        "forced": {"stored": None, "typeTag": "", "typed": ["half a thought"], "force": True, "focused": True},
+        "focused": {"stored": None, "typeTag": "", "typed": [""], "force": False, "focused": True},
+    }.items():
+        r = subprocess.run([node, "-e", _TAGS_DOM, json.dumps({**base, **extra})], capture_output=True,
+                           text=True, timeout=60)
+        assert r.returncode == 0, r.stderr[:800]
+        runs[name] = json.loads(r.stdout)
+    assert runs["stale"]["first"] == [False, False]  # a stored tag no longer on the page: every row
+    assert runs["stale"]["after"] == [False, True] and runs["stale"]["stored"] == "waits-operator-review"
+    assert runs["stale"]["gets"] == ["/repos.html"]
+    assert runs["kept"]["first"] == [True, False]
+    # review round 1: words in a comment box never stop a refresh — they are carried across the swap,
+    # and the forced refresh after a write always fetches
+    assert runs["kept"]["gets"] == ["/repos.html"] and runs["kept"]["values"] == ["half a thought"]
+    assert runs["forced"]["gets"] == ["/repos.html?fresh=1"] and runs["forced"]["values"] == ["half a thought"]
+    assert runs["focused"]["gets"] == []  # the operator is in a box: the poll waits for the blur
+
+
 def test_agent_rows_pause_and_resume_buttons(tmp_path, monkeypatch):
     """Rows show Pause, or Resume with who paused; no button for "(unnamed)" or a store-less repo; the
     delegated handler POSTs only after confirm() and then forces a fresh refresh."""
@@ -4464,13 +4634,14 @@ def test_agent_rows_pause_and_resume_buttons(tmp_path, monkeypatch):
     script = page.split("<script>")[1].split("</script>")[0]
     harness = r"""
 const spec = JSON.parse(process.argv[process.argv.length - 1]);
-let click = null, posts = [], gets = [], confirms = 0;
+let clicks = [], posts = [], gets = [], confirms = 0;
 global.localStorage = { getItem: () => null, setItem: () => {} };
 const btn = { disabled: false, textContent: "Pause", title: "",
   getAttribute: (k) => ({"data-repo": "shop", "data-agent": "wef1", "data-action": "pause"})[k],
   closest: (sel) => (sel === "button.ag-btn" ? btn : null) };
 global.document = { hidden: false, activeElement: null, getElementById: () => null,
-  querySelectorAll: () => [], addEventListener: (t, f) => { if (t === "click") click = f; } };
+  querySelectorAll: () => [], addEventListener: (t, f) => { if (t === "click") clicks.push(f); } };
+const click = (ev) => clicks.forEach((f) => f(ev));  // every delegated listener, as a browser calls them
 global.window = { scrollY: 0, scrollTo: () => {}, getSelection: () => "", frameElement: null };
 global.confirm = () => { confirms += 1; return spec.answer; };
 global.DOMParser = function () { this.parseFromString = () => ({ getElementById: () => null }); };

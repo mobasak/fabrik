@@ -2283,7 +2283,8 @@ def _opt_root() -> Path:
 
 
 def _collect_work(opt: Path) -> list[dict]:
-    """One entry per repo with a work store: {name, items, error, skipped}."""
+    """One entry per repo with a work store: {name, items, error, skipped, main} — ``main`` (the main
+    checkout a board write goes to) only once the store was read."""
     wk, sink = _work_module()
     out: list[dict] = []
     with wk._hook_git_budget():
@@ -2301,6 +2302,9 @@ def _collect_work(opt: Path) -> list[dict]:
                 if not store.is_dir():  # work.py reads a non-dir store as empty: an all-clear lie
                     raise NotADirectoryError(f"{store} is not a directory")
                 items = list(wk._iter_items(repo))
+                # where a board write goes: the MAIN checkout, as pause/resume resolve it — never a
+                # linked worktree that happens to sit at /opt/<name> (W-e1f1a1bd)
+                entry["main"] = str(wk._worktrees(repo)[0].resolve())
                 closed = wk._closed_ids(repo)
                 claims = wk._live_claims(repo)
                 for it in items:
@@ -2335,6 +2339,31 @@ def _owner_order(owners: set[str]) -> list[str]:
 
 def _cap(text: str, n: int) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def _verdict_cell(item: dict, repo: str) -> str:
+    """The operator's Accept / Reject buttons and comment box for one row, under the item's last
+    comment (W-e1f1a1bd). An awaiting item that is no decision takes comments only (work.py's rule)."""
+    data = f'data-repo="{escape(repo)}" data-item="{escape(str(item.get("id", "")))}"'
+    raw = item.get("comments")
+    log: list = raw if isinstance(raw, list) else []
+    last = log[-1] if log and isinstance(log[-1], dict) else None
+    out = ""
+    if last:
+        words = _cap(str(last.get("text") or ""), 120)
+        more = f" · {len(log)} notes" if len(log) > 1 else ""
+        head = " ".join(escape(str(last.get(k) or d)) for k, d in (("by", "operator"), ("action", "note")))
+        ago = _ago(last.get("at"))
+        out += (
+            f'<div class="iv-last">{head}{(": " + escape(words)) if words else ""}'
+            f'{(", " + escape(ago)) if ago else ""}{more}</div>'
+        )
+    if not (item.get("status") == "awaiting-operator" and item.get("kind") != "decision"):
+        out += (
+            f'<button type="button" class="iv-btn" {data} data-action="accept">Accept</button>'
+            f'<button type="button" class="iv-btn" {data} data-action="reject">Reject</button>'
+        )
+    return out + f'<input type="text" class="iv-text" {data} maxlength="200" placeholder="comment — Enter saves">'
 
 
 def _repo_pane(r: dict, shown: bool) -> str:
@@ -2404,9 +2433,10 @@ def _repo_pane(r: dict, shown: bool) -> str:
         for i in rows:
             nxt = str(i.get("next") or "")
             raw = i.get("tags") or []
-            tags = ", ".join(str(t) for t in (raw if isinstance(raw, list) else [raw]) if t)
+            tag_list = [str(t) for t in (raw if isinstance(raw, list) else [raw]) if t]
+            tags = ", ".join(tag_list)
             body.append(
-                "<tr>"
+                f'<tr data-tags="{escape(" ".join(tag_list))}">'
                 f"<td><code>{escape(str(i.get('id', '')))}</code></td>"
                 f"<td>{escape(str(i.get('kind', '')))}</td>"
                 f'<td class="st-{escape(str(i.get("status", "")))}">{escape(str(i.get("status", "")))}</td>'
@@ -2415,11 +2445,12 @@ def _repo_pane(r: dict, shown: bool) -> str:
                 f'<td title="{escape(_cap(nxt, NEXT_TIP_CAP))}">{escape(_cap(nxt, NEXT_CAP))}</td>'
                 f"<td>{escape(tags)}</td>"
                 f"<td>{('claimed by ' + escape(i['_claim'])) if i.get('_claim') else ''}</td>"
+                f"<td>{_verdict_cell(i, name)}</td>"
                 "</tr>"
             )
         out.append(
             "<table><thead><tr><th>Item</th><th>Kind</th><th>Status</th><th>P</th>"
-            "<th>Title</th><th>Next</th><th>Tags</th><th>Claim</th></tr></thead>"
+            "<th>Title</th><th>Next</th><th>Tags</th><th>Claim</th><th>Operator</th></tr></thead>"
             f"<tbody>{''.join(body)}</tbody></table></details>"
         )
     out.append("</div>")
@@ -2480,6 +2511,14 @@ _REPOS_STYLE = """
  .ag-btn[data-action="resume"] { border-color:var(--accent); color:var(--accent); }
  .ag-btn:disabled { opacity:.5; cursor:default; }
  table.ag ul { margin:0; padding-left:16px; }
+ .iv-last { color:var(--sub); font-size:12px; max-width:28ch; }
+ .iv-btn { font:inherit; font-size:12px; margin:2px 4px 2px 0; padding:1px 8px; border-radius:999px; cursor:pointer;
+   border:1px solid var(--line); background:var(--card); color:var(--fg); }
+ .iv-btn[data-action="accept"] { border-color:#1f8a4c; color:#1f8a4c; }
+ .iv-btn[data-action="reject"] { border-color:var(--crit); color:var(--crit); }
+ .iv-btn:disabled, .iv-text:disabled { opacity:.5; cursor:default; }
+ .iv-text { font:inherit; font-size:12px; width:22ch; padding:1px 6px; border-radius:6px;
+   border:1px solid var(--line); background:var(--card); color:var(--fg); }
 """
 
 # ── Agents block on the Repos page (operator 2026-10-15, W-7159f8e2) ─────────────────────────────────
@@ -2629,19 +2668,28 @@ def pause_agent(repo: object, agent: object, action: object, why: object = "") -
     hub = _FABRIK_ROOT / "scripts" / "work.py"
     base = [sys.executable, str(hub), "--repo", target["main"]]
     if action == "pause":
-        # a NUL or a lone surrogate makes subprocess raise ValueError/UnicodeEncodeError: drop them
-        note = " ".join("".join(c for c in str(why or "") if c.isprintable() or c.isspace()).split())[:200]
-        argv = [*base, "pause", "--by=dashboard", f"--why={note}", "--", agent]
+        argv = [*base, "pause", "--by=dashboard", f"--why={_clean_note(why)}", "--", agent]
     else:  # every marker the row showed — a pause keyed by a window's tree carries the tree's name
         shown = target.get("paused") or {}
         names = [str(n) for n in shown.get("names") or [shown.get("name") or agent]]
-    env = {k: v for k, v in os.environ.items() if k in _PAUSE_ENV_KEEP or k.startswith("LC_")}
     runs = [argv] if action == "pause" else [[*base, "resume", "--", n] for n in names]
+    return _run_work(target["main"], runs)
+
+
+def _clean_note(text: object) -> str:
+    """One printable line of at most 200 characters — a NUL or a lone surrogate would make
+    subprocess raise ValueError/UnicodeEncodeError."""
+    return " ".join("".join(c for c in str(text or "") if c.isprintable() or c.isspace()).split())[:200]
+
+
+def _run_work(main: str, runs: list[list[str]]) -> tuple[int, dict]:
+    """Run each argv in order against ``main`` as the operator (the allowlisted env, ``cwd=main``);
+    the first refusal stops the rest. 200 with the outputs, or 502 with work.py's own message."""
+    env = {k: v for k, v in os.environ.items() if k in _PAUSE_ENV_KEEP or k.startswith("LC_")}
     out: list[str] = []
     try:
-        for cmd in runs:  # `resume` lifts one name; the first refusal stops the rest
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=PAUSE_TIMEOUT_S, env=env,
-                               cwd=target["main"])
+        for cmd in runs:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=PAUSE_TIMEOUT_S, env=env, cwd=main)
             if r.returncode:
                 _drop_repos_cache()
                 return 502, {"ok": False, "error": (r.stderr or r.stdout or "work.py failed").strip()[:400]}
@@ -2654,6 +2702,44 @@ def pause_agent(repo: object, agent: object, action: object, why: object = "") -
         return 502, {"ok": False, "error": f"work.py could not run: {exc}"[:400]}
     _drop_repos_cache()  # the next page build shows the change
     return 200, {"ok": True, "output": "\n".join(out)[:400]}
+
+
+# Accept / Reject / comment per work item (operator 2026-10-15: "i want a way to accept or reject them
+# manually also add a comment next to them", W-e1f1a1bd): POST /item-verdict acts only on a (repo, id)
+# the last build listed, through the HUB's `work.py verdict` as the operator — the same runner, env and
+# guard as Pause/Resume (D-916). What accept and reject do to an item stays work.py's.
+_ITEM_TARGETS: dict[tuple[str, str], str] = {}  # (repo, id) -> main checkout; REPLACED whole each build
+
+
+def _publish_item_targets(repos: list[dict]) -> None:
+    global _ITEM_TARGETS
+    _ITEM_TARGETS = {
+        (str(r.get("name")), str(i.get("id"))): str(r["main"])
+        for r in repos
+        if r.get("main") and not r.get("error")
+        for i in r.get("items", [])
+    }
+
+
+def item_verdict(repo: object, item: object, action: object, text: object = "") -> tuple[int, dict]:
+    """Accept, reject or comment on one item the board lists. (http_status, json_body): 400 for an
+    unknown pair or action, or a reject/comment with no words (nothing runs), 502 when work.py refuses
+    or times out (its message), 200 on success."""
+    if action not in ("accept", "reject", "comment") or not isinstance(repo, str) or not isinstance(item, str):
+        return 400, {"ok": False, "error": "body needs repo, item and action accept|reject|comment"}
+    note = _clean_note(text)
+    if action != "accept" and not note:
+        return 400, {"ok": False, "error": f"{action} needs the operator's words"}
+    main = _ITEM_TARGETS.get((repo, item))
+    if main is None:  # a restarted server, or a frame older than the last build: rebuild once
+        _repos_page(fresh=True)
+        main = _ITEM_TARGETS.get((repo, item))
+    if main is None:
+        return 400, {"ok": False, "error": f"{item!r} in {repo!r} is not on the board"}
+    hub = _FABRIK_ROOT / "scripts" / "work.py"
+    opts = [f"--text={note}"] if note else []
+    return _run_work(main, [[sys.executable, str(hub), "--repo", main, "verdict", *opts, "--by=dashboard",
+                             "--", item, str(action)]])
 
 
 def _agents_block() -> str:
@@ -2721,10 +2807,12 @@ def _repos_body() -> str:
     try:
         repos = _repo_order(_collect_work(_opt_root()))
     except Exception as exc:  # the whole read failed: say so here; the quota board is untouched
+        _publish_item_targets([])  # no rows, no buttons: an older frame's pair acts on nothing
         return (
             f'<div class="banner crit">Work stores unreadable — {escape(type(exc).__name__)}: '
             f"{escape(str(exc))}</div>"
         )
+    _publish_item_targets(repos)
     if not repos:
         return (
             f'<p class="intro">No repo under {escape(str(_opt_root()))} keeps a '
@@ -2735,9 +2823,15 @@ def _repos_body() -> str:
         f'<option value="{escape(str(r["name"]))}">{escape(str(r["name"]))} ({len(r["items"])})</option>'
         for r in repos
     )
+    # the same reading as a row's data-tags (_repo_pane): a hand-edited string is one tag
+    tags = sorted({str(t) for r in repos for i in r["items"]
+                   for t in (i.get("tags") if isinstance(i.get("tags"), list) else [i.get("tags")]) if t})
+    tag_opts = "".join(f'<option value="{escape(t)}">' for t in tags)
     panes = "".join(_safe_pane(r, i == 0) for i, r in enumerate(repos))
     return (
         f'<div class="bar"><label>Repo <select id="repo-pick">{opts}</select></label>'
+        '<label>Tag <input id="tag-pick" list="tag-list" size="24" placeholder="every tag"></label>'
+        f'<datalist id="tag-list">{tag_opts}</datalist>'
         f'<a href="/repos.html?fresh=1">refresh</a></div>'
         f'<p class="intro">{len(repos)} repos keep a <code>.fabrik/work</code> store · {total} '
         "remaining items in all of them (open, blocked or awaiting the operator; done and dropped "
@@ -2812,13 +2906,30 @@ _REPOS_PICK_JS = (
     ' pick.addEventListener("change", function () { show(pick.value);'
     '  try { localStorage.setItem("repo-pick", pick.value); } catch (e) {} });'
     "} initPicker();"
-    # force (after a Pause/Resume): a fresh build, past the focus, selection and same-stamp skips —
-    # never past a hidden tab or frame
+    # The tag box (W-e1f1a1bd): rows whose data-tags lack the tag are hidden; the choice is stored
+    # like the picker's, and a stored tag no longer on the page falls back to every row.
+    "function initTags() {"
+    ' var box = document.getElementById("tag-pick"); if (!box) { return; }'
+    ' var want = ""; try { want = localStorage.getItem("repo-tag") || ""; } catch (e) {}'
+    ' if (!Array.prototype.some.call(document.querySelectorAll("#tag-list option"),'
+    "  function (o) { return o.value === want; })) { want = \"\"; }"
+    ' function apply(t) { document.querySelectorAll("tr[data-tags]").forEach(function (tr) {'
+    '  tr.hidden = t !== "" && (" " + tr.getAttribute("data-tags") + " ").indexOf(" " + t + " ") < 0; }); }'
+    " box.value = want; apply(want);"
+    ' box.addEventListener("input", function () { var t = box.value.trim(); apply(t);'
+    '  try { localStorage.setItem("repo-tag", t); } catch (e) {} });'
+    "} initTags();"
+    # force (after a Pause/Resume or a verdict): a fresh build, past the focus, selection and
+    # same-stamp skips — never past a hidden tab or frame; words typed in a comment box survive any swap
     " function refreshRepos(force) {"
     "  force = force === true;"
     "  if (document.hidden) { return; }"
     "  try { var fe = window.frameElement; if (fe && fe.offsetParent === null) { return; } } catch (e) {}"
     '  var act = document.activeElement; if (!force && act && act.id === "repo-pick") { return; }'
+    # a swap rebuilds every input in #live: while the operator is IN a box (picker, tag box, comment)
+    # the poll waits; the forced refresh after a write never does — typed words are carried across
+    '  if (!force && act && act.closest && act.closest("#live") && /^(INPUT|TEXTAREA|SELECT)$/.test(act.tagName))'
+    "   { return; }"
     "  var sel = window.getSelection ? String(window.getSelection()) : ''; if (!force && sel) { return; }"
     '  fetch(force ? "/repos.html?fresh=1" : "/repos.html", {cache: "no-store"})'
     "  .then(function (r) { return r.ok ? r.text() : null; })"
@@ -2827,7 +2938,11 @@ _REPOS_PICK_JS = (
     '   var nw = doc.getElementById("live"), cur = document.getElementById("live"); if (!nw || !cur) { return; }'
     '   var ns = nw.querySelector(".stamp"), cs = cur.querySelector(".stamp");'
     "   if (!force && ns && cs && ns.textContent === cs.textContent) { return; }"
-    "   var y = window.scrollY; cur.innerHTML = nw.innerHTML; initPicker();"
+    '   function boxes(f) { Array.prototype.forEach.call(document.querySelectorAll("input.iv-text"), function (x) {'
+    '    f(x, JSON.stringify([x.getAttribute("data-repo"), x.getAttribute("data-item")])); }); }'
+    "   var kept = {}; boxes(function (x, k) { if (x.value) { kept[k] = x.value; } });"
+    "   var y = window.scrollY; cur.innerHTML = nw.innerHTML; initPicker(); initTags();"
+    "   boxes(function (x, k) { if (kept[k]) { x.value = kept[k]; } });"
     '   if (typeof initOwners === "function") { initOwners(); } window.scrollTo(0, y);'
     "  }).catch(function () {}); }"
     f" setInterval(refreshRepos, {int(REPOS_REFRESH_S * 1000)});"
@@ -2856,6 +2971,37 @@ _REPOS_PICK_JS = (
     '   b.textContent = "failed — retry " + action; })'
     '  .catch(function () { b.disabled = false; b.textContent = "server unreachable — retry " + action; });'
     " });"
+    # Accept / Reject / comment (W-e1f1a1bd): the same top-level delegation. Reject and comment need
+    # the row's words (work.py refuses them without); Accept and Reject ask confirm() first.
+    " function sendVerdict(el, action) {"
+    '  var repo = el.getAttribute("data-repo"), item = el.getAttribute("data-item"); if (!repo || !item) { return; }'
+    '  var row = el.closest ? el.closest("tr") : null, box = row ? row.querySelector("input.iv-text") : null;'
+    '  var text = box ? box.value.trim() : "";'
+    '  if (action !== "accept" && !text) { if (box) { box.placeholder = action === "reject"'
+    '   ? "say why, then Reject" : "type a comment first"; box.focus(); } return; }'
+    '  if (action !== "comment" && !confirm((action === "accept" ? "Accept " : "Reject ") + item + " in "'
+    '   + repo + "?" + (text ? " With: " + text : ""))) { return; }'
+    "  el.disabled = true;"
+    '  fetch("/item-verdict", {method: "POST", cache: "no-store",'
+    f'   headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},'
+    "   body: JSON.stringify({repo: repo, item: item, action: action, text: text})})"
+    '  .then(function (r) { return r.json().catch(function () { return {error: "HTTP " + r.status}; })'
+    "   .then(function (j) { return [r.status, j]; }); })"
+    "  .then(function (sj) {"
+    '   if (sj[0] === 200 && sj[1].ok) { if (box) { box.value = ""; }'
+    '    if (action !== "comment") { el.textContent = action === "accept" ? "accepted" : "rejected"; }'
+    "    refreshRepos(true); return; }"
+    '   el.disabled = false; el.title = (sj[1] && sj[1].error) || "failed";'
+    '   if (action !== "comment") { el.textContent = "failed — retry"; } else { el.placeholder = "failed — " + el.title; } })'
+    '  .catch(function () { el.disabled = false; el.title = "server unreachable — retry"; }); }'
+    ' document.addEventListener("click", function (ev) {'
+    '  var b = ev.target && ev.target.closest ? ev.target.closest("button.iv-btn") : null;'
+    "  if (!b || b.disabled) { return; }"
+    '  var a = b.getAttribute("data-action"); if (a === "accept" || a === "reject") { sendVerdict(b, a); } });'
+    ' document.addEventListener("keydown", function (ev) {'
+    '  var x = ev.target; if (!x || !x.classList || !x.classList.contains("iv-text") || x.disabled'
+    '   || ev.key !== "Enter") { return; }'
+    '  ev.preventDefault(); sendVerdict(x, "comment"); });'
 )
 
 
@@ -3724,7 +3870,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 (stdlib interface)
         path = self.path.split("?", 1)[0]
-        if path not in ("/switch", "/park", "/cap", "/threshold", "/agent-pause"):
+        if path not in ("/switch", "/park", "/cap", "/threshold", "/agent-pause", "/item-verdict"):
             self.send_error(404)
             return
         if not self.headers.get(SWITCH_HEADER):
@@ -3753,6 +3899,15 @@ class _Handler(BaseHTTPRequestHandler):
             status, out = pause_agent(b.get("repo"), b.get("agent"), b.get("action"), b.get("why") or "")
             sys.stderr.write(
                 f"quota_dashboard: POST {path} {b.get('repo')!r}/{b.get('agent')!r} {b.get('action')!r}"
+                f" -> {status} in {time.time() - t0:.1f}s: {out.get('output') or out.get('error') or ''}\n"
+            )
+            self._json(status, out)
+            return
+        if path == "/item-verdict":
+            b = body if isinstance(body, dict) else {}
+            status, out = item_verdict(b.get("repo"), b.get("item"), b.get("action"), b.get("text") or "")
+            sys.stderr.write(
+                f"quota_dashboard: POST {path} {b.get('repo')!r}/{b.get('item')!r} {b.get('action')!r} by operator"
                 f" -> {status} in {time.time() - t0:.1f}s: {out.get('output') or out.get('error') or ''}\n"
             )
             self._json(status, out)
