@@ -269,6 +269,14 @@ Surface: `scripts/mail.py`, `.claude/hooks/mail_notify.py`, `scripts/command_run
 
 ## Phase C — Finish, then the hub handover
 
+⏸ 2026-10-15 — steps 1-5 done, step 6 waiting on the launch. Step 5: the Finish `/fabrik-review` closed 10 → 3 → 0
+(`docs/development/reviews/2026-10-15-plan-1-coordinator-role-review.md`) and Phases A-B merged to master at
+300d803ed (fleet sync ran). Step 4 (after that merge): fabrik-lib 01M4YN9HNE and the seven multi-window repos mailed
+(`_workers` measured: 8 of 42 stores, the hub and those seven); fleet, intel and kaizen told by `SendMessage`.
+Steps 1-3 are committed on this branch only, with the CHANGELOG entry — merging the branch into master IS the flip,
+done by infra once `mail.py who coordinator` shows the live session; then infra tells the coordinator and moves to
+`.claude/worktrees/infra`.
+
 Appetite: 75
 
 Surface: `CLAUDE.md`, `docs/reference/agents/infra.md`, `docs/reference/multi-agent-operating-model.md`,
