@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: whole-ts handles, cited specs' decisions, recipes pointed at by name (2026-10-15)
+
+`commands/_sources/fabrik-command-improve.md`: PHASE 5's mark step says a handle is the whole `ts` with its
+fractional part (the tool matches exact strings); § Drive grounding reads the decisions or binding-constraints
+section of each spec the command cites, beside `docs/DECISIONS.md`; PHASE 3 says a recipe held in a template literal
+or an escaped string is pointed at by name, never handed over to be pasted. Answers rows 1792084693, 1792070803 and
+1792087460, each a recurrence of a held subject; pinned by `tests/test_command_improve_queue_pass.py`.
+
 ### Changed — chrome-ext pack: § Distribution Model names the release kit the scaffold ships (2026-10-15)
 
 `.windsurf/rules/chrome-ext/70-chrome-ext.md` now says that for the developer-mode channel a chrome-extension
