@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 1,
   "score_reason": "mail-claim item for fleet's gap_keeps finding; the work is W-a39d4c86 (P1); closes on infra's ack",
-  "status": "open",
+  "status": "done",
   "title": "follow-up to 01M505J6KG — scratch_sweep's .trash ctime fallback skips a bool created"
 }
