@@ -1214,6 +1214,21 @@ def test_a_close_that_heals_a_marker_stamps_the_runs_true_start(
     assert owner.get("created") == start, owner
 
 
+def test_a_heal_of_a_resumed_run_stamps_its_origin_not_its_resume(tmp_path: Path) -> None:
+    """Closing pass (A1, one hop): a run resumed in a later session mints a fresh `started_epoch`
+    but keeps its true origin in `origin_epoch` — the start every other reader uses
+    (`origin_epoch or started_epoch`). The heal must stamp the origin, or the first session's
+    writers fall outside `gap_keeps`' protection again."""
+    folder = tmp_path / "run-k"
+    folder.mkdir()
+    (folder / ".owner").write_text("garbage{", encoding="utf-8")
+    origin, resumed = time.time() - 40 * 3600.0, time.time() - 3600.0
+    rec = {"run_scratch": str(folder), "origin_epoch": origin, "started_epoch": resumed}
+    cr._mark_run_scratch(rec, "done", "s1")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    assert owner.get("created") == origin, owner
+
+
 def test_a_heal_with_no_known_start_leaves_created_unknown(tmp_path: Path) -> None:
     """A record with no usable `started_epoch` (an adoption heal passes a bare `run_scratch`) never
     invents a creation time: `created` stays unknown, so the sweep keeps the folder (the safe side)

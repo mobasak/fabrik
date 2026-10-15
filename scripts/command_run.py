@@ -1721,7 +1721,11 @@ def _mark_run_scratch(rec: dict[str, Any], state: str, sid: str) -> None:
             # that protection from every writer the run had (review of 2dd7ac9e6, A1). A record
             # with no usable start (an adoption's bare `{"run_scratch": …}`) leaves `created`
             # unknown — kept, the safe side. A real, sane `created` is never replaced.
-            start = rec.get("started_epoch")
+            # a resumed run's TRUE start is its `origin_epoch` (its `started_epoch` is the resume's),
+            # the same `origin_epoch or started_epoch` every other reader of a run's start uses
+            start = rec.get("origin_epoch")
+            if not _sane_epoch(start, now):
+                start = rec.get("started_epoch")
             if _sane_epoch(start, now):
                 owner["created"] = float(start)
             else:
