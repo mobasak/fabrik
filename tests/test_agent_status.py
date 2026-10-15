@@ -420,13 +420,15 @@ def test_box_reports_each_agents_pause(tmp_path: Path) -> None:
 
 
 def test_box_pause_edges(tmp_path: Path) -> None:
-    """The review's round-1 findings, each pinned: a pause under the agent's own name; a tree pause
-    shown only when it covers EVERY window of the agent (work.py pauses per window); a marker with no
-    time shows no age; a FIFO work.py never hangs the box view; the verb in a comment is not the verb."""
+    """The review's findings, each pinned: a pause under the agent's own name; work.py pauses per
+    WINDOW, so the row carries every marker stopping one of the agent's windows (Resume lifts them all)
+    and reads `partial` while another window — a worktree or the main checkout — still runs; a marker
+    with no time shows no age; a FIFO work.py never hangs the box view; the verb in a comment is not
+    the verb."""
     env = _env(tmp_path)
     opt = tmp_path / "opt"
     opt.mkdir()
-    shop = _box_repo(opt, env, "shop", worktrees=("wef1", "wef2", "wef3"))
+    shop = _box_repo(opt, env, "shop", worktrees=("wef1", "wef2", "wef3", "wef4", "wef5", "wef6"))
     fifo = _box_repo(opt, env, "fifo")
     cmt = _box_repo(opt, env, "cmt")
     proc = tmp_path / "proc"
@@ -434,11 +436,16 @@ def test_box_pause_edges(tmp_path: Path) -> None:
     _window(proc, 101, wt / "wef1", agent="lead")  # lead's two windows: wef1 (paused) and wef2 (not)
     _window(proc, 102, wt / "wef2", agent="lead")
     _window(proc, 103, wt / "wef3", agent="cara")  # paused by her own name
+    _window(proc, 104, wt / "wef4", agent="duo")  # duo's two windows: both trees paused
+    _window(proc, 105, wt / "wef5", agent="duo")
+    _window(proc, 106, wt / "wef6", agent="mo")  # mo: a paused tree and a main-checkout window
+    _window(proc, 107, shop, agent="mo")
     _record(env, "f", agent="fay", state="done", command="fabrik-task", repo_root=str(fifo))
     _record(env, "c", agent="cid", state="done", command="fabrik-task", repo_root=str(cmt))
     marker = shop / ".git" / "fabrik-work" / "paused"
     marker.mkdir(parents=True)
-    (marker / "wef1.json").write_text(json.dumps({"by": "operator", "at": time.time()}))
+    for tree in ("wef1", "wef4", "wef5", "wef6"):
+        (marker / f"{tree}.json").write_text(json.dumps({"by": "operator", "at": time.time()}))
     (marker / "cara.json").write_text(json.dumps({"by": "operator"}))  # no time
     (fifo / "scripts").mkdir()
     os.mkfifo(fifo / "scripts" / "work.py")
@@ -446,9 +453,13 @@ def test_box_pause_edges(tmp_path: Path) -> None:
     (cmt / "scripts" / "work.py").write_text("# TODO: def cmd_pause(repo, args)\n", encoding="utf-8")
     repos = _box(opt, env)  # a FIFO read would block here until the test's timeout
     shop_agents = _agents(repos["shop"])
-    assert shop_agents["cara"]["paused"]["name"] == "cara"
-    assert shop_agents["cara"]["paused"]["at"] is None
-    assert shop_agents["lead"]["paused"] is None  # its wef2 window still runs
+    assert shop_agents["cara"]["paused"]["names"] == ["cara"]
+    assert shop_agents["cara"]["paused"]["at"] is None and shop_agents["cara"]["paused"]["partial"] is False
+    lead = shop_agents["lead"]["paused"]
+    assert lead["names"] == ["wef1"] and lead["partial"] is True  # its wef2 window still runs
+    duo = shop_agents["duo"]["paused"]
+    assert duo["names"] == ["wef4", "wef5"] and duo["partial"] is False  # Resume must lift both
+    assert shop_agents["mo"]["paused"]["partial"] is True  # its main-checkout window still runs
     assert _agents(repos["fifo"])["fay"]["pause_honoured"] is False
     assert _agents(repos["cmt"])["cid"]["pause_honoured"] is False
 

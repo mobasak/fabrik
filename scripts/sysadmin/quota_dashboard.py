@@ -2532,8 +2532,9 @@ def _pause_cell(a: dict, repo: str) -> str:
     paused = a.get("paused") or None
     out = ""
     if paused:
+        some = " — only some of its windows" if paused.get("partial") else ""
         out += (f'<div class="ag-sub">paused by {escape(str(paused.get("by") or "?"))}, '
-                f'{escape(_ago(paused.get("at")))}</div>')
+                f'{escape(_ago(paused.get("at")))}{some}</div>')
         if not a.get("pause_honoured"):
             out += '<div class="ag-sub">not honoured here until this repo\'s work.py syncs</div>'
     if a.get("can_pause"):
@@ -2631,21 +2632,28 @@ def pause_agent(repo: object, agent: object, action: object, why: object = "") -
         # a NUL or a lone surrogate makes subprocess raise ValueError/UnicodeEncodeError: drop them
         note = " ".join("".join(c for c in str(why or "") if c.isprintable() or c.isspace()).split())[:200]
         argv = [*base, "pause", "--by=dashboard", f"--why={note}", "--", agent]
-    else:  # the marker the row showed: a pause keyed by the window's tree carries the tree's name
-        argv = [*base, "resume", "--", str((target.get("paused") or {}).get("name") or agent)]
+    else:  # every marker the row showed — a pause keyed by a window's tree carries the tree's name
+        shown = target.get("paused") or {}
+        names = [str(n) for n in shown.get("names") or [shown.get("name") or agent]]
     env = {k: v for k, v in os.environ.items() if k in _PAUSE_ENV_KEEP or k.startswith("LC_")}
+    runs = [argv] if action == "pause" else [[*base, "resume", "--", n] for n in names]
+    out: list[str] = []
     try:
-        r = subprocess.run(argv, capture_output=True, text=True, timeout=PAUSE_TIMEOUT_S, env=env,
-                           cwd=target["main"])
+        for cmd in runs:  # `resume` lifts one name; the first refusal stops the rest
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=PAUSE_TIMEOUT_S, env=env,
+                               cwd=target["main"])
+            if r.returncode:
+                _drop_repos_cache()
+                return 502, {"ok": False, "error": (r.stderr or r.stdout or "work.py failed").strip()[:400]}
+            out.append(r.stdout.strip())
     except subprocess.TimeoutExpired:
+        _drop_repos_cache()
         return 502, {"ok": False, "error": "work.py timed out — nothing confirmed; the next refresh "
                                            "is authoritative"}
     except (OSError, ValueError) as exc:
         return 502, {"ok": False, "error": f"work.py could not run: {exc}"[:400]}
     _drop_repos_cache()  # the next page build shows the change
-    if r.returncode:
-        return 502, {"ok": False, "error": (r.stderr or r.stdout or "work.py failed").strip()[:400]}
-    return 200, {"ok": True, "output": r.stdout.strip()[:400]}
+    return 200, {"ok": True, "output": "\n".join(out)[:400]}
 
 
 def _agents_block() -> str:

@@ -4395,10 +4395,16 @@ def test_agent_pause_acts_as_the_operator(tmp_path, monkeypatch):
     # a pause keyed by another name (the window's tree) is lifted by the name the row carries
     for k in ("CLAUDE_AGENT", "CLAUDE_CODE_SESSION_ID", "GIT_DIR"):
         monkeypatch.delenv(k)
-    _paused_marker(shop, "tree1").write_text(json.dumps({"by": "operator", "actor": "", "at": time.time()}))
-    qd._PAUSE_TARGETS = {("shop", "lead"): {"main": str(shop), "paused": {"name": "tree1"}}}
+    for tree in ("tree1", "tree2"):  # the agent's two windows, both trees paused: Resume lifts both
+        _paused_marker(shop, tree).write_text(json.dumps({"by": "operator", "actor": "", "at": time.time()}))
+    qd._PAUSE_TARGETS = {("shop", "lead"): {"main": str(shop),
+                                            "paused": {"name": "tree1", "names": ["tree1", "tree2"]}}}
     status, out = qd.pause_agent("shop", "lead", "resume")
-    assert status == 200 and not _paused_marker(shop, "tree1").exists(), out
+    assert status == 200, out
+    assert not _paused_marker(shop, "tree1").exists() and not _paused_marker(shop, "tree2").exists()
+    some = qd._pause_cell({"name": "lead", "can_pause": True, "pause_honoured": True,
+                           "paused": {"by": "operator", "at": None, "partial": True, "names": ["tree1"]}}, "shop")
+    assert "only some of its windows" in some and 'data-action="resume"' in some
 
 
 def test_agent_pause_refuses_buttonless_rows_and_odd_input(tmp_path, monkeypatch):

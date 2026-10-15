@@ -295,7 +295,7 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
     main_agent = str(at_main[-1]["agent"]) if at_main else ""
     windows: dict[str, str] = {}  # agent -> how the window was named
     counts: dict[str, int] = {}  # agent -> open windows (two windows in one main checkout read as 2)
-    win_trees: dict[str, set[str]] = {}  # agent -> the worktree names its windows sit in
+    win_trees: dict[str, set[str]] = {}  # agent -> the worktree names its windows sit in ("" = main)
     for w in wins:
         if w["agent"]:
             who, how = w["agent"], "env"
@@ -307,8 +307,9 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
             who, how = "(unnamed)", "none"
         windows.setdefault(who, how)
         counts[who] = counts.get(who, 0) + 1
-        if w["tree"]:
-            win_trees.setdefault(who, set()).add(w["tree"])
+        # a main-checkout window counts as "" — no marker name can match it, so a tree pause over the
+        # agent's other windows reads `partial` (work.py's `_is_paused` never stops that window by tree)
+        win_trees.setdefault(who, set()).add(w["tree"] or "")
     recent = {str(r["agent"]) for r in recent_recs}
     items: dict[str, dict] = {}
     claims: dict[str, dict] = {}
@@ -373,19 +374,17 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
 
 
 def _pause_of(paused: dict[str, dict], name: str, trees: set[str]) -> dict | None:
-    """The pause covering an agent — its own name first, else the tree its windows sit in — with the
-    marker's NAME, the one a resume must lift (W-7159f8e2 part 3; the rule is work.py's `_is_paused`,
-    which is per WINDOW: a tree pause shows on the row only when it covers every window the agent has,
-    so a second window in an unpaused tree never reads as paused)."""
-    if name in paused:
-        key = name
-    elif trees and trees <= set(paused):
-        key = sorted(trees)[0]
-    else:
+    """The pause covering an agent — its own name, else every paused tree its windows sit in — with
+    the marker NAMES a resume must lift (W-7159f8e2 part 3). work.py's `_is_paused` is per WINDOW, so
+    `partial` says when only some of the agent's windows are stopped, and `names` carries every
+    marker that stops one: a resume lifting only the first would leave a window paused under a row
+    that no longer reads paused."""
+    keys = [name] if name in paused else sorted(t for t in trees if t in paused)
+    if not keys:
         return None
-    rec = paused[key]
-    return {"name": key, "by": str(rec.get("by") or "?"), "at": rec.get("at") or None,
-            "why": str(rec.get("why") or "")}
+    rec = paused[keys[0]]
+    return {"name": keys[0], "names": keys, "partial": name not in paused and len(keys) < len(trees),
+            "by": str(rec.get("by") or "?"), "at": rec.get("at") or None, "why": str(rec.get("why") or "")}
 
 
 def _pause_support(work: ModuleType, main: Path) -> tuple[dict[str, dict], bool, bool]:
