@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-after-chat: a spec-fed plan executes the spec's claims about its own repo (2026-10-15)
+
+`commands/_sources/fabrik-plan-after-chat.md` Phase 0.5 adds (c) to a spec-fed plan's verification: each claim
+the spec makes about the repo the plan builds in — a derivation, count or population, a claimed pin — is run
+before the plan or a grounder brief relies on it, and a pin counts only as a test named by `path:line` that goes
+red when the rule is neutered in a throwaway worktree. Answers row 1792013569, the third verdict on the subject
+(three grounder briefs relied on a pin that did not exist); pinned by `tests/test_plan_after_chat_queue_pass.py`.
+
 ### Changed — /fabrik-conformance-review: the ledger lists its Per-phase verdicts section (2026-10-15)
 
 `commands/_sources/fabrik-conformance-review.md`: the ledger's contents list (now FOUR things from the start) and
