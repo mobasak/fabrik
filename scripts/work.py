@@ -3767,6 +3767,76 @@ def cmd_answer(repo: Path, args: argparse.Namespace) -> int:
     return 0
 
 
+VERDICT_TEXT_MAX = 200  # characters of the operator's words kept per verdict
+OPERATOR_ACCEPTED = "operator-accepted"  # informational: no code reads it (the hold it lifts does)
+_REVIEW_HOLD = "waits-operator-review"  # the first operator review's hold (D-887; a HELD_PREFIX tag)
+
+
+def _operator_only(verb: str) -> None:
+    """Refuse every caller but the operator: no agent name AND no Claude session id — stricter than
+    `_pause_actor`, which admits a named agent. COBRA (D-253): the cheapest way past it is an agent
+    that strips CLAUDE_AGENT and CLAUDE_CODE_SESSION_ID first; it is an audit rule that stops agents
+    using the operator's door by habit, never a security boundary (W-e1f1a1bd)."""
+    if _agent_name() or (os.environ.get("CLAUDE_AGENT") or "").strip():
+        raise WorkError(f"{verb} is the operator's alone; this caller is {_actor_label()}")
+    if _session():
+        raise WorkError(f"{verb} is the operator's alone; this caller is a Claude session")
+
+
+def cmd_verdict(repo: Path, args: argparse.Namespace) -> int:
+    """The operator's call on one item, from the dashboard or a shell (W-e1f1a1bd): every call is
+    appended to the item's `comments` list as {at, by, via, action, text}. ``accept`` answers an
+    awaiting decision ("accepted: <text>"), and on any other open item adds `operator-accepted` and
+    lifts the `waits-operator-review` hold; ``reject`` answers an awaiting decision ("rejected:
+    <text>") and drops any other open item; ``comment`` only appends. An awaiting item that is no
+    decision takes comments only (answer cannot close it, drop refuses it); another session's live
+    claim refuses accept and reject. A resolved item, or one closed in another tree, is refused."""
+    _require_store(repo)
+    _operator_only("verdict")
+    action = args.action
+    text = _one_line("".join(c for c in (args.text or "") if c.isprintable() or c.isspace()), VERDICT_TEXT_MAX)
+    if action in ("reject", "comment") and not text:
+        raise WorkError(f"verdict {action} needs --text <the operator's words>")
+    via = _one_line(args.by or "", 40) or "cli"
+    _read_item(repo, args.id)
+    session = _call_session(args)
+    with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="verdict"):
+        item = _read_item(repo, args.id)
+        status = item.get("status")
+        if status in RESOLVED:
+            raise WorkError(f"verdict {args.id} refused: it is already {status}")
+        if args.id in _closed_ids(repo):
+            raise WorkError(f"verdict {args.id} refused: it was closed in another working tree")
+        awaiting = status == "awaiting-operator"
+        if action != "comment":
+            if awaiting and item.get("kind") != "decision":
+                raise WorkError(
+                    f"verdict {action} {args.id} refused: it awaits the operator but is no decision "
+                    "(only a decision is answered) — comment on it, or ask its owner"
+                )
+            _fence(repo, args.id, session, "verdict")
+        log = item.get("comments")
+        item["comments"] = [*(log if isinstance(log, list) else []),
+                            {"at": time.time(), "by": "operator", "via": via, "action": action, "text": text}]
+        if action == "comment":
+            path = _write_item(repo, item)
+        elif awaiting:
+            word = "accepted" if action == "accept" else "rejected"
+            note = f"{word}: {text}" if text else word
+            item.update(status="done", note=note)
+            path = _close(repo, item, session=session, note=note)
+        elif action == "accept":
+            item["tags"] = sorted((set(item.get("tags") or []) | {OPERATOR_ACCEPTED}) - {_REVIEW_HOLD})
+            path = _write_item(repo, item)
+        else:
+            note = f"rejected by the operator: {text}"
+            item.update(status="dropped", note=note)
+            path = _close(repo, item, session=session, note=note)
+        _after_write(repo, session)
+    print(_rel(repo, path))
+    return 0
+
+
 CLAIMS_FLAG_OVER = 5  # a session holding more live claims than this is flagged
 STALE_NEXT_DAYS = 6  # the Stop harvest closes a next item at 7 days; status warns a day before
 AGED_MAIL_DAYS = 14
@@ -6079,6 +6149,13 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("resume", help="lift a pause (the pauser, the distributor or the operator)")
     s.add_argument("name", help="the paused agent or worker-tree name")
     s.set_defaults(fn=cmd_resume)
+
+    s = sub.add_parser("verdict", help="the operator's accept / reject / comment on one item")
+    s.add_argument("id")
+    s.add_argument("action", choices=("accept", "reject", "comment"))
+    s.add_argument("--text", default="", help="the operator's words (one line; reject and comment need it)")
+    s.add_argument("--by", default="", help="where the call came from (e.g. dashboard), kept as `via`")
+    s.set_defaults(fn=cmd_verdict)
 
     s = sub.add_parser(
         "commit-items", help="commit the main store's uncommitted item files (main checkout only)"

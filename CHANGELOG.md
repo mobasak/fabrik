@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Accept / Reject / comment per work item and a tag filter on the dashboard's Repos tab (2026-10-15)
+
+Operator 2026-10-15: "i want a way to accept or reject them manually also add a comment next to them".
+`work.py verdict [--text] [--by] -- <id> accept|reject|comment` is the operator's verb (no agent name and
+no Claude session id): every call lands in the item's new `comments` list; accept answers a waiting
+decision or lifts the `waits-operator-review` hold (tag `operator-accepted`), reject answers a decision or
+drops the item. Each Repos-tab row gets Accept, Reject and a comment box over `POST /item-verdict` (the
+Pause/Resume guard and runner, D-916), shows its last comment, and a Tag box narrows the rows; the 20 s
+refresh waits while a comment is being typed. W-e1f1a1bd.
+
 ### Changed — /fabrik-plan-after-chat: a spec-fed plan executes the spec's claims about its own repo (2026-10-15)
 
 `commands/_sources/fabrik-plan-after-chat.md` Phase 0.5 adds (c) to a spec-fed plan's verification: each claim
