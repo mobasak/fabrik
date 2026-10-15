@@ -1281,6 +1281,7 @@ class InfrastructureProvisioner:
                 delete_project,
                 verify_dsn_injection,
             )
+            from fabrik.orchestrator.deployer_ssh import _target_vps_env
 
             result = create_project(name, dry_run=dry_run)
             dsn = _rewrite_shared_infra_host(result.get("dsn"), getattr(ctx, "target_vps", None))
@@ -1314,7 +1315,11 @@ class InfrastructureProvisioner:
 
             self.deployer.inject_env(ctx, {"SENTRY_DSN": dsn, "GLITCHTIP_DSN": dsn})
 
-            if not verify_dsn_injection(name, dsn, max_wait=240):
+            # The container lives on ctx.target_vps, like the .env inject_env just wrote, so
+            # the docker-inspect verify runs there too; create/delete_project stay hub-side.
+            with _target_vps_env(ctx):
+                injected = verify_dsn_injection(name, dsn, max_wait=240)
+            if not injected:
                 # Ground-truth check failed: roll back the project so we
                 # don't leave an orphan, then raise so the caller can
                 # decide (typically: fail the deploy with full rollback).
