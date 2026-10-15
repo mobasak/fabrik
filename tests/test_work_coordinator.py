@@ -1176,7 +1176,8 @@ def test_pause_and_resume_mark_a_worker(tmp_path):
     # the check reads the marker's actor, never its label: --by w1 grants w1 nothing, and an agent
     # NAMED "operator" cannot lift a pause the operator set
     assert run(["pause", "w1", "--by", "w1"], _operator(env), repo).returncode == 0
-    assert run(["resume", "w1"], w1, trees["w1"]).returncode == 1
+    lifted = run(["resume", "w1"], w1, trees["w1"])
+    assert lifted.returncode == 1 and "lifting it is the distributor's (coord) or the operator's" in lifted.stderr
     assert run(["resume", "w1"], {**env, "CLAUDE_AGENT": "operator"}, repo).returncode == 1
     assert run(["resume", "w1"], _operator(env), repo).returncode == 0
     # an entry that is no regular file pauses by presence and is never written or removed
@@ -1270,7 +1271,7 @@ def test_a_pause_is_shown_and_fails_paused(tmp_path, monkeypatch):
     assert not any(ln.startswith("work: FORGED") for ln in block.splitlines()), block
     assert not any(ln.startswith("work: FORGED") for ln in run(["pause"], env, repo).stdout.splitlines())
     assert "PAUSED by coord" in block and "operator hold" in block, block
-    assert "the distributor's or the operator's" in block, block
+    assert "lifting it is coord's, the distributor's or the operator's" in block, block
     assert "work.py resume" not in block and "ready —" not in block, block
     _paused_dir(repo).joinpath("w2.json").write_text('{"by": "x", "at": true}', encoding="utf-8")
     assert "an unknown time" in run(["pause"], env, repo).stdout  # a bool stamp is no time

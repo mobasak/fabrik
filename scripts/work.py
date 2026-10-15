@@ -4094,8 +4094,8 @@ def cmd_resume(repo: Path, args: argparse.Namespace) -> int:
             return 0
         _refuse_odd_marker(marker)
         if actor and actor != distributor and not (rec["actor"] and actor == rec["actor"]):
-            raise WorkError(f"{name} was paused by {rec['by']}: lifting it is "
-                            f"{rec['actor'] or 'the operator'}'s, the distributor's "
+            setter = f"{rec['actor']}'s, " if rec["actor"] else ""
+            raise WorkError(f"{name} was paused by {rec['by']}: lifting it is {setter}the distributor's "
                             f"({distributor or 'none'}) or the operator's; this caller is {actor}")
         try:
             marker.unlink()
@@ -4779,7 +4779,7 @@ def prompt_block(repo: Path | str, session: str) -> str:
             if pause:
                 # no resume command here: a paused agent lifts only a pause it set itself
                 why = f" ({pause['why']})" if pause.get("why") else ""
-                who = f"{pause['actor']}, " if pause.get("actor") else ""
+                who = f"{pause['actor']}'s, " if pause.get("actor") else ""
                 lines.append(
                     f"work: PAUSED by {pause['by']} {_ago_text(pause['at'])} ago{why}: start nothing "
                     "new — finish or checkpoint what you hold, then stop; lifting it is "
