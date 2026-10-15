@@ -133,6 +133,8 @@ The operator starts the window from the main checkout, `/opt/fabrik`:
 CLAUDE_AGENT=coordinator claude -n coordinator-fabrik --model sonnet
 ```
 
-Once `mail.py who coordinator` shows your session, infra commits the `MERGE OWNER: coordinator` row and the
-config flip and tells you by `SendMessage`; you take merges from that message on, and until it arrives infra is
-the merge owner (plan Phase C step 6). Commits carry `Agent-Name: coordinator`.
+The handover is done: infra committed the D-874 merge-owner row naming you and the config flip on 2026-10-15
+(D-874, plan Phase C step 6), and you have taken merges since. Commits carry `Agent-Name: coordinator`.
+
+**Merges:** the merge owner is `coordinator` (`scripts/decisions.py --merge-owner` reads it from the
+ledger); a finished worktree branch reaches it with `scripts/merge_request.py request`.
