@@ -1,6 +1,6 @@
 # Review — plan-1-chrome-extension-devmode-release-kit
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 9db5079eb686061f98e4baba77a6f7bcc1a2a783; range tip 9db5079eb686061f98e4baba77a6f7bcc1a2a783; `git diff 8d5bd5020..HEAD -- src/fabrik/scaffold.py templates/chrome-extension/compose.yaml.j2 templates/chrome-extension/defaults.yaml tests/test_scaffold.py tests/test_scaffold_chrome_ext_wxt.py docs/development/plans/2026-10-14-plan-1-chrome-extension-devmode-release-kit.md .fabrik/plan-locks/2026-10-14-plan-1-chrome-extension-devmode-release-kit.json` md5 c5aeb88ec53de0ea48afc880d6d47749 (88796 bytes)
 **Command:** /fabrik-review · **Changed:** `src/fabrik/scaffold.py`, `templates/chrome-extension/compose.yaml.j2`, `templates/chrome-extension/defaults.yaml`, `tests/test_scaffold.py`, `tests/test_scaffold_chrome_ext_wxt.py`, `docs/development/plans/2026-10-14-plan-1-chrome-extension-devmode-release-kit.md`, `.fabrik/plan-locks/2026-10-14-plan-1-chrome-extension-devmode-release-kit.json`
 **Plan:** `docs/development/plans/2026-10-14-plan-1-chrome-extension-devmode-release-kit.md`
@@ -217,6 +217,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
 | Pass 1 | native sonnet×3 + haiku×3 + opus×1 | found: 31, new: 31, confirmed: 18, fixed: 18, unexecuted: 0 | method: three file slices (A scaffold.py; B tests/test_scaffold.py; C templates, wxt test, plan, lock), each candidate executed by the orchestrator against pin 68af5c6c; fixes graded red first (11 failed before the code fixes) and the grader-gap fixes proven red on six mutants in a throwaway worktree |
+| Pass 2 | native sonnet×3 + haiku×3 + opus×1 | found: 9, new: 9, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the seven round-1 seats re-verified their own slices' pass-1 ledgers against pin 27f58187 (commit 66c8c95f6) over the fix delta plus one hop; every pass-1 code candidate CLOSED or a Residual row; A-opus and A-haiku re-executed the emitted keygen, release-check, nextNotice and server mypy; the orchestrator executed F32 against deployer_ssh.py:856-900 |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -243,6 +244,14 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | F29 | RECORDED — measured (the lock's `red` key vs `red_checks` is a naming difference with no reader) |
 | F30 | RECORDED — unexecuted (pnpm install, compile, lint and the network WXT build: WSL cannot resolve registry.npmjs.org; re-run when infra W-f0fd555a reports DNS back) |
 | F31 | RECORDED — measured (compose healthcheck start_period null predates this diff; out of surface, routed to fleet) |
+| F32 | REFUTED (raised by two seats, A-sonnet and C-haiku; src/fabrik/orchestrator/deployer_ssh.py:856-900 writes a spec env LOG_LEVEL into the deployed .env, which `- LOG_LEVEL=${LOG_LEVEL:-INFO}` reads, so the template filter does not drop it) |
+| F33 | RECORDED — by design (D-893) — pass-1 F9 owns it: a spec PYTHONUNBUFFERED of 0 loses to the template's literal 1: 12-factor XI mandates unbuffered stdout |
+| F34 | RECORDED — by design (D-893) — pass-1 F4 owns it: a 404 from a misconfigured backend also clears the notice; a backend that answers 404 has no release to announce |
+| F35 | RECORDED — by design (D-893) — pass-1 F27 owns it: a5b greps the popup for parseLatest( like the other source-read graders; removing the re-check turns it red |
+| F36 | RECORDED — measured (b7 needs mypy, which the hub venv carries for every gate run) |
+| F37 | RECORDED — measured (needs_node runs node --version once at collection; hygiene, no behaviour) |
+| F38 | RECORDED — by design (D-893) — pass-1 F3 owns it: release-check does not re-compare .pub and .pem; keygen is the gate for the pair and the release reads only the committed .pub |
+| F39 | RECORDED — by design (D-893) — pass-1 F2 owns it: keygen still mints when the .pub deletion is itself committed or there is no git: no committed identity remains to protect |
 
 ### Verdict grammar — an EXAMPLE, never rows
 
@@ -266,7 +275,7 @@ checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the
 
 ### Phase B — the backend: FIXED r1 (F1 typed CORS kwargs; F9 template filter; F12-F14 graders)
 
-### Phase C — Finish: IN-PROGRESS (this receipt)
+### Phase C — Finish: CLEAN (docs/development/reviews/2026-10-15-plan-1-chrome-extension-devmode-release-kit-review.md — pass 2 confirmed 0 over every slice; the receipt itself is this phase's artifact)
 
 ## Gate
 
@@ -275,8 +284,20 @@ checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 57,
+  "failed": 0,
+  "skipped": 1,
+  "skipped_checks": [
+    "static tier"
+  ],
+  ...
+
 ```
+
+(the first 9 lines of the 25107-byte `--json` output; `static tier` is skipped because the uncommitted diff is the receipt alone)
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
 `GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>`,
