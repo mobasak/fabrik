@@ -46,7 +46,8 @@ proportionate answer.
    config fix owes none. Every checkable claim any fix adds (a doc or command sentence, a code
    comment, a commit message) is either executed, with its command and output named in your report,
    or deleted; a re-read is not execution. Something already stated, in the code, the doc that owns
-   the subject or elsewhere in the file being fixed, is pointed at, never paraphrased. **LOCAL
+   the subject or elsewhere in the file being fixed, is pointed at, or, where the fix must carry its
+   words, quoted whole, verbatim, with no gloss and naming its source, never paraphrased. **LOCAL
    findings (unambiguous, contained) you just fix — the common case; an ARCHITECTURAL one — the
    correct fix moves a contract, boundary, data model or auth/isolation posture ANOTHER module or
    repo depends on — you still fix, and it owes a ledger row per `/fabrik-review` § Phase 3, which
