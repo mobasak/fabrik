@@ -172,8 +172,8 @@ on this box can verify; C widens the blast radius to every key of every spec.
   translator; no prometheus for the other three).
 - Each grader is watched red on a mutant (D2 reverted; `_deep_merge` arguments swapped; `keys=None`; a pin removed;
   the containment check removed). The validate() parity grader cannot be reddened through the live specs (each
-  carries a domain or an explicit kind), so a kept positive control proves it can fail: a synthetic spec with a
-  top-level `kind: worker`, no `shape:` and no `domain:` validates raw and fails shape-merged.
+  carries a domain or an explicit kind), so a kept positive control proves it can fail: a synthetic spec (`name: synth`,
+  top-level `kind: worker`, `template: python-api`, no `shape:`, no `domain:`) validates raw and fails shape-merged.
 
 ## Decisions taken
 
@@ -219,7 +219,7 @@ No VPS mutation by this change; each live spec feels it only at the operator's n
 
 - Resolved: whether the four D-822 specs need pins — no (I2).
 - Resolved as guarded: a spec whose top-level `kind` differs from its template's `shape.kind`, with no `shape.kind`
-  of its own, takes the template's kind on apply as on plan; none of the 69 does, and the validate() parity grader
-  fails the build the day one does.
+  of its own, takes the template's kind on apply as on plan; none of the 69 does, and a kind-agreement assertion in
+  the parity graders fails the build the day one does, whether or not `validate()` then refuses it.
 - Open, out of this change: whether translator serves `/health` and `/metrics` — resolution step: its owner verifies
   and deletes the pins (fleet's follow-up).

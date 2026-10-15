@@ -111,7 +111,9 @@ Steps:
 1. Write `tests/orchestrator/test_apply_plan_parity.py` with the three graders, parametrized over
    `sorted((REPO / "specs" / "services").glob("*.yaml"))` where `REPO = Path(__file__).resolve().parents[2]` (cwd-proof),
    with a module-level assertion that the list is non-empty; a raise from either loader is a FAILURE, never a skip
-   (0 of 69 specs is refused today). With Phase A landed but no pins, run
+   (0 of 69 specs is refused today); plus one kind-agreement assertion — no spec has a top-level `kind` that differs
+   from its template's `shape.kind` without a `shape.kind` of its own (0 of 69 today), because apply would silently
+   give such a spec the template's kind. With Phase A landed but no pins, run
    `.venv/bin/python -m pytest tests/orchestrator/test_apply_plan_parity.py -q` → the pin grader FAILS for the four
    live specs (red), the parity and validate-parity graders pass.
 2. Pin: add to each of the four specs, inside its `shape:` block, `exposes_metrics: false` with a one-line comment
@@ -128,7 +130,7 @@ Steps:
    Phase A row 3 fails; (d) one pin deleted → the pin grader fails for that spec; (e) the containment check removed
    from `merge_template_defaults` → Phase A row 4 fails (its `../evil/defaults.yaml` now merges). Re-run green.
    Positive control for the validate()-parity grader, which no mutant over the live specs can redden (every one of the
-   69 carries a domain or an explicit kind): the grader's comparison helper, called on a synthetic spec — top-level
+   69 carries a domain or an explicit kind): the grader's comparison helper, called on a synthetic spec — `name: synth`, top-level
    `kind: worker`, `template: python-api`, no `shape:`, no `domain:` — reports a mismatch (raw validates; shape-merged
    raises `Missing required field: domain`); this control is a kept test case in the same file, asserting the
    mismatch is reported.
@@ -419,6 +421,7 @@ External grounding (Prometheus `up`/scrape-status, Helm, Terraform, HashiCorp dr
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (rule/grammar/grounding sections) + sonnet×1 (phases + narrative sections) · all axes · shape: agent-tool | found: 17, new: 16, confirmed: 16, fixed: 16, unexecuted: 0, edits: 24 | method: citation — full pass over both documents; held after execution: full merge writes template env into all 69 `.env` files (HIGH → D-908, shape-only merge), revert count 15→12 after pins, vacuous worktree import check, staged-only doc-sync step, spec-wins and env rows never seen red (mutants added), missing `Any` import, module-top import kills collection, empty-parametrize and loader-raise skip, dispatch_headroom path, state-dir count, D1 containment wording, validate() parity row, evidence elision, rubric over 4 of 9 paths, containment cite 250-258; refuted: Size: small over-count (YAML pins and tests are not code files, D-169); duplicate: the import check (both seats) | plan 9541363324443acf2470ffd316c1a5d5 → ae174b76ef0b7fb6985d2267791b8487 · spec 6b485cd886e5db7dc0bedb1a5ceec478 → 19668612f39f13253102dc0dd04ffee7 |
 | Pass 2 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-1 fix hunks + one hop · shape: agent-tool | found: 4, new: 4, confirmed: 2, fixed: 2, unexecuted: 0, edits: 6 | method: re-derivation — both seats re-executed the shape-only prototype (69 specs, registrar diffs 0, env 0, validate() 0), the pinned revert count 12, mutants (a)-(d) and the registrar-key and template-key enumerations; held after execution (own-fix: round 1): the validate()-parity grader is never seen red by any mutant (a positive control on a synthetic spec added, executed: raw ok, merged raises Missing required field: domain) and Phase A row 4 is red only for the missing helper (containment-removed mutant (e) added); recorded: translator's pin comment claimed a grep its absent repo cannot have (wording corrected in Phase B step 2) and the scratch-copy pytest needs -o pythonpath=src (seat machinery) | plan 12ac757e5aad0d258b196d24f2d4865a → 51f8fdc20ca3815bcf74eb1d0fd30554 · spec 19668612f39f13253102dc0dd04ffee7 → 0af1692cd3bb20c5400d3995bde2aa75 |
+| Pass 3 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-2 hunks + one hop · shape: agent-tool | found: 4, new: 3, confirmed: 2, fixed: 2, unexecuted: 0, edits: 5 | method: re-derivation — both seats re-executed mutant (e), the positive control, plan's kind behaviour and the none-of-69 count; held after execution (own-fix: round 2): the control's synthetic spec lacked `name`, so both sides raised `Missing required field: name` (now `name: synth`, and `template: python-api` in the spec's copy — the Sonnet seat's in-hunk note, a duplicate), and 'the validate()-parity grader fails the build' overclaimed for a worker spec with `expose.http: false` (raw [] / merged []) — replaced by a kind-agreement assertion, executed 69 specs, disagreeing 0; recorded: the Pass-2 end md5 predates its own row's insertion (the ledger-in-plan rule) and plan-vs-apply validate() may differ for such a spec (acknowledged in hunk 3) | plan 86df418a2ff56355d1487a5d0814ffb0 → 06cd3a61db3b36ca71e7295d2ca6c34a · spec 0af1692cd3bb20c5400d3995bde2aa75 → a80160301ba90502eb1f34d4f1632ce4 |
 
 ## Self-audit
 
@@ -440,7 +443,8 @@ External grounding (Prometheus `up`/scrape-status, Helm, Terraform, HashiCorp dr
   deployed `.env` files.
 - Resolved as guarded: a spec with a top-level `kind` that differs from its template's `shape.kind`, and no
   `shape.kind` of its own, takes the template's kind on apply — as `fabrik plan` already does — and may then fail
-  `validate()` for a missing `domain` (positive control above). None of the 69 specs is in that shape (round 1,
-  Opus seat: `kind.py` printed nothing); the validate()-parity grader fails the build the day one is.
+  `validate()` for a missing `domain` (positive control above). None of the 69 specs is in that shape (round 3,
+  Opus seat: `kind.py` → `guarded-shape 0`); the parity file's kind-agreement assertion (Phase B step 1) fails the
+  build the day one is, whether or not `validate()` then refuses it.
 - Open, outside this plan: translator's `/health` and `/metrics` — resolution: the owner deletes the pins (spec
   § Open/blocking unknowns).
