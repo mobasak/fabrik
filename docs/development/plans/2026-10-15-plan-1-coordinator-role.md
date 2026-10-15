@@ -234,6 +234,8 @@ are PRESENT — without it `triage` plans nothing at HEAD and A9–A10 could nev
 
 ## Phase B — the role
 
+✅ EXECUTED 2026-10-15 — the Phase B commit on branch `plan-coordinator-role` (reaches master at Finish). `/fabrik-review-scoped` (ROUTED-TO-FINISH: governance-sync) closed quiet: confirmed 20 → 7 → 0 (round 2's seven were six own-fix and one census miss); the census also brought `docs/reference/fabrik-mail.md`, `docs/workstation/quota-dashboard.md` and `scripts/sysadmin/mail_escalate.py` into the surface. The new guide test (`test_cli_refusal_exits_2_with_the_beat_guide_on_stderr`, now over every `HUB_BEATS` name) is red on the pre-fix `mail.py`.
+
 Appetite: 90
 
 Surface: `scripts/mail.py`, `.claude/hooks/mail_notify.py`, `scripts/command_run.py`,

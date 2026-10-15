@@ -2081,9 +2081,9 @@ def _evidence_hash(text: str) -> str:
     return hashlib.blake2s((text or "").encode("utf-8", "replace"), digest_size=8).hexdigest()
 
 
-# The four hub beats a finding can be routed to (charters: docs/reference/agents/). Matched as
+# The hub agents a finding can be routed to (charters: docs/reference/agents/). Matched as
 # whole words so "infrastructure" does not read as a route to `infra`.
-_BEATS = ("infra", "fleet", "intel", "kaizen")
+_BEATS = ("coordinator", "infra", "fleet", "intel", "kaizen")
 
 # Runs STARTED before this instant close without a verdict, exactly as they always could. They
 # were dispatched under a contract that did not require one, and trapping a peer mid-run to

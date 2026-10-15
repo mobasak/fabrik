@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the coordinator role: hub beat lists, charter and fleet carrier (2026-10-15)
+
+`coordinator` joins every hub beat list (`mail.py::HUB_BEATS`, `mail_notify.py::_HUB_BEATS`,
+`command_run.py::_BEATS`, the quota dashboard's owner lists, CLAUDE.md's `route --to-agent` line and trailer row),
+so mail and merge requests can address it. New charter `docs/reference/agents/coordinator.md`.
+`templates/governance/CLAUDE.md` carries the role fleet-wide: the seven jobs, Never, escalation and the
+impact × effort priority table, and narrows D-471 (D-872) and D-442 (D-873). Plan
+`2026-10-15-plan-1-coordinator-role` Phase B. The role text reaches every synced repo at the next sync; the builder-facing
+behaviours (the builder filter, the doorbell, triage's scored-first order) switch on only where a repo commits
+`coordinator_mode`.
+
 ### Added — work.py: impact × effort scores, holds, and coordinator mode (2026-10-15)
 
 - `scripts/work.py assign` gains `--impact high|low`, `--effort high|low` (each needs `--why`, stored as `score_reason`), `--blocked-by <id>` and `--unblock <id>`. A scored item's `priority` is derived (high/low 1, high/high 2, low/low 3); low impact with high effort is refused as a time sink with the `drop --why` pointer; on a scored item only `--priority 0` (the incident override) is accepted, a re-score clears it and says so, and a P0 set before the first score survives it. A half-scored item keeps today's `--priority`. Checks run on the item as it will be written, so a score split across two calls is judged as one. Holds refuse an unknown id, the item itself, a cycle, an `--unblock` of an id not held, and the same id in both flags.
