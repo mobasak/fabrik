@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:01.041856Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-01d68380",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read mail 01M4Y5P5GZCJ8QKKJ3CB0HPNYT, claim it, act on it",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
+  "status": "open",
+  "tags": [
+    "mail-01m4y5p5gzcj8qkkj3cb0hpnyt",
+    "waits-operator-review"
+  ],
+  "title": "command_run.py round: print the ROUND line last, after the scope-growth advisory (mail 01M4Y5P5GZCJ8QKKJ3CB0HPNYT)"
+}
