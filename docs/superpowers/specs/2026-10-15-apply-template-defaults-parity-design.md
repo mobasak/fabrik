@@ -1,6 +1,6 @@
 # fabrik apply loads specs the way fabrik plan does — design
 
-Status: DRAFT
+Status: CONVERGED
 Size: small (≈50 code lines in 3 code files; besides them 4 spec YAML pins and 3 test files)
 Profile: delta
 
