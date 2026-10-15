@@ -4153,3 +4153,138 @@ def test_the_account_map_writer_drops_case_variants_and_holds_the_lock(tmp_path,
             fcntl.flock(lock, fcntl.LOCK_UN)
     th.join(5)
     assert done.is_set() and json.loads(f.read_text()) == {"x@y.co": 95, "z@y.co": 90}
+
+
+# ── the Agents block and the live Repos page (operator 2026-10-15, W-7159f8e2) ─────────────────────
+
+
+def _run_record(sid: str, **fields) -> None:
+    d = Path(os.environ["COMMAND_RUN_DIR"])
+    d.mkdir(parents=True, exist_ok=True)
+    rec = {"session_id": sid, "updated_ts": time.time(), "phase": 3, "phases": 5, **fields}
+    (d / f"{sid}.json").write_text(json.dumps(rec))
+
+
+def test_agents_block_shows_every_repo_with_titles(tmp_path, monkeypatch):
+    """Every repo with a recent agent gets its rows — state chip, NOW, HOLDS, NEXT — and every item id
+    shown carries its title (operator: "i cant understand what is W-41c1ec56")."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    fab = _work_repo(_opt(), "fabrik", [{"id": "W-0000000a", "owner": "infra", "title": "build the agents table"}],
+                     claims={"W-0000000a": "infra"})
+    shop = _work_repo(_opt(), "shop", [])
+    _run_record("s1", agent="infra", state="running", command="fabrik-task", surface="the table",
+                repo_root=str(fab.resolve()))
+    _run_record("s2", agent="wef2", state="done", command="fabrik-review", repo_root=str(shop.resolve()))
+    qd = _load(tmp_path, monkeypatch)
+    page = qd._repos_page(fresh=True)
+    block = page.split('<section class="agents">')[1].split("</section>")[0]
+    infra = block.split('<td class="ag-who">infra</td>')[1].split("</tr>")[0]
+    assert 'class="ag-chip working"' in infra and "/fabrik-task" in infra and "the table" in infra
+    assert "<code>W-0000000a</code> build the agents table" in infra
+    wef2 = block.split('<td class="ag-who">wef2</td>')[1].split("</tr>")[0]
+    assert 'class="ag-chip away"' in wef2
+    assert block.index('<h4 class="ag-name">fabrik') < block.index('<h4 class="ag-name">shop')
+    for m in re.finditer(r"<code>(W-[0-9a-f]{8})</code>( [^<]*)?", block):
+        assert (m.group(2) or "").strip(), f"{m.group(1)} is shown without its title"
+
+
+def test_agents_block_failure_is_a_banner(tmp_path, monkeypatch):
+    _work_repo(_opt(), "fabrik", [{"id": "W-0000000a", "title": "still listed"}])
+    qd = _load(tmp_path, monkeypatch)
+
+    def boom():
+        raise RuntimeError("status exploded")
+
+    monkeypatch.setattr(qd, "_status_module", boom)
+    page = qd._repos_page(fresh=True)
+    block = page.split('<section class="agents">')[1].split("</section>")[0]
+    assert "status exploded" in block and 'class="banner crit"' in block
+    assert "still listed" in _pane(page, "fabrik")
+
+
+def test_unowned_awaiting_operator_counts_under_operator(tmp_path, monkeypatch):
+    """A decision waiting on the operator carries no owner: it is grouped under operator, while an
+    unowned open item stays (unassigned) and an OWNED awaiting item stays with its owner."""
+    _work_repo(_opt(), "fabrik", [
+        {"id": "W-0000000e", "status": "awaiting-operator", "kind": "decision", "title": "gate one"},
+        {"id": "W-0000000f", "status": "awaiting-operator", "owner": "fleet", "title": "fleet's gate"},
+        {"id": "W-0000000b", "title": "nobody's"},
+    ])
+    qd = _load(tmp_path, monkeypatch)
+    pane = _pane(qd._repos_page(fresh=True), "fabrik")
+
+    def section(owner: str) -> str:
+        return pane.split(f'<details class="og" data-owner="{owner}">')[1].split("</details>")[0]
+
+    assert "W-0000000e" in section("operator") and "W-0000000e" not in section("")
+    assert "W-0000000b" in section("") and "W-0000000f" in section("fleet")
+    chips = {t.strip(): n for _a, t, n in _chips(qd._repos_page(fresh=True), "fabrik")}
+    assert chips["operator"] == "1" and chips["(unassigned)"] == "1"
+
+
+_REFRESH_DOM = r"""
+const spec = JSON.parse(process.argv[process.argv.length - 1]);
+const store = Object.assign({}, spec.storage);
+global.localStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+function live(stamp, html) {
+  return { innerHTML: html, querySelector: (s) => (s === ".stamp" ? { textContent: stamp } : null) };
+}
+let cur = live(spec.stamp, "OLD");
+const pick = { id: "repo-pick", value: "", options: spec.repos.map((r) => ({ value: r })),
+               addEventListener: () => {} };
+const panes = spec.repos.map((r) => ({ hidden: false, getAttribute: () => r }));
+global.document = {
+  hidden: false, activeElement: null,
+  getElementById: (id) => (id === "repo-pick" ? pick : id === "live" ? cur : null),
+  querySelectorAll: (s) => (s === "div.repo" ? panes : []),
+};
+let scrolled = null, fetches = 0, owners = 0, tick = null;
+global.window = { scrollY: 300, scrollTo: (x, y) => { scrolled = y; }, getSelection: () => "" };
+global.DOMParser = function () {
+  this.parseFromString = (t) => { const [stamp, html] = t.split("|"); return { getElementById: (id) => (id === "live" ? live(stamp, html) : null) }; };
+};
+global.fetch = () => { fetches += 1; return Promise.resolve({ ok: true, text: () => Promise.resolve(spec.served) }); };
+global.setInterval = (f) => { tick = f; };
+global.initOwners = () => { owners += 1; };
+eval(spec.script);
+const out = { picked: pick.value };
+const run = async (hidden) => { document.hidden = hidden; tick(); await new Promise((r) => setTimeout(r, 20)); };
+(async () => {
+  await run(true);
+  out.hiddenFetches = fetches;
+  await run(false);
+  out.after = { html: cur.innerHTML, scrolled, owners, picked: pick.value, fetches };
+  spec.served = cur.querySelector(".stamp").textContent + "|SAME";
+  console.log(JSON.stringify(out));
+})();
+"""
+
+
+def test_repos_page_refreshes_itself_in_place(tmp_path, monkeypatch):
+    """The live page re-fetches itself and swaps only #live: the scroll position and the picked repo
+    are kept, initOwners re-binds the new panes, and a hidden tab fetches nothing."""
+    import shutil
+
+    node = shutil.which("node") or shutil.which("nodejs")
+    if not node:
+        pytest.skip("node is not installed: the refresh script cannot be executed")
+    _work_repo(_opt(), "fabrik", [{"id": "W-0000000a"}])
+    qd = _load(tmp_path, monkeypatch)
+    page = qd._repos_page(fresh=True)
+    assert '<div id="live">' in page and page.index('<div id="live">') < page.index("<script>")
+    scripts = page.split("<script>")
+    assert "repo-pick" in scripts[1] and "initOwners" in scripts[-1]
+    script = scripts[1].split("</script>")[0]
+    spec = {"script": script, "repos": ["fabrik", "other"], "storage": {"repo-pick": "other"},
+            "stamp": "read 10:00:00", "served": "read 10:00:20|NEW BODY"}
+    r = subprocess.run([node, "-e", _REFRESH_DOM, json.dumps(spec)], capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr[:800]
+    out = json.loads(r.stdout)
+    assert out["picked"] == "other" and out["hiddenFetches"] == 0
+    after = out["after"]
+    assert after["html"] == "NEW BODY" and after["scrolled"] == 300 and after["owners"] == 1
+    assert after["picked"] == "other" and after["fetches"] == 1
+    spec2 = {**spec, "served": "read 10:00:00|SAME BODY"}  # an unchanged stamp is not swapped
+    r2 = subprocess.run([node, "-e", _REFRESH_DOM, json.dumps(spec2)], capture_output=True, text=True, timeout=60)
+    assert r2.returncode == 0, r2.stderr[:800]
+    assert json.loads(r2.stdout)["after"]["html"] == "OLD"

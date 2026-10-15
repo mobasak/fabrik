@@ -2360,7 +2360,12 @@ def _repo_pane(r: dict, shown: bool) -> str:
     claimed = lambda rows: sum(1 for i in rows if i.get("_claim"))  # noqa: E731
     groups: dict[str, list[dict]] = {}
     for it in items:
-        groups.setdefault(str(it.get("owner") or ""), []).append(it)
+        # a decision waiting on the operator carries no owner: it is the operator's, never "(unassigned)"
+        # (operator 2026-10-15, W-7159f8e2); an OWNED awaiting item stays with its owner
+        owner = str(it.get("owner") or "")
+        if not owner and it.get("status") == "awaiting-operator":
+            owner = "operator"
+        groups.setdefault(owner, []).append(it)
     out.append(
         f'<p class="intro"><strong>{len(items)}</strong> remaining · '
         f"{count(items, 'awaiting-operator')} awaiting the operator · {count(items, 'blocked')} "
@@ -2457,7 +2462,141 @@ _REPOS_STYLE = """
  td code { white-space:nowrap; }
  td.st-awaiting-operator { color:var(--warn); font-weight:600; }
  td.st-blocked { color:var(--crit); }
+ section.agents { margin:0 0 20px; }
+ section.agents h2 { font-size:16px; margin:4px 0 6px; }
+ h4.ag-name { margin:14px 0 6px; font-size:14px; }
+ h4.ag-name span { color:var(--sub); font-weight:400; font-size:12px; }
+ table.ag td.ag-who { white-space:nowrap; font-weight:600; }
+ .ag-chip { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:600;
+   border:1px solid var(--line); white-space:nowrap; }
+ .ag-chip.working { color:#1f8a4c; border-color:#1f8a4c; background:color-mix(in srgb, #1f8a4c 14%, transparent); }
+ .ag-chip.idle { color:var(--accent); border-color:var(--accent); }
+ .ag-chip.stale { color:var(--warn); border-color:var(--warn); }
+ .ag-chip.away { color:var(--sub); }
+ .ag-sub { color:var(--sub); font-size:12px; }
+ table.ag ul { margin:0; padding-left:16px; }
 """
+
+# ── Agents block on the Repos page (operator 2026-10-15, W-7159f8e2) ─────────────────────────────────
+# "i also want to see which agents is active and working on what … for all repos". The data is
+# scripts/agent_status.py::collect_box — derived from the process table, run records and claims, never
+# stored. Loaded by path under a private name and re-imported when its mtime moves, like work.py above.
+_status_mod: tuple[float, object] | None = None
+_AG_STATES = {
+    "working": "working",
+    "idle": "idle — window open, no running command",
+    "stale": "stale — its running command is over 12 h old",
+    "away": "no window open",
+}
+
+
+def _status_module():
+    global _status_mod
+    import importlib.util
+
+    path = _FABRIK_ROOT / "scripts" / "agent_status.py"
+    mtime = path.stat().st_mtime
+    if _status_mod is None or _status_mod[0] != mtime:
+        spec = importlib.util.spec_from_file_location("_quota_dash_agent_status", path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"{path} cannot be loaded")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _status_mod = (mtime, mod)
+    return _status_mod[1]
+
+
+def _ago(ts: object) -> str:
+    try:
+        s = max(0, int(time.time() - float(ts)))  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return ""
+    return f"{s // 60} min ago" if s < 3600 else f"{s // 3600} h ago" if s < 172800 else f"{s // 86400} d ago"
+
+
+def _item_line(item: dict) -> str:
+    """An item id is never shown bare: its title rides beside it (operator: "i cant understand what is
+    W-41c1ec56 i need explanation for it too")."""
+    title = _cap(str(item.get("title") or "(no title)"), 110)
+    return f"<code>{escape(str(item.get('id', '')))}</code> {escape(title)}"
+
+
+def _agent_row(a: dict) -> str:
+    state = str(a.get("state") or "away")
+    chip = f'<span class="ag-chip {escape(state)}" title="{escape(_AG_STATES.get(state, state))}">{escape(state)}</span>'
+    now = a.get("now") or {}
+    if now:
+        phase = f" phase {now.get('phase')}/{now.get('phases')}" if now.get("phases") else ""
+        now_cell = (
+            f"<code>/{escape(str(now.get('command', '')))}</code>{escape(phase)}"
+            f'<div class="ag-sub">{escape(_cap(str(now.get("surface") or ""), 140))}</div>'
+            f'<div class="ag-sub">updated {escape(_ago(now.get("updated_ts")))}</div>'
+        )
+    else:
+        now_cell = '<span class="ag-sub">no running command</span>'
+    claim = a.get("claim")
+    holds = _item_line(claim) if claim else '<span class="ag-sub">—</span>'
+    nxt = a.get("next") or {}
+    top = nxt.get("top") or []
+    more = int(nxt.get("queued") or 0) - len(top)
+    next_cell = ("<ul>" + "".join(f"<li>{_item_line(i)}</li>" for i in top) + "</ul>") if top else ""
+    next_cell += f'<div class="ag-sub">+{more} more queued</div>' if more > 0 else ""
+    next_cell = next_cell or '<span class="ag-sub">nothing queued</span>'
+    merges = a.get("merges") or []
+    if merges:
+        m = merges[0]
+        merge_cell = f"<code>{escape(str(m.get('sha', '')))}</code> {escape(_ago(m.get('ts')))}"
+        if m.get("item"):
+            merge_cell += f' <span class="ag-sub">{escape(str(m["item"]))}</span>'
+    elif a.get("merge_owner"):
+        merge_cell = '<span class="ag-sub">merge owner (merges others)</span>'
+    else:
+        merge_cell = '<span class="ag-sub">—</span>'
+    return (
+        f'<tr><td class="ag-who">{escape(str(a.get("name", "")))}</td><td>{chip}</td>'
+        f"<td>{now_cell}</td><td>{holds}</td><td>{next_cell}</td><td>{merge_cell}</td></tr>"
+    )
+
+
+def _agents_block() -> str:
+    """Every repo's agents: fabrik first, then repos with an agent working, then the others with one."""
+    try:
+        data = _status_module().collect_box(_opt_root())
+    except Exception as exc:  # the Repos panes below never depend on this block
+        return (
+            '<section class="agents"><h2>Agents — every repo</h2><div class="banner crit">Agents '
+            f"unreadable — {escape(type(exc).__name__)}: {escape(str(exc))}</div></section>"
+        )
+    repos = [r for r in data.get("repos", []) if r.get("agents") or r.get("error")]
+    quiet = len(data.get("repos", [])) - len(repos)
+    repos.sort(key=lambda r: (r.get("name") != "fabrik",
+                              not any(a.get("state") == "working" for a in r.get("agents", [])),
+                              str(r.get("name"))))
+    counts = dict.fromkeys(_AG_STATES, 0)
+    for r in repos:
+        for a in r.get("agents", []):
+            counts[str(a.get("state"))] = counts.get(str(a.get("state")), 0) + 1
+    out = [
+        '<section class="agents"><h2>Agents — every repo</h2>'
+        f'<p class="intro">{counts["working"]} working · {counts["idle"]} idle · {counts["stale"]} stale · '
+        f"{counts['away']} with no window · {quiet} repo(s) with no recent agent. Read from the open "
+        "windows, the agents' run records (last 7 days) and their claims — no record, or an old one, "
+        "means ask the agent.</p>"
+    ]
+    for r in repos:
+        dormant = int(r.get("dormant") or 0)
+        extra = f" <span>· {dormant} dormant (seen over 7 days ago)</span>" if dormant else ""
+        out.append(f'<h4 class="ag-name">{escape(str(r.get("name")))}{extra}</h4>')
+        if r.get("error"):
+            out.append(f'<div class="banner crit">{escape(str(r["error"]))}</div>')
+            continue
+        rows = "".join(_agent_row(a) for a in r.get("agents", []))
+        out.append(
+            '<table class="ag"><thead><tr><th>Agent</th><th>State</th><th>Now</th><th>Holds</th>'
+            f"<th>Next</th><th>Last merge</th></tr></thead><tbody>{rows}</tbody></table>"
+        )
+    out.append("</section>")
+    return "".join(out)
 
 
 def _safe_pane(r: dict, shown: bool) -> str:
@@ -2510,9 +2649,11 @@ def _repos_body() -> str:
 # so the empty owner can never read as "nothing stored". Under All the sections the operator opened
 # are remembered too (the Repos frame is rebuilt on every return to the tab), and each toggle
 # re-reads that list before writing it, so a second frame never writes back a stale copy. Each pane
-# runs in its own try, so one pane's error leaves the others working.
+# runs in its own try, so one pane's error leaves the others working. A NAMED function, called once on
+# load and again by the in-place refresh after each swap of #live (W-7159f8e2): the swapped panes are
+# new nodes, so their listeners are bound once and the stored choices are re-applied.
 _OWNER_FILTER_JS = (
-    "(function () {"
+    "function initOwners() {"
     ' function key(o) { return o === "" ? "~" : "=" + o; }'
     ' function chipKey(b) { return b.hasAttribute("data-all") ? "*" : key(b.getAttribute("data-owner")); }'
     ' document.querySelectorAll("div.repo").forEach(function (pane) { try {'
@@ -2540,7 +2681,43 @@ _OWNER_FILTER_JS = (
     "   if (d.open && i < 0) { opened.push(k); } if (!d.open && i >= 0) { opened.splice(i, 1); }"
     '   put("repo-open:", JSON.stringify(opened)); }); });'
     " } catch (e) {} });"
-    "})();"
+    "} initOwners();"
+)
+
+
+# The repo picker, and the in-place refresh (operator 2026-10-15: "it must be uptodate all the time",
+# W-7159f8e2). Both scripts sit OUTSIDE #live, so a swap never removes or re-runs them; after each swap
+# initPicker() and initOwners() re-bind the new nodes and re-apply the stored choices (repo, owner chip,
+# opened sections — all in localStorage). It polls the CACHED page (REPOS_TTL_S), so one build serves
+# every open frame; it skips a hidden tab, an unchanged stamp, a focused picker and a live text selection,
+# and a failed fetch keeps the last content. Rejected: reloading the frame (it blinks every cycle).
+REPOS_REFRESH_S = float(os.getenv("QUOTA_DASH_REPOS_REFRESH_S", "20"))
+_REPOS_PICK_JS = (
+    "function initPicker() {"
+    ' var pick = document.getElementById("repo-pick"); if (!pick) { return; }'
+    ' function show(name) { document.querySelectorAll("div.repo").forEach(function (d) {'
+    ' d.hidden = d.getAttribute("data-repo") !== name; }); }'
+    ' var want = null; try { want = localStorage.getItem("repo-pick"); } catch (e) {}'
+    " var known = Array.prototype.some.call(pick.options, function (o) { return o.value === want; });"
+    " if (!want || !known) { want = pick.options[0].value; }"
+    " pick.value = want; show(want);"
+    ' pick.addEventListener("change", function () { show(pick.value);'
+    '  try { localStorage.setItem("repo-pick", pick.value); } catch (e) {} });'
+    "} initPicker();"
+    " function refreshRepos() {"
+    "  if (document.hidden) { return; }"
+    '  var act = document.activeElement; if (act && act.id === "repo-pick") { return; }'
+    "  var sel = window.getSelection ? String(window.getSelection()) : ''; if (sel) { return; }"
+    '  fetch("/repos.html", {cache: "no-store"}).then(function (r) { return r.ok ? r.text() : null; })'
+    "  .then(function (text) { if (!text) { return; }"
+    '   var doc = new DOMParser().parseFromString(text, "text/html");'
+    '   var nw = doc.getElementById("live"), cur = document.getElementById("live"); if (!nw || !cur) { return; }'
+    '   var ns = nw.querySelector(".stamp"), cs = cur.querySelector(".stamp");'
+    "   if (ns && cs && ns.textContent === cs.textContent) { return; }"
+    "   var y = window.scrollY; cur.innerHTML = nw.innerHTML; initPicker();"
+    '   if (typeof initOwners === "function") { initOwners(); } window.scrollTo(0, y);'
+    "  }).catch(function () {}); }"
+    f" setInterval(refreshRepos, {int(REPOS_REFRESH_S * 1000)});"
 )
 
 
@@ -2562,19 +2739,13 @@ def _repos_page(fresh: bool = False) -> str:
             '<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
             f"<title>Repos — remaining work</title><style>{_REPOS_STYLE}</style></head><body>"
-            f'<div class="stamp">read {escape(stamp)} · cached {int(REPOS_TTL_S)}s</div>'
+            '<div id="live">'
+            f'<div class="stamp">read {escape(stamp)} · refreshes itself every {int(REPOS_REFRESH_S)}s '
+            f"(figures up to {int(REPOS_REFRESH_S + REPOS_TTL_S)}s old)</div>"
+            f"{_agents_block()}"
             f"{_repos_body()}"
-            "<script>(function () {"
-            ' var pick = document.getElementById("repo-pick"); if (!pick) { return; }'
-            ' function show(name) { document.querySelectorAll("div.repo").forEach(function (d) {'
-            ' d.hidden = d.getAttribute("data-repo") !== name; }); }'
-            ' var want = null; try { want = localStorage.getItem("repo-pick"); } catch (e) {}'
-            " var known = Array.prototype.some.call(pick.options, function (o) { return o.value === want; });"
-            " if (!want || !known) { want = pick.options[0].value; }"
-            " pick.value = want; show(want);"
-            ' pick.addEventListener("change", function () { show(pick.value);'
-            '  try { localStorage.setItem("repo-pick", pick.value); } catch (e) {} });'
-            "})();</script>"
+            "</div>"
+            f"<script>{_REPOS_PICK_JS}</script>"
             f"<script>{_OWNER_FILTER_JS}</script></body></html>"
         )
         _repos_cache = (now, page)

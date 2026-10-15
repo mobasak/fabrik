@@ -35,6 +35,7 @@ import argparse
 import importlib.util
 import json
 import math
+import os
 import re
 import subprocess
 import sys
@@ -88,7 +89,9 @@ def _under(path: Path, main: Path) -> bool:
     return p == main or p.parent == (main / ".claude" / "worktrees").resolve()
 
 
-def _now(cr: ModuleType, role: str, main: Path) -> dict | None:
+def _now(cr: ModuleType, role: str, main: Path, *, repo: Path | None = None) -> dict | None:
+    """The role's newest `running` record — from ANY repo, or only from ``repo`` (its main checkout
+    or one of its worktrees) when given, so one name used in two repos never crosses (W-7159f8e2)."""
     best: dict | None = None
     best_ts = 0.0
     for path in cr._state_dir().glob("*.json"):
@@ -100,6 +103,8 @@ def _now(cr: ModuleType, role: str, main: Path) -> dict | None:
         if not math.isfinite(ts):
             continue  # "inf"/"nan" parse as floats but are no time (int(now - inf) raises)
         if not isinstance(rec, dict) or rec.get("agent") != role or rec.get("state") != "running":
+            continue
+        if repo is not None and not _under(Path(str(rec.get("repo_root") or "/")), repo):
             continue
         if best is None or ts > best_ts:
             best, best_ts = rec, ts
@@ -201,6 +206,176 @@ def collect(repo: Path) -> dict[str, Any]:
     return {"main": str(main), "distributor": distributor, "agents": agents}
 
 
+# ── the box view: every repo under the /opt seam (W-7159f8e2) ─────────────────────────────────────
+# Operator 2026-10-15: "which agents is active and working on what … for all repos". LIVENESS IS THE
+# PROCESS TABLE, never an identity binding: whoami rows are written once at bind time and outlive their
+# windows (measured 2026-10-15: 0 of 29 newest bindings had a live pid while 8 windows were up).
+# COBRA: an agent working without a run record reads `idle` (a window with no running record) and one
+# whose window died mid-run reads `stale`/`away` — the chips state what the records show, so the header
+# keeps D-894's rule: no record, or an old one, means ask the agent.
+RECENT_D = 7  # days a run record keeps a window-less agent listed; older ones are only counted dormant
+_NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
+
+
+def _windows(opt: Path, work: ModuleType) -> list[dict]:
+    """Every interactive `claude` process under ``opt`` as {repo, tree, agent}: ``tree`` is the worktree
+    name or "" for the main checkout (any cwd under the repo but outside `.claude/worktrees/`)."""
+    root = Path(os.environ.get("FABRIK_WORK_PROC") or "/proc")
+    out: list[dict] = []
+    try:
+        entries = [e for e in root.iterdir() if e.name.isdigit()]
+    except OSError:
+        return out
+    opt = opt.resolve()
+    for entry in entries:
+        try:
+            if (entry / "comm").read_text(encoding="utf-8").strip() != "claude":
+                continue
+            argv = work._proc_argv(entry)
+            if argv and work._argv_prints(argv):
+                continue  # a `claude -p` child is no window (01M4PAJWV1)
+            cwd = Path(os.readlink(entry / "cwd")).resolve()
+            env = (entry / "environ").read_bytes().split(b"\0") if (entry / "environ").is_file() else []
+        except OSError:
+            continue
+        try:
+            rel = cwd.relative_to(opt).parts
+        except ValueError:
+            continue
+        if not rel:
+            continue
+        tree = rel[3] if len(rel) >= 4 and rel[1:3] == (".claude", "worktrees") else ""
+        agent = ""
+        for kv in env:
+            if kv.startswith(b"CLAUDE_AGENT="):
+                val = kv.split(b"=", 1)[1].decode("utf-8", "replace").strip()
+                agent = val if _NAME_RE.fullmatch(val) else ""
+        out.append({"repo": rel[0], "tree": tree, "agent": agent})
+    return out
+
+
+def _records(cr: ModuleType) -> list[dict]:
+    out = []
+    for path in cr._state_dir().glob("*.json"):
+        try:
+            rec = json.loads(path.read_text(encoding="utf-8"))
+            ts = float(rec.get("updated_ts") or 0) if isinstance(rec, dict) else 0.0
+        except (OSError, ValueError, TypeError):
+            continue
+        if isinstance(rec, dict) and math.isfinite(ts) and _NAME_RE.fullmatch(str(rec.get("agent") or "")):
+            out.append({**rec, "_ts": ts})
+    return out
+
+
+def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: set[str],
+              work: ModuleType, cr: ModuleType, now: float) -> dict[str, Any]:
+    # the Repos tab's own test for a store (quota_dashboard._collect_work), not work._has_store's
+    # config file: the two views of one repo must agree on whether it has work
+    store = (main / ".fabrik" / "work").is_dir()
+    mine =[r for r in recs if _under(Path(str(r.get("repo_root") or "/")), main)]
+    at_main = sorted((r for r in mine if Path(str(r.get("repo_root"))).resolve() == main), key=lambda r: r["_ts"])
+    windows: dict[str, str] = {}  # agent -> how the window was named
+    for w in wins:
+        if w["agent"]:
+            windows.setdefault(w["agent"], "env")
+        elif w["tree"]:
+            windows.setdefault(w["tree"], "worktree")
+        elif at_main:
+            windows.setdefault(str(at_main[-1]["agent"]), "record")
+        else:
+            windows.setdefault("(unnamed)", "none")
+    recent = {str(r["agent"]) for r in mine if now - r["_ts"] <= RECENT_D * 86400}
+    items: dict[str, dict] = {}
+    claims: dict[str, dict] = {}
+    if store:
+        items = {i["id"]: i for i in work._iter_items(main) if isinstance(i.get("id"), str)}
+        claims = work._live_claims(main)
+    holders: dict[str, str] = {}
+    for iid, c in sorted(claims.items(), key=lambda ic: float(ic[1].get("at") or 0)):
+        if _NAME_RE.fullmatch(str(c.get("agent") or "")):
+            holders[str(c["agent"])] = iid
+    names = sorted(set(windows) | recent | set(holders))
+    seen = {str(r["agent"]) for r in mine} | bound
+    trees = {n: (main / ".claude" / "worktrees" / n) for n in names}
+    trees = {n: (t.resolve() if t.is_dir() else main) for n, t in trees.items()}
+    queues = work._worker_queues(main, trees) if store and names else {}
+    done: dict[str, dict] = {}
+    if names:
+        try:
+            done = _merges(main, work._base_branch(main), names, now)
+        except Exception:  # noqa: BLE001 — a repo with no base branch shows no merges, never a crash
+            done = {}
+    agents = []
+    for n in names:
+        rec_now = _now(cr, n, main, repo=main)
+        if rec_now and not rec_now["stale"]:
+            state = "working"
+        elif n in windows:
+            state = "idle"
+        elif rec_now:
+            state = "stale"
+        else:
+            state = "away"
+        queue = sorted(queues.get(n, []), key=lambda i: (work._priority(i), str(i.get("created") or ""), i["id"]))
+        iid = holders.get(n)
+        owns_main = trees[n] == main and any(str(r.get("agent")) == n for r in at_main)
+        agents.append({
+            "name": n,
+            "window": n in windows,
+            "named_from": windows.get(n, ""),
+            "state": state,
+            "now": rec_now,
+            "claim": {"id": iid, "title": str(items.get(iid, {}).get("title") or "")} if iid else None,
+            "next": {
+                "queued": len(queue),
+                "top": [{"id": i["id"], "priority": work._priority(i), "title": str(i.get("title") or "")}
+                        for i in queue[:NEXT_SHOWN]],
+            },
+            "merges": (done.get(n) or {}).get("merges", []),
+            "merge_owner": owns_main,
+        })
+    return {"name": name, "main": str(main), "store": store, "agents": agents,
+            "dormant": len(seen - set(names))}
+
+
+def collect_box(opt: Path) -> dict[str, Any]:
+    """Every repo under ``opt`` that keeps a work store or has an agent, with its agents (W-7159f8e2)."""
+    work, cr, who = _load("work"), _load("command_run"), _load("whoami_agent")
+    opt = opt.resolve()
+    now = time.time()
+    with work._hook_git_budget():
+        wins = _windows(opt, work)
+        recs = _records(cr)
+        bound: dict[str, set[str]] = {}
+        for row in who._rows(who.store_path()):
+            top = str(row.get("toplevel") or "").rstrip("/")
+            top = top[: -len("/.git")] if top.endswith("/.git") else top
+            if _NAME_RE.fullmatch(str(row.get("name") or "")) and top:
+                bound.setdefault(Path(top).name, set()).add(str(row["name"]))
+        names = {p.parent.parent.name for p in opt.glob("*/.fabrik/work")}
+        names |= {w["repo"] for w in wins}
+        for r in recs:
+            try:
+                rel = Path(str(r.get("repo_root") or "")).resolve().relative_to(opt).parts
+            except ValueError:
+                continue
+            if rel and now - r["_ts"] <= RECENT_D * 86400:
+                names.add(rel[0])
+        repos = []
+        for name in sorted(names):
+            main = opt / name
+            if not main.is_dir() or main.is_symlink():
+                continue
+            try:
+                entry = _box_repo(name, main.resolve(), [w for w in wins if w["repo"] == name], recs,
+                                  bound.get(name, set()), work, cr, now)
+            except Exception as exc:  # noqa: BLE001 — one repo's failure is its own error row
+                entry = {"name": name, "main": str(main), "store": None, "agents": [], "dormant": 0,
+                         "error": f"{type(exc).__name__}: {exc}"}
+            repos.append(entry)
+    return {"opt": str(opt), "repos": repos}
+
+
 def render(data: dict[str, Any]) -> str:
     now = time.time()
     lines = [
@@ -286,10 +461,18 @@ def main(argv: list[str] | None = None) -> int:
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--json", action="store_true", help="the full data as one JSON document")
     mode.add_argument("--session-start", action="store_true", help="the coordinator's SessionStart hook")
+    ap.add_argument("--all", action="store_true",
+                    help="with --json: every repo under --opt and its agents (the dashboard's Agents block)")
+    ap.add_argument("--opt", default=os.environ.get("FABRIK_OPT_DIR") or "/opt", help="the repos' parent (default /opt)")
     args = ap.parse_args(argv)
     repo = Path(args.repo)
     if args.session_start:
         return _session_start(repo)
+    if args.all:
+        if not args.json:
+            ap.error("--all needs --json")
+        print(json.dumps(collect_box(Path(args.opt))))
+        return 0
     try:
         data = collect(repo)
     except FileNotFoundError as exc:
