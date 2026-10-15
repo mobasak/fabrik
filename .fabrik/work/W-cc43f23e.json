@@ -3,7 +3,7 @@
   "created": "2026-10-15T10:51:25.832399Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "5727cf3ba1d7b4b5e3f72f5c84f97c1f7263531b",
   "id": "W-cc43f23e",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "D-890: the one-door rewrite replaces the lane tables and would silently drop D-892's fix (a regression); one plan edit",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m4zhnmwprcbvh5nrsg9h2qeh",
     "queued"
