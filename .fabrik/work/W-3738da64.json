@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T16:30:58.894775Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3738da64",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M505J6KGJ6SS23WY6MM1RD5Q",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "scratch_sweep.gap_keeps keeps nothing for a NaN `created`, and its docstring names the wrong Cobra direction"
+}

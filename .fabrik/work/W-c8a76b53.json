@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T16:30:59.570469Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c8a76b53",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M505VVEJ924S6R9Y7ESGTQAQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "follow-up to 01M505J6KG — scratch_sweep's .trash ctime fallback skips a bool created"
+}
