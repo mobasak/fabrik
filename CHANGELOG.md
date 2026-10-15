@@ -8,6 +8,13 @@ All notable changes to this project will be documented in this file.
 
 - `judge_run_folder` believed any numeric `closed_at`, so a clobbered `done` marker with `closed_at` 0 or -1e308 read as a long-past close and its folder was removed (F13, W-de2c34c1). Per D-900 (Opus + Fable panel), the close is now unknown — ACTIVE under INV-1 — when `created` is missing, non-numeric, a bool or in the future, or when `closed_at` is earlier than `created` minus the clock margin, or when `closed_at` lies in the future; applied where the marker is read, never in `classify_run_folder` (the `.trash-*` path builds `closed_at` 0.0). Residual: any `closed_at` between `created` minus the margin and now minus the grace is believed, so a co-clobber of both fields within the margin (`created` 0 and `closed_at` 0) still reads as a past close. So a legitimate run is not kept for ever, `command_run.py`'s close re-stamps a missing, non-finite or future `created` with the run's true start (`started_epoch`), never `now` (which would strip `gap_keeps`' protection from the run's writers), and leaves it unknown when no start is known; `--retire` invents no creation time and says when every sweep will keep the folder; the size report names a `done` folder whose close cannot be vouched for. Tests: `test_a_close_time_the_marker_cannot_vouch_for_is_doubt` (7 cases red first, on a gap-free `/proc` so a live daemon's gap cannot mask them, plus a consumed control and a vouched margin edge), the heal, retire, report and zero-close-reason tests.
 
+### Changed — /fabrik-review: the test-quality checklist names a fixture that IS the code's own constant (2026-10-15)
+
+A test whose expected value is read from the very constant whose value is the behaviour under test stays green
+whatever that constant says; the finder mutates that constant on a copy and the test must go red. Answers row
+1792054051, a recurrence of the held watched-fail-first-real-fixture. Pinned by
+`tests/test_review_queue_pass.py::test_a_fixture_equal_to_the_codes_own_literal_is_a_test_quality_finding`.
+
 ### Changed — /fabrik-review: the round line defines `--slices <verified>/<claims>` with its closing example (2026-10-15)
 
 `<claims>` counts the claims in a slice's ledger and `<verified>` those its owning seats re-ran to `DEFECT_ABSENT`, so a

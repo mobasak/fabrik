@@ -290,8 +290,10 @@ level → passes for the wrong reason); **incomplete mocks** (fewer fields than 
 in test, fails in integration); mock setup that is >50% of the test; **a wall-clock TIME BOMB** — code
 calling `datetime.now()`/`time.time()`/`date.today()` while its callers or tests inject a `now` (the
 test is green only while real time sits inside its fixture's window; live case: a 7-pass converged
-review stamped one clean, red two weeks later). Flag any of these as a test-quality
-finding. **When a finding hinges on what a 3rd-party library / SDK / API *actually* returns** (an incomplete
+review stamped one clean, red two weeks later); **a fixture that IS the code's own constant** — a test whose
+expected value is read from the very constant whose VALUE is the behaviour under test stays green whatever that
+constant says, so the finder mutates that constant on a copy under its scratch dir and the test must go red.
+Flag any of these as a test-quality finding. **When a finding hinges on what a 3rd-party library / SDK / API *actually* returns** (an incomplete
 mock, or a cross-file contract break against an external signature), confirm the real shape with
 a `WebFetch` of the library's official docs rather than asserting it from memory — the only place this code-vs-code review
 reaches for an external tool.

@@ -587,3 +587,19 @@ def test_the_slices_ledger_is_defined_with_its_closing_example() -> None:
     assert rule in text
     i = text.index("**Record the pass before you decide:**")
     assert i < text.index(rule) < text.index("Its TERMINAL verdict", i)
+
+
+def test_a_fixture_equal_to_the_codes_own_literal_is_a_test_quality_finding() -> None:
+    """Row 1792054051, a recurrence of held watched-fail-first-real-fixture: a test whose expected value is the code's
+    own constant is green whatever the constant says; the checklist names it and the mutation that exposes it."""
+    text = _norm(SRC)
+    checklist = _section(
+        text, "**Test-quality checklist", "Flag any of these as a test-quality finding."
+    )
+    assert "**a fixture that IS the code's own constant**" in checklist
+    # the qualifier is the rule: a test importing a constant for any other reason is not the defect
+    assert "read from the very constant whose VALUE is the behaviour under test" in checklist
+    assert (
+        "the finder mutates that constant on a copy under its scratch dir and the test must go red"
+        in checklist
+    )
