@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — work.py triage: a major held behind the in-flight one is no longer counted as in flight (2026-10-15)
+
+- `scripts/work.py` `cmd_triage`: a high/high item the coordinator holds behind the in-flight major with `assign --blocked-by` now prints as `major held: <id> behind <id>` instead of a second `major in flight` line; a major waiting on its own prerequisite still holds the slot, and an all-held store fails closed. The live hub store read 7 in flight (6 held); it now reads 1 in flight and 6 held, with the same plan. D-881.
+
 ### Changed — the hub hands merge ownership and work distribution to the coordinator (2026-10-15)
 
 `supersedes D-453: MERGE OWNER: coordinator` (D-874); `.fabrik/work/config.json` sets `distributor: coordinator`,
