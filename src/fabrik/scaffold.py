@@ -5092,8 +5092,9 @@ _CX_KEYGEN_MJS = r"""/* eslint-disable no-console */
 //   - private key -> .keys/extension-key.pem (PKCS#8, mode 0600, gitignored — BACK IT UP: an
 //     enterprise .crx or a later store migration needs it, and it cannot be recreated)
 //   - public key  -> extension-key.pub (commit it; wxt.config.ts reads it into manifest.key)
-// It never overwrites a key: a new key would change the ID under every installed copy.
-import { generateKeyPairSync } from 'node:crypto';
+// It never overwrites a key: a new key would change the ID under every installed copy. A lost .pub
+// is rebuilt from the .pem; a lost .pem can only come back from your backup.
+import { createPublicKey, generateKeyPairSync } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
@@ -5118,6 +5119,14 @@ if (existsSync(pubPath)) {
   process.exit(0);
 }
 
+if (existsSync(pemPath)) {
+  const pub = createPublicKey(readFileSync(pemPath, 'utf8')).export({ type: 'spki', format: 'der' }).toString('base64');
+  writeFileSync(pubPath, `${pub}\n`);
+  printId(pub);
+  console.log('rebuilt extension-key.pub from .keys/extension-key.pem — commit it.');
+  process.exit(0);
+}
+
 const { publicKey, privateKey } = generateKeyPairSync('rsa', {
   modulusLength: 2048,
   publicKeyEncoding: { type: 'spki', format: 'der' },
@@ -5136,22 +5145,40 @@ console.log('next: git add extension/extension-key.pub && git commit && git push
 
 _CX_RELEASE_CHECK_MJS = r"""/* eslint-disable no-console */
 // `make release-ext`'s gate. Refuses (exit 1, with the next steps) unless:
-//   1. extension-key.pub is tracked by git (every released zip carries the pinned key),
-//   2. the working tree is clean (every released zip is a `wxt zip` of a committed tree),
-//   3. the VITE_PUBLIC_API_URL the production build will use is https:// — resolved the way Vite
-//      resolves it: the environment first, then .env.production.local, .env.production,
-//      .env.local, .env (the first that defines it wins), so a stray file cannot pass the gate.
+//   1. this is not a store build (STORE_BUILD=1 omits the pinned key, scripts/manifest-key.mjs),
+//   2. extension-key.pub is tracked by git and is a base64 public key,
+//   3. the working tree is clean (every released zip is a `wxt zip` of a committed tree),
+//   4. package.json's version is one Chrome accepts (1-4 dot-separated integers) — the update
+//      checker compares against it,
+//   5. the VITE_PUBLIC_API_URL the production build will use is an https:// URL with a host —
+//      resolved the way WXT resolves it: the environment first, else the last of these files that
+//      defines it, parsed with node's own parseEnv as WXT does:
+//      .env, .env.local, .env.production, .env.production.local, .env.chrome, .env.chrome.local,
+//      .env.production.chrome, .env.production.chrome.local. A `VITE_PUBLIC_API_URL: …` line is
+//      refused outright: parseEnv skips it but Vite's dotenv reads it.
 // `--summary <zip>` prints the four values the backend needs after the zip is built.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
+import { parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { extensionIdFromPub } from './extension-id.mjs';
+import { isStoreBuild, PUB_KEY_PATH, readPubKey } from './manifest-key.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const KEY = 'VITE_PUBLIC_API_URL';
-const ENV_FILES = ['.env.production.local', '.env.production', '.env.local', '.env'];
+const ENV_FILES = [
+  '.env',
+  '.env.local',
+  '.env.production',
+  '.env.production.local',
+  '.env.chrome',
+  '.env.chrome.local',
+  '.env.production.chrome',
+  '.env.production.chrome.local',
+];
+const CHROME_VERSION = /^\d{1,5}(?:\.\d{1,5}){0,3}$/;
 
 function git(...args) {
   try {
@@ -5162,30 +5189,35 @@ function git(...args) {
   }
 }
 
-function fromFile(file) {
-  if (!existsSync(file))
-    return undefined;
-  let value;
-  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const m = line.match(new RegExp(`^\\s*(?:export\\s+)?${KEY}\\s*=\\s*(.*)$`));
-    if (!m)
-      continue;
-    const raw = m[1].trim();
-    const q = raw.match(/^(['"])(.*)\1$/);
-    value = q ? q[2] : raw.replace(/\s+#.*$/, '');
-  }
-  return value;
-}
-
 export function effectiveApiUrl() {
+  const colon = ENV_FILES.filter((name) => {
+    const file = join(root, name);
+    return existsSync(file) && new RegExp(`^\\s*(?:export\\s+)?${KEY}\\s*:`, 'm').test(readFileSync(file, 'utf8'));
+  });
+  if (colon.length)
+    return { value: undefined, from: `a "${KEY}: …" line in ${colon.map(n => `extension/${n}`).join(', ')} — write ${KEY}=… instead` };
   if (KEY in process.env)
     return { value: process.env[KEY], from: 'the environment' };
+  let found = { value: undefined, from: 'no env file' };
   for (const name of ENV_FILES) {
-    const value = fromFile(join(root, name));
-    if (value !== undefined)
-      return { value, from: `extension/${name}` };
+    const file = join(root, name);
+    if (!existsSync(file))
+      continue;
+    const parsed = parseEnv(readFileSync(file, 'utf8'));
+    if (KEY in parsed)
+      found = { value: parsed[KEY], from: `extension/${name}` };
   }
-  return { value: undefined, from: 'nowhere' };
+  return found;
+}
+
+function isHttpsUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname !== '';
+  }
+  catch {
+    return false;
+  }
 }
 
 if (process.argv[2] === '--summary') {
@@ -5194,7 +5226,7 @@ if (process.argv[2] === '--summary') {
   const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
   console.log(`built ${zip}`);
   console.log('set these in the backend .env, after you upload the zip (no agent publishes):');
-  console.log(`  EXTENSION_ID=${extensionIdFromPub(readFileSync(join(root, 'extension-key.pub'), 'utf8'))}`);
+  console.log(`  EXTENSION_ID=${extensionIdFromPub(readFileSync(PUB_KEY_PATH, 'utf8'))}`);
   console.log(`  EXTENSION_LATEST_VERSION=${version}`);
   console.log('  EXTENSION_LATEST_URL=<download-url>');
   console.log(`  EXTENSION_LATEST_SHA256=${sha}`);
@@ -5202,14 +5234,28 @@ if (process.argv[2] === '--summary') {
 }
 
 const problems = [];
-if (!git('ls-files', '--error-unmatch', 'extension-key.pub').ok)
+if (isStoreBuild())
+  problems.push('STORE_BUILD=1 is set — a store build carries no pinned key, so its installs would not get EXTENSION_ID; unset it for a developer-mode release');
+if (!git('ls-files', '--error-unmatch', 'extension-key.pub').ok) {
   problems.push('extension/extension-key.pub is missing or not committed — run `pnpm keygen` once, then commit the .pub');
+}
+else {
+  try {
+    readPubKey();
+  }
+  catch (err) {
+    problems.push(err.message);
+  }
+}
 const status = git('status', '--porcelain');
 if (!status.ok || status.out.trim())
   problems.push('the working tree is not clean — commit or stash first, so the zip is a committed tree');
+const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
+if (!CHROME_VERSION.test(String(version)))
+  problems.push(`package.json version ${JSON.stringify(version)} is not a Chrome version (1-4 dot-separated integers) — the update checker could never compare it`);
 const url = effectiveApiUrl();
-if (!url.value || !url.value.startsWith('https://'))
-  problems.push(`${KEY} must be an https:// URL for the production build (now ${JSON.stringify(url.value ?? null)}, from ${url.from})`);
+if (!isHttpsUrl(url.value ?? ''))
+  problems.push(`${KEY} must be an https:// URL with a host for the production build (now ${JSON.stringify(url.value ?? null)}, from ${url.from})`);
 
 if (problems.length) {
   console.error('release-ext refused:');
@@ -5221,45 +5267,62 @@ if (problems.length) {
 console.log('release-check: ok');
 """
 
+_CX_MANIFEST_KEY_MJS = r"""// The manifest `key` wxt.config.ts pins, shared with scripts/release-check.mjs so the build and the
+// release gate cannot disagree. Resolved from THIS file, never the cwd, so a build started from
+// another directory still finds extension-key.pub. A store build (STORE_BUILD=1) carries no key:
+// the Chrome Web Store rejects a first upload that has one.
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+
+export const PUB_KEY_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'extension-key.pub');
+
+export function isStoreBuild() {
+  return process.env.STORE_BUILD === '1';
+}
+
+// The committed public key, or undefined when there is none yet. A file that is not base64 fails
+// the build loudly: a silently wrong key would change the ID under every installed copy.
+export function readPubKey() {
+  if (!existsSync(PUB_KEY_PATH))
+    return undefined;
+  const pub = readFileSync(PUB_KEY_PATH, 'utf8').trim();
+  if (!/^[A-Z0-9+/]{100,}={0,2}$/i.test(pub))
+    throw new Error('extension-key.pub is not a base64 public key — restore it from version control (pnpm keygen rebuilds it from .keys/extension-key.pem)');
+  return pub;
+}
+
+export function pinnedKey() {
+  return isStoreBuild() ? undefined : readPubKey();
+}
+"""
+
+_CX_MANIFEST_KEY_DTS = """// Types for manifest-key.mjs, which wxt.config.ts imports.
+export declare const PUB_KEY_PATH: string;
+export declare function isStoreBuild(): boolean;
+export declare function readPubKey(): string | undefined;
+export declare function pinnedKey(): string | undefined;
+"""
+
 _CX_UPDATE_CHECK_TS = r"""// Developer-mode update checker. An unpacked install has no update_url, so Chrome never updates
 // it: this asks the backend's GET /extension/latest at browser start, on install/update/reload and
 // every 6 hours, and when a newer version is published it stores the notice for the popup and
-// badges the action. The response is untrusted input — only a 1-4 integer version and an https
-// download URL are accepted; anything else is ignored.
+// badges the action. The rules it applies live in ./update-version.ts.
+import type { UpdateNotice } from '@/lib/update-version';
 import { API_BASE_URL } from '@/lib/api/config';
 import { settings } from '@/lib/storage';
+import { isNewer, parseLatest, secureBase } from '@/lib/update-version';
 
-export interface UpdateNotice {
-  version: string;
-  download_url: string;
-}
-
-const VERSION_RE = /^\d{1,5}(\.\d{1,5}){0,3}$/;
-
-// Chrome's version rule: one to four dot-separated integers, a missing integer counting as 0.
-export function isNewer(candidate: string, current: string): boolean {
-  const a = candidate.split('.').map(Number);
-  const b = current.split('.').map(Number);
-  for (let i = 0; i < 4; i++) {
-    const x = a[i] ?? 0;
-    const y = b[i] ?? 0;
-    if (x !== y)
-      return x > y;
-  }
-  return false;
-}
-
-// The backend the app already uses: the Options page's stored URL, else the build-time one.
-async function backendBase(): Promise<string> {
-  const stored = (await settings.getValue()).apiUrl.trim();
-  return (stored || API_BASE_URL).replace(/\/+$/, '');
-}
+export type { UpdateNotice };
 
 export async function checkForUpdate(): Promise<void> {
   // A store or policy install updates through Chrome — never show this notice there.
   if (browser.runtime.getManifest().update_url)
     return;
-  const base = await backendBase();
+  // The backend the app already uses: the Options page's stored URL, else the build-time one.
+  const stored = (await settings.getValue()).apiUrl.trim();
+  const base = secureBase(stored || API_BASE_URL);
   if (!base)
     return;
   let notice: UpdateNotice | null = null;
@@ -5270,13 +5333,11 @@ export async function checkForUpdate(): Promise<void> {
     });
     if (!res.ok)
       return; // 404 = no release published; any other status: try again at the next check
-    const body = (await res.json()) as Partial<UpdateNotice>;
-    if (typeof body.version !== 'string' || !VERSION_RE.test(body.version))
+    const latest = parseLatest(await res.json());
+    if (!latest)
       return;
-    if (typeof body.download_url !== 'string' || !body.download_url.startsWith('https://'))
-      return;
-    if (isNewer(body.version, browser.runtime.getManifest().version))
-      notice = { version: body.version, download_url: body.download_url };
+    if (isNewer(latest.version, browser.runtime.getManifest().version))
+      notice = latest;
   }
   catch {
     return; // offline, timed out or not JSON: try again at the next check
@@ -5297,6 +5358,63 @@ export async function scheduleUpdateChecks(): Promise<void> {
   if (!(await browser.alarms.get('update-check')))
     await browser.alarms.create('update-check', { periodInMinutes: 360 });
   await checkForUpdate();
+}
+"""
+
+_CX_UPDATE_VERSION_TS = r"""// The update checker's pure rules (src/lib/update-check.ts), import-free so they run under plain
+// node too. The /extension/latest response is untrusted input: only a 1-4 integer version and an
+// https download URL pass, and the backend itself must be https (plain http only to localhost).
+export interface UpdateNotice {
+  version: string;
+  download_url: string;
+}
+
+const VERSION_RE = /^\d{1,5}(?:\.\d{1,5}){0,3}$/;
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+// Chrome's version rule: one to four dot-separated integers, a missing integer counting as 0.
+export function isNewer(candidate: string, current: string): boolean {
+  const a = candidate.split('.').map(Number);
+  const b = current.split('.').map(Number);
+  for (let i = 0; i < 4; i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    if (x !== y)
+      return x > y;
+  }
+  return false;
+}
+
+export function parseLatest(body: unknown): UpdateNotice | null {
+  if (!body || typeof body !== 'object')
+    return null;
+  const { version, download_url } = body as Record<string, unknown>;
+  if (typeof version !== 'string' || !VERSION_RE.test(version))
+    return null;
+  if (typeof download_url !== 'string')
+    return null;
+  try {
+    if (new URL(download_url).protocol !== 'https:')
+      return null;
+  }
+  catch {
+    return null;
+  }
+  return { version, download_url };
+}
+
+// The backend base to ask, without a trailing slash, or '' when it must not be asked: an on-path
+// attacker could answer a plain-http backend with a download link of their choosing.
+export function secureBase(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  }
+  catch {
+    return '';
+  }
+  const secure = url.protocol === 'https:' || (url.protocol === 'http:' && LOCAL_HOSTS.has(url.hostname));
+  return secure ? url.href.replace(/\/+$/, '') : '';
 }
 """
 
@@ -5364,20 +5482,13 @@ def _scaffold_chrome_extension(
 
     # wxt.config.ts
     (ext / "wxt.config.ts").write_text(
-        """import { existsSync, readFileSync } from 'node:fs';
-import process from 'node:process';
-import preact from '@preact/preset-vite';
+        """import preact from '@preact/preset-vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'wxt';
-
 // The pinned manifest key: `pnpm keygen` writes extension-key.pub ONCE, which fixes the extension
 // ID — the backend's EXTENSION_ID and its exact-origin CORS depend on it. Run keygen early: until
-// then each install gets a path-derived ID. A store build (STORE_BUILD=1) leaves the key out,
-// because the Chrome Web Store rejects a first upload that carries one.
-const PUB_KEY_FILE = 'extension-key.pub';
-const pinnedKey = existsSync(PUB_KEY_FILE) && process.env.STORE_BUILD !== '1'
-  ? readFileSync(PUB_KEY_FILE, 'utf8').trim()
-  : undefined;
+// then each install gets a path-derived ID. A store build (STORE_BUILD=1) leaves the key out.
+import { pinnedKey } from './scripts/manifest-key.mjs';
 
 // WXT generates manifest.json from this config + the entrypoints. @preact/preset-vite
 // aliases react/react-dom -> preact/compat (reactAliasesEnabled default), wiring Preact
@@ -5396,7 +5507,7 @@ export default defineConfig({
     description: '__MSG_extDescription__',
     default_locale: 'en',
     // undefined (no key file, or a store build) is dropped from the generated manifest.json.
-    key: pinnedKey,
+    key: pinnedKey(),
     // contextMenus is REQUIRED for the background snippet — without it chrome.contextMenus
     // is undefined and the SW throws in onInstalled (chrome-ext/70-chrome-ext.md § Permissions).
     // alarms drives the periodic update check (src/lib/update-check.ts). No host permissions are
@@ -5476,6 +5587,8 @@ export default defineConfig({
     (ext / "scripts" / "extension-id.mjs").write_text(_CX_EXTENSION_ID_MJS)
     (ext / "scripts" / "keygen.mjs").write_text(_CX_KEYGEN_MJS)
     (ext / "scripts" / "release-check.mjs").write_text(_CX_RELEASE_CHECK_MJS)
+    (ext / "scripts" / "manifest-key.mjs").write_text(_CX_MANIFEST_KEY_MJS)
+    (ext / "scripts" / "manifest-key.d.mts").write_text(_CX_MANIFEST_KEY_DTS)
     # INSTALL.md — the end user's guide; `make release-ext` copies it beside the zip.
     (ext / "INSTALL.md").write_text(_CX_INSTALL_MD.replace("{name}", name))
 
@@ -5655,14 +5768,15 @@ export default defineContentScript({{
         _cx_popup_html.replace("<title>Popup</title>", "<title>Options</title>")
     )
     (ext / "src" / "entrypoints" / "popup" / "main.tsx").write_text(
-        f"""import {{ render }} from 'preact';
+        f"""import type {{ UpdateNotice }} from '@/lib/update-version';
+import {{ render }} from 'preact';
 // Imported from 'react' on purpose: @preact/preset-vite aliases it to preact/compat,
 // which is what lets the fabrik-lib UI kits' React-API components run on Preact.
 import {{ useEffect, useState }} from 'react';
-import {{ i18n }} from '#i18n';
 import {{ Button }} from '@/components/ui/button';
-import type {{ UpdateNotice }} from '@/lib/update-check';
 import '../../global.css';
+
+// `i18n` is auto-imported by the @wxt-dev/i18n module (wxt.config.ts `modules`).
 
 function App() {{
   const [count, setCount] = useState(0);
@@ -6033,6 +6147,7 @@ export function Button({ children, variant = 'solid', ...rest }: ButtonProps) {
     # update-check.ts — the developer-mode update checker the background worker drives.
     (ext / "src" / "lib").mkdir(parents=True, exist_ok=True)
     (ext / "src" / "lib" / "update-check.ts").write_text(_CX_UPDATE_CHECK_TS, encoding="utf-8")
+    (ext / "src" / "lib" / "update-version.ts").write_text(_CX_UPDATE_VERSION_TS)
 
     # public/ icons — real placeholder PNGs so the build has assets immediately.
     for icon_size in (16, 48, 128):
@@ -6422,6 +6537,8 @@ SERVICE_NAME={name}
         "extension/node_modules/\n"
         "# the extension's signing key (scripts/keygen.mjs) — a secret; *.pem above covers it too\n"
         "extension/.keys/\n"
+        "# machine-local env overrides (Vite/WXT *.local files) — never part of a release\n"
+        ".env.*.local\n"
         "\n"
         "# Python-specific\n"
         ".env.local\n"
