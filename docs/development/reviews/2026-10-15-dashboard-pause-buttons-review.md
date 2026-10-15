@@ -1,6 +1,7 @@
 # Review — dashboard-pause-buttons
 
 **Status:** IN-PROGRESS
+**Lane:** fabrik-task
 **Surface:** `git rev-parse HEAD` = 831278e3c79906d647e9b444988e28e003379b84; range tip 53995665d8ead83bb932a23b6f9389ae097e2ea6; `git diff 4fcd37108..53995665d -- scripts/sysadmin/quota_dashboard.py scripts/agent_status.py tests/test_quota_dashboard.py tests/test_agent_status.py` md5 2b0f4dc94620ff3c4d7c6316df30e67d (28178 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/sysadmin/quota_dashboard.py`, `scripts/agent_status.py`, `tests/test_quota_dashboard.py`, `tests/test_agent_status.py`
 
@@ -98,16 +99,16 @@ $ python scripts/review_rubric.py --changed scripts/sysadmin/quota_dashboard.py 
 
 | Class | Status |
 |---|---|
-| Hunt: `scripts/sysadmin/quota_dashboard.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/agent_status.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_quota_dashboard.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_agent_status.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `scripts/sysadmin/quota_dashboard.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (a NUL or lone surrogate in the reason is dropped and a ValueError is a 502; a failed build publishes no pairs; a build across a write is never cached; the click handler ignores missing attributes, names a non-JSON answer, says paused/resumed) |
+| Hunt: `scripts/agent_status.py` — every changed hunk, its enclosing function, its callers | FIXED r2 (r1: the verb test reads a regular file only, bounded, as a line-anchored def; dead term removed; a marker with no time shows no age; docstring names the reads — r2: the row carries every marker stopping one of the agent's windows and `partial`, a main-checkout window counted as "") |
+| Hunt: `tests/test_quota_dashboard.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (test_agent_pause_refuses_buttonless_rows_and_odd_input added — the buttonless row, the odd reason, the failed build, the cache generation) |
+| Hunt: `tests/test_agent_status.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (test_box_pause_edges added — own-name pause, a two-window agent, no time, a FIFO work.py, the verb in a comment) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (pause_agent catches ValueError as a 502 instead of a dropped connection; _agents_block publishes an empty pair set when collect_box fails) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (scripts/sysadmin/quota_dashboard.py pause_agent and scripts/agent_status.py _pause_support count no pool units, seats or quota) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (the `at` 0 sentinel rendered as 20741 d ago; the verb found as a substring of a comment) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (the own-name drop, the publish-ignores-can_pause and the cache-generation mutants are now killed) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (docs/development/reviews/2026-10-15-dashboard-pause-buttons-review.md states every count with its population: 18 candidates over 2 slices from 4 seats; 240 tests in 3 files) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (tests/test_agent_status.py::test_box_pause_edges and tests/test_quota_dashboard.py::test_agent_pause_refuses_buttonless_rows_and_odd_input each executed red on the pinned code in a throwaway worktree) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -133,6 +134,8 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×2 + haiku×2 | found: 18, new: 18, confirmed: 14, fixed: 14, unexecuted: 0 | method: partitioned round 1 — slice A quota_dashboard.py, slice B agent_status.py; every candidate executed by the orchestrator, fixes 8cf2991c5 and 027371fca, graders red on the pin in a throwaway worktree |
+| Pass 2 | native sonnet×2 + haiku×2 | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0 | method: the same seats re-verified their slices over 589cbbe2f..027371fca; both defects in round 1's own per-window fix (two paused trees, a main-checkout window), fixed 24f09f3fc, graders red on 027371fca and on the old-guard mutant; lane scope-growth stop taken |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -145,6 +148,13 @@ Row shapes (quoted here, so the gate does not read them as passes):
 
 Every candidate that did not enter `confirmed:` is recorded here, one row each, in the verdict
 grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading is an EXAMPLE, never rows).
+
+| F-id | Verdict |
+|---|---|
+| A8 | REFUTED (scripts/agent_status.py `can_pause` needs a `_NAME_RE` name and the repo name is its directory name, so no row reaches `_publish_pause_targets` with a missing name) |
+| A9 | REFUTED (the live server runs from /opt/fabrik/scripts/sysadmin/quota_dashboard.py in the main checkout, so `_FABRIK_ROOT` is the hub's) |
+| A11 | REFUTED (the 30 s bound is the child's alone; the rebuild on a miss is the design's "rebuilt once on a miss", run under `_repos_lock` like every page build) |
+| B5 | REFUTED (an unreadable config.json makes work.py exit 1 and pause_agent return its message as a 502, which the click handler shows as the button's title beside "failed — retry") |
 
 ### Verdict grammar — an EXAMPLE, never rows
 

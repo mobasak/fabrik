@@ -211,11 +211,13 @@ red banner in that block or that repo, never the page's.
 **Pause / Resume** (operator 2026-10-15: "i want a button to be added there to send pause command to
 running agent" + "also the resume button"; W-7159f8e2): a row whose agent can be paused — an agent
 name in a repo whose work store has `config.json` — carries a **Pause** button, or **Resume** with
-"paused by X, N ago" once paused (a pause by the agent's name or by the worktree its window sits in;
-D-910). A row whose repo's own `scripts/work.py` predates the verb also says "not honoured here until
-this repo's work.py syncs". The button asks `confirm()` like the board's other write buttons, then
-`POST /agent-pause`; the board runs the HUB's `work.py --repo <that repo> pause --by=dashboard` (or
-`resume` of the marker the row showed) as the OPERATOR — the child gets only PATH, HOME, LANG, LC_*
+"paused by X, N ago" once paused (a pause by the agent's name or by a worktree one of its windows sits
+in; D-910). `work.py` pauses per window, so when another of the agent's windows — in another worktree
+or the main checkout — still runs, the row adds "only some of its windows". A row whose repo's own
+`scripts/work.py` predates the verb also says "not honoured here until this repo's work.py syncs". The
+button asks `confirm()` like the board's other write buttons, then `POST /agent-pause`; the board runs
+the HUB's `work.py --repo <that repo> pause --by=dashboard` (or `resume` of EVERY marker the row
+showed, one call each, stopping at the first refusal) as the OPERATOR — the child gets only PATH, HOME, LANG, LC_*
 and TZ, so neither the server's own agent identity nor a stray `GIT_DIR` reaches it — and every rule
 about who may pause or lift a pause stays `work.py`'s. A pause stops the agent starting new work at
 its next turn boundary; nothing is killed.
