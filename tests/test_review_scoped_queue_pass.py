@@ -484,3 +484,40 @@ def test_step_five_keeps_ruff_findings_off_seats_and_names_the_hub_ledger() -> N
         "(every `review_loop_ledger.py` call in this step runs as `python3 /opt/fabrik/scripts/review_loop_ledger.py` in a"
         " sync-excluded repo, since a vendored copy there may lack `pin` or `read --pins`)"
     ) in text
+
+
+def test_a_doc_fix_that_must_carry_a_clause_quotes_it_whole_never_paraphrases() -> None:
+    """Row 1792025649 (kaizen, 2026-10-15): every own-fix of a run was a paraphrase drift of a spec clause the doc
+    fix restated. Step 3 said "is pointed at, never paraphrased" (04cebdac3), a rule a fix that must CARRY the
+    clause's content could not obey — a pointer cannot stand in its place — so the lead paraphrased; row 1791446864
+    had been rejected as landed on the same sentence, which made this row the recurrence D-711 edits. The sentence
+    now offers the quote branch, bounded: only where the fix must carry its words, quoted whole (a quote cut
+    mid-clause drops a qualifier while staying verbatim), verbatim (round 1: "in its own words" read as the fixer's
+    words), with no gloss (a gloss is a new wording that drifts) and naming its source (a quote of a restatement, or
+    one gone stale, is traceable). Mutants, each a failing assertion: drop the quote branch (the old sentence
+    returns), drop 'whole', drop 'verbatim', drop 'with no gloss', drop 'naming its source', drop 'where the fix
+    must carry its words' (an unbounded quote brings back the drift a pointer avoids), 'never paraphrased' →
+    'rarely paraphrased', move the sentence out of step 3, or plant a licence that says gloss, paraphrase or verbatim
+    anywhere in step 3 (round 1: a sentence-initial 'A short gloss is fine.' survived a case-sensitive scan; round 2:
+    'A brief gloss beside a quote is fine.' survived the word-list, so the pin counts the words instead). A licence
+    worded around those three words ('a summary may stand beside the quote') passes — the limit of a text pin; the
+    review's seats catch that one, not this test."""
+    step3 = _section(_norm(SRC), "3. **Pass 1 (wide):**", "4. **Record each pass:**")
+    sentence = (
+        "Something already stated, in the code, the doc that owns the subject or elsewhere in the file being fixed, is"
+        " pointed at, or, where the fix must carry its words, quoted whole, verbatim, with no gloss and naming its"
+        " source, never paraphrased."
+    )
+    assert step3.count(sentence) == 1, "the pointer-or-whole-quote sentence is stated once, in step 3"
+    # a weakener word-list is never complete (round 2: "A brief gloss beside a quote is fine." survived one), so the
+    # pin is a COUNT — step 3 says "gloss" and "paraphras" exactly once each, both inside the sentence above; any
+    # second mention, whatever its wording, is a licence or a restatement and fails here
+    lowered = step3.lower()
+    assert lowered.count("gloss") == 1, lowered.count("gloss")
+    assert lowered.count("paraphras") == 1, lowered.count("paraphras")
+    assert lowered.count("verbatim") == 1, lowered.count("verbatim")
+    # it keeps its place between the execute-or-delete rule and the LOCAL/ARCHITECTURAL fix rule
+    before = step3[: step3.index(sentence)]
+    assert before.rstrip().endswith("a re-read is not execution."), before[-60:]
+    after = step3[step3.index(sentence) + len(sentence) :]
+    assert after.lstrip().startswith("**LOCAL findings (unambiguous, contained) you just fix"), after[:60]

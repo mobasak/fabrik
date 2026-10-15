@@ -311,10 +311,15 @@ modifies or wires into EXISTING code still owes its author-blind pass (live proo
 author nearly converged solo; the author-blind finder returned a CONFIRMED-HIGH invalidating the plan's core
 mechanism — every anchor was real, the defect was the author's inference) — and a plan SET always partitions
 per ticket (the Phase-0 per-ticket mandate), regardless of how few tickets it has.
-The Pass Ledger lives in the review receipt, `docs/development/reviews/<YYYY-MM-DD>-<slug>-plan-review.md`,
-whose first 10 lines carry the line `**Command:** /fabrik-plan-review`: once the receipt claims a finished
-review, `check_convergence.py` grades it by its ledger only under that label, and demands a code review's gate
-embed without it.
+The plan and its review receipt both carry the Pass Ledger and its Residual. At the flip `check_convergence.py`
+grades the PLAN's own rows, a spine's or a monolith's — a `method: re-derivation` Pass row (`_check_plan`) and a
+last counter row reading `confirmed: 0` (`_check_plan` for a monolith, `_check_spine_set` for a spine) — beside
+the plan's adjudicated Coverage Checklist (step 2). The review receipt,
+`docs/development/reviews/<YYYY-MM-DD>-<slug>-plan-review.md`, whose first 10 lines carry the line `**Command:**
+/fabrik-plan-review`, carries the same ledger plus the panel table and the ask↔spec table: once it claims a
+finished review, the gate grades it by its ledger only under that label and with no `## Coverage Checklist`
+heading of its own (`_is_design_receipt`), and demands a code review's gate embed otherwise — `review_receipt.py
+--init` writes receipts for the two code-review commands only and always emits that heading.
 
 After each pass, list what you VERIFIED (which `path:line` you actually read, which schema objects) and what you
 found, then fix the plan. **The loop terminates per § Termination contract — the quiet closing round** (its three counters at zero, md5 unchanged). "I fixed everything I found this pass" is NOT done: the next delta round is

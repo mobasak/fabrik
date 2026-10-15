@@ -91,6 +91,13 @@ the shape does not have it.
   and head are built and each page's visible text and heading outline (h1-h3 counts) are diffed independently of any
   identity diff the change ships, and the preview server runs on each language root, since a dist diff cannot see dev-
   or preview-only settings.
+- Deletions (a change that deletes a file, directory or input): a deleting probe also removes every directory it
+  empties, up to the root, as `git rm` does (`find <root> -name .git -prune -o -type d -empty -print`, run before
+  and after the deletion, prints no new line; a leftover hides a `readdirSync`); a seed restoring deleted inputs
+  first lists, by grepping the code under test, each input it reads by name or by listing a directory, and restores
+  no other; the Callers grep above runs for each deleted path, basename and directory from the hub and the fleet
+  repos, never the package; seats name, for each guard on a deleted input, whether it re-runs at removal or only at
+  classification.
 - The premise: the authoritative seat attacks the work item's premise and a ported heuristic's premise, not only the
   implementation; ask whether an existing mechanism or fragment already covers the class, and whether the check fits a
   boundary the data already has; edited prose is checked against its rule pack's SCOPE line; an external quote goes to

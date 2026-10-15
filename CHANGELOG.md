@@ -4,6 +4,69 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the hub hands merge ownership and work distribution to the coordinator (2026-10-15)
+
+`supersedes D-453: MERGE OWNER: coordinator` (D-874); `.fabrik/work/config.json` sets `distributor: coordinator`,
+`queue_floor: 1` and `coordinator_mode: true`; `.fabrik/beat-owners.json` maps the `merge request` and `work item`
+topics to the coordinator. `CLAUDE.md` § Shared repo, § EXIT and § Autonomy, `docs/reference/agents/infra.md` and
+`docs/reference/multi-agent-operating-model.md` name the coordinator as agent-1 and put infra in
+`.claude/worktrees/infra`; the phrase graders in `tests/test_governance_template_split.py` follow. Plan
+`2026-10-15-plan-1-coordinator-role` Phase C — lands on master only when the coordinator window is live.
+### Changed — /fabrik-review: the probe catalogue gains a Deletions hunt row (2026-10-15)
+
+- `commands/_fragments/review-probe-catalogue.md` § The brief's hunt lines: a Deletions row (a change that deletes a
+  file, directory or input) — a deleting probe also removes every directory it empties, up to the root, as `git rm`
+  does (a `.git`-pruned `find -type d -empty` before and after prints no new line); a seed restoring deleted inputs
+  first lists, by grepping the code under test, each input it reads by name or by listing a directory, and restores no
+  other; the Callers grep runs for each deleted path, basename and directory from the hub and the fleet repos, never
+  the package; seats name, per guard on a deleted input, whether it re-runs at removal or only at classification.
+  Answers rows 1792031092 (an emptied directory left behind hid a `readdirSync`) and 1792030357 (a seed restored
+  inputs the code read by name), the third and fourth sightings of the held deletion-probe subject (1790199460; the
+  review-scoped queue held the removal-vs-classification half today; D-711). Pinned by
+  `tests/test_review_queue_pass.py::test_the_catalogue_probes_a_deletion_surface`. Row 1792040243 rejected as already
+  stated (the gate and the skeleton refuse an absent owner), 1792034184 as misfiled (the lane gate's printed line,
+  routed to infra), 1792036161 HELD.
+
+### Changed — /fabrik-command-improve: a claim about a gate is grounded in its code and run on the row's own case (2026-10-15)
+
+- `commands/_sources/fabrik-command-improve.md`, three amendments in place, one subject: § Drive's Grounding bullet
+  names the gate's CODE, read live, when an edit restates a gate's conditions (every condition and value copied,
+  never the prose describing them); PHASE 3's claim check reaches what a gate reads or refuses, every branch of that
+  function and every other path that filters or grades the same input, traced from the entry point that receives it;
+  a rule the edit adds is RUN before PHASE 4's first pin — applied to the row's case quoted as the row gives it (or
+  the artifact the row names, fetched and quoted), each verdict written beside its quote. Answers rows 1792038532, 1792033691 and 1792000873 (kaizen's own
+  closes: two misreadings that were a second code path, a quote ban drafted for a glossed pointer, a lane-gate
+  restatement that dropped three conditions); the last two are second sightings of held subjects (D-711). Pinned by
+  `tests/test_command_improve_queue_pass.py::test_a_claim_about_a_gate_is_grounded_in_its_code_and_run_on_the_rows_case`,
+  with the two existing pins on the amended sentences re-pinned. Row 1792036364 (the pins dir name) rejected as
+  misfiled — its sentence is `/fabrik-review-scoped` step 5's, carried to that queue's next run.
+
+### Changed — /fabrik-plan-review: both the plan and its receipt carry the Pass Ledger; what the gate grades in each (2026-10-15)
+
+- `commands/_sources/fabrik-plan-review.md` Phase 1: the sentence that put the Pass Ledger in the review receipt alone
+  now says the plan and its receipt both carry it and its Residual — at the flip `check_convergence.py` grades the
+  PLAN's own rows (a `method: re-derivation` Pass row and a last counter row reading `confirmed: 0`, graded by
+  `_check_plan` for a monolith and `_check_spine_set` for a spine) beside the plan's
+  adjudicated Coverage Checklist, and the receipt carries the same ledger plus the panel and ask↔spec tables, graded by
+  its ledger only under the `**Command:** /fabrik-plan-review` label and with no `## Coverage Checklist` heading of its
+  own (`review_receipt.py --init` writes only the two code-review commands' receipts and always emits that heading).
+  Answers feedback row 1792013533 (the one-door monolith
+  loop found the ledger's home by precedent, not from the text). Pinned by
+  `tests/test_plan_review_queue_pass.py::test_the_ledger_home_names_what_the_gate_grades_in_plan_and_receipt`. Row
+  1791998552 (a handoff `.md` seed `start --resume-from` cannot read) routed to infra as 01M4YVAV7H; one row rejected
+  as already stated (term-edit rule (1)); one HELD.
+
+### Changed — /fabrik-review-scoped: a fix that must carry a clause quotes it whole, never paraphrases it (2026-10-15)
+
+- `commands/_sources/fabrik-review-scoped.md` step 3: the fix step's rule for something already stated — pointed at,
+  never paraphrased — gains its quote branch, bounded: where the fix must carry its words, it is quoted whole,
+  verbatim, with no gloss and naming its source. Answers feedback row 1792025649 (every own-fix of a run was a
+  paraphrase drift of a spec clause the doc fix restated; a pointer could not stand there), the second verdict on
+  that sentence (D-711). Pinned by
+  `tests/test_review_scoped_queue_pass.py::test_a_doc_fix_that_must_carry_a_clause_quotes_it_whole_never_paraphrases`.
+  Three rows refused with reasons (a seat-per-slice delta cut as bar-lowering, re-proposed to the operator; an
+  include-only includer count as contradicting; the pin-after-ruff row as already stated) and four HELD.
+
 ### Added — Run-bound scratch: every run gets a marked folder, removed by its marker once consumed (2026-10-15)
 
 - Removal (Phase B): `command_run.py start` launches `scratch_sweep.py --run-folders --session <sid> --cwd <repo> --apply` detached after its record lock drops; that mode removes this session's CONSUMED run folders walk-free (rename to `.trash-<key>`, then `rmtree`) under a per-session lock beside `scratchpad/`, never the global one. `--dead --apply` consumes every session's run folders first (a dead session's `running` folder needs a 7-day-stale heartbeat), and a dead session still holding an ACTIVE folder keeps its directory and that folder while every other entry goes. Session mode never judges a run folder by age; `--hook` leaves run folders out. A registered worktree inside a consumed folder goes first when it is merged and clean (or detached, clean and contained in a ref); otherwise the folder is kept. `--run-folders --retire run-<key>` ends one `resumable` folder by hand.
