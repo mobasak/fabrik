@@ -543,10 +543,16 @@ def test_the_write_after_close_margin_and_the_removal_recheck(
     _age(recent, 35 * HOUR)  # written 5 h after a close 40 h ago: 35 h < 36 h from that write
     stale = _run_folder(sdir, "stale", closed_ago=40 * HOUR, heartbeat_ago=40 * HOUR)
     _age(stale, 37 * HOUR)  # its last write is itself past the long grace
+    edge = _run_folder(sdir, "edge", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    _age(edge, 41 * 60 - margin)  # exactly at the margin: not past it
+    later = _run_folder(sdir, "later", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    _age(later, 39 * 60)  # an entry made two minutes after the close counts
+    planned = {Path(r.path).name.split("-2026")[0]: r.cls for r in sw.plan_run_folders([sdir], NOW)}
+    assert planned["run-recent"] == "kept"  # the judge itself counts the grace from the last write
     rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
     assert rc == 0, out
-    assert past.exists() and recent.exists(), out
-    assert not within.exists() and not stale.exists(), out
+    assert past.exists() and recent.exists() and later.exists(), out
+    assert not within.exists() and not stale.exists() and not edge.exists(), out
     late = _run_folder(sdir, "late", closed_ago=41 * 60, heartbeat_ago=41 * 60)
     rows = sw.plan_run_folders([sdir], NOW)
     assert [r.cls for r in rows if r.path == str(late)] == ["consumed"]
