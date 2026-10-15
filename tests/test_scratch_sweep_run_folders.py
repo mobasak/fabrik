@@ -696,6 +696,58 @@ def test_a_non_finite_marker_time_is_doubt_never_consumed(
     assert folder.exists(), out
 
 
+@pytest.mark.parametrize(
+    ("change", "kept"),
+    [
+        ({}, False),  # control: a sane marker past its grace is still consumed
+        ({"closed_at": 0}, True),  # a close before the run was created
+        ({"closed_at": -1e308}, True),
+        ({"created": None}, True),  # no creation time to judge the close against
+        ({"created": "yesterday"}, True),
+        ({"created": True}, True),
+        ({"created": NOW + 2 * DAY}, True),  # created in the future
+        ({"closed_at": NOW - 50 * HOUR - 300}, False),  # exactly the clock margin before created
+        ({"closed_at": NOW - 50 * HOUR - 301}, True),  # one second past it
+    ],
+    ids=[
+        "control",
+        "closed-zero",
+        "closed-huge-negative",
+        "created-missing",
+        "created-text",
+        "created-bool",
+        "created-future",
+        "margin-edge-vouched",
+        "margin-edge-past",
+    ],
+)
+def test_a_close_time_the_marker_cannot_vouch_for_is_doubt(
+    change: dict,
+    kept: bool,
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """D-900 (W-de2c34c1, F13): a `done` marker's close is believed only against a sane creation time.
+    With `created` missing, non-numeric, a bool or in the future, or with `closed_at` before
+    `created` minus the clock margin, the close is unknown — ACTIVE (INV-1), never consumed.
+    A gap-free /proc on purpose: on the live box a same-uid daemon's gap already keeps an unknown
+    `created` (gap_keeps), which would make these cases pass with the rule absent."""
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(_one_pid_proc(tmp_path)))
+    sdir = _session(harness)
+    folder = _run_folder(sdir, "suspect")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    owner.update(change)
+    if owner.get("created") is None:
+        del owner["created"]
+    (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    _age(folder / ".owner", 40 * HOUR)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert folder.exists() is kept, out
+
+
 @pytest.mark.parametrize("raw", ["-1e999", "1e999", "-1e400", "9" * 400, "-" + "9" * 400])
 def test_an_overflowing_marker_time_is_doubt_never_consumed(
     raw: str, harness: Path, capsys: pytest.CaptureFixture[str]
@@ -855,6 +907,27 @@ def test_refusal_set_names_the_run_folder_rule() -> None:
         "inside a CONSUMED run folder (scratchpad/run-<key>/) backup shapes are disposable" in flat
     )
     assert "judged only by its .owner marker and the holder probe" in flat
+
+
+@pytest.mark.parametrize("created", [None, NOW + 400 * DAY])
+def test_retire_tells_the_truth_about_an_unvouchable_folder(
+    created: float | None, harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """D-900 review: `--retire` used to print "removed after its grace" for a marker whose missing or
+    future `created` makes every sweep keep it. It invents no creation time (a `now` would strip
+    `gap_keeps`' protection from the run's writers) — it says the folder is kept and how to remove it."""
+    folder = _run_folder(_session(harness), "nocreated", "resumable")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    if created is None:
+        owner.pop("created")
+    else:
+        owner["created"] = created
+    (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--retire", folder.name)
+    assert rc == 0, out
+    after = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    assert after.get("created") == created and after["state"] == "done", after
+    assert "every sweep keeps it" in out and "removed after its grace" not in out, out
 
 
 def test_retire_marks_one_folder_done(harness: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1455,6 +1528,37 @@ def test_the_report_names_no_trash_and_flags_a_markerless_age(harness: Path) -> 
     report = json.loads(Path(os.path.expanduser(sw.SIZE_REPORT_PATH)).read_text(encoding="utf-8"))
     named = {Path(r["path"]).name for r in report["run_folders"]}
     assert trash.name not in named and nocreated.name in named, report
+
+
+def test_a_zero_close_time_reads_as_a_time_in_the_reason() -> None:
+    """Review of 2dd7ac9e6: a `closed_at` of 0.0 is a (very old) time, not a missing one — the old
+    `f.closed_at or now` read it as `now` and wrote "closed 0s ago" into a removal reason."""
+    facts = sw.RunFacts("done", 0.0, 0.0, False, False, False, True, False, False)
+    verdict, reason = sw.classify_run_folder(facts, NOW)
+    assert verdict == "consumed", reason
+    assert "closed 0s ago" not in reason, reason
+
+
+def test_the_report_names_a_done_folder_whose_close_cannot_be_vouched_for(harness: Path) -> None:
+    """D-900's cost made visible (review of b5c1abd69): a `done` folder whose close the marker
+    cannot vouch for is kept by every sweep, so the size report names it with its remedy; a sane
+    `done` folder past its grace is the sweep's to remove, not advice."""
+    sdir = _session(harness)
+    unvouched = _run_folder(sdir, "unvouched")
+    owner = json.loads((unvouched / ".owner").read_text(encoding="utf-8"))
+    owner["closed_at"] = 0
+    (unvouched / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    future = _run_folder(sdir, "future")
+    owner = json.loads((future / ".owner").read_text(encoding="utf-8"))
+    owner["closed_at"] = NOW + 400 * DAY  # inside its grace for ever, so kept — silently, before
+    (future / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    sane = _run_folder(sdir, "sane")
+    sw.write_size_report([sdir], [], NOW)
+    report = json.loads(Path(os.path.expanduser(sw.SIZE_REPORT_PATH)).read_text(encoding="utf-8"))
+    flagged = {Path(r["path"]).name: r for r in report["run_folders"]}
+    assert unvouched.name in flagged and "vouch" in flagged[unvouched.name]["why"], report
+    assert future.name in flagged and "vouch" in flagged[future.name]["why"], report
+    assert sane.name not in flagged, report
 
 
 @pytest.mark.parametrize("generated", [NOW + 1e9, float("nan"), "yesterday"])

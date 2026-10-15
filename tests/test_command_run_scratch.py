@@ -1185,3 +1185,69 @@ def test_a_heartbeat_never_raises(tmp_path: Path) -> None:
     """F-A3: a corrupted `run_scratch` (a NUL byte) never costs the verb its save."""
     cr = _load()
     cr._heartbeat({"run_scratch": "/tmp/has\x00null"})
+
+
+@pytest.mark.parametrize(
+    "before",
+    [
+        "garbage{",
+        None,
+        '{"state": "running", "created": "x"}',
+        '{"state": "running", "created": NaN}',  # json accepts it; the sweep refuses the marker
+        '{"state": "running", "created": 9999999999999}',  # a creation in the far future
+    ],
+)
+def test_a_close_that_heals_a_marker_stamps_the_runs_true_start(
+    tmp_path: Path, before: str | None
+) -> None:
+    """D-900 review (W-de2c34c1): the close rewrites an unreadable, missing or insane-`created`
+    marker; without a `created` the sweep keeps the folder for ever. The heal stamps the run's TRUE
+    start (`started_epoch`), never the close time — `gap_keeps` protects the folder from processes
+    that started after `created`, so `now` would strip that protection from the run's writers."""
+    folder = tmp_path / "run-k"
+    folder.mkdir()
+    if before is not None:
+        (folder / ".owner").write_text(before, encoding="utf-8")
+    start = time.time() - 3600.0
+    cr._mark_run_scratch({"run_scratch": str(folder), "started_epoch": start}, "done", "s1")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    assert owner.get("created") == start, owner
+
+
+def test_a_heal_of_a_resumed_run_stamps_its_origin_not_its_resume(tmp_path: Path) -> None:
+    """Closing pass (A1, one hop): a run resumed in a later session mints a fresh `started_epoch`
+    but keeps its true origin in `origin_epoch` — the start every other reader uses
+    (`origin_epoch or started_epoch`). The heal must stamp the origin, or the first session's
+    writers fall outside `gap_keeps`' protection again."""
+    folder = tmp_path / "run-k"
+    folder.mkdir()
+    (folder / ".owner").write_text("garbage{", encoding="utf-8")
+    origin, resumed = time.time() - 40 * 3600.0, time.time() - 3600.0
+    rec = {"run_scratch": str(folder), "origin_epoch": origin, "started_epoch": resumed}
+    cr._mark_run_scratch(rec, "done", "s1")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    assert owner.get("created") == origin, owner
+
+
+def test_a_heal_with_no_known_start_leaves_created_unknown(tmp_path: Path) -> None:
+    """A record with no usable `started_epoch` (an adoption heal passes a bare `run_scratch`) never
+    invents a creation time: `created` stays unknown, so the sweep keeps the folder (the safe side)
+    and the written marker is strict JSON (a NaN is dropped, never re-written)."""
+    folder = tmp_path / "run-k"
+    folder.mkdir()
+    (folder / ".owner").write_text('{"state": "running", "created": NaN}', encoding="utf-8")
+    cr._mark_run_scratch({"run_scratch": str(folder)}, "done", "s1")
+    text = (folder / ".owner").read_text(encoding="utf-8")
+    assert "NaN" not in text and "created" not in json.loads(text), text
+
+
+def test_a_close_keeps_a_markers_own_created(tmp_path: Path) -> None:
+    """The heal never overwrites a real `created`: the sweep judges the close against it."""
+    folder = tmp_path / "run-k"
+    folder.mkdir()
+    (folder / ".owner").write_text(
+        json.dumps({"state": "running", "created": 1234.5}), encoding="utf-8"
+    )
+    cr._mark_run_scratch({"run_scratch": str(folder)}, "done", "s1")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    assert owner["created"] == 1234.5, owner

@@ -1688,6 +1688,17 @@ def _mint_run_scratch(
     return folder, ""
 
 
+def _sane_epoch(value: object, now: float) -> bool:
+    """A numeric (not bool), finite epoch no later than `now` + 300 s — scratch_sweep's
+    GAP_CLOCK_MARGIN_S, the clock skew its D-900 rule tolerates."""
+    return (
+        isinstance(value, int | float)
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value <= now + 300
+    )
+
+
 def _mark_run_scratch(rec: dict[str, Any], state: str, sid: str) -> None:
     """Rewrite the run folder's marker at a close (spec D2): `state` and `closed_at`, plus `sid` and
     `key`, which heals an adoption whose own marker rewrite failed (plan P6). Silent when the record
@@ -1700,10 +1711,29 @@ def _mark_run_scratch(rec: dict[str, Any], state: str, sid: str) -> None:
         if not folder.is_dir():  # raises PermissionError on an unenterable parent
             return
         owner = _read_owner(folder) or {}
+        now = time.time()
+        created = owner.get("created")
+        if not _sane_epoch(created, now):
+            # a heal from an unreadable or `created`-less marker: the sweep believes a close only
+            # against a sane creation time (D-900), so without one the folder is kept for ever. The
+            # stamp is the run's TRUE start (`started_epoch`), never `now`: `gap_keeps` protects a
+            # folder from a same-uid process that started after `created`, so a `now` would strip
+            # that protection from every writer the run had (review of 2dd7ac9e6, A1). A record
+            # with no usable start (an adoption's bare `{"run_scratch": …}`) leaves `created`
+            # unknown — kept, the safe side. A real, sane `created` is never replaced.
+            # a resumed run's TRUE start is its `origin_epoch` (its `started_epoch` is the resume's),
+            # the same `origin_epoch or started_epoch` every other reader of a run's start uses
+            start = rec.get("origin_epoch")
+            if not _sane_epoch(start, now):
+                start = rec.get("started_epoch")
+            if _sane_epoch(start, now):
+                owner["created"] = float(start)
+            else:
+                owner.pop("created", None)
         owner.update(
             {
                 "state": state,
-                "closed_at": time.time(),
+                "closed_at": now,
                 "sid": sid,
                 "key": folder.name.removeprefix("run-"),
             }
