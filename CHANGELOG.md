@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — chrome-ext pack: § Distribution Model names the release kit the scaffold ships (2026-10-15)
+
+`.windsurf/rules/chrome-ext/70-chrome-ext.md` now says that for the developer-mode channel a chrome-extension
+scaffold ships the release kit (D-893) — `pnpm keygen`, `make release-ext` with its refusal gate, `GET
+/extension/latest` and exact-ID CORS — so an agent no longer hand-builds what the scaffold wrote; a developer-mode
+repo scaffolded before the kit still builds them by hand. Intel's mail
+01M506XR5W (W-4a4a8792); pinned against a fresh scaffold by
+`tests/test_chrome_ext_pack.py::test_the_pack_names_the_release_kit_the_scaffold_ships`.
+
 ### Fixed — gateway counts name Qwen-MT's flash tier, not the frozen turbo (2026-10-15)
 
 - `scripts/kilo-benchmarks/update_gateway_counts.py` no longer writes `qwen-mt-turbo` into the ai/00 and ai/30
