@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-plan-review: both the plan and its receipt carry the Pass Ledger; what the gate grades in each (2026-10-15)
+
+- `commands/_sources/fabrik-plan-review.md` Phase 1: the sentence that put the Pass Ledger in the review receipt alone
+  now says the plan and its receipt both carry it and its Residual — at the flip `check_convergence.py` grades the
+  PLAN's own rows (a `method: re-derivation` Pass row and a last counter row reading `confirmed: 0`, graded by
+  `_check_plan` for a monolith and `_check_spine_set` for a spine) beside the plan's
+  adjudicated Coverage Checklist, and the receipt carries the same ledger plus the panel and ask↔spec tables, graded by
+  its ledger only under the `**Command:** /fabrik-plan-review` label and with no `## Coverage Checklist` heading of its
+  own (`review_receipt.py --init` writes only the two code-review commands' receipts and always emits that heading).
+  Answers feedback row 1792013533 (the one-door monolith
+  loop found the ledger's home by precedent, not from the text). Pinned by
+  `tests/test_plan_review_queue_pass.py::test_the_ledger_home_names_what_the_gate_grades_in_plan_and_receipt`. Row
+  1791998552 (a handoff `.md` seed `start --resume-from` cannot read) routed to infra as 01M4YVAV7H; one row rejected
+  as already stated (term-edit rule (1)); one HELD.
+
 ### Changed — /fabrik-review-scoped: a fix that must carry a clause quotes it whole, never paraphrases it (2026-10-15)
 
 - `commands/_sources/fabrik-review-scoped.md` step 3: the fix step's rule for something already stated — pointed at,

@@ -81,3 +81,37 @@ def test_a_seat_never_executes_a_script_that_acts_outside_its_scratch() -> None:
         " when a check asks you to: cite the lines and return that claim `unverified` (read-only by rule);"
         in agent
     )
+
+
+def test_the_ledger_home_names_what_the_gate_grades_in_plan_and_receipt() -> None:
+    """Row 1792013533 (kaizen, 2026-10-15, the one-door monolith loop): the command said the Pass Ledger lives in the
+    review receipt, and the lead learnt by precedent (the venv plan) that the PLAN must carry its own ledger too —
+    `check_convergence._check_plan` grades the plan text's `method: re-derivation` Pass row for every plan (:710) and
+    its last `confirmed: 0` row for a monolith (:717-722; `_check_spine_set` grades a spine's, :464), and never opens
+    the receipt; the receipt is graded by its own
+    ledger only when its header `Command:` label names this command AND it carries no live `## Coverage Checklist`
+    heading (`_is_design_receipt`, :1310) — which the `review_receipt.py --init` skeleton emits (:247), so a receipt
+    built from it is read as a code review and owes the gate embed. The sentence now states both homes (ledger and Residual), which function grades which row for a spine and a
+    monolith, and both receipt conditions. Mutants, each a failing assertion: restore 'lives in the review receipt' (the receipt-only claim);
+    drop 'a spine's or a monolith's'; drop the `_check_plan` row grammar; drop the Coverage Checklist condition; drop
+    the skeleton clause; move the sentence out of Phase 1."""
+    src = ROOT / "commands" / "_sources" / "fabrik-plan-review.md"
+    text = " ".join(src.read_text().split())
+    phase1 = text[text.index("## Phase 1 — Grounding passes") : text.index("## Phase 2 — Make every step executable")]
+    sentence = (
+        "The plan and its review receipt both carry the Pass Ledger and its Residual. At the flip `check_convergence.py` grades the PLAN's own rows, a spine's or a monolith's — a `method: re-derivation` Pass row (`_check_plan`) and a last counter row reading `confirmed: 0` (`_check_plan` for a monolith, `_check_spine_set` for a spine) — beside the plan's adjudicated Coverage Checklist (step 2). The review receipt, `docs/development/reviews/<YYYY-MM-DD>-<slug>-plan-review.md`, whose first 10 lines carry the line `**Command:** /fabrik-plan-review`, carries the same ledger plus the panel table and the ask↔spec table: once it claims a finished review, the gate grades it by its ledger only under that label and with no `## Coverage Checklist` heading of its own (`_is_design_receipt`), and demands a code review's gate embed otherwise — `review_receipt.py --init` writes receipts for the two code-review commands only and always emits that heading."
+    )
+    assert phase1.count(sentence) == 1, "the ledger-home sentence is stated once, in Phase 1"
+    assert "Pass Ledger lives in the review receipt" not in text, "the receipt-only claim is gone"
+    # the two homes are named exactly once each in Phase 1 — a second statement is a restatement that drifts
+    assert phase1.count("The plan and its review receipt both carry the Pass Ledger") == 1
+    lowered = text.lower()
+    for restatement in (
+        "lives only in the review receipt",
+        "receipt holds only",
+        "only in the receipt",
+        "lives only in the plan",
+        "only in the plan",
+    ):
+        assert restatement not in lowered, restatement
+    assert phase1.count("`_is_design_receipt`") == 1

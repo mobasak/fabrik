@@ -129,15 +129,25 @@ def test_both_design_reviews_name_the_receipt_and_the_command_line_the_gate_rout
     ledger = (
         "\n## Pass Ledger\n| Pass 1 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 |\n"
     )
-    for kind in ("spec", "plan"):
-        text = _norm(SOURCES / f"fabrik-{kind}-review.md")
-        assert (
+    # plan-review's sentence names BOTH ledger homes since row 1792013533 (its own queue-pass test pins the whole
+    # sentence); the receipt path, the header line and the label-routed grading are what this test asserts for both
+    expected = {
+        "spec": (
             "The Pass Ledger lives in the review receipt,"
-            f" `docs/development/reviews/<YYYY-MM-DD>-<slug>-{kind}-review.md`, whose first 10 lines carry the line"
-            f" `**Command:** /fabrik-{kind}-review`: once the receipt claims a finished review,"
+            " `docs/development/reviews/<YYYY-MM-DD>-<slug>-spec-review.md`, whose first 10 lines carry the line"
+            " `**Command:** /fabrik-spec-review`: once the receipt claims a finished review,"
             " `check_convergence.py` grades it by its ledger only under that label, and demands a code review's"
             " gate embed without it."
-        ) in text
+        ),
+        "plan": (
+            "The review receipt, `docs/development/reviews/<YYYY-MM-DD>-<slug>-plan-review.md`, whose first 10 lines"
+            " carry the line `**Command:** /fabrik-plan-review`, carries the same ledger plus the panel table and the"
+            " ask↔spec table: once it claims a finished review, the gate grades it by its ledger only under that label"
+        ),
+    }
+    for kind in ("spec", "plan"):
+        text = _norm(SOURCES / f"fabrik-{kind}-review.md")
+        assert expected[kind] in text
         line = re.search(r"`(\*\*Command:\*\* /fabrik-" + kind + r"-review)`", text).group(1)
         inside = tmp_path / f"{kind}-inside.md"
         inside.write_text(f"# Review\n\n**Status:** CONVERGED\n{line}\n{ledger}")
