@@ -12,7 +12,7 @@
     "spec": ""
   },
   "next": "add tests/test_vps_sync.py for categorize_containers and the meilisearch pipeline (incl. a NO_MEILI marker on an empty match); normalise ./ in import_bundle's getmember lookups; widen the UUID-leak test; import fabrik at module top in test_proof_run_guard",
-  "note": "",
+  "note": "T09 review adds: docs/development/capability-defects.md:18 carries an unowned compose_updater retire row; check_health.py counts a comment naming check_dns as a dependency check inside its 1000-char window (fleet-synced enforcement \u2014 infra's beat, mail infra if fixing); cli._split_domain_for_dns is dead since T05 and destroyer.py's docstring cites it (both outside the plan's scope).",
   "owner": "",
   "priority": 3,
   "status": "open",

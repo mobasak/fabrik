@@ -340,7 +340,7 @@ Every `fabrik apply` writes `.fabrik/state/<id>.json` — see [Deploy State Stor
 ### Technical Details
 
 - **Orchestrator:** `src/fabrik/orchestrator/` — `deployer_ssh.py` (SSH + Docker Compose deploys), `infrastructure.py` (registrar dispatch), `rollback.py` (reverse cleanup), `secrets.py`, `verifier.py`
-- **Drivers:** `src/fabrik/drivers/` — 20+ integrations (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns, ssh, r2, supabase, etc.) plus archived legacy `coolify` driver for `fabrik status`/`logs` against pre-2026-05-30 services
+- **Drivers:** `src/fabrik/drivers/` — 20+ integrations (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns, ssh, r2, supabase, etc.); the legacy `coolify` driver was removed with the Coolify-verb retirement (plan 2026-10-14-plan-1-coolify-verb-retirement, T09) — `fabrik status` and `reconcile-all` read the VPS over SSH + Compose
 - **Spec loader:** `src/fabrik/spec_loader.py` — YAML parsing, shape validation, template merging
 - **State:** `src/fabrik/state.py` — 10-field manifest written after each completed apply (dry runs write nothing), incl. the sanitised `registrar_failures`
 

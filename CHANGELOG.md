@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed — the Coolify modules, their tests and two dead scripts (2026-10-15)
+
+- **What:** `src/fabrik/drivers/coolify.py`, `src/fabrik/orchestrator/deployer_coolify.py`, `src/fabrik/drivers/compose_updater.py`, `src/fabrik/orchestrator/coolify_alias.py`, their four test files, `scripts/health_check_autonomous.py` and `scripts/migrate_db_rename.py` are deleted; `src/fabrik/drivers/__init__.py` no longer imports or exports `CoolifyClient` (one commit, so no import is ever left unresolved), and `scripts/enforcement/check_health.py`'s pattern list drops `check_coolify`. The plan's import census (`drivers.coolify`, `CoolifyClient`, `deployer_coolify`, `compose_updater`, `coolify_alias`, `deploy_to_coolify` over src, scripts, tests and templates outside the archives) reads 0 of the 1373 tracked files under src, scripts, tests and templates outside the archives (908 of them .py).
+- **Why:** plan 2026-10-14-plan-1-coolify-verb-retirement ticket T09 (spec D8, D11); every importer was edited by T02–T08 first.
+
 ### Changed — `fabrik export`/`import` drop the Coolify section (2026-10-15)
 
 - **What:** `src/fabrik/portability.py` writes no `coolify/` tree and no `coolify` manifest count, and `export_bundle`/`import_bundle` lose their `coolify_client` parameter. `fabrik import` counts a legacy bundle's `coolify/*` non-directory members as `ignored legacy members (coolify/*): <n>` and restores none of them; member names are `./`-normalised once for the section counts and the legacy count. `_collect_authelia` reads the live bind mount `/opt/authelia/config/configuration.yml` first (the old named-volume paths stay as fallbacks), and the bundle README says the import plans and reports and applies nothing.

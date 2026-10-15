@@ -183,7 +183,7 @@ If the manual curl succeeds but the orchestrator still 404s, the verifier is rea
 
 **Cause:** Multi-stage Node builds (`docusaurus`, `saas-skeleton`) take 60–90s during which the container reports `exited:unhealthy` (old container removed, new one not yet running; pre-2026-05-30 this was visible as Coolify reporting `exited:unhealthy`). Pre-2026-04-28 the orchestrator's `terminal_grace_period` was 30s — it gave up before the new container even started. Fixed in B46 (now 180s).
 
-**Where this lived:** `terminal_grace_period` and `_wait_for_app_status` exist only in the retired `src/fabrik/orchestrator/deployer_coolify.py` (line 564) — there is no `deployer.py` in this repo, and the active `deployer_ssh.py` has no equivalent grace-period tunable.
+**Where this lived:** `terminal_grace_period` and `_wait_for_app_status` existed only in the retired `deployer_coolify.py`, removed in the Coolify retirement (T09) — there is no `deployer.py` in this repo, and the active `deployer_ssh.py` has no equivalent grace-period tunable.
 
 ### Port Already in Use
 

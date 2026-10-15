@@ -340,7 +340,7 @@ Single entry point for all tier-based quality checks:
 | `scripts/audit_envs.py` | Audit all `/opt/*/.env` files. |
 | `scripts/audit_all_projects.py` | Full-fleet compliance report (every project vs. every enforcement check). |
 | `scripts/container_images.py` | Inventory of every Docker image in use on the VPS; detects outdated `:latest` tags. |
-| `scripts/health_summary.py`, `scripts/health_checker.py`, `scripts/health_check_autonomous.py` | Rollup health probes across all deployed services. |
+| `scripts/health_summary.py`, `scripts/health_checker.py` | Rollup health probes across all deployed services. |
 | `scripts/generate_vps_inventory.py` | Generates VPS container/service inventory. Called by `_post_deploy_sync()`. |
 | `scripts/update_vps_docs.py` | Refreshes VPS status documentation. Called by `_post_deploy_sync()`. |
 | `scripts/provision_grafana.sh` | One-shot Grafana setup (dashboards, datasources). |

@@ -639,8 +639,7 @@ around no longer happens — Coolify was fully removed from vps1 on 2026-05-30.
 All containers now have stable names via compose `container_name:` fields
 (Lesson 22). The `coolify-alias-watcher.service` was decommissioned with
 Coolify. Code references to `coolify.alias` / `coolify_alias.add_alias()`
-remain in archived legacy modules (`src/fabrik/orchestrator/coolify_alias.py`)
-but are no longer called from any active code path.
+lived in `coolify_alias.py`, removed in the Coolify retirement (T09).
 -->
 
 ---

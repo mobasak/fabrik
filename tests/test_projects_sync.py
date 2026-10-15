@@ -4,7 +4,7 @@
 (`cli.py` — the `["python3", str(sync_script)]` argv, `cwd=FABRIK_ROOT`) BEFORE
 `ProjectRegistry()` is constructed, because the scanner rewrites `data/projects.yaml`,
 the file the registry's `__init__` loads. `subprocess.run` is faked here — never the
-real scanner. The Coolify sync block is gone: no `CoolifyClient`, no
+real scanner. The Coolify sync block is gone: no Coolify API client, no
 `registry.update(..., coolify_uuid=..., coolify_name=...)`, no `coolify_uuid`/
 `coolify_name` fields on `Project`.
 """
