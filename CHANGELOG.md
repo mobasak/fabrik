@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review: the probe catalogue gains a Deletions hunt row (2026-10-15)
+
+- `commands/_fragments/review-probe-catalogue.md` § The brief's hunt lines: a Deletions row (a change that deletes a
+  file, directory or input) — a deleting probe also removes every directory it empties, up to the root, as `git rm`
+  does (a `.git`-pruned `find -type d -empty` before and after prints no new line); a seed restoring deleted inputs
+  first lists, by grepping the code under test, each input it reads by name or by listing a directory, and restores no
+  other; the Callers grep runs for each deleted path, basename and directory from the hub and the fleet repos, never
+  the package; seats name, per guard on a deleted input, whether it re-runs at removal or only at classification.
+  Answers rows 1792031092 (an emptied directory left behind hid a `readdirSync`) and 1792030357 (a seed restored
+  inputs the code read by name), the third and fourth sightings of the held deletion-probe subject (1790199460; the
+  review-scoped queue held the removal-vs-classification half today; D-711). Pinned by
+  `tests/test_review_queue_pass.py::test_the_catalogue_probes_a_deletion_surface`. Row 1792040243 rejected as already
+  stated (the gate and the skeleton refuse an absent owner), 1792034184 as misfiled (the lane gate's printed line,
+  routed to infra), 1792036161 HELD.
+
 ### Changed — /fabrik-command-improve: a claim about a gate is grounded in its code and run on the row's own case (2026-10-15)
 
 - `commands/_sources/fabrik-command-improve.md`, three amendments in place, one subject: § Drive's Grounding bullet
