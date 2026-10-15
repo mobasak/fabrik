@@ -98,16 +98,16 @@ $ python scripts/review_rubric.py --changed scripts/work.py scripts/sysadmin/quo
 
 | Class | Status |
 |---|---|
-| Hunt: `scripts/work.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/quota_dashboard.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_work_coordinator.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_quota_dashboard.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `scripts/work.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (cmd_verdict refuses a non-list `comments` instead of overwriting it, keeps a hand-edited string tag whole, and its docstring logs only calls that are not refused) |
+| Hunt: `scripts/sysadmin/quota_dashboard.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (a swap carries typed comments across instead of skipping, so the forced refresh after a write always fetches; the datalist reads string tags as rows do; the last-comment line defaults missing fields; two mypy findings typed away) |
+| Hunt: `tests/test_work_coordinator.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (test_verdict_refusals_each_stand_alone proves the resolved, closed-elsewhere, accept-claim and non-list refusals one by one; mutants M8 and M9 survived before it) |
+| Hunt: `tests/test_quota_dashboard.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (the empty-comment 400, the rebuild on a miss, the focused-box skip, the forced fetch and the carried comment are asserted; the malformed-repo test reads the picker's options only) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (scripts/work.py cmd_verdict no longer swallows a non-list `comments` by replacing it; it refuses) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (scripts/work.py cmd_verdict and scripts/sysadmin/quota_dashboard.py item_verdict count no pool units, seats or quota) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (a scalar `tags` value was iterated character by character in scripts/work.py cmd_verdict and dropped from the datalist in quota_dashboard.py _repos_body) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (mutants M8, M9, M2b, M5 and M18 survived the round-1 tests; each is now killed, executed in a throwaway worktree) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (docs/development/reviews/2026-10-15-dashboard-item-verdict-review.md states every count with its population: 24 candidates over 2 slices from 4 seats; 235 tests in 2 files) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (tests/test_work_coordinator.py::test_verdict_refusals_each_stand_alone and tests/test_quota_dashboard.py::test_item_rows_verdict_buttons_and_tag_filter executed red on ea5d05564 in a throwaway worktree) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -133,6 +133,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×2 + haiku×2 | found: 24, new: 24, confirmed: 14, fixed: 14, unexecuted: 0 | method: partitioned round 1, shape: agent-tool — slice A work.py, slice B quota_dashboard.py; every candidate executed by the orchestrator; fix c2a0ddf2e; graders red on ea5d05564 and five surviving mutants now killed; seats: A-sonnet 3/6 · A-haiku 3/3 · B-sonnet 2/7 · B-haiku 6/10; stop: confirmed 14 |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -145,6 +146,19 @@ Row shapes (quoted here, so the gate does not read them as passes):
 
 Every candidate that did not enter `confirmed:` is recorded here, one row each, in the verdict
 grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading is an EXAMPLE, never rows).
+
+| F-id | Verdict |
+|---|---|
+| A2 | REFUTED (the `comments` list grows one entry per operator click — no automated writer appends to it) |
+| A4 | REFUTED (`--text -foo` with a space is argparse's standard rule, as for `--why`; the board passes `--text=…`) |
+| B2 | REFUTED (the poll waits only while the operator is in a box — the picker, the tag box or a comment — and resumes on blur; the forced refresh after a write never waits) |
+| B3 | REFUTED (scripts/work.py TAG_RULE `[a-z0-9][a-z0-9-]{0,31}` admits no space, and a half-typed tag matches no row, so a reset to every row loses nothing) |
+| B4 | REFUTED (`_worktrees` falls back to `[repo]`, the store's own checkout — exactly the write path before this change) |
+| B5 | REFUTED (the rebuild on a miss is the Pause/Resume pattern, behind the same custom-header guard on a loopback board) |
+| B7 | RECORDED — measured (about 386 characters per row, ~224 KB on a ~1.25 MB page at 580 rows) |
+| B-M13 | REFUTED (sendVerdict calls `refreshRepos(true)` on success; the surviving mutant marks an untested line, not a defect) |
+| B-M27 | REFUTED (`by` goes through escape() in _verdict_cell) |
+| B-decoy | REFUTED (a misrouted verdict fails the status asserts; the decoy glob is a backstop) |
 
 ### Verdict grammar — an EXAMPLE, never rows
 
