@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review: the round line defines `--slices <verified>/<claims>` with its closing example (2026-10-15)
+
+`<claims>` counts the claims in a slice's ledger and `<verified>` those its owning seats re-ran to `DEFECT_ABSENT`, so a
+closing pass that found its slice's one claim absent records `A:1/1`; the terminal needs every slice at n/n
+(`command_run.py::_parse_slices`). Answers row 1792065733, the third verdict on the subject. Pinned by
+`tests/test_review_queue_pass.py::test_the_slices_ledger_is_defined_with_its_closing_example`.
+
 ### Changed — plan commands: a behaviour change censuses every production reader (2026-10-15)
 
 `/fabrik-plan-after-chat` Phase 1: for each function or value whose behaviour the plan changes, the plan censuses

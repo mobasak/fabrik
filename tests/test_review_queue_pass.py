@@ -562,7 +562,9 @@ def test_the_catalogue_probes_a_deletion_surface() -> None:
         " repos, never the package; seats name, for each guard on a deleted input, whether it re-runs at removal or only at"
         " classification."
     )
-    assert hunt.count(row) == 1, "the Deletions hunt row is stated once, in § The brief's hunt lines"
+    assert hunt.count(row) == 1, (
+        "the Deletions hunt row is stated once, in § The brief's hunt lines"
+    )
     # it sits between the Surfaces row and The premise row, the shape order the lead reads top to bottom
     assert hunt.index("- Surfaces:") < hunt.index("- Deletions (") < hunt.index("- The premise:")
     # one deletion row, however a second one is headed: the probe's own phrase appears once in the whole catalogue
@@ -571,3 +573,17 @@ def test_the_catalogue_probes_a_deletion_surface() -> None:
     # the grep clause points at the Callers row above it instead of restating it narrower
     callers = hunt[hunt.index("- Callers and consumers:") : hunt.index("- Deletions (")]
     assert "the hub and the fleet repos for the file's path, basename and directory" in callers
+
+
+def test_the_slices_ledger_is_defined_with_its_closing_example() -> None:
+    """Row 1792065733, the third verdict on the subject: the round line named `<verified>/<claims>` without saying what
+    either counts, so a closing seat that verified one claim did not know to record `A:1/1`."""
+    text = _norm(SRC)
+    rule = (
+        "`<claims>` counts the claims in that slice's ledger and `<verified>` those its owning seats re-ran to"
+        " `DEFECT_ABSENT`, so a closing pass that found its slice's one claim absent records `A:1/1`, and the terminal"
+        " needs every slice at n/n"
+    )
+    assert rule in text
+    i = text.index("**Record the pass before you decide:**")
+    assert i < text.index(rule) < text.index("Its TERMINAL verdict", i)
