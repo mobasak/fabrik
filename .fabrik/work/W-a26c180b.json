@@ -3,7 +3,7 @@
   "created": "2026-10-15T08:54:44.991951Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "b0a272d048806a0a51e7ea0840168cc239deb5c8",
   "id": "W-a26c180b",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "Operator-flagged scratch-lifecycle gap; fleet stays paused until scratch works as designed",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m4z8x2je",
     "queued",
