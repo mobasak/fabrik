@@ -2385,7 +2385,8 @@ def test_two_passes_never_share_a_seat_folder() -> None:
 
 
 RUN_SCRATCH_CLAUSE = (
-    "`scratch_dir` is this run's `RUN-SCRATCH:` folder — the path up to the first space on the line `start` "
+    "`scratch_dir` is this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space "
+    "on the line `start` "
     "printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed "
     "`none` or nothing"
 )

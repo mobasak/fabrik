@@ -13,7 +13,7 @@ other's answer. The brief holds:
   numbers are cited;
 - the operator's ask in their own words;
 - the house rules every seat brief carries: read-only, no `$HOME/.claude*` reads, scratch only under
-  `<RUN-SCRATCH>/seat-critique-<model>-<k>/` (the run's `RUN-SCRATCH:` folder, the path up to the first space;
+  `<RUN-SCRATCH>/seat-critique-<model>-<k>/` (the run's `RUN-SCRATCH:` folder, the path after `RUN-SCRATCH: ` up to the next space;
   `<k>` counts this run's critique dispatches, so a stand-in or a re-dispatch never shares a folder; the
   absolute scratchpad when the line reads `none` or is absent), `timeout 120 /usr/bin/grep`.
 
