@@ -232,10 +232,24 @@ def test_split_table_ignores_fenced_rows(tmp_path):
     [
         # two blanks still end the table
         ("| a | b |\n|---|---|\n| 1 | 2 |\n\n\n| 3 | 4 |\n", [6]),
-        # a multi-line HTML comment ends it too (the blanked copy reads it blank); a ONE-line
-        # comment is kept by `_blank_quoted` and is a stated blind spot
+        # a multi-line HTML comment ends it (the blanked copy reads it blank), and so does a
+        # ONE-line comment, which `_blank_quoted` keeps — an HTML block starts there
         ("| a | b |\n|---|---|\n| 1 | 2 |\n<!--\nnote\n-->\n| 3 | 4 |\n", [7]),
-        ("| a | b |\n|---|---|\n| 1 | 2 |\n<!-- note -->\n| 3 | 4 |\n", []),
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n<!-- note -->\n| 3 | 4 |\n", [5]),
+        # a heading, a thematic break, a blockquote or a list item starts NEW content, never an
+        # accidental split (measured: counting a heading fired 5 false reds in the receipt corpus)
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\n## Pass Ledger\n\n| Pass 1 | x |\n", []),
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n***\n| 3 | 4 |\n", []),
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n> quoted\n\n| 3 | 4 |\n", []),
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n- item\n\n| 3 | 4 |\n", []),
+        # an NBSP-only line is NOT blank in CommonMark: the table continues
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\xa0\n| 3 | 4 |\n", []),
+        # prose closes the walk: a pipe row after prose and a blank opens no split of a table
+        ("text\n\n| 3 | 4 |\n", []),
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\nsome prose\n\n| 3 | 4 |\n", []),
+        # an orphan row that repeats the header's text is still an orphan (the line cursor once
+        # bound it to the header and never graded it)
+        ("| a |\n|---|\n\n| a |\n", [4]),
         # a fenced block between rows ends it
         ("| a | b |\n|---|---|\n| 1 | 2 |\n```\nx\n```\n| 3 | 4 |\n", [7]),
         # a double-spaced table is ONE split region, reported once
@@ -250,11 +264,21 @@ def test_split_table_ignores_fenced_rows(tmp_path):
     ],
 )
 def test_split_table_widened_shapes(tmp_path, body, expected):
-    """Design critique (Opus + Fable): the split is any end of the table followed by more pipe rows
-    with no header, not only one literal blank line."""
+    """Design critique (Opus + Fable) and review pass 1: a split is a line that ends the table by
+    accident — a blank, a comment, a fence — followed by more pipe rows with no header."""
     doc = tmp_path / "shape.md"
     doc.write_text(body, encoding="utf-8")
     assert _lines(crh.scan(surfaces=[doc]), "split-table") == expected
+
+
+def test_split_table_keeps_the_strict_cli_green(tmp_path):
+    """The CLI under `--strict` (final_gate's registration) still exits 0 on a split — the class is
+    advisory, and the line says so."""
+    doc = tmp_path / "split.md"
+    doc.write_text(_SPLIT, encoding="utf-8")
+    r = _run(["--strict", "--surface", str(doc)], REPO)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "[ADVISORY] split-table" in r.stdout
 
 
 def test_split_table_is_advisory_under_strict(tmp_path):
