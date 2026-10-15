@@ -116,7 +116,8 @@ Steps:
    live specs (red), the parity and validate-parity graders pass.
 2. Pin: add to each of the four specs, inside its `shape:` block, `exposes_metrics: false` with a one-line comment
    (`# no /metrics route in this repo's code (grep 2026-10-15, D-907) — delete this line to opt in once it serves
-   one`); translator.yaml gets `infra:\n  gatus: false` with the comment `# D-907: no Gatus check until the owner
+   one`; translator's reads `# D-907: /metrics unverified, the repo is not on the hub — delete to opt in`, because
+   no grep of its code was possible); translator.yaml gets `infra:\n  gatus: false` with the comment `# D-907: no Gatus check until the owner
    confirms translator.vps1.ocoron.com/health — delete to opt in`.
 3. Gate: `.venv/bin/python -m pytest tests/orchestrator -q` → all pass;
    `python3 scripts/enforcement/check_spec_db_match.py` → no new warning.
@@ -124,7 +125,13 @@ Steps:
    it), one mutant at a time, restored after each: (a) Phase A's validator line reverted to `return spec` → the parity
    grader fails on 12 specs (11 by booleans plus translator by reason string; measured on a pinned scratch copy);
    (b) `_deep_merge(raw, defaults)` (arguments swapped) → Phase A row 2 fails; (c) `keys=None` in the validator →
-   Phase A row 3 fails; (d) one pin deleted → the pin grader fails for that spec. Re-run green.
+   Phase A row 3 fails; (d) one pin deleted → the pin grader fails for that spec; (e) the containment check removed
+   from `merge_template_defaults` → Phase A row 4 fails (its `../evil/defaults.yaml` now merges). Re-run green.
+   Positive control for the validate()-parity grader, which no mutant over the live specs can redden (every one of the
+   69 carries a domain or an explicit kind): the grader's comparison helper, called on a synthetic spec — top-level
+   `kind: worker`, `template: python-api`, no `shape:`, no `domain:` — reports a mismatch (raw validates; shape-merged
+   raises `Missing required field: domain`); this control is a kept test case in the same file, asserting the
+   mismatch is reported.
 5. Stage Phase B's files; `python3 scripts/enforcement/check_doc_sync.py` → exit 0.
 6. `/fabrik-review-scoped` on Phase B's diff → its coverage-adjudicated exit.
 7. Commit Phase B (explicit paths + trailers, `Agent-Phase: B`).
@@ -212,7 +219,7 @@ External grounding (Prometheus `up`/scrape-status, Helm, Terraform, HashiCorp dr
 | Class | Verdict |
 |---|---|
 | core/10-python.md — type hints on every signature | FIXED r1 (Phase A step 2 types the helper and adds the missing `Any` import, `spec_loader.py:10`) |
-| core/45-testing-strategy.md — one test per behaviour, seen red | FIXED r1 (rows 2 and 3 pass on the raw loader; Phase B step 4 mutants (b) and (c) see them red) |
+| core/45-testing-strategy.md — one test per behaviour, seen red | FIXED r2 (rows 2 and 3 pass on the raw loader and go red on mutants (b) and (c); row 4 goes red on mutant (e), containment removed; the validate()-parity grader carries a kept positive control) |
 | core/40-documentation.md — the review receipt | CLEAN (heading levels unskipped in the receipt and this plan; fenced blocks only) |
 | core/60-watchdog.md, core/self-healing.md, ai/50-agentic.md — matched by glob on specs/ and orchestrator/; no watchdog or agentic surface changes | CLEAN (no `watchdog:` key, agent loop or healing ladder in the File Scope's edits) |
 | Recurrence: fail-open/fail-closed | FIXED r1 (a loader raise is a parity FAILURE, never a skip; an escaping template merges nothing and leaves the raw spec) |
@@ -411,6 +418,7 @@ External grounding (Prometheus `up`/scrape-status, Helm, Terraform, HashiCorp dr
 | Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (rule/grammar/grounding sections) + sonnet×1 (phases + narrative sections) · all axes · shape: agent-tool | found: 17, new: 16, confirmed: 16, fixed: 16, unexecuted: 0, edits: 24 | method: citation — full pass over both documents; held after execution: full merge writes template env into all 69 `.env` files (HIGH → D-908, shape-only merge), revert count 15→12 after pins, vacuous worktree import check, staged-only doc-sync step, spec-wins and env rows never seen red (mutants added), missing `Any` import, module-top import kills collection, empty-parametrize and loader-raise skip, dispatch_headroom path, state-dir count, D1 containment wording, validate() parity row, evidence elision, rubric over 4 of 9 paths, containment cite 250-258; refuted: Size: small over-count (YAML pins and tests are not code files, D-169); duplicate: the import check (both seats) | plan 9541363324443acf2470ffd316c1a5d5 → ae174b76ef0b7fb6985d2267791b8487 · spec 6b485cd886e5db7dc0bedb1a5ceec478 → 19668612f39f13253102dc0dd04ffee7 |
+| Pass 2 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-1 fix hunks + one hop · shape: agent-tool | found: 4, new: 4, confirmed: 2, fixed: 2, unexecuted: 0, edits: 6 | method: re-derivation — both seats re-executed the shape-only prototype (69 specs, registrar diffs 0, env 0, validate() 0), the pinned revert count 12, mutants (a)-(d) and the registrar-key and template-key enumerations; held after execution (own-fix: round 1): the validate()-parity grader is never seen red by any mutant (a positive control on a synthetic spec added, executed: raw ok, merged raises Missing required field: domain) and Phase A row 4 is red only for the missing helper (containment-removed mutant (e) added); recorded: translator's pin comment claimed a grep its absent repo cannot have (wording corrected in Phase B step 2) and the scratch-copy pytest needs -o pythonpath=src (seat machinery) | plan 12ac757e5aad0d258b196d24f2d4865a → 51f8fdc20ca3815bcf74eb1d0fd30554 · spec 19668612f39f13253102dc0dd04ffee7 → 0af1692cd3bb20c5400d3995bde2aa75 |
 
 ## Self-audit
 
@@ -430,5 +438,9 @@ External grounding (Prometheus `up`/scrape-status, Helm, Terraform, HashiCorp dr
   (round 1, Sonnet seat: 893 passed, 1 skipped over Phase A step 4's gate set).
 - Resolved: a full template merge on apply is rejected (D-908) — it would write template `env:` keys into all 69
   deployed `.env` files.
+- Resolved as guarded: a spec with a top-level `kind` that differs from its template's `shape.kind`, and no
+  `shape.kind` of its own, takes the template's kind on apply — as `fabrik plan` already does — and may then fail
+  `validate()` for a missing `domain` (positive control above). None of the 69 specs is in that shape (round 1,
+  Opus seat: `kind.py` printed nothing); the validate()-parity grader fails the build the day one is.
 - Open, outside this plan: translator's `/health` and `/metrics` — resolution: the owner deletes the pins (spec
   § Open/blocking unknowns).
