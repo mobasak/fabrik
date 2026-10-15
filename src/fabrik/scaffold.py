@@ -5072,6 +5072,476 @@ def _write_placeholder_png(
     path.write_bytes(png)
 
 
+# ── chrome-extension developer-mode release kit (W-e2af3303, spec 2026-10-14) ──────────────────
+# Emitted into extension/scripts/ and extension/src/lib/. node: built-ins only — no new dependency.
+_CX_EXTENSION_ID_MJS = r"""// The extension ID Chrome derives from the manifest `key`: SHA-256 of the decoded public key,
+// the first 16 bytes as hex, each hex digit mapped 0-f -> a-p.
+import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
+
+export function extensionIdFromPub(pubBase64) {
+  const hex = createHash('sha256').update(Buffer.from(pubBase64.trim(), 'base64')).digest('hex');
+  return [...hex.slice(0, 32)].map(c => String.fromCharCode(97 + Number.parseInt(c, 16))).join('');
+}
+"""
+
+_CX_KEYGEN_MJS = r"""/* eslint-disable no-console */
+// ONE-TIME: mints the extension's signing key, which pins its ID. Run it once, early (`pnpm keygen`):
+// until then every install gets a path-derived ID, and the backend's EXTENSION_ID / CORS allow-list
+// and any chrome.identity OAuth redirect (https://<id>.chromiumapp.org/) depend on the pinned one.
+//   - private key -> .keys/extension-key.pem (PKCS#8, mode 0600, gitignored — BACK IT UP: an
+//     enterprise .crx or a later store migration needs it, and it cannot be recreated)
+//   - public key  -> extension-key.pub (commit it; wxt.config.ts reads it into manifest.key)
+// It never overwrites a key: a new key would change the ID under every installed copy. A lost .pub
+// is rebuilt from the .pem (or restored from git when it is committed); a lost .pem can only come
+// back from your backup.
+import { execFileSync } from 'node:child_process';
+import { createPublicKey, generateKeyPairSync } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+import { extensionIdFromPub } from './extension-id.mjs';
+import { readPubKey } from './manifest-key.mjs';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const keyDir = join(root, '.keys');
+const pemPath = join(keyDir, 'extension-key.pem');
+const pubPath = join(root, 'extension-key.pub');
+
+function printId(pub) {
+  const id = extensionIdFromPub(pub);
+  console.log(`extension id: ${id}`);
+  console.log(`EXTENSION_ID=${id}   (set it in the backend's .env)`);
+}
+
+function pubFromPem() {
+  try {
+    return createPublicKey(readFileSync(pemPath, 'utf8')).export({ type: 'spki', format: 'der' }).toString('base64');
+  }
+  catch {
+    console.error('.keys/extension-key.pem is not a readable private key — restore it from your backup; never mint a new one for a released extension (it changes the ID).');
+    process.exit(1);
+  }
+}
+
+function pubIsTracked() {
+  try {
+    execFileSync('git', ['ls-files', '--error-unmatch', 'extension-key.pub'], { cwd: root, stdio: 'ignore' });
+    return true;
+  }
+  catch {
+    return false;
+  }
+}
+
+if (existsSync(pubPath)) {
+  let existing;
+  try {
+    existing = readPubKey();
+  }
+  catch (err) {
+    console.error(err.message);
+    process.exit(1);
+  }
+  if (existsSync(pemPath) && pubFromPem() !== existing) {
+    console.error('extension-key.pub does not match .keys/extension-key.pem — one of them belongs to another extension; restore the right pair from version control and your backup.');
+    process.exit(1);
+  }
+  printId(existing);
+  if (!existsSync(pemPath))
+    console.warn('warning: .keys/extension-key.pem is missing — the ID still works for unpacked installs, but an enterprise .crx or a store migration needs the private key; restore it from your backup.');
+  process.exit(0);
+}
+
+if (existsSync(pemPath)) {
+  const pub = pubFromPem();
+  writeFileSync(pubPath, `${pub}\n`);
+  printId(pub);
+  console.log('rebuilt extension-key.pub from .keys/extension-key.pem — commit it.');
+  process.exit(0);
+}
+
+if (pubIsTracked()) {
+  console.error('extension-key.pub is committed but missing here — restore it with `git checkout -- extension-key.pub`; a new key would change the extension ID.');
+  process.exit(1);
+}
+
+const { publicKey, privateKey } = generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  publicKeyEncoding: { type: 'spki', format: 'der' },
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+});
+mkdirSync(keyDir, { recursive: true, mode: 0o700 });
+chmodSync(keyDir, 0o700);
+writeFileSync(pemPath, privateKey, { mode: 0o600, flag: 'wx' }); // wx: never clobber a key
+chmodSync(pemPath, 0o600);
+const pub = publicKey.toString('base64');
+writeFileSync(pubPath, `${pub}\n`);
+printId(pub);
+console.log('BACK UP extension/.keys/extension-key.pem now — it is gitignored and cannot be recreated.');
+console.log('next: git add extension/extension-key.pub && git commit && git push');
+"""
+
+_CX_RELEASE_CHECK_MJS = r"""/* eslint-disable no-console */
+// `make release-ext`'s gate. Refuses (exit 1, with the next steps) unless:
+//   1. this is not a store build (STORE_BUILD=1 omits the pinned key, scripts/manifest-key.mjs),
+//   2. extension-key.pub is tracked by git and is a base64 public key,
+//   3. the working tree is clean (every released zip is a `wxt zip` of a committed tree),
+//   4. package.json's version is one Chrome accepts (1-4 dot-separated integers) — the update
+//      checker compares against it,
+//   5. the VITE_PUBLIC_API_URL the production build will use is an https:// URL with a host —
+//      resolved the way WXT resolves it: the environment first, else the last of these files that
+//      defines it, parsed with node's own parseEnv as WXT does:
+//      .env, .env.local, .env.production, .env.production.local, .env.chrome, .env.chrome.local,
+//      .env.production.chrome, .env.production.chrome.local. A `VITE_PUBLIC_API_URL: …` line is
+//      refused outright: parseEnv skips it but Vite's dotenv reads it. So is a value with a "$":
+//      WXT expands it (dotenv-expand), so the URL the build gets is not the text this reads.
+// `--summary <zip>` prints the four values the backend needs after the zip is built.
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+import { parseEnv } from 'node:util';
+import { extensionIdFromPub } from './extension-id.mjs';
+import { isStoreBuild, PUB_KEY_PATH, readPubKey } from './manifest-key.mjs';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const KEY = 'VITE_PUBLIC_API_URL';
+const ENV_FILES = [
+  '.env',
+  '.env.local',
+  '.env.production',
+  '.env.production.local',
+  '.env.chrome',
+  '.env.chrome.local',
+  '.env.production.chrome',
+  '.env.production.chrome.local',
+];
+// Chrome: 1-4 dot-separated integers, each 0-65535, no leading zero.
+function isChromeVersion(v) {
+  return /^(?:0|[1-9]\d{0,4})(?:\.(?:0|[1-9]\d{0,4})){0,3}$/.test(v) && v.split('.').every(n => Number(n) <= 65535);
+}
+
+function git(...args) {
+  try {
+    return { ok: true, out: execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) };
+  }
+  catch {
+    return { ok: false, out: '' };
+  }
+}
+
+export function effectiveApiUrl() {
+  const colon = ENV_FILES.filter((name) => {
+    const file = join(root, name);
+    return existsSync(file) && new RegExp(`^\\s*(?:export\\s+)?${KEY}\\s*:`, 'm').test(readFileSync(file, 'utf8'));
+  });
+  if (colon.length)
+    return { value: undefined, from: `a "${KEY}: …" line in ${colon.map(n => `extension/${n}`).join(', ')} — write ${KEY}=… instead` };
+  if (KEY in process.env)
+    return { value: process.env[KEY], from: 'the environment' };
+  let found = { value: undefined, from: 'no env file' };
+  for (const name of ENV_FILES) {
+    const file = join(root, name);
+    if (!existsSync(file))
+      continue;
+    const parsed = parseEnv(readFileSync(file, 'utf8'));
+    if (KEY in parsed)
+      found = { value: parsed[KEY], from: `extension/${name}` };
+  }
+  return found;
+}
+
+function isHttpsUrl(value) {
+  if (!/^https:\/\//i.test(value))
+    return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname !== '';
+  }
+  catch {
+    return false;
+  }
+}
+
+if (process.argv[2] === '--summary') {
+  const zip = resolve(process.cwd(), process.argv[3] ?? '');
+  const sha = readFileSync(`${zip}.sha256`, 'utf8').split(/\s+/)[0];
+  const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
+  console.log(`built ${zip}`);
+  console.log('set these in the backend .env, after you upload the zip (no agent publishes):');
+  console.log(`  EXTENSION_ID=${extensionIdFromPub(readFileSync(PUB_KEY_PATH, 'utf8'))}`);
+  console.log(`  EXTENSION_LATEST_VERSION=${version}`);
+  console.log('  EXTENSION_LATEST_URL=<download-url>');
+  console.log(`  EXTENSION_LATEST_SHA256=${sha}`);
+  process.exit(0);
+}
+
+const problems = [];
+if (isStoreBuild())
+  problems.push('STORE_BUILD=1 is set — a store build carries no pinned key, so its installs would not get EXTENSION_ID; unset it for a developer-mode release');
+if (!git('ls-files', '--error-unmatch', 'extension-key.pub').ok) {
+  problems.push('extension/extension-key.pub is missing or not committed — run `pnpm keygen` once, then commit the .pub');
+}
+else {
+  try {
+    readPubKey();
+  }
+  catch (err) {
+    problems.push(err.message);
+  }
+}
+const status = git('status', '--porcelain');
+if (!status.ok || status.out.trim())
+  problems.push('the working tree is not clean — commit or stash first, so the zip is a committed tree');
+const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
+if (!isChromeVersion(String(version)))
+  problems.push(`package.json version ${JSON.stringify(version)} is not a Chrome version (1-4 dot-separated integers, each at most 65535) — the update checker could never compare it`);
+const url = effectiveApiUrl();
+if ((url.value ?? '').includes('$'))
+  problems.push(`${KEY} contains "$" (from ${url.from}) — WXT expands variables in env files, so the built URL is not the one written; write the literal https:// URL`);
+else if (!isHttpsUrl(url.value ?? ''))
+  problems.push(`${KEY} must be an https:// URL with a host for the production build (now ${JSON.stringify(url.value ?? null)}, from ${url.from})`);
+
+if (problems.length) {
+  console.error('release-ext refused:');
+  for (const p of problems)
+    console.error(`  - ${p}`);
+  console.error('next steps: cd extension && pnpm keygen (once) · git add extension/extension-key.pub && git commit · set VITE_PUBLIC_API_URL=https://<backend> in extension/.env.production and commit it · make release-ext');
+  process.exit(1);
+}
+console.log('release-check: ok');
+"""
+
+_CX_MANIFEST_KEY_MJS = r"""// The manifest `key` wxt.config.ts pins, shared with scripts/release-check.mjs so the build and the
+// release gate cannot disagree. Resolved from THIS file, never the cwd, so a build started from
+// another directory still finds extension-key.pub. A store build (STORE_BUILD=1) carries no key:
+// the Chrome Web Store rejects a first upload that has one.
+import { Buffer } from 'node:buffer';
+import { createPublicKey } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+
+export const PUB_KEY_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'extension-key.pub');
+const PEM_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', '.keys', 'extension-key.pem');
+
+export function isStoreBuild() {
+  return process.env.STORE_BUILD === '1';
+}
+
+// Throws unless `pub` is a base64 SPKI public key: a silently wrong key would change the ID under
+// every installed copy, so a bad file fails the build, the release gate and keygen loudly.
+export function assertPubKey(pub) {
+  let ok = /^[A-Z0-9+/]+={0,2}$/i.test(pub);
+  if (ok) {
+    try {
+      const der = Buffer.from(pub, 'base64');
+      // the export must equal the input: the DER parser ignores bytes after a valid key
+      ok = createPublicKey({ key: der, format: 'der', type: 'spki' }).export({ type: 'spki', format: 'der' }).equals(der);
+    }
+    catch {
+      ok = false;
+    }
+  }
+  if (!ok) {
+    // without a .pem, deleting the .pub and re-running keygen would mint a NEW key (a new ID)
+    const rebuild = existsSync(PEM_PATH) ? ', or delete extension-key.pub and run pnpm keygen to rebuild it from .keys/extension-key.pem' : '';
+    throw new Error(`extension-key.pub is not a public key — restore it from version control${rebuild}`);
+  }
+  return pub;
+}
+
+// The committed public key, or undefined when there is none yet.
+export function readPubKey() {
+  if (!existsSync(PUB_KEY_PATH))
+    return undefined;
+  return assertPubKey(readFileSync(PUB_KEY_PATH, 'utf8').trim());
+}
+
+export function pinnedKey() {
+  return isStoreBuild() ? undefined : readPubKey();
+}
+"""
+
+_CX_MANIFEST_KEY_DTS = """// Types for manifest-key.mjs, which wxt.config.ts imports.
+export declare const PUB_KEY_PATH: string;
+export declare function isStoreBuild(): boolean;
+export declare function assertPubKey(pub: string): string;
+export declare function readPubKey(): string | undefined;
+export declare function pinnedKey(): string | undefined;
+"""
+
+_CX_UPDATE_CHECK_TS = r"""// Developer-mode update checker. An unpacked install has no update_url, so Chrome never updates
+// it: this asks the backend's GET /extension/latest at browser start, on install/update/reload and
+// every 6 hours, and when a newer version is published it stores the notice for the popup and
+// badges the action. The rules it applies live in ./update-version.ts.
+import type { NoticeChange, UpdateNotice } from '@/lib/update-version';
+import { API_BASE_URL } from '@/lib/api/config';
+import { settings } from '@/lib/storage';
+import { nextNotice, secureBase } from '@/lib/update-version';
+
+export type { UpdateNotice };
+
+export async function checkForUpdate(): Promise<void> {
+  // A store or policy install updates through Chrome — never show this notice there.
+  if (browser.runtime.getManifest().update_url)
+    return;
+  // The backend the app already uses: the Options page's stored URL, else the build-time one.
+  const stored = (await settings.getValue()).apiUrl.trim();
+  const base = secureBase(stored || API_BASE_URL);
+  if (!base)
+    return;
+  let change: NoticeChange;
+  try {
+    const res = await fetch(`${base}/extension/latest`, {
+      credentials: 'omit',
+      signal: AbortSignal.timeout(10000),
+    });
+    change = nextNotice(res.status, res.ok ? await res.json() : null, browser.runtime.getManifest().version);
+  }
+  catch {
+    return; // offline, timed out or not JSON: keep the notice, try again at the next check
+  }
+  if (change.action === 'set') {
+    await browser.storage.local.set({ updateNotice: change.notice });
+    await browser.action.setBadgeText({ text: '↑' });
+  }
+  else if (change.action === 'clear') {
+    await browser.storage.local.remove('updateNotice');
+    await browser.action.setBadgeText({ text: '' });
+  }
+}
+
+// Re-creating an alarm replaces it and restarts its period, and the service worker restarts on
+// every event — so the alarm is created only when none exists; one check runs now either way.
+export async function scheduleUpdateChecks(): Promise<void> {
+  if (!(await browser.alarms.get('update-check')))
+    await browser.alarms.create('update-check', { periodInMinutes: 360 });
+  await checkForUpdate();
+}
+"""
+
+_CX_UPDATE_VERSION_TS = r"""// The update checker's pure rules (src/lib/update-check.ts), import-free so they run under plain
+// node too. The /extension/latest response is untrusted input: only a 1-4 integer version and an
+// https download URL pass, and the backend itself must be https (plain http only to localhost).
+export interface UpdateNotice {
+  version: string;
+  download_url: string;
+}
+
+export type NoticeChange = { action: 'set'; notice: UpdateNotice } | { action: 'clear' } | { action: 'keep' };
+
+const VERSION_RE = /^(?:0|[1-9]\d{0,4})(?:\.(?:0|[1-9]\d{0,4})){0,3}$/;
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+// Chrome's version rule: one to four dot-separated integers (each 0-65535, no leading zero), a
+// missing integer counting as 0.
+export function isNewer(candidate: string, current: string): boolean {
+  const a = candidate.split('.').map(Number);
+  const b = current.split('.').map(Number);
+  for (let i = 0; i < 4; i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    if (x !== y)
+      return x > y;
+  }
+  return false;
+}
+
+export function parseLatest(body: unknown): UpdateNotice | null {
+  if (!body || typeof body !== 'object')
+    return null;
+  const { version, download_url } = body as Record<string, unknown>;
+  if (typeof version !== 'string' || !VERSION_RE.test(version) || version.split('.').some(n => Number(n) > 65535))
+    return null;
+  if (typeof download_url !== 'string')
+    return null;
+  try {
+    if (new URL(download_url).protocol !== 'https:')
+      return null;
+  }
+  catch {
+    return null;
+  }
+  return { version, download_url };
+}
+
+// What one /extension/latest answer does to the stored notice: a 404 means no release is published
+// (one was withdrawn), so the notice goes; a newer valid release sets it and an older one clears
+// it; a server error or a body that fails validation says nothing, so the notice stays as it is.
+export function nextNotice(status: number, body: unknown, current: string): NoticeChange {
+  if (status === 404)
+    return { action: 'clear' };
+  if (status < 200 || status > 299)
+    return { action: 'keep' };
+  const latest = parseLatest(body);
+  if (!latest)
+    return { action: 'keep' };
+  return isNewer(latest.version, current) ? { action: 'set', notice: latest } : { action: 'clear' };
+}
+
+// The backend base to ask, without a trailing slash, or '' when it must not be asked: an on-path
+// attacker could answer a plain-http backend with a download link of their choosing.
+export function secureBase(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  }
+  catch {
+    return '';
+  }
+  const secure = url.protocol === 'https:' || (url.protocol === 'http:' && LOCAL_HOSTS.has(url.hostname));
+  if (!secure || url.username || url.password)
+    return '';
+  // origin + path only: a query or fragment would land in front of /extension/latest
+  return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
+}
+"""
+
+_CX_INSTALL_MD = """# Installing {name}
+
+{name} is installed directly from a download, not from the Chrome Web Store. It takes about a
+minute, once.
+
+## Install
+
+1. Open `chrome://extensions` and turn on **Developer mode** (the switch at the top right).
+2. Unzip the file you downloaded.
+3. Click **Load unpacked**.
+4. Pick the unzipped folder — the one that directly contains `manifest.json`.
+
+**Keep Developer mode on.** Chrome (version 134 and later) turns off extensions installed this way
+whenever Developer mode is off; switch it back on and they return. So keep Developer mode on.
+
+**Keep the folder.** Chrome runs the extension from that folder: do not delete or move it.
+
+## Update
+
+When the extension shows "Update available", download the new zip, then:
+
+1. Unzip it and replace the contents of your existing folder with the new files.
+2. Open `chrome://extensions` and click **Reload** on the {name} card.
+
+Your settings stay, and the extension keeps the same ID.
+
+## Managed (work or school) browsers
+
+If your organisation manages Chrome, the `ExtensionDeveloperModeSettings` policy set to 1 forbids
+Developer mode, and this install will not work. Ask your administrator to force-install the
+extension through enterprise policy instead.
+
+## Other browsers
+
+- **Edge:** the same steps at `edge://extensions` (Developer mode is at the bottom left).
+- **Brave:** the same steps at `brave://extensions`; Brave also warns that the extension is not
+  listed in a store — that is expected.
+"""
+
+
 def _scaffold_chrome_extension(
     project_dir: Path, name: str, description: str, **kwargs: object
 ) -> None:
@@ -5099,6 +5569,10 @@ def _scaffold_chrome_extension(
         """import preact from '@preact/preset-vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'wxt';
+// The pinned manifest key: `pnpm keygen` writes extension-key.pub ONCE, which fixes the extension
+// ID — the backend's EXTENSION_ID and its exact-origin CORS depend on it. Run keygen early: until
+// then each install gets a path-derived ID. A store build (STORE_BUILD=1) leaves the key out.
+import { pinnedKey } from './scripts/manifest-key.mjs';
 
 // WXT generates manifest.json from this config + the entrypoints. @preact/preset-vite
 // aliases react/react-dom -> preact/compat (reactAliasesEnabled default), wiring Preact
@@ -5116,9 +5590,13 @@ export default defineConfig({
     name: '__MSG_extName__',
     description: '__MSG_extDescription__',
     default_locale: 'en',
+    // undefined (no key file, or a store build) is dropped from the generated manifest.json.
+    key: pinnedKey(),
     // contextMenus is REQUIRED for the background snippet — without it chrome.contextMenus
     // is undefined and the SW throws in onInstalled (chrome-ext/70-chrome-ext.md § Permissions).
-    permissions: ['storage', 'activeTab', 'contextMenus'],
+    // alarms drives the periodic update check (src/lib/update-check.ts). No host permissions are
+    // requested: the backend call is an ordinary CORS request its exact-origin allow-list admits.
+    permissions: ['storage', 'activeTab', 'contextMenus', 'alarms'],
     // A CUSTOM command (not the reserved _execute_action, which the browser handles
     // natively and never dispatches to onCommand) so the listener seam actually fires.
     commands: {
@@ -5150,6 +5628,8 @@ export default defineConfig({
             "compile": "tsc --noEmit",
             "size": "size-limit",
             "lint": "eslint .",
+            # One-time: mints the signing key that pins the extension ID (scripts/keygen.mjs).
+            "keygen": "node scripts/keygen.mjs",
             # Generates the typed @hey-api client from the running backend's OpenAPI schema
             # into src/lib/api/generated (see src/lib/api/config.ts). Point -i at your backend.
             "generate-api": "openapi-ts -i http://localhost:8000/openapi.json -o src/lib/api/generated",
@@ -5184,6 +5664,17 @@ export default defineConfig({
         },
     }
     (ext / "package.json").write_text(json.dumps(ext_package, indent=2) + "\n")
+
+    # scripts/ — the developer-mode release kit (W-e2af3303): the one-time signing key that pins
+    # the extension ID, and the checks `make release-ext` runs before it zips. node: built-ins only.
+    (ext / "scripts").mkdir(parents=True, exist_ok=True)
+    (ext / "scripts" / "extension-id.mjs").write_text(_CX_EXTENSION_ID_MJS)
+    (ext / "scripts" / "keygen.mjs").write_text(_CX_KEYGEN_MJS)
+    (ext / "scripts" / "release-check.mjs").write_text(_CX_RELEASE_CHECK_MJS)
+    (ext / "scripts" / "manifest-key.mjs").write_text(_CX_MANIFEST_KEY_MJS)
+    (ext / "scripts" / "manifest-key.d.mts").write_text(_CX_MANIFEST_KEY_DTS)
+    # INSTALL.md — the end user's guide; `make release-ext` copies it beside the zip.
+    (ext / "INSTALL.md").write_text(_CX_INSTALL_MD.replace("{name}", name))
 
     # src/global.css — Tailwind v4 (CSS-first). The Ocoron @theme tokens land here in
     # the surfaces phase; Phase A wires the pipeline so styles resolve at build.
@@ -5264,13 +5755,23 @@ export default antfu({
 import { onMessage } from 'webext-bridge/background';
 import { authedFetch } from '@/lib/api/authed-fetch';
 import { getToken } from '@/lib/storage';
+import { checkForUpdate, scheduleUpdateChecks } from '@/lib/update-check';
 
 export default defineBackground(() => {
+  // Developer-mode update check (src/lib/update-check.ts): on browser start, on install / update /
+  // reload (onInstalled below), and every 6 hours by the 'update-check' alarm.
+  browser.runtime.onStartup.addListener(() => void scheduleUpdateChecks());
+  browser.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'update-check')
+      void checkForUpdate();
+  });
+
   browser.runtime.onInstalled.addListener(({ reason }) => {
     if (reason === 'install') {
       // Onboarding: open the packaged page only on first install (not on update).
       browser.tabs.create({ url: browser.runtime.getURL('/onboarding.html') });
     }
+    void scheduleUpdateChecks();
     // Commands / context-menus / omnibox must be (re)registered here — the SW restarts.
     browser.contextMenus.create(
       { id: 'open-options', title: 'Options', contexts: ['action'] },
@@ -5351,18 +5852,35 @@ export default defineContentScript({{
         _cx_popup_html.replace("<title>Popup</title>", "<title>Options</title>")
     )
     (ext / "src" / "entrypoints" / "popup" / "main.tsx").write_text(
-        f"""import {{ render }} from 'preact';
+        f"""import type {{ UpdateNotice }} from '@/lib/update-version';
+import {{ render }} from 'preact';
 // Imported from 'react' on purpose: @preact/preset-vite aliases it to preact/compat,
 // which is what lets the fabrik-lib UI kits' React-API components run on Preact.
-import {{ useState }} from 'react';
+import {{ useEffect, useState }} from 'react';
 import {{ Button }} from '@/components/ui/button';
+import {{ parseLatest }} from '@/lib/update-version';
 import '../../global.css';
+
+// `i18n` is auto-imported by the @wxt-dev/i18n module (wxt.config.ts `modules`).
 
 function App() {{
   const [count, setCount] = useState(0);
+  // Set by the background update check (src/lib/update-check.ts) when a newer version is published.
+  const [notice, setNotice] = useState<UpdateNotice | null>(null);
+  useEffect(() => {{
+    // re-checked on read: any extension context, content scripts included, can write storage.local
+    void browser.storage.local.get('updateNotice').then(r => setNotice(parseLatest(r.updateNotice)));
+  }}, []);
   return (
     <main class="w-90 space-y-3 p-4 font-sans">
       <h1 class="text-base font-semibold">{name}</h1>
+      {{notice && (
+        <a class="block rounded bg-accent px-2 py-1 text-sm text-white" href={{notice.download_url}} target="_blank" rel="noreferrer">
+          {{i18n.t('updateAvailable')}}
+          {{' — v'}}
+          {{notice.version}}
+        </a>
+      )}}
       <Button onClick={{() => setCount(c => c + 1)}}>
         Clicked
         {{count}}
@@ -5693,11 +6211,29 @@ export function Button({ children, variant = 'solid', ...rest }: ButtonProps) {
     # locales/*.json — @wxt-dev/i18n source (flat key:value). extName/extDescription feed
     # the manifest __MSG_*__ refs; @wxt-dev/i18n generates the native _locales/ at build.
     (ext / "src" / "locales" / "en.json").write_text(
-        json.dumps({"extName": name, "extDescription": description}, indent=2) + "\n"
+        json.dumps(
+            {"extName": name, "extDescription": description, "updateAvailable": "Update available"},
+            indent=2,
+        )
+        + "\n"
     )
     (ext / "src" / "locales" / "tr.json").write_text(
-        json.dumps({"extName": name, "extDescription": description}, indent=2) + "\n"
+        json.dumps(
+            {
+                "extName": name,
+                "extDescription": description,
+                "updateAvailable": "Güncelleme mevcut",
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
     )
+    # update-check.ts — the developer-mode update checker the background worker drives.
+    (ext / "src" / "lib").mkdir(parents=True, exist_ok=True)
+    (ext / "src" / "lib" / "update-check.ts").write_text(_CX_UPDATE_CHECK_TS, encoding="utf-8")
+    (ext / "src" / "lib" / "update-version.ts").write_text(_CX_UPDATE_VERSION_TS)
 
     # public/ icons — real placeholder PNGs so the build has assets immediately.
     for icon_size in (16, 48, 128):
@@ -5840,6 +6376,7 @@ ephemeral — never register in a bare global).
         f'"""Main entry point for {name} server."""\n'
         f"\n"
         f"import os\n"
+        f"import re\n"
         f"from contextlib import asynccontextmanager\n"
         f"\n"
         f"from fastapi import FastAPI\n"
@@ -5851,11 +6388,34 @@ ephemeral — never register in a bare global).
         f"\n"
         f"logger = get_logger(__name__)\n"
         f"\n"
+        f"# CORS, decided once at import — closed by default (W-e2af3303). A valid EXTENSION_ID (the\n"
+        f"# 32-letter a-p ID `pnpm keygen` prints) admits exactly that extension's origin. Otherwise\n"
+        f"# CORS_ALLOW_ANY_EXTENSION=1 — a LOCAL development opt-in, never in a deploy — admits any\n"
+        f"# extension; and with neither, no extension origin is admitted at all. /health is not a CORS\n"
+        f"# request, so the app starts either way. The compose passes an unset value as an empty string.\n"
+        f'_EXTENSION_ID_RE = re.compile(r"^[a-p]{{32}}$")\n'
+        f'EXTENSION_ID = os.getenv("EXTENSION_ID", "").strip()\n'
+        f"_cors_startup_events: list[tuple[str, str]] = []\n"
+        f"_allow_origins: list[str] = []\n"
+        f"_allow_origin_regex: str | None = None\n"
+        f"if _EXTENSION_ID_RE.fullmatch(EXTENSION_ID):\n"
+        f'    _allow_origins = [f"chrome-extension://{{EXTENSION_ID}}"]\n'
+        f"else:\n"
+        f"    if EXTENSION_ID:\n"
+        f'        _cors_startup_events.append(("error", "cors_extension_id_invalid"))\n'
+        f'    if os.getenv("CORS_ALLOW_ANY_EXTENSION") == "1":\n'
+        f'        _allow_origin_regex = r"chrome-extension://.*"\n'
+        f'        _cors_startup_events.append(("warning", "cors_any_extension_origin"))\n'
+        f"    else:\n"
+        f'        _cors_startup_events.append(("warning", "cors_no_extension_id"))\n'
+        f"\n"
         f"\n"
         f"@asynccontextmanager\n"
         f"async def lifespan(app: FastAPI):  # noqa: ARG001\n"
         f'    """Application lifespan handler."""\n'
         f'    logger.info("service_starting", port=os.getenv("PORT", "8000"))\n'
+        f"    for level, event in _cors_startup_events:\n"
+        f"        getattr(logger, level)(event)\n"
         f"    yield\n"
         f'    logger.info("service_stopping")\n'
         f"\n"
@@ -5863,12 +6423,13 @@ ephemeral — never register in a bare global).
         f'app = FastAPI(title="{name}", lifespan=lifespan)\n'
         f"app.add_middleware(CorrelationMiddleware)\n"
         f"\n"
-        f"# CORS for extension\n"
+        f"# CORS for the extension — FastAPI is the single CORS authority (no Traefik CORS middleware).\n"
         f"app.add_middleware(\n"
         f"    CORSMiddleware,\n"
         f'    # Extension origins only (chrome-ext/70-chrome-ext.md § Auth) — never "*" with\n'
-        f"    # credentials (browsers reject that combo). Dev regex; set the exact ID for prod.\n"
-        f'    allow_origin_regex=r"chrome-extension://.*",\n'
+        f"    # credentials (browsers reject that combo).\n"
+        f"    allow_origins=_allow_origins,\n"
+        f"    allow_origin_regex=_allow_origin_regex,\n"
         f"    allow_credentials=True,\n"
         f'    allow_methods=["*"],\n'
         f'    allow_headers=["Authorization", "Content-Type"],  # explicit — "*" is not a\n'
@@ -5891,6 +6452,26 @@ ephemeral — never register in a bare global).
         f'@app.get("/")\n'
         f"async def root():\n"
         f'    return {{"message": "Welcome to {name} API"}}\n'
+        f"\n"
+        f"\n"
+        f'@app.get("/extension/latest")\n'
+        f"async def extension_latest():\n"
+        f'    """The published developer-mode release, for the extension\'s update checker. Public, no\n'
+        f"    auth (it carries no secret); 404 until all three values are set, so a half-configured\n"
+        f'    release reads as "nothing to do". Read per request: a redeploy with new values is enough."""\n'
+        f'    version = os.getenv("EXTENSION_LATEST_VERSION", "").strip()\n'
+        f'    download_url = os.getenv("EXTENSION_LATEST_URL", "").strip()\n'
+        f'    sha256 = os.getenv("EXTENSION_LATEST_SHA256", "").strip()\n'
+        f"    # no-store: a cached answer would hide a new release (or keep serving a withdrawn one)\n"
+        f'    headers = {{"Cache-Control": "no-store"}}\n'
+        f"    if not (version and download_url and sha256):\n"
+        f"        return JSONResponse(\n"
+        f'            status_code=404, content={{"detail": "no release published"}}, headers=headers\n'
+        f"        )\n"
+        f"    return JSONResponse(\n"
+        f'        content={{"version": version, "download_url": download_url, "sha256": sha256}},\n'
+        f"        headers=headers,\n"
+        f"    )\n"
     )
 
     # requirements.txt (at root, for server)
@@ -5972,33 +6553,29 @@ CMD ["sh", "-c", "exec uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{
         "*.log\n"
     )
 
-    # compose.yaml — chrome-extension's backend ships an FastAPI server
-    # at port 8000 and the extension hits it cross-origin, so we add CORS
-    # middleware via Traefik. B16/B18: the previous inline compose had
-    # no Traefik labels at all and used unexpanded ``${PORT:-8000}`` for
-    # the host port, so the deployed backend 404'd at the gateway.
+    # compose.yaml — chrome-extension's backend ships a FastAPI server at port 8000 and the
+    # extension calls it cross-origin. FastAPI answers CORS itself (exact EXTENSION_ID origin, see
+    # main.py), so the compose carries no Traefik CORS middleware: one would answer the preflight
+    # before it reaches the app. The canonical compose has no env_file, so the four values a
+    # release needs are passed from the deploy's .env (an unset one arrives as ""). B16/B18: the
+    # previous inline compose had no Traefik labels at all and used unexpanded ``${PORT:-8000}``
+    # for the host port, so the deployed backend 404'd at the gateway.
     _write_canonical_compose(
         project_dir,
         name,
         port=8000,
         healthcheck_path="/health",
-        extra_labels=(
-            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS",
-            # Traefik synthesizes the preflight itself (never reaching the backend), and
-            # accessControlAllowOriginList is EXACT-match — chrome-extension://* never
-            # matches a real extension ID. Use the *Regex variant + credentials so a
-            # deployed extension can reach its backend (chrome-ext/70-chrome-ext.md § Auth).
-            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolalloworiginlistregex=^chrome-extension://.*$",
-            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowcredentials=true",
-            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowheaders=Authorization,Content-Type",
-            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolmaxage=100",
-            f"traefik.http.routers.{name}.middlewares={name}-cors",
+        extra_env_lines=(
+            "- EXTENSION_ID=${EXTENSION_ID:-}",
+            "- EXTENSION_LATEST_VERSION=${EXTENSION_LATEST_VERSION:-}",
+            "- EXTENSION_LATEST_URL=${EXTENSION_LATEST_URL:-}",
+            "- EXTENSION_LATEST_SHA256=${EXTENSION_LATEST_SHA256:-}",
         ),
     )
 
     # 4. Makefile
     (project_dir / "Makefile").write_text(
-        f""".PHONY: dev dev-server dev-ext build-ext install test docker-build docker-smoke clean
+        f""".PHONY: dev dev-server dev-ext build-ext release-ext install test docker-build docker-smoke clean
 
 PROJECT_NAME := {name}
 PORT := 8000
@@ -6007,12 +6584,12 @@ PORT := 8000
 dev:
 \t@trap 'kill 0' SIGINT; \\
 \tcd extension && pnpm dev & \\
-\t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src & \\
+\t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src $(if $(wildcard .env),--env-file .env,) & \\
 \twait
 
-# Server only (FastAPI with reload)
+# Server only (FastAPI with reload; reads .env when present — the emitted server loads none itself)
 dev-server:
-\t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src
+\t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src $(if $(wildcard .env),--env-file .env,)
 
 # Extension only (WXT dev with HMR)
 dev-ext:
@@ -6021,6 +6598,14 @@ dev-ext:
 # Production extension build (WXT → extension/.output/chrome-mv3)
 build-ext:
 \tcd extension && pnpm build
+
+# Developer-mode release (extension/INSTALL.md): refuses unless the key is committed, the tree is
+# clean and the production API URL is https (extension/scripts/release-check.mjs), then zips,
+# writes the zip's SHA-256 beside it, copies the guide and prints the backend values. It publishes
+# nothing: uploading the zip and setting the values is the operator's step.
+release-ext:
+\tcd extension && node scripts/release-check.mjs
+\tcd extension && pnpm zip && cd .output && zip=$$(ls -t *-chrome.zip | head -1) && sha256sum "$$zip" > "$$zip.sha256" && cp ../INSTALL.md . && node ../scripts/release-check.mjs --summary "$$zip"
 
 # Install all dependencies
 install:
@@ -6064,6 +6649,17 @@ NODE_ENV=development
 
 # Service identity for structured logging
 SERVICE_NAME={name}
+
+# The extension's ID — `cd extension && pnpm keygen` prints it once. The backend admits CORS from
+# exactly chrome-extension://<this ID>; unset, it admits no extension at all.
+EXTENSION_ID=
+# The published developer-mode release (`make release-ext` prints these after the zip is built).
+# GET /extension/latest returns 404 until all three are set.
+EXTENSION_LATEST_VERSION=
+EXTENSION_LATEST_URL=
+EXTENSION_LATEST_SHA256=
+# Admit ANY extension origin — local development only, never in a deploy.
+# CORS_ALLOW_ANY_EXTENSION=1
 """
     )
 
@@ -6077,6 +6673,10 @@ SERVICE_NAME={name}
         "extension/.output/\n"
         "extension/.wxt/\n"
         "extension/node_modules/\n"
+        "# the extension's signing key (scripts/keygen.mjs) — a secret; *.pem above covers it too\n"
+        "extension/.keys/\n"
+        "# machine-local env overrides (Vite/WXT *.local files) — never part of a release\n"
+        ".env.*.local\n"
         "\n"
         "# Python-specific\n"
         ".env.local\n"

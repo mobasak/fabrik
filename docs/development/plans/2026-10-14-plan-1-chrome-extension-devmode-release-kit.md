@@ -1,6 +1,7 @@
 # Plan — chrome-extension scaffold emits the developer-mode release kit (W-e2af3303)
 
-Status: CONVERGED
+Status: EXECUTED 2026-10-15
+Whole-plan review: docs/development/reviews/2026-10-15-plan-1-chrome-extension-devmode-release-kit-review.md
 Profile: small
 **Owner:** —
 **Surface:** `git rev-parse HEAD` = 12333be10 at authoring, 473ed4978 at the approval panel (only the two documents changed between); `src/fabrik/scaffold.py::_scaffold_chrome_extension` (`:5075-6136`)
@@ -97,7 +98,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | "**Gate 2:** the operator publishes the zip, its checksum, the guide and the version-manifest bump; no agent publishes." | .windsurf/rules/chrome-ext/89-extension-launch-checklist.md:136 | Gate 2 |
 | "**Enforced:** Gate-checked, no exceptions. Every code-shipping ticket must produce exactly one entry." | .windsurf/rules/core/40-documentation.md:134 | CHANGELOG |
 
-## Phase A — the extension and the release
+## Phase A — the extension and the release — ✅ EXECUTED 2026-10-15 (723674561)
 
 Appetite: 120
 
@@ -163,7 +164,7 @@ Appetite: 120
 | A6 | the emitted `INSTALL.md` | read | it names `chrome://extensions`, Load unpacked, keep Developer mode on, replace the folder's contents and Reload to update, and `ExtensionDeveloperModeSettings` |
 | A7 | the emitted `.gitignore` and Makefile; and a scaffold in a temp git repo with no committed `.pub` | read; the `release-ext` recipe extracted from its target line to the next target; `make release-ext` run in the temp repo | `.gitignore` names `extension/.keys/`; `.PHONY` lists `release-ext`; the recipe checks the tracked `.pub`, a clean tree and an https `VITE_PUBLIC_API_URL`, never runs keygen, zips, writes a `.sha256` with the bare name, copies `INSTALL.md`, prints the four values, and contains no upload, `scp`, `rsync` or `curl` (the existing `docker-smoke` target's `curl` is outside the extracted recipe); the run exits 1 before zipping and prints the next steps |
 
-## Phase B — the backend
+## Phase B — the backend — ✅ EXECUTED 2026-10-15 (4f29e9e6a)
 
 Appetite: 60
 
@@ -229,7 +230,7 @@ B4 and B4b assert on the subprocess's stdout, where structlog writes.
 | B5 | the emitted `compose.yaml` and `.env.example`; `defaults.yaml`; `compose.yaml.j2` | read | no label containing `-cors` in the emitted compose or the template; the emitted compose and the template each carry the four `${VAR:-}` env lines and no `CORS_ORIGINS`; the four env names and the commented opt-in in `.env.example`; no `CORS_ORIGINS` in `defaults.yaml` |
 | B6 | the emitted `Makefile` | read the `dev` and `dev-server` recipes | both uvicorn lines carry `$(if $(wildcard .env),--env-file .env,)` |
 
-## Phase C — Finish
+## Phase C — Finish — ✅ EXECUTED 2026-10-15 (6b0047c27)
 
 Appetite: 60
 
@@ -465,6 +466,93 @@ $ node keygen_probe.mjs
   accepts and keeps `manifest.key`"); those files sit outside this repo, so the plan does not re-quote them. The
   plan's own proof is executable: A3's build leg asserts the built `manifest.json` carries `key` equal to the `.pub`,
   run explicitly with `-m needs_network` (Phase A step 5), whose result Phase A pastes here.
+
+### Phase A — executed 2026-10-15
+
+Commits: `34b4c94d7` (the kit), `d6b67f7ea`, `0297ffafc`, `723674561` (the phase's `/fabrik-review-scoped`, three
+independent seats a round: confirmed 14 → 7 → 0, the round-3 remainder verifying every round-2 fix by probe and
+mutant replay). Graders seen red first: 14 failed before the emitter change, 15 before round 1's fixes, 6 before
+round 2's, 5 before round 3's recorded items.
+
+```text
+$ PYTHONPATH=<worktree>/src .venv/bin/python -m pytest tests/test_scaffold.py -k Chrome tests/test_scaffold_chrome_ext_wxt.py -q
+74 passed, 75 deselected in 26.15s
+```
+
+Execution notes (what the build settled, against the Interfaces text above):
+
+- `release-ext`'s three checks live in the emitted `extension/scripts/release-check.mjs`, run by the recipe's first
+  line (`src/fabrik/scaffold.py` `_CX_RELEASE_CHECK_MJS`), not inline shell: the effective `VITE_PUBLIC_API_URL` (the
+  plan-review S1-P1 fix) is resolved as WXT's own `loadEnv` does — `wxt/dist/core/utils/env.mjs:10-31`, read in
+  `/opt/job-agent/extension/node_modules`: the environment, else the last of `.env`, `.env.local`, `.env.<mode>`,
+  `.env.<mode>.local`, `.env.<browser>`, `.env.<browser>.local`, `.env.<mode>.<browser>`,
+  `.env.<mode>.<browser>.local`, parsed with `node:util` `parseEnv`. Review round 1 also had it refuse `STORE_BUILD=1`,
+  a malformed `.pub`, a dirty tree, a non-Chrome `package.json` version, a colon-form line and a host-less URL.
+- The key is resolved by a shared `extension/scripts/manifest-key.mjs` (with `manifest-key.d.mts`), relative to its own
+  file rather than the cwd; `wxt.config.ts` sets `key: pinnedKey()`; a `.pub` that is not a base64 SPKI key whose
+  export round-trips fails the build, the gate and keygen.
+- The checker's pure rules live in an import-free `src/lib/update-version.ts` (`isNewer`, `parseLatest`,
+  `secureBase` — the stored backend must be https or local http), so A4 is graded by executing them under node.
+- The popup relies on `@wxt-dev/i18n`'s auto-import of `i18n` (`@wxt-dev/i18n/dist/module.mjs:13-16` registers
+  `imports: [{from: "#i18n", name: "i18n"}]`) instead of an explicit `#i18n` import, which the emitted tsconfig's own
+  `paths` would not resolve.
+- keygen rebuilds a lost `.pub` from the `.pem`; the emitted `.gitignore` also ignores `.env.*.local`.
+- **UNEXECUTED — missing infra:** step 5's network build test (`-m needs_network -k builds`) and an emitted-project
+  `pnpm compile` / `pnpm lint` were run three times and each `pnpm install` timed out: WSL cannot resolve
+  `registry.npmjs.org` (`curl: (28) Resolving timed out after 15000 milliseconds`). Phase C re-runs all three before
+  the Finish review.
+
+### Phase B — executed 2026-10-15
+
+Step 1's census, re-run at execution (`command grep -rn CORS_ORIGINS src/ templates/ tests/ scripts/`): the same 7 source
+hits as at authoring (`src/fabrik/scaffold.py:2554`, `:2705`, `:2709`, `templates/saas-skeleton/.env.example:19`,
+`scripts/gather_envs.py:141`, and the two chrome lines this phase removed), none in the emitted chrome-extension server;
+after the removal 5 non-test hits remain, none of them in the chrome-extension paths.
+
+Commits: `4c2b1ce2a` (the backend), `9eb64fb75`, `21eb04b4f` and `4f29e9e6a` (the phase's `/fabrik-review-scoped`,
+three independent seats: confirmed 12 → 0). Graders seen red first: 12 failed before the emitter change; round 1's strengthened graders
+proven by red-on-revert in a throwaway worktree (8 mutants — template filter, no-store, URL check, URL strip, error
+level, credentials, log-at-import, read-at-import — each turned its grader red; baseline 18 passed before and after).
+
+```text
+$ PYTHONPATH=<worktree>/src .venv/bin/python -m pytest tests/test_scaffold.py tests/test_scaffold_chrome_ext_wxt.py tests/orchestrator/test_template_defaults.py tests/test_scaffold_spec_generation.py tests/test_spec_generator.py -q
+264 passed, 1 skipped, 1 deselected in 54.13s
+```
+
+Execution notes:
+
+- Appetite overrun: 178 of 60 minutes, almost all of it a ~2-hour box network outage (DNS `EAI_AGAIN`) that killed two of the three review seats mid-run and stalled the session; the work itself was the planned scope, so nothing was re-planned.
+- The scaffold's own spec generator copies the canonical compose `environment:` into the spec's `env:`, so the four
+  `EXTENSION_*` values arrive in `env:` on the template path; `templates/chrome-extension/compose.yaml.j2`'s env loop
+  skips those four names (review round 1), and B5b renders the template from the generated spec to prove each appears
+  once. The plan's "a project's service spec must not repeat these names" (Phase B Interfaces) is therefore enforced by
+  the template, not left to the spec author.
+- `GET /extension/latest` also sends `Cache-Control: no-store` (review round 1).
+- Recorded, not changed: `access-control-allow-credentials: true` on responses with no allow-origin (FastAPI's
+  behaviour); server-side validation of the release values (the extension's checker validates, A4); the opt-in reachable
+  through a spec's `env:` on the template path (the operator's own spec).
+
+### Phase C — the Finish review (whole-plan `/fabrik-review`)
+
+Receipt: `docs/development/reviews/2026-10-15-plan-1-chrome-extension-devmode-release-kit-review.md`. Pass 1 found what
+the two phase reviews missed, and four of its fixes change what the Interfaces above say; where they differ, this
+block holds:
+
+- Phase A Interfaces (`update-check.ts`): a 404 from `/extension/latest` now CLEARS the stored notice (a withdrawn
+  release must not keep its banner); any other non-2xx or a body failing validation keeps it. The rule is the pure
+  `nextNotice(status, body, current)` in `update-version.ts`, executed by A4. The popup re-validates the stored
+  notice with `parseLatest` on read.
+- Phase A Interfaces (the version rule): the shipped `VERSION_RE` refuses a leading zero and caps each integer at
+  65535 (Chrome's rule), stricter than the `^\d{1,5}(\.\d{1,5}){0,3}$` written above.
+- `keygen.mjs` refuses to mint when `extension-key.pub` is committed but missing locally (restore it from git), and
+  refuses a `.pub` that does not match the `.pem` beside it; the "not a public key" message suggests deleting the
+  `.pub` only when a `.pem` exists to rebuild it from.
+- The release gate refuses a `VITE_PUBLIC_API_URL` containing `$` (WXT expands env-file variables with
+  dotenv-expand, so the built URL is not the written text), and its next steps say to commit `.env.production`.
+- The emitted server builds its CORS kwargs as typed `allow_origins` / `allow_origin_regex` (mypy rejected the
+  mixed-value `**dict`; B7 runs mypy on the emitted server).
+- Phase B Interfaces ("must not repeat these names"): superseded by the template filter, which now also skips
+  `PYTHONUNBUFFERED` and `LOG_LEVEL`, the two `defaults.yaml` values the template already sets (B5b).
 
 ## Self-audit
 
