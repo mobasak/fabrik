@@ -555,6 +555,35 @@ def test_the_write_after_close_margin_and_the_removal_recheck(
     assert late.exists()
 
 
+def test_the_write_after_close_signal_stays_bounded(
+    harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Review round 1: a folder mtime far in the future is doubt counted from the CLOSE (never a keep
+    until that date); a `.trash-*` leftover the judge consumed by name is never re-kept at removal; an
+    unreadable stat is doubt; only a `done` marker takes the re-check; the reason says "last written"
+    when the grace ran from a write."""
+    sdir = _session(harness)
+    future = _run_folder(sdir, "future", closed_ago=40 * HOUR, heartbeat_ago=40 * HOUR)
+    os.utime(future, (NOW + 10 * 365 * 86400, NOW + 10 * 365 * 86400))
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0 and not future.exists(), out  # 40 h past its close: the bounded doubt has ended
+    trash = sdir / "scratchpad" / ".trash-run-gone-2026-10-15T05-40-42-0300-0a1b2c"
+    trash.mkdir()
+    (trash / ".owner").write_text(json.dumps({"state": "done", "closed_at": NOW - 40 * HOUR}), encoding="utf-8")
+    _age(trash, 10)  # an interrupted removal just unlinked entries
+    rows = sw.plan_run_folders([sdir], NOW)
+    assert [r.cls for r in rows if r.path == str(trash)] == ["consumed"]
+    sw.apply_run_rows(rows, out=io.StringIO())
+    assert not trash.exists()
+    assert sw._written_after_close(sdir / "no-such-folder", NOW - 100, NOW) == NOW - 100
+    used = _run_folder(sdir, "used", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    _age(used, 60)
+    assert not sw._in_use_since_close(used, {"state": "running", "closed_at": NOW - 41 * 60}, NOW)
+    assert sw._in_use_since_close(used, {"state": "done", "closed_at": NOW - 41 * 60}, NOW)
+    row = sw.judge_run_folder(used, SID_A, NOW, session_dead=False, held={}, gaps=[], probe_ok=True)
+    assert row.cls == "kept" and row.reason.startswith("last written 60s ago"), row.reason
+
+
 def test_only_own_session(harness: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """B3: `--run-folders --session A` touches A's directory and nothing under B's."""
     mine = _run_folder(_session(harness, SID_A), "mine")

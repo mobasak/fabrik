@@ -794,14 +794,18 @@ def _done_close_is_vouched(owner: dict, now: float) -> bool:
     return _close_is_vouched(owner.get("created"), float(closed), now)
 
 
-def _written_after_close(folder: Path, closed_at: float) -> float | None:
+def _written_after_close(folder: Path, closed_at: float, now: float) -> float | None:
     """When an entry was created or removed in ``folder`` after its close: the folder's own mtime
-    (its last top-level change), else None; an unreadable stat is doubt and answers ``closed_at``.
-    One stat, never a walk — so a write that only modifies an existing file, or lands inside an
-    existing subfolder, is not seen (W-9f3f097c, stated in docs/workstation/cleanup-automation.md)."""
+    (its last top-level change), else None. Doubt answers ``closed_at`` — the long grace from the
+    close, bounded: an unreadable stat, and an mtime further ahead of ``now`` than the clock margin
+    (a `touch -d` or a clock jump would otherwise keep the folder until that future date). One stat,
+    never a walk — so a write that only modifies an existing file, or lands inside an existing
+    subfolder, is not seen (W-9f3f097c, stated in docs/workstation/cleanup-automation.md)."""
     try:
         mtime = folder.stat().st_mtime
     except OSError:
+        return closed_at
+    if not math.isfinite(mtime) or mtime > now + GAP_CLOCK_MARGIN_S:
         return closed_at
     return mtime if mtime > closed_at + WRITE_AFTER_CLOSE_MARGIN_S else None
 
@@ -810,12 +814,14 @@ def _in_use_since_close(folder: Path, owner: dict | None, now: float) -> bool:
     """The removal-time re-check of the write-after-close rule: a `done` folder whose last top-level
     change is still inside the long grace. Re-applies the rule, never compares two mtimes — a folder
     consumed because its last write is itself past the grace still goes."""
+    if folder.name.startswith(TRASH_PREFIX):
+        return False  # the judge consumed it by name alone ("left by an interrupted removal")
     raw = (owner or {}).get("closed_at")
     if (owner or {}).get("state") != "done" or not isinstance(raw, int | float) or isinstance(raw, bool):
         return False
     if not math.isfinite(raw):
         return False
-    written = _written_after_close(folder, float(raw))
+    written = _written_after_close(folder, float(raw), now)
     return written is not None and now - max(float(raw), written) < _grace_ceiling_s()
 
 
@@ -875,7 +881,9 @@ def judge_run_folder(
     # grace, counted from that last top-level change rather than from the close
     grace_from = closed_at
     written = (
-        _written_after_close(folder, closed_at) if state == "done" and closed_at is not None else None
+        _written_after_close(folder, closed_at, now)
+        if state == "done" and closed_at is not None
+        else None
     )
     if written is not None and closed_at is not None:
         seat = True
@@ -894,8 +902,11 @@ def judge_run_folder(
         seat_write_after_close=seat,
     )
     verdict, reason = classify_run_folder(facts, now)
-    if written is not None and closed_at is not None:
-        reason += "; written into after its close, so its grace runs from that write"
+    if written is not None and closed_at is not None and reason.startswith(("done, closed", "closed")):
+        if written != closed_at:  # the grace ran from the last write: say so, never "closed"
+            reason = reason.replace("closed", "last written", 1) + " (written into after its close)"
+        else:
+            reason += " (its folder's time could not be trusted — the long grace)"
     evidence = _marker_fingerprint(folder)
     if verdict == "consumed":
         inside, regs, ok = _worktrees_under(folder, str((owner or {}).get("repo") or ""))
