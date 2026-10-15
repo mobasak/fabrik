@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T18:13:05.379726Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-1e0d47a0",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "make merge_request.py's _main_checkout follow mail.py's resolution (core.worktree from the common dir, the separate-git-dir refusal) or import it, and extend test_main_checkout_is_derived_exactly_as_mail_py_does to a core.worktree world (Opus critique C8 on W-7317befc); no /opt repo uses the layout today",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "fleet"

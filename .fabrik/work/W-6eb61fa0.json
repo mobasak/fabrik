@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-01T20:45:03.275690Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-6eb61fa0",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "set autoescape=False (or select_autoescape on html/xml only) in template_renderer.py, prove a compose env value with quote and ampersand round-trips, check every template for a value that relied on escaping; found by the docusaurus Finish review, pass 1, A2 (pre-existing, outside that diff)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'deploy'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "fleet"

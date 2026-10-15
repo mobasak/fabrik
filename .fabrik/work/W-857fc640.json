@@ -13,11 +13,13 @@
   },
   "next": "switch both to --network fabrik and extend the scripts/sysadmin/test_claude_run.py:223 coolify ban to scripts/audit and scripts/provision_*.sh",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "Two scripts still curl through the removed docker network coolify: scripts/audit/08-hardening-verify.sh:95,108 and scripts/provision_glitchtip_project.sh:100 (found by the Alloy wave-1 review; the network was renamed fabrik 2026-05-31)"
 }

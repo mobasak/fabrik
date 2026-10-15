@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T01:12:04.417474Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-0e42a4dc",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'refuses'; effort HIGH: names 'plan' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "corpus"

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-14T09:03:43.374147Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-d9b0b369",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "find what launches maestro from a hub session (strace -f -e execve on the session for 60 s, or the session's --debug log), then fix the source or correct D-634's ruling with a superseding row",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "title": "D-634 kill criterion FAILED 2026-10-14: 2 maestro.cli.AppKt JVMs with cwd /opt/fabrik (7 more in fabrik-lib, allowed), spawned and re-spawned within seconds by the hub VS Code session pid 100031 (started 2026-10-13, after the emission) — yet no config names maestro for the hub: /opt/fabrik/.mcp.json (11 servers), ~/.claude.json and ~/.claude-fleet/*/.claude.json (user + /opt/fabrik project scope), plugins/*.json and managed-mcp.json all clean"
 }

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T21:22:58.848354Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-13dbeba9",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide: prune templates/saas-skeleton/AGENTS.md in the fleet sync (scripts/sync_enforcement_to_projects.py) or leave the stale copies; for the VPS file, a read-only ls on the next fleet deploy pass, then rm in a maintenance step",
   "note": "",
-  "owner": "",
-  "priority": 3,
+  "owner": "fleet",
+  "priority": 2,
+  "score_reason": "impact HIGH: names 'deploy'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "fleet"

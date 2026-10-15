@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-06T17:19:55.651342Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-dbf952f6",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "Recorded by the W-2005a1a5 review (pass 1, A-S2, execution-confirmed by its refuter): cap the tail at a fixed width in _owner_tests (and any other str(exc) that reaches rec.reason) so a mail and its ack line stay readable; grader: a merge-tests that prints a 5,000-char line yields a bounded reason.",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "merge-request"

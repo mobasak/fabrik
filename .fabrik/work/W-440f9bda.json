@@ -13,8 +13,12 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "Knowledge-ratchet plan: apply the six-point § Revision required (D-721) — per-repo AFCL requests instead of foreign commits, all-generation matcher, fleet_doc_audit KEPT_SHAPE_DOCS, two-anchor LESSONS parser, one graduation convention, re-grounded cites — then /fabrik-plan-review, then /fabrik-execute-plan"
 }

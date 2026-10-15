@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T16:08:42.154987Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-0b7890d3",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "point modal-api.md's price section at gpu_rent.HOURLY_USD_BY_PROVIDER and PRICES_VERIFIED instead of restating it, and recompute the break-even per kind (found by the W-ec265df0 review, candidates O3 and O4)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "fleet"

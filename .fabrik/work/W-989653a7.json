@@ -15,9 +15,13 @@
   },
   "next": "fabrik-task: make the apply path load through the same template-defaults merge as spec_loader.load_spec (spec_loader.py:1003), grader = plan/apply parity over every shapeless spec (scratchpad plan_vs_apply_probe.py: 12 of 13 shapeless specs DIFF); effect lands at each project's next apply (gatus endpoint + prometheus job start being created) — name that in the D-row",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 1,
   "score_reason": "fabrik apply skips provisioning for specs without shape:; four live specs affected, validator one-site fix",
   "status": "open",
+  "tags": [
+    "maybe-done",
+    "waits-operator-review"
+  ],
   "title": "fabrik apply never got G-B1a: SpecValidator.load_spec (orchestrator/validator.py:183) reads raw YAML, so a spec with no shape: block provisions with every flag false while fabrik plan (merged) reports the template defaults — job-agent, proposal-creator, trading-core, triggered-content-orchestration: plan says gatus+prometheus RUN, apply skips both"
 }

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T15:00:21.220265Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-36828334",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure how long app.deploy() runs and whether `modal app list` shows the app before it returns; if yes, record the session before the deploy or have reconcile skip an endpoint whose session is mid-create (found by the Opus design critique of W-2f782cd7)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'deploy'; effort HIGH: names 'design' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "gpu",

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-03T14:07:12.201350Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-2eb9f73e",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "guard the root patch in both fix_project branches: skip + report a symlinked or non-file .gitignore, catch UnicodeDecodeError; tests for the three trees. Found by plan-1 Phase A review-scoped (O3, O4)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'block'; effort HIGH: names 'plan' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "fleet"

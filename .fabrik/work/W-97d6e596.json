@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-03T16:11:30.708671Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-97d6e596",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide keep-marker-when-dir-nonempty in _remove_retired_droid_markers; preserve line endings in _patch_droid_block; fix the :766 table; drop the dead branch",
   "note": "",
-  "owner": "",
-  "priority": 3,
+  "owner": "fleet",
+  "priority": 2,
+  "score_reason": "impact HIGH: names 'block'; effort HIGH: names 'plan' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "fleet"

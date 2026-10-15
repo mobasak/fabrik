@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T02:32:04.905743Z",
   "creator": "kaizen",
+  "effort": "high",
   "evidence": "",
   "id": "W-e9588939",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "align obligation 1's anchor recipe with review_receipt.py's _surface (kaizen wording) or have review_receipt.py print the anchor command (infra code)",
   "note": "",
-  "owner": "",
+  "owner": "kaizen",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'fail'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "kaizen"

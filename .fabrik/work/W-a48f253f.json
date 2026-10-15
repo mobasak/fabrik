@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:01.430934Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a48f253f",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read mail 01M4YNBHERG5SVFGKPXFECNQAH, claim it, act on it",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "status": "open",
+  "tags": [
+    "mail-01m4ynbherg5svfgkpxfecnqah"
+  ],
+  "title": "fabrik-lib says the coordinator role is NOT carried there yet — two fabrik-lib facts contradict it; settle with them first (mail 01M4YNBHERG5SVFGKPXFECNQAH)"
+}

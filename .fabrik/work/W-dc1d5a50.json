@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-01T08:19:20.283104Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-dc1d5a50",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "trace which of those spawns reach a script importing fabrik (17 of 76 scripts do); derive their PYTHONPATH from Path(__file__) like tests/test_config_no_autoload.py does",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "tests"

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-05T21:05:35.302209Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-1462ad6d",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "extend _command_part with a substitution-depth stack for $( and backtick, and widen _CRON_ENV_RE to cron's load_env name grammar (cronie env.c), each graded against dash/cron; found by the W-9b910755 closing pass, out of that change's scope",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "vps"

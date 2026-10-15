@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-01T20:17:27.396986Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-c2c2c35b",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide per file: unpublish by name in _DOCUSAURUS_UNPUBLISHED_DOCS, or strip the hub-specific lines from the docusaurus seed; Phase B closing pass 3 (Opus), outside the D-481/D-482 subtree fix",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "fleet"

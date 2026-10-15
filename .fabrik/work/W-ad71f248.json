@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-05T15:10:24.384985Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-ad71f248",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide how a project-side gate (no hub templates in projects) reads template text: a generated, synced token/line list beside _doc_registry, or the box-local /opt/fabrik path fail-open; then reuse fleet_doc_audit.template_left_pct's rule",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "impact HIGH: names 'fail'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "infra"

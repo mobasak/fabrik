@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T08:29:52.655306Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-cd8b8ead",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "add the nginx mainline/stable -<codename> shape to _DEBIAN_BASE_RES with a test, and re-run the audit over a scaffolded docusaurus project",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'fails'; effort HIGH: names 'audit' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "fleet"

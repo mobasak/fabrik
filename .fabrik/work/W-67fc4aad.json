@@ -13,8 +13,12 @@
   },
   "next": "measure fleet fire rate of counting .xml + tryton.cfg under a tryton_modules/ segment, then decide (W-2af4ec55 follow-up, tryton-crm 01M3QVX8)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "maybe-done",
+    "waits-operator-review"
+  ],
   "title": "check_doc_sync: Tryton module data (.xml views/menus/access, tryton.cfg) owes no CHANGELOG entry — CODE_EXTENSIONS is still an allowlist"
 }

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-13T06:41:40.555453Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-72dfd448",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure whether the Workflow agent() call takes a cwd or isolation option; if so launch finder and refuter seats in a fresh scratch dir, and have review_loop_ledger pin write a ready probe runner beside the pins",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "review-loop"

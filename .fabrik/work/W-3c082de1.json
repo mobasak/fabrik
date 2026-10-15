@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-14T01:37:23.044596Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-3c082de1",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "when root's git-dir differs from its common dir, age root's tracked receipts by _committed_at like a sibling's; red-first with a test whose old main-checkout receipt passes from E(linked_wt) today",
   "note": "",
-  "owner": "",
-  "priority": 3,
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "impact HIGH: names 'red'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "command-run"
