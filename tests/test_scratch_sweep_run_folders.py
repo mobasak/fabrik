@@ -909,6 +909,22 @@ def test_refusal_set_names_the_run_folder_rule() -> None:
     assert "judged only by its .owner marker and the holder probe" in flat
 
 
+def test_retire_stamps_a_missing_created_so_its_promise_holds(
+    harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """D-900 review: `--retire` prints "removed after its grace", but a marker with no `created`
+    would read as an unvouched close and be kept for ever. The operator's retire is a trustworthy
+    clock, so it stamps `created` (only when the marker has none)."""
+    folder = _run_folder(_session(harness), "nocreated", "resumable")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    owner.pop("created")
+    (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--retire", folder.name)
+    assert rc == 0, out
+    after = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    assert after["created"] == NOW and after["closed_at"] == NOW, after
+
+
 def test_retire_marks_one_folder_done(harness: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """B11 / P12: `--retire` turns one resumable marker `done` (closed now) and changes nothing
     else; another session's folder, or a missing one, is refused."""

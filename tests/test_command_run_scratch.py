@@ -1185,3 +1185,30 @@ def test_a_heartbeat_never_raises(tmp_path: Path) -> None:
     """F-A3: a corrupted `run_scratch` (a NUL byte) never costs the verb its save."""
     cr = _load()
     cr._heartbeat({"run_scratch": "/tmp/has\x00null"})
+
+
+@pytest.mark.parametrize("before", ["garbage{", None, '{"state": "running", "created": "x"}'])
+def test_a_close_that_heals_a_marker_stamps_its_created(tmp_path: Path, before: str | None) -> None:
+    """D-900 review (W-de2c34c1): the close rewrites an unreadable, missing or `created`-less marker;
+    without a `created` the sweep reads the close as unvouched and keeps the folder for ever. The
+    runner's own close is the trustworthy clock, so the heal stamps `created` with the close time."""
+    folder = tmp_path / "run-k"
+    folder.mkdir()
+    if before is not None:
+        (folder / ".owner").write_text(before, encoding="utf-8")
+    cr._mark_run_scratch({"run_scratch": str(folder)}, "done", "s1")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    assert isinstance(owner.get("created"), float), owner
+    assert owner["created"] <= owner["closed_at"], owner
+
+
+def test_a_close_keeps_a_markers_own_created(tmp_path: Path) -> None:
+    """The heal never overwrites a real `created`: the sweep judges the close against it."""
+    folder = tmp_path / "run-k"
+    folder.mkdir()
+    (folder / ".owner").write_text(
+        json.dumps({"state": "running", "created": 1234.5}), encoding="utf-8"
+    )
+    cr._mark_run_scratch({"run_scratch": str(folder)}, "done", "s1")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    assert owner["created"] == 1234.5, owner

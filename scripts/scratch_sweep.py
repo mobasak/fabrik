@@ -493,7 +493,8 @@ def classify_run_folder(f: RunFacts, now: float) -> tuple[str, str]:
         return "active", "the marker's session differs from its directory"
     if f.state == "running":
         return "consumed", "running, but its session is dead and its heartbeat is stale"
-    return "consumed", f"done, closed {_human(now - (f.closed_at or now))} ago, past its grace"
+    closed_ago = now - f.closed_at if f.closed_at is not None else 0.0  # 0.0 is a time, not None
+    return "consumed", f"done, closed {_human(closed_ago)} ago, past its grace"
 
 
 # ── run-bound scratch: gathering the facts and consuming (plan Phase B, D3 and D4) ─────────────
@@ -735,8 +736,12 @@ def _close_is_vouched(created: object, closed_at: float, now: float) -> bool:
     Applied in `judge_run_folder`, never in `classify_run_folder`: the `.trash-*` path builds
     `closed_at` 0.0 by construction and would be kept for ever (INV-2). Cobra (D-253): the cheap
     way past it is to clobber or drop `created` too — so a missing or bad `created` is doubt as
-    well, mirroring `gap_keeps` (D-877/D-878). Residual (recorded in D-900): a co-clobber of
-    `created` 0 and `closed_at` 0 still reads as a past close.
+    well, mirroring `gap_keeps` (D-877/D-878). Residual, wider than D-900's row states (review of
+    b5c1abd69): ANY `closed_at` in [`created` − margin, now − grace] is believed, so a co-clobber
+    of both fields within the margin (created 0 / closed 0, or both -1e308) or a `closed_at`
+    backdated to `created` still reads as a past close. The writers that heal a marker
+    (`command_run._mark_run_scratch`, `_retire`) stamp a missing `created`, so a legitimate run
+    is never kept for ever by this rule.
     """
     if not isinstance(created, int | float) or isinstance(created, bool):
         return False
@@ -1075,7 +1080,13 @@ def _retire(root: Path, sid: str, name: str, cwd: str | None) -> int:
             f"REFUSED — {name} is {owner.get('state')!r}, not resumable; --retire ends a resume only"
         )
         return RC_REFUSED
-    owner.update({"state": "done", "closed_at": _now()})
+    now = _now()
+    created = owner.get("created")
+    if not isinstance(created, int | float) or isinstance(created, bool):
+        # without a `created` the close reads as unvouched (D-900) and the folder is kept for ever,
+        # which would make the line below a lie; the operator's retire is a trustworthy clock
+        owner["created"] = now
+    owner.update({"state": "done", "closed_at": now})
     if not write_owner(folder, owner):
         print(f"FAILED — cannot rewrite {folder / OWNER_NAME}")
         return RC_REFUSED

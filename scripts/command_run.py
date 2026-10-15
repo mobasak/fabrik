@@ -1700,10 +1700,17 @@ def _mark_run_scratch(rec: dict[str, Any], state: str, sid: str) -> None:
         if not folder.is_dir():  # raises PermissionError on an unenterable parent
             return
         owner = _read_owner(folder) or {}
+        now = time.time()
+        created = owner.get("created")
+        if not isinstance(created, int | float) or isinstance(created, bool):
+            # a heal from an unreadable or `created`-less marker: the sweep believes a close only
+            # against a creation time (D-900), so without one this folder would be kept for ever.
+            # The runner's own close is the trustworthy clock; a real `created` is never replaced.
+            owner["created"] = now
         owner.update(
             {
                 "state": state,
-                "closed_at": time.time(),
+                "closed_at": now,
                 "sid": sid,
                 "key": folder.name.removeprefix("run-"),
             }
