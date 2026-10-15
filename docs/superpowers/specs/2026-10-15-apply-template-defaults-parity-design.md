@@ -1,11 +1,11 @@
 # fabrik apply loads specs the way fabrik plan does — design
 
 Status: DRAFT
-Size: small (≈45 lines, 2 files)
+Size: small (≈45 code lines in 2 code files; besides them 4 spec YAML pins and 2 test files)
 Profile: delta
 
 Work item: W-989653a7. Decisions: D-733 (the approach, Opus + Fable panel 2026-10-09), D-907 (this spec's
-choice on D-733's open question). Research ledger: `docs/reference/research/2026-10-15-apply-template-defaults-ledger.md`.
+choice on D-733's open question), D-908 (apply merges the template's `shape:` block only). Research ledger: `docs/reference/research/2026-10-15-apply-template-defaults-ledger.md`.
 
 ## Personas
 
@@ -26,7 +26,7 @@ choice on D-733's open question). Research ledger: `docs/reference/research/2026
 ## Lifecycle
 
 Adoption: lands with the next merge; each spec feels it at its next `fabrik apply`. Growth: every new template
-`defaults.yaml` key reaches apply automatically; the parity grader (below) fails the build the day plan and apply
+`defaults.yaml` `shape:` key reaches apply automatically (other template keys stay plan-only, D-908); the parity grader (below) fails the build the day plan and apply
 disagree on any spec. Degradation: a missing or non-mapping `defaults.yaml` leaves the spec unchanged, as
 `spec_loader.load_spec` does today. Retirement: each pin is deleted by its owner once the endpoint it suppresses is
 verified; the helper retires only if apply moves onto the validated model (rejected alternative C).
@@ -41,7 +41,7 @@ verified; the helper retires only if apply moves onto the validated model (rejec
 | I4 | "the real specs whose apply result would change get explicit shape: pins" (D-733) | IN | § The delta D3 |
 | I5 | "OPEN for the spec: whether the pins also force-skip gatus" (D-733) | IN | § Decisions taken (D-907) |
 | I6 | "fabrik-file-worker gains backrest, which its spec was DESIGNED to inherit (keep)" (D-733) | IN | § Cost |
-| I7 | "template env:/resources:/health: defaults reach apply too, and compute_spec_hash changes (recorded only)" (D-733) | IN | § Cost |
+| I7 | "template env:/resources:/health: defaults reach apply too, and compute_spec_hash changes (recorded only)" (D-733) | IN | § Cost — changed by D-908: apply merges `shape:` only, so no env, resources or health default reaches apply |
 | I8 | "grader = plan/apply parity over every shapeless spec" (W-989653a7 `next`) | IN | § Validation (widened to every spec) |
 
 Intake: 8 items — 7 IN, 1 OUT-OF-SCOPE (I2, closed by D-822), 0 ASK.
@@ -88,24 +88,32 @@ DIFF translator.yaml {'gatus': 'apply=False plan=True', 'prometheus': 'apply=Fal
 - `src/fabrik/orchestrator/validator.py:331-343` — `load_and_validate` → `load_spec` → `validate` →
   `compute_spec_hash`; called by the orchestrator at `src/fabrik/orchestrator/__init__.py:137` and `:481`.
 - `src/fabrik/spec_loader.py:906-920` — `infra:` is the documented negative override (`<registrar>: false`).
-- `.fabrik/state/` holds no state file for any of the four live specs (`ls .fabrik/state`: 7 files, none of them).
+- `src/fabrik/orchestrator/deployer_ssh.py:898-903` — every `spec["env"]` key is written into the VPS `.env`.
+- The hub's state dir `/opt/fabrik/.fabrik/state` (`STATE_DIR`, `src/fabrik/state.py:97`) holds no state file for
+  any of the four live specs (`ls /opt/fabrik/.fabrik/state`: 11 files plus `_destroyed/`, none of them).
 
 ## The delta
 
-- **D1 — one merge helper.** `src/fabrik/spec_loader.py` gains `merge_template_defaults(raw, templates_dir=None)`:
-  the body of `load_spec`'s merge block, with `templates_dir` defaulting to `FABRIK_ROOT / "templates"`, and a
-  template name that resolves outside `templates_dir` merging nothing (the containment rule
-  `validator.py:250-256` already applies to templates). `load_spec` calls it; behaviour unchanged.
-- **D2 — apply uses it.** `SpecValidator.load_spec` (`validator.py:183-207`) returns
-  `merge_template_defaults(spec, self.templates_dir)` after its mapping check. `validate()` then runs on the merged
-  dict, as `resolve_applicability` documents.
+- **D1 — one merge helper.** `src/fabrik/spec_loader.py` gains `merge_template_defaults(raw, templates_dir=None,
+  keys=None)`: the body of `load_spec`'s merge block, with `templates_dir` defaulting to `FABRIK_ROOT / "templates"`,
+  `keys` limiting which top-level default keys merge (all when `None`), and a defaults file that resolves outside
+  `templates_dir` merging nothing (the escape `validator.py:250-258` already refuses for the template directory).
+  `load_spec` calls it with all keys; its behaviour is unchanged except that an escaping template now merges nothing.
+- **D2 — apply uses its shape half (D-908).** `SpecValidator.load_spec` (`validator.py:183-207`) returns
+  `merge_template_defaults(spec, self.templates_dir, keys=("shape",))` after its mapping check. The registrar
+  decision reads `shape`, `infra`, `domain`, `depends` and `watchdog` (`src/fabrik/orchestrator/infrastructure.py:225-453`),
+  and the 11 template `defaults.yaml` files set only `shape` (11), `env` (11), `resources` (2) and `health` (1), so
+  the shape merge alone gives registrar parity; `env`, `resources` and `health` stay as the file says, because the
+  deployer writes `env` into each app's `.env`. Invariant: `validate()` raises on the merged dict exactly when it
+  raises on the raw one.
 - **D3 — pins, so nothing new is provisioned on a live spec.** `shape.exposes_metrics: false` in
   `specs/services/translator.yaml`, `longephedia-vault.yaml`, `fabrik-citation-verifier.yaml`,
   `fabrik-claim-validator.yaml`, each with a one-line comment naming the evidence and the opt-in; translator also
   gets `infra: {gatus: false}` (D-907). Invariant: for those four specs the registrar set apply resolves after the
   change equals the set it resolves before.
 - **Invariant (all specs):** `resolve_applicability(SpecValidator().load_spec(p)) ==
-  resolve_applicability(destroyer._spec_to_dict(spec_loader.load_spec(p)))` for every `p` in `specs/services/`.
+  resolve_applicability(destroyer._spec_to_dict(spec_loader.load_spec(p)))` for every `p` in `specs/services/`,
+  reason strings included.
 
 ## Contract deltas
 
@@ -114,10 +122,12 @@ DIFF translator.yaml {'gatus': 'apply=False plan=True', 'prometheus': 'apply=Fal
 ## Chosen approach
 
 **B — shared helper; pin metrics everywhere and translator's Gatus.** Field practice computes ONE merged values
-object that every consumer reads: Helm documents `values.yaml` as the default under user values and "will coalesce
+object for the decision every consumer must agree on: Helm documents `values.yaml` as the default under user values and "will coalesce
 the default and overridden keys together" (ledger plan-4, plan-5), and its dry run renders from that same object;
 Terraform's apply "executes the operations proposed in a Terraform plan" (plan-1). A shared helper gives the same
-property here at the size of one function. When a default starts reaching configs that relied on its absence, the
+property here at the size of one function — for the registrar decision, the one plan and apply must agree on; the
+apply path takes only the `shape:` half because the rest of a template's defaults would reach each app's `.env`
+(D-908). When a default starts reaching configs that relied on its absence, the
 remedy is to set those values explicitly first — HashiCorp's own drift article: "Explicitly defined attributes that
 were previously relying on defaults" (pin-2). Hence the pins ship in the same change.
 
@@ -135,30 +145,40 @@ on this box can verify; C widens the blast radius to every key of every spec.
 - **A saved plan file that apply executes (Terraform's model, plan-2).** Rejected: a new artifact and verb for a
   divergence one shared function removes.
 - **Make plan honest, leave apply raw / refuse a spec with no `shape:`.** Rejected by D-733.
+- **Merge every template default on apply (D-733's literal wording).** Rejected by D-908: all 69 specs would gain
+  template `env:` keys that `deployer_ssh.py:898-903` writes into each app's `.env` — `gmail-account-creator` would
+  get file-worker's `JOB_TYPES`, the docker-image specs `evolution-api` and `zitadel` would get `LOG_LEVEL` — while
+  the shape-only merge reaches the same registrar parity with no env change (prototype: 69 specs, registrar diffs 0,
+  env changed 0, `validate()` outcome changed 0).
 
 ## Cost
 
-- Template `env:` defaults reach apply: the four live specs gain `PYTHONUNBUFFERED=1` (sidefx probe: no other env,
-  resources or health key changes for them), effective at the next container recreate.
+- No template `env:`, `resources:` or `health:` default reaches apply (D-908); the shape-only prototype changed the
+  `env` of 0 of 69 specs and the `validate()` outcome of 0.
 - fabrik-file-worker gains its backrest plan at its next apply (designed, D-733 "keep"); the ten test/gate fixtures
   provision what plan already shows.
-- `compute_spec_hash` changes for every templated spec; it is stored in state only (`src/fabrik/state.py:217`),
-  never compared.
+- `compute_spec_hash` changes for every spec whose template adds a `shape:` key it lacks; it is stored in state only
+  (`src/fabrik/state.py:217`), never compared.
 
 ## Validation
 
-- **Parity grader** over every spec in `specs/services/` (the invariant above), red today (15 diffs), green after.
+- **Parity grader** over every spec in `specs/services/` (the invariant above, reason strings included), red today
+  (15 diffs), green after; a raise from either loader fails it, never skips.
+- **validate() parity grader** over every spec: raw and merged dicts raise alike.
 - **Unit:** a shape-less spec loaded through `SpecValidator(templates_dir=<tmp with defaults.yaml>)` carries the
-  defaults' `shape`, the spec's own values win, and a template outside `templates_dir` merges nothing.
+  defaults' `shape` and none of their `env`, the spec's own values win, and a template outside `templates_dir`
+  merges nothing.
 - **Pin grader:** for the four live specs, the registrar set equals a frozen expectation (no gatus/prometheus for
   translator; no prometheus for the other three).
-- Each grader is watched red on a mutant (D2 reverted; a pin removed).
+- Each grader is watched red on a mutant (D2 reverted; `_deep_merge` arguments swapped; `keys=None`; a pin removed).
 
 ## Decisions taken
 
 - **D-907** — D-733's open question settled toward the reversible side: translator gets `infra: {gatus: false}`,
   so apply's registrar set for all four live specs stays as today until each owner opts in; the panel ranked this
   B > A > C unanimously.
+- **D-908** — apply merges the template's `shape:` block only, narrowing D-733's "same template-defaults merge as
+  plan": a full merge would write template `env:` into all 69 deployed `.env` files (found by plan-review round 1).
 
 ## External dependencies
 
@@ -185,7 +205,7 @@ Four `shape:`/`infra:` pins in `specs/services/` (D3); no scaffold type changes.
 
 ## Documentation landing sites
 
-`CHANGELOG.md` (Fixed); `docs/DECISIONS.md` D-907; the comments on each pin in `specs/services/`; this spec's
+`CHANGELOG.md` (Fixed); `docs/DECISIONS.md` D-907 and D-908; the comments on each pin in `specs/services/`; this spec's
 INDEX row. No new subsystem doc: the loader is already documented in `spec_loader.py`'s G-B1a comment.
 
 ## Constraints
