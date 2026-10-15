@@ -148,6 +148,24 @@ def test_done_lists_the_roles_merges_of_both_eras(tmp_path: Path) -> None:
     assert rows["intel"]["done"]["merges"] == []
 
 
+def test_done_finds_a_quiet_roles_merge_behind_many_commits(tmp_path: Path) -> None:
+    """A role that merged long ago still shows that merge: the log is filtered to merge subjects
+    BEFORE the commit limit applies, so 450 later non-merge commits cannot push it out of view."""
+    env, repo, _ = _setup(tmp_path)
+    _git(repo, env, "commit", "-q", "--allow-empty", "-m", "merge(coordinator): worktree-fleet — request 01OLD, item W-33333333")
+    head = _git(repo, env, "rev-parse", "HEAD").strip()
+    stream = []
+    for n in range(450):
+        msg = f"chore: filler {n}\n"
+        stream.append(f"commit refs/heads/master\ncommitter t <t@example.invalid> {1790000000 + n} +0000\n"
+                      f"data {len(msg)}\n{msg}" + (f"from {head}\n" if n == 0 else "") + "\n")
+    subprocess.run(["git", "fast-import", "--quiet", "--force"], cwd=repo, env=env, input="".join(stream),
+                   capture_output=True, text=True, check=True)
+    _git(repo, env, "reset", "-q", "--hard", "master")
+    fleet = _rows(repo, env)["fleet"]["done"]
+    assert [m["item"] for m in fleet["merges"]] == ["W-33333333"], fleet
+
+
 def test_next_is_the_roles_queue(tmp_path: Path) -> None:
     """NEXT is the set `work.py queue` counts: owned, not parked, not claimed — never another
     owner's or an unowned item — top 3 by priority, with the queue's size and the parked count."""

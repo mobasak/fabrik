@@ -13,7 +13,8 @@ recover it after losing context (operator 2026-10-15, D-880). Nothing here is st
          builder's back-merge of master; and the distinct items those subjects name in the last 24 h
          (a closed item carries no close time);
 - NEXT — the role's queue exactly as ``work.py queue`` counts it (``_worker_queues``), top 3, with
-         the queue's size and the role's parked count.
+         the queue's size and the role's parked items in the MAIN store (``work.py queue`` counts parked
+         in the worker's own tree, so a park not yet merged shows there first).
 
 The rows are the WORKERS: ``mail.py`` HUB_BEATS minus the store's distributor (the reader itself).
 ``--json`` prints the full data (the dashboard's Agents table, W-7159f8e2); ``--session-start`` is the
@@ -116,17 +117,19 @@ def _merges(main: Path, base: str, roles: list[str], now: float) -> dict[str, di
     seen: dict[str, set[str]] = {r: set() for r in roles}
     try:
         log = subprocess.run(
-            ["git", "-C", str(main), "log", base, "-n", "400", "--format=%h%x09%ct%x09%s"],
+            # filtered to merge subjects BEFORE the limit, so a quiet role's old merge stays in view
+            ["git", "-C", str(main), "log", base, "-E", "--grep=^merge\\(", "-n", "400",
+             "--format=%h%x09%ct%x09%s"],
             capture_output=True, text=True, timeout=5, check=True,
         ).stdout
     except (OSError, subprocess.SubprocessError):
         return out
+    # anchored on the branch name, so a builder's back-merge ("merge(x): origin/master into worktree-x")
+    # never matches, and a request whose text quotes that phrase is not dropped
     pats = {r: re.compile(rf"^merge\([a-z0-9-]+\): worktree-{re.escape(r)}(?:\s|$)") for r in roles}
     for line in log.splitlines():
         sha, _, rest = line.partition("\t")
         ct, _, subject = rest.partition("\t")
-        if "origin/master into" in subject or " into worktree-" in subject:
-            continue  # a builder's back-merge of master is not a completion
         for role, rx in pats.items():
             if not rx.match(subject):
                 continue
