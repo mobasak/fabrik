@@ -706,6 +706,8 @@ def test_a_non_finite_marker_time_is_doubt_never_consumed(
         ({"created": "yesterday"}, True),
         ({"created": True}, True),
         ({"created": NOW + 2 * DAY}, True),  # created in the future
+        ({"closed_at": NOW - 50 * HOUR - 300}, False),  # exactly the clock margin before created
+        ({"closed_at": NOW - 50 * HOUR - 301}, True),  # one second past it
     ],
     ids=[
         "control",
@@ -715,6 +717,8 @@ def test_a_non_finite_marker_time_is_doubt_never_consumed(
         "created-text",
         "created-bool",
         "created-future",
+        "margin-edge-vouched",
+        "margin-edge-past",
     ],
 )
 def test_a_close_time_the_marker_cannot_vouch_for_is_doubt(
@@ -1503,6 +1507,23 @@ def test_the_report_names_no_trash_and_flags_a_markerless_age(harness: Path) -> 
     report = json.loads(Path(os.path.expanduser(sw.SIZE_REPORT_PATH)).read_text(encoding="utf-8"))
     named = {Path(r["path"]).name for r in report["run_folders"]}
     assert trash.name not in named and nocreated.name in named, report
+
+
+def test_the_report_names_a_done_folder_whose_close_cannot_be_vouched_for(harness: Path) -> None:
+    """D-900's cost made visible (review of b5c1abd69): a `done` folder whose close the marker
+    cannot vouch for is kept by every sweep, so the size report names it with its remedy; a sane
+    `done` folder past its grace is the sweep's to remove, not advice."""
+    sdir = _session(harness)
+    unvouched = _run_folder(sdir, "unvouched")
+    owner = json.loads((unvouched / ".owner").read_text(encoding="utf-8"))
+    owner["closed_at"] = 0
+    (unvouched / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    sane = _run_folder(sdir, "sane")
+    sw.write_size_report([sdir], [], NOW)
+    report = json.loads(Path(os.path.expanduser(sw.SIZE_REPORT_PATH)).read_text(encoding="utf-8"))
+    flagged = {Path(r["path"]).name: r for r in report["run_folders"]}
+    assert unvouched.name in flagged and "vouch" in flagged[unvouched.name]["why"], report
+    assert sane.name not in flagged, report
 
 
 @pytest.mark.parametrize("generated", [NOW + 1e9, float("nan"), "yesterday"])

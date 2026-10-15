@@ -745,6 +745,14 @@ def _close_is_vouched(created: object, closed_at: float, now: float) -> bool:
     return closed_at >= created - GAP_CLOCK_MARGIN_S
 
 
+def _done_close_is_vouched(owner: dict, now: float) -> bool:
+    """A `done` marker's close, as `judge_run_folder` reads it: numeric (not a bool) AND vouched."""
+    closed = owner.get("closed_at")
+    if not isinstance(closed, int | float) or isinstance(closed, bool):
+        return False
+    return _close_is_vouched(owner.get("created"), float(closed), now)
+
+
 def judge_run_folder(
     folder: Path,
     sid: str,
@@ -1275,6 +1283,17 @@ def write_size_report(sid_dirs: list[Path], run_rows: list[Row], now: float) -> 
                         "state": state,
                         "why": why,
                         "action": action,
+                    }
+                )
+            elif state == "done" and not _done_close_is_vouched(owner, now):
+                # D-900's cost made visible: every sweep keeps this folder (INV-1), so name it
+                flagged.append(
+                    {
+                        "path": str(folder),
+                        "sid": sdir.name,
+                        "state": state,
+                        "why": "done, but its close time cannot be vouched for (D-900) — kept by every sweep",
+                        "action": f"inspect, then remove by hand: rm -rf {folder}",
                     }
                 )
             elif str(folder) in worktree_kept:
