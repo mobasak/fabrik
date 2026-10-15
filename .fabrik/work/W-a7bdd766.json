@@ -3,7 +3,7 @@
   "created": "2026-10-15T06:29:45.224699Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "17d3b0b02ab959fff58cbef2d824c99909861239",
   "id": "W-a7bdd766",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "Operator-flagged scratch-lifecycle gap (2026-10-15, 'asap'); lock released at 5ee0ea96f; fleet-3b's critiqued design ready",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
