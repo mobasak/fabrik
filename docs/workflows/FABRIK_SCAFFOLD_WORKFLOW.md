@@ -44,7 +44,7 @@ Fabrik is a **spec-driven deployment automation** system that:
 
 1. **Scaffolds** new projects with standardized structure
 2. **Generates** deployment specs from templates
-3. **Deploys** to Coolify via Docker Compose
+3. **Deploys** over SSH via Docker Compose
 4. **Validates** projects against Fabrik standards
 5. **Manages** DNS, monitoring, and secrets
 
@@ -73,12 +73,12 @@ Fabrik is a **spec-driven deployment automation** system that:
          → see @/opt/fabrik/docs/DEPLOYMENT_ARCHITECTURE.md (canonical deploy reference)
 
 Drivers used by the orchestrator (src/fabrik/drivers/):
-  CoolifyClient  DNSClient (DNS Manager primary, Cloudflare fallback)
+  DNSClient (DNS Manager primary, Cloudflare fallback)
   + per-registrar drivers: postgres, gatus, backrest, glitchtip,
     grafana, authelia, meilisearch (see _REGISTRAR_ORDER in
     src/fabrik/orchestrator/infrastructure.py)
 
-Deployment target:  Coolify on VPS (Docker Compose) behind Traefik
+Deployment target:  VPS (SSH + Docker Compose) behind Traefik
 Observability:      Prometheus + Grafana + Loki + Alertmanager + Gatus
                     (see docs/reference/health-monitoring.md)
 ```
@@ -91,7 +91,7 @@ Observability:      Prometheus + Grafana + Loki + Alertmanager + Gatus
 
 ```
 Does it need to run continuously (24/7)?
-├── YES → Container (Dockerfile + compose.yaml + Coolify)
+├── YES → Container (Dockerfile + compose.yaml)
 │   ├── Listens on port? → Service (API, web app)
 │   └── Processes queue? → Worker
 └── NO  → No container
@@ -103,35 +103,35 @@ Does it need to run continuously (24/7)?
 
 | Type | Runtime | Runs 24/7 | Container | Deploy Method |
 |------|---------|-----------|-----------|---------------|
-| `python-api` | Python | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
-| `python-api-gpu` | Python | ✅ Yes | ✅ Yes | GPU-aware `python-api` variant (hooks `gpu_rent` into the job handler); `fabrik apply` → Coolify |
-| `node-api` | Node.js | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
-| `file-api` | Node.js | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
-| `file-worker` | Python | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
-| `saas-skeleton` | TypeScript | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
+| `python-api` | Python | ✅ Yes | ✅ Yes | `fabrik apply` |
+| `python-api-gpu` | Python | ✅ Yes | ✅ Yes | GPU-aware `python-api` variant (hooks `gpu_rent` into the job handler); `fabrik apply` |
+| `node-api` | Node.js | ✅ Yes | ✅ Yes | `fabrik apply` |
+| `file-api` | Node.js | ✅ Yes | ✅ Yes | `fabrik apply` |
+| `file-worker` | Python | ✅ Yes | ✅ Yes | `fabrik apply` |
+| `saas-skeleton` | TypeScript | ✅ Yes | ✅ Yes | `fabrik apply` |
 | `wordpress` | PHP | ✅ Yes | ✅ Yes | Scaffold skeleton only — deploy via separate `/opt/wpf/` (`wpf` CLI); `fabrik apply` errors/redirects. Preset: `saas`/`company`/`content`/`landing`/`ecommerce` |
 | `docusaurus` | TypeScript | ❌ No | ❌ No | Static host |
-| `chrome-extension` | TypeScript | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify (backend) + Chrome Web Store (extension) |
-| `mobile-app` | TypeScript | ✅ Yes (backend) | ✅ Yes (backend) | Ships an Expo/RN client (App Stores) **AND** a bundled minimal FastAPI backend (`server/`, Pattern-A) that DOES deploy via `fabrik apply` → Coolify — mirrors `chrome-extension` (`scaffold.py:4878-4890`) |
+| `chrome-extension` | TypeScript | ✅ Yes | ✅ Yes | `fabrik apply` (backend) + Chrome Web Store (extension) |
+| `mobile-app` | TypeScript | ✅ Yes (backend) | ✅ Yes (backend) | Ships an Expo/RN client (App Stores) **AND** a bundled minimal FastAPI backend (`server/`, Pattern-A) that DOES deploy via `fabrik apply` — mirrors `chrome-extension` (`scaffold.py:4878-4890`) |
 | `desktop-app` | TypeScript | ❌ No | ❌ No | Direct dist |
-| `static-site` | TypeScript | ✅ Yes | ✅ Yes | `fabrik apply` → Coolify |
+| `static-site` | TypeScript | ✅ Yes | ✅ Yes | `fabrik apply` |
 
 ### Per-Type Scaffold Details
 
 | Type | Runtime | Container | Key Dirs | Deploy |
 |------|---------|-----------|----------|--------|
-| `python-api` | Python | ✅ | `src/`, `tests/` | Coolify |
-| `python-api-gpu` | Python | ✅ | `src/`, `tests/` (+ `gpu_rent` job-handler hook) | Coolify |
-| `node-api` | Node.js | ✅ | `src/` | Coolify |
-| `file-api` | Node.js | ✅ | `src/` | Coolify |
-| `file-worker` | Python | ✅ | `worker/` | Coolify |
-| `saas-skeleton` | TypeScript | ✅ | `app/`, `components/`, `lib/` | Coolify |
+| `python-api` | Python | ✅ | `src/`, `tests/` | Compose |
+| `python-api-gpu` | Python | ✅ | `src/`, `tests/` (+ `gpu_rent` job-handler hook) | Compose |
+| `node-api` | Node.js | ✅ | `src/` | Compose |
+| `file-api` | Node.js | ✅ | `src/` | Compose |
+| `file-worker` | Python | ✅ | `worker/` | Compose |
+| `saas-skeleton` | TypeScript | ✅ | `app/`, `components/`, `lib/` | Compose |
 | `wordpress` | PHP | ✅ | `plugins/`, `themes/`, `backup/` | Scaffold only — deploy via `/opt/wpf/` (`wpf` CLI). Preset: `saas`/`company`/`content`/`landing`/`ecommerce` |
 | `docusaurus` | TypeScript | ❌ | `docs/`, `openapi.yaml`, `src/css/` | Static host |
-| `chrome-extension` | TypeScript | ✅ | `extension/`, `server/` | Coolify (backend) + Chrome Web Store (extension) |
-| `mobile-app` | TypeScript | ✅ (backend) | `src/navigation/`, `src/features/`, `server/` | App stores (client) + Coolify (bundled FastAPI backend, mirrors `chrome-extension`) |
+| `chrome-extension` | TypeScript | ✅ | `extension/`, `server/` | Compose (backend) + Chrome Web Store (extension) |
+| `mobile-app` | TypeScript | ✅ (backend) | `src/navigation/`, `src/features/`, `server/` | App stores (client) + Compose (bundled FastAPI backend, mirrors `chrome-extension`) |
 | `desktop-app` | TypeScript | ❌ | `electron/` | Direct dist |
-| `static-site` | TypeScript | ✅ | `app/`, `components/`, `lib/` | Coolify |
+| `static-site` | TypeScript | ✅ | `app/`, `components/`, `lib/` | Compose |
 
 #### Per-Type Directory Structures
 
@@ -163,7 +163,7 @@ app/   components/   lib/   Dockerfile   compose.yaml   package.json   tailwind.
 **`wordpress`** — WordPress site (preset selects theme/plugin bundle; no Dockerfile — uses official `wordpress` image via Compose):
 ```
 plugins/   themes/   backup/   config/preset.yaml
-compose.yaml.j2   compose-coolify.yaml.j2   wp-config-extra.php   .env.example
+compose.yaml.j2   wp-config-extra.php   .env.example
 ```
 
 **`docusaurus`** — Documentation site with OpenAPI docs (no container):
@@ -620,18 +620,10 @@ fabrik plan <spec.yaml> [-s KEY=VALUE]
 # /opt/<project>/project.yaml in cwd (routes WordPress vs. service).
 fabrik apply [<spec.yaml>] \
   [-s KEY=VALUE]            # multiple secrets, KEY=VALUE format
-  [--yes]                   # skip confirmation prompt
+  [--yes]                   # accepted, never prompts
   [--dry-run]               # simulate without making changes
-  [--skip-dns]              # skip DNS record creation
-  [--skip-deploy]           # render files only, skip Coolify deploy
-  [--use-orchestrator]      # DEPRECATED, hidden, no-op: the orchestrator pipeline has been the
-                             #   default since 2026-05-05 (G1) — kept only for backward compatibility
-  [--legacy]                # G1 escape hatch: OPT OUT of the orchestrator back to the
-                             #   pre-orchestrator pipeline (render + DNS + deploy_to_coolify only,
-                             #   skips GlitchTip/Gatus/Authelia/Backrest/Meilisearch/Grafana/Postgres
-                             #   registrars). Do NOT use for new deploys.
   [--skip-health-check]     # skip verifier HTTP probe
-  [--keep-on-failure]       # B27: leave Coolify app + DNS + GlitchTip etc. on failure (proof-run / debugging)
+  [--keep-on-failure]       # B27: leave the compose stack + DNS + GlitchTip etc. on failure (proof-run / debugging)
   [--target-vps vps1|vps2|vps3]  # W-Multi M4: override the spec's target_vps for this run
 
 # Status
@@ -640,14 +632,15 @@ fabrik status <spec.yaml>
 # Logs (NOTE: two distinct commands)
 fabrik logs <service> [-n <tail>] [--since <range>]   # Loki query by service name (1h, 24h, 7d)
 
-# Redeploy a Coolify app by name or UUID (no spec needed)
+# Redeploy an app by name (no spec needed)
 fabrik redeploy <app> [--force]
 
 # Remove deployment
 fabrik destroy <spec.yaml> \
   [--yes]                   # skip confirmation
   [--keep-dns]              # keep DNS records
-  [--keep-files]            # keep generated files (compose.yaml, Dockerfile, etc.)
+  [--partial <registrar>]   # surgical un-registration of one registrar (repeatable)
+  [--use-state]             # tear down what the state record says was registered
   [--drop-data]             # also DROP per-service Postgres DB and DELETE MeiliSearch index (off by default)
   [--dry-run]               # plan only; mutate nothing
 ```
@@ -714,7 +707,7 @@ fabrik seo    site-register | ...                    # SEO service (keyword rese
 
 > **`chrome-extension` and `mobile-app` ARE in `SPEC_ENABLED_TYPES`** (added since the "packaged artifacts" framing below was written) — both bundle a deployable FastAPI backend (port 8000, `/health`): `chrome-extension`'s `server/` and `mobile-app`'s `server/` (`scaffold.py:4878-4890`) each get their own `specs/services/<name>.yaml` for that backend. Only the packaged client artifact (the extension `.zip` / the App Store build) is out-of-spec — the backend is a normal VPS deploy.
 >
-> **Excluded by design:** `wordpress` (no longer scaffolds in Fabrik — `fabrik scaffold --type wordpress` redirects to the standalone `/opt/wpf/` project, `wpf` CLI, per-site `specs/sites/<domain>.yaml`; `fabrik apply` on a `wordpress`-type project errors/redirects to `wpf`) and `desktop-app` (a genuinely packaged, direct-distribution artifact with no server component — emitting a spec for it would create a phantom DNS record + Coolify app on every `fabrik apply`).
+> **Excluded by design:** `wordpress` (no longer scaffolds in Fabrik — `fabrik scaffold --type wordpress` redirects to the standalone `/opt/wpf/` project, `wpf` CLI, per-site `specs/sites/<domain>.yaml`; `fabrik apply` on a `wordpress`-type project errors/redirects to `wpf`) and `desktop-app` (a genuinely packaged, direct-distribution artifact with no server component — emitting a spec for it would create a phantom DNS record + compose stack on every `fabrik apply`).
 
 **How it works:**
 1. After `fabrik scaffold` completes, `create_project()` calls `generate_and_save_spec()`
@@ -766,14 +759,14 @@ Members of `SCAFFOLD_TYPES` (`@/opt/fabrik/src/fabrik/scaffold.py:138-152`, 12 e
 
 | Template | Language | Use Case | VPS Deploy? | Spec Auto-Generated? |
 |----------|----------|----------|-------------|-----------------------|
-| `python-api` | Python | FastAPI REST APIs | ✅ Coolify | ✅ |
-| `python-api-gpu` | Python | GPU-aware `python-api` variant (`gpu_rent` job-handler hook) | ✅ Coolify | ✅ |
-| `node-api` | Node.js | Express/Fastify APIs | ✅ Coolify | ✅ |
-| `file-api` | Node.js | File handling APIs (S3/local) | ✅ Coolify | ✅ |
-| `file-worker` | Python | Background file processors (queue consumer, no HTTP) | ✅ Coolify (Kind.WORKER) | ✅ |
-| `saas-skeleton` | TypeScript | Full SaaS applications (Next.js + Tailwind) | ✅ Coolify | ✅ |
-| `static-site` | TypeScript | Static websites (Next.js + Tailwind) | ✅ Coolify | ✅ |
-| `docusaurus` | TypeScript | Documentation sites with OpenAPI | ✅ Coolify (static host) | ✅ |
+| `python-api` | Python | FastAPI REST APIs | ✅ SSH + Compose | ✅ |
+| `python-api-gpu` | Python | GPU-aware `python-api` variant (`gpu_rent` job-handler hook) | ✅ SSH + Compose | ✅ |
+| `node-api` | Node.js | Express/Fastify APIs | ✅ SSH + Compose | ✅ |
+| `file-api` | Node.js | File handling APIs (S3/local) | ✅ SSH + Compose | ✅ |
+| `file-worker` | Python | Background file processors (queue consumer, no HTTP) | ✅ SSH + Compose (Kind.WORKER) | ✅ |
+| `saas-skeleton` | TypeScript | Full SaaS applications (Next.js + Tailwind) | ✅ SSH + Compose | ✅ |
+| `static-site` | TypeScript | Static websites (Next.js + Tailwind) | ✅ SSH + Compose | ✅ |
+| `docusaurus` | TypeScript | Documentation sites with OpenAPI | ✅ SSH + Compose (static host) | ✅ |
 | `wordpress` | PHP | WordPress sites (preset: saas/company/content/landing/ecommerce) | Scaffold skeleton only — deploy via separate `/opt/wpf/` (`wpf` CLI, `specs/sites/<domain>.yaml`); `fabrik apply` errors/redirects | ❌ (deploy is out of Fabrik) |
 | `chrome-extension` | TypeScript | Browser extensions + FastAPI backend | ✅ backend only via `fabrik apply` (SSH + Docker Compose); extension → Chrome Web Store | ✅ (backend only) |
 | `mobile-app` | TypeScript | React Native apps + bundled FastAPI backend | ✅ backend only via `fabrik apply` (mirrors `chrome-extension`); RN client → App Stores | ✅ (backend only) |
@@ -1044,7 +1037,7 @@ fabrik validate /opt/my-project
 ### 4. Deploy
 
 ```bash
-# Services → Coolify
+# Services → SSH + Docker Compose
 fabrik apply specs/my-api.yaml -s API_KEY=xxx
 
 # Libraries/Tools → Direct sync
@@ -1209,12 +1202,12 @@ All CLI commands implemented in `@/opt/fabrik/src/fabrik/cli.py`. Counts and sig
 
 | Command | Description |
 |---------|-------------|
-| `fabrik apply [<spec_path>]` | Deploy from a spec, or (if `spec_path` omitted) resolve from `project.yaml` in cwd. The orchestrator pipeline is the default since 2026-05-05 (G1) — `--use-orchestrator` is a deprecated, hidden no-op kept for backward compat; `--legacy` opts OUT back to the pre-orchestrator pipeline. `--keep-on-failure` for proof-runs. WordPress redirects to the `wpf` CLI. |
+| `fabrik apply [<spec_path>]` | Deploy from a spec, or (if `spec_path` omitted) resolve from `project.yaml` in cwd. The orchestrator pipeline is the only path (the former `--skip-dns`, `--skip-deploy`, `--legacy` and `--use-orchestrator` flags were removed); `--yes` is accepted and never prompts. `--keep-on-failure` for proof-runs. WordPress redirects to the `wpf` CLI. |
 | `fabrik plan <spec>` | Preview deployment (dry run) |
-| `fabrik status <spec>` | Check deployment status (Coolify + DNS + cert) |
+| `fabrik status <spec>` | Check deployment status (last apply from the state record + a live container probe over SSH) |
 | `fabrik logs <service>` | Loki query by service name (`-n`, `--since 1h\|24h\|7d`) |
-| `fabrik redeploy <app>` | Trigger Coolify redeploy by app name or UUID (`--force`) |
-| `fabrik destroy <spec>` | Remove deployment (`--keep-dns`, `--keep-files`, `--drop-data`, `--dry-run`) |
+| `fabrik redeploy <app>` | Redeploy an app by name (`--force`) |
+| `fabrik destroy <spec>` | Remove deployment (`--keep-dns`, `--drop-data`, `--dry-run`, `--partial`, `--use-state`; local project files are never deleted) |
 | `fabrik verify <domain>` | Verify deployed service end-to-end (`-s`, `-a`, `--no-rollback`) |
 
 ### Command Groups

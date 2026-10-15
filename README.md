@@ -6,7 +6,7 @@
 
 Fabrik is three things:
 
-1. **A deployment CLI** — takes a YAML spec (`specs/services/<id>.yaml`) with a `shape:` block and runs the full lifecycle: scaffold → plan → apply → verify. 9 registrars (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus) fire automatically based on shape flags. Saga-pattern orchestrator with rollback. 11 scaffold types. 20+ drivers (Cloudflare, Backrest, R2, Supabase as an exception only, etc., plus archived legacy Coolify modules retained for `fabrik status` / `fabrik logs` against the few pre-2026-05-30 services).
+1. **A deployment CLI** — takes a YAML spec (`specs/services/<id>.yaml`) with a `shape:` block and runs the full lifecycle: scaffold → plan → apply → verify. 9 registrars (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus) fire automatically based on shape flags. Saga-pattern orchestrator with rollback. 11 scaffold types. 20+ drivers (Cloudflare, Backrest, R2, Supabase as an exception only, etc.; the Coolify modules were removed at 9c02e8c86, and `fabrik status` / `fabrik logs` run over SSH and Loki).
 
 2. **An AI development workflow** — Claude Code (the VS Code extension and the CLI) is the development agent from idea to release (D-514). Every stage is a `/fabrik-*` command from the corpus (`commands/_sources/`, rendered box-wide): spec → spec review → plan → plan review → execute, with `/fabrik-review` (or `/fabrik-review-scoped` for a small change) reviewing every code change and `scripts/final_gate.py --json` as the completion gate. The Stop hook holds a session until its work is gated, committed and pushed. OpenRouter agents are a possible later option; that pool is paused (D-181/D-182).
 
@@ -53,7 +53,7 @@ instead. The full picture, sessions and gates included, is the
 | **WordPress** | WordPress Automation | 2,500+ | Theme, pages, SEO, analytics, multilingual, content generation |
 | **Content Pipeline** | ContentPublisher | ~600 | SEO brief-drain → TCO generation → Image Broker → WordPress publish |
 | **CLI** | Fabrik CLI | 828 | Commands: new, plan, apply, status, templates, scaffold, content publish |
-| **Drivers** | External Integrations | 3,000+ | SSH+Compose (deployer_ssh), Cloudflare, Namecheap, R2, Supabase (exception only), WordPress API, SEO service, TCO, Image Broker (legacy Coolify modules retained for `fabrik status`/`logs`) |
+| **Drivers** | External Integrations | 3,000+ | SSH+Compose (deployer_ssh), Cloudflare, Namecheap, R2, Supabase (exception only), WordPress API, SEO service, TCO, Image Broker |
 | **Templates** | 18 Project Templates | - | SaaS skeleton, APIs, WordPress, workers, Chrome extensions |
 
 **Total Production Code:** 13,565 lines
@@ -556,7 +556,7 @@ fabrik import /tmp/vps1-base.tar.gz                      # dry-run plan on targe
 fabrik import /tmp/vps1-base.tar.gz --apply              # stubbed real run (import path untested in epic)
 ```
 
-Bundle contents: `specs/`, `.fabrik/state/` (UUIDs stripped), monitoring configs, Authelia + Backrest configs, redacted `.env` key list, restore README. **Security invariants** (test-enforced): NO plaintext secret values, NO infrastructure UUIDs, NO private-key references in the bundle. Import is shipped untested in this epic — real roundtrip lands with vps2 stand-up. Live sample: 44 KB tarball, 26 apps, 348 redacted keys, zero UUID leaks. (Pre-2026-05-30 bundles also stripped Coolify Applications + Services + Projects; that path is archived in `deployer_coolify.py`.)
+Bundle contents: `specs/`, `.fabrik/state/` (UUIDs stripped), monitoring configs, Authelia + Backrest configs, redacted `.env` key list, restore README. **Security invariants** (test-enforced): NO plaintext secret values, NO infrastructure UUIDs, NO private-key references in the bundle. Import is shipped untested in this epic — real roundtrip lands with vps2 stand-up. The original sample run (before the Coolify retirement) produced a 44 KB tarball with 348 redacted keys and zero UUID leaks. (Pre-2026-05-30 bundles also stripped Coolify Applications + Services + Projects; that code was deleted at 9c02e8c86.)
 
 ### 5. State-Driven Destroy (T4-02)
 

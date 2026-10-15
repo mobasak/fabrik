@@ -167,7 +167,7 @@ cat specs/services/<name>.yaml | grep -A2 '^health:'
 Then re-run with `--keep-on-failure` to leave the container alive for inspection:
 
 ```bash
-fabrik apply specs/services/<name>.yaml --use-orchestrator --keep-on-failure --yes
+fabrik apply specs/services/<name>.yaml --keep-on-failure --yes
 curl -fsS https://<name>.vps1.ocoron.com/api/health   # verify path manually
 ```
 
@@ -183,7 +183,7 @@ If the manual curl succeeds but the orchestrator still 404s, the verifier is rea
 
 **Cause:** Multi-stage Node builds (`docusaurus`, `saas-skeleton`) take 60–90s during which the container reports `exited:unhealthy` (old container removed, new one not yet running; pre-2026-05-30 this was visible as Coolify reporting `exited:unhealthy`). Pre-2026-04-28 the orchestrator's `terminal_grace_period` was 30s — it gave up before the new container even started. Fixed in B46 (now 180s).
 
-**Where this lived:** `terminal_grace_period` and `_wait_for_app_status` exist only in the retired `src/fabrik/orchestrator/deployer_coolify.py` (line 564) — there is no `deployer.py` in this repo, and the active `deployer_ssh.py` has no equivalent grace-period tunable.
+**Where this lived:** `terminal_grace_period` and `_wait_for_app_status` existed only in the retired `deployer_coolify.py`, removed at 9c02e8c86 (the Coolify retirement) — there is no `deployer.py` in this repo, and the active `deployer_ssh.py` has no equivalent grace-period tunable.
 
 ### Port Already in Use
 
@@ -199,13 +199,13 @@ If the manual curl succeeds but the orchestrator still 404s, the verifier is rea
 
 > **⚠️ Legacy-Coolify-era troubleshooting, retained for archaeology.** The quoted fail-fast
 > message and its B7 preflight check belonged to the retired Coolify orchestrator
-> (`deployer_coolify.py`) — the active `deployer_ssh.py` has no such preflight and never emits
+> (`deployer_coolify.py`, removed at 9c02e8c86) — the active `deployer_ssh.py` has no such preflight and never emits
 > this message, so this symptom cannot recur under the current deployer. The scaffold-time git
 > remote detection described below is still current and still worth checking.
 
 **Symptom:** `fabrik apply specs/services/<name>.yaml` fail-fasts before deploying with the message `source.type is 'template' (not 'git'). Coolify's inline-compose endpoint has no source for 'build:' to consume — the build will never run.`
 
-**Cause:** The project has no git remote. `spec_generator.detect_git_source()` (`src/fabrik/spec_generator.py` line 296) runs `git -C <project> remote get-url origin` with 5s timeout at scaffold time. Without a remote, the emitted spec keeps `source.type: template`. Under the retired Coolify orchestrator this tripped a B7 preflight that lived in `deployer_coolify.py`; the active `deployer_ssh.py` has no equivalent check. A `WARNING` is still logged at scaffold time (`spec_generator.py` around line 429): *"No git remote configured at `<path>` — emitting source.type=template..."* (older versions of the warning said "Coolify deploy").
+**Cause:** The project has no git remote. `spec_generator.detect_git_source()` (`src/fabrik/spec_generator.py` line 381) runs `git -C <project> remote get-url origin` with 5s timeout at scaffold time. Without a remote, the emitted spec keeps `source.type: template`. Under the retired Coolify orchestrator this tripped a B7 preflight that lived in `deployer_coolify.py` (removed at 9c02e8c86); the active `deployer_ssh.py` has no equivalent check. A `WARNING` is still logged at scaffold time (`spec_generator.py` around line 548): *"No git remote configured at `<path>` — emitting source.type=template..."* (older versions of the warning said "Coolify deploy").
 
 **Fix:** Add a remote and re-emit the spec.
 

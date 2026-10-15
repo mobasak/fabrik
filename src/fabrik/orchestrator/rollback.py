@@ -110,14 +110,13 @@ class RollbackManager:
         * ``meilisearch`` — **destructive-no-op by policy.** Index data
           may be populated; operator runs ``fabrik meili drop`` manually.
 
+        Every handler, the legacy ``dns`` one included, is best-effort: a
+        failed driver call is logged, not raised (the Coolify handler, the
+        one that raised, was retired), so one broken handler never aborts
+        the reverse-order walk.
+
         Args:
             resource: Resource record to rollback
-
-        Raises:
-            Exception: If rollback fails (only for the legacy ``dns``
-            type; Phase-4 registrar handlers are best-effort and
-            swallow exceptions internally so one broken handler never
-            aborts the reverse-order walk).
         """
         logger.info(
             "Rolling back %s: %s",
@@ -234,11 +233,8 @@ class RollbackManager:
     # src/fabrik/orchestrator/infrastructure.py). All handlers are
     # best-effort: they log and swallow driver exceptions so that a
     # single broken handler cannot abort the reverse-order walk.
-    # This is a deliberate contrast with _rollback_dns above, which
-    # raises RollbackError — that is a hard-stop because a lingering
-    # DNS record is a billable/visible resource, whereas a lingering
-    # Gatus endpoint or Authelia rule is a config-level artefact the
-    # operator can clean up later.
+    # _rollback_dns above is best-effort too: a record that is already
+    # gone or a failed delete logs a warning (rollback stays idempotent).
     # =========================================================================
 
     def _rollback_postgres(self, resource: ResourceRecord) -> None:

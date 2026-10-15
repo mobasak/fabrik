@@ -106,3 +106,33 @@ def test_the_appetite_rule_says_check_plan_tickets_takes_a_plan_set_only() -> No
         " `final_gate.py --systemic` and as a WARN while the plan is DRAFT/PLANNED, so a monolith's lines are"
         " self-checked."
     ) in text
+
+
+def test_a_behaviour_change_censuses_its_readers_in_both_plan_commands() -> None:
+    """Row 1792020627, a recurrence of held census-by-call-site and enumerate-all-callers-with-count: a plan that
+    changes shared behaviour lists every production reader, path-injected ones included, and the review re-runs it."""
+    flat = _flat()
+    i = flat.index("## Phase 1 — Ground every claim BEFORE writing")
+    phase1 = flat[i : flat.index("## Phase 2", i)]
+    for needle in (
+        "census its production readers before any step that changes it",
+        # a reader that names the file by a bare basename (a manifest list) is missed by a path grep
+        "a grep of its name, its file's basename and its path for the path-injected and string readers",
+        # the manifest is hub-only; a project reads its own lock
+        "the hub's `fabrik_synced_manifest.py --list`; a project's `.fabrik/synced.lock`",
+        # the cobra: a census typed from memory
+        "its command and output cited in the plan's Evidence",
+        "; its readers and the tests that pin the old behaviour in File Scope or named as untouched",
+    ):
+        assert needle in phase1, needle
+    review = re.sub(
+        r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
+    )
+    assert (
+        "**Reader census (the mirror of the consumer audit)** — for every existing function or value whose"
+        " behaviour the plan changes, the plan carries `/fabrik-plan-after-chat` Phase 1's reader census"
+    ) in review
+    assert (
+        "A seat re-runs that census; a reader it finds that the plan does not name is a defect."
+        in review
+    )

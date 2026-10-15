@@ -212,7 +212,6 @@
 - [scripts/gen_dashboard.py](../INDEX.md) (owner: infra): Render the external-services registry (fabrik_services) as a self-contained HTML dashboard.
 - [scripts/generate_capability_index.py](../INDEX.md) (owner: infra): Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
 - [scripts/generate_vps_inventory.py](../INDEX.md) (owner: infra): Generate the VPS container inventory table for vps-complete-inventory.md.
-- [scripts/health_check_autonomous.py](../INDEX.md) (owner: infra): FABRIK_ROOT = Path(os.getenv("FABRIK_ROOT", "/opt/fabrik"))
 - [scripts/health_checker.py](../INDEX.md) (owner: infra): Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
 - [scripts/health_summary.py](../INDEX.md) (owner: infra): Scan /opt/* project directories and report health status.
 - [scripts/implement_self_review_workflow.py](../INDEX.md) (owner: infra): Implement Complete Traycer→Kilo Self-Review Workflow
@@ -231,7 +230,6 @@
 - [scripts/lint_fix_agent.py](../INDEX.md) (owner: infra): Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
 - [scripts/mail.py](../INDEX.md) (owner: infra): fabrik-mail — durable hub↔project AI message store + protocol (stdlib-only).
 - [scripts/merge_request.py](../INDEX.md) (owner: infra): merge_request — finishing work in a linked worktree sends ONE merge request; the merge owner
-- [scripts/migrate_db_rename.py](../INDEX.md) (owner: infra): Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
 - [scripts/probes/glitchtip_webhook_capture.py](../INDEX.md) (owner: infra): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
 - [scripts/process_monitor.py](../INDEX.md) (owner: infra): Process Monitor - Detect stuck/hung subprocess states.
 - [scripts/proof_run.py](../INDEX.md) (owner: infra): End-to-end deploy harness: prove every scaffold type deploys live on VPS.

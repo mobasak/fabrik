@@ -3,7 +3,7 @@
 """
 update_vps_docs.py — regenerate dynamic sections of VPS documentation.
 
-Reads live state from VPS (SSH + Coolify API + Cloudflare API) and rewrites
+Reads live state from VPS (SSH + Cloudflare API) and rewrites
 the marked dynamic sections in:
   docs/infrastructure/vps-status.md
   docs/infrastructure/vps-urls.md
@@ -150,17 +150,6 @@ def collect_memory() -> dict:
     }
 
 
-def collect_coolify_apps() -> list[dict]:
-    try:
-        sys.path.insert(0, str(REPO / "src"))
-        from fabrik.drivers.coolify import CoolifyClient
-
-        client = CoolifyClient()
-        return client.list_applications()
-    except Exception as e:
-        return [{"error": str(e)}]
-
-
 def collect_ufw() -> list[dict]:
     raw = _ssh("sudo ufw status numbered")
     rows = []
@@ -250,23 +239,6 @@ def render_middlewares(mws: list) -> str:
     rows = ["| Name | Type |", "|---|---|"]
     for m in mws:
         rows.append(f"| `{m['name']}` | {m['type']} |")
-    return "\n".join(rows)
-
-
-def render_coolify_apps(apps: list) -> str:
-    rows = [
-        "| Name | FQDN | Status |",
-        "|---|---|---|",
-    ]
-    for a in sorted(apps, key=lambda x: x.get("name", "")):
-        if "error" in a:
-            rows.append(f"| ERROR | {a['error']} | — |")
-            continue
-        name = a.get("name", "?")
-        fqdn = a.get("fqdn", "") or "internal"
-        status = a.get("status", "?")
-        icon = "✅" if status in ("running", "healthy") else "⚠️"
-        rows.append(f"| `{name}` | {fqdn} | {icon} {status} |")
     return "\n".join(rows)
 
 
@@ -369,11 +341,10 @@ def main() -> int:
     disk = collect_disk()
     mem = collect_memory()
     uptime_str = collect_uptime()
-    apps = collect_coolify_apps()
     ufw = collect_ufw()
     middlewares = collect_traefik_middlewares()
 
-    print(f"   {len(containers)} containers, {len(apps)} Coolify apps, {len(ufw)} UFW rules")
+    print(f"   {len(containers)} containers, {len(ufw)} UFW rules")
 
     changed = 0
 
@@ -396,7 +367,6 @@ def main() -> int:
     # ── vps-urls.md ──────────────────────────────────────────────────────────
     path = DOCS_INFRA / "vps-urls.md"
     content = path.read_text()
-    content = update_section(content, "coolify_apps", render_coolify_apps(apps))
     content = update_timestamp(content)
     if write_if_changed(path, content, args.dry_run):
         changed += 1
@@ -407,7 +377,6 @@ def main() -> int:
     content = update_section(
         content, "container_inventory", render_container_status(containers, limits)
     )
-    content = update_section(content, "coolify_apps", render_coolify_apps(apps))
     content = update_section(content, "ufw_rules", render_ufw(ufw))
     content = update_section(content, "limits_summary", render_limits_summary(limits))
     content = update_timestamp(content)

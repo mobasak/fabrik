@@ -8,9 +8,21 @@ All notable changes to this project will be documented in this file.
 
 - `judge_run_folder` believed any numeric `closed_at`, so a clobbered `done` marker with `closed_at` 0 or -1e308 read as a long-past close and its folder was removed (F13, W-de2c34c1). Per D-900 (Opus + Fable panel), the close is now unknown — ACTIVE under INV-1 — when `created` is missing, non-numeric, a bool or in the future, or when `closed_at` is earlier than `created` minus the clock margin, or when `closed_at` lies in the future; applied where the marker is read, never in `classify_run_folder` (the `.trash-*` path builds `closed_at` 0.0). Residual: any `closed_at` between `created` minus the margin and now minus the grace is believed, so a co-clobber of both fields within the margin (`created` 0 and `closed_at` 0) still reads as a past close. So a legitimate run is not kept for ever, `command_run.py`'s close re-stamps a missing, non-finite or future `created` with the run's true start (`started_epoch`), never `now` (which would strip `gap_keeps`' protection from the run's writers), and leaves it unknown when no start is known; `--retire` invents no creation time and says when every sweep will keep the folder; the size report names a `done` folder whose close cannot be vouched for. Tests: `test_a_close_time_the_marker_cannot_vouch_for_is_doubt` (7 cases red first, on a gap-free `/proc` so a live daemon's gap cannot mask them, plus a consumed control and a vouched margin edge), the heal, retire, report and zero-close-reason tests.
 
-### Fixed — scratch_sweep: a dead session's backup in an agent's own `run-*` folder is kept; a NaN/inf run marker is doubt (2026-10-15)
+### Changed — /fabrik-review: the round line defines `--slices <verified>/<claims>` with its closing example (2026-10-15)
 
-- `_holds_backup` pruned every `scratchpad/run-*` and `.trash-*` child from its walk by name, so a dead session whose only backup sat in an agent's own `run-tests/` read as plain `dead` and was removed whole (F11, W-9f3dad31); it now prunes only the mint's keyed folders (`is_run_entry`, P8). `read_owner` refuses `NaN`/`Infinity`/`-Infinity`, which `json.loads` accepts and which made a clobbered marker read as a past close — consumed — at all three readers (F10, W-6cdc86f3); such a marker is now no marker: kept. Tests: `tests/test_scratch_sweep_run_folders.py` (5 new cases, red first). Found by intel's scratch-lifecycle conformance review.
+`<claims>` counts the claims in a slice's ledger and `<verified>` those its owning seats re-ran to `DEFECT_ABSENT`, so a
+closing pass that found its slice's one claim absent records `A:1/1`; the terminal needs every slice at n/n
+(`command_run.py::_parse_slices`). Answers row 1792065733, the third verdict on the subject. Pinned by
+`tests/test_review_queue_pass.py::test_the_slices_ledger_is_defined_with_its_closing_example`.
+
+### Changed — plan commands: a behaviour change censuses every production reader (2026-10-15)
+
+`/fabrik-plan-after-chat` Phase 1: for each function or value whose behaviour the plan changes, the plan censuses
+its production readers before any step that changes it — call sites plus a grep of its name, basename and path for
+path-injected and string readers, with the count, each fleet-synced file marked (the hub's manifest `--list`, a
+project's `.fabrik/synced.lock`), its command and output in Evidence, readers and the tests pinning the old
+behaviour in File Scope. `/fabrik-plan-review` gains the mirror of its consumer audit: a seat re-runs that census.
+Pinned by `tests/test_plan_after_chat_queue_pass.py::test_a_behaviour_change_censuses_its_readers_in_both_plan_commands`.
 
 ### Changed — /fabrik-execute-plan: the Finish docs review runs before the whole-plan review (2026-10-15)
 
@@ -19,6 +31,10 @@ Item 5, the step-8 pseudo-code and § Finish step 1 now agree that `/fabrik-docs
 review. The exclusion is restated as what is computable then — the docs the Finish `--init --changed` list will name.
 D-899 (Opus + Fable panel, supersedes D9's order). Pinned by
 `tests/test_execute_plan_queue_pass.py::test_the_finish_docs_review_runs_before_the_finish_review`.
+
+### Fixed — scratch_sweep: a dead session's backup in an agent's own `run-*` folder is kept; a NaN/inf run marker is doubt (2026-10-15)
+
+- `_holds_backup` pruned every `scratchpad/run-*` and `.trash-*` child from its walk by name, so a dead session whose only backup sat in an agent's own `run-tests/` read as plain `dead` and was removed whole (F11, W-9f3dad31); it now prunes only the mint's keyed folders (`is_run_entry`, P8). `read_owner` refuses `NaN`/`Infinity`/`-Infinity`, which `json.loads` accepts and which made a clobbered marker read as a past close — consumed — at all three readers (F10, W-6cdc86f3); such a marker is now no marker: kept. Tests: `tests/test_scratch_sweep_run_folders.py` (5 new cases, red first). Found by intel's scratch-lifecycle conformance review.
 
 ### Changed — close chain: a figure in a close input is printed by its producer, never recalled (2026-10-15)
 
@@ -63,6 +79,31 @@ Pinned by `tests/test_producing_command_fragments.py::test_a_figure_in_a_close_i
 ### Fixed — every hub charter names the ledger's merge owner, and a test keeps them current (2026-10-15)
 
 - The five charters in `docs/reference/agents/` carry one canonical merge-owner sentence; kaizen.md no longer routes merges to infra and coordinator.md states the handover done. `tests/test_agent_role_hook.py::test_every_charter_names_the_current_merge_owner` reads the owner from `scripts/decisions.py --merge-owner` and fails on a charter that lacks the sentence or names another agent as merger. W-cfff98dd, D-891.
+
+### Changed — the Coolify-verb retirement plan is EXECUTED: every verb runs over SSH + Compose and the Coolify code is gone (2026-10-15)
+
+- **What:** plan 2026-10-14-plan-1-coolify-verb-retirement (W-36571dff) closed with ticket T11: the capability index re-ran clean (neither deleted script is listed), `docs/development/capability-defects.md` was regenerated, the V8 census reads 0 of 1373 tracked files and `vulture` 0 items, and the whole-plan Finish review (`docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-review.md`) converged 11 → 3 → 0. Its fixes: `fabrik.state.load` returns `None` for a record that is not a JSON object or not UTF-8 (status, audit-registrars and destroy --use-state no longer crash on one); `fabrik import` reads the manifest and secret list of a `./`-prefixed bundle; `fabrik projects --status` help names both registry vocabularies; the rollback and state docstrings and five docs match the code.
+- **Why:** spec docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md § Validation V8-V10; the deletion commit is 9c02e8c86 (D-901).
+
+### Changed — fourteen docs say what `apply`, `status`, `logs` and `reconcile-all` do now (2026-10-15)
+
+- **What:** the reference, module, operations and root docs (`docs/reference/fabrik-cli-reference.md`, `architecture.md`, `modules/drivers.md`, `modules/deployment-orchestrator.md`, `health-monitoring.md`, `docs/SERVICES.md`, `TROUBLESHOOTING.md`, `operations/deployment.md`, `workflows/FABRIK_SCAFFOLD_WORKFLOW.md`, `docs/DEPLOYMENT_ARCHITECTURE.md`, `docs/CONFIGURATION.md`, `agents-fabrik.md`, `README.md` and the `EXTERNAL_SYSTEMS.md` DNS row) drop the removed `apply` flags, describe `status`'s Last-apply and Live-containers sections, name `reconcile-all` as a live SSH verb, and name the Coolify modules as removed at 9c02e8c86. Driver and test counts, CLI line anchors and the `destroy` flags were re-derived from the code.
+- **Why:** plan 2026-10-14-plan-1-coolify-verb-retirement tickets T10a and T10b (spec D10); the wave's `/fabrik-review` (`docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-T10-review.md`) confirmed and fixed 19 doc defects.
+
+### Removed — the Coolify modules, their tests and two dead scripts (2026-10-15)
+
+- **What:** `src/fabrik/drivers/coolify.py`, `src/fabrik/orchestrator/deployer_coolify.py`, `src/fabrik/drivers/compose_updater.py`, `src/fabrik/orchestrator/coolify_alias.py`, their four test files, `scripts/health_check_autonomous.py` and `scripts/migrate_db_rename.py` are deleted; `src/fabrik/drivers/__init__.py` no longer imports or exports `CoolifyClient` (one commit, so no import is ever left unresolved), and `scripts/enforcement/check_health.py`'s pattern list drops `check_coolify`. The plan's import census (`drivers.coolify`, `CoolifyClient`, `deployer_coolify`, `compose_updater`, `coolify_alias`, `deploy_to_coolify` over src, scripts, tests and templates outside the archives) reads 0 of the 1373 tracked files under src, scripts, tests and templates outside the archives (908 of them .py).
+- **Why:** plan 2026-10-14-plan-1-coolify-verb-retirement ticket T09 (spec D8, D11); every importer was edited by T02–T08 first.
+
+### Changed — `fabrik export`/`import` drop the Coolify section (2026-10-15)
+
+- **What:** `src/fabrik/portability.py` writes no `coolify/` tree and no `coolify` manifest count, and `export_bundle`/`import_bundle` lose their `coolify_client` parameter. `fabrik import` counts a legacy bundle's `coolify/*` non-directory members as `ignored legacy members (coolify/*): <n>` and restores none of them; member names are `./`-normalised once for the section counts and the legacy count. `_collect_authelia` reads the live bind mount `/opt/authelia/config/configuration.yml` first (the old named-volume paths stay as fallbacks), and the bundle README says the import plans and reports and applies nothing.
+- **Why:** plan 2026-10-14-plan-1-coolify-verb-retirement ticket T06 (spec D6); the Authelia path and the README were confirmed defects in the ticket's `/fabrik-review` (`docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-T06-review.md`).
+
+### Changed — four hub VPS scripts leave Coolify (2026-10-15)
+
+- **What:** `scripts/snapshot_vps_state.py`, `update_vps_docs.py`, `vps_sync.py` and `proof_run.py` drop every Coolify call, key and column. `proof_run`'s worker proof reads every Compose container's `State` through `probe_app` and passes only when every row is `running` (a replica pair with one exited container fails); `vps_sync`'s residue audit is 10 points (the Coolify-app and Authelia-orphan checks left), its Meilisearch lookup matches the container named exactly `meilisearch`, and a `coolify-proxy` traefik container now lands under infrastructure.
+- **Why:** plan 2026-10-14-plan-1-coolify-verb-retirement ticket T08 (spec D11); reviewed in the same wave receipt, which kept the T05 grader and the vps-status pin current.
 
 ### Changed — the hub CLAUDE.md carries the coordinator's duties paragraph (2026-10-15)
 
