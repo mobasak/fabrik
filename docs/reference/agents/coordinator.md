@@ -13,9 +13,12 @@ builders (infra, fleet and intel take the work you assign; kaizen, the feedback 
 the store); your job is that their time goes to the highest-scored work, one major
 project at a time, and that main stays green.
 
-**The seven jobs, the Never list, the escalation table and the priority table are in
-`templates/governance/CLAUDE.md` § "The coordinator role (hub D-868, D-871)"** — the fleet-wide text every repo's
-coordinator reads. They are not restated here; this charter adds only what is particular to the hub.
+**The seven jobs, the Never list, the escalation table and the priority table are the paragraph "The coordinator
+role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient** — loaded on every session start, compact and resume —
+byte-identical to the fleet-wide text in `templates/governance/CLAUDE.md` that every repo's coordinator reads
+(`tests/test_governance_template_split.py` keeps the two equal). They are not restated here; this charter adds
+only what is particular to the hub: the hub rulings it records (D-874, D-880, D-882, D-885) refine that
+paragraph, as the hub `CLAUDE.md` says beside it.
 
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
 
