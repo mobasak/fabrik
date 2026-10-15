@@ -39,6 +39,7 @@ with that repo's own interpreter.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fcntl
 import glob as globmod
 import hashlib
@@ -82,7 +83,13 @@ REFUSAL_SET = """NEVER TOUCHES (hard-coded; this text is printed by --help and b
     --force only after its state is re-read at removal time — any authored file, a stash naming
     its branch, or ignored data keeps it
   * anything holding a BACKUP SHAPE — *.bak, *.original, *pristine* (case-insensitive),
-    before.txt/after.txt, .keep — the entry's OWN NAME included, unless --include-backups
+    before.txt/after.txt, .keep — the entry's OWN NAME included, unless --include-backups;
+    inside a CONSUMED run folder (scratchpad/run-<key>/) backup shapes are disposable by contract
+  * a run folder (scratchpad/run-<key>/) by its AGE or by a walk — it is judged only by its .owner
+    marker and the holder probe: removed when its run closed past the grace (30 minutes, or 36 h
+    when a seat wrote after the close or that cannot be read) or when its session is dead and its
+    heartbeat is 7 days stale; a running, resumable, held, kept, worktree-holding or unmarked one
+    is never removed
   * a root-level entry of the scratch root, unless --unowned-older-than DAYS
 Held, kept, fresh, dirty, unmerged, locked, orphan-dir, ignored-data, sync-only and unclassifiable entries are
 LISTED with their reason and never removed. Foreign is the one CONDITIONAL class: listed and never
@@ -262,7 +269,11 @@ def _holds_backup(entry: Path) -> bool | None:
         def _boom(exc: OSError) -> None:
             raise exc
 
-        for _dirpath, dirnames, filenames in os.walk(entry, followlinks=False, onerror=_boom):
+        for dirpath, dirnames, filenames in os.walk(entry, followlinks=False, onerror=_boom):
+            if os.path.basename(dirpath) == "scratchpad":
+                # a run folder is marker-governed: inside a CONSUMED one a backup shape is disposable
+                # by contract, and an ACTIVE one is kept whole anyway (plan P8, P10)
+                dirnames[:] = [d for d in dirnames if not d.startswith((RUN_PREFIX, TRASH_PREFIX))]
             for n in list(dirnames) + list(filenames):
                 if _is_backup_shape(n):
                     return True
@@ -287,6 +298,18 @@ def _real_uid(proc_root: Path, pid: str) -> int | None:
     except (OSError, ValueError, IndexError):
         return None
     return None
+
+
+def _is_zombie(proc_root: Path, pid: str) -> bool:
+    """`State: Z` in `/proc/<pid>/status` — exited, unreaped, holding nothing."""
+    try:
+        with open(proc_root / pid / "status", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if line.startswith("State:"):
+                    return line.split()[1:2] == ["Z"]
+    except OSError:
+        return False
+    return False
 
 
 def probe_holders(
@@ -334,8 +357,9 @@ def probe_holders(
                 except OSError:
                     continue
         except OSError:
-            # Only a SAME-REAL-UID denial is a gap; anything else cannot reach the 0700 root.
-            if _real_uid(proc_root, pid) == me:
+            # Only a SAME-REAL-UID denial is a gap; anything else cannot reach the 0700 root. A
+            # zombie denies `/fd` too but holds no descriptor at all (panel, 2026-10-15).
+            if _real_uid(proc_root, pid) == me and not _is_zombie(proc_root, pid):
                 gaps.append(f"{pid} ({comm})")
         for link in links:
             for prefix, target in prefixes:
@@ -428,6 +452,561 @@ def classify_run_folder(f: RunFacts, now: float) -> tuple[str, str]:
     if f.state == "running":
         return "consumed", "running, but its session is dead and its heartbeat is stale"
     return "consumed", f"done, closed {_human(now - (f.closed_at or now))} ago, past its grace"
+
+
+# ── run-bound scratch: gathering the facts and consuming (plan Phase B, D3 and D4) ─────────────
+RUN_LOCK_NAME = ".run-folders.lock"  # beside scratchpad/, never inside it (P3)
+GAP_CLOCK_MARGIN_S = 300.0  # WSL's clock can jump after a suspend — a margin on the safe side
+
+
+def gap_starts(gaps: list[str], proc_root: Path | None = None) -> list[float | None]:
+    """The start epoch of each gap pid (`"<pid> (<comm>)"`) — `stat` stays readable when `/fd` is
+    not. None for any pid whose start cannot be computed; a pid that has EXITED since the probe is
+    dropped — it holds nothing (measured: transient same-uid gaps in 2 of 8 live probes)."""
+    proc_root = proc_root or _proc_root()
+    boot = _btime()
+    try:
+        hz = os.sysconf("SC_CLK_TCK")
+    except (ValueError, OSError):
+        hz = 0
+    out: list[float | None] = []
+    for g in gaps:
+        start: float | None = None
+        try:
+            pid = int(g.split()[0])
+            if not (proc_root / str(pid)).exists():
+                continue
+            ticks = _proc_start_ticks(proc_root, pid)
+            if boot is not None and ticks is not None and hz > 0:
+                start = boot + int(ticks) / hz
+        except (ValueError, IndexError):
+            start = None
+        out.append(start)
+    return out
+
+
+def gap_keeps(starts: list[float | None], created: object, now: float) -> bool:
+    """Does a same-uid `/proc` gap keep a run folder? Only a gap process that STARTED at or after
+    the folder's marker was written (less the clock margin): a process already running before the
+    run began cannot be one of its writers, and this box carries three such daemons permanently
+    (sd-pam, gpg-agent, a setuid fusermount3), which kept every folder for ever under the spec's
+    bare "a non-empty gaps list". Any unknown — a start, or a missing, non-numeric or future
+    `created` — keeps (the split panel's interim ruling; the decision row names both verdicts).
+
+    Cobra (D-253): the cheap way to make this keep nothing is to backdate or drop `created`; a
+    missing or non-numeric `created` therefore KEEPS, and a test pins each case.
+    """
+    if not starts:
+        return False
+    if (
+        not isinstance(created, int | float)
+        or isinstance(created, bool)
+        or created > now + GAP_CLOCK_MARGIN_S
+    ):
+        return True
+    return any(s is None or s >= created - GAP_CLOCK_MARGIN_S for s in starts)
+
+
+# the mint's key is `<command>-<started_at>-<6 hex>` (P4); `started_at` is `%Y-%m-%dT%H:%M:%S%z`
+# sanitised, so `2026-10-15T05-40-42-0300` — a name merely ending in a hex-only word never matches
+RUN_KEY_RE = re.compile(
+    r"^(?:run|\.trash)-.+-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{4}-[0-9a-f]{6}$"
+)
+
+
+def is_run_entry(entry: Path) -> bool:
+    """A `run-<key>` folder, or the `.trash-<key>` an interrupted removal left — marker-governed
+    (P8). Only the mint's keyed name counts: an agent's own `run-tests/` or `.trash-old/` stays an
+    untagged entry, judged by age as before — never removed by name, never kept for ever."""
+    return bool(RUN_KEY_RE.match(entry.name)) and not entry.is_symlink() and entry.is_dir()
+
+
+def run_entries(session_dir: Path) -> list[Path]:
+    """The run folders (and `.trash-*` leftovers) directly under `<session dir>/scratchpad/`."""
+    try:
+        return sorted(
+            Path(e.path)
+            for e in os.scandir(session_dir / "scratchpad")
+            if is_run_entry(Path(e.path))
+        )
+    except OSError:
+        return []
+
+
+def write_owner(folder: Path, fields: dict) -> bool:
+    """`command_run.py`'s marker write, mirrored: temp file + `os.replace`, False on any OSError."""
+    target = folder / OWNER_NAME
+    tmp = folder / f"{OWNER_NAME}.{os.getpid()}.tmp"
+    try:
+        tmp.write_text(json.dumps(fields, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(tmp, target)
+    except OSError:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        return False
+    return True
+
+
+def _seat_write_after_close(sid: str, closed_at: float, tx_dirs: list[Path] | None) -> bool | None:
+    """P13: was any seat transcript of this session written after the close? None = cannot tell."""
+    dirs = transcript_dirs() if tx_dirs is None else tx_dirs
+    if not any(globmod.glob(str(root / "*" / f"{sid}.jsonl")) for root in dirs):
+        return None  # the session's own transcript is not visible: "no seat wrote" is unknowable
+    try:
+        for root in dirs:
+            for path in globmod.glob(str(root / "*" / sid / "subagents" / "agent-*.jsonl")):
+                if os.stat(path).st_mtime > closed_at:
+                    return True
+    except OSError:
+        return None
+    return False
+
+
+def git_pointer_files(folder: Path, max_depth: int = 3) -> list[Path]:
+    """Every `.git` pointer FILE at depths 0-`max_depth` under the folder (hidden directories
+    included, symlinks never followed) whose gitdir lies OUTSIDE the folder — a worktree or
+    submodule some repository elsewhere refers to. A `.git` DIRECTORY (a plain clone) and a pointer
+    into the folder itself are self-contained: nothing outside refers to them, so they are scratch.
+    An unreadable pointer counts (doubt keeps)."""
+    real = os.path.realpath(folder)
+    found: list[Path] = []
+    level = [folder]
+    for _depth in range(max_depth + 1):
+        nxt: list[Path] = []
+        for d in level:
+            try:
+                entries = list(os.scandir(d))
+            except OSError:
+                continue
+            for e in entries:
+                if e.name == ".git" and e.is_file(follow_symlinks=False):
+                    try:
+                        text = Path(e.path).read_text(encoding="utf-8", errors="replace")
+                        target = text.split("gitdir:", 1)[1].strip().splitlines()[0]
+                        resolved = os.path.realpath(os.path.join(d, target))
+                        inside = resolved == real or resolved.startswith(real + "/")
+                    except (OSError, IndexError):
+                        inside = False
+                    if not inside:
+                        found.append(Path(e.path))
+                elif e.is_dir(follow_symlinks=False) and e.name != ".git":
+                    nxt.append(Path(e.path))
+        level = nxt
+    return found
+
+
+def _worktrees_under(folder: Path, repo: str) -> tuple[list[dict], list[dict], bool]:
+    """`(registrations inside the folder, every registration, ok)` — P7. `ok` False means the list
+    could not be read on a repo that resolves, which reads ACTIVE. A `repo` that no longer resolves
+    falls back to a `.git` entry at depths 1-3 — an unjudgeable worktree, so the folder is kept."""
+    real = os.path.realpath(folder)
+    if repo and Path(repo).is_dir():
+        try:
+            proc = subprocess.run(
+                ["git", f"--git-dir={repo}", "worktree", "list", "--porcelain"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="surrogateescape",
+                timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return [], [], False
+        if proc.returncode != 0:
+            return [], [], False
+        regs = _parse_worktree_porcelain(proc.stdout)
+        inside = [
+            e
+            for e in regs
+            if e.get("worktree")
+            and (
+                os.path.realpath(e["worktree"]) == real
+                or os.path.realpath(e["worktree"]).startswith(real + "/")
+            )
+        ]
+    else:
+        regs, inside = [], []
+    # a pointer this repo does not list — another repo's worktree, or a repo that no longer
+    # resolves (depths 0-3, hidden directories too): unjudgeable, so the folder is kept
+    known = {os.path.realpath(e["worktree"]) for e in inside}
+    for pointer in git_pointer_files(folder):
+        if os.path.realpath(pointer.parent) not in known:
+            inside.append({"worktree": str(pointer.parent), "unjudgeable": "1"})
+    if not repo or not Path(repo).is_dir():
+        for e in inside:
+            e["unjudgeable"] = "2"  # the marker's repo itself no longer resolves
+    return inside, regs, True
+
+
+def _worktree_removable(entry: dict, regs: list[dict], repo: str) -> tuple[bool, str]:
+    """P14: may this worktree inside a CONSUMED folder be removed? Never through
+    `_classify_worktree` (it calls every detached tree `unclassified`, every tree `wt-foreign`)."""
+    path = Path(entry["worktree"])
+    if entry.get("unjudgeable") == "2":
+        return False, "its marker's repository no longer resolves"
+    if entry.get("unjudgeable"):
+        return False, "a worktree pointer the marker's repository does not list"
+    if "locked" in entry:
+        return False, "locked"
+    if "prunable" in entry or not path.exists():
+        # nothing on disk to lose; the registration is left for git's own prune (never run
+        # repo-wide from here)
+        return True, "its directory is already gone — a stale registration"
+    branch = entry.get("branch", "").removeprefix("refs/heads/")
+    if branch:
+        main_path = Path(regs[0].get("worktree", "")) if regs else path
+        rc, out = _git(main_path, "branch", "--show-current")
+        target = out.strip() if rc == 0 else ""
+        if not target:
+            return False, "the main checkout has no branch to merge against"
+        stashed, detached_stash = _stash_branches(main_path)
+        verdict, reason, _ = _worktree_chain(
+            path, entry, main_path, target, branch, stashed, detached_stash, {}
+        )
+        return verdict == "wt-removable", reason
+    rc, out = _git(path, "status", "--porcelain")
+    if rc != 0 or out.strip():
+        return False, "detached, with uncommitted work or an unreadable status"
+    head = entry.get("HEAD", "")
+    rc, out = _git(Path(repo), "for-each-ref", "--contains", head, "--format=%(refname)")
+    if rc != 0 or not head or not out.strip():
+        return False, "detached, and no ref contains its HEAD — removing it could lose a commit"
+    return True, "detached, clean, and a ref contains its HEAD"
+
+
+def _marker_fingerprint(folder: Path) -> str:
+    """The marker's bytes and mtime — any rewrite or heartbeat between classification and removal
+    changes it."""
+    try:
+        st = (folder / OWNER_NAME).stat()
+        digest = hashlib.blake2b((folder / OWNER_NAME).read_bytes(), digest_size=6).hexdigest()
+        return f"marker={st.st_mtime_ns}:{digest}"
+    except OSError:
+        return "marker=none"
+
+
+def judge_run_folder(
+    folder: Path,
+    sid: str,
+    now: float,
+    *,
+    session_dead: bool,
+    held: dict[str, str],
+    gaps: list[float | None],
+    probe_ok: bool,
+    tx_dirs: list[Path] | None = None,
+    check_sid: bool = True,
+) -> Row:
+    """One run folder → a `kept` or `consumed` row; `classify_run_folder` decides, this gathers.
+
+    `check_sid` is D3's own-session input (P6) — D4 judges by marker state alone. The `git worktree
+    list` runs only for a folder that would otherwise be consumed: it is the one costly fact.
+    """
+    p = str(folder)
+    is_held = p in held or os.path.realpath(p) in held
+    owner = read_owner(folder)
+    created = (owner or {}).get("created")
+    if folder.name.startswith(TRASH_PREFIX) and not isinstance(created, int | float):
+        # a `.trash-*` whose marker an interrupted rmtree already took: the rename that made it set
+        # its ctime, the moment it was judged CONSUMED — a process older than that never owned it
+        with contextlib.suppress(OSError):
+            created = folder.lstat().st_ctime
+    gap = gap_keeps(gaps, created, now)
+    if folder.name.startswith(TRASH_PREFIX):
+        # already judged CONSUMED before the crash that left it — only a holder can keep it now
+        facts = RunFacts("done", 0.0, 0.0, True, is_held, gap, probe_ok, False, False, True, False)
+        verdict, reason = classify_run_folder(facts, now)
+        if verdict == "consumed":
+            reason = "left by an interrupted removal"
+        cls = "consumed" if verdict == "consumed" else "kept"
+        return Row(p, "run", cls, reason, _marker_fingerprint(folder))
+    state = owner.get("state") if owner else None
+    raw_closed = (owner or {}).get("closed_at")
+    closed_at = (
+        float(raw_closed)
+        if isinstance(raw_closed, int | float) and not isinstance(raw_closed, bool)
+        else None
+    )
+    try:
+        heartbeat_age = now - (folder / OWNER_NAME).stat().st_mtime
+    except OSError:
+        heartbeat_age = 0.0  # unknowable reads recent — a `running` folder stays ACTIVE
+    try:
+        keep = (folder / KEEP_FILE).exists()
+    except OSError:
+        keep = True
+    seat = (
+        _seat_write_after_close(sid, closed_at, tx_dirs)
+        if state == "done" and closed_at is not None
+        else None
+    )
+    facts = RunFacts(
+        state=state if isinstance(state, str) else None,
+        closed_at=closed_at,
+        heartbeat_age_s=heartbeat_age,
+        session_dead=session_dead,
+        held=is_held,
+        gaps=gap,
+        probe_ok=probe_ok,
+        worktree=False,
+        keep=keep,
+        sid_matches=(not check_sid) or (owner or {}).get("sid") == sid,
+        seat_write_after_close=seat,
+    )
+    verdict, reason = classify_run_folder(facts, now)
+    evidence = _marker_fingerprint(folder)
+    if verdict == "consumed":
+        inside, regs, ok = _worktrees_under(folder, str((owner or {}).get("repo") or ""))
+        if not ok:
+            return Row(p, "run", "kept", "`git worktree list` failed — never removed on doubt")
+        for wt in inside:
+            removable, why = _worktree_removable(wt, regs, str((owner or {}).get("repo") or ""))
+            if not removable:
+                return Row(p, "run", "kept", f"holds a registered worktree {wt['worktree']}", why)
+        if inside:
+            reason += f"; its {len(inside)} worktree(s) are removable and go first"
+        return Row(p, "run", "consumed", reason, evidence)
+    return Row(p, "run", "kept", reason, evidence)
+
+
+def plan_run_folders(
+    session_dirs: list[Path],
+    now: float,
+    *,
+    dead_of=None,
+    proc_root: Path | None = None,
+    tx_dirs: list[Path] | None = None,
+    check_sid: bool = True,
+) -> list[Row]:
+    """Judge every run folder under these session directories with ONE holder probe (which also
+    covers each session directory, for `dead_of`'s live signal). Read-only."""
+    by_dir = {d: run_entries(d) for d in session_dirs}
+    by_dir = {d: es for d, es in by_dir.items() if es}
+    if not by_dir:
+        return []
+    targets = list(by_dir) + [e for es in by_dir.values() for e in es]
+    held, gaps, probe_ok = probe_holders(targets, proc_root)
+    starts = gap_starts(gaps, proc_root)
+    rows: list[Row] = []
+    for d, entries in by_dir.items():
+        dead = bool(dead_of(d, held)) if dead_of is not None else False
+        for e in entries:
+            rows.append(
+                judge_run_folder(
+                    e,
+                    d.name,
+                    now,
+                    session_dead=dead,
+                    held=held,
+                    gaps=starts,
+                    probe_ok=probe_ok,
+                    tx_dirs=tx_dirs,
+                    check_sid=check_sid,
+                )
+            )
+    return rows
+
+
+def _rmtree_gone_ok(path: Path) -> None:
+    """`shutil.rmtree` where a child that vanished mid-removal is not an error (P3: a D3 and the
+    nightly D4 may race on one folder — 3.12's rmtree does not ignore it for children)."""
+
+    def _onexc(_fn: object, _path: str, exc: BaseException) -> None:
+        if not isinstance(exc, FileNotFoundError):
+            raise exc
+
+    try:
+        shutil.rmtree(path, onexc=_onexc)
+    except PermissionError:
+        _own_tree(path)
+        shutil.rmtree(path, onexc=_onexc)
+
+
+def apply_run_rows(rows: list[Row], out=None, proc_root: Path | None = None) -> int:
+    """Remove the `consumed` rows: holder re-probe, worktrees first (P14), `os.rename` to
+    `.trash-<key>`, then the walk-free `rmtree`. Never reads a folder's age; per-row errors."""
+    out = out or sys.stdout  # resolved per call: a default bound at import misses a swapped stdout
+    targets = [Path(r.path) for r in rows if r.cls == "consumed"]
+    if not targets:
+        return 0
+    held_now, gaps_now, probe_ok = probe_holders(targets, proc_root)
+    if not probe_ok:
+        print("REFUSED — the /proc holder probe went unreadable; no run folder removed", file=out)
+        return 0
+    starts_now = gap_starts(gaps_now, proc_root)
+    removed = 0
+    for r in rows:
+        if r.cls != "consumed":
+            continue
+        path = Path(r.path)
+        if r.path in held_now or os.path.realpath(r.path) in held_now:
+            print(f"KEPT {r.path} — a holder appeared since classification", file=out)
+            continue
+        if not path.exists():
+            print(f"gone — skipped {r.path}", file=out)
+            continue
+        # re-checked at removal time: the marker (bytes + mtime), a `.keep`, a new gap (R1-3)
+        owner = read_owner(path)
+        if _marker_fingerprint(path) != r.evidence:
+            print(f"KEPT {r.path} — its marker changed since classification", file=out)
+            continue
+        if (path / KEEP_FILE).exists():
+            print(f"KEPT {r.path} — a {KEEP_FILE} appeared since classification", file=out)
+            continue
+        created = (owner or {}).get("created")
+        if path.name.startswith(TRASH_PREFIX) and not isinstance(created, int | float):
+            with contextlib.suppress(OSError):
+                created = path.lstat().st_ctime
+        if gap_keeps(starts_now, created, _now()):
+            print(f"KEPT {r.path} — an unreadable process appeared since classification", file=out)
+            continue
+        trash = path
+        if path.name.startswith(RUN_PREFIX):
+            repo = str((owner or {}).get("repo") or "")
+            inside, regs, ok = _worktrees_under(path, repo)
+            if not ok:
+                print(f"KEPT {r.path} — `git worktree list` failed at removal time", file=out)
+                continue
+            blocked = ""
+            for wt in inside:
+                removable, why = _worktree_removable(wt, regs, repo)
+                rc = 0
+                # a prunable registration (its `.git` file or its directory gone) cannot be
+                # removed by git — the tree, if any, is a broken one inside a consumed folder
+                if removable and "prunable" not in wt and Path(wt["worktree"]).exists():
+                    rc, msg = _git(Path(repo), "worktree", "remove", wt["worktree"])
+                    why = msg.strip() or why
+                if not removable or rc != 0:
+                    blocked = f"{wt['worktree']} ({why})"
+                    break
+            if blocked:
+                print(f"KEPT {r.path} — holds a registered worktree {blocked}", file=out)
+                continue
+            trash = path.with_name(TRASH_PREFIX + path.name[len(RUN_PREFIX) :])
+            try:
+                os.rename(path, trash)
+            except FileNotFoundError:
+                print(f"gone — skipped {r.path}", file=out)
+                continue
+            except OSError as exc:
+                print(f"FAILED {r.path} ({exc.errno}: {exc.strerror})", file=out)
+                continue
+        try:
+            _rmtree_gone_ok(trash)
+        except OSError as exc:
+            print(f"FAILED {trash} ({exc.errno}: {exc.strerror})", file=out)
+            continue
+        removed += 1
+        print(f"REMOVED {r.path} (consumed, {r.reason})", file=out)
+    return removed
+
+
+def _session_dead_for_runs(
+    sid_dir: Path,
+    by_sid: dict[str, list[dict]],
+    tx_dirs: list[Path],
+    held: dict[str, str],
+    proc_root: Path,
+    now: float,
+    older_than_s: float,
+) -> bool:
+    """P9: no live signal AND a death signal — without the idleness walk, which comes back
+    `unclassified` on exactly the sessions whose `running` folders this plan exists to remove."""
+    sid = sid_dir.name
+    records = by_sid.get(sid, [])
+    if live_record(records, proc_root) is not None or _selfwatch_held(sid):
+        return False
+    if str(sid_dir) in held or os.path.realpath(sid_dir) in held:
+        return False
+    if records:
+        return True  # its sessions file names a pid that is gone
+    tx_age = _transcript_age(sid, tx_dirs, now)
+    return tx_age is not None and tx_age > older_than_s
+
+
+def _split_dead_session(row: Row, sid_dir: Path) -> list[Row]:
+    """A dead session that still holds an ACTIVE run folder: the directory stays, every other entry
+    goes — `run-*`/`.trash-*` are never listed here, marked or not (plan B5)."""
+    out = [Row(row.path, "session", "kept", "holds an active run folder", row.reason)]
+
+    def _entry(e: Path) -> Row:
+        backup = _holds_backup(e)
+        if backup is None:
+            return Row(str(e), "entry", "unclassified", "part of its tree is unreadable")
+        if backup:
+            return Row(str(e), "entry", "dead-holds-backups", "dead session; holds a backup shape")
+        return Row(
+            str(e), "entry", "dead", "dead session; the directory holds an active run folder"
+        )
+
+    try:
+        for child in sorted(sid_dir.iterdir()):
+            if child.name == "scratchpad" and child.is_dir() and not child.is_symlink():
+                for e in sorted(child.iterdir()):
+                    if not e.name.startswith((RUN_PREFIX, TRASH_PREFIX)):
+                        out.append(_entry(e))
+            else:
+                out.append(_entry(child))
+    except OSError:
+        return [
+            Row(row.path, "session", "unclassified", "unreadable while splitting a dead session")
+        ]
+    return out
+
+
+def _retire(root: Path, sid: str, name: str, cwd: str | None) -> int:
+    """P12: end one `resumable` folder's resume by hand — its marker reads `done`, nothing else."""
+    if not name.startswith(RUN_PREFIX) or "/" in name or name in (".", ".."):
+        print(f"refusing --retire {name!r} — name one run-<key> folder", file=sys.stderr)
+        return RC_USAGE
+    dirs = find_session_dirs(root, sid, cwd)
+    folder = dirs[0] / "scratchpad" / name if len(dirs) == 1 else None
+    if folder is None or folder.is_symlink() or not folder.is_dir():
+        print(f"REFUSED — no run folder {name} in this session's scratchpad")
+        return RC_REFUSED
+    owner = read_owner(folder)
+    if owner is None or owner.get("sid") != sid:
+        print(f"REFUSED — {name}'s marker is unreadable or names another session")
+        return RC_REFUSED
+    if owner.get("state") != "resumable":
+        # it ends a RESUME; a running run closes through its own record, never through here
+        print(
+            f"REFUSED — {name} is {owner.get('state')!r}, not resumable; --retire ends a resume only"
+        )
+        return RC_REFUSED
+    owner.update({"state": "done", "closed_at": _now()})
+    if not write_owner(folder, owner):
+        print(f"FAILED — cannot rewrite {folder / OWNER_NAME}")
+        return RC_REFUSED
+    print(f"RETIRED {folder} — marked done; it is removed after its grace")
+    return RC_OK
+
+
+def run_run_folders_mode(args: argparse.Namespace, sid: str) -> int:
+    """D3: this session's run folders, judged by marker, removed walk-free under the PER-SESSION
+    lock (never the global one — P3). `_own_session` is not applied: removal is marker-governed,
+    so who runs it cannot make an ACTIVE folder removable (P16)."""
+    root = _scratch_root()
+    if args.retire:
+        return _retire(root, sid, args.retire, args.cwd)
+    dirs = find_session_dirs(root, sid, args.cwd)
+    if len(dirs) != 1:
+        print(f"run folders: {len(dirs)} session directories for {sid} — nothing done")
+        return RC_OK
+    sdir = dirs[0]
+    if not args.apply:
+        rows = plan_run_folders([sdir], _now(), proc_root=_proc_root())
+        print(render(rows, allowed={"consumed"}) if rows else "no run folders")
+        return RC_OK
+    with _Lock(sdir / RUN_LOCK_NAME) as got:
+        if not got:
+            print("another run-folder sweep holds this session's lock — nothing done (rc 0)")
+            return RC_OK
+        rows = plan_run_folders([sdir], _now(), proc_root=_proc_root())
+        if rows:
+            print(render(rows, allowed={"consumed"}))
+            apply_run_rows(rows, proc_root=_proc_root())
+    return RC_OK
 
 
 # ── the freshness walk ──────────────────────────────────────────────────────────────────────────
@@ -811,8 +1390,15 @@ def classify_session(
     budget: WalkBudget | None = None,
     with_size: bool = True,
     cwd: str | None = None,
+    run_folders: bool = True,
 ) -> tuple[list[Row], list[str], bool]:
-    """`(rows, proc gaps, probe_ok)` — one row per top-level entry. `tasks/` is never touched."""
+    """`(rows, proc gaps, probe_ok)` — one row per top-level entry. `tasks/` is never touched.
+
+    A `run-*`/`.trash-*` entry is routed to `judge_run_folder` BEFORE the age walk (plan P8): a
+    `done` run inside its 36 h grace, or a `resumable` one idle 7 h, would otherwise read `stale`.
+    `run_folders=False` (the hook, whose deadline cannot afford a `git worktree list`) leaves them
+    out of the rows entirely.
+    """
     proc_root = proc_root or _proc_root()
     budget = budget or WalkBudget()
     rows: list[Row] = []
@@ -860,9 +1446,25 @@ def classify_session(
             continue
         paths = [Path(e.path) for e in entries]
         held, probe_gaps, ok = probe_holders(paths, proc_root)
+        starts = gap_starts(probe_gaps, proc_root) if run_folders else []
         gaps.extend(probe_gaps)
         probe_ok = probe_ok and ok
         for entry in paths:
+            if is_run_entry(entry) and entry.name not in keep_names:
+                if run_folders:
+                    r = judge_run_folder(
+                        entry,
+                        sid,
+                        now,
+                        session_dead=False,
+                        held=held,
+                        gaps=starts,
+                        probe_ok=ok,
+                    )
+                    if r.cls == "kept":
+                        r = Row(r.path, "entry", "kept", "run folder, marker-governed", r.reason)
+                    rows.append(r)
+                continue
             rows.append(
                 _classify_one(
                     entry, keep_names, held, now, older_than_s, budget, du_deadline, with_size
@@ -1008,10 +1610,13 @@ class _Lock:
     The cron line deliberately carries NO `flock -n` wrapper: `flock(1)` holds the lock across the
     exec, so a wrapper on this same path makes the acquire below fail and the sweep exits 0 having
     done nothing, silently, every night. Reproduced 2026-09-08.
+
+    `path` is the per-session run-folder lock (`<session dir>/.run-folders.lock`, plan P3): a D3
+    removal holds only that one, so it never makes the nightly `--dead --apply` skip its night.
     """
 
-    def __init__(self) -> None:
-        self.path = Path(os.path.expanduser(LOCK_PATH))
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path or Path(os.path.expanduser(LOCK_PATH))
         self.fd: int | None = None
 
     def __enter__(self) -> bool:
@@ -1170,6 +1775,19 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--brief", action="store_true", help="the close-out shape: zero candidates print zero bytes"
     )
+    ap.add_argument(
+        "--run-folders",
+        action="store_true",
+        help=(
+            "this session's run folders only (requires --session): judged by their .owner marker, "
+            "removed walk-free under a per-session lock — what `command_run.py start` launches"
+        ),
+    )
+    ap.add_argument(
+        "--retire",
+        metavar="RUN_FOLDER",
+        help="with --run-folders: mark one resumable run-<key> folder done (ends its resume)",
+    )
     return ap
 
 
@@ -1263,6 +1881,18 @@ def run_session_mode(args: argparse.Namespace, sid: str) -> int:
             print(REFUSAL_SET)
             print(render(rows, gaps=gaps, allowed=_allowed_classes(args)))
             apply_rows(rows, _allowed_classes(args), proc_root=_proc_root())
+        # Consumed run folders go AFTER the global lock is released, under each session's own
+        # lock only — never through `apply_rows`, and `consumed` is not in REMOVABLE (plan P8).
+        by_dir: dict[Path, list[Row]] = {}
+        for r in rows:
+            if r.cls == "consumed":
+                by_dir.setdefault(Path(r.path).parent.parent, []).append(r)
+        for sdir, consumed in by_dir.items():
+            with _Lock(sdir / RUN_LOCK_NAME) as got:
+                if not got:
+                    print(f"another run-folder sweep holds {sdir}'s lock — its run folders wait")
+                    continue
+                apply_run_rows(consumed, proc_root=_proc_root())
         return RC_OK
     out = render(
         rows,
@@ -1334,6 +1964,12 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError(
                 f"--unowned-older-than must be at least 1 day, got {args.unowned_older_than!r}"
             )
+        if (args.run_folders or args.retire) and (
+            args.dead or args.hook or args.worktrees is not None
+        ):
+            raise ValueError(
+                "--run-folders/--retire is its own mode — drop --dead/--hook/--worktrees"
+            )
         if args.worktrees is not None:
             return run_worktrees_mode(args)
         if args.dead:
@@ -1343,6 +1979,10 @@ def main(argv: list[str] | None = None) -> int:
             # same way, and a SessionStart hook is invoked with no `--session` and no env sid
             # (review F7: it exited 1 and printed nothing, so Phase B would register an inert hook).
             return run_hook_mode(args, session_id(args.session))
+        if args.retire and not args.run_folders:
+            raise ValueError("--retire needs --run-folders")
+        if args.run_folders and not args.session:
+            raise ValueError("--run-folders needs --session")
         sid = session_id(args.session)
         if not sid:
             print("no session id — pass --session or set CLAUDE_SESSION_ID", file=sys.stderr)
@@ -1350,6 +1990,8 @@ def main(argv: list[str] | None = None) -> int:
         if not SID_RE.fullmatch(sid):
             print(f"refusing a malformed session id {sid!r}", file=sys.stderr)
             return RC_USAGE
+        if args.run_folders:
+            return run_run_folders_mode(args, sid)
         return run_session_mode(args, sid)
     except ValueError as exc:
         print(f"bad invocation: {exc}", file=sys.stderr)
@@ -1510,12 +2152,13 @@ def _classify_root_entry(
 def run_dead_mode(args: argparse.Namespace) -> int:
     root = _scratch_root()
     older = parse_duration(args.older_than or DEFAULT_DEAD_OLDER_THAN)
+    sess, tx, proc, now = sessions_dirs(), transcript_dirs(), _proc_root(), _now()
     rows, unreadable, gaps = dead_sessions(
         root,
-        sessions_dirs(),
-        transcript_dirs(),
-        _proc_root(),
-        _now(),
+        sess,
+        tx,
+        proc,
+        now,
         older,
         args.unowned_older_than,
     )
@@ -1534,6 +2177,32 @@ def run_dead_mode(args: argparse.Namespace) -> int:
             )
             return RC_REFUSED
         return RC_OK
+    # D4 (plan P9): every session's run folders, judged by marker with a walk-free DEAD rule, AFTER
+    # the unreadable-root refusal above; a dead session still holding an ACTIVE one is split.
+    by_sid, _ = read_sessions(sess)
+    sid_dirs = [
+        Path(r.path) for r in rows if r.kind == "session" and Path(r.path).parent.parent == root
+    ]
+    run_rows = plan_run_folders(
+        sid_dirs,
+        now,
+        dead_of=lambda d, held: _session_dead_for_runs(d, by_sid, tx, held, proc, now, older),
+        proc_root=proc,
+        tx_dirs=tx,
+        check_sid=False,
+    )
+    active = {Path(r.path).parent.parent for r in run_rows if r.cls == "kept"}
+    split: list[Row] = []
+    for r in rows:
+        if (
+            r.kind == "session"
+            and r.cls in ("dead", "dead-holds-backups")
+            and Path(r.path) in active
+        ):
+            split.extend(_split_dead_session(r, Path(r.path)))
+        else:
+            split.append(r)
+    rows = run_rows + split
     if args.apply:
         with _Lock() as got:
             if not got:
@@ -1541,6 +2210,7 @@ def run_dead_mode(args: argparse.Namespace) -> int:
                 return RC_OK
             print(REFUSAL_SET)
             print(render(rows, gaps=gaps, allowed=_allowed_classes(args)))
+            apply_run_rows(run_rows, proc_root=_proc_root())  # consumed run folders go first
             apply_rows(rows, _allowed_classes(args), proc_root=_proc_root())
             hub = _janitor_repo_root()
             if hub is not None:
@@ -1613,6 +2283,11 @@ def _worktree_registrations(repo: Path) -> list[dict]:
     rc, out = _git(repo, "worktree", "list", "--porcelain")
     if rc != 0:
         return []
+    return _parse_worktree_porcelain(out)
+
+
+def _parse_worktree_porcelain(out: str) -> list[dict]:
+    """One dict per `git worktree list --porcelain` stanza, keyed by each line's first word."""
     entries: list[dict] = []
     cur: dict = {}
     for line in out.splitlines():
@@ -2600,7 +3275,7 @@ def run_hook_mode(args: argparse.Namespace, sid_hint: str) -> int:
         # and not 1.0. A pad that outgrows the deadline truncates and stays silent rather than
         # printing a shrunken count; it is not built earlier than this on purpose.
         rows, _gaps, probe_ok = classify_session(
-            root, sid, _now(), older, budget=budget, with_size=False, cwd=cwd
+            root, sid, _now(), older, budget=budget, with_size=False, cwd=cwd, run_folders=False
         )
         if not probe_ok:
             return RC_OK  # nothing is provably unheld — say nothing rather than something false

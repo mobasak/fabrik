@@ -9,8 +9,11 @@ two, and no INV-1 condition ever reads CONSUMED.
 from __future__ import annotations
 
 import importlib.util
+import io
 import itertools
 import json
+import os
+import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -205,3 +208,925 @@ def test_read_owner_tolerates_missing_and_corrupt_markers(tmp_path: Path) -> Non
     assert sw.read_owner(folder) is None
     (folder / sw.OWNER_NAME).write_text(json.dumps({"state": "done"}), encoding="utf-8")
     assert sw.read_owner(folder) == {"state": "done"}
+
+
+# ── Phase B: removal by marker (D3 `--run-folders`, D4 in `--dead`) ──────────────────────────────
+SID_A = "aaaaaaaa-0000-4000-8000-00000000000a"
+SID_B = "bbbbbbbb-0000-4000-8000-00000000000b"
+SLUG = "-opt-fixture"
+
+
+def _age(path: Path, seconds_old: float) -> None:
+    os.utime(path, (NOW - seconds_old, NOW - seconds_old))
+
+
+@pytest.fixture
+def harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A private harness root plus every seam the sweep reads, pointed at tmp — never live state."""
+    root = tmp_path / "claude-1000"
+    root.mkdir()
+    (tmp_path / "tx").mkdir()
+    (tmp_path / "sessions").mkdir()
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("SCRATCH_SWEEP_ROOT", str(root))
+    monkeypatch.setenv("SCRATCH_SWEEP_NOW", str(NOW))
+    monkeypatch.setenv("SCRATCH_SWEEP_TRANSCRIPT_DIRS", str(tmp_path / "tx"))
+    monkeypatch.setenv("SCRATCH_SWEEP_SESSIONS_DIRS", str(tmp_path / "sessions"))
+    monkeypatch.setenv("SCRATCH_SWEEP_JANITOR_REPO", "")
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(tmp_path / "no-locks"))
+    monkeypatch.delenv("FABRIK_PROC_ROOT", raising=False)
+    return root
+
+
+def _session(root: Path, sid: str = SID_A) -> Path:
+    d = root / SLUG / sid
+    (d / "scratchpad").mkdir(parents=True, exist_ok=True)
+    tx = root.parent / "tx" / SLUG  # the session's transcript: the seat-write check can read it
+    tx.mkdir(parents=True, exist_ok=True)
+    (tx / f"{sid}.jsonl").touch()
+    return d
+
+
+def _run_folder(
+    sdir: Path,
+    name: str,
+    state: str | None = "done",
+    *,
+    closed_ago: float | None = 40 * HOUR,
+    sid: str | None = None,
+    repo: str = "",
+    heartbeat_ago: float = 40 * HOUR,
+    files: int = 1,
+) -> Path:
+    folder = (
+        sdir / "scratchpad" / f"run-{name}-2026-10-15T05-40-42-0300-0a1b2c"
+    )  # the mint's key: <started_at>-<6 hex>
+    folder.mkdir(parents=True)
+    for i in range(files):
+        (folder / f"f{i}").write_text("x", encoding="utf-8")
+    if state is not None:
+        owner = {
+            "sid": sid or sdir.name,
+            "key": name,
+            "command": "fabrik-probe",
+            "repo": repo,
+            "created": NOW - 50 * HOUR,
+            "state": state,
+            "closed_at": None if closed_ago is None else NOW - closed_ago,
+        }
+        (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+        _age(folder / ".owner", heartbeat_ago)
+    return folder
+
+
+def _main(capsys: pytest.CaptureFixture[str], *argv: str) -> tuple[int, str]:
+    rc = sw.main(list(argv))
+    return rc, capsys.readouterr().out
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=30, check=False
+    ).stdout
+
+
+def _repo(tmp_path: Path) -> Path:
+    main = tmp_path / "repo"
+    main.mkdir()
+    _git(main, "init", "-q", "-b", "main")
+    _git(main, "config", "user.email", "t@t")
+    _git(main, "config", "user.name", "t")
+    (main / "a.txt").write_text("base", encoding="utf-8")
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "base")
+    return main
+
+
+def _dead_record(tmp_path: Path, sid: str) -> None:
+    (tmp_path / "sessions" / f"{sid[:4]}.json").write_text(
+        json.dumps({"pid": 999_999, "sessionId": sid, "procStart": "1"}), encoding="utf-8"
+    )
+
+
+def _age_tree(path: Path, seconds: float) -> None:
+    for p in sorted(path.rglob("*"), reverse=True):
+        if p.name != ".owner":
+            _age(p, seconds)
+    _age(path, seconds)
+
+
+def _guard_run_walks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`newest_mtime` raises on any path inside a run folder — "removed with no walk"."""
+    real = sw.newest_mtime
+
+    def _no_walk(entry: Path, budget: object) -> tuple[float, bool]:
+        if "/run-" in str(entry):
+            raise AssertionError(f"a run folder was walked: {entry}")
+        return real(entry, budget)
+
+    monkeypatch.setattr(sw, "newest_mtime", _no_walk)
+
+
+def test_consumed_folder_removed_without_a_walk(
+    harness: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B1: a 100 000-file folder of a run closed past its grace goes by marker alone."""
+    folder = _run_folder(_session(harness), "big", files=100_000)
+
+    def _no_walk(*_a: object, **_k: object) -> None:
+        raise AssertionError("a run folder was walked")
+
+    monkeypatch.setattr(sw, "newest_mtime", _no_walk)
+    monkeypatch.setattr(sw, "_du_kb", _no_walk)
+    monkeypatch.setattr(sw, "_entry_newest", _no_walk)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert not folder.exists(), out
+    assert not (folder.parent / ".trash-big").exists(), out
+    assert "REMOVED" in out, out
+
+
+def _fake_gap_proc(tmp_path: Path) -> Path:
+    proc_root = tmp_path / "proc"
+    pid = proc_root / "4793"
+    (pid / "fd").mkdir(parents=True)
+    (pid / "comm").write_text("x\n", encoding="utf-8")
+    uid = os.getuid()
+    (pid / "status").write_text(f"Uid:\t{uid}\t{uid}\t{uid}\t{uid}\n", encoding="utf-8")
+    os.chmod(pid / "fd", 0o000)
+    return proc_root
+
+
+ACTIVE_FOLDERS = [
+    "running-live",
+    "running-fresh-heartbeat",
+    "resumable",
+    "done-10-min-no-seat",
+    "done-2-h-seat-wrote",
+    "fd-inside",
+    "cwd-inside",
+    "proc-gap",
+    "probe-dead",
+    "dirty-worktree",
+    "keep",
+    "unresolvable-repo-git-depth-3",
+    "no-marker",
+    "corrupt-marker",
+    "list-marker",
+    "running-no-signal-stale-heartbeat",
+    "worktree-list-fails",
+]
+
+
+def _build_active(case: str, sdir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """`(folder, children to kill, also try --dead)` for one B2 case."""
+    children: list[subprocess.Popen[bytes]] = []
+    if case == "running-live":
+        return (
+            _run_folder(sdir, case, "running", closed_ago=None, heartbeat_ago=30 * DAY),
+            [],
+            False,
+        )
+    if case == "running-fresh-heartbeat":
+        _dead_record(tmp_path, SID_A)
+        return _run_folder(sdir, case, "running", closed_ago=None, heartbeat_ago=DAY), [], True
+    if case == "running-no-signal-stale-heartbeat":
+        tx = sdir.parent.parent.parent / "tx" / SLUG / f"{SID_A}.jsonl"
+        _age(tx, 0)  # a transcript written just now: no death signal
+        return _run_folder(sdir, case, "running", closed_ago=None, heartbeat_ago=30 * DAY), [], True
+    if case == "resumable":
+        return _run_folder(sdir, case, "resumable"), [], False
+    if case == "done-10-min-no-seat":
+        return _run_folder(sdir, case, closed_ago=10 * 60), [], False
+    if case == "done-2-h-seat-wrote":
+        folder = _run_folder(sdir, case, closed_ago=2 * HOUR)
+        seat = tmp_path / "tx" / SLUG / SID_A / "subagents" / "agent-x.jsonl"
+        seat.parent.mkdir(parents=True)
+        seat.write_text("{}", encoding="utf-8")
+        _age(seat, HOUR)
+        return folder, [], False
+    folder = _run_folder(sdir, case)
+    if case == "fd-inside":
+        code = f"import time; f = open({str(folder / 'f0')!r}); print('ok', flush=True); time.sleep(60)"
+        child = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE)
+        assert child.stdout is not None and child.stdout.readline().strip() == b"ok"
+        children.append(child)
+    elif case == "cwd-inside":
+        code = "print('ok', flush=True); import time; time.sleep(60)"
+        child = subprocess.Popen([sys.executable, "-c", code], cwd=folder, stdout=subprocess.PIPE)
+        assert child.stdout is not None and child.stdout.readline().strip() == b"ok"
+        children.append(child)
+    elif case == "proc-gap":
+        monkeypatch.setenv("FABRIK_PROC_ROOT", str(_fake_gap_proc(tmp_path)))
+    elif case == "probe-dead":
+        (tmp_path / "empty-proc").mkdir()
+        monkeypatch.setenv("FABRIK_PROC_ROOT", str(tmp_path / "empty-proc"))
+    elif case == "dirty-worktree":
+        main = _repo(tmp_path)
+        _rewrite_repo(folder, str(main / ".git"))
+        tree = folder / "seat-1" / "tree"
+        _git(main, "worktree", "add", "-q", str(tree), "-b", "feat-dirty")
+        (tree / "wip.txt").write_text("in flight", encoding="utf-8")
+    elif case == "keep":
+        (folder / ".keep").write_text("", encoding="utf-8")
+    elif case == "unresolvable-repo-git-depth-3":
+        _rewrite_repo(folder, "/nonexistent/repo/.git")
+        (folder / "seat-1" / "tree" / "sub").mkdir(parents=True)
+        (folder / "seat-1" / "tree" / "sub" / ".git").write_text("gitdir: /gone", encoding="utf-8")
+    elif case == "no-marker":
+        (folder / ".owner").unlink()
+    elif case == "corrupt-marker":
+        (folder / ".owner").write_text("{not json", encoding="utf-8")
+    elif case == "list-marker":
+        (folder / ".owner").write_text("[1, 2]", encoding="utf-8")
+    elif case == "worktree-list-fails":
+        not_git = tmp_path / "not-a-git-dir"
+        not_git.mkdir()
+        _rewrite_repo(folder, str(not_git))
+    else:  # pragma: no cover — every case is named above
+        raise AssertionError(case)
+    return folder, children, False
+
+
+def _rewrite_repo(folder: Path, repo: str) -> None:
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    owner["repo"] = repo
+    (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    _age(folder / ".owner", 40 * HOUR)
+
+
+@pytest.mark.parametrize("case", ACTIVE_FOLDERS)
+def test_active_condition_keeps(
+    case: str,
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """B2: one ACTIVE condition alone keeps the folder through `--run-folders --apply` and, for
+    the dead-session cases, through `--dead --apply` too (spec INV-1)."""
+    sdir = _session(harness)
+    folder, children, dead_mode = _build_active(case, sdir, tmp_path, monkeypatch)
+    try:
+        rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+        assert rc == 0, out
+        assert folder.exists(), out
+        if dead_mode:
+            rc, out = _main(capsys, "--dead", "--apply")
+            assert rc == 0, out
+            assert folder.exists(), out
+    finally:
+        for c in children:
+            c.kill()
+            c.wait()
+        for fd in tmp_path.glob("proc/*/fd"):
+            os.chmod(fd, 0o700)  # or pytest cannot clean its tmp
+
+
+def test_the_dead_rule_consumes_a_stale_running_folder_the_own_session_keeps(
+    harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B2's mirror: the SAME `running` folder that `--run-folders` keeps is consumed by `--dead`
+    once its session has a death signal and its heartbeat is past 7 days — the keep above is the
+    condition, not a remover that never removes."""
+    sdir = _session(harness)
+    folder = _run_folder(sdir, "stuck", "running", closed_ago=None, heartbeat_ago=8 * DAY)
+    _age_tree(sdir, HOUR)  # touched an hour ago: the session itself is never removed whole
+    _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert folder.exists()
+    _dead_record(tmp_path, SID_A)
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    assert not folder.exists(), out
+    assert sdir.exists(), out  # the run pass alone removed it
+
+
+def test_only_own_session(harness: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """B3: `--run-folders --session A` touches A's directory and nothing under B's."""
+    mine = _run_folder(_session(harness, SID_A), "mine")
+    theirs = _run_folder(_session(harness, SID_B), "theirs")
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert not mine.exists(), out
+    assert theirs.exists(), out
+
+
+def test_sid_mismatch_kept(harness: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """B3 / P6: a marker naming another session is kept by the own-session remover (spec V3)."""
+    folder = _run_folder(_session(harness, SID_A), "moved", sid=SID_B)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert folder.exists(), out
+    assert "differs from its directory" in out, out
+
+
+def test_trash_left_by_a_crash(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """B4 (first half): a `.trash-<key>` an interrupted removal left goes on the next sweep."""
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(_one_pid_proc(tmp_path)))
+    trash = _session(harness) / "scratchpad" / ".trash-crashed-2026-10-15T05-40-42-0300-0a1b2c"
+    trash.mkdir()
+    (trash / "f").write_text("x", encoding="utf-8")
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert not trash.exists(), out
+
+
+def test_dead_session_keeps_active_run_folder(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """B5: consumed run folders of every session go first; a dead session holding an ACTIVE one
+    keeps its directory and that folder, and loses every other entry; a dry run removes nothing."""
+    dead = _session(harness, SID_A)
+    # resumable: the ACTIVE condition a session can still hold once it is idle past 7 days — a
+    # just-closed marker would make the session read recently touched, and it is left alone
+    active = _run_folder(dead, "active", "resumable", heartbeat_ago=30 * DAY)
+    junk = dead / "scratchpad" / "junk"
+    junk.mkdir()
+    (junk / "f").write_text("x", encoding="utf-8")
+    (dead / "tasks").mkdir()
+    (dead / sw.RUN_LOCK_NAME).write_text("", encoding="utf-8")
+    other = _session(harness, SID_B)
+    consumed = _run_folder(other, "consumed", closed_ago=40 * HOUR)
+    for d in (dead, other):
+        _dead_record(tmp_path, d.name)
+        _age_tree(d, 30 * DAY)
+
+    rc, out = _main(capsys, "--dead")
+    assert rc == 0, out
+    assert consumed.exists() and junk.exists(), "a dry --dead removed something"
+    listed = {ln.split(" · ")[0]: ln for ln in out.splitlines() if " · " in ln}
+    assert str(dead / sw.RUN_LOCK_NAME) in listed, out
+    assert " · dead · " not in listed.get(str(active), ""), out
+
+    _guard_run_walks(monkeypatch)
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    assert not consumed.exists(), out
+    assert active.exists() and dead.exists(), out
+    assert not junk.exists() and not (dead / "tasks").exists(), out
+    assert not (dead / sw.RUN_LOCK_NAME).exists(), out
+    assert "holds an active run folder" in out, out
+
+
+def test_dead_session_without_active_removed_whole(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """B5 / spec V1: a dead session's `running` folder with a 7-day-stale heartbeat is consumed
+    walk-free, and the session with no ACTIVE folder left is removed whole, as today."""
+    dead = _session(harness, SID_A)
+    running = _run_folder(dead, "stuck", "running", closed_ago=None, heartbeat_ago=8 * DAY)
+    _dead_record(tmp_path, SID_A)
+    _age_tree(dead, 30 * DAY)
+    _guard_run_walks(monkeypatch)
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    assert not running.exists() and not dead.exists(), out
+
+
+def test_the_run_pass_waits_for_the_unreadable_root_refusal(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """P9: an unreadable sessions root refuses the whole night — the run pass included."""
+    consumed = _run_folder(_session(harness), "consumed")
+    locked = tmp_path / "locked-sessions"
+    locked.mkdir()
+    os.chmod(locked, 0)
+    monkeypatch.setenv("SCRATCH_SWEEP_SESSIONS_DIRS", f"{tmp_path / 'sessions'}:{locked}")
+    try:
+        rc, out = _main(capsys, "--dead", "--apply")
+    finally:
+        os.chmod(locked, 0o700)
+    assert rc == sw.RC_REFUSED, out
+    assert consumed.exists(), out
+
+
+def test_session_mode_governs_run_folders_by_marker(
+    harness: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """B8 / P8: session mode never judges a run folder by age; `--hook` leaves run folders out."""
+    sdir = _session(harness)
+    graced = _run_folder(sdir, "graced", closed_ago=10 * 60)
+    resumable = _run_folder(sdir, "resumable", "resumable")
+    past = _run_folder(sdir, "past", closed_ago=40 * HOUR)
+    for f in (graced, resumable, past):
+        _age_tree(f, 7 * HOUR)
+    monkeypatch.setenv("CLAUDE_SESSION_ID", SID_A)
+    rc, out = _main(capsys, "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert graced.exists() and resumable.exists(), out
+    assert not past.exists(), out
+    assert "run folder, marker-governed" in out, out
+
+    stale = sdir / "scratchpad" / "plain-stale"
+    stale.mkdir()
+    _age_tree(stale, 7 * HOUR)
+    payload = json.dumps({"session_id": SID_A, "cwd": "/opt/fabrik"})
+    monkeypatch.setattr(sys, "stdin", io.StringIO(payload))
+    rc, out = _main(capsys, "--hook")
+    assert rc == 0
+    assert "1 stale entries" in out, out  # the two kept run folders are not counted
+
+
+def test_a_backup_inside_an_active_run_folder_does_not_shield_a_dead_session(
+    harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B8 / P8: a dead session whose only backup shape sits inside an ACTIVE run folder is split
+    per entry, never `dead-holds-backups`."""
+    dead = _session(harness)
+    active = _run_folder(dead, "active", "resumable", heartbeat_ago=30 * DAY)
+    (active / "main.py.bak").write_text("the only copy", encoding="utf-8")
+    junk = dead / "scratchpad" / "junk"
+    junk.mkdir()
+    _dead_record(tmp_path, SID_A)
+    _age_tree(dead, 30 * DAY)
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    assert "dead-holds-backups" not in out, out
+    assert active.exists() and not junk.exists(), out
+
+
+def test_a_backup_inside_a_consumed_run_folder_is_disposable(
+    harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """P10: inside a CONSUMED run folder a backup shape is disposable by contract — the dead
+    session holding only that is removed whole the same night, never `dead-holds-backups`."""
+    dead = _session(harness)
+    consumed = _run_folder(dead, "spent", heartbeat_ago=30 * DAY)
+    (consumed / "main.py.bak").write_text("a seat's revert baseline", encoding="utf-8")
+    _dead_record(tmp_path, SID_A)
+    _age_tree(dead, 30 * DAY)
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    assert "dead-holds-backups" not in out, out
+    assert not dead.exists(), out
+
+
+def test_run_folders_respects_the_lock(harness: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """B9: a held per-session lock is one line, nothing removed, rc 0."""
+    sdir = _session(harness)
+    folder = _run_folder(sdir, "consumed")
+    code = (
+        "import fcntl, sys, time; f = open(sys.argv[1], 'w'); "
+        "fcntl.flock(f, fcntl.LOCK_EX); print('ok', flush=True); time.sleep(60)"
+    )
+    holder = subprocess.Popen(
+        [sys.executable, "-c", code, str(sdir / sw.RUN_LOCK_NAME)], stdout=subprocess.PIPE
+    )
+    try:
+        assert holder.stdout is not None and holder.stdout.readline().strip() == b"ok"
+        rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    finally:
+        holder.kill()
+        holder.wait()
+    assert rc == 0, out
+    assert "holds this session's lock" in out, out
+    assert folder.exists(), out
+
+
+def test_nightly_runs_while_a_session_lock_is_held(
+    harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B9 / P3: a D3 child holding only its per-session lock never makes `--dead --apply` skip."""
+    sdir = _session(harness)
+    folder = _run_folder(sdir, "consumed")
+    _dead_record(tmp_path, SID_A)
+    _age_tree(sdir, 30 * DAY)
+    with sw._Lock(sdir / sw.RUN_LOCK_NAME) as got:
+        assert got
+        rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    assert "another sweep holds the lock" not in out, out
+    # the night ran: its run pass removed the consumed folder (the held lock fd makes the session
+    # itself read `live`, which is the holder rule doing its job)
+    assert not folder.exists(), out
+
+
+def test_vanished_folder_is_skipped(harness: Path) -> None:
+    """B9: a CONSUMED folder renamed away between classification and action is `gone — skipped`
+    and the run carries on to the next one."""
+    sdir = _session(harness)
+    first = _run_folder(sdir, "first")
+    second = _run_folder(sdir, "second")
+    rows = sw.plan_run_folders([sdir], NOW)
+    assert {r.cls for r in rows} == {"consumed"}, rows
+    first.rename(sdir / "elsewhere")
+    out = io.StringIO()
+    sw.apply_run_rows(rows, out=out)
+    assert "gone — skipped" in out.getvalue(), out.getvalue()
+    assert not second.exists(), out.getvalue()
+
+
+def test_a_folder_lost_to_a_racing_remover_is_skipped(
+    harness: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P3: a D3 and the nightly D4 on one folder — the rename that loses the race (ENOENT) is
+    `gone — skipped`, never FAILED, and the run carries on."""
+    sdir = _session(harness)
+    first = _run_folder(sdir, "first")
+    second = _run_folder(sdir, "second")
+    rows = sw.plan_run_folders([sdir], NOW)
+    real_rename = os.rename
+
+    def _racing(src: object, dst: object) -> None:
+        if str(src) == str(first):
+            raise FileNotFoundError(2, "No such file or directory", str(src))
+        real_rename(src, dst)
+
+    monkeypatch.setattr(sw.os, "rename", _racing)
+    out = io.StringIO()
+    sw.apply_run_rows(rows, out=out)
+    assert f"gone — skipped {first}" in out.getvalue(), out.getvalue()
+    assert "FAILED" not in out.getvalue(), out.getvalue()
+    assert not second.exists(), out.getvalue()
+
+
+def test_refusal_set_names_the_run_folder_rule() -> None:
+    """B10 / P10: `--help` states the marker rule and the run-folder carve-out."""
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT), "--help"], capture_output=True, text=True, timeout=30
+    )
+    assert proc.returncode == 0
+    flat = " ".join(proc.stdout.split())
+    assert (
+        "inside a CONSUMED run folder (scratchpad/run-<key>/) backup shapes are disposable" in flat
+    )
+    assert "judged only by its .owner marker and the holder probe" in flat
+
+
+def test_retire_marks_one_folder_done(harness: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """B11 / P12: `--retire` turns one resumable marker `done` (closed now) and changes nothing
+    else; another session's folder, or a missing one, is refused."""
+    folder = _run_folder(_session(harness), "wall", "resumable")
+    before = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--retire", folder.name)
+    assert rc == 0, out
+    after = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    assert after == {**before, "state": "done", "closed_at": NOW}
+    theirs = _run_folder(_session(harness, SID_B), "theirs", "resumable")
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--retire", theirs.name)
+    assert rc == sw.RC_REFUSED, out
+    assert json.loads((theirs / ".owner").read_text(encoding="utf-8"))["state"] == "resumable"
+    rc, out = _main(
+        capsys,
+        "--run-folders",
+        "--session",
+        SID_A,
+        "--retire",
+        "run-missing-2026-10-15T05-40-42-0300-0a1b2c",
+    )
+    assert rc == sw.RC_REFUSED, out
+
+
+@pytest.mark.parametrize("shape", ["merged-branch", "detached-contained"])
+def test_removable_worktree_is_removed_then_consumed(
+    shape: str, harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B12 / P14: a merged clean branch worktree, or a clean detached one whose HEAD a ref
+    contains, is removed with `git worktree remove` and its folder consumed."""
+    main = _repo(tmp_path)
+    folder = _run_folder(_session(harness), shape, repo=str(main / ".git"))
+    tree = folder / "seat-1" / "tree"
+    if shape == "merged-branch":
+        _git(main, "worktree", "add", "-q", str(tree), "-b", "feat-merged")
+    else:
+        _git(main, "worktree", "add", "-q", "--detach", str(tree), "HEAD")
+    _age(folder / ".owner", 40 * HOUR)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert not folder.exists(), out
+    assert str(tree) not in _git(main, "worktree", "list", "--porcelain"), out
+
+
+@pytest.mark.parametrize("shape", ["dirty", "locked", "unmerged", "detached-orphan"])
+def test_dirty_worktree_keeps_the_folder(
+    shape: str, harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B12 / P14: a dirty, locked, unmerged or ref-orphaned detached worktree keeps the folder."""
+    main = _repo(tmp_path)
+    folder = _run_folder(_session(harness), shape, repo=str(main / ".git"))
+    tree = folder / "seat-1" / "tree"
+    ident = ("-c", "user.email=t@t", "-c", "user.name=t")
+    if shape == "detached-orphan":
+        _git(main, "worktree", "add", "-q", "--detach", str(tree), "HEAD")
+        (tree / "n.txt").write_text("n", encoding="utf-8")
+        _git(tree, "add", "-A")
+        _git(tree, *ident, "commit", "-qm", "orphan")
+    else:
+        _git(main, "worktree", "add", "-q", str(tree), "-b", f"feat-{shape}")
+        if shape == "dirty":
+            (tree / "wip.txt").write_text("in flight", encoding="utf-8")
+        elif shape == "locked":
+            _git(main, "worktree", "lock", str(tree))
+        else:
+            (tree / "u.txt").write_text("u", encoding="utf-8")
+            _git(tree, "add", "-A")
+            _git(tree, *ident, "commit", "-qm", "unmerged")
+    _age(folder / ".owner", 40 * HOUR)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert folder.exists() and tree.exists(), out
+    assert "holds a registered worktree" in out, out
+
+
+def _gap_proc(tmp_path: Path, *, started_ago: float | None, zombie: bool = False) -> Path:
+    """A `/proc` holding one same-uid pid whose `/fd` is unreadable, started `started_ago` seconds
+    before NOW (None: its `stat` is missing). Boot is pinned through `SCRATCH_SWEEP_BTIME`."""
+    proc_root = tmp_path / "gproc"
+    pid = proc_root / "4242"
+    (pid / "fd").mkdir(parents=True)
+    (pid / "comm").write_text("gpg-agent\n", encoding="utf-8")
+    uid = os.getuid()
+    state = "Z (zombie)" if zombie else "S (sleeping)"
+    (pid / "status").write_text(
+        f"Name:\tgpg-agent\nState:\t{state}\nUid:\t{uid}\t{uid}\t{uid}\t{uid}\n", encoding="utf-8"
+    )
+    if started_ago is not None:
+        hz = os.sysconf("SC_CLK_TCK")
+        ticks = int((100 * DAY - started_ago) * hz)  # boot is 100 days before NOW (see the seam)
+        fields = ["S"] + ["0"] * 18 + [str(ticks)]
+        (pid / "stat").write_text(f"4242 (gpg-agent) {' '.join(fields)}\n", encoding="utf-8")
+    os.chmod(pid / "fd", 0o000)
+    return proc_root
+
+
+@pytest.mark.parametrize(
+    ("started_ago", "created_ago", "zombie", "kept"),
+    [
+        (90 * DAY, 50 * HOUR, False, False),  # a daemon running before the run began
+        (HOUR, 50 * HOUR, False, True),  # an unreadable process born during the run
+        (None, 50 * HOUR, False, True),  # its start cannot be read
+        (90 * DAY, None, False, True),  # the marker carries no `created`
+        (HOUR, 50 * HOUR, True, False),  # a zombie holds nothing
+    ],
+    ids=["pre-run-daemon", "born-during-run", "start-unknown", "created-missing", "zombie"],
+)
+def test_a_proc_gap_keeps_only_a_process_the_run_could_own(
+    started_ago: float | None,
+    created_ago: float | None,
+    zombie: bool,
+    kept: bool,
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The gaps rule (panel 2026-10-15, split; interim rule C): this box carries three same-uid
+    daemons whose `/fd` no one can read, so "any gap keeps" kept every folder for ever. A gap now
+    keeps only when its process started after the run's marker was written, or when either time is
+    unknown; a zombie is no gap at all."""
+    folder = _run_folder(_session(harness), "g")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    if created_ago is None:
+        owner.pop("created")
+    else:
+        owner["created"] = NOW - created_ago
+    (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    _age(folder / ".owner", 40 * HOUR)
+    monkeypatch.setenv(
+        "FABRIK_PROC_ROOT", str(_gap_proc(tmp_path, started_ago=started_ago, zombie=zombie))
+    )
+    monkeypatch.setenv("SCRATCH_SWEEP_BTIME", str(NOW - 100 * DAY))
+    try:
+        rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    finally:
+        os.chmod(tmp_path / "gproc" / "4242" / "fd", 0o700)
+    assert rc == 0, out
+    assert folder.exists() is kept, out
+
+
+def _one_pid_proc(tmp_path: Path) -> Path:
+    """A /proc with one readable pid — no holders, no gaps, a probe that completes."""
+    proc_root = tmp_path / "proc1"
+    (proc_root / "1" / "fd").mkdir(parents=True, exist_ok=True)
+    (proc_root / "1" / "comm").write_text("init\n", encoding="utf-8")
+    return proc_root
+
+
+def test_an_exited_gap_pid_is_dropped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A gap pid gone by the time its start is read held nothing — dropped, never an unknown that
+    keeps (transient same-uid gaps showed in 2 of 8 live probes)."""
+    proc_root = _gap_proc(tmp_path, started_ago=HOUR)
+    monkeypatch.setenv("SCRATCH_SWEEP_BTIME", str(NOW - 100 * DAY))
+    assert sw.gap_starts(["9999 (gone)"], proc_root) == []
+    assert sw.gap_starts(["4242 (gpg-agent)"], proc_root) == [pytest.approx(NOW - HOUR, abs=1)]
+    os.chmod(proc_root / "4242" / "fd", 0o700)
+
+
+def test_a_markerless_trash_falls_back_to_its_rename_time(tmp_path: Path) -> None:
+    """A `.trash-*` whose marker an interrupted rmtree took is judged against its own ctime (the
+    rename): a gap process older than that never owned it; an unknown start still keeps."""
+    trash = tmp_path / "scratchpad" / ".trash-x-2026-10-15T05-40-42-0300-0a1b2c"
+    trash.mkdir(parents=True)
+    ctime = trash.lstat().st_ctime
+    common = {"session_dead": False, "held": {}, "probe_ok": True}
+    older = sw.judge_run_folder(trash, "s", ctime + 60, gaps=[ctime - DAY], **common)
+    unknown = sw.judge_run_folder(trash, "s", ctime + 60, gaps=[None], **common)
+    assert older.cls == "consumed", older
+    assert unknown.cls == "kept", unknown
+
+
+# ── review round 1 (Phase B): graders for the confirmed candidates ────────────────────────────────
+def test_a_worktree_of_another_repo_keeps_the_folder(
+    harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """R1-1: a worktree registered by a repo OTHER than the marker's is still a registered worktree —
+    removing the folder would orphan that repo's registration (and its uncommitted file)."""
+    repo_a = _repo(tmp_path)
+    repo_b = tmp_path / "repo-b"
+    repo_b.mkdir()
+    _git(repo_b, "init", "-q", "-b", "main")
+    (repo_b / "b.txt").write_text("b", encoding="utf-8")
+    _git(repo_b, "add", "-A")
+    _git(repo_b, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "b")
+    folder = _run_folder(_session(harness), "foreign", repo=str(repo_a / ".git"))
+    tree = folder / "seat-1" / "b-tree"
+    _git(repo_b, "worktree", "add", "-q", str(tree), "-b", "wip")
+    (tree / "wip.txt").write_text("uncommitted", encoding="utf-8")
+    _age(folder / ".owner", 40 * HOUR)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert folder.exists() and (tree / "wip.txt").exists(), out
+    assert "no longer resolves" not in out and "does not list" in out, out  # the true reason
+
+
+@pytest.mark.parametrize("where", ["dot-dir", "the-folder-itself"])
+def test_a_worktree_pointer_anywhere_in_reach_keeps_the_folder(where: str, tmp_path: Path) -> None:
+    """R1-2: the `.git` scan reaches depth 0 and hidden directories — a `.git` pointer FILE whose
+    gitdir lies outside the folder is a registered worktree's, whatever its parent's name."""
+    folder = tmp_path / "scratchpad" / "run-p-2026-10-15T05-40-42-0300-0a1b2c"
+    pointer_dir = folder / ".hidden" / "tree" if where == "dot-dir" else folder
+    pointer_dir.mkdir(parents=True)
+    (pointer_dir / ".git").write_text("gitdir: /elsewhere/.git/worktrees/x\n", encoding="utf-8")
+    assert sw.git_pointer_files(folder) == [pointer_dir / ".git"]
+
+
+def test_a_self_contained_clone_is_scratch(
+    harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """R1-2's boundary: a plain clone (a `.git` DIRECTORY) and a submodule pointer into it are
+    self-contained — nothing outside the folder refers to them — so a consumed folder holding them
+    is still removed (a seat's clone is scratch, never a registration)."""
+    folder = _run_folder(_session(harness), "clone")
+    (folder / "seat-1" / "clone" / ".git" / "modules" / "sub").mkdir(parents=True)
+    (folder / "seat-1" / "clone" / "sub").mkdir()
+    (folder / "seat-1" / "clone" / "sub" / ".git").write_text(
+        "gitdir: ../.git/modules/sub\n", encoding="utf-8"
+    )
+    _age(folder / ".owner", 40 * HOUR)
+    assert sw.git_pointer_files(folder) == []
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert not folder.exists(), out
+
+
+@pytest.mark.parametrize("change", ["reclosed", "heartbeat", "keep"])
+def test_a_folder_that_changed_since_classification_is_kept(change: str, harness: Path) -> None:
+    """R1-3: between `plan_run_folders` and `apply_run_rows` the marker is re-closed, its heartbeat
+    refreshed, or a `.keep` dropped in — each is re-checked at removal time and keeps the folder."""
+    sdir = _session(harness)
+    folder = _run_folder(sdir, "moving")
+    rows = sw.plan_run_folders([sdir], NOW)
+    assert [r.cls for r in rows] == ["consumed"], rows
+    if change == "reclosed":
+        owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+        owner["closed_at"] = NOW - 60
+        (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    elif change == "heartbeat":
+        os.utime(folder / ".owner", (NOW, NOW))
+    else:
+        (folder / ".keep").write_text("", encoding="utf-8")
+    out = io.StringIO()
+    sw.apply_run_rows(rows, out=out)
+    assert folder.exists(), out.getvalue()
+    assert "KEPT" in out.getvalue(), out.getvalue()
+
+
+def test_retire_refuses_a_folder_that_is_not_resumable(
+    harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """R1-4: `--retire` ends a RESUME — on a `running` (or `done`) folder it is refused, never a
+    back door around the refusal set's "a running … one is never removed"."""
+    folder = _run_folder(_session(harness), "live", "running", closed_ago=None)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--retire", folder.name)
+    assert rc == sw.RC_REFUSED, out
+    assert json.loads((folder / ".owner").read_text(encoding="utf-8"))["state"] == "running"
+
+
+def test_no_session_transcript_means_the_seat_check_cannot_tell(tmp_path: Path) -> None:
+    """R1-5: with no transcript of the session in any listed root, "no seat wrote" is unknowable —
+    None (the 36 h ceiling), never False (the 30-minute fast path)."""
+    (tmp_path / "tx" / SLUG).mkdir(parents=True)
+    assert sw._seat_write_after_close(SID_A, NOW - HOUR, [tmp_path / "tx"]) is None
+    (tmp_path / "tx" / SLUG / f"{SID_A}.jsonl").write_text("{}", encoding="utf-8")
+    assert sw._seat_write_after_close(SID_A, NOW - HOUR, [tmp_path / "tx"]) is False
+
+
+def test_a_stale_registration_never_strands_a_consumed_folder(
+    harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """R1-6: a worktree whose directory is already gone leaves only a stale registration — nothing
+    on disk to lose — so the consumed folder is removed (no repo-wide prune is run)."""
+    main = _repo(tmp_path)
+    folder = _run_folder(_session(harness), "stale", repo=str(main / ".git"))
+    tree = folder / "seat-1" / "tree"
+    _git(main, "worktree", "add", "-q", str(tree), "-b", "feat-gone")
+    import shutil as _sh
+
+    _sh.rmtree(tree)
+    _age(folder / ".owner", 40 * HOUR)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert not folder.exists(), out
+
+
+def test_only_a_keyed_name_is_marker_governed(
+    harness: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """R1-7/8: `run-<key>` and `.trash-<key>` carry the mint's 6-hex suffix; an agent's own
+    `run-tests/` or `.trash-old/` is an untagged entry — judged by age as before, never removed by
+    name by the run pass, never kept for ever as a markerless run folder."""
+    pad = _session(harness) / "scratchpad"
+    for name in ("run-tests", ".trash-old"):
+        (pad / name).mkdir()
+        (pad / name / "f").write_text("x", encoding="utf-8")
+        _age_tree(pad / name, 7 * HOUR)
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(_one_pid_proc(harness.parent)))
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert (pad / "run-tests").exists() and (pad / ".trash-old").exists(), out
+    monkeypatch.setenv("CLAUDE_SESSION_ID", SID_A)
+    rc, out = _main(capsys, "--session", SID_A)
+    assert rc == 0, out
+    rows = {
+        Path(ln.split(" · ")[0]).name: ln.split(" · ")[2] for ln in out.splitlines() if " · " in ln
+    }
+    assert rows.get("run-tests") == "stale" and rows.get(".trash-old") == "stale", out
+
+
+@pytest.mark.parametrize("mode", [["--dead"], ["--hook"], ["--worktrees", "."]])
+def test_run_folder_flags_refuse_another_mode(
+    mode: list[str], harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """R1-9: `--run-folders`/`--retire` beside another mode is a usage error, never silently dropped."""
+    rc = sw.main(
+        [
+            *mode,
+            "--run-folders",
+            "--session",
+            SID_A,
+            "--retire",
+            "run-x-2026-10-15T05-40-42-0300-0a1b2c",
+        ]
+    )
+    assert rc == sw.RC_USAGE, capsys.readouterr()
+
+
+def test_a_prunable_registration_with_its_directory_left_is_consumed(
+    harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """R2-1: a registration git calls `prunable` while its directory still exists (the tree's `.git`
+    file deleted) cannot be `git worktree remove`d — trying would keep the folder every night.
+    It is a broken tree inside a consumed folder: the folder is removed, no git call attempted."""
+    main = _repo(tmp_path)
+    folder = _run_folder(_session(harness), "broken", repo=str(main / ".git"))
+    tree = folder / "seat-1" / "tree"
+    _git(main, "worktree", "add", "-q", str(tree), "-b", "feat-broken")
+    (tree / ".git").unlink()
+    assert "prunable" in _git(main, "worktree", "list", "--porcelain")
+    _age(folder / ".owner", 40 * HOUR)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert not folder.exists(), out
+
+
+@pytest.mark.parametrize(
+    ("name", "keyed"),
+    [
+        ("run-ui-facade", False),
+        (".trash-build-c0ffee", False),
+        ("run-tests-cafe12", False),
+        ("run-fabrik-review-2026-10-15T05-40-42-0300-0a1b2c", True),
+        (".trash-fabrik-review-2026-10-15T05-40-42-0000-0a1b2c", True),
+    ],
+)
+def test_a_run_key_needs_the_started_at_segment(name: str, keyed: bool, tmp_path: Path) -> None:
+    """R2-2: the mint's key is `<command>-<started_at>-<6 hex>`; a name merely ending in a hex-only
+    word (`facade`, `c0ffee`) is an agent's own entry, never marker-governed."""
+    (tmp_path / name).mkdir()
+    assert sw.is_run_entry(tmp_path / name) is keyed

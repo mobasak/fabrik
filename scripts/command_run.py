@@ -1619,41 +1619,56 @@ def _read_owner(folder: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _mint_run_scratch(
-    sid: str, cwd: str, command: str, key: str, repo_root: str
-) -> tuple[Path | None, str]:
-    """Create `<session dir>/scratchpad/run-<key>/` with a `running` marker (spec D1).
-
-    The session directory is FOUND by the hub's `find_session_dirs`, never computed. Returns
-    `(folder, "")`, or `(None, why)` — the caller prints the why and the start goes on.
-    """
+def _session_pad(sid: str, cwd: str) -> tuple[Path | None, str, Any]:
+    """`(<session dir>/scratchpad, "", module)` or `(None, why, None)` — the session directory is
+    FOUND by the hub's `find_session_dirs`, never computed (spec D1)."""
     if not os.environ.get("SCRATCH_SWEEP_ROOT") and (
         os.environ.get("COMMAND_RUN_DIR") or os.environ.get("PYTEST_CURRENT_TEST")
     ):
         return (
             None,
             "a test seam is set without SCRATCH_SWEEP_ROOT — the live harness root stays untouched",
+            None,
         )
     mod = _sweep_module()
     if mod is None:
         lib = os.environ.get("FABRIK_SCRATCH_SWEEP_LIB") or "/opt/fabrik/scripts"
-        return None, f"the scratch sweep could not be loaded from {lib}"
+        return None, f"the scratch sweep could not be loaded from {lib}", None
     if not all(hasattr(mod, n) for n in ("RUN_PREFIX", "find_session_dirs", "_scratch_root")):
         # a synced command_run.py newer than the hub's copy (or a hub copy mid-merge)
-        return None, "the hub's scratch_sweep.py predates run-bound scratch — no folder minted"
+        return (
+            None,
+            "the hub's scratch_sweep.py predates run-bound scratch — no folder minted",
+            None,
+        )
     root = mod._scratch_root()
     dirs = mod.find_session_dirs(root, sid, cwd)
     if not dirs:
-        return None, f"no harness session directory for this session under {root}"
+        return None, f"no harness session directory for this session under {root}", None
     if len(dirs) > 1:
-        return None, f"{len(dirs)} session directories and none matches this cwd — not guessing"
+        return (
+            None,
+            f"{len(dirs)} session directories and none matches this cwd — not guessing",
+            None,
+        )
+    return dirs[0] / "scratchpad", "", mod
+
+
+def _mint_run_scratch(
+    sid: str, cwd: str, command: str, key: str, repo_root: str
+) -> tuple[Path | None, str]:
+    """Create `<session dir>/scratchpad/run-<key>/` with a `running` marker (spec D1). Returns
+    `(folder, "")`, or `(None, why)` — the caller prints the why and the start goes on."""
+    pad, why, mod = _session_pad(sid, cwd)
+    if pad is None:
+        return None, why
     common = ""
     if repo_root:
         rc, out = _git_out(
             Path(repo_root), "rev-parse", "--path-format=absolute", "--git-common-dir"
         )
         common = out if rc == 0 else ""
-    folder = dirs[0] / "scratchpad" / f"{mod.RUN_PREFIX}{key}"
+    folder = pad / f"{mod.RUN_PREFIX}{key}"
     try:
         folder.mkdir(parents=True)
     except OSError as exc:
@@ -1717,6 +1732,76 @@ def _heartbeat(rec: dict[str, Any]) -> None:
     if folder_s:
         with contextlib.suppress(OSError):
             os.utime(Path(folder_s) / ".owner")
+
+
+def _adopt_run_scratch(
+    seed: dict[str, Any], sid: str, cwd: str, key: str
+) -> tuple[Path | None, str]:
+    """`start --resume-from`: move the wall seed's `resumable` folder into THIS session as
+    `run-<key>` (one rename) and rewrite its marker's `sid`/`key` (plan P6). The marker is re-read
+    just before the rename; anything but `resumable` is not adopted. A refused or failed adoption
+    marks the old folder `done` — this start ended its resume (P12) — and the caller mints fresh."""
+    old_s = str(seed.get("run_scratch") or "")
+    if not old_s:
+        return None, ""
+    old = Path(old_s)
+    try:
+        owner = _read_owner(old)
+        if owner is None or owner.get("state") != "resumable":
+            return None, f"the seed's run folder {old} is gone or no longer resumable"
+        old_sid = str(owner.get("sid") or sid)
+        pad, why, mod = _session_pad(sid, cwd)
+        if pad is None:
+            _mark_run_scratch({"run_scratch": old_s}, "done", old_sid)
+            return None, f"{why} — the seed's run folder {old} is marked done"
+        # a worktree or submodule pointer some repo OUTSIDE the folder refers to would be stranded
+        # by the rename; a plain clone is self-contained and moves safely (review R1-2)
+        pointers = mod.git_pointer_files(old) if hasattr(mod, "git_pointer_files") else [old]
+        if pointers:
+            _mark_run_scratch({"run_scratch": old_s}, "done", old_sid)
+            return (
+                None,
+                f"the seed's run folder {old} holds a registered git tree — not moved; marked done",
+            )
+        dest = pad / f"{mod.RUN_PREFIX}{key}"
+        os.rename(old, dest)
+    except OSError as exc:
+        _mark_run_scratch({"run_scratch": old_s}, "done", str((owner or {}).get("sid") or sid))
+        return None, f"cannot move the seed's run folder {old} ({exc}) — marked done"
+    owner.update({"sid": sid, "key": key})
+    _write_owner(dest, owner)  # a failure leaves a sid mismatch the next close heals (P6)
+    return dest, f"adopted from {old}"
+
+
+def _launch_run_folder_sweep(sid: str, repo_root: str) -> None:
+    """D3 (plan P3, P16): this session's run-folder sweep, launched DETACHED after the record lock
+    drops — a start never waits on a multi-GB removal and never runs a subprocess under the lock.
+    `FABRIK_SCRATCH_SWEEP=0` disables it; under a test seam only an explicit script runs. Fail-open."""
+    if os.environ.get("FABRIK_SCRATCH_SWEEP") == "0" or not sid:
+        return
+    explicit = os.environ.get("FABRIK_SCRATCH_SWEEP_SCRIPT")
+    if not explicit and (
+        os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("COMMAND_RUN_DIR")
+    ):
+        return
+    script = explicit or "/opt/fabrik/scripts/scratch_sweep.py"
+    if not Path(script).is_file():
+        return
+    argv = [sys.executable, script, "--run-folders", "--session", sid]
+    if repo_root:
+        argv += ["--cwd", repo_root]
+    argv.append("--apply")
+    try:
+        subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            env={**os.environ, "CLAUDE_SESSION_ID": sid},
+        )
+    except (OSError, ValueError) as exc:
+        sys.stderr.write(f"[command_run] run-folder sweep not launched: {exc}\n")
 
 
 def _repo_root() -> str:
@@ -3783,6 +3868,10 @@ def main(argv: list[str]) -> int:
             if text:  # `print("")` is a blank line; zero candidates print zero bytes
                 with contextlib.suppress(Exception):
                     print(text)
+        run_sweep = outbox.get("run_sweep")
+        if run_sweep:
+            with contextlib.suppress(Exception):
+                _launch_run_folder_sweep(*run_sweep)
         return rc
     except Exception as e:  # fail-soft — a state bug must never wedge an agent
         sys.stderr.write(f"[command_run] error, continuing: {e}\n")
@@ -5453,6 +5542,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _cmd = _norm_command(args.command)
         _declared: dict[str, Any] | None = None
         _seed: dict[str, Any] | None = None
+        _superseded = ""
         _seed_path = str(getattr(args, "resume_from", "") or "").strip()
         if _seed_path:
             # ── the quota-wall resume (W-28f260c3): the seed is read as handoff reads its artifact —
@@ -5522,6 +5612,9 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             and rec.get("wall") is True
             and _norm_command(str(rec.get("command") or "")) == _cmd
         ):
+            # P12: the wall run is not ended by this start (the resume is merely forgotten) —
+            # its folder stays `resumable` until THIS run's `done` declines the resume for good
+            _superseded = str(rec.get("run_scratch") or "")
             # the forgotten flag is the common case: say where the seed is, then open as asked
             sys.stderr.write(
                 f"[command_run] NOTE — this session's /{_cmd} record was closed at the quota wall; "
@@ -5788,19 +5881,31 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             sys.stderr.write(f"[command_run] NOTE — run scratch: {_n}\n")
         # the run-bound disposable folder (scratch lifecycle plan D1) — fail-open, never refuses
         _cmd_name = str(new.get("command") or "")
+        _rs_key = _run_scratch_key(_cmd_name, str(new.get("started_at") or ""))
+        _adopted = ""
+        _rs = None
+        if _seed is not None:
+            try:
+                _rs, _adopted = _adopt_run_scratch(_seed, sid, os.getcwd(), _rs_key)
+            except Exception as exc:  # noqa: BLE001 — scratch must never refuse a start
+                _rs, _adopted = None, f"{type(exc).__name__}: {exc}"
+            if _rs is None and _adopted:
+                sys.stderr.write(
+                    f"[command_run] NOTE — run scratch: {_adopted}; a fresh one is minted\n"
+                )
+                _adopted = ""
         try:
-            _rs, _rs_why = _mint_run_scratch(
-                sid,
-                os.getcwd(),
-                _cmd_name,
-                _run_scratch_key(_cmd_name, str(new.get("started_at") or "")),
-                str(new.get("repo_root") or ""),
-            )
+            if _rs is None:
+                _rs, _rs_why = _mint_run_scratch(
+                    sid, os.getcwd(), _cmd_name, _rs_key, str(new.get("repo_root") or "")
+                )
         except Exception as exc:  # noqa: BLE001 — scratch must never refuse a start
             _rs, _rs_why = None, f"{type(exc).__name__}: {exc}"
+        if _superseded:
+            new["superseded_run_scratch"] = _superseded
         if _rs is not None:
             new["run_scratch"] = str(_rs)
-            _run_scratch_line = f"RUN-SCRATCH: {_rs}"
+            _run_scratch_line = f"RUN-SCRATCH: {_rs}" + (f" ({_adopted})" if _adopted else "")
         else:
             new.pop("run_scratch", None)
             _run_scratch_line = f"RUN-SCRATCH: none — {_rs_why}"
@@ -5818,10 +5923,20 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _touch(new)
         fields["persisted"] = save(sid, new)
         if not fields["persisted"] and _rs is not None:
-            # nothing would ever heartbeat, mark or close a folder no record points at — the
-            # folder was minted a moment ago and holds only its marker
-            shutil.rmtree(_rs, ignore_errors=True)
-            _run_scratch_line = "RUN-SCRATCH: none — the run record could not be written"
+            if _adopted:
+                # an ADOPTED folder holds the wall run's work: never removed here — it stays
+                # `resumable`, and the alarm names it after 72 h (`--retire` ends it)
+                _run_scratch_line = (
+                    f"RUN-SCRATCH: none — the run record could not be written; the adopted folder "
+                    f"stays at {_rs}"
+                )
+            else:
+                # nothing would ever heartbeat, mark or close a folder no record points at — the
+                # folder was minted a moment ago and holds only its marker
+                shutil.rmtree(_rs, ignore_errors=True)
+                _run_scratch_line = "RUN-SCRATCH: none — the run record could not be written"
+        elif fields["persisted"]:
+            outbox["run_sweep"] = (sid, str(new.get("repo_root") or ""))
         print(pinned_line(new))
         if _seed is not None:
             _rf = new.get("resumed_from") or {}
@@ -7259,6 +7374,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         parent["event_seq"] = rec.get("event_seq")
         _touch(parent)
     _reopen: str = ""
+    _seed_kept = False
     if _wall:
         # ── the quota-wall seed (W-28f260c3): the CLOSED record minus its parked parent, plus the
         # parent chain by command so `start --resume-from` can refuse an inverted nest. Kept BEFORE
@@ -7278,6 +7394,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         if _kept_seed.startswith("/"):
             rec["resume_seed"] = _kept_seed
             _reopen = _kept_seed
+            _seed_kept = True
         else:
             sys.stderr.write(
                 f"[command_run] WARNING — the quota-wall seed could not be kept ({_kept_seed[:160]}); "
@@ -7300,8 +7417,13 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         return 1
     # the run folder's marker (scratch lifecycle plan D2, P5): AFTER the record persisted and
     # BEFORE the nested return, so a nested close marks its own folder too; a wall close — the
-    # flag OR the reason regex, the same `_wall` the seed keys on — keeps it `resumable`
-    _mark_run_scratch(rec, "resumable" if _wall else "done", sid)
+    # flag OR the reason regex, the same `_wall` the seed keys on — keeps it `resumable`, unless
+    # its seed could not be kept (P12: no folder stays resumable with nobody to adopt it)
+    _mark_run_scratch(rec, "resumable" if _wall and _seed_kept else "done", sid)
+    _sup = str(rec.get("superseded_run_scratch") or "")
+    if args.cmd == "done" and _sup and (_read_owner(Path(_sup)) or {}).get("state") == "resumable":
+        # P12: this run started over a forgotten resume; finishing it declines that resume
+        _mark_run_scratch({"run_scratch": _sup}, "done", sid)
     if _pending_row is not None:
         try:
             _lp = _feedback_ledger_path()

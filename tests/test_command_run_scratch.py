@@ -337,6 +337,7 @@ def _cr_rs(
     sid: str = "s1",
     cwd: Path | None = None,
     lib: Path | None = SWEEP_LIB,
+    extra_env: dict[str, str] | None = None,
 ):
     """A subprocess call with the run-scratch seams: the harness root and the module the mint loads."""
     env = {
@@ -347,6 +348,7 @@ def _cr_rs(
         "SCRATCH_SWEEP_ROOT": str(harness),
         "FABRIK_SCRATCH_SWEEP_LIB": str(lib) if lib is not None else "",
         "FABRIK_SCRATCH_SWEEP": "0",
+        **(extra_env or {}),
     }
     return subprocess.run(
         ["python3", str(SCRIPT), *args],
@@ -780,3 +782,291 @@ def test_start_over_a_wall_record_leaves_its_folder_resumable(tmp_path: Path) ->
     out = _start_cmd(run_dir, harness, repo, "fabrik-probe-other")
     assert out.returncode == 0, out.stdout + out.stderr
     assert _owner(folder)["state"] == "resumable"
+
+
+# ── Phase B: adoption, the detached launch, the P12 endings (rows B4, B7) ────────────────────────
+SWEEP = ROOT / "scripts" / "scratch_sweep.py"
+
+
+def _wall(run_dir: Path, harness: Path, repo: Path, sid: str = "s1") -> str:
+    """Close the live run at the quota wall; return the seed path the close prints."""
+    out = _cr_rs(
+        run_dir,
+        harness,
+        "blocked",
+        "--command",
+        "fabrik-probe",
+        "--reason",
+        "x",
+        "--wall",
+        "--feedback",
+        _FB,
+        sid=sid,
+        cwd=repo,
+    )
+    assert out.returncode == 0, out.stdout + out.stderr
+    m = re.search(r"--resume-from (\S+)", out.stdout)
+    assert m, out.stdout
+    return m.group(1)
+
+
+def _resume(run_dir: Path, harness: Path, repo: Path, seed: str, sid: str):
+    return _cr_rs(
+        run_dir,
+        harness,
+        "start",
+        "--command",
+        "fabrik-probe",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        "--resume-from",
+        seed,
+        sid=sid,
+        cwd=repo,
+    )
+
+
+def _done(run_dir: Path, harness: Path, repo: Path, sid: str = "s1", command: str = "fabrik-probe"):
+    out = _cr_rs(
+        run_dir,
+        harness,
+        "done",
+        "--command",
+        command,
+        "--evidence",
+        "e",
+        "--feedback",
+        _FB,
+        sid=sid,
+        cwd=repo,
+    )
+    assert out.returncode == 0, out.stdout + out.stderr
+    return out
+
+
+def _sweep(harness: Path, sid: str, now: float, tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    """The real D3 sweep against the private harness, with a /proc of one readable pid so a
+    transient same-uid gap on the live box cannot make the run flaky."""
+    proc_root = tmp_path / "proc1"
+    (proc_root / "1" / "fd").mkdir(parents=True, exist_ok=True)
+    (proc_root / "1" / "comm").write_text("init\n", encoding="utf-8")
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(tmp_path / "home"),
+        "SCRATCH_SWEEP_ROOT": str(harness),
+        "SCRATCH_SWEEP_NOW": str(now),
+        "SCRATCH_SWEEP_TRANSCRIPT_DIRS": str(tmp_path / "no-transcripts"),
+        "FABRIK_PROC_ROOT": str(proc_root),
+    }
+    (tmp_path / "no-transcripts" / "x").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "no-transcripts" / "x" / f"{sid}.jsonl").touch()  # a readable session, no seat
+    return subprocess.run(
+        [sys.executable, str(SWEEP), "--run-folders", "--session", sid, "--apply"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+
+def test_resume_adopts_the_resumable_folder(tmp_path: Path) -> None:
+    """B4 / P6: `start --resume-from` in a NEW session renames the wall run's `resumable` folder
+    into that session as `run-<new key>`, rewrites its marker's sid and key, points the record at
+    it; the resumed run's `done` and a sweep past the grace then remove it."""
+    repo, harness, run_dir, old = _minted(tmp_path)
+    (old / "work.txt").write_text("carried", encoding="utf-8")
+    seed = _wall(run_dir, harness, repo)
+    _session_dir(harness, repo, sid="s2")
+    out = _resume(run_dir, harness, repo, seed, "s2")
+    assert out.returncode == 0, out.stdout + out.stderr
+    line = _run_scratch_line(out.stdout)
+    assert f"(adopted from {old})" in line, out.stdout
+    new = Path(line.split(" (adopted")[0])
+    assert not old.exists() and (new / "work.txt").read_text(encoding="utf-8") == "carried"
+    assert new.parent == harness / _slug(repo) / "s2" / "scratchpad"
+    owner = _owner(new)
+    assert owner["sid"] == "s2" and owner["key"] == new.name.removeprefix("run-")
+    assert owner["state"] == "resumable"
+    assert json.loads((run_dir / "s2.json").read_text(encoding="utf-8"))["run_scratch"] == str(new)
+    _done(run_dir, harness, repo, sid="s2")
+    closed = _owner(new)
+    assert closed["state"] == "done"
+    swept = _sweep(harness, "s2", closed["closed_at"] + 3600, tmp_path)
+    assert swept.returncode == 0, swept.stdout + swept.stderr
+    assert not new.exists(), swept.stdout
+
+
+def test_resume_in_the_same_session_adopts(tmp_path: Path) -> None:
+    """B4 / P11's exception: a same-session `--resume-from` overwrites the wall record and still
+    finds its folder `resumable` to adopt."""
+    repo, harness, run_dir, old = _minted(tmp_path)
+    seed = _wall(run_dir, harness, repo)
+    out = _resume(run_dir, harness, repo, seed, "s1")
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert f"(adopted from {old})" in _run_scratch_line(out.stdout), out.stdout
+
+
+def test_adoption_crash_keeps(tmp_path: Path) -> None:
+    """B4: a crash after the rename and before the marker rewrite leaves a folder whose marker
+    names the OLD session — the own-session sweep keeps it (sid mismatch, and still resumable)."""
+    repo, harness, run_dir, old = _minted(tmp_path)
+    _wall(run_dir, harness, repo)
+    s2 = _session_dir(harness, repo, sid="s2")
+    moved = s2 / "scratchpad" / "run-crashed-2026-10-15T05-40-42-0300-0a1b2c"
+    old.rename(moved)  # the rename landed; the rewrite never did
+    swept = _sweep(harness, "s2", time.time() + 30 * 86400, tmp_path)
+    assert swept.returncode == 0, swept.stdout + swept.stderr
+    assert moved.exists(), swept.stdout
+
+
+@pytest.mark.parametrize("why", ["holds-a-worktree", "no-longer-resumable"])
+def test_worktree_folder_not_adopted(tmp_path: Path, why: str) -> None:
+    """B4 / P12: a folder holding a git tree, or whose marker no longer reads `resumable` when
+    re-read before the rename, is not adopted; a fresh folder is minted, and a resumable one that
+    could not move is marked `done` — no folder stays resumable with nobody to adopt it."""
+    repo, harness, run_dir, old = _minted(tmp_path)
+    seed = _wall(run_dir, harness, repo)
+    if why == "holds-a-worktree":
+        (old / "seat-1" / "tree").mkdir(parents=True)
+        (old / "seat-1" / "tree" / ".git").write_text("gitdir: /x\n", encoding="utf-8")
+    else:
+        owner = _owner(old)
+        owner["state"] = "done"
+        (old / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    _session_dir(harness, repo, sid="s2")
+    out = _resume(run_dir, harness, repo, seed, "s2")
+    assert out.returncode == 0, out.stdout + out.stderr
+    line = _run_scratch_line(out.stdout)
+    assert "adopted" not in line and Path(line) != old and Path(line).is_dir(), out.stdout
+    assert old.exists() and _owner(old)["state"] == "done", out.stderr
+
+
+def test_an_unkept_wall_seed_marks_the_folder_done(tmp_path: Path) -> None:
+    """P12: a wall close whose seed could not be kept writes `done`, not `resumable`."""
+    repo, harness, run_dir, folder = _minted(tmp_path)
+    (run_dir / "seeds").write_text("a file where the seeds dir should be", encoding="utf-8")
+    out = _cr_rs(
+        run_dir,
+        harness,
+        "blocked",
+        "--command",
+        "fabrik-probe",
+        "--reason",
+        "x",
+        "--wall",
+        "--feedback",
+        _FB,
+        cwd=repo,
+    )
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "seed could not be kept" in out.stderr, out.stderr
+    assert _owner(folder)["state"] == "done"
+
+
+def test_a_superseding_run_ends_the_forgotten_resume(tmp_path: Path) -> None:
+    """P12: a plain start of the same command over a wall record leaves the wall folder
+    `resumable`, records it as `superseded_run_scratch`, and that run's `done` marks it `done`."""
+    repo, harness, run_dir, wall_folder = _minted(tmp_path)
+    _wall(run_dir, harness, repo)
+    out = _start(run_dir, harness, repo)
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert _owner(wall_folder)["state"] == "resumable"
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["superseded_run_scratch"] == str(wall_folder)
+    _done(run_dir, harness, repo)
+    assert _owner(wall_folder)["state"] == "done"
+
+
+def _stub(tmp_path: Path) -> tuple[Path, Path]:
+    log = tmp_path / "stub.log"
+    stub = tmp_path / "stub_sweep.py"
+    stub.write_text(
+        "import json, os, sys\n"
+        f"open({str(log)!r}, 'w').write(json.dumps([sys.argv[1:], os.environ.get('CLAUDE_SESSION_ID')]))\n",
+        encoding="utf-8",
+    )
+    return stub, log
+
+
+def test_start_launches_the_run_folder_sweep(tmp_path: Path) -> None:
+    """B7 / P3, P16: after the lock drops, `start` launches `--run-folders --session <sid> --cwd
+    <repo_root> --apply` detached, with the sid in the child's env."""
+    repo = _repo(tmp_path, gitignore=".tmp/\n")
+    harness = tmp_path / "harness"
+    _session_dir(harness, repo)
+    stub, log = _stub(tmp_path)
+    env = {"FABRIK_SCRATCH_SWEEP": "1", "FABRIK_SCRATCH_SWEEP_SCRIPT": str(stub)}
+    out = _cr_rs(
+        tmp_path / "runs",
+        harness,
+        "start",
+        "--command",
+        "fabrik-probe",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        cwd=repo,
+        extra_env=env,
+    )
+    assert out.returncode == 0, out.stdout + out.stderr
+    for _ in range(100):
+        if log.exists() and log.read_text(encoding="utf-8"):
+            break
+        time.sleep(0.05)
+    argv, child_sid = json.loads(log.read_text(encoding="utf-8"))
+    rec = json.loads((tmp_path / "runs" / "s1.json").read_text(encoding="utf-8"))
+    assert argv == ["--run-folders", "--session", "s1", "--cwd", rec["repo_root"], "--apply"]
+    assert child_sid == "s1"
+
+
+def test_the_launch_is_gated_and_fails_open(tmp_path: Path, monkeypatch) -> None:
+    """B7: `FABRIK_SCRATCH_SWEEP=0`, or a test seam with no explicit script, launches nothing; a
+    launch that raises never fails the caller."""
+    cr = _load()
+    calls: list[list[str]] = []
+    monkeypatch.setattr(cr.subprocess, "Popen", lambda argv, **_k: calls.append(argv))
+    stub, _log = _stub(tmp_path)
+    monkeypatch.setenv("FABRIK_SCRATCH_SWEEP", "0")
+    monkeypatch.setenv("FABRIK_SCRATCH_SWEEP_SCRIPT", str(stub))
+    cr._launch_run_folder_sweep("s1", "/r")
+    assert calls == []
+    monkeypatch.delenv("FABRIK_SCRATCH_SWEEP")
+    monkeypatch.delenv("FABRIK_SCRATCH_SWEEP_SCRIPT")
+    cr._launch_run_folder_sweep("s1", "/r")  # PYTEST_CURRENT_TEST is set and no script named
+    assert calls == []
+    monkeypatch.setenv("FABRIK_SCRATCH_SWEEP_SCRIPT", str(stub))
+    cr._launch_run_folder_sweep("s1", "/r")
+    assert calls and calls[-1][-6:] == [
+        "--run-folders",
+        "--session",
+        "s1",
+        "--cwd",
+        "/r",
+        "--apply",
+    ]
+
+    def _boom(*_a, **_k):
+        raise OSError("no fork")
+
+    monkeypatch.setattr(cr.subprocess, "Popen", _boom)
+    cr._launch_run_folder_sweep("s1", "/r")  # never raises
+
+
+def test_a_wall_folder_holding_a_plain_clone_is_adopted(tmp_path: Path) -> None:
+    """R1-2 (U3): a plain clone is self-contained — moving it strands nothing — so the wall run's
+    folder holding one is ADOPTED, never refused and marked `done` (which then removed its work)."""
+    repo, harness, run_dir, old = _minted(tmp_path)
+    (old / "seat-1" / "clone" / ".git").mkdir(parents=True)
+    (old / "seat-1" / "clone" / "work.txt").write_text("uncommitted", encoding="utf-8")
+    seed = _wall(run_dir, harness, repo)
+    _session_dir(harness, repo, sid="s2")
+    out = _resume(run_dir, harness, repo, seed, "s2")
+    assert out.returncode == 0, out.stdout + out.stderr
+    line = _run_scratch_line(out.stdout)
+    assert "(adopted from" in line, out.stdout + out.stderr
+    new = Path(line.split(" (adopted")[0])
+    assert (new / "seat-1" / "clone" / "work.txt").read_text(encoding="utf-8") == "uncommitted"
