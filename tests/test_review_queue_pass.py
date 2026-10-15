@@ -472,3 +472,39 @@ def test_a_fix_is_probed_against_every_shape_the_form_it_replaces_held() -> None
         "the closing-pass brief has every seat list each slice file it read, by path, and re-check every fix that"
         " replaced a form against the shapes the OLD form held, as the fix's ledger row lists them"
     ) in _norm(CAT)
+
+
+def test_a_reader_over_another_language_starts_from_a_fail_closed_grammar() -> None:
+    """Row 1792019529 (wef2, a /fabrik-review under /fabrik-task over a TypeScript reader): four rounds and 10.7 h
+    went to a tokenizer that a strict line grammar replaced in one; the catalogue's Parsers row said 'the parsing
+    model before tokens' but never that the grammar REFUSES unknown lines, that its refusal is executed before
+    every pin, or where the seats aim. The second verdict on a held parser subject (parser-residue-replace,
+    parser-fix-scope-growth-early-exit), so the subject is edited (D-711). Round 1 of its review added the
+    fail-closed COST (the lead runs the grammar over the live files and classes every refusal) and closed the
+    renamed-tokenizer and trivial-fixture escapes. Mutants: delete the clause, 'REFUSES' to 'flags', drop 'none a
+    catch-all', 'every pin' to 'the pin', drop the live-files run, drop the tokenizer escape, append 'where time
+    allows' — each fails an assertion (the clause is bounded to the Parsers row)."""
+    text = _norm(CAT)
+    row = text[text.index("- Parsers: the producer's real output contract first") :]
+    row = row[: row.index(" - ", 1)]
+    assert (
+        "a hand-written reader whose input is source in a language other than its own (TypeScript read by Python,"
+        " SQL, a Dockerfile), with no real parser of that language at hand, starts from a strict grammar that REFUSES"
+        " any line matching none of its named forms, none a catch-all, its refusal executed before every pin on a line"
+        " of that language's own syntax that no named form admits, and run by the lead over the live files the reader"
+        " will read, each refusal there classed a grammar gap or a true out-of-grammar line; the seats attack what the"
+        " grammar wrongly accepts — a tokenizer is built only where the brief names the construct no line form can"
+        " hold."
+    ) in row, (
+        "the grammar-first rule, its executed refusal, its fail-closed cost and its escape are one clause"
+    )
+    assert row.rstrip().endswith("no line form can hold."), row[-80:]
+    assert "attack only" not in row, "'only' forbade probing wrongful refusals (round-1 finding)"
+    assert "hand-written reader" in row and "no real parser of that language at hand" in row, (
+        "a reader that uses the language's real parser is outside the clause (round-2 finding)"
+    )
+    for weakener in ("where time allows", "where practical", "optionally", "should"):
+        assert weakener not in row.lower(), weakener
+    assert "the parsing model before tokens" in row, (
+        "the clause sharpens the existing model-before-tokens rule"
+    )
