@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T08:14:34.850350Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-99a835ca",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: make rotation happen (a hard Stop/prompt nudge or an automatic handoff before 200 MB), and raise/split the extension host; operator meanwhile /clears the big windows",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "status": "open",
+  "tags": [
+    "incident",
+    "queued"
+  ],
+  "title": "WSL/VS Code disconnects again from extension-host OOM (2026-10-15): hub transcripts are huge — infra dd3c06d1 1.67 GB, intel 4e90716e 1.19 GB, fleet 1970a0ff 0.96 GB, kaizen 5fa5812d 0.25 GB — the ROTATE line (200 MB) is advisory and nobody rotated. Evidence: exthost RSS 6.0 GB 84 s after restart; wsl-crashes dumps of the vscode-server node at 10:05:35 and 11:13:38; global OOM kill 11:09:45; load avg 58; dmesg 'UtilAcceptVsock accept4 failed 110' (WSL relay could not accept connections). Same root cause as memory note hub-transcripts-too-big-to-load (loader parses whole files when compact boundaries carry preservedSegment)"
+}
