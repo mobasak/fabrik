@@ -1,6 +1,6 @@
 # Plan review — chrome-extension developer-mode release kit (W-e2af3303)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Command:** /fabrik-plan-review · joint loop over a `Size: small` spec (spec § The delta D10)
 **Artifacts:** `docs/development/plans/2026-10-14-plan-1-chrome-extension-devmode-release-kit.md` and
 `docs/superpowers/specs/2026-10-14-chrome-extension-devmode-release-kit-design.md`, both DRAFT at 5f6d1983b.
@@ -46,6 +46,9 @@ Built from the spec's own § Intake Inventory (13 items: 11 IN, 2 OUT-OF-SCOPE).
 | Pass 4 | opus×1 (O) + sonnet×1 (S2) (the slice owners); shape: agent-tool | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 3 | method: re-derivation — 5 ledger rows re-verified (all DEFECT_ABSENT); 1 confirmed in the fix hunks, 1 confirmed from a seat's one-hop note when the orchestrator executed it | ce19d1e6… → d6cebea7… (plan); spec 06cb0341… → c4ef8876… |
 | Pass 5 | opus×1 (O) + sonnet×2 (S1, S2) (the slice owners); shape: agent-tool | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 3 | method: re-derivation — 8 ledger rows re-verified (7 DEFECT_ABSENT, S2-S3 residue); stall breaker tripped (rounds 3-5 confirmed 2, 2, 2) — foundation named and removed, see below | d6cebea7… → 4d517845… (plan); spec c4ef8876… → c2f93162… |
 | Pass 6 | opus×1 (O) + sonnet×1 (S2) (the round-1 slice owners; S1 re-stated at its last verified 4/4) · delta over the round-5 fix; standing clean since Pass 1: every other class; shape: agent-tool | found: 1, new: 1, **confirmed: 0**, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — 7 ledger rows re-verified (all DEFECT_ABSENT); O-O19 RECORDED — measured | 4d517845… → 4d517845… ✓ (plan); spec c2f93162… → c2f93162… ✓ → quiet |
+| Pass 7 | opus×1 (O) + sonnet×2 (S1, S2) — the panel's delta round over its 18 accepted changes; S1's seat stalled (no result, carried to Pass 8); shape: agent-tool | found: 6, new: 6, confirmed: 6, fixed: 6, unexecuted: 0, edits: 6 | method: re-derivation + executed probes (a CORS-middleware probe of every B3/B4 branch) — see Pass 7 candidates | c453df3a… → d8153216… (plan); spec 16f476c7… → 3e557f9d… |
+| Pass 8 | opus×1 (O) + sonnet×2 (S1, S2) (the slice owners; S1's full ledger re-run) | found: 4, new: 4, confirmed: 2, fixed: 2, unexecuted: 0, edits: 4 | method: re-derivation + a scratch Makefile proving the `--env-file` conditional; O-Q1 (B4b's Then), O-Q2 (no step emitted the Makefile change) confirmed; two estimate notes RECORDED — measured (wording; changes no behaviour) | d8153216… → cc7bfdc3… (plan); spec 3e557f9d… → 28e15e69… |
+| Pass 9 | opus×1 (O) + sonnet×1 (S2) (the round-1 slice owners; S1 re-stated at its last verified 5/5) · delta over the round-8 fix; standing clean since Pass 1: every other class; shape: agent-tool | found: 0, new: 0, **confirmed: 0**, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — 6 ledger rows re-verified (all DEFECT_ABSENT); the orchestrator executed the one claim no seat could read (uvicorn `--env-file` is `click.Path(exists=True)`, `uvicorn/main.py:193`) | cc7bfdc3… → cc7bfdc3… ✓ (plan); spec 28e15e69… → 28e15e69… ✓ → **CONVERGED** |
 
 ### Pass 1 candidates
 
@@ -121,3 +124,77 @@ manifest's `key`; nothing outside the seats' roots is re-quoted. A removal, not 
 |---|---|---|
 | O-O19 | Phase A step 5 lets a skipped build test stand as the pasted result of A3's build leg | RECORDED — measured (the host that executes the plan has node v24.18.0 and pnpm 11.24.0, so the build leg runs; the explicit selector `-m needs_network -k builds` collects exactly 1 test, executed: `1/30 tests collected (29 deselected)`) |
 | O-note | Coverage Checklist row "RECURRENCE fail-open" says the endpoint 404s "unless all three values are set", without "and non-empty" | RECORDED — measured (wording; changes no behaviour — an adjudication note; the interface, B1(b) and spec § Validation 6 carry "and non-empty") |
+
+## Design-approval panel (D-613)
+
+Both seats read the pinned spec (md5 c2f931620e37176f870408253c92e766) and plan (md5 4d5178456fb0524468901299861dd420) cold.
+
+- `VERDICT: sound-with-changes — docs/development/plans/2026-10-14-plan-1-chrome-extension-devmode-release-kit.md + docs/superpowers/specs/2026-10-14-chrome-extension-devmode-release-kit-design.md` (opus)
+- `VERDICT: sound-with-changes — docs/development/plans/2026-10-14-plan-1-chrome-extension-devmode-release-kit.md + docs/superpowers/specs/2026-10-14-chrome-extension-devmode-release-kit-design.md` (fable)
+
+Every concern was executed against the base copy and ACCEPTED; none was rejected or left open.
+
+| Seat · # | Concern | Evidence executed | Disposition |
+|---|---|---|---|
+| opus 1, fable 2 | `release-ext` minted the key and built from an uncommitted tree, so the ID could drift and the `.pem` be lost | `89-extension-launch-checklist.md:120-121` ("from the pushed SHA"); the recipe had no tracked-key or clean-tree check | ACCEPTED — `release-ext` refuses unless the `.pub` is tracked and the tree clean; keygen is a separate step 0; A7 runs the refusal |
+| opus 2 | the checker would nag store and policy installs | spec item 2 changed only `key` | ACCEPTED — the checker returns when the manifest has `update_url`; A4 |
+| opus 3, fable 5 | with no backend URL the checker silently self-404s; the Options page's stored URL was ignored | `src/fabrik/scaffold.py:5532` (`?? ''`), `:5386-5395` (`settings.apiUrl`) | ACCEPTED — base = stored `apiUrl` else `API_BASE_URL`, early return when empty; `release-ext` requires an https `VITE_PUBLIC_API_URL`; A4, A7 |
+| opus 4 | the release loop never asked for `EXTENSION_ID`; a malformed value broke CORS silently | spec step 4 named three values; no validation | ACCEPTED — `release-ext` prints four values; the server strips and validates `^[a-p]{32}$`, logging `cors_extension_id_invalid`; B3(b), B4(c) |
+| fable 1 | the unset-ID default was fail-OPEN (credentialed any-extension regex) | `src/fabrik/scaffold.py:5871-5872`; compose `${EXTENSION_ID:-}` | ACCEPTED — closed by default (empty allow-list); the regex only behind the local `CORS_ALLOW_ANY_EXTENSION=1`; the core/35 exception is gone; B4, B4b |
+| opus 5 | spec said the alarm is re-created on every SW start, which resets its period | `chrome.alarms.create` replaces a same-named alarm; spec vs plan disagreed | ACCEPTED — create only when `alarms.get` finds none, in spec and plan; A5 |
+| opus 6, fable 3 | INSTALL.md not copied beside the zip; the onboarding link had no target; no backup instruction | the recipe copied nothing; no hosted URL at scaffold time; Lifecycle cited a guide line that did not exist | ACCEPTED — `cp ../INSTALL.md .`; the onboarding link dropped; keygen prints the backup warning; A1, A7 |
+| opus 7, fable 7 | the template path did not pass the four names | `compose.yaml.j2:24-30`, `template_renderer.py:127` | ACCEPTED — the template replaces its `CORS_ORIGINS` line with the four `${VAR:-}` lines; B5 |
+| opus 8 | the OAuth `chromiumapp.org` redirect changes with the dev ID | `70-chrome-ext.md` § Auth | ACCEPTED — recorded in the spec's dissent fold and § Decisions taken (run keygen before registering a redirect) |
+| opus 9 | `is_public` described as making the backend reachable | `src/fabrik/spec_loader.py:269-274` (gates Gatus) | ACCEPTED — reworded in § Shape |
+| opus 10 | size line, surface pin, A1/A2 without a node skip | spec header; plan surface; `tests/test_scaffold_chrome_ext_wxt.py:323-326` | ACCEPTED — all three corrected |
+| fable 4 | ledger upd-5 and prac-19 dispositions argued the opposite of the spec | ledger rows upd-5, prac-19 | ACCEPTED — dispositions rewritten; `check_research_ledger.py`: 0 refused of 43 |
+| fable 6 | A1/A2 run `node` with no skip guard | as opus 10 | ACCEPTED — A1/A2 skip without `node` |
+| fable 8 | "unzip over the same folder" leaves stale chunks | — | ACCEPTED — "replace the folder's contents" |
+
+### Pass 7 candidates (the panel's delta round)
+
+| Id | Finding | Disposition |
+|---|---|---|
+| O-P1 | the local `CORS_ALLOW_ANY_EXTENSION` opt-in (and `EXTENSION_ID`) could never reach the dev server: the emitted server loads no `.env` and `make dev`/`dev-server` pass no `--env-file` | CONFIRMED (executed: no `load_dotenv` in the chrome emitter; `src/fabrik/scaffold.py:6007-6016` uvicorn lines carry no `--env-file`), FIXED — both pass `$(if $(wildcard .env),--env-file .env,)`; B6 |
+| O-P2 | spec Validation 1 (keygen emitted) mapped only to A1, which now skips without `node` | CONFIRMED, FIXED — A0 reads the emitted file and script, never skips |
+| O-P3 | the grader-mechanism note named only B4's stdout assertion, not B4b's | CONFIRMED, FIXED |
+| O-P4 | the diff estimate differed between the header and the Self-audit | CONFIRMED, FIXED — ≈335 in both |
+| O-note | the closed case logged `cors_any_extension_origin` while admitting no origin | CONFIRMED (in the round's own hunk), FIXED — the closed case logs `cors_no_extension_id`; B4 |
+| S2-P1 | the Personas update step read "unzip it into the same folder's contents" | CONFIRMED, FIXED — "replace the folder's contents with the new zip's" |
+| S2-P2 | the dissent fold cited a README line no step emits | CONFIRMED, FIXED — the keygen header and `release-ext`'s refusal carry it |
+
+### Pass 8 candidates
+
+| Id | Finding | Disposition |
+|---|---|---|
+| O-Q1 | B4b's Then said "the warning is logged" while two warnings now exist | CONFIRMED, FIXED — names `cors_any_extension_origin` and excludes `cors_no_extension_id` |
+| O-Q2 | no Phase B step emitted the Makefile `--env-file` change that B6 grades | CONFIRMED, FIXED — step 3 adds it (`src/fabrik/scaffold.py:6010`, `:6015`) |
+| O-note | spec § Validation had no item for the dev `--env-file` behaviour; the core/30-ops row named one warning | FIXED — spec Validation 13 (mapped to B6); the row now names the structured startup logs |
+| S1-Q1, S2-note | the plan header's ≈335 sits beside its own ≈327 itemised sum; the spec's size lines use a different basis | RECORDED — measured (wording; an approximate estimate, changes no behaviour) |
+| O-note (pre-existing) | the emitted `dev` recipe's `trap 'kill 0' SIGINT` fails under `/bin/sh` (dash wants `INT`) | RECORDED — out of scope (pre-existing emitter defect, not this change); a backlog item at execution |
+
+## Per-phase verdicts
+
+### Phase A — the extension and the release (keygen, manifest key, checker, INSTALL, `release-ext`): CONVERGED (Pass 9 confirmed 0; slice S1 verified 5/5)
+
+### Phase B — the backend (endpoint, closed-by-default CORS, compose env passthrough, dev `--env-file`): CONVERGED (Pass 9 confirmed 0; slice O verified 4/4)
+
+### Phase C — Finish (whole-plan `/fabrik-review`, CHANGELOG, decision row, gate, merge request): CONVERGED (Pass 9 confirmed 0; no finding touched it)
+
+### The spec (joint loop, `Size: small`): CONVERGED (Pass 9 confirmed 0; slice S2 verified 4/4); approval row D-893
+
+## Gate
+
+`python scripts/final_gate.py --check --json` over the staged approval commit (docs-only, so the static tier is skipped by design); the head of its output, verbatim:
+
+```json
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 58,
+  "failed": 0,
+  "skipped": 1,
+  "skipped_checks": [
+    "static tier"
+  ],
+```

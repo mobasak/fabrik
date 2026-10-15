@@ -1,25 +1,26 @@
 # Plan — chrome-extension scaffold emits the developer-mode release kit (W-e2af3303)
 
-Status: DRAFT
+Status: CONVERGED
 Profile: small
 **Owner:** —
-**Surface:** `git rev-parse HEAD` = 12333be10 at authoring; `src/fabrik/scaffold.py::_scaffold_chrome_extension` (`:5075-6136`)
+**Surface:** `git rev-parse HEAD` = 12333be10 at authoring, 473ed4978 at the approval panel (only the two documents changed between); `src/fabrik/scaffold.py::_scaffold_chrome_extension` (`:5075-6136`)
 
 Spec: `docs/superpowers/specs/2026-10-14-chrome-extension-devmode-release-kit-design.md` (DRAFT at 12333be10, `Size: small`,
 `Profile: delta`). `/fabrik-plan-review` grades its sections together with this plan and flips both. Source: fleet mail 01M3WQXZ3Y → work
-item W-e2af3303. Estimated diff: ≈280 code lines in two code files and one template, tests excluded — in `src/fabrik/scaffold.py`:
-keygen script ≈45, `wxt.config.ts` key/permissions ≈20, package scripts ≈2, update checker ≈65, background wiring ≈8,
-popup banner ≈20, INSTALL.md ≈45 (emitted doc text), onboarding link ≈3, Makefile `release-ext` ≈14, `.gitignore` ≈2,
-server endpoint ≈25, exact CORS ≈12, Traefik CORS labels removed ≈10, `.env.example` ≈6 (sum ≈277);
-`templates/chrome-extension/defaults.yaml` ≈2; `templates/chrome-extension/compose.yaml.j2` ≈7 lines removed. Tests ≈330
-lines in `tests/test_scaffold.py`.
+item W-e2af3303. Estimated diff: ≈335 code lines in one code file and two templates, tests excluded — in `src/fabrik/scaffold.py`:
+keygen script ≈50, `wxt.config.ts` key/permissions ≈20, package scripts ≈2, update checker ≈80, background wiring ≈8,
+popup banner ≈20, INSTALL.md ≈45 (emitted doc text), Makefile `release-ext` with its refusals ≈30, `.gitignore` ≈2,
+server endpoint ≈25, closed-by-default CORS ≈25, Traefik CORS labels removed ≈10, `.env.example` ≈8, dev `--env-file` ≈2
+(sum ≈327);
+`templates/chrome-extension/defaults.yaml` ≈2; `templates/chrome-extension/compose.yaml.j2` ≈7 lines replaced. Tests
+≈380 lines in `tests/test_scaffold.py` and `tests/test_scaffold_chrome_ext_wxt.py`.
 
 ## What this plan is
 
 Three inline phases the orchestrator codes itself in the worktree; no coder is dispatched:
 
 - **A — the extension and the release**: the keygen script, the manifest key and permissions, the update checker, the
-  popup banner, the INSTALL guide, the onboarding link, `.gitignore`, the Makefile `release-ext` target (spec § Chosen
+  popup banner, the INSTALL guide, `.gitignore`, the Makefile `release-ext` target (spec § Chosen
   approach items 1-3, 6, 7).
 - **B — the backend**: `GET /extension/latest`, exact-origin CORS in FastAPI with the Traefik CORS labels removed,
   `defaults.yaml`, `compose.yaml.j2`, `.env.example`
@@ -106,27 +107,34 @@ Appetite: 120
   mode 0600, `mkdir -p` 0700) and `extension/extension-key.pub` (one line, base64 SPKI DER), prints `extension id: <id>`
   and `EXTENSION_ID=<id>`. Key present → prints the same two lines from the existing `.pub`, writes nothing. A `.pub`
   without its `.pem` → prints the ID and a warning that the private key is missing (the enterprise and store-migration
-  paths need it), exit 0.
+  paths need it), exit 0. On creating a key it also prints "back up extension/.keys/extension-key.pem now" and the
+  next steps (commit `extension-key.pub`, push).
 - `wxt.config.ts` (`:5109-5134`) — reads `extension-key.pub` when it exists and `process.env.STORE_BUILD !== '1'`, and sets
   `manifest.key`; adds `'alarms'` to `permissions`; adds no `host_permissions` (spec § Chosen approach item 2).
 - `extension/package.json` scripts (`:5145-5156`) gain `"keygen": "node scripts/keygen.mjs"`.
-- `extension/src/lib/update-check.ts` — `checkForUpdate()`: GET `${API_BASE_URL}/extension/latest`, `credentials:
-  'omit'`, `AbortSignal.timeout(10000)`; a non-2xx (404 = nothing published) or a body failing validation (version matches
+- `extension/src/lib/update-check.ts` — `checkForUpdate()`: returns at once when `browser.runtime.getManifest()` has an
+  `update_url` (store or policy install) or when no base resolves; the base is the stored `settings.apiUrl`
+  (`:5386-5395`, the Options page's value) else `API_BASE_URL` (`:5532`). Then GET `<base>/extension/latest`,
+  `credentials: 'omit'`, `AbortSignal.timeout(10000)`; a non-2xx (404 = nothing published) or a body failing validation (version matches
   `^\d{1,5}(\.\d{1,5}){0,3}$`, `download_url` starts with `https://`) does nothing. `isNewer(a, b)` compares integer by
   integer, a missing integer counting 0. Newer → `browser.storage.local.set({updateNotice: {version, download_url}})` and
-  `browser.action.setBadgeText({text: '↑'})`; not newer → clears both. `scheduleUpdateChecks()` re-creates the
-  `update-check` alarm (`periodInMinutes: 360`) and runs one check.
+  `browser.action.setBadgeText({text: '↑'})`; not newer → clears both. `scheduleUpdateChecks()` creates the
+  `update-check` alarm (`periodInMinutes: 360`) only when `browser.alarms.get('update-check')` finds none (re-creating
+  an alarm replaces it and restarts its period) and runs one check.
 - background (`:5268-5288`) — `scheduleUpdateChecks()` from `runtime.onStartup` and `runtime.onInstalled`;
   `alarms.onAlarm` for `update-check` runs `checkForUpdate()`.
 - popup `main.tsx` (`:5353`) — reads `updateNotice` from `storage.local` and shows "Update available — v<version>" with the
   download link, through the existing i18n locale (`en` and `tr` strings added to `src/locales`).
-- `extension/INSTALL.md` — spec § Chosen approach item 7 verbatim in content; `extension/public/onboarding.html` (`:5675`)
-  gains one line linking to it.
-- `Makefile` (`:6000-6056`) — `release-ext`, added to `.PHONY` (`:6001`): ONE recipe line (each make line is its own
-  shell) — `cd extension && pnpm keygen && pnpm zip && cd .output && zip=$$(ls -t *-chrome.zip | head -1) &&
-  sha256sum "$$zip" > "$$zip.sha256"` (the bare name, so `sha256sum -c` verifies beside the published zip), and, still in that line, prints
-  the three `EXTENSION_LATEST_*` lines with the version from `package.json`, a `<download-url>` placeholder and the
-  checksum. Publishes nothing.
+- `extension/INSTALL.md` — spec § Chosen approach item 7 verbatim in content (updating = replace the folder's
+  contents, then Reload). The onboarding page is not changed (spec item 7).
+- `Makefile` (`:6000-6056`) — `release-ext`, added to `.PHONY` (`:6001`). Its first recipe line refuses (exit 1, printing
+  the next steps) unless `git ls-files --error-unmatch extension/extension-key.pub` succeeds, `git status --porcelain`
+  is empty, and `VITE_PUBLIC_API_URL` starts with `https://` in the environment or in `extension/.env.production` /
+  `extension/.env`. Its second is ONE line (each make line is its own shell) — `cd extension && pnpm zip && cd .output
+  && zip=$$(ls -t *-chrome.zip | head -1) && sha256sum "$$zip" > "$$zip.sha256" && cp ../INSTALL.md .` (the bare name,
+  so `sha256sum -c` verifies beside the published zip) — and, still in that line, prints the four backend values:
+  `EXTENSION_ID` from the `.pub`, the version from `package.json`, a `<download-url>` placeholder and the checksum.
+  It never runs keygen and publishes nothing.
 - `.gitignore` (`:6071-6088`) gains `extension/.keys/`.
 
 **Steps** (sequential):
@@ -135,7 +143,7 @@ Appetite: 120
 2. Emit the keygen script, the `wxt.config.ts` change and the package script; update the two existing tests that pin
    the exact permissions (`tests/test_scaffold_chrome_ext_wxt.py:138` and `:350`) to include `alarms`.
 3. Emit the update checker, the background wiring and the popup banner with its locale strings.
-4. Emit `INSTALL.md`, the onboarding link, the Makefile target and the `.gitignore` line.
+4. Emit `INSTALL.md`, the Makefile target and the `.gitignore` line.
 5. Run the Phase A graders green, then the whole chrome-extension class (`tests/test_scaffold.py -k chrome`) and
    `tests/test_scaffold_chrome_ext_wxt.py`, green. The build test carries `needs_network`, which `pyproject.toml:106`
    deselects by default, so run it explicitly — `pytest tests/test_scaffold_chrome_ext_wxt.py -m needs_network -k
@@ -146,13 +154,14 @@ Appetite: 120
 
 | # | Given | When | Then |
 |---|---|---|---|
-| A1 | a fresh chrome-extension scaffold | `node extension/scripts/keygen.mjs` runs in it | `.keys/extension-key.pem` exists with mode 0600, `extension-key.pub` holds 392 base64 chars, and the printed ID equals the SHA-256-first-16-bytes a–p derivation of the decoded `.pub` |
-| A2 | a key already present | keygen runs again | both files are byte-identical and the same ID prints |
+| A0 | a fresh chrome-extension scaffold | read (never skips) | `extension/scripts/keygen.mjs` exists and `package.json` has the `keygen` script |
+| A1 | a fresh chrome-extension scaffold (skips without `node`, saying so) | `node extension/scripts/keygen.mjs` runs in it | `.keys/extension-key.pem` exists with mode 0600, `extension-key.pub` holds 392 base64 chars, the printed ID equals the SHA-256-first-16-bytes a–p derivation of the decoded `.pub`, and the output tells the operator to back the `.pem` up |
+| A2 | a key already present (skips without `node`) | keygen runs again | both files are byte-identical and the same ID prints |
 | A3 | the emitted `wxt.config.ts`; and a real build (run with `-m needs_network`, where node and pnpm exist) | read; `pnpm keygen` then `wxt build` (the existing `test_wxt_scaffold_builds_and_manifest_has_permissions`, extended) | it sets `manifest.key` from `extension-key.pub` only when the file exists and `STORE_BUILD` is not `1`, lists `alarms`, and has no `host_permissions`; the built `manifest.json` carries `key` equal to the `.pub` and the permissions list with `alarms` |
-| A4 | the emitted `update-check.ts` | read | it requests `/extension/latest` with a 10 s timeout and no credentials, validates version and https URL, compares integer by integer, and sets the badge only when newer |
-| A5 | the emitted background | read | `onStartup` and `onInstalled` schedule checks and `onAlarm` handles `update-check` |
-| A6 | the emitted `INSTALL.md` | read | it names `chrome://extensions`, Load unpacked, keep Developer mode on, Reload to update, and `ExtensionDeveloperModeSettings` |
-| A7 | the emitted `.gitignore` and Makefile | read; the `release-ext` recipe extracted from its target line to the next target | `.gitignore` names `extension/.keys/`; `.PHONY` lists `release-ext`; the recipe is one line that runs keygen and zip, writes a `.sha256` with the bare name, and contains no upload, `scp`, `rsync` or `curl` (the existing `docker-smoke` target's `curl` is outside the extracted recipe) |
+| A4 | the emitted `update-check.ts` | read | it returns early when the manifest has an `update_url` or no base resolves, prefers the stored `settings.apiUrl` over `API_BASE_URL`, requests `/extension/latest` with a 10 s timeout and no credentials, validates version and https URL, compares integer by integer, and sets the badge only when newer |
+| A5 | the emitted background and checker | read | `onStartup` and `onInstalled` schedule checks, the alarm is created only after `alarms.get('update-check')` finds none, and `onAlarm` handles `update-check` |
+| A6 | the emitted `INSTALL.md` | read | it names `chrome://extensions`, Load unpacked, keep Developer mode on, replace the folder's contents and Reload to update, and `ExtensionDeveloperModeSettings` |
+| A7 | the emitted `.gitignore` and Makefile; and a scaffold in a temp git repo with no committed `.pub` | read; the `release-ext` recipe extracted from its target line to the next target; `make release-ext` run in the temp repo | `.gitignore` names `extension/.keys/`; `.PHONY` lists `release-ext`; the recipe checks the tracked `.pub`, a clean tree and an https `VITE_PUBLIC_API_URL`, never runs keygen, zips, writes a `.sha256` with the bare name, copies `INSTALL.md`, prints the four values, and contains no upload, `scp`, `rsync` or `curl` (the existing `docker-smoke` target's `curl` is outside the extracted recipe); the run exits 1 before zipping and prints the next steps |
 
 ## Phase B — the backend
 
@@ -163,8 +172,10 @@ Appetite: 60
   all three of `EXTENSION_LATEST_VERSION`, `EXTENSION_LATEST_URL`, `EXTENSION_LATEST_SHA256` are set and non-empty;
   else 200 `{"version", "download_url", "sha256"}` from them (`os.getenv`, read per request, so a redeploy with the
   new `.env` values is the only change needed once the compose passes them through, below). Public, no auth.
-- CORS (`:5867-5876`) — `EXTENSION_ID` set and non-empty → `allow_origins=[f"chrome-extension://{EXTENSION_ID}"]` and
-  no regex; unset or empty (the compose's `${EXTENSION_ID:-}` delivers "not set" as `""`) → today's `allow_origin_regex` plus one `logger.warning("cors_any_extension_origin")` at startup in `lifespan`.
+- CORS (`:5867-5876`) — `EXTENSION_ID`, stripped, matching `^[a-p]{32}$` → `allow_origins=[f"chrome-extension://{EXTENSION_ID}"]`
+  and no regex; otherwise `CORS_ALLOW_ANY_EXTENSION=1` → today's `allow_origin_regex` and one
+  `logger.warning("cors_any_extension_origin")` at startup in `lifespan`; otherwise `allow_origins=[]` and one
+  `logger.warning("cors_no_extension_id")`; a non-empty invalid value also logs `logger.error("cors_extension_id_invalid")`. (The compose's `${EXTENSION_ID:-}` delivers "not set" as `""`.)
 - compose (`:5974-5996`) — the `extra_labels` tuple drops all six CORS entries (the five `{name}-cors` header labels and
   `routers.{name}.middlewares={name}-cors`) and its in-tuple comment; the call passes no `extra_labels`, and the comment
   block above the call (`:5975-5978`, "so we add CORS middleware via Traefik") is rewritten to say FastAPI answers CORS.
@@ -173,13 +184,19 @@ Appetite: 60
   `- EXTENSION_LATEST_URL=${EXTENSION_LATEST_URL:-}`, `- EXTENSION_LATEST_SHA256=${EXTENSION_LATEST_SHA256:-}` —
   the canonical compose has no `env_file` and its environment is otherwise `PORT` and `LOG_LEVEL` only (`:1100-1102`);
   `${VAR:-}` is safe in an env line (no `build.args`, `:1094-1099`).
-- `templates/chrome-extension/compose.yaml.j2` — lines 17-22 (the CORS comment and five labels) and line 27
-  (`CORS_ORIGINS=${CORS_ORIGINS:-chrome-extension://*}`) removed.
-- `templates/chrome-extension/defaults.yaml` — `CORS_ORIGINS: "chrome-extension://*"` removed, nothing added: an empty
-  default renders through the template's env loop (`compose.yaml.j2:28-30`, merged at `template_renderer.py:127`) as
-  `- EXTENSION_ID=`, forcing the open fallback; the template path takes the four names from the spec's `env:`.
+- `templates/chrome-extension/compose.yaml.j2` — lines 17-22 (the CORS comment and five labels) removed; line 27
+  (`CORS_ORIGINS=${CORS_ORIGINS:-chrome-extension://*}`) replaced by the same four `- VAR=${VAR:-}` lines, so both compose
+  paths read the deploy's `.env` (the template already passes `${LOG_LEVEL:-INFO}` this way, line 26). A project's
+  service spec must not repeat these names in its `env:`, which the template renders after them.
+- `templates/chrome-extension/defaults.yaml` — `CORS_ORIGINS: "chrome-extension://*"` removed, nothing added (the
+  template's env loop, `compose.yaml.j2:28-30`, merged at `template_renderer.py:127`, would render a default as a
+  literal line beside the `${VAR:-}` ones).
+- `Makefile` `dev` and `dev-server` (`:6007-6016`) — the uvicorn lines gain `$(if $(wildcard .env),--env-file .env,)`,
+  so `EXTENSION_ID` and the local opt-in in `.env` reach the dev server (the emitted server loads no `.env`, and
+  uvicorn's `--env-file` refuses a missing file).
 - `.env.example` (`:6060-6068`) — names `EXTENSION_ID`, `EXTENSION_LATEST_VERSION`, `EXTENSION_LATEST_URL`,
-  `EXTENSION_LATEST_SHA256`, each with a one-line comment.
+  `EXTENSION_LATEST_SHA256`, each with a one-line comment, and `CORS_ALLOW_ANY_EXTENSION` commented out with "local
+  development only, never in a deploy".
 
 **Steps** (sequential):
 1. `command grep -rn CORS_ORIGINS src/ templates/ tests/ scripts/` and record it in Evidence: at authoring, 7 hits —
@@ -188,26 +205,29 @@ Appetite: 60
    lines this phase removes; none in the emitted chrome-extension server. Write the Phase B graders and see each red. B5 replaces `test_compose_traefik_cors_uses_regex_not_glob` (`tests/test_scaffold_chrome_ext_wxt.py:102-114`),
    which pins the regex label this phase removes; its docstring's "Traefik synthesizes the preflight itself" holds only
    while the middleware is attached.
-2. Emit the endpoint, the CORS branch and the startup warning.
-3. Remove the Traefik CORS labels and rewrite the comment above them; pass the four env lines; remove the two chrome
-   `CORS_ORIGINS` lines (template, `defaults.yaml`); emit the `.env.example` rows.
+2. Emit the endpoint, the three-way CORS branch and its startup logs.
+3. Remove the Traefik CORS labels and rewrite the comment above them; pass the four env lines on both compose paths;
+   remove the two chrome `CORS_ORIGINS` lines (template, `defaults.yaml`); emit the `.env.example` rows; add
+   `$(if $(wildcard .env),--env-file .env,)` to the `dev` and `dev-server` uvicorn lines (`:6010`, `:6015`).
 4. Phase B graders green; the whole chrome-extension class green; `tests/orchestrator/test_template_defaults.py` green.
 5. `/fabrik-review-scoped` on Phase B's surface; fix what it finds.
 
 **Behaviour Contract (Phase B)**
 
-B1-B4 run the emitted server in a fresh `.venv/bin/python` subprocess from `server/src`, with the row's env set, so
+B1-B4b run the emitted server in a fresh `.venv/bin/python` subprocess from `server/src`, with the row's env set, so
 `main.py` is imported under that env (CORS is fixed at import) and the emitted logger's root-handler swap
 (`src/fabrik/scaffold.py:960`) never meets pytest's capture; each opens `with TestClient(app)` so `lifespan` runs, and
-B4 asserts on the subprocess's stdout, where structlog writes.
+B4 and B4b assert on the subprocess's stdout, where structlog writes.
 
 | # | Given | When | Then |
 |---|---|---|---|
 | B1 | the emitted server with the three `EXTENSION_LATEST_*` (a) all unset, (b) all set to `""`, (c) only VERSION and URL set | `GET /extension/latest` (TestClient) | 404 in each case |
 | B2 | the three `EXTENSION_LATEST_*` set | `GET /extension/latest` | 200 with exactly those three values |
-| B3 | `EXTENSION_ID=abc…` (32 a–p) | a preflight from `chrome-extension://<another id>` | no `access-control-allow-origin` header; from the pinned ID, the header is present |
-| B4 | `EXTENSION_ID` (a) unset, (b) set to `""` | the app starts | the `cors_any_extension_origin` warning is logged, and a preflight from any extension origin gets the header (the dev regex) |
-| B5 | the emitted `compose.yaml` and `.env.example`; `defaults.yaml`; `compose.yaml.j2` | read | no label containing `-cors` in the emitted compose or the template; the emitted compose carries the four `${VAR:-}` env lines and no `CORS_ORIGINS`; the four env names in `.env.example`; no `CORS_ORIGINS` in `defaults.yaml` or the template |
+| B3 | `EXTENSION_ID=` a valid 32-character a–p ID, (a) as is, (b) with a trailing `\r` | a preflight from `chrome-extension://<another id>`, then from the pinned ID | no `access-control-allow-origin` header for the other ID; the header for the pinned ID in both (a) and (b) |
+| B4 | `EXTENSION_ID` (a) unset, (b) `""`, (c) `chrome-extension://<id>` (invalid); no `CORS_ALLOW_ANY_EXTENSION` | the app starts; a preflight from any extension origin | `cors_no_extension_id` logged (and `cors_extension_id_invalid` in (c)); no `access-control-allow-origin` header |
+| B4b | `EXTENSION_ID` unset, `CORS_ALLOW_ANY_EXTENSION=1` | the app starts; a preflight from any extension origin | `cors_any_extension_origin` logged and `cors_no_extension_id` not logged; the header is present (the dev regex) |
+| B5 | the emitted `compose.yaml` and `.env.example`; `defaults.yaml`; `compose.yaml.j2` | read | no label containing `-cors` in the emitted compose or the template; the emitted compose and the template each carry the four `${VAR:-}` env lines and no `CORS_ORIGINS`; the four env names and the commented opt-in in `.env.example`; no `CORS_ORIGINS` in `defaults.yaml` |
+| B6 | the emitted `Makefile` | read the `dev` and `dev-server` recipes | both uvicorn lines carry `$(if $(wildcard .env),--env-file .env,)` |
 
 ## Phase C — Finish
 
@@ -241,14 +261,14 @@ Derived from the `review_rubric.py` run below (FLOOR + MATCHED) plus the four re
 
 | Row | Hunt | Verdict |
 |---|---|---|
-| FLOOR core/35-security-auth | CORS origins from env, never hardcoded; no secret in code; the public endpoint carries no secret | FIXED — origins come from `EXTENSION_ID` (Phase B CORS); the unset-or-empty-ID dev regex is a recorded exception (spec § Decisions taken; review O-O4); hunted: Phase B, spec item 5 |
+| FLOOR core/35-security-auth | CORS origins from env, never hardcoded; no secret in code; the public endpoint carries no secret | FIXED — origins come from `EXTENSION_ID` (Phase B CORS); without a valid ID the allow-list is empty, and the dev regex needs the local `CORS_ALLOW_ANY_EXTENSION=1` opt-in, so no deployed origin is hardcoded (approval panel); hunted: Phase B, spec item 5 |
 | FLOOR core/25-data-postgres | no DB touch in this change (scaffold text only) | CLEAN — no database path in § File Scope; hunted: File Scope, Phase B |
-| FLOOR core/30-ops | health, logs and limits of the emitted server unchanged; the startup warning is structured | CLEAN — `/health` and the compose memory and cpu limits are untouched (`_write_canonical_compose` keeps them); the warning is a structured event; hunted: Phase B, `src/fabrik/scaffold.py:999-1012` |
+| FLOOR core/30-ops | health, logs and limits of the emitted server unchanged; the startup logs are structured | CLEAN — `/health` and the compose memory and cpu limits are untouched (`_write_canonical_compose` keeps them); the CORS startup warnings and error are structured events; hunted: Phase B, `src/fabrik/scaffold.py:999-1012` |
 | FLOOR 12-FACTOR | config via env only (EXTENSION_ID, EXTENSION_LATEST_*); no grouped config | FIXED — the four env names reach the container through `extra_env_lines` (review O-O1); no grouped config; hunted: Phase B compose, `.env.example` |
 | MATCHED core/10-python | no deps-file edit; the emitter's Python stays string emission | CLEAN — no dependency file in § File Scope; hunted: File Scope, Global Constraints |
 | MATCHED core/40-documentation | one CHANGELOG entry; the decision row; INDEX untouched (no new hub file) | FIXED — digest row added (review Z4); CHANGELOG and the decision row are Phase C step 2; hunted: Constraints Digest, Phase C |
 | MATCHED core/45-testing-strategy | one grader per behaviour, each watched red | FIXED — every behaviour has a row, B1 parametrised, A3 extends the build test, B1-B4 name their mechanism (review O-O9, O-O11, O-O12); hunted: both Behaviour Contracts |
-| RECURRENCE fail-open vs fail-closed | EXTENSION_ID unset or empty warns (fail-open by decision); update checker ignores bad payloads | FIXED — the endpoint 404s unless all three values are set (review S2-S3); `defaults.yaml` adds no empty default that would force the open fallback on the template path (review O-O2); hunted: Phase B, spec items 4-5 |
+| RECURRENCE fail-open vs fail-closed | CORS without a valid EXTENSION_ID fails closed and warns; update checker ignores bad payloads | FIXED — CORS closes without a valid ID (approval panel); the endpoint 404s unless all three values are set and non-empty (review S2-S3); `defaults.yaml` adds no empty default that would force the open fallback on the template path (review O-O2); hunted: Phase B, spec items 4-5 |
 | RECURRENCE cost/quota/limit accounting | check interval, timeout, request volume (spec § Lifecycle) | CLEAN — a 6-hour alarm and a 10-second timeout (Phase A checker; spec § Lifecycle sizes the load); hunted: Phase A, spec § Lifecycle |
 | RECURRENCE boundary/sentinel/prefix collisions | version regex, https prefix, isNewer missing-integer, exact-origin match | FIXED — empty and partial env values (review O-O11), the RSA-2048 length (review S1-S2), the version regex and https prefix (A4); hunted: A1, A4, B1 |
 | RECURRENCE behaviour-without-a-test | every spec § Validation item maps to an A/B row | FIXED — the built manifest's `key` (A3, review O-O12) and the compose env lines (B5) gained graders; hunted: both Behaviour Contracts, spec § Validation |
@@ -448,9 +468,9 @@ $ node keygen_probe.mjs
 
 ## Self-audit
 
-- Every behaviour in `spec § Validation` maps to a row: spec 1-3 → A1/A2, 4-5 → A3, 6 → B1/B2, 7 → B3, 8 → A7, 9 → A6,
-  10 → A7, 11 → B5. A4, A5 and B4 are added for the checker, the wiring and the warning.
-- Diff estimate ≈280 lines in 2 code files and 1 template: inside `Profile: small` (≤ ~400, ≤ 5).
+- Every behaviour in `spec § Validation` maps to a row: spec 1 → A0/A1, 2-3 → A1/A2, 4-5 → A3, 6 → B1/B2, 7 → B3/B4/B4b, 8 → A7,
+  9 → A6, 10 → A7, 11 → B5, 12 → A4/A5, 13 → B6.
+- Diff estimate ≈335 lines in 1 code file and 2 templates (tests excluded): inside `Profile: small` (≤ ~400, ≤ 5).
 - Every touchpoint is a `path:line` in today's emitter; every new file is named by path.
 
 ## Residual unknowns
@@ -460,3 +480,19 @@ $ node keygen_probe.mjs
   are removed; FastAPI alone answers CORS.
 - **R2 — WXT's zip name.** `release-ext` takes the newest `.output/*-chrome.zip` rather than assuming the exact name
   (`70-chrome-ext.md:65` states the `<name>-<version>-chrome.zip` shape).
+
+## Pass Ledger
+
+The `/fabrik-plan-review` joint loop over this plan and its spec; the per-candidate detail is in the receipt `docs/development/reviews/2026-10-14-plan-1-chrome-extension-devmode-release-kit-plan-review.md`.
+
+| Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
+|-----:|---|---|---|---|
+| Pass 1 | opus×1 (O: plan rule/grammar sections) + sonnet×2 (S1: plan other sections; S2: the spec) · all axes | found: 18, new: 18, confirmed: 15, fixed: 15, unexecuted: 0, edits: 15 | method: citation + re-derivation — full pass (15 confirmed, 2 refuted, 1 superseded by a fix) | d3d9e8b1… → ba8ee040… (plan); spec 4d9c3c4f… → 77cafae5… |
+| Pass 2 | opus×1 + sonnet×2 (the round-1 slice owners) · delta over the round-1 fix + one hop | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0, edits: 3 | method: re-derivation — 15 ledger rows re-verified (14 DEFECT_ABSENT, O-O12 DEFECT_PRESENT), 3 confirmed | ba8ee040… → 82330ea1… (plan); spec 77cafae5… → 91e7d686… |
+| Pass 3 | opus×1 (O) + sonnet×1 (S2) — the slice owners whose ledger rows or files the round-2 fix touched; shape: agent-tool (the Workflow launch was cancelled by an account switch, then refused at the approval prompt) | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 2 | method: re-derivation — 4 ledger rows re-verified (all DEFECT_ABSENT), 2 confirmed in the fix hunks | 82330ea1… → ce19d1e6… (plan); spec 91e7d686… → 06cb0341… |
+| Pass 4 | opus×1 (O) + sonnet×1 (S2) (the slice owners); shape: agent-tool | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 3 | method: re-derivation — 5 ledger rows re-verified (all DEFECT_ABSENT); 1 confirmed in the fix hunks, 1 confirmed from a seat's one-hop note when the orchestrator executed it | ce19d1e6… → d6cebea7… (plan); spec 06cb0341… → c4ef8876… |
+| Pass 5 | opus×1 (O) + sonnet×2 (S1, S2) (the slice owners); shape: agent-tool | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 3 | method: re-derivation — 8 ledger rows re-verified (7 DEFECT_ABSENT, S2-S3 residue); stall breaker tripped (rounds 3-5 confirmed 2, 2, 2) — foundation named and removed, see below | d6cebea7… → 4d517845… (plan); spec c4ef8876… → c2f93162… |
+| Pass 6 | opus×1 (O) + sonnet×1 (S2) (the round-1 slice owners; S1 re-stated at its last verified 4/4) · delta over the round-5 fix; standing clean since Pass 1: every other class; shape: agent-tool | found: 1, new: 1, **confirmed: 0**, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — 7 ledger rows re-verified (all DEFECT_ABSENT); O-O19 RECORDED — measured | 4d517845… → 4d517845… ✓ (plan); spec c2f93162… → c2f93162… ✓ → quiet |
+| Pass 7 | opus×1 (O) + sonnet×2 (S1, S2) — the panel's delta round over its 18 accepted changes; S1's seat stalled (no result, carried to Pass 8); shape: agent-tool | found: 6, new: 6, confirmed: 6, fixed: 6, unexecuted: 0, edits: 6 | method: re-derivation + executed probes (a CORS-middleware probe of every B3/B4 branch) — see Pass 7 candidates | c453df3a… → d8153216… (plan); spec 16f476c7… → 3e557f9d… |
+| Pass 8 | opus×1 (O) + sonnet×2 (S1, S2) (the slice owners; S1's full ledger re-run) | found: 4, new: 4, confirmed: 2, fixed: 2, unexecuted: 0, edits: 4 | method: re-derivation + a scratch Makefile proving the `--env-file` conditional; O-Q1 (B4b's Then), O-Q2 (no step emitted the Makefile change) confirmed; two estimate notes RECORDED — measured (wording; changes no behaviour) | d8153216… → cc7bfdc3… (plan); spec 3e557f9d… → 28e15e69… |
+| Pass 9 | opus×1 (O) + sonnet×1 (S2) (the round-1 slice owners; S1 re-stated at its last verified 5/5) · delta over the round-8 fix; standing clean since Pass 1: every other class; shape: agent-tool | found: 0, new: 0, **confirmed: 0**, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — 6 ledger rows re-verified (all DEFECT_ABSENT); the orchestrator executed the one claim no seat could read (uvicorn `--env-file` is `click.Path(exists=True)`, `uvicorn/main.py:193`) | cc7bfdc3… → cc7bfdc3… ✓ (plan); spec 28e15e69… → 28e15e69… ✓ → **CONVERGED** |
