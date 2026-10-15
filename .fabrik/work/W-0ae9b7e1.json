@@ -13,12 +13,13 @@
   },
   "next": "decide: add email-validator to the hub's dev/test extras (pyproject, needs the deps rule's authorisation) or have the test install/skip with a stated reason; measure which other scaffold tests import the generated app",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
     "infra",
-    "scaffold"
+    "scaffold",
+    "waits-operator-review"
   ],
   "title": "tests/test_scaffold_saas_web_wiring.py CSRF tests are red in the hub venv: ImportError email-validator is not installed (pydantic EmailStr in the saas-skeleton backend) — the hub .venv lacks the dependency the scaffolded app declares"
 }

@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "needs-owner",
+    "waits-operator-review"
   ],
   "title": "Tier-D guard: a spec with watchdog.auto_code_fix true must set watchdog.project_system_prompt_file (D-571 salvage b; 0 of 69 specs broken today)"
 }

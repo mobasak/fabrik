@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "needs-owner",
+    "waits-operator-review"
   ],
   "title": "Watchdog driver renders WATCHDOG_PROMPT_FILE=/project/<project_system_prompt_file> when set — fabrik-lib agent.py now reads it file-first (D-571 salvage a)"
 }

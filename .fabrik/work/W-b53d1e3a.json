@@ -13,8 +13,11 @@
   },
   "next": "strip trailing .,;: from each match before the distinct-URL set; grader: one URL cited with two endings stays 1 distinct (found by the W-7cdad5d5 review, A-S4)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "check_spec_convergence URL_RE keeps trailing sentence punctuation, so one source cited twice ('...a,' and '...a.') counts as two distinct URLs and clears the APPROACH-FLOOR"
 }

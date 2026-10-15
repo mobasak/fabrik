@@ -13,11 +13,12 @@
   },
   "next": "normalise c.file through the same root strip as readsFile when unionSlice takes a candidate in; one harness test with two seats citing one defect in two shapes",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
   "tags": [
-    "intel"
+    "intel",
+    "waits-operator-review"
   ],
   "title": "fabrik-review-loop.js sameDefect compares the candidate file field verbatim, so a pin-path cite and a repo-path cite of one defect never merge (overlap undercounted, Chapman estimate inflated, refuter runs it twice) — readsFile's normalisation applied to c.file"
 }

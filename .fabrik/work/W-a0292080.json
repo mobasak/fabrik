@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "intel"
+    "intel",
+    "needs-owner",
+    "waits-operator-review"
   ],
   "title": "claude_rotate's urgent fleet broadcast says every sibling is walled even when the hold is the operator's pause marker or an unreadable pause state and a healthy sibling exists (_fleet_active_wall_advisory, :7077) — the stall is real, the stated cause is wrong"
 }

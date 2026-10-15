@@ -13,8 +13,11 @@
   },
   "next": "in start, when the previous record is not running, also carry each dict in rec['stack']'s covered pairs, first_review_reach (earliest) and reviewed_surfaces, deduped; grade with a reaped-nested fixture in tests/test_command_run.py",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "command_run.py start drops a coroner-reaped record's parked stack frames: when the live record is died/expired, parent=None and covered, first_review_reach and reviewed_surfaces are carried from the top record only, so a nested child's reaped session loses its parent's coverage (fails closed, a false Stop block)"
 }

@@ -13,8 +13,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "work.py next from a worker's stale tree offers items main has already assigned to another worker — the doorbell text sends it there too (worker-queue design critique, site-provisioner 01M4DNHWES)"
 }

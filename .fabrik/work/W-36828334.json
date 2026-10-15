@@ -13,12 +13,13 @@
   },
   "next": "measure how long app.deploy() runs and whether `modal app list` shows the app before it returns; if yes, record the session before the deploy or have reconcile skip an endpoint whose session is mid-create (found by the Opus design critique of W-2f782cd7)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
     "gpu",
-    "money-guard"
+    "money-guard",
+    "waits-operator-review"
   ],
   "title": "Modal endpoints: app.deploy() inside ModalClient.create_endpoint can be listed by app name (and so tagged FABRIK_SESSION_ID) before gpu_rent records the session, so a reaper run in that window may class our own deploying endpoint an orphan"
 }

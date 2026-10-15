@@ -13,8 +13,11 @@
   },
   "next": "decide whether the advisory should surface CLOSING_ROW_REFUSAL for non-archived settled plans; if yes, extend the filter at check_convergence.py _committed_claims_advisory with a grader",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "check_convergence advisory sweep drops the closing-row refusal: _committed_claims_advisory's output filter admits only review-citation findings, so a settled EXECUTED monolith ending on a nonzero confirmed row (fabrik-lib plan-4) is computed and silently discarded; archived plans never reach the check"
 }

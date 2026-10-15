@@ -13,8 +13,11 @@
   },
   "next": "add an optional --heavy count to command_run.py dispatch and read it in dispatch_headroom.siblings",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "dispatch stamps record no seat kind, so dispatch_headroom charges a sibling's heavy seats at the read-only cost (under by up to 1 GB and 0.7 core each) — review of D-SEATCPU, A-S-3"
 }

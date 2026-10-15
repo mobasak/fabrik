@@ -13,11 +13,12 @@
   },
   "next": "adjudicate each against the pack (B43 kept warn deliberately), then fix or record the deviation",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "waits-operator-review"
   ],
   "title": "docusaurus scaffold: the remaining 42-docusaurus divergences (onBrokenLinks warn vs throw, colour tokens, dark default, frontmatter check, OpenAPI placeholder artifacts)"
 }

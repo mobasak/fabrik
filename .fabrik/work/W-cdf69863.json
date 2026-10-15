@@ -13,11 +13,12 @@
   },
   "next": "bump the template's Docusaurus pins with a real npm build test of a scaffolded site",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "waits-operator-review"
   ],
   "title": "Docusaurus scaffold pins @docusaurus/core 3.7.0; current is 3.10.2 (2026-07-10)"
 }

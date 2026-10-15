@@ -13,8 +13,11 @@
   },
   "next": "after W-f847a317 lands its integration-base range, reuse the same --base/range helper in check_convergence (Opus critique of W-23b86f9e, concern 7)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "check_convergence.py reads only git status --porcelain, so a plan/review committed before the gate escapes its CONVERGED-claim grading — the same commit-then-gate hole as check_review_coverage"
 }

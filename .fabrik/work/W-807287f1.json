@@ -13,11 +13,12 @@
   },
   "next": "add the _validate_compose read + DeployError to _deploy_local as _deploy_git does, with a red-first test",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "waits-operator-review"
   ],
   "title": "fabrik apply's local deploy path (deployer_ssh._deploy_local) never calls _validate_compose, so a compose with no memory limit, no container_name or the coolify network deploys unchecked while git/template/docker refuse it"
 }

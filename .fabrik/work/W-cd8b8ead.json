@@ -13,11 +13,12 @@
   },
   "next": "add the nginx mainline/stable -<codename> shape to _DEBIAN_BASE_RES with a test, and re-run the audit over a scaffolded docusaurus project",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "waits-operator-review"
   ],
   "title": "scripts/audit_all_projects.py _DEBIAN_BASE_RES knows only python, node and debian, so it grades D-664's docusaurus base nginx:mainline-trixie as noncompliant (critical) — a new docusaurus project fails the audit as shipped"
 }

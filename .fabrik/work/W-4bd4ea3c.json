@@ -13,11 +13,12 @@
   },
   "next": "decide whether --sweep should exit non-zero (or log loudly) when either module failed to import; weekly_catchup's test cannot tell a no-op sweep from a real one (review U-O2, 2026-10-05)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "tags": [
-    "intel"
+    "intel",
+    "waits-operator-review"
   ],
   "title": "kaizen_coroner.py swallows a failed import of kaizen_events/command_run and still exits 0 under --sweep"
 }

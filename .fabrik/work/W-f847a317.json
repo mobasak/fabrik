@@ -13,8 +13,11 @@
   },
   "next": "/fabrik-spec seeded with the W-23b86f9e UPGRADE design (tryton-crm 01M3YD067C; Opus+Fable critiques 2026-10-08)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "Spec: whose committed review may the blocking check_review_coverage scan red (commit-then-gate bypass; final_gate's base...HEAD holds siblings' commits; push-first cobra) + the non-ASCII quotePath skip"
 }

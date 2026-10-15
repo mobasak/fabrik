@@ -13,11 +13,12 @@
   },
   "next": "after fleet retires AGENTS-compact.md from the scaffold (mail 01M407YPAS6D), fix those lines and widen the pathspec to root *.md with CHANGELOG.md in SKIP_EXACT",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
   "status": "open",
   "tags": [
-    "docs"
+    "docs",
+    "waits-operator-review"
   ],
   "title": "check_retired_terms.py covers docs/ + README.md only; root INDEX.md (8 WARNs incl. :29-30 'Kilo CLI bootstrap config', :168) and AGENTS-compact.md (2) still frame Kilo as live"
 }

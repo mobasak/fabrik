@@ -13,8 +13,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "Stop hook DoD-uncommitted cause blocks a sync-path change while its own running review-family record names it in --surface (4 blocks during W-4c7edc74's review); stand it down for files in a running review's --surface, as the sixth cause already does (_surface_reviewed)"
 }

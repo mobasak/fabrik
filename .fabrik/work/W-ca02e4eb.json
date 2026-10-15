@@ -13,8 +13,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "check_plan_tickets: the integration-ticket skip (:2355) runs before the gate-mask ERROR its comment says still grades; and the Board's Depends column is never cross-validated against a ticket's Depends: line (W-b60b65a1 critiques)"
 }

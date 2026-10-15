@@ -16,5 +16,9 @@
   "owner": "",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-owner",
+    "waits-operator-review"
+  ],
   "title": "command_feedback_report: a HELD subject stays listed after its edit lands (mark-answered rows carry no reason/tag) — retire a subject when an answered row names it"
 }

@@ -16,5 +16,9 @@
   "owner": "",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-owner",
+    "waits-operator-review"
+  ],
   "title": "docs/reference/command-run-protocol.md:52's lane-v2 start row says 4+ files are admitted but not that more than 5 counted files selects the full /fabrik-review (task_lane._FULL_REVIEW_FILES) — pre-existing, found by the D-LANEV2 review (C-S-3)"
 }

@@ -13,11 +13,12 @@
   },
   "next": "move both to the env file / a scoped monitoring role; credentials change → backup + diff approval per CLAUDE.md",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "waits-operator-review"
   ],
   "title": "Hard-coded postgres:postgres superuser credentials in infra/vps1/glitchtip/compose.yaml:7,35 and infra/vps1/monitoring/compose.yaml:183 (postgres-exporter DSN)"
 }

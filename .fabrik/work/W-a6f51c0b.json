@@ -13,11 +13,12 @@
   },
   "next": "measure how often a window idles at AMBER/RED with work queued, then decide whether the tick should wake armed sids on a band transition to GREEN (a second wake source beside .holdlifted)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
   "tags": [
-    "quota-relief-wake"
+    "quota-relief-wake",
+    "waits-operator-review"
   ],
   "title": "Relief wake for windows paused with NO stamp: at AMBER (the Stop coordinator stands start actions down) or RED-with-successor (the posture hook denies starts while the tick's dwell writes no stamp), an ARMED window is not woken at the reset because claude_rotate._wake_held_sessions fires only on the fleet-exhausted stamp's transition (W-117b1916 OUT, Fable critique)"
 }

@@ -13,8 +13,11 @@
   },
   "next": "term-edit/term-coverage rule (1) and fabrik-review :317 (the orchestrator executes claims, no carve-out for scripts that delete, deploy, provision, write outside scratch or contact a non-local host); commands/_agents/design-review.md and fabrik-gui.md lack the house-rule clause; final_gate --check writes ruff/mypy caches outside scratch; fabrik-command-improve PHASE 3's scratch-repo verb rule misses hard-coded live paths (proof_run.py:36-37)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "Never-execute seat rule: carry it to the orchestrator's execute rules, the other Bash agents and the scratch-repo verb rule"
 }

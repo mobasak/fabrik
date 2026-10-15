@@ -16,5 +16,9 @@
   "owner": "",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-owner",
+    "waits-operator-review"
+  ],
   "title": "Reopened from W-51c49907 (closed in error by triage wave 1, overturned by the third check): Add the both-sets (overlap) refusal the item specified, and a regression test that a new unclassified group raises (and one in both sets raises)."
 }

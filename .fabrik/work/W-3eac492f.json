@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "merge-loop"
+    "merge-loop",
+    "needs-owner",
+    "waits-operator-review"
   ],
   "title": "merge_request.py: the coordinator's ack:no copy and its doorbell line read like an owner request"
 }

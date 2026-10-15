@@ -16,5 +16,9 @@
   "owner": "",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-owner",
+    "waits-operator-review"
+  ],
   "title": "Reopened from W-b2a64f17 (closed in error by triage wave 1, overturned by the third check): _USAGE_GRAMMAR still does not round-trip: the optional [· cost: …] brackets still land in filed/cost. --evidence is still free text with no --unexecuted. The 'seats advisory fires in a scratch env' part was never checked by anyone."
 }

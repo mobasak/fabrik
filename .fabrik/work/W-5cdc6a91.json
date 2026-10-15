@@ -13,8 +13,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "work.py drift: a DRAFT plan with an open non-backlog item linked to it claims work without evidence — the relabel the BLOCKED check moves the cobra to (W-fbdd17c8 critiques)"
 }

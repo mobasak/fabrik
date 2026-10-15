@@ -13,11 +13,12 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
   "tags": [
-    "corpus"
+    "corpus",
+    "waits-operator-review"
   ],
   "title": "commands/_sources/fabrik-execute-plan.md prescribes the worktree subagent commit as `git commit -m \"$(cat <<'EOF'` (lines ~326-328, 342, 357, 370, 849, 1044 — 6 hits) — exactly the compound shape the isolation check refuses and that § Orient (d) now tells agents to avoid; change to Write tool → <scratch>/msg + `git commit -F <scratch>/msg` (same form as multi-agent-operating-model.md:72); render → --check → commit (Opus delta seat N1, review 2026-10-07-heredoc-guard-docs)."
 }

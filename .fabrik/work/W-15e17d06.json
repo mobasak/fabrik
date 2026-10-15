@@ -13,11 +13,12 @@
   },
   "next": "reword check_docker.py:108 and :139 to 'debian_codename from .windsurf/rules/versions.yaml' (synced enforcement; scoped review)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
-    "infra"
+    "infra",
+    "waits-operator-review"
   ],
   "title": "check_docker.py messages say 'the registry's debian_codename' — ambiguous next to the container registry; name .windsurf/rules/versions.yaml"
 }

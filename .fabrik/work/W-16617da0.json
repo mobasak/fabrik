@@ -13,8 +13,11 @@
   },
   "next": "reproduce with a transcript fixture (dispatch, notification, resume, late notification), then key the stand-down on the resume's own later notification",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "Stop hook _seats_in_flight reads a RESUMED seat as finished when its earlier run's <task-notification> lands after the SendMessage resume line (fabrik-lib 01M4TJNA57, seen live): count a notification as ending a resumed seat only when it follows the resume and belongs to the resumed run"
 }
