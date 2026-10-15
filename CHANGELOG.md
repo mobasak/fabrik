@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: PHASE 3 points at a rule stated elsewhere, never glosses it (2026-10-15)
+
+- `commands/_sources/fabrik-command-improve.md` PHASE 3: a new sentence after the mechanism-wiring sentence extends the
+  rule for a rule adapted from CLAUDE.md or a fragment (pointed at, or quoted in its own words) to a rule stated in
+  another command or another section of the target, and neither the pointer nor the quote carries a gloss: a gloss is a
+  new wording that drifts, and a fresh wording is written only where the rule's words do not fit the new subject, keeps
+  the words that do fit, and names its source. Answers feedback row 1792031068 (a ten-word gloss of the by-design rule
+  became a third wording and cost a round), a recurrence of the held one-fact-plus-pointer subject (D-711). Pinned by
+  `tests/test_command_improve_queue_pass.py::test_phase_three_points_at_a_rule_stated_elsewhere_without_a_gloss`.
+  Six first-sighting rows HELD; row 1792000873 (PHASE 2 Grounding reads the gate's code) left open for the next run.
+
 ### Changed — /fabrik-review: the receipt-time Residual sentence points at the owners-only by-design rule (2026-10-15)
 
 - `commands/_sources/fabrik-review.md` § Residual: the sentence a receipt-writer reads while rowing residuals now says a `RECORDED — by design` parenthetical holds the owner and nothing else, the reason following it, as Phase 2's `by design` bullet shows — a pointer in the rule's own words, never a third wording (term-edit already carries a second). Answers feedback row 1792029250, the third verdict on the by-design grammar after two rows were routed to the receipt skeleton (infra's code, re-routed with the three rows and a gate gap: a D-id is checked by shape, not existence). Pinned by `tests/test_review_queue_pass.py::test_the_receipt_sentence_says_owners_only_inside_the_by_design_parentheses`.

@@ -253,7 +253,11 @@ without .md> commands/_sources commands/_fragments`, which lists the includers t
 is checked before PHASE 4's pin on the edit's own grader and sentence, which obey it, and on the case that raised
 it, which it must flag. A mechanism the edit adds — a token, a field, a report shape, a panel's proposal
 included — is checked against the step or code that must consume it, and is written in only when that
-consumer reads it or this edit wires it in. A sentence that describes what a script, tool or another step DOES — its output or
+consumer reads it or this edit wires it in. The rule above for a rule adapted from `CLAUDE.md` or a fragment holds
+for a rule stated in another command or another section of the target too, and neither the pointer nor the quote
+carries a gloss: a gloss is a new wording that drifts, and a fresh wording is written only where the rule's words
+do not fit the new subject, keeps the words that do fit, and names its source. A sentence that describes what a
+script, tool or another step DOES — its output or
 advisory, every finding string it classifies, an edge case such as an empty input or a quiet round, a recipe — or
 tells the agent to run one of its verbs is executed on the scenario the sentence states before PHASE 4's review and
 quoted as it prints (a recipe is copied from the test or MATRIX row that already runs it, which the sentence cites,
