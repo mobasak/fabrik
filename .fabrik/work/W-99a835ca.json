@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "infra: operator 2026-10-15: 'i dont want to change my session ids' \u2014 NO /clear rotation. Keep each agent's session id and shrink what the extension host loads instead: (1) in-place trim of a live transcript to its tail after the last compact boundary, only after archive_transcripts.py has the full file in B2 and only while the session is idle; (2) raise the remote extension host heap (~/.vscode-server/server-env-setup NODE_OPTIONS) and measure; (3) the upstream loader bug report is W-49a8280d (operator gate)",
+  "next": "infra: D-884 moved the hub agents to claude CLIs in tmux, so VS Code no longer loads their transcripts; remaining: (1) confirm no hub agent tab is still open in VS Code, (2) raise the remote extension-host heap for the project windows that still use it, (3) the upstream loader bug report is W-49a8280d (operator gate)",
   "note": "",
   "owner": "infra",
   "priority": 0,

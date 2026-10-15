@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T08:50:00.851769Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-6f213eb0",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: scripts/sysadmin/hub_up.sh + docs/workstation section",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "Operator ruling D-884: daily launch of every agent window; today it is six pasted lines with hard-coded session ids",
+  "status": "open",
+  "tags": [
+    "queued",
+    "workstation"
+  ],
+  "title": "hub-up launcher for D-884: one command that creates or attaches the tmux session 'hub' with one pane per hub agent (coordinator, infra, intel, fleet, kaizen), each 'CLAUDE_AGENT=<role> claude --resume <its current session id>', resolved from the agent's latest run record or whoami binding rather than hard-coded; even-horizontal layout; idempotent (attach if 'hub' exists); documented in docs/workstation/"
+}
