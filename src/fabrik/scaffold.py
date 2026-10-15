@@ -5093,7 +5093,9 @@ _CX_KEYGEN_MJS = r"""/* eslint-disable no-console */
 //     enterprise .crx or a later store migration needs it, and it cannot be recreated)
 //   - public key  -> extension-key.pub (commit it; wxt.config.ts reads it into manifest.key)
 // It never overwrites a key: a new key would change the ID under every installed copy. A lost .pub
-// is rebuilt from the .pem; a lost .pem can only come back from your backup.
+// is rebuilt from the .pem (or restored from git when it is committed); a lost .pem can only come
+// back from your backup.
+import { execFileSync } from 'node:child_process';
 import { createPublicKey, generateKeyPairSync } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -5113,6 +5115,26 @@ function printId(pub) {
   console.log(`EXTENSION_ID=${id}   (set it in the backend's .env)`);
 }
 
+function pubFromPem() {
+  try {
+    return createPublicKey(readFileSync(pemPath, 'utf8')).export({ type: 'spki', format: 'der' }).toString('base64');
+  }
+  catch {
+    console.error('.keys/extension-key.pem is not a readable private key — restore it from your backup; never mint a new one for a released extension (it changes the ID).');
+    process.exit(1);
+  }
+}
+
+function pubIsTracked() {
+  try {
+    execFileSync('git', ['ls-files', '--error-unmatch', 'extension-key.pub'], { cwd: root, stdio: 'ignore' });
+    return true;
+  }
+  catch {
+    return false;
+  }
+}
+
 if (existsSync(pubPath)) {
   let existing;
   try {
@@ -5122,6 +5144,10 @@ if (existsSync(pubPath)) {
     console.error(err.message);
     process.exit(1);
   }
+  if (existsSync(pemPath) && pubFromPem() !== existing) {
+    console.error('extension-key.pub does not match .keys/extension-key.pem — one of them belongs to another extension; restore the right pair from version control and your backup.');
+    process.exit(1);
+  }
   printId(existing);
   if (!existsSync(pemPath))
     console.warn('warning: .keys/extension-key.pem is missing — the ID still works for unpacked installs, but an enterprise .crx or a store migration needs the private key; restore it from your backup.');
@@ -5129,18 +5155,16 @@ if (existsSync(pubPath)) {
 }
 
 if (existsSync(pemPath)) {
-  let pub;
-  try {
-    pub = createPublicKey(readFileSync(pemPath, 'utf8')).export({ type: 'spki', format: 'der' }).toString('base64');
-  }
-  catch {
-    console.error('.keys/extension-key.pem is not a readable private key — restore it from your backup; never mint a new one for a released extension (it changes the ID).');
-    process.exit(1);
-  }
+  const pub = pubFromPem();
   writeFileSync(pubPath, `${pub}\n`);
   printId(pub);
   console.log('rebuilt extension-key.pub from .keys/extension-key.pem — commit it.');
   process.exit(0);
+}
+
+if (pubIsTracked()) {
+  console.error('extension-key.pub is committed but missing here — restore it with `git checkout -- extension-key.pub`; a new key would change the extension ID.');
+  process.exit(1);
 }
 
 const { publicKey, privateKey } = generateKeyPairSync('rsa', {
@@ -5171,14 +5195,15 @@ _CX_RELEASE_CHECK_MJS = r"""/* eslint-disable no-console */
 //      defines it, parsed with node's own parseEnv as WXT does:
 //      .env, .env.local, .env.production, .env.production.local, .env.chrome, .env.chrome.local,
 //      .env.production.chrome, .env.production.chrome.local. A `VITE_PUBLIC_API_URL: …` line is
-//      refused outright: parseEnv skips it but Vite's dotenv reads it.
+//      refused outright: parseEnv skips it but Vite's dotenv reads it. So is a value with a "$":
+//      WXT expands it (dotenv-expand), so the URL the build gets is not the text this reads.
 // `--summary <zip>` prints the four values the backend needs after the zip is built.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
-import { parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { parseEnv } from 'node:util';
 import { extensionIdFromPub } from './extension-id.mjs';
 import { isStoreBuild, PUB_KEY_PATH, readPubKey } from './manifest-key.mjs';
 
@@ -5275,14 +5300,16 @@ const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).ver
 if (!isChromeVersion(String(version)))
   problems.push(`package.json version ${JSON.stringify(version)} is not a Chrome version (1-4 dot-separated integers, each at most 65535) — the update checker could never compare it`);
 const url = effectiveApiUrl();
-if (!isHttpsUrl(url.value ?? ''))
+if ((url.value ?? '').includes('$'))
+  problems.push(`${KEY} contains "$" (from ${url.from}) — WXT expands variables in env files, so the built URL is not the one written; write the literal https:// URL`);
+else if (!isHttpsUrl(url.value ?? ''))
   problems.push(`${KEY} must be an https:// URL with a host for the production build (now ${JSON.stringify(url.value ?? null)}, from ${url.from})`);
 
 if (problems.length) {
   console.error('release-ext refused:');
   for (const p of problems)
     console.error(`  - ${p}`);
-  console.error('next steps: cd extension && pnpm keygen (once) · git add extension/extension-key.pub && git commit · set VITE_PUBLIC_API_URL=https://<backend> in extension/.env.production · make release-ext');
+  console.error('next steps: cd extension && pnpm keygen (once) · git add extension/extension-key.pub && git commit · set VITE_PUBLIC_API_URL=https://<backend> in extension/.env.production and commit it · make release-ext');
   process.exit(1);
 }
 console.log('release-check: ok');
@@ -5300,6 +5327,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 export const PUB_KEY_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'extension-key.pub');
+const PEM_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', '.keys', 'extension-key.pem');
 
 export function isStoreBuild() {
   return process.env.STORE_BUILD === '1';
@@ -5319,8 +5347,11 @@ export function assertPubKey(pub) {
       ok = false;
     }
   }
-  if (!ok)
-    throw new Error('extension-key.pub is not a public key — restore it from version control, or delete extension-key.pub and run pnpm keygen to rebuild it from .keys/extension-key.pem');
+  if (!ok) {
+    // without a .pem, deleting the .pub and re-running keygen would mint a NEW key (a new ID)
+    const rebuild = existsSync(PEM_PATH) ? ', or delete extension-key.pub and run pnpm keygen to rebuild it from .keys/extension-key.pem' : '';
+    throw new Error(`extension-key.pub is not a public key — restore it from version control${rebuild}`);
+  }
   return pub;
 }
 
@@ -5348,10 +5379,10 @@ _CX_UPDATE_CHECK_TS = r"""// Developer-mode update checker. An unpacked install 
 // it: this asks the backend's GET /extension/latest at browser start, on install/update/reload and
 // every 6 hours, and when a newer version is published it stores the notice for the popup and
 // badges the action. The rules it applies live in ./update-version.ts.
-import type { UpdateNotice } from '@/lib/update-version';
+import type { NoticeChange, UpdateNotice } from '@/lib/update-version';
 import { API_BASE_URL } from '@/lib/api/config';
 import { settings } from '@/lib/storage';
-import { isNewer, parseLatest, secureBase } from '@/lib/update-version';
+import { nextNotice, secureBase } from '@/lib/update-version';
 
 export type { UpdateNotice };
 
@@ -5364,28 +5395,22 @@ export async function checkForUpdate(): Promise<void> {
   const base = secureBase(stored || API_BASE_URL);
   if (!base)
     return;
-  let notice: UpdateNotice | null = null;
+  let change: NoticeChange;
   try {
     const res = await fetch(`${base}/extension/latest`, {
       credentials: 'omit',
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok)
-      return; // 404 = no release published; any other status: try again at the next check
-    const latest = parseLatest(await res.json());
-    if (!latest)
-      return;
-    if (isNewer(latest.version, browser.runtime.getManifest().version))
-      notice = latest;
+    change = nextNotice(res.status, res.ok ? await res.json() : null, browser.runtime.getManifest().version);
   }
   catch {
-    return; // offline, timed out or not JSON: try again at the next check
+    return; // offline, timed out or not JSON: keep the notice, try again at the next check
   }
-  if (notice) {
-    await browser.storage.local.set({ updateNotice: notice });
+  if (change.action === 'set') {
+    await browser.storage.local.set({ updateNotice: change.notice });
     await browser.action.setBadgeText({ text: '↑' });
   }
-  else {
+  else if (change.action === 'clear') {
     await browser.storage.local.remove('updateNotice');
     await browser.action.setBadgeText({ text: '' });
   }
@@ -5407,6 +5432,8 @@ export interface UpdateNotice {
   version: string;
   download_url: string;
 }
+
+export type NoticeChange = { action: 'set'; notice: UpdateNotice } | { action: 'clear' } | { action: 'keep' };
 
 const VERSION_RE = /^(?:0|[1-9]\d{0,4})(?:\.(?:0|[1-9]\d{0,4})){0,3}$/;
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -5441,6 +5468,20 @@ export function parseLatest(body: unknown): UpdateNotice | null {
     return null;
   }
   return { version, download_url };
+}
+
+// What one /extension/latest answer does to the stored notice: a 404 means no release is published
+// (one was withdrawn), so the notice goes; a newer valid release sets it and an older one clears
+// it; a server error or a body that fails validation says nothing, so the notice stays as it is.
+export function nextNotice(status: number, body: unknown, current: string): NoticeChange {
+  if (status === 404)
+    return { action: 'clear' };
+  if (status < 200 || status > 299)
+    return { action: 'keep' };
+  const latest = parseLatest(body);
+  if (!latest)
+    return { action: 'keep' };
+  return isNewer(latest.version, current) ? { action: 'set', notice: latest } : { action: 'clear' };
 }
 
 // The backend base to ask, without a trailing slash, or '' when it must not be asked: an on-path
@@ -5817,6 +5858,7 @@ import {{ render }} from 'preact';
 // which is what lets the fabrik-lib UI kits' React-API components run on Preact.
 import {{ useEffect, useState }} from 'react';
 import {{ Button }} from '@/components/ui/button';
+import {{ parseLatest }} from '@/lib/update-version';
 import '../../global.css';
 
 // `i18n` is auto-imported by the @wxt-dev/i18n module (wxt.config.ts `modules`).
@@ -5826,7 +5868,8 @@ function App() {{
   // Set by the background update check (src/lib/update-check.ts) when a newer version is published.
   const [notice, setNotice] = useState<UpdateNotice | null>(null);
   useEffect(() => {{
-    void browser.storage.local.get('updateNotice').then(r => setNotice((r.updateNotice as UpdateNotice | undefined) ?? null));
+    // re-checked on read: any extension context, content scripts included, can write storage.local
+    void browser.storage.local.get('updateNotice').then(r => setNotice(parseLatest(r.updateNotice)));
   }}, []);
   return (
     <main class="w-90 space-y-3 p-4 font-sans">
@@ -6353,16 +6396,17 @@ ephemeral — never register in a bare global).
         f'_EXTENSION_ID_RE = re.compile(r"^[a-p]{{32}}$")\n'
         f'EXTENSION_ID = os.getenv("EXTENSION_ID", "").strip()\n'
         f"_cors_startup_events: list[tuple[str, str]] = []\n"
+        f"_allow_origins: list[str] = []\n"
+        f"_allow_origin_regex: str | None = None\n"
         f"if _EXTENSION_ID_RE.fullmatch(EXTENSION_ID):\n"
-        f'    _cors_origins = {{"allow_origins": [f"chrome-extension://{{EXTENSION_ID}}"]}}\n'
+        f'    _allow_origins = [f"chrome-extension://{{EXTENSION_ID}}"]\n'
         f"else:\n"
         f"    if EXTENSION_ID:\n"
         f'        _cors_startup_events.append(("error", "cors_extension_id_invalid"))\n'
         f'    if os.getenv("CORS_ALLOW_ANY_EXTENSION") == "1":\n'
-        f'        _cors_origins = {{"allow_origin_regex": r"chrome-extension://.*"}}\n'
+        f'        _allow_origin_regex = r"chrome-extension://.*"\n'
         f'        _cors_startup_events.append(("warning", "cors_any_extension_origin"))\n'
         f"    else:\n"
-        f'        _cors_origins = {{"allow_origins": []}}\n'
         f'        _cors_startup_events.append(("warning", "cors_no_extension_id"))\n'
         f"\n"
         f"\n"
@@ -6384,7 +6428,8 @@ ephemeral — never register in a bare global).
         f"    CORSMiddleware,\n"
         f'    # Extension origins only (chrome-ext/70-chrome-ext.md § Auth) — never "*" with\n'
         f"    # credentials (browsers reject that combo).\n"
-        f"    **_cors_origins,\n"
+        f"    allow_origins=_allow_origins,\n"
+        f"    allow_origin_regex=_allow_origin_regex,\n"
         f"    allow_credentials=True,\n"
         f'    allow_methods=["*"],\n'
         f'    allow_headers=["Authorization", "Content-Type"],  # explicit — "*" is not a\n'

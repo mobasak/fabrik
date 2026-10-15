@@ -117,6 +117,7 @@ def test_compose_has_no_traefik_cors_and_passes_the_extension_env(tmp_path: Path
         "EXTENSION_LATEST_SHA256",
     ):
         assert f"- {var}=${{{var}:-}}" in compose, var
+    assert "CORS_ORIGINS" not in compose  # the chrome server reads EXTENSION_ID, never CORS_ORIGINS
 
 
 def test_tailwind_v4_wired(ext: Path) -> None:
@@ -346,13 +347,15 @@ def test_wxt_scaffold_builds_and_manifest_has_permissions(tmp_path: Path) -> Non
         generate_spec=False,
     )
     ext = tmp_path / "cxbuildtest" / "extension"
+    # a STORE_BUILD left in the caller's environment would drop the key from the dev builds
+    dev_env = {k: v for k, v in os.environ.items() if k != "STORE_BUILD"}
     inst = subprocess.run(["pnpm", "install"], cwd=ext, capture_output=True, text=True, timeout=600)
     assert inst.returncode == 0, f"pnpm install failed:\n{inst.stderr[-2000:]}"
     # A3 (W-e2af3303): the pinned key reaches the built manifest; a store build leaves it out.
     keygen = subprocess.run(["pnpm", "keygen"], cwd=ext, capture_output=True, text=True, timeout=60)
     assert keygen.returncode == 0, keygen.stderr
     build = subprocess.run(
-        ["npx", "wxt", "build"], cwd=ext, capture_output=True, text=True, timeout=400
+        ["npx", "wxt", "build"], cwd=ext, capture_output=True, text=True, timeout=400, env=dev_env
     )
     assert build.returncode == 0, f"wxt build failed:\n{build.stderr[-2000:]}"
     manifest = json.loads((ext / ".output" / "chrome-mv3" / "manifest.json").read_text())
@@ -372,7 +375,7 @@ def test_wxt_scaffold_builds_and_manifest_has_permissions(tmp_path: Path) -> Non
     assert "key" not in store_manifest
     # restore the dev build the assertions below read
     build = subprocess.run(
-        ["npx", "wxt", "build"], cwd=ext, capture_output=True, text=True, timeout=400
+        ["npx", "wxt", "build"], cwd=ext, capture_output=True, text=True, timeout=400, env=dev_env
     )
     assert build.returncode == 0, f"wxt build failed:\n{build.stderr[-2000:]}"
     manifest = json.loads((ext / ".output" / "chrome-mv3" / "manifest.json").read_text())

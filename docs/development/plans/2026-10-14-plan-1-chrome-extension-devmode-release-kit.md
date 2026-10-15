@@ -505,10 +505,11 @@ Execution notes (what the build settled, against the Interfaces text above):
 
 Step 1's census, re-run at execution (`command grep -rn CORS_ORIGINS src/ templates/ tests/ scripts/`): the same 7 source
 hits as at authoring (`src/fabrik/scaffold.py:2554`, `:2705`, `:2709`, `templates/saas-skeleton/.env.example:19`,
-`scripts/gather_envs.py:141`, and the two chrome lines this phase removed), none in the emitted chrome-extension server.
+`scripts/gather_envs.py:141`, and the two chrome lines this phase removed), none in the emitted chrome-extension server;
+after the removal 5 non-test hits remain, none of them in the chrome-extension paths.
 
-Commits: `4c2b1ce2a` (the backend), `9eb64fb75` and `21eb04b4f` (the phase's `/fabrik-review-scoped`, three independent
-seats: confirmed 12 → 0). Graders seen red first: 12 failed before the emitter change; round 1's strengthened graders
+Commits: `4c2b1ce2a` (the backend), `9eb64fb75`, `21eb04b4f` and `4f29e9e6a` (the phase's `/fabrik-review-scoped`,
+three independent seats: confirmed 12 → 0). Graders seen red first: 12 failed before the emitter change; round 1's strengthened graders
 proven by red-on-revert in a throwaway worktree (8 mutants — template filter, no-store, URL check, URL strip, error
 level, credentials, log-at-import, read-at-import — each turned its grader red; baseline 18 passed before and after).
 
@@ -529,6 +530,28 @@ Execution notes:
 - Recorded, not changed: `access-control-allow-credentials: true` on responses with no allow-origin (FastAPI's
   behaviour); server-side validation of the release values (the extension's checker validates, A4); the opt-in reachable
   through a spec's `env:` on the template path (the operator's own spec).
+
+### Phase C — the Finish review (whole-plan `/fabrik-review`)
+
+Receipt: `docs/development/reviews/2026-10-15-plan-1-chrome-extension-devmode-release-kit-review.md`. Pass 1 found what
+the two phase reviews missed, and four of its fixes change what the Interfaces above say; where they differ, this
+block holds:
+
+- Phase A Interfaces (`update-check.ts`): a 404 from `/extension/latest` now CLEARS the stored notice (a withdrawn
+  release must not keep its banner); any other non-2xx or a body failing validation keeps it. The rule is the pure
+  `nextNotice(status, body, current)` in `update-version.ts`, executed by A4. The popup re-validates the stored
+  notice with `parseLatest` on read.
+- Phase A Interfaces (the version rule): the shipped `VERSION_RE` refuses a leading zero and caps each integer at
+  65535 (Chrome's rule), stricter than the `^\d{1,5}(\.\d{1,5}){0,3}$` written above.
+- `keygen.mjs` refuses to mint when `extension-key.pub` is committed but missing locally (restore it from git), and
+  refuses a `.pub` that does not match the `.pem` beside it; the "not a public key" message suggests deleting the
+  `.pub` only when a `.pem` exists to rebuild it from.
+- The release gate refuses a `VITE_PUBLIC_API_URL` containing `$` (WXT expands env-file variables with
+  dotenv-expand, so the built URL is not the written text), and its next steps say to commit `.env.production`.
+- The emitted server builds its CORS kwargs as typed `allow_origins` / `allow_origin_regex` (mypy rejected the
+  mixed-value `**dict`; B7 runs mypy on the emitted server).
+- Phase B Interfaces ("must not repeat these names"): superseded by the template filter, which now also skips
+  `PYTHONUNBUFFERED` and `LOG_LEVEL`, the two `defaults.yaml` values the template already sets (B5b).
 
 ## Self-audit
 

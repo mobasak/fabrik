@@ -543,6 +543,8 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
             "user.name=t",
             "-c",
             "user.email=t@t.invalid",
+            "-c",
+            "commit.gpgsign=false",
             *args,
         ],
         cwd=cwd,
@@ -559,7 +561,16 @@ def _make_target(makefile: str, target: str) -> str:
     return m.group(0)
 
 
-needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def _node_major_minor() -> tuple[int, int]:
+    if shutil.which("node") is None:
+        return (0, 0)
+    out = subprocess.run(["node", "--version"], capture_output=True, text=True, timeout=30).stdout
+    m = re.match(r"v(\d+)\.(\d+)", out.strip())
+    return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+
+
+# 22.6 is the first node with --experimental-strip-types (the .ts rules) and has util.parseEnv
+needs_node = pytest.mark.skipif(_node_major_minor() < (22, 6), reason="needs node >= 22.6")
 
 
 def _node_json(cwd: Path, program: str, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -585,7 +596,10 @@ def _committed_release_project(tmp_path: Path, files: dict[str, str] | None = No
     """A scaffold with a key, the given extension files, and everything committed."""
     project = _chrome_ext_project(tmp_path)
     ext = project / "extension"
-    subprocess.run(["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, timeout=60)
+    keygen = subprocess.run(
+        ["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, timeout=60
+    )
+    assert keygen.returncode == 0, keygen.stderr
     for name, body in (files or {}).items():
         (ext / name).write_text(body)
     _git(project, "add", "-A")
@@ -698,7 +712,40 @@ class TestChromeExtensionReleaseKit:
         assert r.returncode != 0
         assert "EXTENSION_ID=" not in r.stdout
         assert "not a public key" in r.stderr
-        assert "delete extension-key.pub" in r.stderr
+        assert "restore it" in r.stderr
+        assert (
+            "delete extension-key.pub" not in r.stderr
+        )  # no .pem here: deleting would mint a new ID
+
+    @needs_node
+    def test_a2e_keygen_never_mints_over_a_tracked_pub(self, tmp_path):
+        """A2 edge (Finish review): a clone without the .pem whose .pub went missing locally must
+        not mint a new key — the committed .pub is the extension's identity."""
+        project = _committed_release_project(tmp_path)
+        ext = project / "extension"
+        (ext / "extension-key.pub").unlink()
+        shutil.rmtree(ext / ".keys")
+        r = subprocess.run(
+            ["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, text=True, timeout=60
+        )
+        assert r.returncode != 0
+        assert not (ext / ".keys").exists()
+        assert "git checkout" in r.stderr
+
+    @needs_node
+    def test_a2f_keygen_refuses_a_pub_that_does_not_match_the_pem(self, tmp_path):
+        """A2 edge (Finish review): a .pub from another key beside this .pem is refused, not echoed."""
+        ext = _chrome_ext_project(tmp_path / "one") / "extension"
+        other = _chrome_ext_project(tmp_path / "two") / "extension"
+        for e in (ext, other):
+            subprocess.run(["node", "scripts/keygen.mjs"], cwd=e, capture_output=True, timeout=60)
+        (ext / "extension-key.pub").write_text((other / "extension-key.pub").read_text())
+        r = subprocess.run(
+            ["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, text=True, timeout=60
+        )
+        assert r.returncode != 0
+        assert "does not match" in r.stderr
+        assert "EXTENSION_ID=" not in r.stdout
 
     @needs_node
     def test_a2c_keygen_with_a_pem_but_no_pub_rederives_the_same_pub(self, tmp_path):
@@ -716,6 +763,12 @@ class TestChromeExtensionReleaseKit:
         assert pub.read_text() == original
         assert (ext / ".keys" / "extension-key.pem").read_bytes() == pem_before
         assert f"EXTENSION_ID={_ext_id_from_pub(original.strip())}" in r.stdout
+
+    def test_a0b_emitted_scripts_sort_their_imports(self, project):
+        """Lint (Finish review): antfu's sort-imports wants the node: built-ins in order."""
+        for script in sorted((project / "extension" / "scripts").glob("*.mjs")):
+            specs = re.findall(r"^import .* from '(node:[^']+)';$", script.read_text(), re.M)
+            assert specs == sorted(specs), script.name
 
     def test_a3_wxt_config_reads_the_key_through_the_shared_resolver(self, project):
         """A3 (read half): wxt.config.ts takes `key` from scripts/manifest-key.mjs; alarms; no
@@ -758,7 +811,7 @@ class TestChromeExtensionReleaseKit:
 
         mod = (project / "extension" / "src" / "lib" / "update-version.ts").as_uri()
         prog = (
-            f"import {{ isNewer, parseLatest, secureBase }} from '{mod}';"
+            f"import {{ isNewer, nextNotice, parseLatest, secureBase }} from '{mod}';"
             "console.log(JSON.stringify({"
             "newer: [isNewer('1.2', '1.1.9'), isNewer('1.10', '1.9'), isNewer('2', '1.9.9.9'),"
             " isNewer('1.0.0', '1'), isNewer('1.1', '1.2'), isNewer('1.0', '1.0.0.0')],"
@@ -772,6 +825,10 @@ class TestChromeExtensionReleaseKit:
             " secureBase('http://localhost:8000'), secureBase('http://127.0.0.1:8000/'),"
             " secureBase(''), secureBase('not a url'), secureBase('https://api.invalid/v1/?x=1#h'),"
             " secureBase('https://u:p@api.invalid')],"
+            "notice: [nextNotice(404, null, '1.0'), nextNotice(500, null, '1.0'),"
+            " nextNotice(200, {version: '1.1', download_url: 'https://x.invalid/a'}, '1.0'),"
+            " nextNotice(200, {version: '1.0', download_url: 'https://x.invalid/a'}, '1.0'),"
+            " nextNotice(200, {version: '1.1', download_url: 'http://x.invalid/a'}, '1.0')],"
             "big: [parseLatest({version: '65535.1', download_url: 'https://x.invalid/a'}) !== null,"
             " parseLatest({version: '65536', download_url: 'https://x.invalid/a'}),"
             " parseLatest({version: '1.02', download_url: 'https://x.invalid/a'})]}));"
@@ -793,6 +850,13 @@ class TestChromeExtensionReleaseKit:
             "",
         ]
         assert out["big"] == [True, None, None]
+        assert out["notice"] == [
+            {"action": "clear"},  # 404: the release was withdrawn — drop the stale notice
+            {"action": "keep"},  # a server error says nothing about the release
+            {"action": "set", "notice": {"version": "1.1", "download_url": "https://x.invalid/a"}},
+            {"action": "clear"},
+            {"action": "keep"},  # an untrusted body that fails validation changes nothing
+        ]
 
     def test_a4b_update_checker_wiring(self, project):
         """A4 (wiring): the checker uses those rules, skips store/policy installs, prefers the stored
@@ -804,7 +868,7 @@ class TestChromeExtensionReleaseKit:
         )
         assert "secureBase(stored || API_BASE_URL)" in src
         assert "credentials: 'omit'" in src and "AbortSignal.timeout(10000)" in src
-        assert "parseLatest(await res.json())" in src
+        assert "nextNotice(res.status," in src
         assert "setBadgeText({ text: '↑' })" in src and "setBadgeText({ text: '' })" in src
 
     def test_a5_background_schedules_checks_without_resetting_the_alarm(self, project):
@@ -832,6 +896,7 @@ class TestChromeExtensionReleaseKit:
 
         popup = (project / "extension" / "src" / "entrypoints" / "popup" / "main.tsx").read_text()
         assert "updateNotice" in popup and "i18n.t('updateAvailable')" in popup
+        assert "parseLatest(" in popup  # storage.local is writable by content scripts: re-check
         assert (
             "from '#i18n'" not in popup
         )  # auto-imported by @wxt-dev/i18n; tsconfig paths drop '#i18n'
@@ -892,6 +957,7 @@ class TestChromeExtensionReleaseKit:
         )
         assert r.returncode != 0
         assert "extension-key.pub is missing or not committed" in r.stderr
+        assert "extension/.env.production and commit it" in r.stderr
         assert "VITE_PUBLIC_API_URL" not in r.stderr.split("next steps")[0]  # only the key is wrong
         assert not (project / "extension" / ".output").exists()
 
@@ -951,6 +1017,7 @@ class TestChromeExtensionReleaseKit:
                 False,
             ),
             (None, {".env": "VITE_PUBLIC_API_URL=https://\n"}, False),  # no host
+            (None, {".env.production": "VITE_PUBLIC_API_URL=https://${API_HOST}\n"}, False),
             (None, {".env": "VITE_PUBLIC_API_URL=https:ok.invalid\n"}, False),  # no //
             (None, {}, False),
         ],
@@ -973,6 +1040,8 @@ class TestChromeExtensionReleaseKit:
             ("prerelease", "not a Chrome version"),
             ("toobig", "not a Chrome version"),
             ("leadingzero", "not a Chrome version"),
+            ("badpub", "not a public key"),
+            ("untracked", "missing or not committed"),
         ],
     )
     def test_a7c_release_refuses_a_store_build_a_dirty_tree_and_a_non_chrome_version(
@@ -990,6 +1059,13 @@ class TestChromeExtensionReleaseKit:
             extra = {"STORE_BUILD": "1"}
         elif change == "dirty":
             (project / "README.md").write_text("edited\n")
+        elif change == "badpub":
+            (project / "extension" / "extension-key.pub").write_text("A" * 120 + "\n")
+            _git(project, "commit", "-qam", "garbage pub")
+        elif change == "untracked":
+            _git(project, "rm", "-q", "--cached", "extension/extension-key.pub")
+            _git(project, "commit", "-qm", "untrack pub")
+            (project / ".git" / "info" / "exclude").write_text("extension/extension-key.pub\n")
         else:
             pkg = project / "extension" / "package.json"
             data = json.loads(pkg.read_text())
@@ -1095,6 +1171,9 @@ for name, origin in (("other", "chrome-extension://{_OTHER_ID}"), ("pinned", "ch
     g = client.get("/health", headers={{"Origin": origin}})
     out[name + "_get"] = g.headers.get("access-control-allow-origin")
     out[name + "_cred"] = r.headers.get("access-control-allow-credentials")
+r = client.options("/extension/latest", headers={{"Origin": "chrome-extension://{_EXT_ID}", "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "authorization"}})
+out["auth_origin"] = r.headers.get("access-control-allow-origin")
+out["auth_headers"] = (r.headers.get("access-control-allow-headers") or "").lower()
 """
 
 
@@ -1189,6 +1268,8 @@ class TestChromeExtensionBackendRelease:
         assert (
             out["pinned_cred"] == "true"
         )  # the Bearer-carrying requests (70-chrome-ext.md § Auth)
+        assert out["auth_origin"] == f"chrome-extension://{_EXT_ID}"
+        assert "authorization" in out["auth_headers"]
 
     @pytest.mark.parametrize(
         ("env", "invalid"),
@@ -1196,6 +1277,11 @@ class TestChromeExtensionBackendRelease:
             ({}, False),
             ({"EXTENSION_ID": ""}, False),
             ({"EXTENSION_ID": f"chrome-extension://{_EXT_ID}"}, True),
+            # the exact shape: 32 letters a-p — q-z, a wrong length or upper case is not an ID
+            ({"EXTENSION_ID": "z" * 32}, True),
+            ({"EXTENSION_ID": _EXT_ID[:31]}, True),
+            ({"EXTENSION_ID": _EXT_ID + "a"}, True),
+            ({"EXTENSION_ID": _EXT_ID.upper()}, True),
         ],
     )
     def test_b4_no_valid_id_admits_no_extension(self, project, env, invalid):
@@ -1260,6 +1346,30 @@ class TestChromeExtensionBackendRelease:
         compose = rendered["compose.yaml"]
         for var in _SERVER_ENV_KEYS[:4]:
             assert compose.count(f"- {var}=") == 1, var
+        # defaults.yaml carries these two as well; a second literal copy would override .env
+        for var in ("LOG_LEVEL", "PYTHONUNBUFFERED"):
+            assert compose.count(f"- {var}=") == 1, var
+
+    @pytest.mark.parametrize("value", ["0", "true", "yes", ""])
+    def test_b4d_the_local_opt_in_is_exactly_one(self, project, value):
+        """B4 edge (Finish review): only CORS_ALLOW_ANY_EXTENSION=1 opens CORS — 0/true/yes do not."""
+        out, stdout = _run_server(project, {"CORS_ALLOW_ANY_EXTENSION": value}, _PREFLIGHT)
+        assert out["other"] is None and out["pinned"] is None
+        assert ("cors_no_extension_id", "warning") in _log_events(stdout)
+
+    def test_b7_emitted_server_type_checks(self, project):
+        """The emitted server passes mypy under its own config (Finish review: the CORS branches)."""
+        import sys
+
+        server = project / "server"
+        r = subprocess.run(
+            [sys.executable, "-m", "mypy", "--config-file", "pyproject.toml", "src"],
+            cwd=server,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        assert r.returncode == 0, r.stdout + r.stderr
 
     def test_b6_dev_targets_load_the_local_env(self, project):
         """B6: `make dev` and `make dev-server` pass .env to uvicorn when it exists."""
