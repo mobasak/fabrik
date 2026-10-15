@@ -226,11 +226,11 @@ def depends_contradiction(spec: dict[str, Any], registrar: str) -> str | None:
     """The diagnostic clause when ``spec``'s ``depends:`` names a store ``registrar`` will skip.
 
     Returns ``None`` when the shape flag is true or ``depends`` names nothing (absent, None, a
-    non-mapping, or values that are empty once whitespace is collapsed — the raw-YAML apply dict
-    and the model dump both reach here). A value is shown with its whitespace collapsed, so a
+    non-mapping, or values that are empty once whitespace is collapsed — the apply dict (raw YAML
+    with the template's ``shape:`` merged under it) and the model dump both reach here). A value is shown with its whitespace collapsed, so a
     newline cannot split the one-line summary or the log record. The flag may be false or simply
-    ABSENT: the apply path reads raw YAML, so a spec with no ``shape:`` block has no flag at all
-    (W-989653a7). Diagnostic only, never a prescription: flipping the flag on
+    ABSENT: the apply path merges only the template's ``shape:`` block (W-989653a7, D-908), so a flag
+    neither the spec nor its template sets is not there at all. Diagnostic only, never a prescription: flipping the flag on
     ``depends.postgres: main`` would point the registrar at the shared legacy database (D-410),
     so the clause names the live store as the thing to check (W-81524f52).
     """
@@ -516,9 +516,10 @@ _APP_ROLE_FLAG = "database_url_app_role"
 
 
 def _app_role_flag(spec: dict[str, Any]) -> bool:
-    """``shape.database_url_app_role`` from the RAW spec dict — only a real ``true`` counts.
+    """``shape.database_url_app_role`` from the apply spec dict — only a real ``true`` counts.
 
-    ``ctx.spec`` never passes through ``Shape``, so its default does not apply and
+    ``ctx.spec`` is the raw YAML with the template's ``shape:`` merged under it (D-908); it never
+    passes through ``Shape``, so its default does not apply and
     nothing coerces the type: ``bool("false")`` is ``True``. Absent / ``null`` is
     ``False``; any other non-bool value (a string, a number) refuses — never a cutover.
     """
@@ -585,6 +586,7 @@ def _shared_db_siblings(db_name: str, spec_path: Path | None) -> list[str]:
     import yaml
 
     from fabrik.app_role_check import SpecResolutionError, _db_name_for_spec
+    from fabrik.spec_loader import merge_template_defaults
 
     if spec_path is None:
         raise AppRoleRefusalError(
@@ -598,6 +600,11 @@ def _shared_db_siblings(db_name: str, spec_path: Path | None) -> list[str]:
             continue
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            # The sibling's template shape too, as apply sees it (W-989653a7): a sibling
+            # whose needs_database comes from its template is still a database spec. A
+            # non-mapping stays a skip below; a malformed template file is a refusal here.
+            if isinstance(data, dict):
+                data = merge_template_defaults(data, keys=("shape",))
         except (OSError, yaml.YAMLError) as e:
             raise AppRoleRefusalError(
                 f"cannot read sibling spec {path.name} to rule out a shared database: "

@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — fabrik apply resolves the same registrars as fabrik plan (2026-10-15)
+
+`fabrik apply` loaded specs through `SpecValidator.load_spec`, which read the raw YAML, while `fabrik plan`, audit and
+destroy merged the template's `defaults.yaml` under the spec — so 15 of the 69 specs provisioned fewer registrars on
+apply than plan showed (W-989653a7). Both loaders now share `spec_loader.merge_template_defaults`; apply merges only the
+template's `shape:` block (D-908), because the deployer writes `spec["env"]` into each app's `.env` and a template
+`env:` default must never reach a deployed app. The app-role cutover's shared-database scan reads sibling specs the
+same way. Four live specs with no `/metrics` route — translator, longephedia-vault, fabrik-citation-verifier,
+fabrik-claim-validator — are pinned `exposes_metrics: false`, and translator `infra.gatus: false` (D-907), so their
+next apply provisions nothing new. A template name that resolves outside `templates/` now merges nothing.
+
 ### Fixed — the deployer stages remote files through `mktemp`, not a predictable /tmp name (2026-10-15)
 
 - **What:** `deployer_ssh._write_file_to_vps_path` creates its remote temp file with `mktemp /tmp/fabrik-XXXXXXXXXX` (random name, created exclusively, mode 0600) and scp's into it, instead of scp'ing to `/tmp/fabrik-<pid>-<name>`; an unexpected `mktemp` answer (its last line is the path; a login shell may print first) is refused before anything is copied, the local temp file is written before the remote one exists, and any failed or interrupted scp removes the remote temp file. One extra ssh per written file.

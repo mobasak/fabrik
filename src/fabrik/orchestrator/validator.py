@@ -21,6 +21,7 @@ import yaml
 
 from fabrik.config import FABRIK_ROOT
 from fabrik.orchestrator.exceptions import ValidationError
+from fabrik.spec_loader import merge_template_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +205,10 @@ class SpecValidator:
         if not isinstance(spec, dict):
             raise ValidationError("Spec must be a YAML mapping", field="type")
 
-        return spec
+        # The template's shape: block only — never env/resources/health, which the
+        # deployer would write into the app's .env (D-908). Same merge as plan's
+        # registrar decision (W-989653a7).
+        return merge_template_defaults(spec, self.templates_dir, keys=("shape",))
 
     def validate(self, spec: dict[str, Any]) -> list[str]:
         """Validate a spec dictionary.

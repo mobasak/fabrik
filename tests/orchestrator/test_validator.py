@@ -210,3 +210,51 @@ class TestSpecValidator:
 
         assert exc.value.field == "template"
         assert "escapes" in str(exc.value)
+
+
+class TestTemplateDefaultsOnApply:
+    """The apply loader merges the template's shape: block, and only that (W-989653a7, D-908)."""
+
+    @staticmethod
+    def _templates(tmp_path):
+        tdir = tmp_path / "templates" / "python-api"
+        tdir.mkdir(parents=True)
+        (tdir / "defaults.yaml").write_text(
+            "shape:\n  exposes_metrics: true\n  kind: service\nenv:\n  LOG_LEVEL: INFO\n"
+        )
+        return tmp_path / "templates"
+
+    @staticmethod
+    def _spec(tmp_path, body):
+        spec_file = tmp_path / "spec.yaml"
+        spec_file.write_text("name: app\ntemplate: python-api\n" + body)
+        return spec_file
+
+    def test_template_defaults_shape_reaches_apply(self, tmp_path):
+        """A spec with no shape: block gets the template's shape keys."""
+        validator = SpecValidator(templates_dir=self._templates(tmp_path))
+        spec = validator.load_spec(self._spec(tmp_path, ""))
+        assert spec["shape"]["exposes_metrics"] is True
+
+    def test_template_defaults_spec_value_wins(self, tmp_path):
+        """A shape value the spec sets overrides the template's."""
+        validator = SpecValidator(templates_dir=self._templates(tmp_path))
+        spec = validator.load_spec(self._spec(tmp_path, "shape:\n  exposes_metrics: false\n"))
+        assert spec["shape"]["exposes_metrics"] is False
+
+    def test_template_defaults_env_never_reaches_apply(self, tmp_path):
+        """Template env: defaults stay plan-only — the deployer writes spec env into the app's .env."""
+        validator = SpecValidator(templates_dir=self._templates(tmp_path))
+        spec = validator.load_spec(self._spec(tmp_path, ""))
+        assert "LOG_LEVEL" not in (spec.get("env") or {})
+
+    def test_template_defaults_escaping_template_merges_nothing(self, tmp_path):
+        """A template name that resolves outside templates_dir merges nothing."""
+        from fabrik.spec_loader import merge_template_defaults
+
+        templates = self._templates(tmp_path)
+        evil = tmp_path / "evil"
+        evil.mkdir()
+        (evil / "defaults.yaml").write_text("shape:\n  exposes_metrics: true\n")
+        raw = {"name": "app", "template": "../evil"}
+        assert merge_template_defaults(dict(raw), templates) == raw

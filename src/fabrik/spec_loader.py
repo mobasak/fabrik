@@ -7,7 +7,7 @@ All spec files are validated against Pydantic models before use.
 
 from enum import Enum
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, StrictBool, field_validator, model_validator
@@ -1048,24 +1048,44 @@ def load_spec(spec_path: str | Path) -> Spec:
     if not isinstance(raw, dict):
         raise ValueError(f"Spec file must be a YAML mapping: {spec_path}")
 
-    # G-B1a (T1-02): merge template defaults into the raw spec before
-    # validation. Pre-G1 specs (captcha, file-api, translator, image-broker,
-    # emailgateway) were written before scaffolds emitted explicit shape:
-    # blocks; without this merge, `shape` stays None and
-    # `resolve_applicability` silently skips all 9 registrars on those
-    # deploys. Spec values win on conflicts (deep-merge, not shallow).
-    # Missing templates/<name>/defaults.yaml is tolerated silently — the
-    # raw spec is returned unchanged (no crash on typos / deleted templates).
-    template_name = raw.get("template")
-    if isinstance(template_name, str) and template_name:
-        defaults_path = FABRIK_ROOT / "templates" / template_name / "defaults.yaml"
-        if defaults_path.exists():
-            with open(defaults_path, encoding="utf-8") as df:
-                defaults = yaml.safe_load(df)
-            if isinstance(defaults, dict):
-                raw = _deep_merge(defaults, raw)
-
+    raw = merge_template_defaults(raw)
     return Spec(**raw)
+
+
+def merge_template_defaults(
+    raw: dict[str, Any],
+    templates_dir: Path | None = None,
+    keys: tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    """Merge ``<templates_dir>/<raw["template"]>/defaults.yaml`` under ``raw`` (the spec wins).
+
+    G-B1a (T1-02): pre-G1 specs (captcha, file-api, translator, image-broker,
+    emailgateway) were written before scaffolds emitted explicit ``shape:``
+    blocks; without this merge ``shape`` stays None and ``resolve_applicability``
+    silently skips every registrar on them. Spec values win on conflicts
+    (deep-merge, not shallow). A missing or non-mapping defaults file returns
+    ``raw`` unchanged, and so does a template name whose defaults file resolves
+    outside ``templates_dir`` (the escape ``SpecValidator.validate`` refuses).
+
+    ``keys`` limits which top-level default keys merge (all when ``None``).
+    ``fabrik plan`` merges everything; ``fabrik apply`` passes ``("shape",)``,
+    because the deployer writes ``spec["env"]`` into each app's ``.env`` and a
+    template ``env:`` default must never reach a deployed app (D-733, D-908).
+    """
+    template_name = raw.get("template")
+    if not (isinstance(template_name, str) and template_name):
+        return raw
+    root = (templates_dir or FABRIK_ROOT / "templates").resolve()
+    defaults_path = (root / template_name / "defaults.yaml").resolve()
+    if not defaults_path.is_relative_to(root) or not defaults_path.exists():
+        return raw
+    with open(defaults_path, encoding="utf-8") as df:
+        defaults = yaml.safe_load(df)
+    if not isinstance(defaults, dict):
+        return raw
+    if keys is not None:
+        defaults = {k: v for k, v in defaults.items() if k in keys}
+    return _deep_merge(defaults, raw)
 
 
 def _deep_merge(base: dict, overlay: dict) -> dict:
