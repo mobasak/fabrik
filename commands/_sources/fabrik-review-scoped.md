@@ -136,7 +136,7 @@ proportionate answer.
    `dispatch_headroom.py --units 1`; a multi-file diff partitions by file and sizes by `--units <N>`.
    **They run as ONE `Workflow` call on the review-loop script, its seats in parallel** (chunk 6b; contract:
    `/opt/fabrik/docs/reference/review-loop-workflow.md`) — `Workflow({scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js",
-   args: {pass: 1, surface, base_sha, digest, pins_dir, pin_manifest, scratch_dir, brief, slices}})` (`scratch_dir` the path this run's `start` printed as `RUN-SCRATCH:` — § Subagents, the D8 paragraph; `pins_dir`, `pin_manifest` and `digest` as step 5's `pin` printed them; `pins_dir` holds each pinned file at its repo-relative path, the path every seat brief reads) (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree), each unit a slice
+   args: {pass: 1, surface, base_sha, digest, pins_dir, pin_manifest, scratch_dir, brief, slices}})` (`scratch_dir` the path this run's `start` printed as `RUN-SCRATCH:` — `/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph; `pins_dir`, `pin_manifest` and `digest` as step 5's `pin` printed them; `pins_dir` holds each pinned file at its repo-relative path, the path every seat brief reads) (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree), each unit a slice
    `{name, files, scope: "<the unit>", models: ["sonnet", "haiku"]}` and the unit holding the riskiest hunk
    `models: ["sonnet", "haiku", "opus"]`, so a one-unit diff is exactly the three-reader floor; the script unions
    each unit's readers and one refuter per unit EXECUTES every candidate, returning the command and its output.

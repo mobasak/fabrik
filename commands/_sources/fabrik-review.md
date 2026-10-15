@@ -129,8 +129,9 @@ $ tar -xf <run scratch>/review-<sha>.tar -C <run scratch>/review-<sha>
 ```
 
 and brief the finder against that path (`<run scratch>` is the path this run's `start` printed as
-`RUN-SCRATCH:`, never the session scratchpad root — § Subagents, the D8 paragraph). If a finder must read the live tree instead (a working-tree
-review, `git diff HEAD`), say so IN the brief so the finder knows what it is looking at — and tell it
+`RUN-SCRATCH:`, never the session scratchpad root — § Subagents, the D8 paragraph). If a finder must
+read the live tree instead (a working-tree review, `git diff HEAD`), say so IN the brief so the finder
+knows what it is looking at — and tell it
 to EXCLUDE the tree's stale copies: `.claude/worktrees/**` holds whole duplicate `src/` + `tests/`
 trees at DIFFERENT line numbers (`.tmp/**` is subagent scratch — logs and job state, no code: cheap to skip, but not the duplicate-tree problem), so an unscoped repo-root grep returns
 anchors that resolve in a worktree and not in HEAD (`/usr/bin/grep -rn --exclude-dir=worktrees

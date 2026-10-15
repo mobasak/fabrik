@@ -39,7 +39,9 @@ def test_the_seat_folder_rule_is_stated_once_in_subagents_core() -> None:
     """The rule's home: the D8 paragraph, which already bounds where a read-only seat may write. Mutants: drop the
     sentence; drop `seat-<n>`; drop `RUN-SCRATCH:`; drop 'never the session scratchpad root'; state it twice."""
     core = _norm(CORE)
-    d8 = _section(core, "**Every seat's brief carries the git-verb prohibition (D8):**", "<!-- POOL OFF (D-181, 2026-09-07)")
+    d8 = _section(
+        core, "**Every seat's brief carries the git-verb prohibition (D8):**", "<!-- POOL OFF (D-181, 2026-09-07)"
+    )
     assert d8.count(RULE) == 1
     # the three consequences ride the same paragraph: nothing durable, the pins dir, the only staging
     assert "so nothing durable is written there (resume artifacts go to `SCRATCH:`)" in d8
@@ -66,7 +68,8 @@ def test_seat_isolation_names_the_seat_folder_and_the_only_staging() -> None:
     iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
     assert (
         "Seats copy the pin to their seat folder — `<run scratch>/seat-<n>/` under the run's `RUN-SCRATCH:` path"
-        " (§ Subagents, the D8 paragraph; `<scratch>` below is that folder) — and assert its md5s first;"
+        " (`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph; `<scratch>` below is that folder) —"
+        " and assert its md5s first;"
         " a tree is staged there only by the archive or the clone this section gives, never by copying the live"
         " checkout;" in iso
     )
@@ -96,7 +99,8 @@ def test_review_scoped_passes_the_run_scratch_as_the_workflow_scratch_dir() -> N
     """The workflow writes every seat folder under `scratch_dir`; the lead passes the run's folder, not the root."""
     scoped = _norm(SCOPED)
     assert (
-        "(`scratch_dir` the path this run's `start` printed as `RUN-SCRATCH:` — § Subagents, the D8 paragraph;"
+        "(`scratch_dir` the path this run's `start` printed as `RUN-SCRATCH:` — `/opt/fabrik/commands/_fragments/"
+        "subagents-core.md`, the D8 paragraph;"
         " `pins_dir`, `pin_manifest` and `digest` as step 5's `pin` printed them;" in scoped
     )
     assert "<scratchpad>" not in SCOPED.read_text()
@@ -109,9 +113,25 @@ def test_execute_plan_brief_and_report_files_live_under_the_run_scratch() -> Non
     assert "`<run scratch>/phase-<X>-brief.md`" in norm
     assert "`<run scratch>/phase-<X>-task-<N>-report.md`" in norm
     assert (
-        "`<run scratch>` is the path this run's `start` printed as `RUN-SCRATCH:` (§ Subagents, the D8 paragraph);"
-        " the folder goes when the run is consumed, which is why the salvage diff above is written elsewhere." in norm
+        "`<run scratch>` is the path this run's `start` printed as `RUN-SCRATCH:`"
+        " (`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph);"
+        " the folder goes when the run is consumed, which is why the salvage diff above is written elsewhere, and why"
+        " a review in a later run (a resume's acceptance review of salvaged work) re-derives the brief from the plan"
+        " and the ticket, never from a folder another run owned." in norm
     )
     assert "<scratchpad>" not in text
     # kept as it was: durable state is never a scratchpad's (mail 01M4Y86A9R said so)
     assert "(durable — a scratchpad is session-private and a resume may be a DIFFERENT session;" in norm
+
+
+def test_the_d8_pointer_resolves_wherever_it_is_read() -> None:
+    """Wave 2 of the review: `§ Subagents, the D8 paragraph` resolves only in a command that renders the fragment.
+    A source that does not include `subagents-core` (or the catalogue, read by hub path) points by the hub path."""
+    for path in (CAT, SCOPED, EXEC):
+        text = _norm(path)
+        if path != CAT:
+            assert "{{include:subagents-core" not in path.read_text(), f"{path.name} now includes the fragment"
+        assert "§ Subagents, the D8 paragraph" not in text, f"{path.name} cites a section it does not render"
+        assert "`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph" in text
+    assert "{{include:subagents-core" in REVIEW.read_text()
+    assert "§ Subagents, the D8 paragraph" in _norm(REVIEW)

@@ -16,8 +16,11 @@ All notable changes to this project will be documented in this file.
   never a copy of the live checkout. `review-probe-catalogue.md` § Seat isolation, `fabrik-review.md` (the
   `git archive` pin block and the seat-dir sentence), `fabrik-review-scoped.md` (the workflow's `scratch_dir`) and
   `fabrik-execute-plan.md` (the brief and report files) point at it and name `<run scratch>` in place of the bare
-  scratchpad; `fabrik-execute-plan.md`'s durable-salvage sentence stays as it was. Pinned by
-  `tests/test_run_scratch_brief_wording.py`; `tests/test_review_loop_workflow.py` re-pins the archive line.
+  scratchpad (the three that do not render the fragment point by its hub path, so the pointer resolves where it
+  is read); `fabrik-execute-plan.md` adds that a review in a later run re-derives the brief from the plan and
+  the ticket, never from another run's folder, and its durable-salvage sentence stays as it was. Pinned by
+  `tests/test_run_scratch_brief_wording.py` (7 tests); `tests/test_review_loop_workflow.py` re-pins the archive
+  line.
 
 ### Changed — /fabrik-review: the probe catalogue gains a Deletions hunt row (2026-10-15)
 

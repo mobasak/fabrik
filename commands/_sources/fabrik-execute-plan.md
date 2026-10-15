@@ -954,8 +954,10 @@ history. Conserve the orchestrator's context:
 - **Report as a file:** tell the subagent to write its full report to `<run scratch>/phase-<X>-task-<N>-report.md`
   and **return only** status + commit range + a one-line test summary + concerns. The reviewer reads the
   brief + report + the diff (`git diff <base>..<head>`) as files. `<run scratch>` is the path this run's `start`
-  printed as `RUN-SCRATCH:` (§ Subagents, the D8 paragraph); the folder goes when the run is consumed, which is
-  why the salvage diff above is written elsewhere.
+  printed as `RUN-SCRATCH:` (`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph); the folder
+  goes when the run is consumed, which is why the salvage diff above is written elsewhere, and why a review in a
+  later run (a resume's acceptance review of salvaged work) re-derives the brief from the plan and the ticket,
+  never from a folder another run owned.
 - **Never paste session history / prior-phase summaries into a dispatch.** A cold subagent needs only its
   brief, the `Interfaces` it touches, the Global Constraints, and your resolution of any ambiguity you
   spotted. Nothing else — not "state after Phases A–C."
