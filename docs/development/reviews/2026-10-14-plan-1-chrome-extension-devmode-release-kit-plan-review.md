@@ -40,3 +40,39 @@ Built from the spec's own § Intake Inventory (13 items: 11 IN, 2 OUT-OF-SCOPE).
 
 | Pass | seats · axes re-checked (claims · gates · interfaces · completeness) | counters | method | plan md5 (start → end) |
 |-----:|---|---|---|---|
+| Pass 1 | opus×1 (O: plan rule/grammar sections) + sonnet×2 (S1: plan other sections; S2: the spec) · all axes | found: 18, new: 18, confirmed: 15, fixed: 15, unexecuted: 0, edits: 15 | method: citation + re-derivation — full pass (15 confirmed, 2 refuted, 1 superseded by a fix) | d3d9e8b1… → ba8ee040… (plan); spec 4d9c3c4f… → 77cafae5… |
+| Pass 2 | opus×1 + sonnet×2 (the round-1 slice owners) · delta over the round-1 fix + one hop | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0, edits: 3 | method: re-derivation — 15 ledger rows re-verified (14 DEFECT_ABSENT, O-O12 DEFECT_PRESENT), 3 confirmed | ba8ee040… → 82330ea1… (plan); spec 77cafae5… → 91e7d686… |
+
+### Pass 1 candidates
+
+| Id | Finding | Disposition |
+|---|---|---|
+| O-O1 | The four env names never reach the container: the canonical compose has no `env_file` and its environment is `PORT`/`LOG_LEVEL` only (`src/fabrik/scaffold.py:1100-1102`) | CONFIRMED, FIXED — `extra_env_lines` with four `${VAR:-}` lines; B5 asserts them |
+| O-O2 | `defaults.yaml` `EXTENSION_ID: ""` renders `- EXTENSION_ID=` through the template's env loop (`compose.yaml.j2:28-30`, `template_renderer.py:127`) | CONFIRMED, FIXED — no default added; the template path takes the names from the spec's `env:` |
+| O-O3 | Step 1's grep omits `scripts/`, and "nothing reads `CORS_ORIGINS`" was unscoped (7 hits) | CONFIRMED, FIXED — grep widened, the 7 hits named, the claim scoped to the emitted chrome-extension server |
+| O-O4 | The unset-`EXTENSION_ID` regex fallback contradicts core/35 "never hardcode origins" with no recorded exception | CONFIRMED, FIXED — spec § Decisions taken records the exception; the approval row names it |
+| O-O5 | The Gate 2 digest quote dropped the source's bold markers | CONFIRMED, FIXED — quoted verbatim |
+| O-O6 | `scaffold.py:673` claimed blank | REFUTED — line 673 is `'*.pem\n'` |
+| O-O7, S1-S1 | A7's "no curl" is unsatisfiable over the whole Makefile (`docker-smoke` curls at `:6045`) | CONFIRMED, FIXED — A7 extracts the `release-ext` recipe |
+| O-O8 | Each make line is its own shell: the checksum step would run at the root and record an `extension/.output/` path | CONFIRMED, FIXED — one recipe line, `cd .output`, bare-name checksum |
+| O-O9 | B3/B4 need import-time env and lifespan; the emitted logger swaps root handlers (`:960`) so caplog never sees the warning | CONFIRMED, FIXED — B1-B4 run the server in a subprocess, `with TestClient(app)`, B4 on stdout |
+| O-O10 | The comment above the compose call (`:5975-5978`) would still say CORS goes via Traefik | CONFIRMED, FIXED — rewritten in Phase B |
+| O-O11 | B1 covered only "unset", not empty; B5 did not check the emitted compose for `CORS_ORIGINS` | CONFIRMED, FIXED — B1 parametrised (unset, empty, partial); B5 widened |
+| O-O12 | The WXT `key` retention claim had no executed output in the plan | CONFIRMED, FIXED — A3 extends the existing build test to assert the built manifest's `key` |
+| S1-S2 | A1's 392 chars holds only for RSA-2048, which the keygen interface did not state | CONFIRMED, FIXED — `modulusLength: 2048` named |
+| S1-S3 | `release-ext` missing from `.PHONY` | CONFIRMED, FIXED — added; A7 asserts it |
+| S2-S1 | The spec's Validation never names the test pinning the regex label | REFUTED — plan Phase B step 1 replaces it with B5 |
+| S2-S2 | `wxt.config.ts` reading `VITE_PUBLIC_API_URL` has no grounded mechanism | RECORDED — measured (superseded: `host_permissions` dropped, so the config reads no env) |
+| S2-S3 | Behaviour with only some `EXTENSION_LATEST_*` set was undefined | CONFIRMED, FIXED — 404 unless all three are set and non-empty |
+
+Found during the orchestrator's re-execution: `test_wxt_scaffold_builds_and_manifest_has_permissions`
+(`tests/test_scaffold_chrome_ext_wxt.py:323-355`) pins the exact permissions list, so adding `alarms` breaks it — FIXED:
+the File Scope names it and A3 extends it.
+
+### Pass 2 candidates
+
+| Id | Finding | Disposition |
+|---|---|---|
+| O-O12 | The WXT evidence bullet still carried no executed output | CONFIRMED, FIXED — the grep commands and their output are pasted in § Evidence |
+| O-O13 | `test_wxt_config_declares_mv3_permissions_and_icons` (`tests/test_scaffold_chrome_ext_wxt.py:133-142`) pins the exact permissions string that `alarms` changes | CONFIRMED, FIXED — File Scope and Phase A step 2 name it |
+| O-O14 | `${EXTENSION_ID:-}` delivers "not set" as `""`; the CORS branch and B4 knew only set/unset | CONFIRMED, FIXED — set-and-non-empty vs unset-or-empty in plan and spec; B4 covers both |

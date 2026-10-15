@@ -178,36 +178,42 @@ One seat's dissent is folded below: before the first release, dev builds have a 
    - `wxt.config.ts` (`src/fabrik/scaffold.py:5109-5134`) reads `extension-key.pub` when it exists and sets
      `manifest.key` from it. It omits the key when the file is absent, or when the build sets `STORE_BUILD=1`.
    - The store rejects a first upload carrying `key` (§ External dependencies), so a store build leaves it out.
-   - `manifest.permissions` gains `alarms`. `manifest.host_permissions` (the manifest has none today) gains the backend
-     origin, taken from `VITE_PUBLIC_API_URL`, the variable the emitted `src/lib/api/config.ts` already reads as
-     `API_BASE_URL` (`src/fabrik/scaffold.py:5532`). The existing `authedFetch` already refuses any other origin
-     (`src/fabrik/scaffold.py:5544-5561`).
+   - `manifest.permissions` gains `alarms`. No `host_permissions` are added (the manifest has none today): the
+     extension calls its backend at `VITE_PUBLIC_API_URL`, read as `API_BASE_URL` (`src/fabrik/scaffold.py:5532`),
+     as an ordinary CORS request, which the backend's exact-origin CORS (item 5) admits. The existing `authedFetch`
+     already refuses any other origin (`src/fabrik/scaffold.py:5544-5561`).
 3. **The release target.**
    - The `Makefile` (`src/fabrik/scaffold.py:6000-6056`) gains `release-ext`: `pnpm keygen` (a no-op once a key exists),
      then `pnpm zip`, which keeps `wxt zip` unchanged (I6).
-   - It then writes `<zip>.sha256` beside the zip and prints the three backend values to set: version, download URL
-     placeholder and SHA-256.
+   - In the same shell, inside `extension/.output/`, it writes `<zip>.sha256` beside the zip, recording the bare file
+     name so `sha256sum -c` verifies in the download folder. It prints the three backend values to set: version,
+     download URL placeholder and SHA-256.
    - It publishes nothing: Gate 2 is the operator's (`89-extension-launch-checklist.md:136`).
 4. **The endpoint.**
    - `server/src/<pkg>/main.py` (`src/fabrik/scaffold.py:5879-5893`) gains a public `GET /extension/latest` returning
      `{"version", "download_url", "sha256"}`, read from `EXTENSION_LATEST_VERSION`, `EXTENSION_LATEST_URL` and
      `EXTENSION_LATEST_SHA256`.
-   - It returns 404 while `EXTENSION_LATEST_VERSION` is unset, so a checker treats "no release published" as "nothing to
-     do". No auth, as the mail asks; it carries no secret.
+   - It returns 404 unless all three are set and non-empty, so a checker treats "no release published" (or a
+     half-configured one) as "nothing to do". No auth, as the mail asks; it carries no secret.
    - The route is additive: no existing route changes (I11, `70-chrome-ext.md:254`).
 5. **Exact-origin CORS.**
    - The server's `CORSMiddleware` (`src/fabrik/scaffold.py:5867-5876`) uses `allow_origins=[f"chrome-extension://{EXTENSION_ID}"]`
-     when `EXTENSION_ID` is set, and the existing dev regex only when it is unset.
-   - At startup with no `EXTENSION_ID` it logs a structured `cors_any_extension_origin` warning, so an open regex in
+     when `EXTENSION_ID` is set and non-empty, and the existing dev regex when it is unset or empty (the compose passes
+     it as `${EXTENSION_ID:-}`, so "not set" reaches the container as an empty string).
+   - At startup with no non-empty `EXTENSION_ID` it logs a structured `cors_any_extension_origin` warning, so an open regex in
      production is visible in Loki rather than silent.
    - The Traefik CORS middleware (`src/fabrik/scaffold.py:5986-5996`: the five `{name}-cors` header labels and the
      router's `middlewares={name}-cors`) is removed from the emitted `compose.yaml`. Preflights then reach FastAPI, and its
      exact-origin `CORSMiddleware` is the single CORS authority. `templates/chrome-extension/compose.yaml.j2` drops the
      same labels (its lines 17-22) and its `CORS_ORIGINS=${CORS_ORIGINS:-chrome-extension://*}` line (line 27).
-   - `templates/chrome-extension/defaults.yaml` `CORS_ORIGINS: "chrome-extension://*"` is replaced by an `EXTENSION_ID`
-     entry. Nothing reads `CORS_ORIGINS` in the emitted server; the plan confirms with a grep.
-   - CORS is defence in depth for the service worker's own calls: Chrome lets extension pages and the service worker
-     bypass CORS under host permissions (ledger prac-19). It still binds any other caller.
+   - The four env names reach the container through `_write_canonical_compose`'s `extra_env_lines` as
+     `${VAR:-}` lines, which compose fills from the deploy's `.env` (the canonical compose has no `env_file`,
+     `src/fabrik/scaffold.py:1094-1102`). The template path carries them through the spec's `env:` (its env loop).
+   - `templates/chrome-extension/defaults.yaml` drops `CORS_ORIGINS: "chrome-extension://*"` and adds no entry: an
+     empty default would render as `- EXTENSION_ID=` and force the open fallback. The emitted chrome-extension server
+     never read `CORS_ORIGINS` (the saas emitter reads its own).
+   - With no `host_permissions` (item 2), CORS binds the extension's own calls too (ledger prac-19), so the exact
+     origin is the real gate, not defence in depth.
 6. **The update checker.**
    - A new `extension/src/lib/update-check.ts`: on `runtime.onStartup` and `runtime.onInstalled`, and on a
      `chrome.alarms` tick every 360 minutes, it fetches `/extension/latest` with a 10-second timeout and no credentials.
@@ -243,7 +249,7 @@ One seat's dissent is folded below: before the first release, dev builds have a 
 - **Key in an env var injected at build time** (per-machine). Every build machine and CI would need it; a committed public
   key is not a secret (ledger key-8), so committing it is simpler and safe.
 - **Serve the version from a static `release.json` beside the zip** instead of the backend. It needs a second hosted
-  origin in `host_permissions`. The backend already exists, is public and is deployed, and the mail asks for env config.
+  origin the backend's CORS would not cover. The backend already exists, is public and is deployed, and the mail asks for env config.
 - **A system notification** (`chrome.notifications`) instead of a badge. The field practice is badge plus popup banner
   (ledger prac-8, prac-9), and notifications would add a permission and nag.
 - **Startup-only checks** without an alarm. A long-running browser would never see a release; every off-store example
@@ -334,20 +340,24 @@ Graders in `tests/test_scaffold.py`, each watched red first:
   4. `wxt.config.ts` reads `extension-key.pub` and honours `STORE_BUILD`.
   5. The manifest permissions include `alarms`.
 - **The server:**
-  6. The emitted server answers `GET /extension/latest` with 404 when unset, and with the three fields when set (FastAPI
+  6. The emitted server answers `GET /extension/latest` with 404 unless all three values are set, and with the three fields when they are (FastAPI
      `TestClient`).
   7. With `EXTENSION_ID` set, a preflight from another extension origin is refused.
 - **The rest of the emitted tree:**
   8. `.gitignore` names `extension/.keys/`.
   9. `INSTALL.md` carries the four steps, the keep-Developer-mode-on note and the `ExtensionDeveloperModeSettings` caveat.
   10. The Makefile's `release-ext` writes a `.sha256` and never publishes.
-  11. The emitted `compose.yaml` and the `compose.yaml.j2` template carry no `-cors` Traefik label and no `CORS_ORIGINS`.
+  11. The emitted `compose.yaml` and the `compose.yaml.j2` template carry no `-cors` Traefik label and no `CORS_ORIGINS`,
+      and the emitted `compose.yaml` passes the four env names through.
 
 ## Decisions taken
 
 - **The key's origin and timing:** approach A (in-project, on first need, Node built-in crypto), ranked first unanimously
   by the judge panel. The ledger row is minted at the approval gate (`/fabrik-plan-review`, this spec being `Size: small`).
-- **CORS when `EXTENSION_ID` is unset:** warn, don't refuse (§ Rejected alternatives).
+- **CORS when `EXTENSION_ID` is unset:** warn, don't refuse (§ Rejected alternatives). The dev regex fallback is a
+  recorded exception to `core/35-security-auth.md`'s "never hardcode origins": production sets `EXTENSION_ID`, and the
+  approval row names the exception.
+- **No `host_permissions`:** the backend call is an ordinary CORS request, so the exact origin binds it.
 - **A store build strips `key`** (`STORE_BUILD=1`).
 
 ## Open / blocking unknowns
