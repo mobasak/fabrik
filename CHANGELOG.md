@@ -14,6 +14,44 @@ All notable changes to this project will be documented in this file.
 - Every close rewrites the marker: `done`, `handoff` and a plain `blocked` → `done`; a quota wall (`--wall` or the reason regex) → `resumable`. A handoff whose `--resume` text names its own run folder is refused. `step`, `round` and `dispatch` refresh the marker (the heartbeat). A `died` coroner close, and the next `start` over a closed non-wall record, mark a still-`running` folder `done`.
 - `scripts/scratch_sweep.py` gains `classify_run_folder`, the one ACTIVE/CONSUMED classifier (grace: 30 min when no seat wrote after the close, else 36 h; a dead `running` run only past a 7-day heartbeat). Plan `docs/development/plans/2026-10-15-plan-1-scratch-lifecycle.md` Phases A-B; tests `tests/test_scratch_sweep_run_folders.py`, `tests/test_command_run_scratch.py`, `tests/test_kaizen_coroner.py`.
 
+### Changed — /fabrik-command-improve: PHASE 3 points at a rule stated elsewhere, never glosses it (2026-10-15)
+
+- `commands/_sources/fabrik-command-improve.md` PHASE 3: a new sentence after the mechanism-wiring sentence extends the
+  rule for a rule adapted from CLAUDE.md or a fragment (pointed at, or quoted in its own words) to a rule stated in
+  another command or another section of the target, and neither the pointer nor the quote carries a gloss: a gloss is a
+  new wording that drifts, and a fresh wording is written only where the rule's words do not fit the new subject, keeps
+  the words that do fit, and names its source. Answers feedback row 1792031068 (a ten-word gloss of the by-design rule
+  became a third wording and cost a round), a recurrence of the held one-fact-plus-pointer subject (D-711). Pinned by
+  `tests/test_command_improve_queue_pass.py::test_phase_three_points_at_a_rule_stated_elsewhere_without_a_gloss`.
+  Six first-sighting rows HELD; row 1792000873 (PHASE 2 Grounding reads the gate's code) left open for the next run.
+
+### Fixed — by-design verdicts: the receipt skeleton states the owner-only grammar, and the gate refuses a D-owner that is not a ledger row (2026-10-15)
+
+- `scripts/review_receipt.py`: the `--init` skeleton's verdict grammar says a by-design verdict's parentheses hold owner ids only and its reason follows them (`… (F4, round 3; D-203) — <why>`); every other RECORDED reason stays parenthesised. Three `/fabrik-review` feedback rows had copied the old "every reason is parenthesised" text.
+- `scripts/enforcement/check_review_coverage.py`: V5 refuses `RECORDED — by design (D-nnn)` when the receipt's own checkout's `docs/DECISIONS.md` has no such row (integer compare, `D-1` = `D-001`; bounded at the first `.git` ancestor; fail-open with no readable rows). Measured first: 2 of 485 by-design D-owners in 1651 receipts would fire (D-874, held on an unmerged branch). D-876; kaizen 01M4YMKN78.
+
+### Changed — /fabrik-review: the receipt-time Residual sentence points at the owners-only by-design rule (2026-10-15)
+
+- `commands/_sources/fabrik-review.md` § Residual: the sentence a receipt-writer reads while rowing residuals now says a `RECORDED — by design` parenthetical holds the owner and nothing else, the reason following it, as Phase 2's `by design` bullet shows — a pointer in the rule's own words, never a third wording (term-edit already carries a second). Answers feedback row 1792029250, the third verdict on the by-design grammar after two rows were routed to the receipt skeleton (infra's code, re-routed with the three rows and a gate gap: a D-id is checked by shape, not existence). Pinned by `tests/test_review_queue_pass.py::test_the_receipt_sentence_says_owners_only_inside_the_by_design_parentheses`.
+
+### Added — the coordinator role: hub beat lists, charter and fleet carrier (2026-10-15)
+
+`coordinator` joins every hub beat list (`mail.py::HUB_BEATS`, `mail_notify.py::_HUB_BEATS`,
+the quota dashboard's owner lists, CLAUDE.md's `route --to-agent` line and trailer row),
+so mail and merge requests can address it; `command_run.py::_BEATS` stays four-beat, since its only reader is
+the FEEDBACK verdict and the coordinator owns no beat (D-875). New charter `docs/reference/agents/coordinator.md`.
+`templates/governance/CLAUDE.md` carries the role fleet-wide: the seven jobs, Never, escalation and the
+impact × effort priority table, and narrows D-471 (D-872) and D-442 (D-873). Plan
+`2026-10-15-plan-1-coordinator-role` Phase B. The role text reaches every synced repo at the next sync; the builder-facing
+behaviours (the builder filter, the doorbell, triage's scored-first order) switch on only where a repo commits
+`coordinator_mode`.
+
+### Added — work.py: impact × effort scores, holds, and coordinator mode (2026-10-15)
+
+- `scripts/work.py assign` gains `--impact high|low`, `--effort high|low` (each needs `--why`, stored as `score_reason`), `--blocked-by <id>` and `--unblock <id>`. A scored item's `priority` is derived (high/low 1, high/high 2, low/low 3); low impact with high effort is refused as a time sink with the `drop --why` pointer; on a scored item only `--priority 0` (the incident override) is accepted, a re-score clears it and says so, and a P0 set before the first score survives it. A half-scored item keeps today's `--priority`. Checks run on the item as it will be written, so a score split across two calls is judged as one. Holds refuse an unknown id, the item itself, a cycle, an `--unblock` of an id not held, and the same id in both flags.
+- `triage` prints `unscored <n>: <ids>` and the major project in flight, never plans a second high/high item while one is owned or claimed and `open`/`blocked` (a fresh store scan), and plans at most one high/high item per run.
+- **Coordinator mode** (`"coordinator_mode": true` in `.fabrik/work/config.json`, opt-in per repo because `work.py` is fleet-synced): a builder's `next`, default `ready` and prompt `ready` count show only its own items (`ready --all [--mine]` stays unfiltered); `triage` plans scored items before unscored ones; the no-live-coordinator Stop doorbell names `work.py ready --all --mine` instead of `next`. The Stop hook's caller-name resolution is factored into `_caller_name`, which the builder filter and `next`/`ready`'s own `mine` lookup share; a builder is a pool worker, so the feedback owner keeps today's view. Plan `docs/development/plans/2026-10-15-plan-1-coordinator-role.md` Phase A (D-871); 23 tests in `tests/test_work_coordinator.py`, each seen red first.
+
 ### Changed — review probe catalogue: a reader over another language starts from a fail-closed grammar (2026-10-15)
 
 - `commands/_fragments/review-probe-catalogue.md` Parsers row (applied by every review-family brief): a hand-written reader whose input is source in a language other than its own (TypeScript read by Python, SQL, a Dockerfile), with no real parser of that language at hand, starts from a strict grammar that REFUSES any line matching none of its named forms, none a catch-all, its refusal executed before every pin on a line of that language's own syntax that no named form admits, and run by the lead over the live files the reader will read with every refusal classed a grammar gap or a true out-of-grammar line; the seats attack what the grammar wrongly accepts — a tokenizer is built only where the brief names the construct no line form can hold. Answers /fabrik-review feedback row 1792019529 (four rounds and 10.7 h on a TypeScript tokenizer a strict line grammar replaced in one); the second verdict on a held parser subject (D-711). Row 1792024182 (a pre-existing-red claim names its commit and dist) is HELD as first-time advice, its home the caller's step-8 baseline. Pinned by `tests/test_review_queue_pass.py::test_a_reader_over_another_language_starts_from_a_fail_closed_grammar`.

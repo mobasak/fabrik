@@ -508,3 +508,30 @@ def test_a_reader_over_another_language_starts_from_a_fail_closed_grammar() -> N
     assert "the parsing model before tokens" in row, (
         "the clause sharpens the existing model-before-tokens rule"
     )
+
+
+def test_the_receipt_sentence_says_owners_only_inside_the_by_design_parentheses() -> None:
+    """Row 1792029250 (infra, the coordinator-role whole-plan review): one gate round-trip on by-design rows,
+    because the receipt-time sentence of the Residual section repeated the owner-and-round rule without the
+    owners-only / reason-after rule Phase 2's bullet states 240 lines earlier; the third verdict on the by-design
+    grammar (two earlier rows were routed to the receipt skeleton, infra's code), so the text is edited (D-711).
+    The clause is a POINTER in the rule's own words ("and nothing else … the reason follows them"), never a third
+    wording — term-edit.md:21 already carries a second. Mutants: delete the clause, drop 'and nothing else', drop
+    'the reason follows them', drop the Phase 2 pointer, move the clause after `Pass N`, move the by-design bullet
+    out of Phase 2 — each fails an assertion."""
+    text = _norm(SRC)
+    residual = text[text.index("**Every candidate that did not enter `confirmed:` is rowed") :]
+    sentence = residual[: residual.index("That section is NOT a parking lot")]
+    assert (
+        "(or a `D-nnn` with no round token) and nothing else inside the parentheses — the reason follows them, as"
+        " Phase 2's `by design` bullet shows; the gate refuses an absent owner"
+    ) in sentence, (
+        "the receipt-time sentence must carry the owners-only rule as a pointer to Phase 2"
+    )
+    assert "owners only" not in sentence, (
+        "a third wording of the rule (round-1 finding); point, do not restate"
+    )
+    # the pointer's target is INSIDE Phase 2 and still states the rule it points at
+    phase2 = _section(text, "## Phase 2 — EXECUTE", "## Phase 3")
+    assert "The parentheses hold the owner and nothing else" in phase2
+    assert "a reason inside them, `(D-432: <why>)`, is refused as an absent owner" in phase2

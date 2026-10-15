@@ -48,11 +48,20 @@ def test_unaddressed_hub_send_is_refused_and_writes_nothing(env):
 
 
 def test_each_beat_and_broadcast_pass(env):
-    for beat in ("infra", "fleet", "intel", "kaizen"):
+    for beat in mail.HUB_BEATS:
         assert mail.send(
             to="fabrik", kind="finding", body=beat, frm="alpha", to_agent=beat
         ).is_file()
     assert mail.send(to="fabrik", kind="finding", body="all", frm="alpha", broadcast=True).is_file()
+
+
+def test_coordinator_is_a_hub_beat(env):
+    """Plan 2026-10-15 Phase B (D-871): the hub's merge owner becomes `coordinator`, and
+    merge_request.py sends `--to-agent <owner>` — the beat must exist BEFORE the row flips."""
+    assert "coordinator" in mail.HUB_BEATS
+    assert mail.send(
+        to="fabrik", kind="finding", body="c", frm="alpha", to_agent="coordinator"
+    ).is_file()
 
 
 def test_typoed_beat_is_refused_on_hub_sends(env):
@@ -154,8 +163,8 @@ def test_cli_refusal_exits_2_with_the_beat_guide_on_stderr(env, capsys, monkeypa
     rc = mail.main(["send", "--to", "fabrik", "--kind", "finding", "--from", "alpha"])
     assert rc == 2
     err = capsys.readouterr().err
-    for beat in ("infra", "fleet", "intel", "kaizen"):
-        assert beat in err, f"the guide must name {beat}"
+    for beat in mail.HUB_BEATS:
+        assert f"--to-agent {beat}" in err, f"the guide must name {beat}"
 
 
 def test_cli_broadcast_keeps_stdout_path_only(env, capsys, monkeypatch):

@@ -163,7 +163,7 @@ Three properties worth knowing:
 the selector — `fabrik` first, then repos by how much remains, then by name; the choice is kept in the
 browser's `localStorage` (`repo-pick`). For the chosen repo it prints a summary (remaining · awaiting
 the operator · blocked · claimed now · owners with items) and a row of owner chips, each with its count
-of remaining items: **All**, then `infra`, `fleet`, `intel`, `kaizen` (always shown, at 0 too, in every
+of remaining items: **All**, then `coordinator`, `infra`, `fleet`, `intel`, `kaizen` (always shown, at 0 too, in every
 repo), `operator` and other owners by name, and **(unassigned)** last (always shown; an owner literally
 named `unassigned` keeps its own chip). Each owner's items sit in a collapsible section whose heading
 carries the owner's awaiting · blocked · claimed counts; an owner with nothing open says "No open

@@ -2242,10 +2242,10 @@ def _ext_matrix_table(rows: list[dict]) -> str:
 # can neither stall the 20 s probe loop nor delay the rotation trigger, and the main page never
 # carries the ~0.5 MB of rows. Every git call work.py makes here is capped at 1 s
 # (`_hook_git_budget`); a repo that still fails shows its own banner and the others list.
-_HUB_OWNERS = ("infra", "fleet", "intel", "kaizen", "operator")
+_HUB_OWNERS = ("coordinator", "infra", "fleet", "intel", "kaizen", "operator")
 # The hub agents whose owner chip and section show in every repo pane, even with nothing open, so
 # "kaizen has nothing" and "kaizen is missing" never look the same (operator ask 2026-10-11).
-_HUB_AGENTS = ("infra", "fleet", "intel", "kaizen")
+_HUB_AGENTS = ("coordinator", "infra", "fleet", "intel", "kaizen")
 REPOS_TTL_S = float(os.getenv("QUOTA_DASH_REPOS_TTL_S", "20"))
 NEXT_CAP = 160  # `next` is the bulk of the rows (1.0 MB of 1.4 MB measured); the cell is capped
 NEXT_TIP_CAP = (

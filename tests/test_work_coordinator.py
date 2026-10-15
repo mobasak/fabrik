@@ -717,3 +717,363 @@ def test_prompt_block_in_print_mode_keeps_the_more_claims_line(tmp_path, monkeyp
     lines = w.prompt_block(repo, SID).splitlines()
     assert any(ln.startswith("work: … and ") for ln in lines), lines
     assert sum(ln.startswith("work: your claim — ") for ln in lines) == w.PROMPT_CLAIM_LINES
+
+
+# --- the coordinator role (plan 2026-10-15-plan-1-coordinator-role, D-871) ------------------
+
+
+def _cfg(repo: Path, env: dict, **keys) -> None:
+    """Merge ``keys`` into the store's config.json and commit it (coordinator_mode, queue_floor)."""
+    path = repo / ".fabrik" / "work" / "config.json"
+    cfg = json.loads(path.read_text(encoding="utf-8"))
+    cfg.update(keys)
+    path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    _git(repo, env, "add", ".fabrik")
+    _git(repo, env, "commit", "-q", "-m", "cfg")
+
+
+def _score(repo: Path, env: dict, item: str, impact: str, effort: str, *extra: str):
+    return run(
+        ["assign", item, "--impact", impact, "--effort", effort, "--why", "r", *extra], env, repo
+    )
+
+
+def test_score_derives_priority(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    for impact, effort, want in (("high", "low", 1), ("high", "high", 2), ("low", "low", 3)):
+        item = _add(repo, env, "task", f"{impact}/{effort}")
+        r = _score(repo, env, item, impact, effort)
+        assert r.returncode == 0, r.stderr
+        got = _items(repo)[item]
+        assert (got["impact"], got["effort"], got["priority"]) == (impact, effort, want), got
+        assert got["score_reason"] == "r", got
+
+
+def test_time_sink_refused(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    one = _add(repo, env, "task", "one call")
+    r = _score(repo, env, one, "low", "high")
+    assert r.returncode != 0 and "drop --why" in r.stderr, r.stderr
+    assert "impact" not in _items(repo)[one]
+    two = _add(repo, env, "task", "two calls")
+    assert run(["assign", two, "--impact", "low", "--why", "r"], env, repo).returncode == 0
+    r = run(["assign", two, "--effort", "high", "--why", "r"], env, repo)
+    assert r.returncode != 0 and "drop --why" in r.stderr, r.stderr
+    assert "effort" not in _items(repo)[two]
+
+
+def test_score_needs_reason(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    item = _add(repo, env, "task", "x")
+    r = run(["assign", item, "--impact", "high"], env, repo)
+    assert r.returncode != 0 and "--why" in r.stderr, r.stderr
+    assert "impact" not in _items(repo)[item]
+
+
+def test_assign_guard_knows_new_flags(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    a, b = _add(repo, env, "task", "a"), _add(repo, env, "task", "b")
+    r = run(["assign", b, "--blocked-by", a], env, repo)
+    assert r.returncode == 0, r.stderr
+    assert _items(repo)[b]["blocked_by"] == [a]
+
+
+def test_priority_override(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    item = _add(repo, env, "task", "incident")
+    assert _score(repo, env, item, "high", "low").returncode == 0
+    assert run(["assign", item, "--priority", "0"], env, repo).returncode == 0
+    assert _items(repo)[item]["priority"] == 0
+    r = run(["assign", item, "--priority", "3"], env, repo)
+    assert r.returncode != 0 and "derived" in r.stderr, r.stderr
+    assert _items(repo)[item]["priority"] == 0
+    r = _score(repo, env, item, "high", "low")
+    assert r.returncode == 0, r.stderr
+    assert _items(repo)[item]["priority"] == 1
+    assert "P0 override cleared" in r.stdout + r.stderr
+
+
+def test_hold_and_release(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    x, y = _add(repo, env, "task", "x"), _add(repo, env, "task", "y")
+    assert run(["assign", y, "--blocked-by", x], env, repo).returncode == 0
+    listed = run(["ready", "--all"], env, repo).stdout
+    assert x in listed and y not in listed, listed
+    assert run(["assign", y, "--unblock", x], env, repo).returncode == 0
+    assert y in run(["ready", "--all"], env, repo).stdout
+
+
+def test_hold_refuses_bad_ids(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    x = _add(repo, env, "task", "x")
+    assert run(["assign", x, "--blocked-by", "W-00000000"], env, repo).returncode != 0
+    assert run(["assign", x, "--blocked-by", x], env, repo).returncode != 0
+    assert not _items(repo)[x].get("blocked_by")
+
+
+def test_triage_lists_unscored(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    scored = _add(repo, env, "task", "scored")
+    assert _score(repo, env, scored, "high", "low").returncode == 0
+    bare = _add(repo, env, "task", "bare")
+    nxt = _add(repo, env, "task", "a next item")
+    path = repo / ".fabrik" / "work" / f"{nxt}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["kind"] = "next"
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    out = run(["triage"], env, repo).stdout
+    line = next(ln for ln in out.splitlines() if ln.startswith("unscored "))
+    assert line.startswith("unscored 1:") and bare in line, line
+    assert scored not in line and nxt not in line, line
+
+
+def _plan_ids(out: str) -> list[str]:
+    return [ln.split()[2] for ln in out.splitlines() if ln.startswith("plan: ") and "W-" in ln]
+
+
+def test_triage_scored_first(tmp_path):
+    env, repo, _ = _setup(tmp_path, workers=("w1",), present=("w1",))
+    older = _add(repo, env, "task", "unscored, older, P2")
+    newer = _add(repo, env, "task", "scored low/low, P3")
+    assert _score(repo, env, newer, "low", "low").returncode == 0
+    assert _plan_ids(run(["triage"], env, repo).stdout)[0] == older  # no key: today's order
+    _cfg(repo, env, coordinator_mode=True)
+    assert _plan_ids(run(["triage"], env, repo).stdout)[0] == newer
+
+
+def _blocked(repo: Path, item: str) -> None:
+    path = repo / ".fabrik" / "work" / f"{item}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["status"] = "blocked"
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def test_one_major_in_flight(tmp_path):
+    for state in ("open", "claimed", "blocked"):
+        sub = tmp_path / state
+        sub.mkdir()
+        env, repo, _ = _setup(sub, workers=("w1", "w2"), present=("w1", "w2"))
+        held = _add(repo, env, "task", "major in flight")
+        assert _score(repo, env, held, "high", "high").returncode == 0
+        _assign(repo, env, held, "w1")
+        if state == "claimed":
+            assert run(["claim", held, "--session", SID], env, repo).returncode == 0
+        if state == "blocked":
+            _blocked(repo, held)
+        other = _add(repo, env, "task", "second major")
+        assert _score(repo, env, other, "high", "high").returncode == 0
+        r = run(["triage", "--apply"], env, repo)
+        assert r.returncode == 0, r.stderr
+        assert not _items(repo)[other].get("owner"), (state, r.stdout)
+        assert held in r.stdout, (state, r.stdout)
+
+
+def test_one_major_per_run(tmp_path):
+    env, repo, _ = _setup(tmp_path, workers=("w1", "w2"), present=("w1", "w2"))
+    majors = [_add(repo, env, "task", f"major {n}") for n in range(2)]
+    for m in majors:
+        assert _score(repo, env, m, "high", "high").returncode == 0
+    assert run(["triage", "--apply"], env, repo).returncode == 0
+    owned = [m for m in majors if _items(repo)[m].get("owner")]
+    assert len(owned) == 1, _items(repo)
+
+
+def _builder_fixture(tmp_path, *, mode: bool):
+    env, repo, trees = _setup(tmp_path, workers=("w1",), present=("w1",))
+    if mode:
+        _cfg(repo, env, coordinator_mode=True)
+    free = _add(repo, env, "task", "unowned, on main")
+    _git(repo, env, "add", ".fabrik")
+    _git(repo, env, "commit", "-q", "-m", "item")
+    _git(trees["w1"], env, "merge", "-q", "master")
+    return env, repo, trees, free
+
+
+def test_builder_sees_own_items(tmp_path, monkeypatch):
+    env, repo, trees, free = _builder_fixture(tmp_path, mode=True)
+    w1 = {**env, "CLAUDE_AGENT": "w1"}
+    assert free not in run(["next"], w1, trees["w1"]).stdout
+    assert free not in run(["ready"], w1, trees["w1"]).stdout
+    assert free in run(["ready", "--all"], w1, trees["w1"]).stdout
+    assert free in run(["ready", "--all", "--mine"], w1, trees["w1"]).stdout
+    assert free in run(["next"], env, repo).stdout  # the distributor still sees it
+    w = _work()
+    for key, value in w1.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("FABRIK_HEADLESS", raising=False)
+    monkeypatch.delenv("CLAUDE_MESH_HEADLESS", raising=False)
+    assert "ready —" not in w.prompt_block(trees["w1"], SID)
+
+
+def test_unchanged_without_coordinator_mode(tmp_path):
+    env, repo, trees, free = _builder_fixture(tmp_path, mode=False)
+    w1 = {**env, "CLAUDE_AGENT": "w1"}
+    assert free in run(["next"], w1, trees["w1"]).stdout
+    (tmp_path / "solo").mkdir()
+    solo_env, solo, _ = _setup(tmp_path / "solo")
+    item = _add(solo, solo_env, "task", "single window")
+    assert item in run(["next"], solo_env, solo).stdout
+
+
+def test_partial_score_keeps_todays_priority(tmp_path):
+    """Review round 1: a half-scored item is unscored, so --priority behaves as today."""
+    env, repo, _ = _setup(tmp_path)
+    a, b = _add(repo, env, "task", "a"), _add(repo, env, "task", "b")
+    r = run(["assign", a, "--impact", "high", "--why", "r", "--priority", "0"], env, repo)
+    assert r.returncode == 0, r.stderr
+    assert _items(repo)[a]["priority"] == 0
+    r = run(["assign", b, "--effort", "low", "--why", "r", "--priority", "3"], env, repo)
+    assert r.returncode == 0, r.stderr
+    assert _items(repo)[b]["priority"] == 3
+
+
+def test_first_score_keeps_an_existing_p0(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    item = _add(repo, env, "task", "incident first")
+    assert run(["assign", item, "--priority", "0"], env, repo).returncode == 0
+    assert _score(repo, env, item, "high", "low").returncode == 0
+    assert _items(repo)[item]["priority"] == 0
+
+
+def test_why_without_a_score_refused(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    item = _add(repo, env, "task", "x")
+    r = run(["assign", item, "--owner", "w9", "--why", "r"], env, repo)
+    assert r.returncode != 0 and "--why" in r.stderr, r.stderr
+
+
+def test_hold_flag_edges_refused(tmp_path):
+    env, repo, _ = _setup(tmp_path)
+    x, y = _add(repo, env, "task", "x"), _add(repo, env, "task", "y")
+    r = run(["assign", y, "--blocked-by", x, "--unblock", x], env, repo)
+    assert r.returncode != 0 and "pick one" in r.stderr, r.stderr
+    r = run(["assign", y, "--unblock", x], env, repo)  # x is not one of y's blockers
+    assert r.returncode != 0 and x in r.stderr, r.stderr
+    assert run(["assign", y, "--blocked-by", x], env, repo).returncode == 0
+    r = run(["assign", x, "--blocked-by", y], env, repo)  # x <- y <- x is a cycle
+    assert r.returncode != 0 and "cycle" in r.stderr, r.stderr
+    assert not _items(repo)[x].get("blocked_by")
+
+
+def test_a_claimed_unowned_major_holds_the_slot(tmp_path):
+    env, repo, _ = _setup(tmp_path, workers=("w1",), present=("w1",))
+    held = _add(repo, env, "task", "claimed, nobody assigned it")
+    assert _score(repo, env, held, "high", "high").returncode == 0
+    assert run(["claim", held, "--session", SID], env, repo).returncode == 0
+    other = _add(repo, env, "task", "second major")
+    assert _score(repo, env, other, "high", "high").returncode == 0
+    r = run(["triage", "--apply"], env, repo)
+    assert not _items(repo)[other].get("owner"), r.stdout
+    assert held in r.stdout
+
+
+def test_an_unnamed_builder_still_sees_its_own_item(tmp_path):
+    """Review round 1: the builder filter and `mine` must resolve the same caller."""
+    env, repo, trees = _setup(tmp_path, workers=("w1",), present=("w1",))
+    _cfg(repo, env, coordinator_mode=True)
+    mine = _add(repo, env, "task", "owned by w1")
+    _assign(repo, env, mine, "w1")
+    _git(repo, env, "add", ".fabrik")
+    _git(repo, env, "commit", "-q", "-m", "item")
+    _git(trees["w1"], env, "merge", "-q", "master")
+    nameless = {k: v for k, v in env.items() if k != "CLAUDE_AGENT"}
+    assert mine in run(["next"], nameless, trees["w1"]).stdout
+    assert mine in run(["ready", "--mine"], nameless, trees["w1"]).stdout
+
+
+def test_the_feedback_owner_is_not_a_builder(tmp_path):
+    env, repo, trees = _setup(tmp_path, workers=("w1", "kz"), present=("w1", "kz"))
+    _cfg(repo, env, coordinator_mode=True, feedback_owner="kz")
+    free = _add(repo, env, "task", "unowned")
+    _git(repo, env, "add", ".fabrik")
+    _git(repo, env, "commit", "-q", "-m", "item")
+    _git(trees["kz"], env, "merge", "-q", "master")
+    assert free in run(["next"], {**env, "CLAUDE_AGENT": "kz"}, trees["kz"]).stdout
+
+
+def test_a_malformed_hold_does_not_break_assign(tmp_path):
+    """Review round 2: a hand-edited non-list `blocked_by` must not crash an unrelated assign."""
+    env, repo, _ = _setup(tmp_path)
+    item = _add(repo, env, "task", "hand edited")
+    path = repo / ".fabrik" / "work" / f"{item}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["blocked_by"] = 5
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    r = run(["assign", item, "--owner", "w1"], env, repo)
+    assert r.returncode == 0, r.stderr
+
+
+def test_a_stale_builder_tree_agrees_with_its_doorbell(tmp_path):
+    """Review round 2: the key on main but not yet in the builder's branch — the filter is off,
+    and the doorbell must say so too (one predicate for both)."""
+    env, repo, trees, free = _builder_fixture(tmp_path, mode=False)
+    _cfg(repo, env, coordinator_mode=True)  # main only; w1 has not merged it
+    w1 = {**env, "CLAUDE_AGENT": "w1"}
+    assert free in run(["next"], w1, trees["w1"]).stdout
+    out = _stop(trees["w1"], w1)
+    assert out["action"] == "doorbell" and "work.py next" in out["text"], out
+
+
+def test_doorbell_points_at_ready_all_mine(tmp_path):
+    env, repo, trees, _ = _builder_fixture(tmp_path, mode=True)
+    out = _stop(trees["w1"], {**env, "CLAUDE_AGENT": "w1"})
+    assert out["action"] == "doorbell", out
+    assert "ready --all --mine" in out["text"] and "unowned" in out["text"], out
+    assert "work.py next" not in out["text"], out
+
+
+def test_a_builder_named_unlike_its_tree_is_still_a_builder(tmp_path):
+    """Finish review pass 1 (A-opus 1): the builder is decided by its TREE, as the Stop hook's
+    worker check is — a window in `w1` whose CLAUDE_AGENT reads otherwise gets the filtered view,
+    so `next` and the doorbell never disagree."""
+    env, repo, trees, free = _builder_fixture(tmp_path, mode=True)
+    alice = {**env, "CLAUDE_AGENT": "alice"}
+    assert free not in run(["next"], alice, trees["w1"]).stdout
+    assert free not in run(["ready"], alice, trees["w1"]).stdout
+    out = _stop(trees["w1"], alice)
+    assert out["action"] == "doorbell" and "ready --all --mine" in out["text"], out
+    assert out["agent"] == "w1", out  # the ladder names the same builder `next` filters for
+
+
+def test_unchanged_without_coordinator_mode_in_ready_and_the_prompt(tmp_path, monkeypatch):
+    """Finish review pass 1 (A-opus 3): plan row A13 for `ready` and the prompt count, not only
+    `next`."""
+    env, repo, trees, free = _builder_fixture(tmp_path, mode=False)
+    w1 = {**env, "CLAUDE_AGENT": "w1"}
+    assert free in run(["ready"], w1, trees["w1"]).stdout
+    w = _work()
+    for key, value in w1.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("FABRIK_HEADLESS", raising=False)
+    monkeypatch.delenv("CLAUDE_MESH_HEADLESS", raising=False)
+    assert "ready —" in w.prompt_block(trees["w1"], SID)
+
+
+def test_hold_refuses_a_transitive_cycle(tmp_path):
+    """Finish review pass 1 (A-opus 2): z <- y <- x, then x <- z closes a three-node cycle."""
+    env, repo, _ = _setup(tmp_path)
+    x, y, z = (_add(repo, env, "task", n) for n in ("x", "y", "z"))
+    assert run(["assign", y, "--blocked-by", x], env, repo).returncode == 0
+    assert run(["assign", z, "--blocked-by", y], env, repo).returncode == 0
+    r = run(["assign", x, "--blocked-by", z], env, repo)
+    assert r.returncode != 0 and "cycle" in r.stderr, r.stderr
+    assert not _items(repo)[x].get("blocked_by")
+
+
+def test_a_malformed_hold_does_not_break_the_queue(tmp_path):
+    """Finish review pass 1 (A-sonnet 1): one hand-edited non-list `blocked_by` must not crash
+    `ready`, `next`, `triage` or `claim` for every agent in the repo."""
+    env, repo, _ = _setup(tmp_path)
+    item = _add(repo, env, "task", "hand edited")
+    path = repo / ".fabrik" / "work" / f"{item}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["blocked_by"] = 5
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    for argv in (["ready"], ["ready", "--all"], ["next"], ["triage"]):
+        r = run(argv, env, repo)
+        assert r.returncode == 0 and "Traceback" not in r.stderr, (argv, r.stderr)
+    assert item not in run(["ready", "--all"], env, repo).stdout  # the hold fails CLOSED
+    r = run(["claim", item, "--session", SID], env, repo)
+    assert r.returncode != 0 and "Traceback" not in r.stderr, r.stderr
+    path.write_text(json.dumps({**data, "blocked_by": "W-00000000"}, indent=2) + "\n", "utf-8")
+    assert item not in run(["ready", "--all"], env, repo).stdout  # a scalar id still holds
