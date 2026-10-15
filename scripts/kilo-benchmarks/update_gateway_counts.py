@@ -159,7 +159,7 @@ def render_block(category: str, counts: dict, today: str) -> str:
             f"| **Kilo CLI** | {kilo_total:,} | of which **{both:,}** dual-routed with OR, **{kilo_only:,}** Kilo-only |"
         )
         lines.append(
-            f"| **DashScope** (direct) | {ds:,} | specialist routes (e.g. `qwen-mt-turbo`) |"
+            f"| **DashScope** (direct) | {ds:,} | specialist routes (e.g. `qwen-mt-flash`) |"
         )
         lines.append(f"| **SiliconFlow** (direct) | {sf:,} | specialist routes (e.g. Hunyuan) |")
         lines.append(
@@ -198,7 +198,9 @@ def render_block(category: str, counts: dict, today: str) -> str:
         lines.append(_kv("translation-scored (any gateway)", counts["with_translation"]))
         lines.append("")
         lines.append(
-            "Sweet-spot dedicated MT: `qwen-mt-turbo` via DashScope (top-3 on FR/PT/DE/ID/AR, weaker on HU/RO/UR/KO; see the Translation tab in the bake-off browser)."
+            "Dedicated MT: Qwen-MT's flash tier, `qwen-mt-flash`, via DashScope (Alibaba no longer updates the turbo tier). "
+            "The bake-off's ranking (top-3 on FR/PT/DE/ID/AR, weaker on HU/RO/UR/KO) was measured on turbo: re-run the "
+            "Translation tab in the bake-off browser before relying on flash for a pair."
         )
         return "\n".join(lines)
 

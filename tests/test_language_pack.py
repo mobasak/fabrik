@@ -125,13 +125,17 @@ def test_llm_and_translation_go_to_claude_first() -> None:
     # how to honor the ruling, or "DeepL last" is contradicted by the module it routes through
     # the clause that names the call must instruct it — a call verb and "after import" in either order — and must not
     # negate it; a mention as an aside or a "do not bother" fails
-    optout = [c for c in re.split(r"(?<=[.;])\s+", translation) if 'configure(deepl_api_key="")' in c]
+    optout = [
+        c for c in re.split(r"(?<=[.;])\s+", translation) if 'configure(deepl_api_key="")' in c
+    ]
     assert optout, "the DeepL opt-out for mt-router is gone"
     assert re.search(r"\bcall", optout[0]) and re.search(r"\bafter\s+import\b", optout[0]), (
         "the pack no longer tells agents to drop mt-router's DeepL tier"
     )
     assert not re.search(
-        r"\b(?:not|never|no|don't|do not|needn't|nothing|unnecessary|unrelated|trivia|optional)\b", optout[0], re.I
+        r"\b(?:not|never|no|don't|do not|needn't|nothing|unnecessary|unrelated|trivia|optional)\b",
+        optout[0],
+        re.I,
     ), f"the DeepL opt-out is negated or made optional: {optout[0]}"
     assert "decision ledger" in translation and "project.yaml" in translation, (
         "the bake-off result no longer says where it is recorded"
@@ -246,3 +250,32 @@ def test_globs_reach_summarization_paths() -> None:
         assert any(matcher.pack_matches_path(path, g, empty_matches_all=False) for g in patterns), (
             f"no glob of the pack reaches {path}"
         )
+
+
+@pytest.mark.parametrize("category", ["master", "language"])
+def test_gateway_counts_generator_names_the_maintained_mt_tier(category: str) -> None:
+    """W-7450f4b6: the GATEWAY_COUNTS generator must not name Qwen-MT's frozen turbo tier (Alibaba no longer
+    updates it and points to flash, research ledger tr-06), so the next render cannot reintroduce it."""
+    gen = _load(
+        "update_gateway_counts", ROOT / "scripts" / "kilo-benchmarks" / "update_gateway_counts.py"
+    )
+    keys = (
+        "or_total",
+        "kilo_total",
+        "or_kilo_both",
+        "or_only",
+        "kilo_only",
+        "dashscope",
+        "siliconflow",
+        "modelscope",
+        "with_reasoning",
+        "with_tools",
+        "with_vision",
+        "with_translation",
+        "with_stt",
+    )
+    counts: dict = dict.fromkeys(keys, 1)
+    counts["categories"] = {"language": 1}
+    block = gen.render_block(category, counts, "2026-10-15")
+    assert "qwen-mt-turbo" not in block
+    assert "qwen-mt-flash" in block
