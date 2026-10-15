@@ -20,7 +20,8 @@ you lose context"*. At every start, compact, resume and before any assignment, r
 NOW = the agent's live run record (`~/.claude/state/command-runs/*.json`: `agent`, `state`, `command`, `phase`,
 `surface`, `updated_at`) and `ListAgents`; DONE = merges on master and items closed since you last looked; NEXT = its
 queued and claimed items (`work.py ready --all`, `work.py queue`). A stale record means ask the agent. Keep the work store true to it and
-commit it (`work.py commit-items`) the moment it changes. The one-command view is W-cfff98dd (e).
+commit it (`work.py commit-items`) the moment it changes. The one-command view: `python3 scripts/agent_status.py`
+(`--json` for machines), also shown at every session start (D-894).
 
 ## Sort, validate, score and assign — automatically (D-887, D-890)
 
