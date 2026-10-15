@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a hub builder whose turn died on a network error resumes on its own once the API answers (2026-10-16)
+
+On 2026-10-15 infra, fleet and kaizen sat dead ~40 min after `EAI_AGAIN` until the operator poked them
+(D-897). StopFailure had fired, but the stop decider recognised only five mid-stream death texts; "Can't
+reach the API server" was not one of them, so a pending background task or subagent ruled each death
+"busy" and its death record was cleared. The box-local decider (`~/.claude/bin/claude-stop-decider.py`)
+now treats an `isApiErrorMessage` tail whose `error` is `server_error` as a death — the CLI's class for
+every transient server/network failure, 11 of whose 13 texts the list missed — while quota, auth and
+invalid-request errors and two configuration walls stay as they were; the record keeps its `server_error`
+class. The self-watch wakes only after three consecutive API answers and keeps the record fresh during a
+long outage. Graders: the decider's `--self-test` and `claude-mesh-test.sh`, red first. W-5279e834.
+
 ### Fixed — a closed run folder still being written into is no longer swept after 30 minutes (2026-10-16)
 
 Kaizen lost an audit brief and a pin folder mid-run (mail 01M4ZVBX96). Its transcript shows the
