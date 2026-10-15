@@ -169,6 +169,7 @@ checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the
 | F17 | REFUTED (command_run.py stores the git toplevel as repo_root, so a record never names a subdirectory of a worktree) |
 | F18 | REFUTED (no producer writes updated_ts 1; `_ago` of a real stamp is minutes or hours) |
 | F19 | RECORDED — measured (tests/test_agent_status.py two loose asserts in pre-existing tests outside the range) |
+| F21 | RECORDED — measured (one hop out, pre-existing since D-894: scripts/agent_status.py `collect()` sorts claims by float of their `at` with no OverflowError guard; outside every fix hunk, raised by slice A sonnet in Pass 3) |
 | F20 | RECORDED — measured (a test gap, no defect: no test forces one repo's `_box_repo` to raise; the per-repo error row is fail-safe and reached only by an unexpected exception) |
 
 ## Per-phase verdicts
