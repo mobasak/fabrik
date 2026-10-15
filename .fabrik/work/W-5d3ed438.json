@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "hub"
+    "hub",
+    "needs-owner",
+    "waits-operator-review"
   ],
   "title": "Merge-owner grammar gaps predating W-076ff4a9: a bold-wrapped **MERGE OWNER:** label never matches; a bare what-cell opening with prose 'Merge owner: rotated weekly' reads 'rotated' as owner"
 }

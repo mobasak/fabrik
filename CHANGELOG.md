@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the hub CLAUDE.md carries the coordinator's duties paragraph (2026-10-15)
+
+- `CLAUDE.md` § Orient now carries the template's "The coordinator role" paragraph byte-identical, plus one hub sentence on how the rulings D-874, D-880, D-882 and D-885 refine it, so the hub coordinator reloads its duties on every session start, compact and resume; the coordinator charter points at it; `tests/test_governance_template_split.py` keeps the copies identical. W-cfff98dd, D-888.
+
+### Changed — seat briefs name RUN-SCRATCH as the root of every seat folder (2026-10-15)
+
+- D7 of the scratch-lifecycle spec (`docs/superpowers/specs/2026-10-15-scratch-lifecycle-design.md`, D-864/D-866;
+  W-8bbd9538, fleet mails 01M4Y6ZXRSFPPTJJMVF2WX0A1K and 01M4Y86A9RKAP0ASCAY85CSE2V):
+  `commands/_fragments/subagents-core.md` (included by 21 command sources) states the rule once — the scratch dir a
+  brief names is a seat folder
+  `<run scratch>/seat-<n>/` under the path `command_run.py start` printed as `RUN-SCRATCH:`, never the session
+  scratchpad root; nothing durable goes there; the pins dir sits under the same root; a tree is staged there only as
+  the probe catalogue's § Seat isolation says (an archive of the pinned SHA, or a `clone --shared --no-checkout`),
+  never a copy of the live checkout. `review-probe-catalogue.md` § Seat isolation and `fabrik-execute-plan.md`
+  (the brief and report files) point at it by its hub path and name `<run scratch>` in place of the bare
+  scratchpad; `fabrik-execute-plan.md` adds that a review in a later run re-derives the brief from the plan and
+  the ticket, never from another run's folder, and its durable-salvage sentence stays as it was.
+  `fabrik-review.md` and `fabrik-review-scoped.md` keep infra's `scratch_dir` wording (D-886). Pinned by
+  `tests/test_run_scratch_brief_wording.py` (5 tests).
+
+### Fixed — review and critique seats write under the run's RUN-SCRATCH folder (2026-10-15)
+
+- `.claude/workflows/fabrik-review-loop.js` names every seat folder `<scratch_dir>/seat-p<pass>-<digest8>-…/`, so `round`'s size line sees it and no pass reuses another's; the four partitioned review commands say `scratch_dir` is the run's `RUN-SCRATCH:` folder; design-critique seats use `<RUN-SCRATCH>/seat-critique-<model>-<k>/`; the clean-own-scratch gloss matches cleanup-automation.md § F. Mail 01M4Z8X09Y, D-886.
+
+### Changed — both CLAUDE.md contracts: a run's disposable bulk goes in its RUN-SCRATCH folder (2026-10-15)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § EXIT gain one identical sentence group beside "CLEAN your own scratch": seat copies, pins and probes go in the run's `RUN-SCRATCH:` folder (seats under `seat-<n>/`), every seat brief names that folder, durable artifacts stay under `SCRATCH:`, and a missing or `none` line falls back to the scratchpad. Pinned by three T6 spans in `tests/test_governance_template_split.py`. D-883.
+
+### Fixed — work.py triage: a major held behind the in-flight one is no longer counted as in flight (2026-10-15)
+
+- `scripts/work.py` `cmd_triage`: a high/high item the coordinator holds behind the in-flight major with `assign --blocked-by` now prints as `major held: <id> behind <id>` instead of a second `major in flight` line; a major waiting on its own prerequisite still holds the slot, and an all-held store fails closed. The live hub store read 7 in flight (6 held); it now reads 1 in flight and 6 held, with the same plan. D-881.
+
 ### Changed — the hub hands merge ownership and work distribution to the coordinator (2026-10-15)
 
 `supersedes D-453: MERGE OWNER: coordinator` (D-874); `.fabrik/work/config.json` sets `distributor: coordinator`,

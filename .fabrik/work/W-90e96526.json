@@ -13,8 +13,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "review_loop_ledger.py pin: refuse when a path named as changed equals HEAD's blob (a sibling's pre-commit stash window pinned HEAD bytes, 2026-10-08)"
 }

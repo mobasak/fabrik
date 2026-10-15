@@ -13,8 +13,11 @@
   },
   "next": "size each ask against scripts/review_loop_ledger.py and .claude/workflows/fabrik-review-loop.js; one /fabrik-task per coupled group; mark rows answered with command_feedback_report.py --mark-answered fabrik-plan-review",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "Review-loop machinery: 9 /fabrik-plan-review feedback asks in code (mail 01M4EG5F43, kaizen D-711): ledger reader refuses a journal with no final result; workflow refuses a seat return omitting ledger ids; carry forward an n/n-verified slice; count shell reads of pinned paths toward files_read; accept pass 4+; seat-brief path rule; check_rule_grounding --all; sync fabrik-review-loop.js to worktrees (infra beat)"
 }

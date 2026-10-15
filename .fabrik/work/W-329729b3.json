@@ -13,8 +13,11 @@
   },
   "next": "add APP_ENV and APP_GIT_SHA to the known-names allowlists in scripts/audit_envs.py and scripts/gather_envs.py",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "audit_envs/gather_envs: allowlist APP_ENV and APP_GIT_SHA (the scaffold now emits them)"
 }

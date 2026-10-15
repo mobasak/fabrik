@@ -200,12 +200,17 @@ T6_CLAIMS = (
     "committing by PATHSPEC",
     "`git diff --cached --name-only` for a STAGED commit, `git diff HEAD -- <paths>` for a PATHSPEC "
     "commit",
+    # W-a7bdd766 (2026-10-15) — run-bound scratch shipped at 1da14fcd7 but neither contract told an
+    # agent to use it, so seat copies kept landing loose in the session scratchpad (D-879's residue).
+    "**A `/fabrik-*` run's disposable bulk goes in its `RUN-SCRATCH:` folder**",
+    "never loose in the scratchpad",
+    "a seat reads its brief, not this file",
 )
 
 
 def test_the_shared_tree_commit_rules_are_identical_in_both_contracts() -> None:
-    """T6 Behavior Contract: the hub's CLAUDE.md and the fleet template carry the same three
-    sentences, byte for byte.
+    """T6 Behavior Contract: the hub's CLAUDE.md and the fleet template carry every T6_CLAIMS
+    span exactly once each, byte for byte.
 
     The two files are deliberately NOT byte-identical overall — the hub's is the hub agents' own
     contract — so nothing binds a shared rule across them except a grader like this one. A rule
@@ -1914,3 +1919,44 @@ def test_the_template_tells_a_project_probe_worktree_to_copy_in_the_ignored_chec
         "treat the condition as TRUE by default",
     ):
         assert hub.count(phrase) == 1 and template.count(phrase) == 1, phrase
+
+
+# ── The coordinator's duties reach the hub agents too (W-cfff98dd a) ──────────────────────────────
+
+COORDINATOR_LEAD = "**The coordinator role (hub D-868, D-871).**"
+
+
+def _paragraph_led_by(text: str, lead: str) -> list[str]:
+    """Every paragraph (maximal run of non-blank lines) whose first line starts with `lead`."""
+    out, cur = [], []
+    for line in text.splitlines() + [""]:
+        if line.strip():
+            cur.append(line)
+            continue
+        if cur and cur[0].startswith(lead):
+            out.append("\n".join(cur))
+        cur = []
+    return out
+
+
+def test_the_coordinator_role_paragraph_is_identical_in_both_contracts() -> None:
+    """Operator 2026-10-15: "you and all these agents will know their duties by heart even though they
+    lose context? if not you must". A project loads the template as its CLAUDE.md on every session start,
+    compact and resume; the hub loads only its own CLAUDE.md, so the hub coordinator held a pointer to its
+    duties, not the duties. The hub carries the paragraph too, byte-identical, once each. (A hook include
+    was rejected: the hook output would pass the 10,000-character hook cap - D-888.)"""
+    # bytes, not read_text, and no CR at all: universal newlines and splitlines() would both hide a CRLF
+    # drift (review O-6, N-2)
+    hub = (FABRIK / "CLAUDE.md").read_bytes().decode("utf-8")
+    template = (FABRIK / TEMPLATE_REL).read_bytes().decode("utf-8")
+    assert "\r" not in hub and "\r" not in template, "a contract picked up CRLF line endings"
+    # a raw count too: an indented or glued-on second copy is no paragraph lead, yet still a copy (review S-3)
+    assert hub.count(COORDINATOR_LEAD) == 1 and template.count(COORDINATOR_LEAD) == 1, (
+        hub.count(COORDINATOR_LEAD), template.count(COORDINATOR_LEAD))
+    in_hub = _paragraph_led_by(hub, COORDINATOR_LEAD)
+    in_template = _paragraph_led_by(template, COORDINATOR_LEAD)
+    assert len(in_template) == 1, len(in_template)
+    assert len(in_hub) == 1, f"hub CLAUDE.md carries the coordinator paragraph {len(in_hub)} times, want 1"
+    assert in_hub[0] == in_template[0], "the hub copy drifted from the template's coordinator paragraph"
+    # the hub-only sentence that settles where the hub rulings outrank the paragraph (review O-6)
+    assert hub.count("where a ruling differs from the paragraph, the ruling holds") == 1

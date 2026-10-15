@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "infra"
+    "infra",
+    "needs-owner",
+    "waits-operator-review"
   ],
   "title": "Chain stage consolidation for full-profile specs (operator: the cycle 'must be bigger modules')"
 }

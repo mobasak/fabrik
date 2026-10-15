@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:02.647745Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-497a29f6",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read mail 01M4YVAV7H9T40A32DMBBKF30Z, claim it, act on it",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
+  "status": "open",
+  "tags": [
+    "mail-01m4yvav7h9t40a32dmbbkf30z",
+    "waits-operator-review"
+  ],
+  "title": "handoff keeps a .md seed that start --resume-from cannot read (it reads JSON only) (mail 01M4YVAV7H9T40A32DMBBKF30Z)"
+}

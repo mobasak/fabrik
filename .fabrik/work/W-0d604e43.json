@@ -13,11 +13,12 @@
   },
   "next": "operator window: delete Backrest plans zitadel-data and tryton-crm-data (each points at /opt/<svc>/data, which holds no data; real persistence is covered per audit_backrest), then confirm audit_backrest reads covered and the two FabrikRegistrarDrift alerts resolve",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
-    "operator-window"
+    "operator-window",
+    "waits-operator-review"
   ],
   "title": "Remove the two paper Backrest plans zitadel-data and tryton-crm-data on vps1 (FabrikRegistrarDrift firing since 2026-10-02; named in the backrest paper-backups spec :46)"
 }

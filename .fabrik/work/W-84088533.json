@@ -13,11 +13,12 @@
   },
   "next": "Re-run the census (scratchpad docindex_census2 shape: shared-basename docs per /opt repo); when it reads 0 outside the hub, mail the remaining repos, then move shared_problems into problems with a red-first grader",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "tags": [
-    "check-doc-index"
+    "check-doc-index",
+    "waits-operator-review"
   ],
   "title": "Flip check_doc_index's shared-basename advisory to blocking once the fleet has indexed (W-c256027a follow-up; 27 docs in 19 repos on 2026-10-08)"
 }

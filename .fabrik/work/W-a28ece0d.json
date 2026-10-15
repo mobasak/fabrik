@@ -13,11 +13,12 @@
   },
   "next": "build spec D6 + V7 and plan B4 as written, with B1's haiku case and Phase B step 5's three tie-break mutants",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "tags": [
-    "infra"
+    "infra",
+    "waits-operator-review"
   ],
   "title": "Mail routing D6: the Haiku tie-break in mail_escalate.py (one claude -p --model haiku per stale unmapped hub mail, <=10 per run, 60 s, sidecar _mail_root()/fabrik/.routing/<id>.json, list shows → haiku:) — deferred by plan 2026-10-13-plan-1-mail-routing Phase B step 1 (Phase A overran its appetite)"
 }

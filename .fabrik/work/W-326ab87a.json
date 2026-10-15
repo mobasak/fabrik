@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "kaizen"
+    "kaizen",
+    "needs-owner",
+    "waits-operator-review"
   ],
   "title": "/fabrik-review-scoped step 5: the pin's copy check ('md5sum <the copies> must print the manifest's hashes') is an eyeball comparison — make it mechanical: md5sum -c --quiet <pins_dir>.md5 run from inside <pins_dir> must print nothing (recorded by the remainder round of the a4dcf8317 review, scope-growth stop; owner: kaizen)"
 }

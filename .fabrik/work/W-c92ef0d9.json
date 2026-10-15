@@ -13,11 +13,12 @@
   },
   "next": "census each command's receipt shape (does it carry a Pass Ledger with confirmed counters?) before adding its name to _DESIGN_REVIEW_COMMAND",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
   "status": "open",
   "tags": [
-    "gate"
+    "gate",
+    "waits-operator-review"
   ],
   "title": "check_convergence.py: route the other design-family review receipts (/fabrik-ui-design-review, /fabrik-flows-review, /fabrik-deploy-plan-review, /design-review) to the Pass-Ledger proof like spec/plan-review (W-39d8d1fd OUT; none live-false-failing — tryton's /design-review receipt passes today only via a gate embed)"
 }

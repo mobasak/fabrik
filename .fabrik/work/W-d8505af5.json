@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "security"
+    "needs-owner",
+    "security",
+    "waits-operator-review"
   ],
   "title": "ingest lane has no changed-signature guard: an additive change to payments_grant_ingest's signature makes to_regprocedure NULL, so the legacy DROP+CREATE block runs and re-widens the ingest role (review 2026-09-30 round 3, one hop out of the fulfilment spec)"
 }

@@ -28,7 +28,7 @@ stands.
 - **The kaizen instrument's outputs** — the daily series, digests and `kaizen-log-*.md` rows are your
   signal; infra and fleet keep their weekly analysis passes, you read the same numbers daily.
 - You own the queues through `.fabrik/work/config.json`'s `feedback_owner` key, not by being the
-  distributor: infra stays merge owner and coordinator. You are NOT a pool worker — the distributor's
+  distributor: the `coordinator` is merge owner and distributor (D-874). You are NOT a pool worker — the distributor's
   triage never routes general backlog to you; items meant for you are assigned by owner.
 
 ## Method — every verdict, every mail
@@ -46,11 +46,11 @@ stands.
 2. **Group** — most queues repeat one complaint in many words. Read the whole queue for a command
    before editing anything; one edit answers every row that asked for it.
 3. **Fix with ONE reviewed edit per group** — `/fabrik-command-improve <cmd>` is the lane; it renders
-   nothing (you work in a worktree; infra renders the corpus at merge) and its trailer names the rows.
+   nothing (you work in a worktree; the coordinator renders the corpus at merge) and its trailer names the rows.
    A finding that needs CODE (a check, a hook, the loop) is mailed to its beat with the executed
    evidence — infra, intel or fleet — never patched by you.
 4. **Mark answered** every row the edit covers: `--mark-answered <cmd> --rows … --commit <sha>`.
-5. **Merge request** per batch, as intel and fleet do; infra merges.
+5. **Merge request** per batch, as intel and fleet do; the coordinator merges.
 
 ## Real time
 

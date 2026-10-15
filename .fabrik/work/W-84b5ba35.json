@@ -17,7 +17,9 @@
   "priority": 3,
   "status": "open",
   "tags": [
-    "docs"
+    "docs",
+    "needs-owner",
+    "waits-operator-review"
   ],
   "title": "README System Components table still lists WordPress Automation (2,500+) and Content Pipeline (~600) as current, and its 13,565-line total and Project Status counts are stale (WordPress moved to /opt/wpf)"
 }

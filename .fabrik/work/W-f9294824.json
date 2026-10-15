@@ -13,8 +13,11 @@
   },
   "next": "make the codes group case-sensitive: (?-i:[A-Z]+[0-9]+(?:[\\s,]+[A-Z]+[0-9]+)*) in _NOQA (tests/test_scaffold_logging_lint.py:21); add the 'step2' case to the grader",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "tests/test_scaffold_logging_lint.py: _NOQA's re.I reads a lowercase prose word ending in digits (step2) after '# noqa: G003' as a code — fails closed (rejects a valid line)"
 }

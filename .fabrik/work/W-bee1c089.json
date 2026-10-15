@@ -17,7 +17,9 @@
   "priority": 3,
   "status": "open",
   "tags": [
-    "scaffold"
+    "needs-owner",
+    "scaffold",
+    "waits-operator-review"
   ],
   "title": "fabrik new leaves a half-written project when the audit-log fold fails (fabrik-lib missing, or the module's apply hint moved): validate the fold before the first write"
 }

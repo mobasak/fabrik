@@ -13,8 +13,11 @@
   },
   "next": "call spec_loader.normalize_llm_actions (or WatchdogConfig.model_validate) from OrchestratorValidator.validate in src/fabrik/orchestrator/validator.py, with a test",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "watchdog: validate llm_actions (and the other watchdog fields) pre-deploy, so a bad value aborts fabrik apply and apply --dry-run instead of failing the registrar after the app deploys"
 }

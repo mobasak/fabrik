@@ -5620,7 +5620,7 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
     # ONE major project in flight per repo (spec D3 job 3): a fresh scan, because `_pool` and
     # `_worker_queues` read only ready, unclaimed items and would miss a claimed or blocked major
     live = _live_claims(main)
-    in_flight = [
+    candidates = [
         it
         for it in everything
         if _is_major(it)
@@ -5628,6 +5628,15 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
         and it.get("status") in ("open", "blocked")
         and it["id"] not in closed
     ]
+    # a major held behind ANOTHER candidate (`assign <id> --blocked-by <the in-flight id>`, the D3
+    # hold) waits, so it is not in flight; one waiting on anything else — its own prerequisite, an
+    # unknown id — still holds the slot. Every candidate held behind another is reachable only by
+    # hand edits (`assign` refuses cycles): then all count, failing closed.
+    ids = {str(it["id"]) for it in candidates}
+    held = [it for it in candidates if ids.intersection(_dep_ids(it))]
+    in_flight = [it for it in candidates if it not in held] or candidates
+    if in_flight is candidates:
+        held = []
     kept, major_planned = [], bool(in_flight)
     for it in free:
         if _is_major(it):
@@ -5665,6 +5674,9 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
             f"major in flight: {it['id']} ({it.get('owner') or 'claimed'}, {it.get('status')}) — "
             "other majors wait for its slot"
         )
+    for it in held:
+        behind = ", ".join(d for d in _dep_ids(it) if d in ids)
+        print(f"major held: {it['id']} ({it.get('owner') or 'claimed'}) behind {behind}")
     for line in _open_plans(main):
         print(f"plan not executed: {line}")
     if not args.apply or not plan:

@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "kaizen"
+    "kaizen",
+    "needs-owner",
+    "waits-operator-review"
   ],
   "title": "fabrik-review-scoped step 5's pre-pin ruff set reads 'step 1's file list or added by this review's fixes'; a pre-existing .py outside step 1's list that a fix MODIFIES (a caller) is touched but not added, so a literal reader lints it in neither step 5 nor step 6 (scope-growth stop of the a23bba78c review, 2026-10-08)"
 }

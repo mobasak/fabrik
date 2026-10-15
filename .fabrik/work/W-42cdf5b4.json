@@ -16,5 +16,9 @@
   "owner": "",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-owner",
+    "waits-operator-review"
+  ],
   "title": "watchdog driver: raw-dict bool(wcfg['auto_tier_b']) renders a quoted \"false\" as Tier B ON"
 }

@@ -13,11 +13,12 @@
   },
   "next": "if a later edit to ai/30-language.md trips or slips the opt-out guard, stop extending the word list and pin the opt-out as a structured marker (a labelled bullet or a fenced call) the test parses; the battery in the review receipt lists the 29 regressions and 7 rewordings already proven",
   "note": "",
-  "owner": "",
+  "owner": "kaizen",
   "priority": 2,
   "status": "open",
   "tags": [
-    "rules"
+    "rules",
+    "waits-operator-review"
   ],
   "title": "tests/test_language_pack.py's DeepL opt-out guard is a clause matcher with a negation word list: further rewordings may slip past or false-fail (scope-growth stop of the D-505 review, 2026-10-02)"
 }

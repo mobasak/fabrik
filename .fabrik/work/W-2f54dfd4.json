@@ -13,11 +13,12 @@
   },
   "next": "give each spec its own database name (the generator's id-derived default) and a shape block; the reconciler refuses a doubly-claimed database",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "waits-operator-review"
   ],
   "title": "Registrar naming hygiene: five specs claim the shared postgres database 'main' (ai-model-catalog, compliance-ops, exam-coach, gmail-account-creator, proxy) and four set depends.postgres with no shape: block (job-agent, proposal-creator, trading-core, triggered-content-orchestration)"
 }

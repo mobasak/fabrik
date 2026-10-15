@@ -13,8 +13,11 @@
   },
   "next": "name the file in a ruff-row note when ruff refuses a path; decide whether --json escapes surrogates as \\\\uFFFD or keeps them",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "final_gate on a non-UTF-8 tracked name: ruff fails with 'InvalidPathCharacters' instead of the gate naming the file, and --json carries a lone \\\\udcXX escape some strict JSON parsers refuse (recorded in the git-names review)"
 }

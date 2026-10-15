@@ -16,5 +16,9 @@
   "owner": "",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "needs-owner",
+    "waits-operator-review"
+  ],
   "title": "tools/wsl-mcp/server.py bash tool: on timeout the cancelled first communicate() drops the output the command already wrote, so a timed-out command returns empty stdout (pre-existing since 898eb1269; wsl-mcp lint review A-O1)"
 }

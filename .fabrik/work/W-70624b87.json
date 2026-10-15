@@ -17,6 +17,8 @@
   "priority": 3,
   "status": "open",
   "tags": [
+    "needs-owner",
+    "waits-operator-review",
     "watchdog"
   ],
   "title": "spec_loader.py:738 WatchdogConfig.llm_actions docstring says 'a set field overrides a WATCHDOG_LLM_ACTIONS line in the project .env', but drivers/watchdog.py:1094 renders the variable only when the list is non-empty — an explicit llm_actions: [] cannot turn a .env opt-in off. Either render WATCHDOG_LLM_ACTIONS='' when the field is explicitly set (model_fields_set / raw-dict key test) or reword to 'a non-empty field overrides' (Opus seat, review 2026-10-07-watchdog-llm-actions-packs). Owner fleet (943a9a59b)."

@@ -967,6 +967,53 @@ def test_a_claimed_unowned_major_holds_the_slot(tmp_path):
     assert held in r.stdout
 
 
+def _major_lines(out: str, head: str) -> list[str]:
+    return [ln[len(head) :].split()[0] for ln in out.splitlines() if ln.startswith(head)]
+
+
+def test_a_held_major_is_not_in_flight(tmp_path):
+    """A major held behind the in-flight major with `assign --blocked-by` (spec D3 job 3) prints as
+    held, not in flight; once its blocker is dropped it is in flight."""
+    env, repo, _ = _setup(tmp_path, workers=("w1", "w2"), present=("w1", "w2"))
+    first = _add(repo, env, "task", "the major in flight")
+    second = _add(repo, env, "task", "a major held behind it")
+    for item, owner in ((first, "w1"), (second, "w2")):
+        assert _score(repo, env, item, "high", "high").returncode == 0
+        _assign(repo, env, item, owner)
+    assert run(["assign", second, "--blocked-by", first], env, repo).returncode == 0
+    out = run(["triage"], env, repo).stdout
+    assert _major_lines(out, "major in flight: ") == [first], out
+    assert _major_lines(out, "major held: ") == [second], out
+    r = run(["drop", "--why", "blocker closed", first], env, repo)
+    assert r.returncode == 0, r.stderr
+    out = run(["triage"], env, repo).stdout
+    assert _major_lines(out, "major in flight: ") == [second], out
+    assert not _major_lines(out, "major held: "), out
+
+
+def test_a_major_waiting_on_a_prerequisite_keeps_the_slot(tmp_path):
+    """Only a hold behind another in-flight major frees the slot: a major waiting on its own
+    prerequisite task is still in flight, so triage plans no second major. A second major held
+    behind it makes the rule observable: "any blocker frees the slot" would hold both, and the
+    fail-closed fallback would then print both as in flight (review pass 1, A-sonnet)."""
+    env, repo, _ = _setup(tmp_path, workers=("w1", "w2"), present=("w1", "w2"))
+    major = _add(repo, env, "task", "the major in flight")
+    queued = _add(repo, env, "task", "a major held behind it")
+    prereq = _add(repo, env, "task", "a small prerequisite")
+    for item, owner in ((major, "w1"), (queued, "w2")):
+        assert _score(repo, env, item, "high", "high").returncode == 0
+        _assign(repo, env, item, owner)
+    assert run(["assign", major, "--blocked-by", prereq], env, repo).returncode == 0
+    assert run(["assign", queued, "--blocked-by", major], env, repo).returncode == 0
+    other = _add(repo, env, "task", "second major")
+    assert _score(repo, env, other, "high", "high").returncode == 0
+    r = run(["triage", "--apply"], env, repo)
+    assert r.returncode == 0, r.stderr
+    assert _major_lines(r.stdout, "major in flight: ") == [major], r.stdout
+    assert _major_lines(r.stdout, "major held: ") == [queued], r.stdout
+    assert not _items(repo)[other].get("owner"), r.stdout
+
+
 def test_an_unnamed_builder_still_sees_its_own_item(tmp_path):
     """Review round 1: the builder filter and `mine` must resolve the same caller."""
     env, repo, trees = _setup(tmp_path, workers=("w1",), present=("w1",))

@@ -13,8 +13,11 @@
   },
   "next": "open a session in /opt/session-recall and drain its inbox by beat (infra owns session-recall); measure every other repo's unread count + oldest age against whether a session works it",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "session-recall's fabrik-mail inbox holds 116 unread (oldest 2026-08-17) and no session works /opt/session-recall"
 }

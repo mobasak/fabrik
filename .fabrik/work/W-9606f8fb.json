@@ -13,8 +13,11 @@
   },
   "next": "build a read-only cross-check of the four flags against each project's code (metrics route, redis client, meilisearch client, admin auth) or record why it stays project-side",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "**[fleet]** /fabrik-catchup probe 5 (spec shape truth) has a hub-side executable for needs_database only (check_spec_db_match.py); exposes_metrics, needs_cache, has_search_feature, is_admin_dashboard are never measured across the 69 specs, so a negative there is 'not found in 0' (kaizen 01M4BVMK9B)"
 }

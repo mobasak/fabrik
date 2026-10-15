@@ -13,8 +13,11 @@
   },
   "next": "list the 26 matches, park each whose trigger has not fired with work.py assign --tag waits-<slug>, and make migrate-backlog emit the waits- tag for such rows",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "migrated work items carry their trigger in prose ('Blocked by:', 'only when …') with no waits- tag, so the queue offers them as ready — 26 open items match (fleet mail 01M48PEA, W-5f272cc3 parked)"
 }

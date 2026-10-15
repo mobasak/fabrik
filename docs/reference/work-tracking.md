@@ -200,7 +200,9 @@ that would close a cycle, `--unblock` of an id the item is not blocked by, and t
 flags. `triage` lists every open item that lacks a score (`unscored <n>: …`, `kind: next` and items
 closed elsewhere excluded), never plans a second high/high item while one is in flight (owned or
 claimed, `open` or `blocked` — it prints the slot holder), and plans at most one high/high item per
-run.
+run. A high/high item held behind another in-flight one with `assign --blocked-by` waits rather
+than flies: triage prints it as `major held: <id> behind <id>`; one waiting on anything else (a
+prerequisite task, an unknown id) still holds the slot.
 
 **Coordinator mode** is opt-in per repo: `"coordinator_mode": true` in the main checkout's
 `config.json`. `work.py` is fleet-synced, so the behaviours that change what a builder sees act only

@@ -18,6 +18,8 @@
   "status": "open",
   "tags": [
     "kaizen",
+    "needs-owner",
+    "waits-operator-review",
     "wording"
   ],
   "title": "/fabrik-review-scoped step 5: 'never the live tree or HEAD' can read against step 5's own base_sha = HEAD at pin time — reword to 'never HEAD at the seat's run' on the next edit of that sentence (own-fix residue, Opus remainder round, 2026-10-15 command-improve)"

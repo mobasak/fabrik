@@ -13,11 +13,12 @@
   },
   "next": "for each templates/<type>/: add stop_grace_period: 30s to routed services AND verify the Dockerfile.j2 CMD execs (or init: true), grade it like tests/test_scaffold_compose_traefik.py::test_sigterm_reaches_the_app_process",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
-    "fleet"
+    "fleet",
+    "waits-operator-review"
   ],
   "title": "Template-source composes (templates/<type>/compose.yaml.j2, 8 files + templates/saas-skeleton/compose.yaml) set no stop_grace_period and their Dockerfile.j2 CMDs are unchecked for SIGTERM delivery — the scaffold half was fixed in 132c4613f+"
 }

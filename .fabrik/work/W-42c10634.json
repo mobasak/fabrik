@@ -13,11 +13,12 @@
   },
   "next": "if a later edit to ai/25-3d-generation.md trips or slips a guard, replace that guard's substring/prefix match with a parsed structure (table cells, bullet labels) rather than another spelling; the battery at the review receipt lists the 31 regressions and 9 rewordings already proven",
   "note": "",
-  "owner": "",
+  "owner": "kaizen",
   "priority": 2,
   "status": "open",
   "tags": [
-    "rules"
+    "rules",
+    "waits-operator-review"
   ],
   "title": "tests/test_3d_generation_pack.py guards are string matchers: further rewordings may slip past or false-fail (scope-growth stop of the D-503 review, 2026-10-02)"
 }

@@ -13,11 +13,12 @@
   },
   "next": "change scripts/kilo-benchmarks/update_gateway_counts.py:162,201 to name the flash tier (or derive it), re-render when the machinery resumes (D-430, W-b58d0f90)",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 2,
   "status": "open",
   "tags": [
-    "rules"
+    "rules",
+    "waits-operator-review"
   ],
   "title": "update_gateway_counts.py hardcodes 'Sweet-spot dedicated MT: qwen-mt-turbo via DashScope' into the ai/30 GATEWAY_COUNTS block; Alibaba froze the turbo tier in favour of flash, so the block contradicts the pack"
 }
