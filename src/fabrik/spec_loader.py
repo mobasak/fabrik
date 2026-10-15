@@ -1075,9 +1075,15 @@ def merge_template_defaults(
     template_name = raw.get("template")
     if not (isinstance(template_name, str) and template_name):
         return raw
-    root = (templates_dir or FABRIK_ROOT / "templates").resolve()
-    defaults_path = (root / template_name / "defaults.yaml").resolve()
-    if not defaults_path.is_relative_to(root) or not defaults_path.exists():
+    try:
+        root = (templates_dir or FABRIK_ROOT / "templates").resolve()
+        defaults_path = (root / template_name / "defaults.yaml").resolve()
+    except (OSError, ValueError, RuntimeError):  # NUL byte, symlink loop, over-long name
+        return raw
+    # The template must be a directory strictly inside the root ('.' names the root itself).
+    if defaults_path.parent == root or not defaults_path.is_relative_to(root):
+        return raw
+    if not defaults_path.is_file():
         return raw
     with open(defaults_path, encoding="utf-8") as df:
         defaults = yaml.safe_load(df)

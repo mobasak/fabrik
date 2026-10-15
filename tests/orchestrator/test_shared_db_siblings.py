@@ -12,3 +12,12 @@ def test_shared_db_sibling_with_template_needs_database_is_counted(tmp_path):
     sib = tmp_path / "sib.yaml"
     sib.write_text("id: sib\ntemplate: saas-skeleton\ndepends:\n  postgres: shared_db\n")
     assert _shared_db_siblings("shared_db", me) == ["sib.yaml"]
+
+
+def test_shared_db_sibling_with_unresolvable_template_is_skipped(tmp_path):
+    """A sibling whose template name cannot resolve (NUL byte) is read raw — no crash, not a database spec."""
+    me = tmp_path / "me.yaml"
+    me.write_text("id: me\ntemplate: python-api\nshape:\n  needs_database: true\n")
+    sib = tmp_path / "sib.yaml"
+    sib.write_text('id: sib\ntemplate: "sa\\0as"\ndepends:\n  postgres: me\n')
+    assert _shared_db_siblings("me", me) == []

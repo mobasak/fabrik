@@ -605,7 +605,7 @@ def _shared_db_siblings(db_name: str, spec_path: Path | None) -> list[str]:
             # non-mapping stays a skip below; a malformed template file is a refusal here.
             if isinstance(data, dict):
                 data = merge_template_defaults(data, keys=("shape",))
-        except (OSError, yaml.YAMLError) as e:
+        except (OSError, ValueError, yaml.YAMLError) as e:
             raise AppRoleRefusalError(
                 f"cannot read sibling spec {path.name} to rule out a shared database: "
                 f"{type(e).__name__}"
@@ -1056,7 +1056,7 @@ class InfrastructureProvisioner:
         """Mint ``<db>_app`` and converge ``DATABASE_URL`` to the declared role.
 
         Declarative (spec § 2, D-390): the flag ``shape.database_url_app_role`` is
-        read from the RAW spec dict (``ctx.spec`` never passes through ``Shape``,
+        read from the apply spec dict (raw YAML with the template's ``shape:`` merged under it, D-908; ``ctx.spec`` never passes through ``Shape``,
         so a missing key is ``False``), the current ``DATABASE_URL`` user from the
         live ``.env`` (:meth:`SSHDeployer.read_env`). Then:
 

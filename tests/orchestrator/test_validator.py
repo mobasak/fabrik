@@ -258,3 +258,28 @@ class TestTemplateDefaultsOnApply:
         (evil / "defaults.yaml").write_text("shape:\n  exposes_metrics: true\n")
         raw = {"name": "app", "template": "../evil"}
         assert merge_template_defaults(dict(raw), templates) == raw
+
+    def test_template_defaults_unresolvable_name_merges_nothing(self, tmp_path):
+        """A template name the filesystem cannot resolve (NUL byte) returns the spec unchanged, never raises."""
+        from fabrik.spec_loader import merge_template_defaults
+
+        raw = {"name": "app", "template": "py\x00thon"}
+        assert merge_template_defaults(dict(raw), self._templates(tmp_path)) == raw
+
+    def test_template_defaults_root_level_file_is_not_a_template(self, tmp_path):
+        """Template '.' names the templates root itself, which is not a template."""
+        from fabrik.spec_loader import merge_template_defaults
+
+        templates = self._templates(tmp_path)
+        (templates / "defaults.yaml").write_text("shape:\n  exposes_metrics: true\n")
+        raw = {"name": "app", "template": "."}
+        assert merge_template_defaults(dict(raw), templates) == raw
+
+    def test_template_defaults_malformed_file_is_a_validation_error(self, tmp_path):
+        """A template defaults.yaml apply cannot parse refuses the spec with a ValidationError."""
+        templates = self._templates(tmp_path)
+        (templates / "python-api" / "defaults.yaml").write_text("shape: [unclosed\n")
+        validator = SpecValidator(templates_dir=templates)
+        with pytest.raises(ValidationError) as exc:
+            validator.load_spec(self._spec(tmp_path, ""))
+        assert exc.value.field == "template"
