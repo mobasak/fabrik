@@ -1020,3 +1020,60 @@ def test_doorbell_points_at_ready_all_mine(tmp_path):
     assert out["action"] == "doorbell", out
     assert "ready --all --mine" in out["text"] and "unowned" in out["text"], out
     assert "work.py next" not in out["text"], out
+
+
+def test_a_builder_named_unlike_its_tree_is_still_a_builder(tmp_path):
+    """Finish review pass 1 (A-opus 1): the builder is decided by its TREE, as the Stop hook's
+    worker check is — a window in `w1` whose CLAUDE_AGENT reads otherwise gets the filtered view,
+    so `next` and the doorbell never disagree."""
+    env, repo, trees, free = _builder_fixture(tmp_path, mode=True)
+    alice = {**env, "CLAUDE_AGENT": "alice"}
+    assert free not in run(["next"], alice, trees["w1"]).stdout
+    assert free not in run(["ready"], alice, trees["w1"]).stdout
+    out = _stop(trees["w1"], alice)
+    assert out["action"] == "doorbell" and "ready --all --mine" in out["text"], out
+    assert out["agent"] == "w1", out  # the ladder names the same builder `next` filters for
+
+
+def test_unchanged_without_coordinator_mode_in_ready_and_the_prompt(tmp_path, monkeypatch):
+    """Finish review pass 1 (A-opus 3): plan row A13 for `ready` and the prompt count, not only
+    `next`."""
+    env, repo, trees, free = _builder_fixture(tmp_path, mode=False)
+    w1 = {**env, "CLAUDE_AGENT": "w1"}
+    assert free in run(["ready"], w1, trees["w1"]).stdout
+    w = _work()
+    for key, value in w1.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("FABRIK_HEADLESS", raising=False)
+    monkeypatch.delenv("CLAUDE_MESH_HEADLESS", raising=False)
+    assert "ready —" in w.prompt_block(trees["w1"], SID)
+
+
+def test_hold_refuses_a_transitive_cycle(tmp_path):
+    """Finish review pass 1 (A-opus 2): z <- y <- x, then x <- z closes a three-node cycle."""
+    env, repo, _ = _setup(tmp_path)
+    x, y, z = (_add(repo, env, "task", n) for n in ("x", "y", "z"))
+    assert run(["assign", y, "--blocked-by", x], env, repo).returncode == 0
+    assert run(["assign", z, "--blocked-by", y], env, repo).returncode == 0
+    r = run(["assign", x, "--blocked-by", z], env, repo)
+    assert r.returncode != 0 and "cycle" in r.stderr, r.stderr
+    assert not _items(repo)[x].get("blocked_by")
+
+
+def test_a_malformed_hold_does_not_break_the_queue(tmp_path):
+    """Finish review pass 1 (A-sonnet 1): one hand-edited non-list `blocked_by` must not crash
+    `ready`, `next`, `triage` or `claim` for every agent in the repo."""
+    env, repo, _ = _setup(tmp_path)
+    item = _add(repo, env, "task", "hand edited")
+    path = repo / ".fabrik" / "work" / f"{item}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["blocked_by"] = 5
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    for argv in (["ready"], ["ready", "--all"], ["next"], ["triage"]):
+        r = run(argv, env, repo)
+        assert r.returncode == 0 and "Traceback" not in r.stderr, (argv, r.stderr)
+    assert item not in run(["ready", "--all"], env, repo).stdout  # the hold fails CLOSED
+    r = run(["claim", item, "--session", SID], env, repo)
+    assert r.returncode != 0 and "Traceback" not in r.stderr, r.stderr
+    path.write_text(json.dumps({**data, "blocked_by": "W-00000000"}, indent=2) + "\n", "utf-8")
+    assert item not in run(["ready", "--all"], env, repo).stdout  # a scalar id still holds

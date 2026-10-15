@@ -17,7 +17,12 @@
     "CLAUDE.md",
     ".fabrik/work/config.json",
     ".fabrik/beat-owners.json",
-    "docs/development/plans/2026-10-15-plan-1-coordinator-role.md"
+    "docs/development/plans/2026-10-15-plan-1-coordinator-role.md",
+    "scripts/sysadmin/mail_escalate.py",
+    "tests/test_governance_template_split.py",
+    "tests/test_command_run.py",
+    "docs/reference/fabrik-mail.md",
+    "docs/workstation/quota-dashboard.md"
   ],
   "branch": "plan-coordinator-role",
   "started_at": "2026-10-15T02:34:00+03:00",

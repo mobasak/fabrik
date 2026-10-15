@@ -7,8 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Added — the coordinator role: hub beat lists, charter and fleet carrier (2026-10-15)
 
 `coordinator` joins every hub beat list (`mail.py::HUB_BEATS`, `mail_notify.py::_HUB_BEATS`,
-`command_run.py::_BEATS`, the quota dashboard's owner lists, CLAUDE.md's `route --to-agent` line and trailer row),
-so mail and merge requests can address it. New charter `docs/reference/agents/coordinator.md`.
+the quota dashboard's owner lists, CLAUDE.md's `route --to-agent` line and trailer row),
+so mail and merge requests can address it; `command_run.py::_BEATS` stays four-beat, since its only reader is
+the FEEDBACK verdict and the coordinator owns no beat (D-875). New charter `docs/reference/agents/coordinator.md`.
 `templates/governance/CLAUDE.md` carries the role fleet-wide: the seven jobs, Never, escalation and the
 impact × effort priority table, and narrows D-471 (D-872) and D-442 (D-873). Plan
 `2026-10-15-plan-1-coordinator-role` Phase B. The role text reaches every synced repo at the next sync; the builder-facing

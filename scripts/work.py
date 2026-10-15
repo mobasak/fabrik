@@ -680,7 +680,7 @@ def _is_ready(
     """Open here, not closed in another tree, and every blocker resolved (here or elsewhere)."""
     if item.get("status") != "open" or item["id"] in closed:
         return False
-    for dep in item.get("blocked_by") or []:
+    for dep in _dep_ids(item):
         blocker = by_id.get(str(dep))
         if str(dep) in closed:
             continue
@@ -1731,7 +1731,7 @@ def _blocked_plan_has_its_block(
             continue
         if li.get("status") == "awaiting-operator":
             return True
-        if li.get("status") == "blocked" and any(d in open_ids for d in li.get("blocked_by") or []):
+        if li.get("status") == "blocked" and any(d in open_ids for d in _dep_ids(li)):
             return True
     awaiting = [it for it in live if it.get("status") == "awaiting-operator"]
     named = set(_ITEM_REF_RE.findall(status_line))
@@ -3029,10 +3029,15 @@ def _is_major(item: dict) -> bool:
 
 
 def _dep_ids(item: dict) -> list[str]:
-    """`item["blocked_by"]` as a list of ids — a hand-edited non-list value reads as none, so one
-    malformed item never crashes an `assign` that does not touch its holds."""
+    """`item["blocked_by"]` as a list of ids. A hand-edited non-list value is read as ONE blocker
+    id, so one malformed item never crashes `assign`, `ready`, `claim` or the awaiting check (all
+    read holds through here) and never silently drops its hold either."""
     raw = item.get("blocked_by")
-    return [str(d) for d in raw] if isinstance(raw, list) else []
+    if isinstance(raw, list):
+        return [str(d) for d in raw]
+    # fail CLOSED: a hand-edited scalar is one blocker id (a junk one never resolves, so the item
+    # stays out of `ready` and `claim`; `assign --unblock <it>` repairs it) — never "no hold"
+    return [] if raw in (None, "") else [str(raw)]
 
 
 def _blockers_of(repo: Path, start: str) -> set[str]:
@@ -3214,7 +3219,7 @@ def _refuse_blocked(repo: Path, item: dict) -> None:
     closed = _closed_ids(repo)
     waiting = [
         str(dep)
-        for dep in item.get("blocked_by") or []
+        for dep in _dep_ids(item)
         if str(dep) not in closed and by_id.get(str(dep), {}).get("status") not in RESOLVED
     ]
     if waiting:
@@ -4976,8 +4981,9 @@ def _caller_name(
     main: Path, tree: Path, workers: dict[str, Path], coordinator: str, session: str = ""
 ) -> str:
     """Who is working in `tree`: the session-aware `_agent_name`, else the worker tree's name, else
-    the feedback owner's tree, else the distributor in the main checkout. The Stop hook and the
-    builder filter resolve the caller through this one function, so they never disagree."""
+    the feedback owner's tree, else the distributor in the main checkout. The Stop hook resolves
+    the caller through this one function; `_builder` names a worker tree's caller by its tree
+    first, the same tree test the Stop hook's `is_worker` makes, so the two never disagree."""
     agent = _agent_name(session=session)
     if not agent and tree in workers.values():
         agent = next(n for n, t in workers.items() if t == tree)
@@ -5031,7 +5037,11 @@ def _builder(tree: Path, session: str = "") -> str:
         if not workers:
             return ""
         coordinator = str(_read_config(main).get("distributor") or "").strip()
-        agent = _caller_name(main, tree.resolve(), workers, coordinator, session)
+        # a worker TREE decides, as the Stop hook's `is_worker` does, so a window whose
+        # CLAUDE_AGENT reads otherwise still gets its tree's view (Finish review pass 1)
+        here = tree.resolve()
+        by_tree = next((n for n, t in workers.items() if t == here), "")
+        agent = by_tree or _caller_name(main, here, workers, coordinator, session)
         # only a POOL worker is a builder: the feedback owner's tree is dropped from the pool
         # (`_workers`), so triage never queues it work and it keeps today's view
         return agent if agent and agent != coordinator and agent in workers else ""
@@ -5050,6 +5060,10 @@ def _stop_action(tree: Path, session: str) -> dict:
     )
     agent = _caller_name(main, tree, workers, coordinator, session)
     is_worker = tree in workers.values()
+    if is_worker and _builder_mode_main(tree) is not None:
+        # coordinator mode names a worker by its TREE, as `_builder` does, so the ladder and the
+        # filtered `next`/`ready` speak about the same builder (Finish review pass 2)
+        agent = next(n for n, t in workers.items() if t == tree)
     none = {"agent": agent, "role": "", "action": None, "fp": "", "text": ""}
     if not _has_store(main):
         return none

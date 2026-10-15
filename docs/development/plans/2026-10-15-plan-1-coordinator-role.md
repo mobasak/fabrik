@@ -71,8 +71,7 @@ paths: each phase commits once, after its review, and the commit distributes fle
   `blocked_by`, and `_is_ready` (`scripts/work.py::_is_ready`) already keeps a blocked item out of `ready`; a
   `hold` tag would be a second mechanism for the same state.
 - **One major in flight is enforced in `triage`, not only by holds** (P5-3): `triage` never plans a
-  high/high item while another high/high item is in flight (an owner, status `open` or `blocked`, claimed or
-  not), and plans at most one high/high item per run. Closing the in-flight major can therefore never make
+  high/high item while another high/high item is in flight (owned or claimed, status `open` or `blocked`), and plans at most one high/high item per run. Closing the in-flight major can therefore never make
   `triage` hand two majors out at once, whatever the holds say. A manual `assign --owner` is the distributor's own
   act and is not guarded.
 - **Every new store behaviour is opt-in per repo (plan approval, both panel seats).** `work.py` is fleet-synced
@@ -91,9 +90,9 @@ paths: each phase commits once, after its review, and the commit distributes fle
 - **A finished plan is marked `Status: EXECUTED` and moved to `docs/development/plans/archived/`** (P5-6):
   `EXECUTED` is in both `docs_updater.py::PLAN_DONE` and `work.py::_PLAN_DONE` and is the value the hub's plans use.
 - **The four-name lists that gain `coordinator`** (P5-1): `mail.py::HUB_BEATS` (and its docstring and the
-  `send`/`route --to-agent` help), `mail_notify.py::_HUB_BEATS`, `command_run.py::_BEATS` (a finding mailed to
-  the coordinator is a filing), `quota_dashboard.py::_HUB_OWNERS` and `_HUB_AGENTS`, and `CLAUDE.md`'s
-  `route --to-agent` line and trailer row. **Unchanged:** the feedback-grammar strings (`close-feedback.md`,
+  `send`/`route --to-agent` help), `mail_notify.py::_HUB_BEATS`, `quota_dashboard.py::_HUB_OWNERS` and `_HUB_AGENTS`, and `CLAUDE.md`'s
+  `route --to-agent` line and trailer row. **Unchanged:** `command_run.py::_BEATS`, whose only reader is the FEEDBACK
+  verdict (amended at the Finish review, D-875), and the feedback-grammar strings (`close-feedback.md`,
   the `command_run.py` FEEDBACK text) — they name where a finding is routed by beat, and the coordinator owns
   no beat.
 - **The feedback-owner fallback stays as it is** (P5-7): `work.py::_feedback_owner` falls back to the
@@ -185,7 +184,7 @@ Surface: `scripts/work.py`, `tests/test_work_coordinator.py` (EXISTS — 28 test
    - in a coordinator-mode store (`config.json` `coordinator_mode: true`), plans scored routable items before
      unscored ones (each group in today's order);
    - computes the in-flight major by a fresh scan of `_iter_items(main)` minus `_closed_ids(main)`: an item with
-     both fields high, an owner, and status `open` or `blocked`, claimed or not (`_pool` and `_worker_queues`
+     both fields high, owned or claimed, and status `open` or `blocked` (`_pool` and `_worker_queues`
      cannot answer this: both read only ready, unclaimed items). While one exists, no high/high item is planned and
      the slot holder is printed; while none exists, at most ONE high/high item is planned per run.
 4. **Builders see their own (P5-4).** One helper decides "a builder in a coordinator-mode repo": `main =
@@ -287,7 +286,9 @@ Surface: `CLAUDE.md`, `docs/reference/agents/infra.md`, `docs/reference/multi-ag
    two owners on one subject read as ambiguous (`scripts/mail.py::owner_of`), so the strings move, the infra rule
    keeps the rest. `check_beat_owners.py` validates owners against `HUB_BEATS`, which Phase B extended.
 3. **The row, prepared:** `supersedes D-453: MERGE OWNER: coordinator` (`decisions.py --merge-owner` resolves it).
-4. **Mail, before the flip:**
+4. **Mail — sent AFTER step 5's merge and before step 6's flip, out of list order** (the template reaches the
+   fleet only when step 5's merge syncs it, so a mail sent earlier would point at text the repo does not yet hold —
+   Finish review):
    - fabrik-lib's hand-kept CLAUDE.md (spec § Contract deltas, "by mail"): a `mail.py send --to fabrik-lib`
      request naming the D-471 narrowing and the hub's new merge owner, with the template section's text;
    - each other multi-window repo with a store (web-ecommerce-factory, tryton-crm, trade-intelligence,
@@ -316,8 +317,9 @@ Surface: `CLAUDE.md`, `docs/reference/agents/infra.md`, `docs/reference/multi-ag
 ## File Scope (owned paths)
 
 - `scripts/work.py`, `tests/test_work_coordinator.py`
-- `scripts/mail.py`, `.claude/hooks/mail_notify.py`, `scripts/command_run.py`, `scripts/sysadmin/quota_dashboard.py`
-- `tests/test_quota_dashboard.py`, `tests/test_mail_addressing.py`
+- `scripts/mail.py`, `.claude/hooks/mail_notify.py`, `scripts/command_run.py`, `scripts/sysadmin/quota_dashboard.py`, `scripts/sysadmin/mail_escalate.py`
+- `tests/test_quota_dashboard.py`, `tests/test_mail_addressing.py`, `tests/test_governance_template_split.py`, `tests/test_command_run.py`
+- `docs/reference/fabrik-mail.md`, `docs/workstation/quota-dashboard.md` (census mirrors, Phase B review)
 - `docs/reference/agents/coordinator.md`, `docs/reference/agents/infra.md`, `docs/reference/multi-agent-operating-model.md`, `docs/reference/work-tracking.md`
 - `templates/governance/CLAUDE.md`, `CLAUDE.md`
 - `.fabrik/work/config.json`, `.fabrik/beat-owners.json`

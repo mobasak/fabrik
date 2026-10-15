@@ -206,7 +206,7 @@ run.
 `config.json`. `work.py` is fleet-synced, so the behaviours that change what a builder sees act only
 there — and, for a builder, only once its own branch carries the key too (until it merges the flip
 it keeps today's view, and its Stop doorbell says so: one predicate decides both). A BUILDER is a pool worker (`_workers`; the feedback owner's tree is not one) that is not the
-distributor, named the way the Stop hook names it. A builder's `next`, default `ready` and prompt
+distributor, named by its worker tree — the tree test the Stop hook's worker check makes — else the way the Stop hook names it. A builder's `next`, default `ready` and prompt
 `ready` count show only its own items;
 `triage` plans scored items before unscored ones; and when the coordinator has no live window, the
 Stop doorbell points a builder with an empty queue at `work.py ready --all --mine` (its own items,

@@ -48,7 +48,7 @@ def test_unaddressed_hub_send_is_refused_and_writes_nothing(env):
 
 
 def test_each_beat_and_broadcast_pass(env):
-    for beat in ("infra", "fleet", "intel", "kaizen"):
+    for beat in mail.HUB_BEATS:
         assert mail.send(
             to="fabrik", kind="finding", body=beat, frm="alpha", to_agent=beat
         ).is_file()
