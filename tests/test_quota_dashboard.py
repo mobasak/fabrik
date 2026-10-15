@@ -4186,7 +4186,7 @@ def test_agents_block_shows_every_repo_with_titles(tmp_path, monkeypatch):
     # NEXT: the queued (unclaimed) item with its title, escaped — never live markup
     assert "<li><code>W-0000000b</code> next &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; one</li>" in infra
     assert "<script>alert" not in block
-    wef2 =block.split('<td class="ag-who">wef2</td>')[1].split("</tr>")[0]
+    wef2 = block.split('<td class="ag-who">wef2</td>')[1].split("</tr>")[0]
     assert 'class="ag-chip away"' in wef2
     assert block.index('<h4 class="ag-name">fabrik') < block.index('<h4 class="ag-name">shop')
     for m in re.finditer(r"<code>(W-[0-9a-f]{8})</code>( [^<]*)?", block):

@@ -131,8 +131,8 @@ def test_now_shows_the_roles_running_record_and_claim(tmp_path: Path) -> None:
 
 def test_now_flags_a_stale_record_and_skips_a_corrupt_one(tmp_path: Path) -> None:
     """A running record older than the Stop hook's 12 h bound is flagged stale (its session is
-    likely gone), and a record whose updated_ts is not a finite number ("abc", "inf", NaN) is
-    skipped, never a crash."""
+    likely gone), and a record whose updated_ts is not a finite number ("abc", "inf", NaN, an int too
+    large for a float) is skipped, never a crash."""
     env, repo, trees = _setup(tmp_path)
     _record(env, "old", agent="infra", state="running", command="fabrik-deploy", surface="x",
             repo_root=str(trees["infra"]), updated_ts=time.time() - 13 * 3600)
@@ -142,6 +142,8 @@ def test_now_flags_a_stale_record_and_skips_a_corrupt_one(tmp_path: Path) -> Non
             repo_root=str(trees["fleet"]), updated_ts="inf")
     _record(env, "nan", agent="fleet", state="running", command="fabrik-spec", surface="n",
             repo_root=str(trees["fleet"]), updated_ts=float("nan"))
+    _record(env, "big", agent="fleet", state="running", command="fabrik-spec", surface="b",
+            repo_root=str(trees["fleet"]), updated_ts=10**400)  # float() of it raises OverflowError
     rows = _rows(repo, env)
     assert rows["infra"]["now"]["stale"] is True
     assert rows["fleet"]["now"] is None

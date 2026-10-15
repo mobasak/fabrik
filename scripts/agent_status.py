@@ -99,7 +99,7 @@ def _now(cr: ModuleType, role: str, main: Path) -> dict | None:
         try:
             rec = json.loads(path.read_text(encoding="utf-8"))
             ts = float(rec.get("updated_ts") or 0) if isinstance(rec, dict) else 0.0
-        except (OSError, ValueError, TypeError):
+        except (OSError, ValueError, TypeError, OverflowError):  # a 400-digit int stamp overflows float()
             continue  # an unreadable or corrupt record is skipped, never a crash
         if not math.isfinite(ts):
             continue  # "inf"/"nan" parse as floats but are no time (int(now - inf) raises)
@@ -221,7 +221,7 @@ _NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
 
 def _windows(opt: Path, work: ModuleType) -> list[dict]:
     """Every interactive `claude` process under ``opt`` as {repo, tree, agent}: ``tree`` is the worktree
-    name or "" for the main checkout (any cwd under the repo but outside `.claude/worktrees/`)."""
+    name or "" for the main checkout (any cwd under the repo that is not inside a named worktree)."""
     root = Path(os.environ.get("FABRIK_WORK_PROC") or "/proc")
     out: list[dict] = []
     try:
@@ -353,8 +353,9 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
                         for i in queue[:NEXT_SHOWN]],
             },
             "merges": (done.get(n) or {}).get("merges", []),
-            # only the agent working the main checkout NOW (its newest recent record), never every agent
-            # that once ran a command there
+            # only the main checkout's current agent — the one whose run record there is the newest of
+            # the last 7 days, in any state (the same agent a nameless main window is named after) —
+            # never every agent that once ran a command there
             "merge_owner": bool(main_agent) and n == main_agent,
         })
     return {"name": name, "main": str(main), "store": store, "agents": agents,
@@ -486,7 +487,8 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--session-start", action="store_true", help="the coordinator's SessionStart hook")
     ap.add_argument("--all", action="store_true",
                     help="with --json: every repo under --opt and its agents (the dashboard's Agents block)")
-    ap.add_argument("--opt", default=os.environ.get("FABRIK_OPT_DIR") or "/opt", help="the repos' parent (default /opt)")
+    ap.add_argument("--opt", default=os.environ.get("FABRIK_OPT_DIR") or "/opt",
+                    help="the repos' parent (default: $FABRIK_OPT_DIR, else /opt)")
     args = ap.parse_args(argv)
     repo = Path(args.repo)
     if args.session_start:
