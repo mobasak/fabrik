@@ -727,6 +727,24 @@ def _marker_fingerprint(folder: Path) -> str:
         return "marker=none"
 
 
+def _close_is_vouched(created: object, closed_at: float, now: float) -> bool:
+    """D-900 (W-de2c34c1, F13): a `done` marker's close is believed only against a sane creation
+    time — `created` numeric (not a bool), not in the future, and the close not before it (less the
+    clock margin). A clobbered `closed_at` of 0 or -1e308 otherwise read as a long-past close.
+
+    Applied in `judge_run_folder`, never in `classify_run_folder`: the `.trash-*` path builds
+    `closed_at` 0.0 by construction and would be kept for ever (INV-2). Cobra (D-253): the cheap
+    way past it is to clobber or drop `created` too — so a missing or bad `created` is doubt as
+    well, mirroring `gap_keeps` (D-877/D-878). Residual (recorded in D-900): a co-clobber of
+    `created` 0 and `closed_at` 0 still reads as a past close.
+    """
+    if not isinstance(created, int | float) or isinstance(created, bool):
+        return False
+    if created > now + GAP_CLOCK_MARGIN_S:
+        return False
+    return closed_at >= created - GAP_CLOCK_MARGIN_S
+
+
 def judge_run_folder(
     folder: Path,
     sid: str,
@@ -769,6 +787,8 @@ def judge_run_folder(
         if isinstance(raw_closed, int | float) and not isinstance(raw_closed, bool)
         else None
     )
+    if closed_at is not None and not _close_is_vouched(created, closed_at, now):
+        closed_at = None  # D-900: a close the marker cannot vouch for is unknown — INV-1, ACTIVE
     try:
         heartbeat_age = now - (folder / OWNER_NAME).stat().st_mtime
     except OSError:

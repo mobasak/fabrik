@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scratch_sweep: a close time the run marker cannot vouch for is doubt, never a past close (2026-10-15)
+
+- `judge_run_folder` believed any numeric `closed_at`, so a clobbered `done` marker with `closed_at` 0 or -1e308 read as a long-past close and its folder was removed (F13, W-de2c34c1). Per D-900 (Opus + Fable panel), the close is now unknown — ACTIVE under INV-1 — when `created` is missing, non-numeric, a bool or in the future, or when `closed_at` is earlier than `created` minus the clock margin; applied where the marker is read, never in `classify_run_folder` (the `.trash-*` path builds `closed_at` 0.0). Residual: a co-clobber of `created` 0 and `closed_at` 0 still reads as a past close. Tests: `test_a_close_time_the_marker_cannot_vouch_for_is_doubt` (6 cases red first, on a gap-free `/proc` so a live daemon's gap cannot mask them, plus a consumed control).
+
 ### Fixed — scratch_sweep: a dead session's backup in an agent's own `run-*` folder is kept; a NaN/inf run marker is doubt (2026-10-15)
 
 - `_holds_backup` pruned every `scratchpad/run-*` and `.trash-*` child from its walk by name, so a dead session whose only backup sat in an agent's own `run-tests/` read as plain `dead` and was removed whole (F11, W-9f3dad31); it now prunes only the mint's keyed folders (`is_run_entry`, P8). `read_owner` refuses `NaN`/`Infinity`/`-Infinity`, which `json.loads` accepts and which made a clobbered marker read as a past close — consumed — at all three readers (F10, W-6cdc86f3); such a marker is now no marker: kept. Tests: `tests/test_scratch_sweep_run_folders.py` (5 new cases, red first). Found by intel's scratch-lifecycle conformance review.

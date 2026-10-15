@@ -696,6 +696,54 @@ def test_a_non_finite_marker_time_is_doubt_never_consumed(
     assert folder.exists(), out
 
 
+@pytest.mark.parametrize(
+    ("change", "kept"),
+    [
+        ({}, False),  # control: a sane marker past its grace is still consumed
+        ({"closed_at": 0}, True),  # a close before the run was created
+        ({"closed_at": -1e308}, True),
+        ({"created": None}, True),  # no creation time to judge the close against
+        ({"created": "yesterday"}, True),
+        ({"created": True}, True),
+        ({"created": NOW + 2 * DAY}, True),  # created in the future
+    ],
+    ids=[
+        "control",
+        "closed-zero",
+        "closed-huge-negative",
+        "created-missing",
+        "created-text",
+        "created-bool",
+        "created-future",
+    ],
+)
+def test_a_close_time_the_marker_cannot_vouch_for_is_doubt(
+    change: dict,
+    kept: bool,
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """D-900 (W-de2c34c1, F13): a `done` marker's close is believed only against a sane creation time.
+    With `created` missing, non-numeric, a bool or in the future, or with `closed_at` before
+    `created` minus the clock margin, the close is unknown — ACTIVE (INV-1), never consumed.
+    A gap-free /proc on purpose: on the live box a same-uid daemon's gap already keeps an unknown
+    `created` (gap_keeps), which would make these cases pass with the rule absent."""
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(_one_pid_proc(tmp_path)))
+    sdir = _session(harness)
+    folder = _run_folder(sdir, "suspect")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    owner.update(change)
+    if owner.get("created") is None:
+        del owner["created"]
+    (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    _age(folder / ".owner", 40 * HOUR)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert folder.exists() is kept, out
+
+
 @pytest.mark.parametrize("raw", ["-1e999", "1e999", "-1e400", "9" * 400, "-" + "9" * 400])
 def test_an_overflowing_marker_time_is_doubt_never_consumed(
     raw: str, harness: Path, capsys: pytest.CaptureFixture[str]
