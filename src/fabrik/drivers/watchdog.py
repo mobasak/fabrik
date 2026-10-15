@@ -562,12 +562,18 @@ class WatchdogDriver:
         )
 
         image_tag = f"{IMAGE_REPO}:{project_id}"
+        target_vps = getattr(ctx, "target_vps", None) or spec.get("target_vps") or "vps1"
 
         # The same finite-budget rule resolve_applicability enforces before provisioning, applied
         # again where the value becomes the sidecar's env: provision() is public, and an inf/nan
         # rendered into WATCHDOG_*_BUDGET_USD is no ceiling at all. Local import — infrastructure
         # imports this module lazily, so module scope would invite a cycle.
-        from fabrik.orchestrator.infrastructure import _finite_budget
+        from fabrik.orchestrator.infrastructure import _finite_budget, _rewrite_shared_infra_host
+
+        # A spoke container cannot resolve postgres-main/redis-main (WireGuard carries no DNS):
+        # swap them to the hub mesh IP, as every other registrar's injected URL is.
+        redis_url = _rewrite_shared_infra_host(redis_url, target_vps)
+        pg_dsn = _rewrite_shared_infra_host(pg_dsn, target_vps)
 
         daily_budget = _finite_budget(wcfg, "daily_budget_usd", 1.0)  # D2: WatchdogConfig default
         per_incident_budget = _finite_budget(wcfg, "per_incident_budget_usd", 0.25)
@@ -601,7 +607,7 @@ class WatchdogDriver:
             check_interval_seconds=int(wcfg.get("check_interval_seconds", 60)),
             log_level=str(wcfg.get("log_level", "INFO")),
             image_tag=image_tag,
-            target_vps=getattr(ctx, "target_vps", None) or spec.get("target_vps") or "vps1",
+            target_vps=target_vps,
         )
 
     def _gate_tier_d(

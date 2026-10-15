@@ -203,13 +203,25 @@ class TestPhase4iRegistrarRollback:
 
     def test_glitchtip_rollback_calls_delete_project(self):
         manager, ctx = _manager_and_ctx()
-        ctx.add_resource("glitchtip", "my-project")
+        ctx.add_resource("glitchtip", "my-project", status="created")
 
         with patch("fabrik.drivers.glitchtip.delete_project") as rm:
             errors = manager.rollback(ctx)
 
         assert errors == []
         rm.assert_called_once_with("my-project")
+
+    def test_glitchtip_rollback_keeps_a_project_the_run_found_existing(self):
+        """A project create_project reported as `exists` predates this run: rolling back must
+        never delete it (its issues and history are live data)."""
+        manager, ctx = _manager_and_ctx()
+        ctx.add_resource("glitchtip", "my-project", status="exists")
+
+        with patch("fabrik.drivers.glitchtip.delete_project") as rm:
+            errors = manager.rollback(ctx)
+
+        assert errors == []
+        rm.assert_not_called()
 
     def test_grafana_annotation_rollback_calls_delete_annotation(self):
         """ID is stored as str by ctx.add_resource but passed as int to driver."""
@@ -331,7 +343,7 @@ class TestPhase4iSoftFailures:
         the rollback's delete_project call then finds a 404. The driver
         treats 404 as success, but if it somehow raised, we'd still swallow."""
         manager, ctx = _manager_and_ctx()
-        ctx.add_resource("glitchtip", "my-project")
+        ctx.add_resource("glitchtip", "my-project", status="created")
 
         with patch(
             "fabrik.drivers.glitchtip.delete_project",
@@ -372,7 +384,7 @@ class TestPhase4iReverseOrderWalk:
         ctx.add_resource("postgres", "my_app_db")
         ctx.add_resource("gatus", "my-app")
         ctx.add_resource("backrest", "my-app-data")
-        ctx.add_resource("glitchtip", "my-app")
+        ctx.add_resource("glitchtip", "my-app", status="created")
         ctx.add_resource("grafana_annotation_id", "42")
         ctx.add_resource("authelia_bypass", "my-app.vps1.ocoron.com")
         ctx.add_resource("authelia", "my-app.vps1.ocoron.com")

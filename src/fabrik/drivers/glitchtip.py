@@ -434,8 +434,16 @@ def verify_dsn_injection(
 
     Returns:
         True if a matching ``SENTRY_DSN`` is observed within ``max_wait``;
-        False otherwise. Does NOT raise — the orchestrator decides
-        whether to rollback (:func:`delete_project`) or escalate.
+        False otherwise — the orchestrator decides whether to roll back
+        (:func:`delete_project`) or escalate.
+
+    Raises:
+        ValueError: ``expected_dsn`` is empty.
+        RuntimeError: the DSN is not routable from a container
+            (:func:`_assert_routable_dsn`).
+        Any exception :func:`fabrik.drivers.ssh.ssh` raises propagates, except
+        the exact-name inspect's ``RuntimeError`` (a missing container) — an
+        ssh failure is an unknown state, which must not read as "absent".
     """
     if not expected_dsn:
         raise ValueError("expected_dsn must be non-empty")
@@ -457,6 +465,10 @@ def verify_dsn_injection(
             container = ""
         if not container:
             # Fallback: prefix match for legacy naming
+            # No guard here, unlike the exact-name inspect above: `docker inspect` exits nonzero
+            # for a missing container, so its RuntimeError means "absent"; this pipeline ends in
+            # `head -1` and exits 0, so a RuntimeError is an ssh failure — "unknown", which must
+            # propagate (the caller then keeps the project) rather than read as "absent".
             container = ssh(
                 f"sudo docker ps --format '{{{{.Names}}}}' | grep -E '^{project_name}(-|$)' | head -1"
             ).strip()

@@ -294,6 +294,11 @@ class RollbackManager:
         from fabrik.drivers.glitchtip import delete_project
 
         name = resource.resource_id
+        if resource.metadata.get("status") != "created":
+            # Only a project THIS run created is rolled back: `exists` predates the run and
+            # holds live issues, and anything else is not ours to delete (fail toward keeping).
+            logger.info("glitchtip project %s was not created by this run — kept on rollback", name)
+            return
         try:
             delete_project(name)
             logger.info("Rolled back glitchtip project: %s", name)
