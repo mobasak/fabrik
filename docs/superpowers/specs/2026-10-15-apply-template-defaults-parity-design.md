@@ -111,8 +111,10 @@ DIFF translator.yaml {'gatus': 'apply=False plan=True', 'prometheus': 'apply=Fal
   raises on the merged dict exactly when it raises on the raw one (a synthetic spec can break it — the positive
   control in § Validation). The merged `shape` also reaches readers outside the registrar decision —
   `src/fabrik/orchestrator/verifier.py:85` and `:141`, `src/fabrik/orchestrator/__init__.py:296`,
-  `src/fabrik/orchestrator/deployer_ssh.py:826`, `src/fabrik/orchestrator/infrastructure.py:525` — which change no live
-  service today (both panel seats' probes); a template allow-list grader keeps a new template `shape:` key from
+  `src/fabrik/orchestrator/deployer_ssh.py:826`, `src/fabrik/orchestrator/infrastructure.py:525`, and the Authelia
+  registrar's bearer bypass (`src/fabrik/orchestrator/infrastructure.py:1395-1408`, an `^/api/` rule when
+  `has_bearer_api` is true — saas-skeleton's defaults set it, by that template's intent) — which change no live
+  service today (both panel seats' probes; 3 admin-dashboard specs, raw equals merged); a template allow-list grader keeps a new template `shape:` key from
   reaching them unreviewed.
 - **D3 — pins, so nothing new is provisioned on a live spec.** `shape.exposes_metrics: false` in
   `specs/services/translator.yaml`, `longephedia-vault.yaml`, `fabrik-citation-verifier.yaml`,
