@@ -3,7 +3,7 @@
   "created": "2026-10-15T12:18:41.550043Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ce3a73b4554e1cef086eda0b1264fc1e43cf37f3",
   "id": "W-9f3dad31",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "D-890: loses data (a session's only backup) — a one-function fix with a sandbox repro already done by intel",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m4zqxyefqm437hrzvrfz03d9",
     "queued",

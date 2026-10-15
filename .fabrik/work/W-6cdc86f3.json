@@ -3,7 +3,7 @@
   "created": "2026-10-15T12:18:42.062897Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ce3a73b4554e1cef086eda0b1264fc1e43cf37f3",
   "id": "W-6cdc86f3",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "D-890: a corrupt marker leads to removal (data loss path); one reader fixed at its root",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m4zqxyefqm437hrzvrfz03d9",
     "queued",

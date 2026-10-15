@@ -273,10 +273,13 @@ def _holds_backup(entry: Path) -> bool | None:
             raise exc
 
         for dirpath, dirnames, filenames in os.walk(entry, followlinks=False, onerror=_boom):
-            if os.path.basename(dirpath) == "scratchpad":
+            if Path(dirpath) == entry / "scratchpad":
                 # a run folder is marker-governed: inside a CONSUMED one a backup shape is disposable
-                # by contract, and an ACTIVE one is kept whole anyway (plan P8, P10)
-                dirnames[:] = [d for d in dirnames if not d.startswith((RUN_PREFIX, TRASH_PREFIX))]
+                # by contract, and an ACTIVE one is kept whole anyway (plan P8, P10). Only the mint's
+                # KEYED name directly in the session's OWN pad is one (`is_run_entry`, `run_entries`):
+                # an agent's own `run-tests/`, `.trash-old/` or a nested `…/scratchpad/run-<key>/` is
+                # ordinary scratch, and pruning those hid their backups and removed them (F11)
+                dirnames[:] = [d for d in dirnames if not is_run_entry(Path(dirpath) / d)]
             for n in list(dirnames) + list(filenames):
                 if _is_backup_shape(n):
                     return True
@@ -392,11 +395,47 @@ def _dead_heartbeat_s() -> float:
     return float(_env_int("SCRATCH_RUN_HEARTBEAT_S", 604_800))
 
 
-def read_owner(folder: Path) -> dict | None:
-    """The parsed `.owner` marker; None when it is missing, unreadable or not a JSON object."""
+def _refuse_constant(name: str) -> float:
+    raise ValueError(f"non-finite {name} in a run marker")
+
+
+def _finite_float(text: str) -> float:
+    """An overflowing literal (`-1e999`) parses to ±inf WITHOUT reaching `parse_constant`."""
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError(f"non-finite {text} in a run marker")
+    return value
+
+
+def _finite_int(text: str) -> int:
+    """An integer literal no float can hold: every time reader converts with `float()`, which
+    raises OverflowError and aborted the sweep — refused here instead, like the other two."""
+    value = int(text)
     try:
-        data = json.loads((folder / OWNER_NAME).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        float(value)
+    except OverflowError:
+        raise ValueError(
+            f"an integer too large for a time in a run marker ({len(text)} digits)"
+        ) from None
+    return value
+
+
+def read_owner(folder: Path) -> dict | None:
+    """The parsed `.owner` marker; None when it is missing, unreadable or not a JSON object.
+
+    `NaN` / `Infinity` / `-Infinity`, overflowing literals such as `-1e999` and integers no float can
+    hold are refused (F10):
+    `json.loads` accepts them, and a NaN or -inf time read as a past close or creation made a
+    clobbered marker CONSUMED at every reader of it (`judge_run_folder`, `gap_keeps`,
+    `write_size_report`). A marker nested past the recursion limit is refused too, never a crash
+    that aborts the sweep. None is INV-1 doubt: kept, never removed.
+    """
+    try:
+        text = (folder / OWNER_NAME).read_text(encoding="utf-8")
+        data = json.loads(
+            text, parse_constant=_refuse_constant, parse_float=_finite_float, parse_int=_finite_int
+        )
+    except (OSError, ValueError, RecursionError):
         return None
     return data if isinstance(data, dict) else None
 
