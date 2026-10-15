@@ -273,11 +273,12 @@ def _holds_backup(entry: Path) -> bool | None:
             raise exc
 
         for dirpath, dirnames, filenames in os.walk(entry, followlinks=False, onerror=_boom):
-            if os.path.basename(dirpath) == "scratchpad":
+            if Path(dirpath) == entry / "scratchpad":
                 # a run folder is marker-governed: inside a CONSUMED one a backup shape is disposable
                 # by contract, and an ACTIVE one is kept whole anyway (plan P8, P10). Only the mint's
-                # KEYED name is one (`is_run_entry`): an agent's own `run-tests/` or `.trash-old/` is
-                # ordinary scratch, and pruning it by prefix hid its backups and removed them (F11)
+                # KEYED name directly in the session's OWN pad is one (`is_run_entry`, `run_entries`):
+                # an agent's own `run-tests/`, `.trash-old/` or a nested `…/scratchpad/run-<key>/` is
+                # ordinary scratch, and pruning those hid their backups and removed them (F11)
                 dirnames[:] = [d for d in dirnames if not is_run_entry(Path(dirpath) / d)]
             for n in list(dirnames) + list(filenames):
                 if _is_backup_shape(n):
@@ -398,17 +399,27 @@ def _refuse_constant(name: str) -> float:
     raise ValueError(f"non-finite {name} in a run marker")
 
 
+def _finite_float(text: str) -> float:
+    """An overflowing literal (`-1e999`) parses to ±inf WITHOUT reaching `parse_constant`."""
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError(f"non-finite {text} in a run marker")
+    return value
+
+
 def read_owner(folder: Path) -> dict | None:
     """The parsed `.owner` marker; None when it is missing, unreadable or not a JSON object.
 
-    `NaN` / `Infinity` / `-Infinity` are refused (F10): `json.loads` accepts them, and a NaN or -inf
-    time read as a past close or creation made a clobbered marker CONSUMED at every reader of it
-    (`judge_run_folder`, `gap_keeps`, `write_size_report`). None is INV-1 doubt: kept, never removed.
+    `NaN` / `Infinity` / `-Infinity` and overflowing literals such as `-1e999` are refused (F10):
+    `json.loads` accepts them, and a NaN or -inf time read as a past close or creation made a
+    clobbered marker CONSUMED at every reader of it (`judge_run_folder`, `gap_keeps`,
+    `write_size_report`). A marker nested past the recursion limit is refused too, never a crash
+    that aborts the sweep. None is INV-1 doubt: kept, never removed.
     """
     try:
         text = (folder / OWNER_NAME).read_text(encoding="utf-8")
-        data = json.loads(text, parse_constant=_refuse_constant)
-    except (OSError, ValueError):
+        data = json.loads(text, parse_constant=_refuse_constant, parse_float=_finite_float)
+    except (OSError, ValueError, RecursionError):
         return None
     return data if isinstance(data, dict) else None
 

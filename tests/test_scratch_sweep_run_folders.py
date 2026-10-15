@@ -696,6 +696,56 @@ def test_a_non_finite_marker_time_is_doubt_never_consumed(
     assert folder.exists(), out
 
 
+@pytest.mark.parametrize("raw", ["-1e999", "1e999", "-1e400"])
+def test_an_overflowing_marker_time_is_doubt_never_consumed(
+    raw: str, harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """F10, review round 1: a number literal that overflows (`-1e999`) parses to ±inf WITHOUT
+    passing `parse_constant`, and -inf read as a past close made the folder consumed. Written as
+    raw text, the way a clobbered file carries it; the folder stays."""
+    sdir = _session(harness)
+    folder = _run_folder(sdir, "overflow")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    owner["closed_at"] = "@@T@@"
+    (folder / ".owner").write_text(json.dumps(owner).replace('"@@T@@"', raw), encoding="utf-8")
+    _age(folder / ".owner", 40 * HOUR)
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert folder.exists(), out
+
+
+def test_a_deeply_nested_marker_is_doubt_never_a_crash(
+    harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Review round 1: a clobbered `.owner` nested past the recursion limit raised RecursionError out
+    of `read_owner` and aborted the whole sweep; it now reads as no marker, and the run completes."""
+    sdir = _session(harness)
+    folder = _run_folder(sdir, "deep")
+    (folder / ".owner").write_text("[" * 200_000 + "]" * 200_000, encoding="utf-8")
+    assert sw.read_owner(folder) is None
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert folder.exists(), out
+
+
+def test_a_backup_under_a_nested_scratchpad_keeps_its_dead_session(
+    harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """F11, review round 1: only the session's OWN pad holds marker-governed run folders. A keyed
+    name under a nested `…/scratchpad/` (a project copied into scratch) is ordinary scratch, so its
+    backup keeps the dead session — the prune fired at ANY directory named `scratchpad`."""
+    dead = _session(harness)
+    nested = dead / "scratchpad" / "proj" / "scratchpad" / "run-x-2026-10-15T05-40-42-0300-0a1b2c"
+    nested.mkdir(parents=True)
+    (nested / "main.py.bak").write_text("the only copy", encoding="utf-8")
+    _dead_record(tmp_path, SID_A)
+    _age_tree(dead, 30 * DAY)
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    assert "dead-holds-backups" in out, out
+    assert (nested / "main.py.bak").exists(), out
+
+
 @pytest.mark.parametrize("name", ["run-tests", ".trash-old"])
 def test_a_backup_inside_an_unminted_run_named_folder_keeps_its_dead_session(
     name: str, harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
