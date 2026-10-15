@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — gateway counts name Qwen-MT's flash tier, not the frozen turbo (2026-10-15)
+
+- `scripts/kilo-benchmarks/update_gateway_counts.py` no longer writes `qwen-mt-turbo` into the ai/00 and ai/30
+  GATEWAY_COUNTS blocks: Alibaba no longer updates the turbo tier (research ledger row tr-06). The language block names
+  `qwen-mt-flash` and says the bake-off ranking was measured on turbo; the master row's example is generic, because
+  the catalog's one DashScope route is still turbo. `tests/test_language_pack.py` grades every rendered category
+  (W-7450f4b6). The pack blocks change on the next render, which D-430 keeps paused.
+
 ### Fixed — docs: why WSL cannot resolve registry.npmjs.org, and the one-line resolver fix (2026-10-15)
 
 - New `docs/TROUBLESHOOTING.md` § DNS Issues entry (W-f0fd555a, recurrence of W-478049bc). Measured cause: the npm registry's 12 A + 12 AAAA answer exceeds 512 bytes, glibc queries without EDNS so the reply is truncated and retried over TCP, and outbound TCP/53 is blocked to every resolver. The fix is `edns0` on `/etc/resolv.conf`'s options line (the file is immutable, so `chattr -i`/`+i` around the `sed`), proven first with `RES_OPTIONS=edns0`. Applying it is an operator gate.
