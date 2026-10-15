@@ -1136,9 +1136,15 @@ class TestChromeExtensionBackendRelease:
         out, _ = _run_server(
             project,
             env,
-            "r = client.get('/extension/latest')\nout['status'] = r.status_code\nout['body'] = r.json()",
+            "r = client.get('/extension/latest')\nout['status'] = r.status_code\nout['body'] = r.json()\n"
+            "out['cache'] = r.headers.get('cache-control')",
         )
-        assert out == {"status": 404, "body": {"detail": "no release published"}}
+        # no-store on the 404 too: a cached "no release" would hide the next release
+        assert out == {
+            "status": 404,
+            "body": {"detail": "no release published"},
+            "cache": "no-store",
+        }
 
     def test_b2_latest_returns_exactly_the_three_values(self, project):
         """B2: all three set → 200 with exactly those values."""
