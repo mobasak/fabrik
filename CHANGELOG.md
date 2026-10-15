@@ -21,6 +21,14 @@ repo scaffolded before the kit still builds them by hand. Intel's mail
 01M506XR5W (W-4a4a8792); pinned against a fresh scaffold by
 `tests/test_chrome_ext_pack.py::test_the_pack_names_the_release_kit_the_scaffold_ships`.
 
+### Added — check_review_hygiene reports a split pipe table (2026-10-15)
+
+- `scripts/enforcement/check_review_hygiene.py` gains the advisory `split-table` class: a table row after the blank
+  line, HTML comment or fence that ended its table by accident, which GFM renders as a headerless paragraph
+  (iterative_image_editor, mail 01M3WZKG2S; W-b9c91cc5). One hit per split region, never blocking. It fires 9 times
+  in 9 of the hub's 2,109 tracked `.md` files, every one a real split, and 5 times in 5 of the 275-receipt corpus.
+  The review also fixed the line cursor, which bound a row repeating its header's text to the header.
+
 ### Fixed — gateway counts name Qwen-MT's flash tier, not the frozen turbo (2026-10-15)
 
 - `scripts/kilo-benchmarks/update_gateway_counts.py` no longer writes `qwen-mt-turbo` into the ai/00 and ai/30

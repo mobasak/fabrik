@@ -9,8 +9,8 @@ orchestrator adjudicates each one into the receipt's ledger as FIXED or as
 ``RECORDED — hygiene false positive (<why>)`` — the verdict form the coverage gate's ``VERDICT``
 accepts (``check_review_coverage.py``, D-206).
 
-Three of the four classes — template-residue, fence-parity, table-parity — run only on surfaces
-whose name ends in `.md` (the `path.endswith(".md")` gates in `_surface_hits`; `SURFACE_SUFFIXES`
+Four classes — template-residue, fence-parity, table-parity and split-table — run on a surface
+only when its name ends in `.md` (the `path.endswith(".md")` gates in `_surface_hits`; `SURFACE_SUFFIXES`
 is only the directory-walk filter); a pin copied to a non-.md name gets the stale-phrase, claim and
 changelog classes alone, and the summary line reads the same — copy a pin as `<name>.md` (T4.7,
 01M285X4H).
@@ -27,7 +27,11 @@ Classes (each hit is a `path:line` with its class name):
   table-parity       the same cell-count defect on ANY `.md` surface (a spec, a plan, a rendered
                      command) — one shared helper, named by where it was found; fenced and
                      commented lines are blanked first, as the receipt path already does.
-  dual-verdict       a receipt table cell carrying more than one BARE verdict word (F314's class:
+  split-table        a table row after the line that ended its table by accident — a blank line,
+                     an HTML comment or a fence — so it renders as a headerless paragraph
+                     (W-b9c91cc5); on a receipt and on any `.md` surface, one hit per split
+                     region, advisory.
+  dual-verdict      a receipt table cell carrying more than one BARE verdict word (F314's class:
                      its cell carries `RECORDED` twice and matches ``VERDICT`` zero times, so a
                      VERDICT-based detector is blind to it).
   changelog-entry    ``check_changelog.py``'s ``check_changelog_quality()`` — called, not copied.
@@ -78,9 +82,13 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 
 try:
+    from .check_review_coverage import (
+        _is_separator as _rows_is_separator,  # type: ignore[import-not-found]
+    )
     from .check_review_coverage import _table_rows  # type: ignore[import-not-found]
 except ImportError:  # direct-script invocation
     sys.path.insert(0, str(_HERE))
+    from check_review_coverage import _is_separator as _rows_is_separator  # type: ignore[no-redef]
     from check_review_coverage import _table_rows  # type: ignore[no-redef]
 
 # Anchored at BOTH braces to the renderer's two shapes — a marker (`include:` + a name) or a
@@ -393,6 +401,83 @@ def _headers(lines: list[str]) -> dict[int, tuple[int, int | None]]:
     return out
 
 
+# The non-blank line that splits a table by ACCIDENT: an HTML comment (a one-line `<!-- … -->` —
+# `_blank_quoted` keeps those; a multi-line comment already reads blank). GFM also ends a table at a
+# heading, a thematic break, a blockquote or a list item, but those start NEW content — measured
+# over the 275-receipt corpus, counting a heading fired 5 false reds out of 10 hits (a `## Pass
+# Ledger` heading over an older receipt's deliberately headerless pass table), so they stay out.
+_TABLE_ENDER = re.compile(r" {0,3}<!--")
+
+
+def _ends_table(line: str) -> bool:
+    """A blank line or a comment line (`_TABLE_ENDER`); never a pipe row. `str.strip()` on purpose:
+    an NBSP-only line ends the table too (markdown-it renders the next row as a paragraph — review
+    pass 2 refuted the pass-1 premise that it does not)."""
+    return not line.strip() or (
+        not line.lstrip().startswith("|") and bool(_TABLE_ENDER.match(line))
+    )
+
+
+def _opens_split(lines: list[str], idx: int, orphans: set[int]) -> bool:
+    """Does the headerless data row at `idx` open a SPLIT of the table above it (W-b9c91cc5)?
+
+    GFM ends a table at its first line that is not a table row; the accidental ones are a blank line
+    and a comment line (`_TABLE_ENDER`); a fence or a multi-line comment reads blank in this BLANKED
+    copy. Every row after it is a headerless paragraph. True when the line just above ends a table, the
+    nearest line above that run of table-ending lines is a pipe row, that row is not itself an
+    orphan (a double-spaced table reports ONCE per split region, not per row), and the row is not
+    indented four columns or more (an indented code block, the same column measure as
+    `_overflow_loses_text`). Advisory: a split loses structure, never text. Stated blind spots
+    (misses, never false reds): orphan rows with no leading `|`; a split blockquote table (`> |`
+    rows are not pipe rows); an orphan run that opens with a delimiter row (`_table_rows` never
+    yields one); a table nested four columns deep in a list item (read as indented code); a
+    heading, thematic break, blockquote or list item between rows (`_TABLE_ENDER`'s measured
+    exclusion). A pipe-led prose line after a table fires — GFM renders it as a paragraph anyway.
+    COBRA (D-253): the cheapest dodges — a second blank or a comment between the rows — both still
+    fire; dropping the orphan rows' leading `|` or putting a heading between them does not."""
+    row = lines[idx]
+    if len(row[: len(row) - len(row.lstrip(" \t"))].expandtabs(4)) >= 4:
+        return False
+    if idx == 0 or not _ends_table(lines[idx - 1]):
+        return False
+    j = idx - 1
+    while j >= 0 and _ends_table(lines[j]):
+        j -= 1
+    return j >= 0 and lines[j].lstrip().startswith("|") and j not in orphans
+
+
+def _rows_cells(row: str) -> int:
+    """`_table_rows`'s own cell count (check_review_coverage.py, its nested `_cells`): one optional
+    boundary pipe per side, `\\|` escaped, NO code-span mask — so a header the two disagree on can
+    never desynchronise the cursor (review pass 2: counting with `_split_cells` here skipped a
+    header `_table_rows` yields, ran the cursor off the end and dropped a BLOCKING raw-pipe row)."""
+    r = re.sub(r"\\\|", "\x00", row.strip())
+    if r.startswith("|"):
+        r = r[1:]
+    if r.endswith("|"):
+        r = r[:-1]
+    return len(r.split("|"))
+
+
+def _is_header_line(lines: list[str], k: int) -> bool:
+    """Is `lines[k]` a line `_table_rows` skips — a delimiter row, or a table's header (the first
+    pipe row of its run, with a matching delimiter row right under it)? Judged by `_table_rows`'s
+    OWN predicates (`_rows_is_separator`, `_rows_cells`). The line-number cursor in
+    `_table_parity_hits` must never bind a data row to one of these: matched by TEXT alone, a later
+    row that repeats a header's text was bound to the header and never graded (review pass 1)."""
+    if not lines[k].lstrip().startswith("|"):
+        return False
+    if _rows_is_separator(lines[k]):
+        return True
+    nxt = lines[k + 1].strip() if k + 1 < len(lines) else ""
+    return (
+        (k == 0 or not lines[k - 1].lstrip().startswith("|"))
+        and _rows_is_separator(nxt)
+        and _rows_cells(lines[k]) == _rows_cells(nxt)
+        and "|" in lines[k + 1]
+    )
+
+
 def _table_parity_hits(
     path: str, lines: list[str], cls: str
 ) -> tuple[list[Hit], list[tuple[int, list[tuple[str, str]], int | None]], int]:
@@ -406,12 +491,20 @@ def _table_parity_hits(
     hits: list[Hit] = []
     aligned: list[tuple[int, list[tuple[str, str]], int | None]] = []
     headerless = 0
+    orphans: set[int] = set()
     # `_table_rows` returns the visible DATA rows verbatim and in order (headers and separators
     # already skipped); walk the physical lines in step to recover each row's line number.
     cursor = 0
     for row in _table_rows("\n".join(lines)):
-        while cursor < len(lines) and lines[cursor] != row:
+        start = cursor
+        while cursor < len(lines) and (lines[cursor] != row or _is_header_line(lines, cursor)):
             cursor += 1
+        if cursor >= len(lines):
+            # fail-safe: never grade FEWER rows than a text-only match would — if the header
+            # skip finds no line, fall back to the first text match
+            cursor = start
+            while cursor < len(lines) and lines[cursor] != row:
+                cursor += 1
         if cursor >= len(lines):
             break
         idx, cursor = cursor, cursor + 1
@@ -419,6 +512,18 @@ def _table_parity_hits(
         width, col = headers.get(idx, (None, None))
         if width is None:
             headerless += 1
+            if _opens_split(lines, idx, orphans):
+                hits.append(
+                    Hit(
+                        "split-table",
+                        path,
+                        idx + 1,
+                        "a table row after a blank line, a comment or a fence — the table ended "
+                        "above, so this row renders as a headerless paragraph (delete the "
+                        "separating line, or give the rows their own header)",
+                    )
+                )
+            orphans.add(idx)
             continue
         if len(cells) != width:
             # A row whose cells do not line up with its header has NO trustworthy disposition
