@@ -20,7 +20,8 @@
   "score_reason": "impact HIGH: names 'block'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "rules"
+    "rules",
+    "waits-catalog-routes"
   ],
   "title": "Resume model-routing and gateway block delivery once ai-model-catalog's engine emits non-empty OPENROUTER_ROUTES and the routing doc can be excluded upstream (D-554)"
 }
