@@ -109,15 +109,15 @@ $ python scripts/review_rubric.py --changed scripts/work.py tests/test_work_coor
 
 | Class | Status |
 |---|---|
-| Hunt: `scripts/work.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_work_coordinator.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/reference/work-tracking.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `scripts/work.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (actor-keyed resume and re-pause refusal, store lock with re-read, regular-file markers, `_pause_record` normalisation, never-raising `_paused`, PAUSED-line and doorbell wording, docstrings) |
+| Hunt: `tests/test_work_coordinator.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (ready-line, tree-name and .tmp assertions made discriminating; graders for re-pause, actor resume, directory and FIFO markers, unknown time, commit-items survival, paused-coordinator doorbell; 11 of 11 mutants killed) |
+| Hunt: `docs/reference/work-tracking.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (rows state the worker-tree keying of floor/triage/queue, the actor-based resume and the odd-entry handling) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (presence pauses, an unreadable dir is no pause and queue warns; a FIFO is never read) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (scripts/work.py pause markers are capped at 4 KiB and read once per call; no pool, quota or seat counting is touched by this change) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (at 0 and absurd stamps read as unknown; the `*.json` glob plus the `_valid_name` stem check excludes `.tmp` and invalid names) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (four vacuous assertions replaced; 11 of 11 guard mutants killed in a probe worktree at 28cd22db7) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (scripts/work.py `pause` with no name lists every marker; `queue --json` carries the full `paused` list; no bounded search is introduced) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (scripts/work.py every finding reproduced by running work.py in throwaway repos with a fake /proc; the FIFO hang executed under a timeout) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -143,6 +143,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×2 + haiku×2 (slice A: scripts/work.py; slice B: the test file + work-tracking.md) | found: 21, new: 21, confirmed: 16, fixed: 16, unexecuted: 0 | method: execution — work.py driven in throwaway repos (fake /proc, FIFO and directory markers, overwrite and spoof sequences), mutant tables on extracted copies |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
