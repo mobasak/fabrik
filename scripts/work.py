@@ -2942,8 +2942,30 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
     both = set(add_tags) & set(drop_tags)
     if both:
         raise WorkError(f"--tag and --untag both name {', '.join(sorted(both))}; pick one")
-    if args.owner is None and args.priority is None and not add_tags and not drop_tags:
-        raise WorkError("assign needs --owner, --priority, --tag and/or --untag")
+    block_add = list(dict.fromkeys(args.blocked_by or []))
+    block_drop = list(dict.fromkeys(args.unblock or []))
+    both = set(block_add) & set(block_drop)
+    if both:
+        raise WorkError(f"--blocked-by and --unblock both name {', '.join(sorted(both))}; pick one")
+    scoring = args.impact is not None or args.effort is not None
+    if (
+        args.owner is None
+        and args.priority is None
+        and not add_tags
+        and not drop_tags
+        and not scoring
+        and not block_add
+        and not block_drop
+    ):
+        raise WorkError(
+            "assign needs --owner, --priority, --tag, --untag, --impact/--effort (with --why), "
+            "--blocked-by and/or --unblock"
+        )
+    why = " ".join((args.why or "").split())
+    if scoring and not why:
+        raise WorkError('--impact/--effort need --why "<one line>": every score carries its reason')
+    if why and not scoring:
+        raise WorkError("--why is the reason a score carries: give it with --impact/--effort")
     owner = None if args.owner is None else args.owner.strip()
     if owner and not _valid_name(owner):
         raise WorkError(f"--owner {owner!r} is not an agent name ({NAME_RULE}); owners are agents")
@@ -2955,20 +2977,132 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
                 f"assign is the distributor's ({distributor}); this caller is {_actor_label()}"
             )
         item = _read_item(repo, args.id)
+        held = _dep_ids(item)
+        for dep in block_drop:
+            if dep not in held:
+                raise WorkError(f"--unblock {dep}: {item['id']} is not blocked by it")
+        for dep in block_add:
+            if dep == item["id"]:
+                raise WorkError(f"--blocked-by {dep}: an item cannot block itself")
+            _read_item(repo, dep)  # an unknown id is refused, never stored
+            if item["id"] in _blockers_of(repo, dep):
+                raise WorkError(
+                    f"--blocked-by {dep} refused: {dep} already waits on {item['id']} — a cycle "
+                    "would leave both unworkable"
+                )
+        note = _apply_score(item, args.impact, args.effort, why, args.priority)
         if owner is not None:
             item["owner"] = owner
-        if args.priority is not None:
-            item["priority"] = args.priority
         if add_tags or drop_tags:
             tags = (set(item.get("tags") or []) | set(add_tags)) - set(drop_tags)
             if tags:
                 item["tags"] = sorted(tags)
             else:
                 item.pop("tags", None)
+        if block_add or block_drop:
+            deps = [d for d in held if d not in block_drop]
+            deps += [d for d in block_add if d not in deps]
+            item["blocked_by"] = deps  # every item carries the key; an emptied hold is []
         path = _write_item(repo, item)
         _after_write(repo, _session())
+    if note:
+        print(note, file=sys.stderr)
     print(_rel(repo, path))
     return 0
+
+
+# Impact x effort -> the stored integer priority (spec D4, plan 2026-10-15). Low impact + high
+# effort is a time sink: it is dropped with a reason, never scored. COBRA (D-253): the cheapest
+# way to look prioritised is to call everything a quick win — the reason travels with every
+# score (`score_reason`) and `triage` lists what is unscored, so a blanket score stays visible.
+SCORE_LEVELS = ("high", "low")
+_DERIVED_PRIORITY = {("high", "low"): 1, ("high", "high"): 2, ("low", "low"): 3}
+
+
+def _scored(item: dict) -> bool:
+    return item.get("impact") in SCORE_LEVELS and item.get("effort") in SCORE_LEVELS
+
+
+def _is_major(item: dict) -> bool:
+    """A major project: high impact AND high effort (spec D4)."""
+    return item.get("impact") == "high" and item.get("effort") == "high"
+
+
+def _dep_ids(item: dict) -> list[str]:
+    """`item["blocked_by"]` as a list of ids — a hand-edited non-list value reads as none, so one
+    malformed item never crashes an `assign` that does not touch its holds."""
+    raw = item.get("blocked_by")
+    return [str(d) for d in raw] if isinstance(raw, list) else []
+
+
+def _blockers_of(repo: Path, start: str) -> set[str]:
+    """Every id `start` waits on, transitively, through `blocked_by` (the cycle check of
+    `assign --blocked-by`). An unreadable item ends its branch of the walk."""
+    seen: set[str] = set()
+    todo = [start]
+    while todo:
+        current = todo.pop()
+        try:
+            deps = _dep_ids(_read_item(repo, current))
+        except WorkError:
+            continue
+        for dep in deps:
+            if dep not in seen:
+                seen.add(dep)
+                todo.append(dep)
+    return seen
+
+
+def _apply_score(
+    item: dict, impact: str | None, effort: str | None, why: str, priority: int | None
+) -> str:
+    """Write a score onto `item` (in place) and return a note for stderr ("" when none). Every
+    check runs on the item as it will be written, so a score split across two calls is judged
+    as one. An item that is not fully scored after the call keeps today's `--priority` rules.
+    Refuses (WorkError, nothing written) a time sink, and a `--priority` other than 0 on an item
+    whose priority is derived. A P0 set before the FIRST full score survives it; a re-score of an
+    already-scored item ends the override and says so."""
+    scoring = impact is not None or effort is not None
+    was_scored, was = _scored(item), _priority(item)
+    after = {
+        "impact": impact if impact is not None else item.get("impact"),
+        "effort": effort if effort is not None else item.get("effort"),
+    }
+    if scoring and after["impact"] == "low" and after["effort"] == "high":
+        raise WorkError(
+            f"{item['id']}: --impact low with --effort high is a time sink — drop it with "
+            f'`python3 scripts/work.py drop --why "<reason>" {item["id"]}`'
+        )
+    full = after["impact"] in SCORE_LEVELS and after["effort"] in SCORE_LEVELS
+    if not full:  # unscored before and after: today's --priority, untouched
+        if scoring:
+            for key, value in after.items():
+                if value is not None:
+                    item[key] = value
+            item["score_reason"] = why
+        if priority is not None:
+            item["priority"] = priority
+        return ""
+    if priority is not None and priority != 0:
+        raise WorkError(
+            f"--priority {priority} refused: {item['id']} is scored, so its priority is derived "
+            "— re-score it with --impact/--effort, or set --priority 0 for an incident"
+        )
+    if scoring:
+        item.update(after)
+        item["score_reason"] = why
+    if priority == 0 or (not scoring and was == 0):
+        item["priority"] = 0
+        return ""
+    if not scoring:
+        return ""
+    derived = _DERIVED_PRIORITY[(item["impact"], item["effort"])]
+    if was == 0 and not was_scored:
+        return f"P0 kept: the first score of {item['id']} would be P{derived}; re-score to end it"
+    item["priority"] = derived
+    if was == 0:
+        return f"P0 override cleared (now P{derived})"
+    return ""
 
 
 READY_OTHERS_SHOWN = 10
@@ -2981,7 +3115,8 @@ def cmd_ready(repo: Path, args: argparse.Namespace) -> int:
     COBRA (D-253): the cheapest crisp ``ready`` is one where nothing is ever assigned (so nothing
     is "owned") — ``status`` prints the unowned count to the distributor for exactly that."""
     _require_store(repo)
-    agent = _agent_name()
+    builder = _builder(repo)  # one name for `mine` and the builder filter (review round 1)
+    agent = builder or _agent_name()
     if args.all:
         for item in _ready_items(repo, mine=args.mine, agent=agent if args.mine else ""):
             print(_line(item))
@@ -3025,7 +3160,7 @@ def cmd_ready(repo: Path, args: argparse.Namespace) -> int:
     rest = [
         it
         for it in _ready_from(items, closed, claims, mine=args.mine, agent=agent)
-        if it["id"] not in shown
+        if it["id"] not in shown and (not builder or it.get("owner") == builder)
     ]
     for item in rest[:READY_OTHERS_SHOWN]:
         print(_line(item))
@@ -3036,7 +3171,11 @@ def cmd_ready(repo: Path, args: argparse.Namespace) -> int:
 
 def cmd_next(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    items = [i for i in _ready_items(repo, mine=True, agent=_agent_name()) if not _is_parked(i)]
+    builder = _builder(repo)  # its name resolves through the Stop hook's chain (`_caller_name`)
+    agent = builder or _agent_name()
+    items = [i for i in _ready_items(repo, mine=True, agent=agent) if not _is_parked(i)]
+    if builder:  # coordinator mode: a builder takes what the coordinator queued it (D-871)
+        items = [i for i in items if i.get("owner") == builder]
     if items:
         print(_line(items[0]))
     else:
@@ -4459,7 +4598,14 @@ def prompt_block(repo: Path | str, session: str) -> str:
             if elsewhere:
                 lines.append(_fit_ids("work: your claims on items not in this tree — ", elsewhere))
             lines.extend(_on_it_lines(shown, session))
-            ready = len(_ready_from(items, closed, claims))
+            builder = _builder(root, session)
+            ready = len(
+                [
+                    it
+                    for it in _ready_from(items, closed, claims)
+                    if not builder or it.get("owner") == builder
+                ]
+            )
             if ready:
                 lines.append(f"work: {ready} ready — `work.py next`")
             if _print_mode():
@@ -4826,18 +4972,14 @@ def _bucket(n: int) -> str:
     return "0" if n <= 0 else ("few" if n < 5 else "many")
 
 
-def _stop_action(tree: Path, session: str) -> dict:
-    """The ONE action the Stop hook acts on for `session` working in `tree` (see the block above).
-    Pure reads; every unknown is a null action (the hook fails open)."""
-    main = _worktrees(tree)[0].resolve()
-    tree = tree.resolve()
-    workers = _workers(main)
-    coordinator = (
-        str(_read_config(main).get("distributor") or "").strip() if _has_store(main) else ""
-    )
+def _caller_name(
+    main: Path, tree: Path, workers: dict[str, Path], coordinator: str, session: str = ""
+) -> str:
+    """Who is working in `tree`: the session-aware `_agent_name`, else the worker tree's name, else
+    the feedback owner's tree, else the distributor in the main checkout. The Stop hook and the
+    builder filter resolve the caller through this one function, so they never disagree."""
     agent = _agent_name(session=session)
-    is_worker = tree in workers.values()
-    if not agent and is_worker:
+    if not agent and tree in workers.values():
         agent = next(n for n, t in workers.items() if t == tree)
     if not agent:
         # the feedback owner's tree is dropped from the pool, so it gets the same name fallback
@@ -4847,6 +4989,67 @@ def _stop_action(tree: Path, session: str) -> dict:
             agent = owner
     if not agent and tree == main and coordinator:
         agent = coordinator
+    return agent
+
+
+def _coordinator_mode(main: Path) -> bool:
+    """`config.json["coordinator_mode"] is true` in the main checkout's store (plan 2026-10-15,
+    D-871). `work.py` is fleet-synced, so every behaviour that changes what a builder sees is
+    opt-in per repo through this key; any read error is False (today's behaviour)."""
+    try:
+        return _has_store(main) and _read_config(main).get("coordinator_mode") is True
+    except Exception:
+        return False
+
+
+def _builder_mode_main(tree: Path) -> Path | None:
+    """The main checkout when coordinator mode governs `tree`, else None. BOTH the caller tree's
+    own `config.json` and main's must carry the key: the tree's copy is a cheap gate (a repo
+    without the key pays no `git worktree list` per prompt), and a builder whose branch predates
+    the flip keeps today's view until it merges — every builder-facing behaviour (`_builder` and
+    the Stop doorbell's lister) reads this one predicate, so they never disagree."""
+    try:
+        if not _has_store(tree) or _read_config(tree).get("coordinator_mode") is not True:
+            return None
+        main = _worktrees(tree)[0].resolve()
+        return main if _coordinator_mode(main) else None
+    except Exception:
+        return None
+
+
+def _builder(tree: Path, session: str = "") -> str:
+    """The caller's name when it is a BUILDER in a coordinator-mode repo — a multi-window repo
+    (`_workers(main)` non-empty) whose store sets `coordinator_mode`, and a caller who is not the
+    distributor — else "". `main` comes from `_worktrees`, never `tree`: `_workers` read from a
+    linked tree is empty. COBRA (D-253): a builder that unsets its name reads "" here only in the
+    main checkout, where the distributor fallback names it the coordinator anyway."""
+    try:
+        main = _builder_mode_main(tree)
+        if main is None:
+            return ""
+        workers = _workers(main)
+        if not workers:
+            return ""
+        coordinator = str(_read_config(main).get("distributor") or "").strip()
+        agent = _caller_name(main, tree.resolve(), workers, coordinator, session)
+        # only a POOL worker is a builder: the feedback owner's tree is dropped from the pool
+        # (`_workers`), so triage never queues it work and it keeps today's view
+        return agent if agent and agent != coordinator and agent in workers else ""
+    except Exception:
+        return ""
+
+
+def _stop_action(tree: Path, session: str) -> dict:
+    """The ONE action the Stop hook acts on for `session` working in `tree` (see the block above).
+    Pure reads; every unknown is a null action (the hook fails open)."""
+    main = _worktrees(tree)[0].resolve()
+    tree = tree.resolve()
+    workers = _workers(main)
+    coordinator = (
+        str(_read_config(main).get("distributor") or "").strip() if _has_store(main) else ""
+    )
+    agent = _caller_name(main, tree, workers, coordinator, session)
+    is_worker = tree in workers.values()
     none = {"agent": agent, "role": "", "action": None, "fp": "", "text": ""}
     if not _has_store(main):
         return none
@@ -4959,11 +5162,18 @@ def _classic_rungs(
             f"`SendMessage to={n}: queue empty — {routable} routable, {backlog} backlog`"
             for n in names
         )
+        # in coordinator mode `next` offers a builder only its own items, so the self-service
+        # fallback names the list that still holds the unowned ones (D-871)
+        lister = (
+            "`python3 scripts/work.py ready --all --mine`"
+            if _builder_mode_main(tree) is not None
+            else "`python3 scripts/work.py next`"
+        )
         how = (
             f"ring the coordinator ({coordinator}): {ring}"
             if ring
             else "the coordinator has no live window — take the next unowned item your own tree "
-            "shows (`python3 scripts/work.py next`) and claim it"
+            f"shows ({lister}) and claim it"
         )
         return {
             "agent": agent,
@@ -5379,6 +5589,39 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
     floor = _floor(main)
     pool = _pool(main)
     free = list(pool["routable"])
+    everything = list(_iter_items(main))
+    closed = _closed_ids(main)
+    unscored = sorted(
+        str(it["id"])
+        for it in everything
+        if it.get("status") == "open"
+        and it.get("kind") != "next"
+        and it["id"] not in closed
+        and not _scored(it)
+    )
+    if _coordinator_mode(main):
+        # scored work first, each group in today's order (sorted() is stable): nothing starves
+        # while the backlog is scored, and a scored item wins over an unscored one (D-871)
+        free.sort(key=lambda it: 0 if _scored(it) else 1)
+    # ONE major project in flight per repo (spec D3 job 3): a fresh scan, because `_pool` and
+    # `_worker_queues` read only ready, unclaimed items and would miss a claimed or blocked major
+    live = _live_claims(main)
+    in_flight = [
+        it
+        for it in everything
+        if _is_major(it)
+        and (it.get("owner") or it["id"] in live)  # a claim on an unowned major holds it too
+        and it.get("status") in ("open", "blocked")
+        and it["id"] not in closed
+    ]
+    kept, major_planned = [], bool(in_flight)
+    for it in free:
+        if _is_major(it):
+            if major_planned:
+                continue  # waits for the slot: at most one major per run, none while one flies
+            major_planned = True
+        kept.append(it)
+    free = kept
     plan: dict[str, list[dict]] = {}
     counts = _worker_queues(main, {n: workers[n] for n in present})
     for name in sorted(present):
@@ -5402,6 +5645,12 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
             f"your own queued items ({distributor}): {len(_queued(main, distributor))} — hand out or keep"
         )
     print(f"held {len(pool['held'])} (runtime/hold/waits-*) — assign by hand")
+    print(_fit_ids(f"unscored {len(unscored)}: ", unscored) if unscored else "unscored 0")
+    for it in in_flight:
+        print(
+            f"major in flight: {it['id']} ({it.get('owner') or 'claimed'}, {it.get('status')}) — "
+            "other majors wait for its slot"
+        )
     for line in _open_plans(main):
         print(f"plan not executed: {line}")
     if not args.apply or not plan:
@@ -5468,6 +5717,13 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--priority", type=_priority_arg)
     s.add_argument("--tag", action="append", help="add a tag, repeatable")
     s.add_argument("--untag", action="append", help="remove a tag, repeatable")
+    s.add_argument("--impact", choices=SCORE_LEVELS, help="score: impact (needs --why)")
+    s.add_argument("--effort", choices=SCORE_LEVELS, help="score: effort in quota (needs --why)")
+    s.add_argument("--why", help="the one-line reason a score carries")
+    s.add_argument(
+        "--blocked-by", action="append", help="hold this item behind another id, repeatable"
+    )
+    s.add_argument("--unblock", action="append", help="remove a blocked-by id, repeatable")
     s.set_defaults(fn=cmd_assign)
 
     s = sub.add_parser(

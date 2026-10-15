@@ -1,6 +1,6 @@
 # Plan — the coordinator role: sort, prioritise, merge, keep the records; never build
 
-Status: CONVERGED — approved D-871
+Status: IN-PROGRESS — approved D-871
 Profile: small
 **Owner:** infra
 
@@ -155,6 +155,8 @@ paths: each phase commits once, after its review, and the commit distributes fle
 | Role separation (review loops) — who hunts LAST is never the author | `.windsurf/rules/core/62-using-subagents.md:77` |
 
 ## Phase A — the store
+
+✅ EXECUTED 2026-10-15 — the Phase A commit on branch `plan-coordinator-role` (isolation worktree; reaches master at Finish). `/fabrik-review-scoped` (ROUTED-TO-FINISH: governance-sync) closed quiet: confirmed 9 → 2 → 0; 23 coordinator tests, every one seen red first; 582 work-store tests green.
 
 Appetite: 150
 
