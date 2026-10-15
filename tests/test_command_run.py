@@ -2908,6 +2908,21 @@ def test_an_honest_none_naming_the_surfaces_it_swept_is_not_read_as_filed(run_di
         (run_dir / "s1.json").unlink()
 
 
+def test_the_coordinator_is_never_a_filing_beat(run_dir: Path) -> None:
+    """Coordinator-role Finish review, pass 1 (B-sonnet 1): `_BEATS` is the FEEDBACK grammar's
+    list, four beats, and the coordinator owns none (plan 2026-10-15-plan-1-coordinator-role
+    § Decisions taken here; D-875). A `filed:` value that mentions the coordinator — the word
+    this plan puts into most closes — is never attributed to it."""
+    text = (
+        "confusion: none · waste: none · change: lean: name the coordinator rungs · "
+        "filed: mentioned the coordinator cause but no mail id"
+    )
+    _start(run_dir)
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e", "--feedback", text)
+    row = _events(run_dir, "s1")[-1]
+    assert "coordinator" not in row["feedback_to"], row["feedback_to"]
+
+
 def test_a_real_filing_still_registers_its_beats(run_dir: Path) -> None:
     for text, beats in (
         ("confusion: none · waste: none · change: none · filed: filed 01M11 to intel", ["intel"]),

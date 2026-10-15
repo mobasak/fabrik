@@ -8,7 +8,7 @@ One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,arch
 
     send  --to <repo> --kind <k> [--ack required|no] [--re <id>] [--from <repo>] [--auto]
           [--to-agent <role>] [--broadcast] < body
-          (hub-bound sends REQUIRE --to-agent infra|fleet|intel|kaizen, --broadcast, or a
+          (hub-bound sends REQUIRE --to-agent coordinator|infra|fleet|intel|kaizen, --broadcast, or a
           kind=reply thread — the addressing guard; see the refusal text)
     list  [--repo <repo>] [--agent <role>]
     read  <id> [--repo <repo>]
@@ -542,16 +542,16 @@ def _frontmatter(
     )
 
 
-# The hub's shared four-agent mailbox is the ONLY mailbox with beats — the send/route
+# The hub's shared multi-agent mailbox is the ONLY mailbox with beats — the send/route
 # guards key on membership here. Project mailboxes keep free-form roles (_safe_agent is
 # shape-only). Adding a future beat = extend this tuple (plus the charter file).
-HUB_BEATS = ("infra", "fleet", "intel", "kaizen")
+HUB_BEATS = ("coordinator", "infra", "fleet", "intel", "kaizen")
 
 
 def _safe_agent(name: str) -> str:
     """Validate an intra-mailbox addressee (a ROLE, not a repo and not a session).
 
-    The hub runs four agents — infra · fleet · intel · kaizen — sharing ONE `fabrik`
+    The hub runs five agents — coordinator · infra · fleet · intel · kaizen — sharing ONE `fabrik`
     mailbox, so intra-hub traffic is `from: fabrik → to: fabrik` with no addressee
     at all. Agents worked around it in PROSE (`[infra→fleet]` body prefixes), and
     some put a role in `from:`, which is not a repo and breaks every routing and
@@ -1397,7 +1397,7 @@ def send(
             file=sys.stderr,
         )
     ack = ack or ACK_BY_KIND[kind]
-    # Addressing guard — the hub's shared four-agent mailbox only. Keyed on the LITERAL
+    # Addressing guard — the hub's shared multi-agent mailbox only. Keyed on the LITERAL
     # "fabrik", deliberately never _is_hub(): fabrik-lib's mailbox has no beats and stays
     # unguarded. Runs AFTER the recipient/star checks and the HIGH-secret refusal (D6/E1 —
     # a credential leak is diagnosed as a leak on the FIRST attempt, never masked by an
@@ -1476,8 +1476,8 @@ def send(
                 )
         if not to_agent and not broadcast and not is_thread_reply:
             raise MailRefusedError(
-                "unaddressed hub-bound send — the fabrik mailbox is shared by FOUR agents, "
-                "so name the owner:\n"
+                "unaddressed hub-bound send — the fabrik mailbox is shared by the hub's agents, "
+                "so name the owner by beat:\n"
                 "  --to-agent infra  (the CODE of hooks, enforcement checks and fabrik-mail · "
                 "the sync · workstation)\n"
                 "  --to-agent fleet  (VPS · deploy · specs/services · scaffolding · "
@@ -1485,6 +1485,7 @@ def send(
                 "  --to-agent intel  (models · benchmarks · flywheel · the review loop)\n"
                 "  --to-agent kaizen (FEEDBACK verdicts · a command's or rule's WORDING · "
                 "ways of working — the feedback loop)\n"
+                "  --to-agent coordinator (merge requests · work-item scores and assignment)\n"
                 "  genuinely all-agents → --broadcast (with --ack no)\n"
                 "  the authority for who owns which path: .fabrik/beat-owners.json "
                 "(or --to-agent map to address by it)"
@@ -2978,7 +2979,8 @@ def main(argv: list[str] | None = None) -> int:
     p_send.add_argument(
         "--to-agent",
         dest="to_agent",
-        help="intra-mailbox addressee ROLE (infra/fleet/intel/kaizen) — a filter, never a lock; "
+        help="intra-mailbox addressee ROLE (coordinator/infra/fleet/intel/kaizen) — a filter, "
+        "never a lock; "
         "`map` addresses a hub send to the ownership map's owner of its cited paths",
     )
     p_send.add_argument(
@@ -3037,7 +3039,7 @@ def main(argv: list[str] | None = None) -> int:
         "--to-agent",
         dest="to_agent",
         default="",
-        help="role (infra/fleet/intel/kaizen); omit or pass '' to CLEAR the addressee",
+        help="role (coordinator/infra/fleet/intel/kaizen); omit or pass '' to CLEAR the addressee",
     )
     p_route.add_argument("--repo")
     p_route.add_argument(

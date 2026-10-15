@@ -97,7 +97,7 @@ def _sanitize_subject(s: str) -> str:
 # The hub's beats, as `scripts/mail.py::HUB_BEATS` names them — copied, because this hook must
 # import nothing (tests/test_mail_notify.py pins the two tuples equal). A token that is not one
 # of them shows nothing, so a forged or stale header can never present an invented owner.
-_HUB_BEATS = ("infra", "fleet", "intel", "kaizen")
+_HUB_BEATS = ("coordinator", "infra", "fleet", "intel", "kaizen")
 
 
 def _map_marker(fm: dict) -> str:
