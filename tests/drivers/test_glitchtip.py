@@ -379,6 +379,23 @@ class TestVerifyDsnInjection:
             ok = verify_dsn_injection("myapp", "http://abc@host/1", max_wait=60, poll_interval=0.01)
         assert ok is True
 
+    def test_an_ssh_failure_in_the_fallback_lookup_propagates(self):
+        """The fallback pipeline ends in `head -1` and exits 0 on no match, so its RuntimeError is an
+        ssh failure — unknown, not absent. It must raise (the provisioner then records a non-fatal
+        failure and keeps the project) rather than read as False (which deletes a created one)."""
+
+        def fake_ssh(cmd, **_kw):
+            if "docker inspect" in cmd:
+                return ""
+            raise RuntimeError("ssh: connection reset")
+
+        with (
+            patch.object(glitchtip, "ssh", side_effect=fake_ssh),
+            patch.object(glitchtip.time, "sleep"),
+            pytest.raises(RuntimeError, match="connection reset"),
+        ):
+            verify_dsn_injection("myapp", "http://x", max_wait=0.05, poll_interval=0.01)
+
     def test_timeout_returns_false_never_raises(self):
         def fake_ssh(cmd, **_kw):
             return ""  # nothing ever comes up

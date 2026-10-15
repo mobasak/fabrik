@@ -249,9 +249,45 @@ class TestGlitchtipSpokeWiring:
                 "fabrik.drivers.glitchtip.delete_project",
                 side_effect=lambda *_a, **_k: hosts.append(os.environ.get("FABRIK_VPS_SSH_HOST")),
             ),
-            pytest.raises(DsnInjectionError),
+            pytest.raises(DsnInjectionError, match="Project rolled back"),
         ):
             prov._provision_glitchtip("spoke-app", _ctx("vps2"), dry_run=False)
 
         assert hosts == [None]
+        assert os.environ.get("FABRIK_VPS_SSH_HOST") is None
+
+    def test_a_failed_verify_never_deletes_a_project_that_already_existed(self):
+        """On a refresh (or re-apply) create_project finds the project (`exists`); a failed verify
+        still fails the run but must not delete the live project."""
+        prov = InfrastructureProvisioner(deployer=MagicMock())
+        with (
+            patch(
+                "fabrik.drivers.glitchtip.create_project",
+                return_value=_ok(status="exists", dsn="http://key@glitchtip-web:8000/9"),
+            ),
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=False),
+            patch("fabrik.drivers.glitchtip.delete_project") as rm,
+            pytest.raises(DsnInjectionError, match="Existing project kept"),
+        ):
+            prov._provision_glitchtip("spoke-app", _ctx("vps1"), dry_run=False)
+        rm.assert_not_called()
+
+
+class TestWatchdogSpokeRouting:
+    def test_the_watchdog_provisions_on_the_spoke_that_holds_the_app(self, monkeypatch):
+        """Every watchdog step (build, overlay push, compose up, container inspect) acts on the
+        app's host, and the image is a local tag, so the whole provision call runs swapped."""
+        monkeypatch.delenv("FABRIK_VPS_SSH_HOST", raising=False)
+        seen: list[str | None] = []
+
+        def record(self, ctx, *, dry_run=False):
+            seen.append(os.environ.get("FABRIK_VPS_SSH_HOST"))
+            return {"status": "provisioned"}
+
+        prov = InfrastructureProvisioner(deployer=MagicMock())
+        with patch("fabrik.drivers.watchdog.WatchdogDriver.provision", record):
+            prov._provision_watchdog("spoke-app", _ctx("vps2"), dry_run=False)
+            prov._provision_watchdog("spoke-app", _ctx("vps1"), dry_run=False)
+
+        assert seen == ["vps2", None]
         assert os.environ.get("FABRIK_VPS_SSH_HOST") is None

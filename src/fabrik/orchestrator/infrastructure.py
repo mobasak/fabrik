@@ -45,8 +45,8 @@ Error philosophy (mostly non-fatal):
   ``fabrik apply`` retries the idempotent registrars.
 * **The one exception is glitchtip's DSN-injection step** — if
   ``verify_dsn_injection`` returns False after .env injection + docker
-  compose restart, the method ROLLS BACK the GlitchTip project (to avoid an
-  orphan) and re-raises. A silent miss here would leave the deployed
+  compose restart, the method deletes the GlitchTip project if THIS run
+  created it (to avoid an orphan; a pre-existing project is kept) and raises. A silent miss here would leave the deployed
   app running with a stale/missing ``SENTRY_DSN`` and no errors would
   ever arrive in GlitchTip — worse than failing loud.
 
@@ -635,7 +635,7 @@ class InfrastructureProvisioner:
     a single driver's failure is logged at WARNING and does NOT break
     the deploy. The one exception is glitchtip's DSN-injection
     verification: if the DSN isn't propagated to the running container,
-    the project is rolled back and the method raises.
+    the method raises, deleting the project only if this run created it.
 
     The provisioner is stateless; it takes a :class:`DeploymentContext`
     and calls ``ctx.add_resource(type, id)`` for every successful step.
@@ -1270,8 +1270,9 @@ class InfrastructureProvisioner:
 
         This is the one registrar where a soft failure is unacceptable.
         If the DSN isn't actually in the running container after
-        .env injection + docker compose restart, the project is rolled
-        back and this method raises — the app was deployed, but its error
+        .env injection + docker compose restart, this method raises
+        :class:`DsnInjectionError`, first deleting the project only if this
+        run created it (a project found ``exists`` is kept) — the app was deployed, but its error
         reporting is broken and silently missing reports is worse than
         a visible deploy failure.
         """
@@ -1320,14 +1321,17 @@ class InfrastructureProvisioner:
             with _target_vps_env(ctx):
                 injected = verify_dsn_injection(name, dsn, max_wait=240)
             if not injected:
-                # Ground-truth check failed: roll back the project so we
-                # don't leave an orphan, then raise so the caller can
-                # decide (typically: fail the deploy with full rollback).
-                delete_project(name)
+                # Ground-truth check failed: roll back a project THIS run created so we don't
+                # leave an orphan, then raise so the caller can decide (typically: fail the
+                # deploy with full rollback). A project create_project found `exists` predates
+                # the run (a refresh, a re-apply) and holds live issues — never delete it.
+                created = result.get("status") == "created"
+                if created:
+                    delete_project(name)
                 raise DsnInjectionError(
                     f"SENTRY_DSN not injected into {name!r} container "
-                    f"within 240s after .env injection + restart. Project "
-                    f"rolled back."
+                    f"within 240s after .env injection + restart. "
+                    + ("Project rolled back." if created else "Existing project kept.")
                 )
 
             logger.info("glitchtip: %s → DSN verified in container", name)
@@ -1540,8 +1544,14 @@ class InfrastructureProvisioner:
             )
             return
         try:
+            from fabrik.orchestrator.deployer_ssh import _target_vps_env
+
             driver = WatchdogDriver()
-            result = driver.provision(ctx, dry_run=dry_run)
+            # Every watchdog ssh step (build, overlay push, compose up, container inspect,
+            # cleanup) acts on the app's host and the image is a local tag, so the whole call
+            # runs on ctx.target_vps (decision panel, W-fc3eddd8); vps1 is a no-op.
+            with _target_vps_env(ctx):
+                result = driver.provision(ctx, dry_run=dry_run)
             ctx.add_resource("watchdog", name, status=result.get("status") if result else "ok")
             logger.info("watchdog: %s → %s", name, result.get("status") if result else "ok")
         except Exception as e:  # noqa: BLE001

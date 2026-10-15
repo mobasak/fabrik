@@ -140,6 +140,20 @@ class TestRenderContext:
         )
         assert rctx.target_vps == "vps2"
 
+    def test_a_spoke_sidecar_reaches_the_shared_data_plane_by_mesh_ip(self):
+        """A vps2/vps3 container cannot resolve postgres-main/redis-main (WireGuard carries no
+        DNS); like every other registrar, the watchdog's own URLs swap to the hub mesh IP."""
+        spoke = WatchdogDriver()._build_render_context(
+            {"id": "demo", "watchdog": {"enabled": True}}, _ctx({"id": "demo"}, target_vps="vps2")
+        )
+        assert spoke.redis_url == "redis://10.99.0.1:6379/15"
+        assert "@10.99.0.1:5432/" in spoke.pg_dsn and "postgres-main" not in spoke.pg_dsn
+        hub = WatchdogDriver()._build_render_context(
+            {"id": "demo", "watchdog": {"enabled": True}}, _ctx({"id": "demo"}, target_vps="vps1")
+        )
+        assert hub.redis_url == "redis://redis-main:6379/15"
+        assert "@postgres-main:5432/" in hub.pg_dsn
+
     @pytest.mark.parametrize("key", ["daily_budget_usd", "per_incident_budget_usd"])
     @pytest.mark.parametrize("raw", [float("inf"), float("nan"), "inf", "x"])
     def test_a_non_finite_budget_never_reaches_the_sidecar_env(self, key, raw):
