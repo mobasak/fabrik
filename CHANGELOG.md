@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review catalogue: a hand-written seat brief sends seats to the pin-import recipe (2026-10-15)
+
+`commands/_fragments/review-probe-catalogue.md` § Seat isolation: a brief the lead writes itself tells each seat to
+read and follow `PIN_IMPORT` (and `PYTEST_PINS` for pytest) in `.claude/workflows/fabrik-review-loop.js`, giving the
+values its placeholders stand for, and carries no import recipe of its own — a pins dir on `sys.path` alone, or
+pytest's `--rootdir` at a copy, imports the live checkout's installed package. § Seat isolation now binds every brief
+that runs tests or imports pinned code (the catalogue header and `/fabrik-review-scoped`). Answers /fabrik-review-scoped
+rows 1792082763 and 1792081436, the 15th and 16th on the subject; pinned by
+`tests/test_review_scoped_queue_pass.py::test_a_hand_written_brief_points_seats_at_the_pin_import_recipe_and_an_import_brief_is_isolated_too`.
+
 ### Changed — plan execution: an operator-owned gate step ends behind a gate DECISION, closed handoff (2026-10-15)
 
 Both contracts' plan-execution override and `/fabrik-execute-plan`'s halt rule, close list and first non-negotiable: a step the plan assigns to the
