@@ -13,8 +13,8 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure whether the Workflow agent() call takes a cwd or isolation option; if so launch finder and refuter seats in a fresh scratch dir, and have review_loop_ledger pin write a ready probe runner beside the pins",
-  "note": "",
+  "next": "/fabrik-spec seeded with the design.md named in the note (UPGRADE: tradeoffs)",
+  "note": "UPGRADE 2026-10-15 (intel, /fabrik-task handoff): spec-chain work — a trade-off the build cannot settle. (A) isolation: 'worktree' on the review-loop agent() calls vs (B) a PreToolUse write-deny under the repo root in .claude/hooks/seat_guard.py. Seed with the measured costs of A and B and the RESUME block: /opt/fabrik/.tmp/runs/4e90716e-696b-4ddf-90ab-70e30f51f294/fabrik-task-2026-10-15T22-15-12-0300/design.md; the red grader for A is red-test.diff beside it. Next: /fabrik-spec seeded with that file.",
   "owner": "intel",
   "priority": 3,
   "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
