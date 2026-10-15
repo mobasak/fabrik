@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: wontfix",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "/fabrik-review feedback row 1791906916: the review loop keeps pins and briefs under /tmp, which a WSL shutdown wipes"
 }
