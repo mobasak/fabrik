@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-task: the durable-folder placeholder no longer reads as RUN-SCRATCH (2026-10-15)
+
+- `commands/_sources/fabrik-task.md` named the `SCRATCH:` folder (design.md, measure.md, commit.sha — durable)
+  `<run-scratch>`, which reads as the `RUN-SCRATCH:` folder `start` now also prints and the sweeper removes once
+  the run is consumed. The placeholder is `<durable>` at all nine sites, its definition says "never
+  `RUN-SCRATCH:`", and the no-`SCRATCH:` fallback says it is in /tmp; the source stays under its D-856 byte cap
+  (20904 → 20900). Pinned in `tests/test_fabrik_task_source.py` (the old name must not return) and
+  `tests/test_command_run_lane_v2.py`. Mail 01M4Z8X2JEZFX4ACC5KCWW7C6P, W-a26c180b.
 ### Changed — the hub CLAUDE.md carries the coordinator's duties paragraph (2026-10-15)
 
 - `CLAUDE.md` § Orient now carries the template's "The coordinator role" paragraph byte-identical, plus one hub sentence on how the rulings D-874, D-880, D-882 and D-885 refine it, so the hub coordinator reloads its duties on every session start, compact and resume; the coordinator charter points at it; `tests/test_governance_template_split.py` keeps the copies identical. W-cfff98dd, D-888.
