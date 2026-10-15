@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — plan commands: a behaviour change censuses every production reader (2026-10-15)
+
+`/fabrik-plan-after-chat` Phase 1: for each function or value whose behaviour the plan changes, the plan censuses
+its production readers before any step that changes it — call sites plus a grep of its name, basename and path for
+path-injected and string readers, with the count, each fleet-synced file marked (the hub's manifest `--list`, a
+project's `.fabrik/synced.lock`), its command and output in Evidence, readers and the tests pinning the old
+behaviour in File Scope. `/fabrik-plan-review` gains the mirror of its consumer audit: a seat re-runs that census.
+Pinned by `tests/test_plan_after_chat_queue_pass.py::test_a_behaviour_change_censuses_its_readers_in_both_plan_commands`.
+
 ### Changed — /fabrik-execute-plan: the Finish docs review runs before the whole-plan review (2026-10-15)
 
 Item 5, the step-8 pseudo-code and § Finish step 1 now agree that `/fabrik-docs-review` runs BEFORE the Finish
