@@ -1,6 +1,6 @@
 # Plan — chrome-extension scaffold emits the developer-mode release kit (W-e2af3303)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** —
 **Surface:** `git rev-parse HEAD` = 12333be10 at authoring, 473ed4978 at the approval panel (only the two documents changed between); `src/fabrik/scaffold.py::_scaffold_chrome_extension` (`:5075-6136`)
@@ -97,7 +97,7 @@ Per phase: `/fabrik-review-scoped` on that phase's surface. At Finish: one heavy
 | "**Gate 2:** the operator publishes the zip, its checksum, the guide and the version-manifest bump; no agent publishes." | .windsurf/rules/chrome-ext/89-extension-launch-checklist.md:136 | Gate 2 |
 | "**Enforced:** Gate-checked, no exceptions. Every code-shipping ticket must produce exactly one entry." | .windsurf/rules/core/40-documentation.md:134 | CHANGELOG |
 
-## Phase A — the extension and the release
+## Phase A — the extension and the release — ✅ EXECUTED 2026-10-15 (723674561)
 
 Appetite: 120
 
@@ -465,6 +465,41 @@ $ node keygen_probe.mjs
   accepts and keeps `manifest.key`"); those files sit outside this repo, so the plan does not re-quote them. The
   plan's own proof is executable: A3's build leg asserts the built `manifest.json` carries `key` equal to the `.pub`,
   run explicitly with `-m needs_network` (Phase A step 5), whose result Phase A pastes here.
+
+### Phase A — executed 2026-10-15
+
+Commits: `34b4c94d7` (the kit), `d6b67f7ea`, `0297ffafc`, `723674561` (the phase's `/fabrik-review-scoped`, three
+independent seats a round: confirmed 14 → 7 → 0, the round-3 remainder verifying every round-2 fix by probe and
+mutant replay). Graders seen red first: 14 failed before the emitter change, 15 before round 1's fixes, 6 before
+round 2's, 5 before round 3's recorded items.
+
+```text
+$ PYTHONPATH=<worktree>/src .venv/bin/python -m pytest tests/test_scaffold.py -k Chrome tests/test_scaffold_chrome_ext_wxt.py -q
+74 passed, 75 deselected in 26.15s
+```
+
+Execution notes (what the build settled, against the Interfaces text above):
+
+- `release-ext`'s three checks live in the emitted `extension/scripts/release-check.mjs`, run by the recipe's first
+  line (`src/fabrik/scaffold.py` `_CX_RELEASE_CHECK_MJS`), not inline shell: the effective `VITE_PUBLIC_API_URL` (the
+  plan-review S1-P1 fix) is resolved as WXT's own `loadEnv` does — `wxt/dist/core/utils/env.mjs:10-31`, read in
+  `/opt/job-agent/extension/node_modules`: the environment, else the last of `.env`, `.env.local`, `.env.<mode>`,
+  `.env.<mode>.local`, `.env.<browser>`, `.env.<browser>.local`, `.env.<mode>.<browser>`,
+  `.env.<mode>.<browser>.local`, parsed with `node:util` `parseEnv`. Review round 1 also had it refuse `STORE_BUILD=1`,
+  a malformed `.pub`, a dirty tree, a non-Chrome `package.json` version, a colon-form line and a host-less URL.
+- The key is resolved by a shared `extension/scripts/manifest-key.mjs` (with `manifest-key.d.mts`), relative to its own
+  file rather than the cwd; `wxt.config.ts` sets `key: pinnedKey()`; a `.pub` that is not a base64 SPKI key whose
+  export round-trips fails the build, the gate and keygen.
+- The checker's pure rules live in an import-free `src/lib/update-version.ts` (`isNewer`, `parseLatest`,
+  `secureBase` — the stored backend must be https or local http), so A4 is graded by executing them under node.
+- The popup relies on `@wxt-dev/i18n`'s auto-import of `i18n` (`@wxt-dev/i18n/dist/module.mjs:13-16` registers
+  `imports: [{from: "#i18n", name: "i18n"}]`) instead of an explicit `#i18n` import, which the emitted tsconfig's own
+  `paths` would not resolve.
+- keygen rebuilds a lost `.pub` from the `.pem`; the emitted `.gitignore` also ignores `.env.*.local`.
+- **UNEXECUTED — missing infra:** step 5's network build test (`-m needs_network -k builds`) and an emitted-project
+  `pnpm compile` / `pnpm lint` were run three times and each `pnpm install` timed out: WSL cannot resolve
+  `registry.npmjs.org` (`curl: (28) Resolving timed out after 15000 milliseconds`). Phase C re-runs all three before
+  the Finish review.
 
 ## Self-audit
 
