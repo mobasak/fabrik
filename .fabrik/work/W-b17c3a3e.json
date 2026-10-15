@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T12:24:45.660790Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-b17c3a3e",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-command-improve",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: already stated: fabrik-command-improve.md:181 '--reasons … so grep its REASON column, since a near-synonym matches no tag' landed in 5966b4176 (2026-10-14) befo",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-command-improve"
+}
