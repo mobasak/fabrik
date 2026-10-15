@@ -99,19 +99,18 @@ def test_i18n_owned_by_wxt_dev_i18n() -> None:
     assert "chrome-extension" not in I18N_ENABLED_TYPES
 
 
-def test_compose_traefik_cors_uses_regex_not_glob(tmp_path: Path) -> None:
-    """Traefik's accessControlAllowOriginList is EXACT-match (not glob) and Traefik
-    synthesizes the preflight itself (never reaching FastAPI). So `chrome-extension://*`
-    never matches a real ID → a deployed extension can't reach its backend. Must use the
-    *Regex variant + credentials."""
+def test_compose_has_no_traefik_cors_and_passes_the_extension_env(tmp_path: Path) -> None:
+    """W-e2af3303 B5: FastAPI's CORSMiddleware is the single CORS authority (exact
+    EXTENSION_ID origin). A Traefik CORS middleware would answer the preflight itself and
+    never let it reach the app, so the emitted compose carries none, and passes the four
+    EXTENSION_* values through from the deploy's .env."""
     create_project(
         "cxcompose", "x", base=tmp_path, project_type="chrome-extension", generate_spec=False
     )
     compose = (tmp_path / "cxcompose" / "compose.yaml").read_text()
-    assert "accesscontrolalloworiginlistregex=^chrome-extension://.*$" in compose
-    assert "accesscontrolallowcredentials=true" in compose
-    # the broken exact-match glob must be gone
-    assert "accesscontrolalloworiginlist=chrome-extension://*" not in compose
+    assert "-cors" not in compose
+    assert "accesscontrolalloworigin" not in compose
+    assert "- EXTENSION_ID=${EXTENSION_ID:-}" in compose
 
 
 def test_tailwind_v4_wired(ext: Path) -> None:

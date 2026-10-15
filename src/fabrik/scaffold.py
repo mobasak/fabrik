@@ -6333,6 +6333,7 @@ ephemeral — never register in a bare global).
         f'"""Main entry point for {name} server."""\n'
         f"\n"
         f"import os\n"
+        f"import re\n"
         f"from contextlib import asynccontextmanager\n"
         f"\n"
         f"from fastapi import FastAPI\n"
@@ -6344,11 +6345,33 @@ ephemeral — never register in a bare global).
         f"\n"
         f"logger = get_logger(__name__)\n"
         f"\n"
+        f"# CORS, decided once at import — closed by default (W-e2af3303). A valid EXTENSION_ID (the\n"
+        f"# 32-letter a-p ID `pnpm keygen` prints) admits exactly that extension's origin. Otherwise\n"
+        f"# CORS_ALLOW_ANY_EXTENSION=1 — a LOCAL development opt-in, never in a deploy — admits any\n"
+        f"# extension; and with neither, no extension origin is admitted at all. /health is not a CORS\n"
+        f"# request, so the app starts either way. The compose passes an unset value as an empty string.\n"
+        f'_EXTENSION_ID_RE = re.compile(r"^[a-p]{{32}}$")\n'
+        f'EXTENSION_ID = os.getenv("EXTENSION_ID", "").strip()\n'
+        f"_cors_startup_events: list[tuple[str, str]] = []\n"
+        f"if _EXTENSION_ID_RE.fullmatch(EXTENSION_ID):\n"
+        f'    _cors_origins = {{"allow_origins": [f"chrome-extension://{{EXTENSION_ID}}"]}}\n'
+        f"else:\n"
+        f"    if EXTENSION_ID:\n"
+        f'        _cors_startup_events.append(("error", "cors_extension_id_invalid"))\n'
+        f'    if os.getenv("CORS_ALLOW_ANY_EXTENSION") == "1":\n'
+        f'        _cors_origins = {{"allow_origin_regex": r"chrome-extension://.*"}}\n'
+        f'        _cors_startup_events.append(("warning", "cors_any_extension_origin"))\n'
+        f"    else:\n"
+        f'        _cors_origins = {{"allow_origins": []}}\n'
+        f'        _cors_startup_events.append(("warning", "cors_no_extension_id"))\n'
+        f"\n"
         f"\n"
         f"@asynccontextmanager\n"
         f"async def lifespan(app: FastAPI):  # noqa: ARG001\n"
         f'    """Application lifespan handler."""\n'
         f'    logger.info("service_starting", port=os.getenv("PORT", "8000"))\n'
+        f"    for level, event in _cors_startup_events:\n"
+        f"        getattr(logger, level)(event)\n"
         f"    yield\n"
         f'    logger.info("service_stopping")\n'
         f"\n"
@@ -6356,12 +6379,12 @@ ephemeral — never register in a bare global).
         f'app = FastAPI(title="{name}", lifespan=lifespan)\n'
         f"app.add_middleware(CorrelationMiddleware)\n"
         f"\n"
-        f"# CORS for extension\n"
+        f"# CORS for the extension — FastAPI is the single CORS authority (no Traefik CORS middleware).\n"
         f"app.add_middleware(\n"
         f"    CORSMiddleware,\n"
         f'    # Extension origins only (chrome-ext/70-chrome-ext.md § Auth) — never "*" with\n'
-        f"    # credentials (browsers reject that combo). Dev regex; set the exact ID for prod.\n"
-        f'    allow_origin_regex=r"chrome-extension://.*",\n'
+        f"    # credentials (browsers reject that combo).\n"
+        f"    **_cors_origins,\n"
         f"    allow_credentials=True,\n"
         f'    allow_methods=["*"],\n'
         f'    allow_headers=["Authorization", "Content-Type"],  # explicit — "*" is not a\n'
@@ -6384,6 +6407,19 @@ ephemeral — never register in a bare global).
         f'@app.get("/")\n'
         f"async def root():\n"
         f'    return {{"message": "Welcome to {name} API"}}\n'
+        f"\n"
+        f"\n"
+        f'@app.get("/extension/latest")\n'
+        f"async def extension_latest():\n"
+        f'    """The published developer-mode release, for the extension\'s update checker. Public, no\n'
+        f"    auth (it carries no secret); 404 until all three values are set, so a half-configured\n"
+        f'    release reads as "nothing to do". Read per request: a redeploy with new values is enough."""\n'
+        f'    version = os.getenv("EXTENSION_LATEST_VERSION", "").strip()\n'
+        f'    download_url = os.getenv("EXTENSION_LATEST_URL", "").strip()\n'
+        f'    sha256 = os.getenv("EXTENSION_LATEST_SHA256", "").strip()\n'
+        f"    if not (version and download_url and sha256):\n"
+        f'        return JSONResponse(status_code=404, content={{"detail": "no release published"}})\n'
+        f'    return {{"version": version, "download_url": download_url, "sha256": sha256}}\n'
     )
 
     # requirements.txt (at root, for server)
@@ -6465,27 +6501,23 @@ CMD ["sh", "-c", "exec uvicorn {package_name}.main:app --host 0.0.0.0 --port ${{
         "*.log\n"
     )
 
-    # compose.yaml — chrome-extension's backend ships an FastAPI server
-    # at port 8000 and the extension hits it cross-origin, so we add CORS
-    # middleware via Traefik. B16/B18: the previous inline compose had
-    # no Traefik labels at all and used unexpanded ``${PORT:-8000}`` for
-    # the host port, so the deployed backend 404'd at the gateway.
+    # compose.yaml — chrome-extension's backend ships a FastAPI server at port 8000 and the
+    # extension calls it cross-origin. FastAPI answers CORS itself (exact EXTENSION_ID origin, see
+    # main.py), so the compose carries no Traefik CORS middleware: one would answer the preflight
+    # before it reaches the app. The canonical compose has no env_file, so the four values a
+    # release needs are passed from the deploy's .env (an unset one arrives as ""). B16/B18: the
+    # previous inline compose had no Traefik labels at all and used unexpanded ``${PORT:-8000}``
+    # for the host port, so the deployed backend 404'd at the gateway.
     _write_canonical_compose(
         project_dir,
         name,
         port=8000,
         healthcheck_path="/health",
-        extra_labels=(
-            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS",
-            # Traefik synthesizes the preflight itself (never reaching the backend), and
-            # accessControlAllowOriginList is EXACT-match — chrome-extension://* never
-            # matches a real extension ID. Use the *Regex variant + credentials so a
-            # deployed extension can reach its backend (chrome-ext/70-chrome-ext.md § Auth).
-            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolalloworiginlistregex=^chrome-extension://.*$",
-            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowcredentials=true",
-            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolallowheaders=Authorization,Content-Type",
-            f"traefik.http.middlewares.{name}-cors.headers.accesscontrolmaxage=100",
-            f"traefik.http.routers.{name}.middlewares={name}-cors",
+        extra_env_lines=(
+            "- EXTENSION_ID=${EXTENSION_ID:-}",
+            "- EXTENSION_LATEST_VERSION=${EXTENSION_LATEST_VERSION:-}",
+            "- EXTENSION_LATEST_URL=${EXTENSION_LATEST_URL:-}",
+            "- EXTENSION_LATEST_SHA256=${EXTENSION_LATEST_SHA256:-}",
         ),
     )
 
@@ -6500,12 +6532,12 @@ PORT := 8000
 dev:
 \t@trap 'kill 0' SIGINT; \\
 \tcd extension && pnpm dev & \\
-\t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src & \\
+\t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src $(if $(wildcard .env),--env-file .env,) & \\
 \twait
 
-# Server only (FastAPI with reload)
+# Server only (FastAPI with reload; reads .env when present — the emitted server loads none itself)
 dev-server:
-\t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src
+\t.venv/bin/uvicorn {package_name}.main:app --reload --host 0.0.0.0 --port $(PORT) --app-dir server/src $(if $(wildcard .env),--env-file .env,)
 
 # Extension only (WXT dev with HMR)
 dev-ext:
@@ -6565,6 +6597,17 @@ NODE_ENV=development
 
 # Service identity for structured logging
 SERVICE_NAME={name}
+
+# The extension's ID — `cd extension && pnpm keygen` prints it once. The backend admits CORS from
+# exactly chrome-extension://<this ID>; unset, it admits no extension at all.
+EXTENSION_ID=
+# The published developer-mode release (`make release-ext` prints these after the zip is built).
+# GET /extension/latest returns 404 until all three are set.
+EXTENSION_LATEST_VERSION=
+EXTENSION_LATEST_URL=
+EXTENSION_LATEST_SHA256=
+# Admit ANY extension origin — local development only, never in a deploy.
+# CORS_ALLOW_ANY_EXTENSION=1
 """
     )
 

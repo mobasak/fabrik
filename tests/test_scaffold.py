@@ -1032,6 +1032,164 @@ class TestChromeExtensionReleaseKit:
             assert line in r.stdout, line
 
 
+_EXT_ID = "abcdefghijklmnopabcdefghijklmnop"
+_OTHER_ID = "ponmlkjihgfedcbaponmlkjihgfedcba"
+_SERVER_ENV_KEYS = (
+    "EXTENSION_ID",
+    "EXTENSION_LATEST_VERSION",
+    "EXTENSION_LATEST_URL",
+    "EXTENSION_LATEST_SHA256",
+    "CORS_ALLOW_ANY_EXTENSION",
+)
+
+
+def _run_server(project: Path, env: dict[str, str], program: str) -> tuple[dict, str]:
+    """Import the emitted server in a FRESH interpreter with `env` (CORS is fixed at import) and
+    run `program` inside `with TestClient(app) as client` (so lifespan runs). Returns the JSON the
+    program stored in `out`, and the process stdout (where the emitted structlog writes)."""
+    import json
+    import sys
+
+    base = {k: v for k, v in os.environ.items() if k not in _SERVER_ENV_KEYS}
+    prog = (
+        "import json, sys\n"
+        "from fastapi.testclient import TestClient\n"
+        "from test_ext.main import app\n"
+        "out = {}\n"
+        "with TestClient(app) as client:\n"
+        + "".join(f"    {line}\n" for line in program.strip().splitlines())
+        + "print('RESULT ' + json.dumps(out))\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-c", prog],
+        cwd=project / "server" / "src",
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={**base, **env},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    line = next(ln for ln in r.stdout.splitlines() if ln.startswith("RESULT "))
+    return json.loads(line[len("RESULT ") :]), r.stdout
+
+
+_PREFLIGHT = f"""
+for name, origin in (("other", "chrome-extension://{_OTHER_ID}"), ("pinned", "chrome-extension://{_EXT_ID}")):
+    r = client.options("/health", headers={{"Origin": origin, "Access-Control-Request-Method": "GET"}})
+    out[name] = r.headers.get("access-control-allow-origin")
+"""
+
+
+@requires_fabrik_env
+class TestChromeExtensionBackendRelease:
+    """W-e2af3303 Phase B: GET /extension/latest and closed-by-default exact-origin CORS."""
+
+    @pytest.fixture(scope="class")
+    def project(self, tmp_path_factory) -> Path:
+        return _chrome_ext_project(tmp_path_factory.mktemp("cxb"))
+
+    @pytest.mark.parametrize(
+        "env",
+        [
+            {},
+            {
+                "EXTENSION_LATEST_VERSION": "",
+                "EXTENSION_LATEST_URL": "",
+                "EXTENSION_LATEST_SHA256": "",
+            },
+            {
+                "EXTENSION_LATEST_VERSION": "1.2.0",
+                "EXTENSION_LATEST_URL": "https://x.invalid/a.zip",
+            },
+        ],
+    )
+    def test_b1_latest_is_404_until_all_three_are_set(self, project, env):
+        """B1: unset, empty, or two of three → 404 'no release published'."""
+        out, _ = _run_server(
+            project,
+            env,
+            "r = client.get('/extension/latest')\nout['status'] = r.status_code\nout['body'] = r.json()",
+        )
+        assert out == {"status": 404, "body": {"detail": "no release published"}}
+
+    def test_b2_latest_returns_exactly_the_three_values(self, project):
+        """B2: all three set → 200 with exactly those values."""
+        env = {
+            "EXTENSION_LATEST_VERSION": "1.2.0",
+            "EXTENSION_LATEST_URL": "https://x.invalid/a.zip",
+            "EXTENSION_LATEST_SHA256": "ab" * 32,
+        }
+        out, _ = _run_server(
+            project,
+            env,
+            "r = client.get('/extension/latest')\nout['status'] = r.status_code\nout['body'] = r.json()",
+        )
+        assert out["status"] == 200
+        assert out["body"] == {
+            "version": "1.2.0",
+            "download_url": "https://x.invalid/a.zip",
+            "sha256": "ab" * 32,
+        }
+
+    @pytest.mark.parametrize("raw", [_EXT_ID, _EXT_ID + "\r"])
+    def test_b3_exact_extension_origin_only(self, project, raw):
+        """B3: a valid EXTENSION_ID (even with a trailing CR) admits that origin and no other."""
+        out, _ = _run_server(project, {"EXTENSION_ID": raw}, _PREFLIGHT)
+        assert out["other"] is None
+        assert out["pinned"] == f"chrome-extension://{_EXT_ID}"
+
+    @pytest.mark.parametrize(
+        ("env", "invalid"),
+        [
+            ({}, False),
+            ({"EXTENSION_ID": ""}, False),
+            ({"EXTENSION_ID": f"chrome-extension://{_EXT_ID}"}, True),
+        ],
+    )
+    def test_b4_no_valid_id_admits_no_extension(self, project, env, invalid):
+        """B4: no valid ID → cors_no_extension_id (and cors_extension_id_invalid for a bad value),
+        no allow-origin header for any extension."""
+        out, stdout = _run_server(project, env, _PREFLIGHT)
+        assert out == {"other": None, "pinned": None}
+        assert "cors_no_extension_id" in stdout
+        assert ("cors_extension_id_invalid" in stdout) is invalid
+
+    def test_b4b_local_opt_in_admits_any_extension(self, project):
+        """B4b: CORS_ALLOW_ANY_EXTENSION=1 (local only) → the dev regex and its own warning."""
+        out, stdout = _run_server(project, {"CORS_ALLOW_ANY_EXTENSION": "1"}, _PREFLIGHT)
+        assert out["other"] == f"chrome-extension://{_OTHER_ID}"
+        assert out["pinned"] == f"chrome-extension://{_EXT_ID}"
+        assert "cors_any_extension_origin" in stdout
+        assert "cors_no_extension_id" not in stdout
+
+    def test_b5_compose_template_defaults_and_env_example(self, project):
+        """B5: no Traefik CORS labels; the four ${VAR:-} env lines on both compose paths; no
+        CORS_ORIGINS anywhere; .env.example names the four and the commented local opt-in."""
+        template_dir = Path(__file__).resolve().parents[1] / "templates" / "chrome-extension"
+        compose = (project / "compose.yaml").read_text()
+        template = (template_dir / "compose.yaml.j2").read_text()
+        for text in (compose, template):
+            assert "-cors" not in text
+            assert "CORS_ORIGINS" not in text
+            for var in _SERVER_ENV_KEYS[:4]:
+                assert f"- {var}=${{{var}:-}}" in text, var
+        assert "CORS_ORIGINS" not in (template_dir / "defaults.yaml").read_text()
+        example = (project / ".env.example").read_text()
+        for var in _SERVER_ENV_KEYS[:4]:
+            assert re.search(rf"^{var}=", example, re.M), var
+        assert re.search(r"^# CORS_ALLOW_ANY_EXTENSION=1", example, re.M)
+        assert "never in a deploy" in example
+
+    def test_b6_dev_targets_load_the_local_env(self, project):
+        """B6: `make dev` and `make dev-server` pass .env to uvicorn when it exists."""
+        makefile = (project / "Makefile").read_text()
+        for target in ("dev", "dev-server"):
+            recipe = _make_target(makefile, target)
+            uvicorn = [ln for ln in recipe.splitlines() if "uvicorn" in ln]
+            assert uvicorn, target
+            assert all("$(if $(wildcard .env),--env-file .env,)" in ln for ln in uvicorn), target
+
+
 @requires_fabrik_env
 class TestStaticSiteScaffold:
     """Test static-site scaffold generates saas-skeleton structure with correct type."""

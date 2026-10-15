@@ -14,17 +14,15 @@ services:
       - "traefik.http.routers.{{ spec.id }}.tls=true"
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
       - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port=8000"
-      # CORS middleware for Chrome extension
-      - "traefik.http.middlewares.{{ spec.id }}-cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
-      - "traefik.http.middlewares.{{ spec.id }}-cors.headers.accesscontrolalloworigin=chrome-extension://*"
-      - "traefik.http.middlewares.{{ spec.id }}-cors.headers.accesscontrolallowheaders=*"
-      - "traefik.http.middlewares.{{ spec.id }}-cors.headers.accesscontrolmaxage=100"
-      - "traefik.http.routers.{{ spec.id }}.middlewares={{ spec.id }}-cors"
     {% endif %}
     environment:
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - CORS_ORIGINS=${CORS_ORIGINS:-chrome-extension://*}
+      # FastAPI answers CORS (exact EXTENSION_ID origin); the release values come from the deploy's .env
+      - EXTENSION_ID=${EXTENSION_ID:-}
+      - EXTENSION_LATEST_VERSION=${EXTENSION_LATEST_VERSION:-}
+      - EXTENSION_LATEST_URL=${EXTENSION_LATEST_URL:-}
+      - EXTENSION_LATEST_SHA256=${EXTENSION_LATEST_SHA256:-}
       {% for key, value in env.items() %}
       - {{ key }}={{ value | env_escape }}
       {% endfor %}
