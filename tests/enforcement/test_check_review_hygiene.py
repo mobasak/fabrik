@@ -242,8 +242,8 @@ def test_split_table_ignores_fenced_rows(tmp_path):
         ("| a | b |\n|---|---|\n| 1 | 2 |\n***\n| 3 | 4 |\n", []),
         ("| a | b |\n|---|---|\n| 1 | 2 |\n> quoted\n\n| 3 | 4 |\n", []),
         ("| a | b |\n|---|---|\n| 1 | 2 |\n- item\n\n| 3 | 4 |\n", []),
-        # an NBSP-only line is NOT blank in CommonMark: the table continues
-        ("| a | b |\n|---|---|\n| 1 | 2 |\n\xa0\n| 3 | 4 |\n", []),
+        # an NBSP-only line ends the table too (markdown-it opens a paragraph there)
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\xa0\n| 3 | 4 |\n", [5]),
         # prose closes the walk: a pipe row after prose and a blank opens no split of a table
         ("text\n\n| 3 | 4 |\n", []),
         ("| a | b |\n|---|---|\n| 1 | 2 |\n\nsome prose\n\n| 3 | 4 |\n", []),
@@ -269,6 +269,16 @@ def test_split_table_widened_shapes(tmp_path, body, expected):
     doc = tmp_path / "shape.md"
     doc.write_text(body, encoding="utf-8")
     assert _lines(crh.scan(surfaces=[doc]), "split-table") == expected
+
+
+def test_a_code_span_header_keeps_its_rows_graded(tmp_path):
+    """Review pass 2: the line cursor's header test must count cells exactly as `_table_rows`
+    does. Counting with the code-span-masked splitter skipped a header `_table_rows` yields, ran
+    the cursor off the end and dropped every later row — the BLOCKING raw-pipe row included."""
+    receipt = tmp_path / "codespan-review.md"
+    receipt.write_text("| `a|b` | c |\n|---|---|\n| 1 | 2 | 3 |\n", encoding="utf-8")
+    hits, _ungraded = crh._receipt_hits(str(receipt), receipt.read_text(encoding="utf-8"))
+    assert [(h.cls, h.line) for h in hits] == [("raw-pipe", 3)]
 
 
 def test_split_table_keeps_the_strict_cli_green(tmp_path):

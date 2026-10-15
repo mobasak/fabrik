@@ -82,9 +82,13 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 
 try:
+    from .check_review_coverage import (
+        _is_separator as _rows_is_separator,  # type: ignore[import-not-found]
+    )
     from .check_review_coverage import _table_rows  # type: ignore[import-not-found]
 except ImportError:  # direct-script invocation
     sys.path.insert(0, str(_HERE))
+    from check_review_coverage import _is_separator as _rows_is_separator  # type: ignore[no-redef]
     from check_review_coverage import _table_rows  # type: ignore[no-redef]
 
 # Anchored at BOTH braces to the renderer's two shapes — a marker (`include:` + a name) or a
@@ -406,9 +410,10 @@ _TABLE_ENDER = re.compile(r" {0,3}<!--")
 
 
 def _ends_table(line: str) -> bool:
-    """A blank line (CommonMark: spaces and tabs only — an NBSP line is NOT blank) or a comment line
-    (`_TABLE_ENDER`); never a pipe row."""
-    return not line.strip(" \t") or (
+    """A blank line or a comment line (`_TABLE_ENDER`); never a pipe row. `str.strip()` on purpose:
+    an NBSP-only line ends the table too (markdown-it renders the next row as a paragraph — review
+    pass 2 refuted the pass-1 premise that it does not)."""
+    return not line.strip() or (
         not line.lstrip().startswith("|") and bool(_TABLE_ENDER.match(line))
     )
 
@@ -441,19 +446,35 @@ def _opens_split(lines: list[str], idx: int, orphans: set[int]) -> bool:
     return j >= 0 and lines[j].lstrip().startswith("|") and j not in orphans
 
 
+def _rows_cells(row: str) -> int:
+    """`_table_rows`'s own cell count (check_review_coverage.py, its nested `_cells`): one optional
+    boundary pipe per side, `\\|` escaped, NO code-span mask — so a header the two disagree on can
+    never desynchronise the cursor (review pass 2: counting with `_split_cells` here skipped a
+    header `_table_rows` yields, ran the cursor off the end and dropped a BLOCKING raw-pipe row)."""
+    r = re.sub(r"\\\|", "\x00", row.strip())
+    if r.startswith("|"):
+        r = r[1:]
+    if r.endswith("|"):
+        r = r[:-1]
+    return len(r.split("|"))
+
+
 def _is_header_line(lines: list[str], k: int) -> bool:
     """Is `lines[k]` a line `_table_rows` skips — a delimiter row, or a table's header (the first
-    pipe row of its run, with a matching delimiter row right under it)? The line-number cursor in
+    pipe row of its run, with a matching delimiter row right under it)? Judged by `_table_rows`'s
+    OWN predicates (`_rows_is_separator`, `_rows_cells`). The line-number cursor in
     `_table_parity_hits` must never bind a data row to one of these: matched by TEXT alone, a later
     row that repeats a header's text was bound to the header and never graded (review pass 1)."""
-    if _is_separator(lines[k]):
+    if not lines[k].lstrip().startswith("|"):
+        return False
+    if _rows_is_separator(lines[k]):
         return True
+    nxt = lines[k + 1].strip() if k + 1 < len(lines) else ""
     return (
-        k + 1 < len(lines)
+        (k == 0 or not lines[k - 1].lstrip().startswith("|"))
+        and _rows_is_separator(nxt)
+        and _rows_cells(lines[k]) == _rows_cells(nxt)
         and "|" in lines[k + 1]
-        and _is_separator(lines[k + 1])
-        and (k == 0 or not lines[k - 1].lstrip().startswith("|"))
-        and len(_split_cells(lines[k])) == len(_split_cells(lines[k + 1]))
     )
 
 
@@ -475,8 +496,15 @@ def _table_parity_hits(
     # already skipped); walk the physical lines in step to recover each row's line number.
     cursor = 0
     for row in _table_rows("\n".join(lines)):
+        start = cursor
         while cursor < len(lines) and (lines[cursor] != row or _is_header_line(lines, cursor)):
             cursor += 1
+        if cursor >= len(lines):
+            # fail-safe: never grade FEWER rows than a text-only match would — if the header
+            # skip finds no line, fall back to the first text match
+            cursor = start
+            while cursor < len(lines) and lines[cursor] != row:
+                cursor += 1
         if cursor >= len(lines):
             break
         idx, cursor = cursor, cursor + 1
