@@ -205,3 +205,30 @@ def test_a_wave_checks_fleet_headroom_and_a_plan_checker_is_dry_run() -> None:
         " and never commits (it is no ticket code)",
     ):
         assert needle in text, needle
+
+
+def test_the_finish_docs_review_runs_before_the_finish_review() -> None:
+    """Row 1792042079: the docs review excluded docs the receipt 'graded', which read as the Finish review first; a code
+    defect a doc claim exposes must land inside the heavy review, as the Finish pseudo-code and D7 already order it."""
+    text = _norm()
+    assert "and BEFORE that review, so a code defect a doc claim exposes lands inside it" in text
+    # the exclusion is computable before the review: the docs its `--init --changed` list will name (review_receipt.py
+    # writes Hunt rows for those paths only), never rows a receipt that does not exist yet "graded"
+    assert (
+        "MINUS the docs the whole-plan `/fabrik-review`'s `--init --changed` list will name" in text
+    )
+    assert (
+        "MINUS the docs §Finish's /fabrik-review --init --changed list will name, BEFORE that review"
+        in text
+    )
+    assert "After item 5's docs review, run **`/fabrik-review`" in text
+    for stale in (
+        "receipt graded",
+        "row that graded each",
+        "heavy review graded",
+        "--init rows name",
+    ):
+        assert stale not in text, stale
+    assert text.index("run /fabrik-docs-review over the changed docs") < text.index(
+        "run §Finish: /fabrik-review"
+    )

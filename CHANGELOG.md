@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-execute-plan: the Finish docs review runs before the whole-plan review (2026-10-15)
+
+Item 5, the step-8 pseudo-code and § Finish step 1 now agree that `/fabrik-docs-review` runs BEFORE the Finish
+`/fabrik-review` (D7's Integration ticket already did), so a code defect a doc claim exposes lands inside the heavy
+review. The exclusion is restated as what is computable then — the docs the Finish `--init --changed` list will name.
+D-899 (Opus + Fable panel, supersedes D9's order). Pinned by
+`tests/test_execute_plan_queue_pass.py::test_the_finish_docs_review_runs_before_the_finish_review`.
+
 ### Changed — close chain: a figure in a close input is printed by its producer, never recalled (2026-10-15)
 
 `commands/_fragments/close-chain.md` (the default close of 37 `/fabrik-*` commands) now says a measured figure an
