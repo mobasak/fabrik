@@ -3656,7 +3656,8 @@ def test_a_malformed_item_or_a_file_store_stays_inside_its_repo(tmp_path, monkey
     assert 'class="banner crit"' in bad_pane and "bad item" in bad_pane
     flat = page.split('data-repo="flat"')[1].split('<div class="repo"')[0]
     assert 'class="banner crit"' in flat and "not a directory" in flat
-    names = re.findall(r'<option value="([^"]+)"', page)
+    picker = page.split('<select id="repo-pick">')[1].split("</select>")[0]  # not the tag box's datalist
+    names = re.findall(r'<option value="([^"]+)"', picker)
     assert sorted(names) == ["bad", "fabrik", "flat"]  # the symlinked alias is not listed twice
 
 
@@ -4474,11 +4475,16 @@ def test_item_verdict_endpoint_is_guarded(tmp_path, monkeypatch):
         assert _post(base + "/item-verdict", bad, hdr)[0] == 400
         mute = json.dumps({"repo": "shop", "item": item, "action": "reject", "text": " \x00 "}).encode()
         assert _post(base + "/item-verdict", mute, hdr)[0] == 400
+        blank = json.dumps({"repo": "shop", "item": item, "action": "comment", "text": ""}).encode()
+        assert _post(base + "/item-verdict", blank, hdr)[0] == 400  # refused here, never a 502
         assert "comments" not in _item(shop, item) and _item(shop, item)["status"] == "open"
         assert _post(base + "/item-verdict", body, hdr)[0] == 200
     finally:
         httpd.shutdown()
     assert _item(shop, item)["comments"][-1]["text"] == "hi"
+    qd._ITEM_TARGETS = {}  # a restarted server: the first write rebuilds the board once, then acts
+    assert qd.item_verdict("shop", item, "comment", "again")[0] == 200
+    assert _item(shop, item)["comments"][-1]["text"] == "again"
 
     def broken(_opt):
         raise RuntimeError("stores unreadable")
@@ -4520,24 +4526,32 @@ const spec = JSON.parse(process.argv[process.argv.length - 1]);
 const gets = [], store = {}; if (spec.stored !== null) { store["repo-tag"] = spec.stored; }
 global.localStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } };
 const rows = spec.rows.map((t) => ({ hidden: false, getAttribute: () => t }));
-const inputs = spec.typed.map((v) => ({ value: v }));
+const box_ = (v) => ({ value: v, getAttribute: (k) => ({"data-repo": "shop", "data-item": "W-0000000a"})[k] });
+let inputs = spec.typed.map(box_);
 const opts = spec.known.map((v) => ({ value: v }));
 let onInput = null;
 const box = { value: "", addEventListener: (t, f) => { if (t === "input") { onInput = f; } } };
-global.document = { hidden: false, activeElement: null,
-  getElementById: (id) => (id === "tag-pick" ? box : null),
+// #live: a swap (innerHTML set) rebuilds every comment box empty, as the browser does
+const cur = { querySelector: () => ({ textContent: "read 10:00:00" }) };
+Object.defineProperty(cur, "innerHTML", { set: () => { inputs = inputs.map(() => box_("")); }, get: () => "" });
+const nw = { innerHTML: "NEW", querySelector: () => ({ textContent: "read 10:00:20" }) };
+const inBox = { tagName: "INPUT", id: "", closest: (sel) => (sel === "#live" ? cur : null) };
+global.document = { hidden: false, activeElement: spec.focused ? inBox : null,
+  getElementById: (id) => (id === "tag-pick" ? box : id === "live" ? cur : null),
   querySelectorAll: (sel) => (sel === "tr[data-tags]" ? rows : sel === "#tag-list option" ? opts
     : sel === "input.iv-text" ? inputs : []),
   addEventListener: () => {} };
 global.window = { scrollY: 0, scrollTo: () => {}, getSelection: () => "", frameElement: null };
-global.fetch = (url) => { gets.push(url); return Promise.resolve({ ok: false }); };
+global.DOMParser = function () { this.parseFromString = () => ({ getElementById: () => nw }); };
+global.fetch = (url) => { gets.push(url); return Promise.resolve({ ok: true, text: () => Promise.resolve("x") }); };
 global.setInterval = () => {};
 eval(spec.script);
 const first = rows.map((r) => r.hidden);
 box.value = spec.typeTag; if (onInput) { onInput(); }
 const after = rows.map((r) => r.hidden);
-refreshRepos(false);
-setTimeout(() => console.log(JSON.stringify({first, after, gets, stored: store["repo-tag"]})), 30);
+refreshRepos(spec.force);
+setTimeout(() => console.log(JSON.stringify({first, after, gets, stored: store["repo-tag"],
+  values: inputs.map((x) => x.value)})), 30);
 """
 
 
@@ -4570,17 +4584,25 @@ def test_item_rows_verdict_buttons_and_tag_filter(tmp_path, monkeypatch):
     script = page.split("<script>")[1].split("</script>")[0]
     base = {"script": script, "rows": ["a waits-operator-review", "b"], "known": ["a", "b", "waits-operator-review"]}
     runs = {}
-    for name, extra in {"stale": {"stored": "gone", "typeTag": "waits-operator-review", "typed": [""]},
-                        "kept": {"stored": "b", "typeTag": "b", "typed": ["half a thought"]}}.items():
+    for name, extra in {
+        "stale": {"stored": "gone", "typeTag": "waits-operator-review", "typed": [""], "force": False},
+        "kept": {"stored": "b", "typeTag": "b", "typed": ["half a thought"], "force": False},
+        "forced": {"stored": None, "typeTag": "", "typed": ["half a thought"], "force": True, "focused": True},
+        "focused": {"stored": None, "typeTag": "", "typed": [""], "force": False, "focused": True},
+    }.items():
         r = subprocess.run([node, "-e", _TAGS_DOM, json.dumps({**base, **extra})], capture_output=True,
                            text=True, timeout=60)
         assert r.returncode == 0, r.stderr[:800]
         runs[name] = json.loads(r.stdout)
     assert runs["stale"]["first"] == [False, False]  # a stored tag no longer on the page: every row
     assert runs["stale"]["after"] == [False, True] and runs["stale"]["stored"] == "waits-operator-review"
-    assert runs["stale"]["gets"] == ["/repos.html"]  # nothing typed: the poll goes ahead
+    assert runs["stale"]["gets"] == ["/repos.html"]
     assert runs["kept"]["first"] == [True, False]
-    assert runs["kept"]["gets"] == []  # a comment holds words: the swap waits
+    # review round 1: words in a comment box never stop a refresh — they are carried across the swap,
+    # and the forced refresh after a write always fetches
+    assert runs["kept"]["gets"] == ["/repos.html"] and runs["kept"]["values"] == ["half a thought"]
+    assert runs["forced"]["gets"] == ["/repos.html?fresh=1"] and runs["forced"]["values"] == ["half a thought"]
+    assert runs["focused"]["gets"] == []  # the operator is in a box: the poll waits for the blur
 
 
 def test_agent_rows_pause_and_resume_buttons(tmp_path, monkeypatch):

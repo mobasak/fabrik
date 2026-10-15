@@ -3784,8 +3784,9 @@ def _operator_only(verb: str) -> None:
 
 
 def cmd_verdict(repo: Path, args: argparse.Namespace) -> int:
-    """The operator's call on one item, from the dashboard or a shell (W-e1f1a1bd): every call is
-    appended to the item's `comments` list as {at, by, via, action, text}. ``accept`` answers an
+    """The operator's call on one item, from the dashboard or a shell (W-e1f1a1bd): every call that
+    is not refused is appended to the item's `comments` list as {at, by, via, action, text} (an item
+    whose `comments` is not a list is refused rather than overwritten). ``accept`` answers an
     awaiting decision ("accepted: <text>"), and on any other open item adds `operator-accepted` and
     lifts the `waits-operator-review` hold; ``reject`` answers an awaiting decision ("rejected:
     <text>") and drops any other open item; ``comment`` only appends. An awaiting item that is no
@@ -3815,9 +3816,10 @@ def cmd_verdict(repo: Path, args: argparse.Namespace) -> int:
                     "(only a decision is answered) — comment on it, or ask its owner"
                 )
             _fence(repo, args.id, session, "verdict")
-        log = item.get("comments")
-        item["comments"] = [*(log if isinstance(log, list) else []),
-                            {"at": time.time(), "by": "operator", "via": via, "action": action, "text": text}]
+        log = item.get("comments", [])
+        if not isinstance(log, list):
+            raise WorkError(f"verdict {args.id} refused: its `comments` is not a list — fix the item file by hand")
+        item["comments"] = [*log, {"at": time.time(), "by": "operator", "via": via, "action": action, "text": text}]
         if action == "comment":
             path = _write_item(repo, item)
         elif awaiting:
@@ -3826,7 +3828,9 @@ def cmd_verdict(repo: Path, args: argparse.Namespace) -> int:
             item.update(status="done", note=note)
             path = _close(repo, item, session=session, note=note)
         elif action == "accept":
-            item["tags"] = sorted((set(item.get("tags") or []) | {OPERATOR_ACCEPTED}) - {_REVIEW_HOLD})
+            raw = item.get("tags") or []
+            tags = set(raw) if isinstance(raw, list) else {str(raw)}  # a hand-edited string stays one tag
+            item["tags"] = sorted((tags | {OPERATOR_ACCEPTED}) - {_REVIEW_HOLD})
             path = _write_item(repo, item)
         else:
             note = f"rejected by the operator: {text}"

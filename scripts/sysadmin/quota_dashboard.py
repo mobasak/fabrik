@@ -2283,7 +2283,8 @@ def _opt_root() -> Path:
 
 
 def _collect_work(opt: Path) -> list[dict]:
-    """One entry per repo with a work store: {name, items, error, skipped}."""
+    """One entry per repo with a work store: {name, items, error, skipped, main} — ``main`` (the main
+    checkout a board write goes to) only once the store was read."""
     wk, sink = _work_module()
     out: list[dict] = []
     with wk._hook_git_budget():
@@ -2344,15 +2345,18 @@ def _verdict_cell(item: dict, repo: str) -> str:
     """The operator's Accept / Reject buttons and comment box for one row, under the item's last
     comment (W-e1f1a1bd). An awaiting item that is no decision takes comments only (work.py's rule)."""
     data = f'data-repo="{escape(repo)}" data-item="{escape(str(item.get("id", "")))}"'
-    log = item.get("comments")
-    last = log[-1] if isinstance(log, list) and log and isinstance(log[-1], dict) else None
+    raw = item.get("comments")
+    log: list = raw if isinstance(raw, list) else []
+    last = log[-1] if log and isinstance(log[-1], dict) else None
     out = ""
     if last:
         words = _cap(str(last.get("text") or ""), 120)
         more = f" · {len(log)} notes" if len(log) > 1 else ""
+        head = " ".join(escape(str(last.get(k) or d)) for k, d in (("by", "operator"), ("action", "note")))
+        ago = _ago(last.get("at"))
         out += (
-            f'<div class="iv-last">{escape(str(last.get("by") or "?"))} {escape(str(last.get("action") or ""))}'
-            f'{(": " + escape(words)) if words else ""}, {escape(_ago(last.get("at")))}{more}</div>'
+            f'<div class="iv-last">{head}{(": " + escape(words)) if words else ""}'
+            f'{(", " + escape(ago)) if ago else ""}{more}</div>'
         )
     if not (item.get("status") == "awaiting-operator" and item.get("kind") != "decision"):
         out += (
@@ -2735,7 +2739,7 @@ def item_verdict(repo: object, item: object, action: object, text: object = "") 
     hub = _FABRIK_ROOT / "scripts" / "work.py"
     opts = [f"--text={note}"] if note else []
     return _run_work(main, [[sys.executable, str(hub), "--repo", main, "verdict", *opts, "--by=dashboard",
-                             "--", item, action]])
+                             "--", item, str(action)]])
 
 
 def _agents_block() -> str:
@@ -2819,8 +2823,9 @@ def _repos_body() -> str:
         f'<option value="{escape(str(r["name"]))}">{escape(str(r["name"]))} ({len(r["items"])})</option>'
         for r in repos
     )
+    # the same reading as a row's data-tags (_repo_pane): a hand-edited string is one tag
     tags = sorted({str(t) for r in repos for i in r["items"]
-                   for t in (i.get("tags") if isinstance(i.get("tags"), list) else []) if t})
+                   for t in (i.get("tags") if isinstance(i.get("tags"), list) else [i.get("tags")]) if t})
     tag_opts = "".join(f'<option value="{escape(t)}">' for t in tags)
     panes = "".join(_safe_pane(r, i == 0) for i, r in enumerate(repos))
     return (
@@ -2915,17 +2920,16 @@ _REPOS_PICK_JS = (
     '  try { localStorage.setItem("repo-tag", t); } catch (e) {} });'
     "} initTags();"
     # force (after a Pause/Resume or a verdict): a fresh build, past the focus, selection and
-    # same-stamp skips — never past a hidden tab or frame, and never over a comment being typed
+    # same-stamp skips — never past a hidden tab or frame; words typed in a comment box survive any swap
     " function refreshRepos(force) {"
     "  force = force === true;"
     "  if (document.hidden) { return; }"
     "  try { var fe = window.frameElement; if (fe && fe.offsetParent === null) { return; } } catch (e) {}"
     '  var act = document.activeElement; if (!force && act && act.id === "repo-pick") { return; }'
-    # a swap rebuilds every input in #live: a focused box, or any comment still holding words, waits
+    # a swap rebuilds every input in #live: while the operator is IN a box (picker, tag box, comment)
+    # the poll waits; the forced refresh after a write never does — typed words are carried across
     '  if (!force && act && act.closest && act.closest("#live") && /^(INPUT|TEXTAREA|SELECT)$/.test(act.tagName))'
     "   { return; }"
-    '  if (Array.prototype.some.call(document.querySelectorAll("input.iv-text"),'
-    '   function (x) { return x.value !== ""; })) { return; }'
     "  var sel = window.getSelection ? String(window.getSelection()) : ''; if (!force && sel) { return; }"
     '  fetch(force ? "/repos.html?fresh=1" : "/repos.html", {cache: "no-store"})'
     "  .then(function (r) { return r.ok ? r.text() : null; })"
@@ -2934,7 +2938,11 @@ _REPOS_PICK_JS = (
     '   var nw = doc.getElementById("live"), cur = document.getElementById("live"); if (!nw || !cur) { return; }'
     '   var ns = nw.querySelector(".stamp"), cs = cur.querySelector(".stamp");'
     "   if (!force && ns && cs && ns.textContent === cs.textContent) { return; }"
+    '   function boxes(f) { Array.prototype.forEach.call(document.querySelectorAll("input.iv-text"), function (x) {'
+    '    f(x, JSON.stringify([x.getAttribute("data-repo"), x.getAttribute("data-item")])); }); }'
+    "   var kept = {}; boxes(function (x, k) { if (x.value) { kept[k] = x.value; } });"
     "   var y = window.scrollY; cur.innerHTML = nw.innerHTML; initPicker(); initTags();"
+    "   boxes(function (x, k) { if (kept[k]) { x.value = kept[k]; } });"
     '   if (typeof initOwners === "function") { initOwners(); } window.scrollTo(0, y);'
     "  }).catch(function () {}); }"
     f" setInterval(refreshRepos, {int(REPOS_REFRESH_S * 1000)});"

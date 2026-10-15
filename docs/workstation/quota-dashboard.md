@@ -235,8 +235,9 @@ and every call lands in the item's `comments` list for the agents to read. An it
 operator but is no decision gets the comment box only. The written item files sit in the main checkout
 until the coordinator's `work.py commit-items`; the board never commits. The **Tag** box above the panes
 narrows every pane to the rows carrying that tag (a datalist of the page's tags; the choice is kept, and
-a kept tag no longer on the page falls back to every row). The 20 s in-place refresh waits while a box
-on the page has focus or a comment box holds words, so nothing typed is wiped.
+a kept tag no longer on the page falls back to every row). The 20 s in-place refresh waits while the
+operator is in a box (the picker, the tag box or a comment box), and every swap carries the words typed
+in any comment box across, so nothing typed is wiped — the forced refresh after a write included.
 Tab hash:
 none (the bare URL); every other tab has its own (`#quota`, `#usage`, `#commands`, `#external`).
 

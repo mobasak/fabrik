@@ -1405,3 +1405,46 @@ def test_verdict_comment_logs_every_call(tmp_path):
     done = _add(repo, env)
     assert _verdict(repo, op, done, "reject", "gone").returncode == 0
     assert _verdict(repo, op, done, "comment", "late").returncode == 1
+
+
+def test_verdict_refusals_each_stand_alone(tmp_path):
+    """Review round 1: each refusal is proven on its own — a resolved item with no closed marker, an
+    item closed in another tree whose file here still reads open, another session's claim on ACCEPT,
+    and a `comments` that is not a list (refused, never overwritten); an awaiting item that is no
+    decision still takes a comment; a hand-edited string tag stays one tag."""
+    env, repo, trees = _setup(tmp_path, workers=("w1",), present=("w1",))
+    op = _operator(env)
+    items = repo / ".fabrik" / "work"
+
+    def edit(item: str, **fields) -> None:
+        path = items / f"{item}.json"
+        path.write_text(json.dumps({**json.loads(path.read_text()), **fields}), encoding="utf-8")
+
+    resolved = _add(repo, env)
+    edit(resolved, status="done")
+    r = _verdict(repo, op, resolved, "comment", "x")
+    assert r.returncode == 1 and "already done" in r.stderr
+    elsewhere = _add(repo, env)
+    claimed = _add(repo, env)
+    _assign(repo, env, claimed, "w1")
+    _commit_store(repo, env)
+    _git(trees["w1"], env, "merge", "-q", "master")
+    assert _verdict(trees["w1"], op, elsewhere, "reject", "gone").returncode == 0  # closed in w1's tree
+    r = _verdict(repo, op, elsewhere, "comment", "x")  # main's file still reads open
+    assert r.returncode == 1 and "another working tree" in r.stderr
+    assert run(["claim", claimed, "--session", SID], {**env, "CLAUDE_AGENT": "w1"}, trees["w1"]).returncode == 0
+    r = _verdict(repo, op, claimed, "accept")
+    assert r.returncode == 1 and "claim" in r.stderr
+    assert _verdict(repo, op, claimed, "comment", "fine to note").returncode == 0  # comment never fences
+    odd = _add(repo, env)
+    edit(odd, status="awaiting-operator")
+    assert _verdict(repo, op, odd, "comment", "seen").returncode == 0
+    bad = _add(repo, env)
+    edit(bad, comments={"x": 1})
+    r = _verdict(repo, op, bad, "comment", "y")
+    assert r.returncode == 1 and "not a list" in r.stderr
+    assert json.loads((items / f"{bad}.json").read_text())["comments"] == {"x": 1}
+    stringy = _add(repo, env)
+    edit(stringy, tags="abc")
+    assert _verdict(repo, op, stringy, "accept").returncode == 0
+    assert _items(repo)[stringy]["tags"] == ["abc", "operator-accepted"]
