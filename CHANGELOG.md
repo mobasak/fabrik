@@ -37,6 +37,22 @@ repo scaffolded before the kit still builds them by hand. Intel's mail
   the catalog's one DashScope route is still turbo. `tests/test_language_pack.py` grades every rendered category
   (W-7450f4b6). The pack blocks change on the next render, which D-430 keeps paused.
 
+### Added — work.py: pause and resume an agent; the queue floor, triage and every Stop rung honour it (2026-10-15)
+
+- `work.py pause <name> [--why] [--by]` / `resume <name>` (W-da4bc702). The pause is a marker in the repo's shared `fabrik-work/paused/`, so every tree sees it at once with no commit; `pause` alone lists the pauses.
+- A paused agent:
+  - gets a null Stop action (only the main checkout's `commit-items` survives), so a held claim is kept and nothing is lost;
+  - is skipped by the coordinator's floor rung and by `triage`;
+  - sees "PAUSED by …" in its prompt block, with no ready line;
+  - auto-claims nothing from its `NEXT:` line.
+- A worker's doorbell skips a paused coordinator and says so.
+- Who may act:
+  - Pause: the distributor, the agent itself, or the operator (a shell or the dashboard, with no agent name and no Claude session id).
+  - Resume: whoever set the pause (checked by the agent name recorded in the marker, never the `--by` label), the distributor, or the operator.
+  - An unnamed Claude session is refused, and a paused agent cannot re-pause or lift another's pause.
+- Markers are read only when they are regular files of at most 4 KiB. Any other entry pauses by presence and is removed by hand.
+- This is the half of the dashboard's Pause/Resume buttons that lives in `work.py`. The hook's merge-owner cause does not read a pause.
+
 ### Added — dashboard: an Agents table for every repo, and a Repos page that keeps itself up to date (2026-10-15)
 
 - `/repos.html` opens with "Agents — every repo" (W-7159f8e2, operator 2026-10-15). It shows one row per agent, with:
