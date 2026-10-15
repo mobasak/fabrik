@@ -926,22 +926,22 @@ fabrik-export-vps1-YYYY-MM-DD.tar.gz
 ├── secrets-redacted.json          # .env KEY NAMES (never values)
 ├── specs/services/*.yaml          # every service spec
 ├── state/*.json                   # T2-01 state files, coolify_uuid stripped
-├── coolify/{applications,services,projects}.json    # UUIDs recursively stripped
 ├── monitoring/{prometheus,alertmanager,redis-assignments,postgres-allocations}*
 ├── monitoring/grafana-dashboards/  # repo-local mirrors
-├── authelia/configuration.yml      # SSH-pulled (best-effort)
+├── authelia/configuration.yml      # SSH-pulled from /opt/authelia/config (best-effort, secrets redacted)
 └── backrest/config.json            # SSH-pulled (best-effort)
 ```
+
+Since the Coolify retirement (plan 2026-10-14-plan-1-coolify-verb-retirement, T06) the bundle carries no `coolify/` tree. A bundle exported before then still opens: `fabrik import` counts its `coolify/*` file members as `ignored legacy members (coolify/*): <n>` and restores none of them.
 
 ### Security Invariants (test-enforced)
 
 1. **No plaintext secret values.** `_redact_env_keys` reads only up to the first `=` of each `.env` line. The test byte-scans the entire gzip stream for known values and asserts zero hits.
-2. **No Coolify UUIDs.** `_strip_uuids` recurses both keys (14 known UUID-named fields including `private_key_uuid`, `server_uuid`, `deployment_uuid`) and bare 24-alphanum string values. The test scans 5 distinct UUID markers across all bundle entries.
-3. **No Coolify private-key UUIDs** (a special case of the above) — guarantees the target can't accidentally inherit the source's git deploy-key references.
+2. **No legacy deploy UUIDs in state.** `_collect_state` pops `coolify_uuid` from every state file and `_strip_uuids` recurses the rest (the UUID-named keys and bare 24-alphanumeric string values), so a target cannot inherit the source host's old deploy identifiers.
 
 ### Why Import Is Shipped Untested
 
-The real roundtrip needs a fresh Ubuntu VM with bootstrapped Coolify + postgres-main + redis-main. Pack §28 explicitly defers this to the vps2 stand-up. Until then:
+The real roundtrip needs a fresh Ubuntu VM with Docker Compose + postgres-main + redis-main. Pack §28 explicitly defers this to the vps2 stand-up. Until then:
 
 - The `import` pipeline parses the bundle, validates the manifest, and emits a restore plan.
 - The `--apply` flag runs but ends at a documented stub (`phase: real_run / status: stub`).
@@ -949,7 +949,7 @@ The real roundtrip needs a fresh Ubuntu VM with bootstrapped Coolify + postgres-
 
 ### Acceptance Reference
 
-Pack v3.2 §EPIC SCOPE Tier 4 G-J2 (effort revised v2: +0.5 day for secrets ergonomics). Live verification: `pytest tests/test_portability.py -v` (23/23 pass). Sample run on `/opt/fabrik` produced a 44 KB tarball with 26 Coolify applications, 348 redacted secret keys, and zero UUID leaks.
+Pack v3.2 §EPIC SCOPE Tier 4 G-J2 (effort revised v2: +0.5 day for secrets ergonomics). Live verification: `pytest tests/test_portability.py -v` (every test passes; the suite grew past the original 23 with the Coolify retirement's legacy-bundle and README cases). The original sample run on `/opt/fabrik` (before the retirement) produced a 44 KB tarball with 348 redacted secret keys and zero UUID leaks.
 
 ---
 

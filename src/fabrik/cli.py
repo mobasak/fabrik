@@ -2779,8 +2779,7 @@ def export(output: Path | None, include_data: bool, skip_remote: bool):
     """Export the current VPS state as a portable bundle (T4-03 G-J2).
 
     Produces a tarball containing specs, .fabrik/state/, redacted secrets
-    key list (NEVER values), Coolify Applications/Services/Projects with
-    UUIDs stripped, monitoring configs (gatus/prometheus/alertmanager/
+    key list (NEVER values), monitoring configs (gatus/prometheus/alertmanager/
     grafana/redis-assignments/postgres-allocations), Authelia configuration,
     Backrest config, plus a README with restore instructions.
 
@@ -2865,6 +2864,8 @@ def import_(bundle: Path, real_run: bool):
     click.echo("Sections:")
     for key, count in sorted(plan["sections"].items()):
         click.echo(f"  {key:<20} {count}")
+    if plan.get("ignored_legacy"):
+        click.echo(f"  ignored legacy members (coolify/*): {plan['ignored_legacy']}")
     if plan.get("secrets_to_repopulate"):
         click.echo()
         click.echo(

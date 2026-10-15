@@ -133,6 +133,24 @@
       "started_at": "2026-10-14T08:48:39.493544+00:00",
       "updated_at": "2026-10-14T10:46:22.589996+00:00",
       "coder_commit": "2a7f0fb38"
+    },
+    "T06": {
+      "state": "merged",
+      "base_commit": "a1dd151d8",
+      "started_at": "2026-10-15T10:02:00+00:00",
+      "updated_at": "2026-10-15T10:58:10.128555+00:00",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a9aa8dec3b8623fd3",
+      "branch": "worktree-agent-a9aa8dec3b8623fd3",
+      "coder_commit": "3694bc6aa"
+    },
+    "T08": {
+      "state": "merged",
+      "base_commit": "a1dd151d8",
+      "started_at": "2026-10-15T10:02:00+00:00",
+      "updated_at": "2026-10-15T10:58:10.128555+00:00",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a6b864ddae60be827",
+      "branch": "worktree-agent-a6b864ddae60be827",
+      "coder_commit": "9d0d9e4c8"
     }
   }
 }

@@ -1,7 +1,7 @@
 # AFTER-EDIT: none
 """Pre/post-deploy VPS state snapshot for the dev→VPS workflow test.
 
-Captures Coolify apps, Cloudflare DNS records on vps1.ocoron.com, GlitchTip
+Captures Cloudflare DNS records on vps1.ocoron.com, GlitchTip
 projects, and Gatus endpoints, then writes a JSON snapshot to
 ``.tmp/vps-snapshot-<label>.json``.
 
@@ -31,27 +31,6 @@ load_dotenv("/opt/fabrik/.env")
 REPO_ROOT = Path("/opt/fabrik")
 SNAPSHOT_DIR = REPO_ROOT / ".tmp"
 SNAPSHOT_DIR.mkdir(exist_ok=True)
-
-
-def snapshot_coolify() -> dict[str, Any]:
-    from fabrik.drivers import coolify
-
-    client = coolify.CoolifyClient()
-    apps = client.list_applications()
-    projects = client.list_projects()
-    return {
-        "applications": [
-            {
-                "uuid": a.get("uuid"),
-                "name": a.get("name"),
-                "fqdn": a.get("fqdn"),
-                "status": a.get("status"),
-                "project_uuid": a.get("project_uuid") or (a.get("project") or {}).get("uuid"),
-            }
-            for a in apps
-        ],
-        "projects": [{"uuid": p.get("uuid"), "name": p.get("name")} for p in projects],
-    }
 
 
 def snapshot_cloudflare() -> dict[str, Any]:
@@ -128,7 +107,6 @@ def take_snapshot(label: str) -> Path:
     snap = {
         "label": label,
         "captured_at": datetime.now(UTC).isoformat(),
-        "coolify": _safe(snapshot_coolify),
         "cloudflare": _safe(snapshot_cloudflare),
         "glitchtip": _safe(snapshot_glitchtip),
         "gatus": _safe(snapshot_gatus),
@@ -149,11 +127,6 @@ def diff(a_label: str, b_label: str) -> int:
     a = json.loads((SNAPSHOT_DIR / f"vps-snapshot-{a_label}.json").read_text())
     b = json.loads((SNAPSHOT_DIR / f"vps-snapshot-{b_label}.json").read_text())
     leaks: list[str] = []
-
-    a_apps = {x["uuid"] for x in (a.get("coolify", {}).get("applications") or [])}
-    b_apps = {x["uuid"] for x in (b.get("coolify", {}).get("applications") or [])}
-    for new_uuid in b_apps - a_apps:
-        leaks.append(f"coolify.application leaked: {new_uuid}")
 
     a_dns = {x["id"] for x in (a.get("cloudflare", {}).get("vps1_records") or [])}
     b_dns = {x["id"] for x in (b.get("cloudflare", {}).get("vps1_records") or [])}

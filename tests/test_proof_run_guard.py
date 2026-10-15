@@ -53,6 +53,8 @@ from __future__ import annotations
 import ast
 import builtins
 import importlib.util
+import io
+import json
 import pathlib
 import runpy
 import subprocess
@@ -388,4 +390,176 @@ def test_every_other_spelling_is_refused_with_exit_two(
     with pytest.raises(SystemExit) as exc:
         _load_module().parse_args(argv)
     assert exc.value.code == 2
+    assert recorded == []
+
+
+# --- T08: the Coolify half of the script is gone --------------------------------------------------
+
+
+def test_apply_builds_no_use_orchestrator_argv(
+    guarded_source: str, recorded: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--use-orchestrator`` left ``fabrik apply`` in T05: ``apply()``'s argv (``run`` faked) must not name it."""
+    module = _load_module()
+    argv_seen: list[list[str]] = []
+
+    def _run(cmd, *args, **kwargs):
+        argv_seen.append(list(cmd))
+
+    monkeypatch.setattr(module, "run", _run)
+    module.apply(pathlib.Path("specs/services/fabrik-test-x.yaml"), io.StringIO())
+    assert len(argv_seen) == 1
+    assert "apply" in argv_seen[0]
+    assert "--use-orchestrator" not in argv_seen[0]
+    assert "--use-orchestrator" not in guarded_source
+
+
+def test_the_script_names_no_coolify_anywhere(guarded_source: str) -> None:
+    """Behavior row 1 (V8): no ``COOLIFY_*`` env key, driver import, uuid column or prose is left."""
+    assert "coolify" not in guarded_source.lower()
+
+
+_FOUR_ROWS = "\n".join(
+    json.dumps({"Service": svc, "State": state, "Health": "", "ExitCode": 0})
+    for svc, state in (
+        ("api", "running"),
+        ("worker", "running"),
+        ("redis", "running"),
+        ("beat", "running"),
+    )
+)
+
+
+_EXITED_BEAT = _FOUR_ROWS.replace('"beat", "State": "running"', '"beat", "State": "exited"')
+
+
+def _rows(*pairs: tuple[str, str]) -> str:
+    return "\n".join(
+        json.dumps({"Service": svc, "State": state, "Health": "", "ExitCode": 0})
+        for svc, state in pairs
+    )
+
+
+@pytest.mark.parametrize(
+    ("ps", "exists", "error", "ok"),
+    [
+        pytest.param(_FOUR_ROWS, True, None, True, id="all-four-running"),
+        pytest.param(_EXITED_BEAT, True, None, False, id="one-exited"),
+        pytest.param(
+            _rows(("worker", "exited"), ("worker", "running")),
+            True,
+            None,
+            False,
+            id="replica-pair-exited-then-running",
+        ),
+        pytest.param(
+            _rows(("worker", "running"), ("worker", "exited")),
+            True,
+            None,
+            False,
+            id="replica-pair-running-then-exited",
+        ),
+        pytest.param(_rows(("worker", "restarting")), True, None, False, id="restarting"),
+        pytest.param("", True, None, False, id="zero-rows-is-not-running"),
+        pytest.param("", False, None, False, id="no-compose-file"),
+        pytest.param("", False, "RuntimeError: ssh down", False, id="probe-error"),
+        pytest.param(
+            "not json", True, "compose ps output is not JSON", False, id="error-branch-alone"
+        ),
+        pytest.param(_FOUR_ROWS, False, None, False, id="exists-branch-alone"),
+    ],
+)
+def test_the_worker_check_reads_every_state_through_probe_app(
+    guarded_source: str,
+    recorded: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    ps: str,
+    exists: bool,
+    error: str | None,
+    ok: bool,
+) -> None:
+    """Behavior row 3: ``worker_running`` passes only when EVERY ``probe_app`` ps row is ``running``."""
+    from fabrik.orchestrator import deployer_ssh
+
+    seen: list[str] = []
+
+    def _probe(self, path: str) -> dict:
+        seen.append(path)
+        return {"exists": exists, "ps": ps, "error": error}
+
+    monkeypatch.setattr(deployer_ssh.SSHDeployer, "probe_app", _probe)
+    monkeypatch.setattr(sys, "path", list(sys.path))  # worker_running inserts the hub src
+    spec = {"id": "fabrik-test-file-worker", "source": {"type": "git"}}
+    got_ok, detail = _load_module().worker_running(spec)
+    assert got_ok is ok
+    assert seen == ["/opt/fabrik-test-file-worker"]
+    assert isinstance(detail, str) and detail
+    assert recorded == []
+
+
+def test_a_duplicate_service_shows_twice_in_the_detail(
+    guarded_source: str, recorded: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from fabrik.orchestrator import deployer_ssh
+
+    ps = _rows(("worker", "exited"), ("worker", "running"), ("worker", ""))
+    monkeypatch.setattr(
+        deployer_ssh.SSHDeployer,
+        "probe_app",
+        lambda self, path: {"exists": True, "ps": ps, "error": None},
+    )
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    _, detail = _load_module().worker_running({"id": "fabrik-test-file-worker"})
+    assert detail == "worker=exited, worker=running, worker=?"
+
+
+@pytest.mark.parametrize("verdict", [False, True])
+def test_process_type_fails_the_worker_when_worker_running_says_no(
+    guarded_source: str,
+    recorded: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+    verdict: bool,
+) -> None:
+    """The worker branch of ``process_type`` honours ``worker_running``; every other step is a stub."""
+    module = _load_module()
+    monkeypatch.setattr(module, "LOG_DIR", tmp_path)
+    for step in ("cleanup", "assert_nxdomain", "dump_diagnostics"):
+        monkeypatch.setattr(module, step, lambda *a, **k: None)
+    monkeypatch.setattr(module, "scaffold", lambda *a, **k: tmp_path)
+    monkeypatch.setattr(module, "push_to_github", lambda *a, **k: "git@example:x/y.git")
+    monkeypatch.setattr(module, "regenerate_spec", lambda *a, **k: tmp_path / "s.yaml")
+    monkeypatch.setattr(module, "read_spec", lambda *a, **k: {"id": "fabrik-test-file-worker"})
+    monkeypatch.setattr(
+        module, "apply", lambda *a, **k: subprocess.CompletedProcess(args=[], returncode=0)
+    )
+    monkeypatch.setattr(module, "worker_running", lambda spec: (verdict, "worker=stub"))
+    result = module.process_type("file-worker", {})
+    assert result["ok"] is verdict
+    assert (result["error"] is None) is verdict
+    assert "worker=stub" in result["curl_raw"]
+    assert recorded == ["Path.mkdir", "subprocess.check_output"]
+
+
+def test_cleanup_with_no_spec_says_so_and_destroys_nothing_by_spec(
+    guarded_source: str,
+    recorded: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No spec file: ``cleanup`` prints and logs the contracted line, runs no ``fabrik destroy``."""
+    module = _load_module()
+    monkeypatch.setattr(module, "SPECS_DIR", tmp_path)
+    monkeypatch.setattr(module, "PROJECT_BASE", tmp_path)
+    argvs: list[list[str]] = []
+    monkeypatch.setattr(module, "run", lambda cmd, *a, **k: argvs.append(list(cmd)))
+    dns: list[str] = []
+    monkeypatch.setattr(module, "_cf_delete_dns_record", lambda name, *a, **k: dns.append(name))
+    log = io.StringIO()
+    module.cleanup("fabrik-test-x", {"GITHUB_TOKEN": "t"}, log)
+    assert "no spec, nothing to destroy\n" in log.getvalue()
+    assert "no spec, nothing to destroy\n" in capsys.readouterr().out
+    assert [a[:3] for a in argvs] == [["gh", "repo", "delete"]]  # no destroy, no rm -rf
+    assert dns == ["fabrik-test-x"]
     assert recorded == []

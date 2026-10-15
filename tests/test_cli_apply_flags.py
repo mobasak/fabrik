@@ -137,20 +137,23 @@ class TestDestroyWordingDropsCoolify:
 
 
 class TestNoRemainingCoolifyOutsideExportImport:
-    def test_every_remaining_hit_in_cli_py_is_inside_the_export_docstring(self):
-        """Replaces `git grep -n -i coolify -- src/fabrik/cli.py` with a direct read: every
-        surviving hit must lie inside `export()`'s body — T06's docstring, not this ticket's."""
+    def test_every_remaining_hit_in_cli_py_is_inside_export_or_import(self):
+        """Replaces a repo-wide grep for `coolify` in src/fabrik/cli.py with a direct read: every
+        surviving hit must lie inside `export()` or `import_()` (T06's surface: its
+        `ignored legacy members (coolify/*)` printer line), never another verb's."""
         cli_path = REPO_ROOT / "src" / "fabrik" / "cli.py"
         lines = cli_path.read_text().splitlines()
         hit_lines = [i + 1 for i, line in enumerate(lines) if "coolify" in line.lower()]
 
-        assert hit_lines, "expected export()'s own Coolify mention to still be there"
+        assert hit_lines, "expected import_()'s legacy-member printer line to still be there"
 
-        export_lines, export_start = inspect.getsourcelines(cli_module.export.callback)
-        export_end = export_start + len(export_lines) - 1
+        spans = []
+        for cmd in (cli_module.export, cli_module.import_):
+            src_lines, first = inspect.getsourcelines(cmd.callback)
+            spans.append((first, first + len(src_lines) - 1))
 
         for n in hit_lines:
-            assert export_start <= n <= export_end, (
-                f"cli.py:{n} ('{lines[n - 1].strip()}') is outside export()'s body "
-                f"({export_start}-{export_end}) and should have been removed by T05/T02-T04"
+            assert any(a <= n <= b for a, b in spans), (
+                f"cli.py:{n} ('{lines[n - 1].strip()}') is outside export()/import_() "
+                f"({spans}) and should have been removed by T02-T05"
             )

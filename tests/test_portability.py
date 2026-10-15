@@ -10,19 +10,19 @@ Two-layer coverage:
    from the ticket Pass-2 checklist:
 
    - No plaintext secret values inside the tarball.
-   - No Coolify UUIDs in any exported section.
+   - No UUID-shaped fields in any exported section.
    - Bundle includes manifest.json, README.md, secrets-redacted.json.
 
-The Coolify API surface is mocked at the ``CoolifyClient`` boundary so
-tests don't require network access or a live token.
+Remote (SSH) pulls are skipped with ``skip_remote=True`` so tests don't
+require network access.
 """
 
 from __future__ import annotations
 
+import io
 import json
 import tarfile
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from click.testing import CliRunner
@@ -213,12 +213,29 @@ class TestSensitiveFieldRedaction:
             assert not portability._key_is_sensitive(k), f"false-positive: {k}"
 
 
+class TestCollectAuthelia:
+    def test_live_bind_mount_path_probed_first_and_read(self, monkeypatch):
+        live = "/opt/authelia/config/configuration.yml"
+        probed: list[str] = []
+
+        def fake_cat(path):
+            probed.append(path)
+            return "jwt_secret: hunter2\nserver:\n  port: 9091\n" if path == live else None
+
+        monkeypatch.setattr(portability, "_ssh_cat", fake_cat)
+        out = portability._collect_authelia()
+        assert probed[0] == live
+        assert out["authelia/configuration.yml"]
+        assert "hunter2" not in out["authelia/configuration.yml"]
+        assert "9091" in out["authelia/configuration.yml"]
+
+
 class TestSecretsRedaction:
     def test_only_key_names_emitted_never_values(self, tmp_path):
         env = tmp_path / ".env"
         env.write_text(
             "# Comment\n"
-            "COOLIFY_API_TOKEN=actually-secret-value\n"
+            "OTHER_API_TOKEN=actually-secret-value\n"
             "CLOUDFLARE_API_TOKEN=cloudflare-secret\n"
             "STRIPE_SECRET_KEY=sk_live_abc123\n"
             "\n"
@@ -229,7 +246,7 @@ class TestSecretsRedaction:
         result = portability._redact_env_keys(env)
         assert result == {
             "CLOUDFLARE_API_TOKEN": "REDACTED",
-            "COOLIFY_API_TOKEN": "REDACTED",
+            "OTHER_API_TOKEN": "REDACTED",
             "STRIPE_SECRET_KEY": "REDACTED",
             "WP_SUPER_ADMIN_PASSWORD": "REDACTED",
         }
@@ -307,26 +324,6 @@ class TestCollectLocal:
 # ---------------------------------------------------------------------------
 
 
-def _fake_coolify_client():
-    """Mock CoolifyClient that returns realistic payloads with UUIDs."""
-    client = MagicMock()
-    client.list_applications.return_value = [
-        {
-            "uuid": "app-uuid-aaaaaaaaaaaaaaaa",
-            "name": "translator",
-            "fqdn": "translator.vps1.ocoron.com",
-            "destination": {"server_uuid": "srv-uuid-aaaaaaaaaaaaaaaaaa", "name": "vps1"},
-        }
-    ]
-    client.list_services.return_value = [
-        {"uuid": "svc-uuid-aaaaaaaaaaaaaaaa", "name": "authelia", "type": "authelia"},
-    ]
-    client.list_projects.return_value = [
-        {"uuid": "prj-uuid-aaaaaaaaaaaaaaaa", "name": "fabrik-services"},
-    ]
-    return client
-
-
 class TestExportBundle:
     def _setup_repo(self, tmp_path: Path) -> Path:
         (tmp_path / "specs" / "services").mkdir(parents=True)
@@ -346,7 +343,7 @@ class TestExportBundle:
         (tmp_path / "configs" / "grafana" / "dashboards").mkdir(parents=True)
         (tmp_path / "configs" / "grafana" / "dashboards" / "d.json").write_text("{}")
         (tmp_path / ".env").write_text(
-            "FAKE_TOKEN=should-never-appear\nCOOLIFY_API_TOKEN=also-secret\n"
+            "FAKE_TOKEN=should-never-appear\nOTHER_API_TOKEN=also-secret\n"
         )
         return tmp_path
 
@@ -356,7 +353,6 @@ class TestExportBundle:
         portability.export_bundle(
             out,
             fabrik_root=root,
-            coolify_client=_fake_coolify_client(),
             skip_remote=True,
         )
         assert out.exists()
@@ -369,20 +365,17 @@ class TestExportBundle:
             "secrets-redacted.json",
             "specs/services/demo.yaml",
             "state/demo.json",
-            "coolify/applications.json",
-            "coolify/services.json",
-            "coolify/projects.json",
         ):
             assert required in names, f"missing required entry: {required}"
+        # D6: the Coolify section is gone — no member under coolify/.
+        assert not [n for n in names if n.startswith("coolify/")]
 
     def test_tarball_contains_no_plaintext_secrets(self, tmp_path):
         """SECURITY INVARIANT: scan every byte of the bundle for the secret
         values that lived in .env. None must appear."""
         root = self._setup_repo(tmp_path)
         out = tmp_path / "bundle.tar.gz"
-        portability.export_bundle(
-            out, fabrik_root=root, coolify_client=_fake_coolify_client(), skip_remote=True
-        )
+        portability.export_bundle(out, fabrik_root=root, skip_remote=True)
         body = out.read_bytes()
         # tarballs are gzipped — extract everything and concat for the scan.
         with tarfile.open(out, "r:gz") as tar:
@@ -395,26 +388,20 @@ class TestExportBundle:
             assert forbidden not in concat, f"plaintext secret leaked: {forbidden!r}"
             assert forbidden not in body, f"plaintext secret in gzip stream: {forbidden!r}"
 
-    def test_tarball_contains_no_coolify_uuids(self, tmp_path):
-        """SECURITY INVARIANT: no Coolify UUID survives the export."""
+    def test_tarball_contains_no_legacy_uuids(self, tmp_path):
+        """SECURITY INVARIANT: no state-file UUID survives the export."""
         root = self._setup_repo(tmp_path)
         out = tmp_path / "bundle.tar.gz"
-        portability.export_bundle(
-            out, fabrik_root=root, coolify_client=_fake_coolify_client(), skip_remote=True
-        )
+        portability.export_bundle(out, fabrik_root=root, skip_remote=True)
         with tarfile.open(out, "r:gz") as tar:
             for member in tar.getmembers():
-                if not member.name.startswith(("coolify/", "state/")):
+                if not member.name.startswith("state/"):
                     continue
                 f = tar.extractfile(member)
                 if f is None:
                     continue
                 content = f.read().decode("utf-8")
                 for uuid_marker in (
-                    "app-uuid-aaaaaaaaaaaaaaaa",
-                    "srv-uuid-aaaaaaaaaaaaaaaaaa",
-                    "svc-uuid-aaaaaaaaaaaaaaaa",
-                    "prj-uuid-aaaaaaaaaaaaaaaa",
                     "abcabcabcabcabcabcabcabc",  # state coolify_uuid
                 ):
                     assert uuid_marker not in content, (
@@ -424,21 +411,17 @@ class TestExportBundle:
     def test_secrets_redacted_json_has_keys_only(self, tmp_path):
         root = self._setup_repo(tmp_path)
         out = tmp_path / "bundle.tar.gz"
-        portability.export_bundle(
-            out, fabrik_root=root, coolify_client=_fake_coolify_client(), skip_remote=True
-        )
+        portability.export_bundle(out, fabrik_root=root, skip_remote=True)
         with tarfile.open(out, "r:gz") as tar:
             f = tar.extractfile("secrets-redacted.json")
             assert f is not None
             data = json.loads(f.read().decode("utf-8"))
-        assert data == {"COOLIFY_API_TOKEN": "REDACTED", "FAKE_TOKEN": "REDACTED"}
+        assert data == {"OTHER_API_TOKEN": "REDACTED", "FAKE_TOKEN": "REDACTED"}
 
     def test_manifest_lists_sections_and_marks_import_untested(self, tmp_path):
         root = self._setup_repo(tmp_path)
         out = tmp_path / "bundle.tar.gz"
-        portability.export_bundle(
-            out, fabrik_root=root, coolify_client=_fake_coolify_client(), skip_remote=True
-        )
+        portability.export_bundle(out, fabrik_root=root, skip_remote=True)
         with tarfile.open(out, "r:gz") as tar:
             f = tar.extractfile("manifest.json")
             assert f is not None
@@ -447,6 +430,28 @@ class TestExportBundle:
         assert "import" in manifest["untested_paths"]
         assert manifest["sections"]["specs"] == 1
         assert manifest["sections"]["state"] == 1
+        assert "coolify" not in manifest["sections"]
+
+    def test_coolify_client_parameter_is_gone(self, tmp_path):
+        with pytest.raises(TypeError):
+            portability.export_bundle(
+                tmp_path / "x.tar.gz", fabrik_root=tmp_path, coolify_client=object()
+            )
+
+    def test_readme_names_ssh_compose_and_no_coolify(self, tmp_path):
+        root = self._setup_repo(tmp_path)
+        out = tmp_path / "bundle.tar.gz"
+        portability.export_bundle(out, fabrik_root=root, skip_remote=True)
+        with tarfile.open(out, "r:gz") as tar:
+            f = tar.extractfile("README.md")
+            assert f is not None
+            readme = f.read().decode("utf-8")
+        assert "coolify" not in readme.lower()
+        assert "SSH" in readme
+        assert "Compose" in readme
+        assert "does not apply anything" in readme
+        assert "fabrik apply specs/services/<id>.yaml" in readme
+        assert "fabrik audit-registrars" in readme
 
 
 # ---------------------------------------------------------------------------
@@ -462,9 +467,7 @@ class TestImportBundle:
         (root / "specs" / "services" / "demo.yaml").write_text("id: demo\n")
         (root / ".env").write_text("DEMO_KEY=val\n")
         bundle = tmp_path / "b.tar.gz"
-        portability.export_bundle(
-            bundle, fabrik_root=root, coolify_client=_fake_coolify_client(), skip_remote=True
-        )
+        portability.export_bundle(bundle, fabrik_root=root, skip_remote=True)
         return bundle
 
     def test_dry_run_returns_plan_without_executing(self, tmp_path):
@@ -482,6 +485,69 @@ class TestImportBundle:
         assert any(
             a.get("phase") == "real_run" and a.get("status") == "stub" for a in plan["actions"]
         )
+
+    def _legacy_bundle(self, tmp_path):
+        bundle = tmp_path / "legacy.tar.gz"
+        with tarfile.open(bundle, "w:gz") as tar:
+            for name in ("manifest.json", "coolify/applications.json", "coolify/services.json"):
+                data = b"{}"
+                info = tarfile.TarInfo(name=name)
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+        return bundle
+
+    def test_legacy_coolify_members_counted_not_sectioned(self, tmp_path):
+        plan = portability.import_bundle(self._legacy_bundle(tmp_path), dry_run=True)
+        assert plan["ignored_legacy"] == 2
+        assert "coolify" not in plan["sections"]
+
+    def test_legacy_count_is_regular_files_and_normalises_dot_slash(self, tmp_path):
+        bundle = tmp_path / "legacy2.tar.gz"
+        with tarfile.open(bundle, "w:gz") as tar:
+            d = tarfile.TarInfo(name="coolify")
+            d.type = tarfile.DIRTYPE
+            tar.addfile(d)
+            for name in ("coolify/a.json", "./coolify/b.json"):
+                info = tarfile.TarInfo(name=name)
+                info.size = 2
+                tar.addfile(info, io.BytesIO(b"{}"))
+            sym = tarfile.TarInfo(name="coolify/link.json")
+            sym.type = tarfile.SYMTYPE
+            sym.linkname = "a.json"
+            tar.addfile(sym)
+            hard = tarfile.TarInfo(name="coolify/hard.json")
+            hard.type = tarfile.LNKTYPE
+            hard.linkname = "coolify/a.json"
+            tar.addfile(hard)
+        plan = portability.import_bundle(bundle, dry_run=True)
+        assert plan["ignored_legacy"] == 4
+
+    def test_dot_slash_names_normalised_for_sections_and_legacy(self, tmp_path):
+        bundle = tmp_path / "dot.tar.gz"
+        with tarfile.open(bundle, "w:gz") as tar:
+            for name in ("./specs/a.yaml", "./coolify/b.json"):
+                info = tarfile.TarInfo(name=name)
+                info.size = 2
+                tar.addfile(info, io.BytesIO(b"{}"))
+        plan = portability.import_bundle(bundle, dry_run=True)
+        assert plan["sections"]["specs"] == 1
+        assert plan["ignored_legacy"] == 1
+
+    def test_clean_bundle_has_no_ignored_legacy_key(self, tmp_path):
+        plan = portability.import_bundle(self._make_bundle(tmp_path), dry_run=True)
+        assert "ignored_legacy" not in plan
+
+    def test_import_coolify_client_parameter_is_gone(self, tmp_path):
+        with pytest.raises(TypeError):
+            portability.import_bundle(
+                self._make_bundle(tmp_path), dry_run=True, coolify_client=object()
+            )
+
+    def test_cli_import_prints_ignored_legacy_line(self, tmp_path):
+        # `import` is a dry run by default (no --dry-run flag exists).
+        result = CliRunner().invoke(cli, ["import", str(self._legacy_bundle(tmp_path))])
+        assert result.exit_code == 0, result.output
+        assert "ignored legacy members (coolify/*): 2" in result.output
 
     def test_missing_bundle_raises_clear_error(self, tmp_path):
         with pytest.raises(FileNotFoundError):
@@ -520,10 +586,8 @@ class TestExportCli:
         - Import dry-run parses the bundle and produces a plan.
         - The plan flags secrets-to-repopulate via the manifest path.
 
-        The Coolify client may make real API calls here. The
-        ``--skip-remote`` flag suppresses VPS-side ssh pulls. If the
-        Coolify token is missing or the API is down, the export still
-        succeeds (best-effort per pack §28 — empty coolify section).
+        The ``--skip-remote`` flag suppresses VPS-side ssh pulls, so the
+        export needs no network.
         """
         bundle = tmp_path / "out.tar.gz"
         runner = CliRunner()

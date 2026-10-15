@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `fabrik export`/`import` drop the Coolify section (2026-10-15)
+
+- **What:** `src/fabrik/portability.py` writes no `coolify/` tree and no `coolify` manifest count, and `export_bundle`/`import_bundle` lose their `coolify_client` parameter. `fabrik import` counts a legacy bundle's `coolify/*` non-directory members as `ignored legacy members (coolify/*): <n>` and restores none of them; member names are `./`-normalised once for the section counts and the legacy count. `_collect_authelia` reads the live bind mount `/opt/authelia/config/configuration.yml` first (the old named-volume paths stay as fallbacks), and the bundle README says the import plans and reports and applies nothing.
+- **Why:** plan 2026-10-14-plan-1-coolify-verb-retirement ticket T06 (spec D6); the Authelia path and the README were confirmed defects in the ticket's `/fabrik-review` (`docs/development/reviews/2026-10-14-plan-1-coolify-verb-retirement-T06-review.md`).
+
+### Changed — four hub VPS scripts leave Coolify (2026-10-15)
+
+- **What:** `scripts/snapshot_vps_state.py`, `update_vps_docs.py`, `vps_sync.py` and `proof_run.py` drop every Coolify call, key and column. `proof_run`'s worker proof reads every Compose container's `State` through `probe_app` and passes only when every row is `running` (a replica pair with one exited container fails); `vps_sync`'s residue audit is 10 points (the Coolify-app and Authelia-orphan checks left), its Meilisearch lookup matches the container named exactly `meilisearch`, and a `coolify-proxy` traefik container now lands under infrastructure.
+- **Why:** plan 2026-10-14-plan-1-coolify-verb-retirement ticket T08 (spec D11); reviewed in the same wave receipt, which kept the T05 grader and the vps-status pin current.
+
 ### Changed — the hub CLAUDE.md carries the coordinator's duties paragraph (2026-10-15)
 
 - `CLAUDE.md` § Orient now carries the template's "The coordinator role" paragraph byte-identical, plus one hub sentence on how the rulings D-874, D-880, D-882 and D-885 refine it, so the hub coordinator reloads its duties on every session start, compact and resume; the coordinator charter points at it; `tests/test_governance_template_split.py` keeps the copies identical. W-cfff98dd, D-888.
