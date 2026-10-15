@@ -46,6 +46,20 @@ def test_the_close_chain_runs_its_four_calls_in_order_with_the_artifact_committe
     assert body.index("BEFORE the chain") < marks[0], "the inputs are written before call (1)"
 
 
+def test_a_figure_in_a_close_input_is_printed_by_its_producer_not_recalled() -> None:
+    """Rows 1792054246 + the held changelog-test-count-from-pytest family: a commit message said 13 for a 37-entry tuple."""
+    body = " ".join((FRAGS / "close-chain.md").read_text().split())
+    rule = (
+        "is printed by its producing command, over the population the input names, when the input is written"
+        " and copied from that output, never recalled"
+    )
+    assert rule in body
+    assert body.index("Write every input to a file") < body.index(rule) < body.index("Then: (1)")
+    assert "an input whose figure the fix moved is re-printed and rewritten first" in body, (
+        "a red call re-run alone leaves an already-written figure stale"
+    )
+
+
 def test_the_judge_panel_brief_never_carries_the_leads_recommendation() -> None:
     body = " ".join((FRAGS / "judge-panel.md").read_text().split())
     assert "WITHOUT your recommendation" in body
@@ -188,7 +202,9 @@ def test_the_spec_close_names_its_own_spec_and_the_census_it_prints() -> None:
     import subprocess
     import sys
 
-    spec = importlib.util.spec_from_file_location("assemble_probe3", REPO / "commands" / "assemble_commands.py")
+    spec = importlib.util.spec_from_file_location(
+        "assemble_probe3", REPO / "commands" / "assemble_commands.py"
+    )
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
@@ -216,15 +232,25 @@ def test_the_spec_close_names_its_own_spec_and_the_census_it_prints() -> None:
     out = run(str(converged[0].relative_to(REPO)))
     assert census in out, out[-400:]
     missing = run("docs/superpowers/specs/2000-01-01-no-such-design.md")
-    assert "0 CONVERGED spec(s) examined of 1 named" in missing and "NOT-FOUND" in missing, missing[-400:]
+    assert "0 CONVERGED spec(s) examined of 1 named" in missing and "NOT-FOUND" in missing, missing[
+        -400:
+    ]
     # "every finding printed in full": a scoped run over a spec WITH findings is never budgeted or cut
     with_findings = next(
-        (out for out in (run(str(p.relative_to(REPO))) for p in converged) if " 0 with findings" not in out),
+        (
+            out
+            for out in (run(str(p.relative_to(REPO))) for p in converged)
+            if " 0 with findings" not in out
+        ),
         None,
     )
-    assert with_findings is not None, "no CONVERGED spec with findings to prove the scoped run prints them whole"
+    assert with_findings is not None, (
+        "no CONVERGED spec with findings to prove the scoped run prints them whole"
+    )
     assert "more finding(s)" not in with_findings, with_findings[-400:]
-    assert not any(line.rstrip().endswith("...") for line in with_findings.splitlines()), with_findings[-400:]
+    assert not any(line.rstrip().endswith("...") for line in with_findings.splitlines()), (
+        with_findings[-400:]
+    )
 
 
 def test_the_close_chain_gates_before_it_pushes() -> None:
@@ -235,11 +261,20 @@ def test_the_close_chain_gates_before_it_pushes() -> None:
     two, three = body[marks[1] : marks[2]], body[marks[2] : marks[3]]
     assert "git push" not in two, "the commit step pushes nothing"
     assert "then `git push`" in three, "the push follows the gate inside (3)"
-    assert three.index("final_gate.py --check --json") < three.index("then `git push`"), "gate first, then push"
-    assert "the gate runs BEFORE the push, so a check scoped to work not yet integrated still sees it" in three
+    assert three.index("final_gate.py --check --json") < three.index("then `git push`"), (
+        "gate first, then push"
+    )
+    assert (
+        "the gate runs BEFORE the push, so a check scoped to work not yet integrated still sees it"
+        in three
+    )
     assert "its fix is committed as at (2) before (3) re-runs, so the push carries it" in three
-    assert ("A run that wrote nothing tracked commits nothing at (2), runs (3)'s gate but pushes nothing, and runs "
-            "(4).") in body
+    assert (
+        "A run that wrote nothing tracked commits nothing at (2), runs (3)'s gate but pushes nothing, and runs "
+        "(4)."
+    ) in body
     ep = " ".join((REPO / "commands" / "_sources" / "fabrik-execute-plan.md").read_text().split())
     seven = ep[ep.index("7. **Gate, push, then name the one decision left.**") :]
-    assert seven.index("final_gate.py --check --json") < seven.index("**PUSH them now**"), "execute-plan gates first"
+    assert seven.index("final_gate.py --check --json") < seven.index("**PUSH them now**"), (
+        "execute-plan gates first"
+    )

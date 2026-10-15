@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — close chain: a figure in a close input is printed by its producer, never recalled (2026-10-15)
+
+`commands/_fragments/close-chain.md` (the default close of 37 `/fabrik-*` commands) now says a measured figure an
+input states — a test total, a constant's size, a row count — is printed by its producing command, over the
+population the input names, when the input is written and copied from that output (pointing at CLAUDE.md § HARD
+STOPS' "prefer the PRODUCING tool's own total"); a red call's fix that moves a figure re-prints and rewrites that
+input first, a committed message corrected in the fix commit's own message, never by an amend. Answers
+/fabrik-review row 1792054246 ("I wrote 13 for a 37-entry tuple") and the five held near-synonyms before it.
+Pinned by `tests/test_producing_command_fragments.py::test_a_figure_in_a_close_input_is_printed_by_its_producer_not_recalled`.
+
 ### Changed — /fabrik-review-scoped: a small pin rides in the brief; the escape ask also hunts false reds (2026-10-15)
 
 - `commands/_sources/fabrik-review-scoped.md` step 5's PIN rule: in a brief the lead writes, pinned files totalling
