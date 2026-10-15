@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "infra: restart quota_dashboard.py --serve, then size part 2 against the lane table (new panel = /fabrik-task)",
+  "next": "infra: (1) DONE \u2014 server restarted, coordinator owner shows. (2) operator 2026-10-15: 'i also want to see which agents is active and working on what in a good visually easy to understand table' \u2014 an Agents table on the dashboard, one row per hub agent (coordinator, infra, intel, fleet, kaizen): live/idle (ListAgents or the claude process), NOW (live run record: command, phase x/y, surface, updated), the item it holds (work.py claims), NEXT (its queued items, top 3), last merge; colour per state. Reuse W-cfff98dd(e)'s now/done/next reader rather than a second one. Also: the open Repos frame does not refresh itself (it defers reload to keep scroll) \u2014 operator asked 'is the window kept always uptodate?'; auto-refresh the Agents table",
   "note": "",
   "owner": "infra",
   "priority": 1,
@@ -23,5 +23,5 @@
     "dashboard",
     "queued"
   ],
-  "title": "Quota dashboard Repos tab: (1) restart the server — PID 3808 started 2026-10-13 18:03 predates the coordinator chip merged at e22de9a7d (2026-10-15), so the live page has no coordinator owner (curl /repos.html lists hub/infra/fleet/intel/kaizen/operator only); (2) operator ask 2026-10-15: show every named live session and agent with its responsibilities (name, role, worktree, live/idle, charter mandate from docs/reference/agents/<role>.md) on the Repos tab"
+  "title": "Quota dashboard Repos tab: (1) restart the server \u2014 PID 3808 started 2026-10-13 18:03 predates the coordinator chip merged at e22de9a7d (2026-10-15), so the live page has no coordinator owner (curl /repos.html lists hub/infra/fleet/intel/kaizen/operator only); (2) operator ask 2026-10-15: show every named live session and agent with its responsibilities (name, role, worktree, live/idle, charter mandate from docs/reference/agents/<role>.md) on the Repos tab"
 }
