@@ -509,7 +509,9 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`c
 first pass found" is not an exit — those classes return to UNCHECKED until the next delta round re-adjudicates them.
 
 **Record the pass before you decide:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw candidates> --confirmed <executed and reproduced> \
---classes-swept <classes swept CLEAN this pass> --classes-new <classes this pass opened> --slices <name>:<verified>/<claims>,…` (every round-1 slice, every pass). Its TERMINAL
+--classes-swept <classes swept CLEAN this pass> --classes-new <classes this pass opened> --slices <name>:<verified>/<claims>,…` (every round-1 slice, every pass; `<claims>` counts the claims in
+that slice's ledger and `<verified>` those its owning seats re-ran to `DEFECT_ABSENT`, so a closing pass that found
+its slice's one claim absent records `A:1/1`, and the terminal needs every slice at n/n). Its TERMINAL
 verdict — every known class clean, `--confirmed 0` — is the machine-readable form of the EXIT above, and
 its NON-CONVERGENCE warning names the failure mode this loop actually has: re-scoping instead of
 re-sweeping. Close the run at that verdict with
