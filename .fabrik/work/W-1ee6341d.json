@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-15T13:22:40.029655Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-1ee6341d",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "wrap verify_dsn_injection in _target_vps_env(ctx) like inject_env, with a test whose fake ssh dispatches docker inspect by FABRIK_VPS_SSH_HOST",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "breaks refresh for every spoke app with glitchtip (a deploy blocker); one function, verify_dsn_injection must inspect on the target VPS not the hub; owner: deploy/VPS = fleet",
   "status": "open",
   "tags": [
     "fleet"
