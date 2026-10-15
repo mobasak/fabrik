@@ -325,7 +325,7 @@ def _agent_body(
         "HOW: handle each per CLAUDE.md — read -> validate the cited path:line -> SIZE it -> do "
         "the work -> review -> reply -> `mail.py ack <id> --repo <repo> --disposition "
         "done|blocked|wontfix`. Not yours? `mail.py ack <id> --repo <repo> --disposition wontfix` naming the "
-        "owner, or `mail.py route <id> --repo <repo> --to-agent infra|fleet|intel`. Never sweep.\n"
+        "owner, or `mail.py route <id> --repo <repo> --to-agent coordinator|infra|fleet|intel|kaizen`. Never sweep.\n"
         "SYSTEMIC: the count falls only by ACKing — `sweep` never touches obligations. If it "
         "drops sharply with no commits behind it, read the archive, not the number.\n\n"
         f"{rows}"

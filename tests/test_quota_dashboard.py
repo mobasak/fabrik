@@ -3577,6 +3577,7 @@ def test_a_repo_shows_only_remaining_work_grouped_by_owner(tmp_path, monkeypatch
         assert gone not in page, gone
     heads = re.findall(r'<h3 class="owner">([^<]+)<', page)
     assert [h.split(" ")[0] for h in heads] == [
+        "coordinator",
         "infra",
         "fleet",
         "intel",
@@ -3719,6 +3720,7 @@ def test_the_owner_chips_name_the_hub_agents_and_unassigned_even_at_zero(tmp_pat
     chips = [(a, t.strip(), n) for a, t, n in _chips(qd._repos_page(fresh=True), "fabrik")]
     assert chips == [
         ("data-all", "All", "3"),
+        ('data-owner="coordinator"', "coordinator", "0"),
         ('data-owner="infra"', "infra", "2"),
         ('data-owner="fleet"', "fleet", "0"),
         ('data-owner="intel"', "intel", "0"),
@@ -3733,7 +3735,7 @@ def test_every_owner_section_is_a_closed_details_and_empty_ones_say_so(tmp_path,
     qd = _load(tmp_path, monkeypatch)
     pane = _pane(qd._repos_page(fresh=True), "fabrik")
     owners = re.findall(r'<details class="og" data-owner="([^"]*)">', pane)
-    assert owners == ["infra", "fleet", "intel", "kaizen", ""], owners
+    assert owners == ["coordinator", "infra", "fleet", "intel", "kaizen", ""], owners
     # the cache is shared by every viewer: no section is opened on the server
     assert "<details" in pane and not re.search(r"<details[^>]*\bopen\b", pane)
     kaizen = pane.split('<details class="og" data-owner="kaizen">')[1].split("</details>")[0]
@@ -3856,7 +3858,7 @@ def test_the_owner_chips_filter_remember_and_default_to_all(tmp_path, monkeypatc
     _work_repo(_opt(), "other", [{"id": "W-0000000c", "owner": "kaizen"}])
     qd = _load(tmp_path, monkeypatch)
     page = qd._repos_page(fresh=True)
-    every = ["infra", "fleet", "intel", "kaizen", ""]
+    every = ["coordinator", "infra", "fleet", "intel", "kaizen", ""]
     # nothing stored: All, every section shown and closed, in every pane
     out = _run_owner_js(page, {}, [{"pane": 0, "click": ""}, {"pane": 0, "all": True}])
     assert out["load"][0] == {"repo": "fabrik", "on": ["*"], "shown": every, "open": []}
