@@ -41,7 +41,8 @@
 //     passes is a target, not a cap (operator ruling 2026-09-23).
 //
 // ARGS (all strings unless noted; the command source builds them — see /opt/fabrik/docs/reference/review-loop-workflow.md — hub-only, so cited hub-absolute):
-//   pass: 1, 2, 3, … (unbounded) · surface · base_sha · digest · pins_dir · scratch_dir · brief (the dispatcher's shared text:
+//   pass: 1, 2, 3, … (unbounded) · surface · base_sha · digest · pins_dir · scratch_dir (this run's RUN-SCRATCH folder —
+//   each seat writes in its own `seat-p<pass>-<digest8>-…/` child of it) · brief (the dispatcher's shared text:
 //   hunt classes, lessons, house rules) · slices: [{ name, files: [..], priority, scope?, models?, agent?,
 //   ledger?: [ { id, file, line, claim } | "<the claim as one string>" ] }] (ledger present on pass ≥ 2; any other
 //   row shape is REFUSED before a seat is dispatched; `models` is one to three distinct of opus|sonnet|haiku,
@@ -168,6 +169,11 @@ for (const s of args.slices) Object.assign(s, { ledger: normalizeLedger(s) }, no
 // kaizen 01M4PNBVJ1 row 1791149709: every seat's paths are built from these, and the shell returns to the LIVE
 // checkout before every call, so a relative one lands a seat's probes in the live tree. The script has no
 // filesystem, so creating the dirs stays the lead's; `review_loop_ledger.py pin` writes the pins absolute.
+// mail 01M4Z8X09Y: every seat folder is a `seat-` child of scratch_dir (the run's RUN-SCRATCH folder), which is
+// what `command_run.py round`'s size line globs; the pass and the pin digest are in the name because one
+// scratch_dir serves every pass of a run, and a reused folder makes the seat's `cp -r <pin> SCRATCH/arch` nest
+// the copy under the stale one (Opus design critique 1). Both are stripped to [A-Za-z0-9] — they become a path.
+const SEAT_TAG = `seat-p${String(args.pass ?? '').replace(/[^A-Za-z0-9]/g, '')}-${String(args.digest ?? '').replace(/[^A-Za-z0-9]/g, '').slice(0, 8)}`
 for (const key of ['pins_dir', 'scratch_dir', 'base_pin_dir']) {
   const v = args[key]
   if (key === 'base_pin_dir' && (v === undefined || v === null || v === '')) continue
@@ -243,7 +249,7 @@ ${head}
 SURFACE: ${args.surface}
 BASE: ${args.base_sha} · DIGEST: ${args.digest}
 PINS: each slice file's pinned copy is at ${args.pins_dir}/<its repo-relative path> — e.g. ${args.pins_dir}/${slice.files[0]}; read the pin, never the live tree (the pin wins over the live path).${slice.agentType === 'fabrik-researcher' ? '' : ` ${PIN_IMPORT}${PYTEST_PINS}`}
-${slice.agentType === 'fabrik-researcher' ? 'SHELL: none — you have no shell: read the PINNED copies.' : `SCRATCH: ${args.scratch_dir}/${slice.name}-${model}${retry ? '-retry' : ''}/ (create it first with \`mkdir -p SCRATCH\` — its parent exists and nothing creates it for you; every probe on a COPY there; never write, copy, mkdir or cd-and-create anything outside SCRATCH — your working directory is the LIVE repo, and a seat's stray file there reaches the next gate;${SEAT_ISOLATION} wrap every command that can block in \`timeout 120\`, a search as \`timeout 120 /usr/bin/grep\` (timeout cannot run a shell builtin) — nothing times a seat out but you)`}
+${slice.agentType === 'fabrik-researcher' ? 'SHELL: none — you have no shell: read the PINNED copies.' : `SCRATCH: ${args.scratch_dir}/${SEAT_TAG}-${slice.name}-${model}${retry ? '-retry' : ''}/ (create it first with \`mkdir -p SCRATCH\` — its parent exists and nothing creates it for you; every probe on a COPY there; never write, copy, mkdir or cd-and-create anything outside SCRATCH — your working directory is the LIVE repo, and a seat's stray file there reaches the next gate;${SEAT_ISOLATION} wrap every command that can block in \`timeout 120\`, a search as \`timeout 120 /usr/bin/grep\` (timeout cannot run a shell builtin) — nothing times a seat out but you)`}
 YOUR SLICE (${slice.files.length} files — read EVERY one; hunt priority: ${slice.priority || 'none named'}):
 ${files}${slice.scope ? `\nSECTIONS YOU OWN (the rest of each file belongs to another slice — read it only to resolve a reference): ${slice.scope}` : ''}${ledgerText}
 
@@ -257,7 +263,7 @@ function refutePrompt(slice, cands, suffix = '') {
     .map((c) => `CANDIDATE ${c.id} · ${c.file}:${c.line} · class ${c.failure_class}\n  CLAIM: ${c.claim}\n  SCENARIO: ${c.scenario}\n  CHECK TO EXECUTE: ${c.check}`)
     .join('\n\n')
   const refuteBox = Math.max(box, 3 * cands.length)
-  return `${BRIEF_IS_TASK} REFUTER SEAT — fresh context: you did not find these, and you owe the finders nothing. Execute EVERY candidate from slice ${slice.name} below and return one verdict per candidate id with the command you ran and its output (a check the never-execute rule forbids is the one exception, below). Never fix, never edit. ${slice.agentType === 'fabrik-researcher' ? 'You have no shell: read the PINNED copies' : `git READ-ONLY, every probe on a COPY under ${args.scratch_dir}/refute-${slice.name}${suffix}/ (SCRATCH; create it first with \`mkdir -p SCRATCH\` — its parent exists and nothing creates it for you) — never write, copy, mkdir or cd-and-create anything outside SCRATCH, your working directory is the LIVE repo;${SEAT_ISOLATION} wrap every command that can block in \`timeout 120\`, a search as \`timeout 120 /usr/bin/grep\` (timeout cannot run a shell builtin), nothing times a seat out but you; read the PINNED copies`} under ${args.pins_dir}/<repo-relative path> (base ${args.base_sha}, digest ${args.digest}).${slice.agentType === 'fabrik-researcher' ? '' : ` ${PIN_IMPORT}${PYTEST_PINS}`}
+  return `${BRIEF_IS_TASK} REFUTER SEAT — fresh context: you did not find these, and you owe the finders nothing. Execute EVERY candidate from slice ${slice.name} below and return one verdict per candidate id with the command you ran and its output (a check the never-execute rule forbids is the one exception, below). Never fix, never edit. ${slice.agentType === 'fabrik-researcher' ? 'You have no shell: read the PINNED copies' : `git READ-ONLY, every probe on a COPY under ${args.scratch_dir}/${SEAT_TAG}-refute-${slice.name}${suffix}/ (SCRATCH; create it first with \`mkdir -p SCRATCH\` — its parent exists and nothing creates it for you) — never write, copy, mkdir or cd-and-create anything outside SCRATCH, your working directory is the LIVE repo;${SEAT_ISOLATION} wrap every command that can block in \`timeout 120\`, a search as \`timeout 120 /usr/bin/grep\` (timeout cannot run a shell builtin), nothing times a seat out but you; read the PINNED copies`} under ${args.pins_dir}/<repo-relative path> (base ${args.base_sha}, digest ${args.digest}).${slice.agentType === 'fabrik-researcher' ? '' : ` ${PIN_IMPORT}${PYTEST_PINS}`}
 
 ${list}
 

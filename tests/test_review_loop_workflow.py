@@ -1354,7 +1354,7 @@ def test_every_files_read_shape_a_seat_really_returns_counts_as_read() -> None:
             [
                 "/s/pins/src/a.py",  # absolute, inside the pin
                 "tests/b.py (pinned copy at /s/pins/tests/b.py (base 1d0a7b8))",  # nested annotation
-                "/s/scratch/S-opus/arch/c.md",  # the seat's SCRATCH/arch copy of the pin
+                "/s/scratch/seat-p1-0-S-opus/arch/c.md",  # the seat's SCRATCH/arch copy of the pin
             ]
         )
         == []
@@ -1393,7 +1393,7 @@ def test_a_different_file_with_the_same_name_is_still_unread() -> None:
             "src/a.py.bak",
             "tests/b.py-old",
             "/opt/fabrik/c.md",  # the live checkout — not the pin
-            "/s/scratch/S-opus/other/arch/c.md",  # not SCRATCH/arch
+            "/s/scratch/seat-p1-0-S-opus/other/arch/c.md",  # not SCRATCH/arch
         ]
     ) == ["src/a.py", "tests/b.py", "c.md"]
 
@@ -1692,7 +1692,7 @@ def test_no_seat_instruction_source_wraps_a_shell_builtin_in_timeout() -> None:
     assert "command grep" not in review, (
         "a lead or seat wraps its greps in timeout; name /usr/bin/grep"
     )
-    assert "$ git archive -o <scratchpad>/review-<sha>.tar <sha>" in review
+    assert "$ git archive -o <scratch_dir>/review-<sha>.tar <sha>" in review
 
 
 def test_the_review_loop_doc_is_cited_hub_absolute() -> None:
@@ -1894,7 +1894,7 @@ def test_a_partial_refuter_is_retried_over_the_unanswered_ids_only() -> None:
     assert (
         "CANDIDATE S-S2" in retry and "CANDIDATE S-S3" in retry and "CANDIDATE S-S1" not in retry
     ), retry[:400]
-    assert "/s/refute-S-retry/" in retry and "/s/refute-S/" not in retry, (
+    assert "/s/seat-p1-0-refute-S-retry/" in retry and "/s/seat-p1-0-refute-S/" not in retry, (
         "the retry needs its own scratch dir"
     )
     v = {x["id"]: x["verdict"] for x in ledger["slices"][0]["verdicts"]}
@@ -2118,7 +2118,7 @@ def test_a_null_finder_is_reseated_once() -> None:
         _ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku:retry": _FULL_READ}
     )
     assert "find:S:haiku:retry" in prompts and "find:S:sonnet:retry" not in prompts, sorted(prompts)
-    assert "/s/S-haiku-retry/" in prompts["find:S:haiku:retry"], (
+    assert "/s/seat-p1-0-S-haiku-retry/" in prompts["find:S:haiku:retry"], (
         "the retry never reuses the dead seat's scratch"
     )
     assert all(not s["failed"] for s in out["slices"][0]["seats"]), out["slices"][0]["seats"]
@@ -2340,3 +2340,62 @@ def test_a_later_pass_seat_is_told_to_read_its_whole_slice() -> None:
         assert "a slice file no seat lists keeps the slice open" in p, label
     _, _, first = _harness(_ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": _FULL_READ})
     assert "on this pass too" not in first["find:S:sonnet"], "pass 1 already reads the whole slice"
+
+
+# ── Seat scratch under the run's RUN-SCRATCH folder (mail 01M4Z8X09Y, W-41c1ec56) ──────────────────
+
+_SEAT_DIR = re.compile(r"(?:SCRATCH: |COPY under )(/s/[^ ]+/) ")
+
+
+def _seat_dirs(prompts: dict) -> dict:
+    """The scratch folder each seat was handed, by label (the finder's `SCRATCH:` line, the refuter's
+    `COPY under`)."""
+    return {label: m.group(1) for label, text in prompts.items() if (m := _SEAT_DIR.search(text))}
+
+
+def test_every_seat_scratch_dir_is_a_tagged_seat_folder_under_scratch_dir() -> None:
+    """`round`'s size warning reads only `seat-*` children of the run folder (command_run.py
+    `_seat_size_lines`), and the run folder is what `scratch_dir` names. A finder, a refuter and both
+    retries each get a `seat-p<pass>-<digest8>-` child of `scratch_dir`, never a bare `<slice>-<model>/`."""
+    seats = {
+        **_two_finders([_cand("S-S1", 3), _cand("S-S2", 30)]),
+        "refute:S": {"verdicts": [_verdict("S-S1", "confirmed")]},
+        "refute:S:retry": {"verdicts": [_verdict("S-S2")]},
+    }
+    _, _, prompts = _harness({**_ARGS, "digest": "0123456789abcdef"}, seats)
+    dirs = _seat_dirs(prompts)
+    assert set(dirs) >= {"find:S:sonnet", "find:S:haiku", "refute:S", "refute:S:retry"}, dirs
+    for label, d in dirs.items():
+        assert d.startswith("/s/seat-p1-01234567-") and d.count("/") == 3, (label, d)
+    _, _, prompts = _harness(_ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku:retry": _FULL_READ})
+    assert _seat_dirs(prompts)["find:S:haiku:retry"] == "/s/seat-p1-0-S-haiku-retry/"
+
+
+def test_two_passes_never_share_a_seat_folder() -> None:
+    """Opus critique 1: with one `scratch_dir` per run, a second pass reusing pass 1's folder makes the
+    seat's `cp -r <pin> SCRATCH/arch` nest the copy under the stale one. The pass and the pin digest are in
+    the name, so pass 2, and a pass re-launched on a moved pin, get folders of their own."""
+    seats = _two_finders([])
+    _, _, one = _harness({**_ARGS, "digest": "aaaaaaaa"}, seats)
+    _, _, relaunch = _harness({**_ARGS, "digest": "bbbbbbbb"}, seats)
+    _, _, two = _harness({**_ARGS, "pass": 2, "digest": "aaaaaaaa"}, seats)
+    a, b, c = (set(_seat_dirs(p).values()) for p in (one, relaunch, two))
+    assert a and b and c, (a, b, c)
+    assert not (a & b) and not (a & c) and not (b & c), (a, b, c)
+
+
+RUN_SCRATCH_CLAUSE = (
+    "`scratch_dir` is this run's `RUN-SCRATCH:` folder — the path up to the first space on the line `start` "
+    "printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed "
+    "`none` or nothing"
+)
+
+
+def test_each_review_command_carries_the_run_scratch_clause() -> None:
+    """Mail 01M4Z8X09Y: the four partitioned review commands passed `scratch_dir` with no word on which
+    folder, so seats landed loose in the session scratchpad. Each carries the one clause verbatim (Fable
+    critique 3: a proximity test passes on any sentence holding both tokens)."""
+    for name in ("fabrik-review", "fabrik-review-scoped", "fabrik-plan-review", "fabrik-spec-review"):
+        body = (ROOT / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
+        flat = " ".join(body.split())
+        assert flat.count(RUN_SCRATCH_CLAUSE) == 1, name
