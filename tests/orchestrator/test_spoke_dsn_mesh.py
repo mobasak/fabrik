@@ -16,12 +16,16 @@ Docker-DNS name, not the mesh IP) — that is what proves the defect was real.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.infrastructure import (
     _HUB_MESH_IP,
+    DsnInjectionError,
     InfrastructureProvisioner,
     _rewrite_shared_infra_host,
 )
@@ -203,3 +207,51 @@ class TestGlitchtipSpokeWiring:
         env = _injected(mock_deployer)
         assert env["SENTRY_DSN"] == f"http://key@{_HUB_MESH_IP}:8000/9"
         assert env["GLITCHTIP_DSN"] == f"http://key@{_HUB_MESH_IP}:8000/9"
+
+    def test_dsn_verify_inspects_the_spoke_container_and_the_api_stays_on_the_hub(
+        self, monkeypatch
+    ):
+        """The container lives on the spoke, so the docker-inspect verify must ssh there;
+        the GlitchTip API calls (create, delete) are hub-side and must not be swapped."""
+        monkeypatch.delenv("FABRIK_VPS_SSH_HOST", raising=False)
+        seen: dict[str, str | None] = {}
+
+        def _host(label):
+            def record(*_a, **_k):
+                seen[label] = os.environ.get("FABRIK_VPS_SSH_HOST")
+                return _ok(dsn="http://key@glitchtip-web:8000/9") if label == "create" else True
+
+            return record
+
+        prov = InfrastructureProvisioner(deployer=MagicMock())
+        with (
+            patch("fabrik.drivers.glitchtip.create_project", side_effect=_host("create")),
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection", side_effect=_host("verify")),
+            patch("fabrik.drivers.glitchtip.delete_project"),
+        ):
+            prov._provision_glitchtip("spoke-app", _ctx("vps2"), dry_run=False)
+
+        assert seen == {"create": None, "verify": "vps2"}
+        assert os.environ.get("FABRIK_VPS_SSH_HOST") is None
+
+    def test_a_failed_verify_rolls_back_on_the_hub_and_restores_the_host(self, monkeypatch):
+        """verify False → delete_project runs unswapped, DsnInjectionError raises, the env is restored."""
+        monkeypatch.delenv("FABRIK_VPS_SSH_HOST", raising=False)
+        hosts: list[str | None] = []
+        prov = InfrastructureProvisioner(deployer=MagicMock())
+        with (
+            patch(
+                "fabrik.drivers.glitchtip.create_project",
+                return_value=_ok(dsn="http://key@glitchtip-web:8000/9"),
+            ),
+            patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=False),
+            patch(
+                "fabrik.drivers.glitchtip.delete_project",
+                side_effect=lambda *_a, **_k: hosts.append(os.environ.get("FABRIK_VPS_SSH_HOST")),
+            ),
+            pytest.raises(DsnInjectionError),
+        ):
+            prov._provision_glitchtip("spoke-app", _ctx("vps2"), dry_run=False)
+
+        assert hosts == [None]
+        assert os.environ.get("FABRIK_VPS_SSH_HOST") is None
