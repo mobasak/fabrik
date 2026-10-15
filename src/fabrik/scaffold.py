@@ -5100,6 +5100,7 @@ import { dirname, join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { extensionIdFromPub } from './extension-id.mjs';
+import { readPubKey } from './manifest-key.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const keyDir = join(root, '.keys');
@@ -5113,14 +5114,29 @@ function printId(pub) {
 }
 
 if (existsSync(pubPath)) {
-  printId(readFileSync(pubPath, 'utf8'));
+  let existing;
+  try {
+    existing = readPubKey();
+  }
+  catch (err) {
+    console.error(err.message);
+    process.exit(1);
+  }
+  printId(existing);
   if (!existsSync(pemPath))
     console.warn('warning: .keys/extension-key.pem is missing — the ID still works for unpacked installs, but an enterprise .crx or a store migration needs the private key; restore it from your backup.');
   process.exit(0);
 }
 
 if (existsSync(pemPath)) {
-  const pub = createPublicKey(readFileSync(pemPath, 'utf8')).export({ type: 'spki', format: 'der' }).toString('base64');
+  let pub;
+  try {
+    pub = createPublicKey(readFileSync(pemPath, 'utf8')).export({ type: 'spki', format: 'der' }).toString('base64');
+  }
+  catch {
+    console.error('.keys/extension-key.pem is not a readable private key — restore it from your backup; never mint a new one for a released extension (it changes the ID).');
+    process.exit(1);
+  }
   writeFileSync(pubPath, `${pub}\n`);
   printId(pub);
   console.log('rebuilt extension-key.pub from .keys/extension-key.pem — commit it.');
@@ -5178,7 +5194,10 @@ const ENV_FILES = [
   '.env.production.chrome',
   '.env.production.chrome.local',
 ];
-const CHROME_VERSION = /^\d{1,5}(?:\.\d{1,5}){0,3}$/;
+// Chrome: 1-4 dot-separated integers, each 0-65535.
+function isChromeVersion(v) {
+  return /^\d{1,5}(?:\.\d{1,5}){0,3}$/.test(v) && v.split('.').every(n => Number(n) <= 65535);
+}
 
 function git(...args) {
   try {
@@ -5211,6 +5230,8 @@ export function effectiveApiUrl() {
 }
 
 function isHttpsUrl(value) {
+  if (!/^https:\/\//i.test(value))
+    return false;
   try {
     const url = new URL(value);
     return url.protocol === 'https:' && url.hostname !== '';
@@ -5251,8 +5272,8 @@ const status = git('status', '--porcelain');
 if (!status.ok || status.out.trim())
   problems.push('the working tree is not clean — commit or stash first, so the zip is a committed tree');
 const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
-if (!CHROME_VERSION.test(String(version)))
-  problems.push(`package.json version ${JSON.stringify(version)} is not a Chrome version (1-4 dot-separated integers) — the update checker could never compare it`);
+if (!isChromeVersion(String(version)))
+  problems.push(`package.json version ${JSON.stringify(version)} is not a Chrome version (1-4 dot-separated integers, each at most 65535) — the update checker could never compare it`);
 const url = effectiveApiUrl();
 if (!isHttpsUrl(url.value ?? ''))
   problems.push(`${KEY} must be an https:// URL with a host for the production build (now ${JSON.stringify(url.value ?? null)}, from ${url.from})`);
@@ -5271,6 +5292,8 @@ _CX_MANIFEST_KEY_MJS = r"""// The manifest `key` wxt.config.ts pins, shared with
 // release gate cannot disagree. Resolved from THIS file, never the cwd, so a build started from
 // another directory still finds extension-key.pub. A store build (STORE_BUILD=1) carries no key:
 // the Chrome Web Store rejects a first upload that has one.
+import { Buffer } from 'node:buffer';
+import { createPublicKey } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
@@ -5282,15 +5305,28 @@ export function isStoreBuild() {
   return process.env.STORE_BUILD === '1';
 }
 
-// The committed public key, or undefined when there is none yet. A file that is not base64 fails
-// the build loudly: a silently wrong key would change the ID under every installed copy.
+// Throws unless `pub` is a base64 SPKI public key: a silently wrong key would change the ID under
+// every installed copy, so a bad file fails the build, the release gate and keygen loudly.
+export function assertPubKey(pub) {
+  let ok = /^[A-Z0-9+/]+={0,2}$/i.test(pub);
+  if (ok) {
+    try {
+      createPublicKey({ key: Buffer.from(pub, 'base64'), format: 'der', type: 'spki' });
+    }
+    catch {
+      ok = false;
+    }
+  }
+  if (!ok)
+    throw new Error('extension-key.pub is not a public key — restore it from version control (pnpm keygen rebuilds it from .keys/extension-key.pem)');
+  return pub;
+}
+
+// The committed public key, or undefined when there is none yet.
 export function readPubKey() {
   if (!existsSync(PUB_KEY_PATH))
     return undefined;
-  const pub = readFileSync(PUB_KEY_PATH, 'utf8').trim();
-  if (!/^[A-Z0-9+/]{100,}={0,2}$/i.test(pub))
-    throw new Error('extension-key.pub is not a base64 public key — restore it from version control (pnpm keygen rebuilds it from .keys/extension-key.pem)');
-  return pub;
+  return assertPubKey(readFileSync(PUB_KEY_PATH, 'utf8').trim());
 }
 
 export function pinnedKey() {
@@ -5301,6 +5337,7 @@ export function pinnedKey() {
 _CX_MANIFEST_KEY_DTS = """// Types for manifest-key.mjs, which wxt.config.ts imports.
 export declare const PUB_KEY_PATH: string;
 export declare function isStoreBuild(): boolean;
+export declare function assertPubKey(pub: string): string;
 export declare function readPubKey(): string | undefined;
 export declare function pinnedKey(): string | undefined;
 """
@@ -5372,7 +5409,8 @@ export interface UpdateNotice {
 const VERSION_RE = /^\d{1,5}(?:\.\d{1,5}){0,3}$/;
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-// Chrome's version rule: one to four dot-separated integers, a missing integer counting as 0.
+// Chrome's version rule: one to four dot-separated integers (each 0-65535), a missing integer
+// counting as 0.
 export function isNewer(candidate: string, current: string): boolean {
   const a = candidate.split('.').map(Number);
   const b = current.split('.').map(Number);
@@ -5389,7 +5427,7 @@ export function parseLatest(body: unknown): UpdateNotice | null {
   if (!body || typeof body !== 'object')
     return null;
   const { version, download_url } = body as Record<string, unknown>;
-  if (typeof version !== 'string' || !VERSION_RE.test(version))
+  if (typeof version !== 'string' || !VERSION_RE.test(version) || version.split('.').some(n => Number(n) > 65535))
     return null;
   if (typeof download_url !== 'string')
     return null;
@@ -5414,7 +5452,10 @@ export function secureBase(raw: string): string {
     return '';
   }
   const secure = url.protocol === 'https:' || (url.protocol === 'http:' && LOCAL_HOSTS.has(url.hostname));
-  return secure ? url.href.replace(/\/+$/, '') : '';
+  if (!secure || url.username || url.password)
+    return '';
+  // origin + path only: a query or fragment would land in front of /extension/latest
+  return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
 }
 """
 
