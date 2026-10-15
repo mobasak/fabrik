@@ -1,0 +1,303 @@
+#!/usr/bin/env python3
+# AFTER-EDIT: docs/workstation/hooks-index.md
+"""Every hub worker's NOW, DONE and NEXT, read from the records that already exist (W-cfff98dd e, D-880).
+
+The coordinator must always know what each agent is doing, has finished and will do next, and
+recover it after losing context (operator 2026-10-15, D-880). Nothing here is stored: each run reads
+
+- NOW  — live or no window (work.py ``_present`` over the role's tree, /proc); the role's newest
+         ``running`` run record (command_run.py ``_state_dir()``) from ANY repo, the repo named when
+         it is not the hub; the item it holds a claim on (work.py ``_live_claims``);
+- DONE — the role's last merges on the store's base branch, both merge-owner eras
+         (``merge(infra): worktree-<role>`` before D-874, ``merge(coordinator): ...`` after), never a
+         builder's back-merge of master; and the distinct items those subjects name in the last 24 h
+         (a closed item carries no close time);
+- NEXT — the role's queue as ``work.py queue`` counts a pool worker's (``_worker_queues``; ``queue``
+         lists no row for the feedback owner, which is shown here all the same), top 3, with
+         the queue's size and the role's parked items in the MAIN store (``work.py queue`` counts parked
+         in the worker's own tree, so a park not yet merged shows there first).
+
+The rows are the WORKERS: ``mail.py`` HUB_BEATS minus the store's distributor (the reader itself).
+``--json`` prints the full data (the dashboard's Agents table, W-7159f8e2); ``--session-start`` is the
+coordinator's SessionStart hook (``.claude/settings.json``, its own entry, so its own 10,000-character
+output budget): it prints only for the distributor, never in a ``claude -p`` child, one line when the
+identity is unknown, one line on any error, and always exits 0. The three modules are the hub's own,
+loaded by file path (never via sys.path), read only.
+
+COBRA: the table can read "no run" for an agent busy without a record (an ad-hoc edit, a stale or
+missing record) — so the header repeats the charter's rule: no record, or an old one, means ask the
+agent; the live/no-window column shows a window that is up but silent.
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import json
+import math
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+HERE = Path(__file__).resolve().parent
+TITLE_CUT = 100  # characters of an item title in the text view
+ROLE_CUT = 1400  # characters of one role's block before "… N more"
+TOTAL_CUT = 7000  # whole text output — inside the 10,000-character hook cap with the header
+MERGES_SHOWN = 3
+NEXT_SHOWN = 3
+# the Stop hook's DEFAULT stale bound (final_gate_stop.py _STALE_H_DEFAULT): older = likely a dead session.
+# Its COMMAND_RUN_STALE_H override is not read: 0 there means "never trap me", which here would mark all stale.
+STALE_H = 12
+_ITEM_RE = re.compile(r"\bitem (W-[0-9a-f]{8}|none)\b")
+
+
+def _load(name: str) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(f"_agent_status_{name}", HERE / f"{name}.py")
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load scripts/{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod  # dataclasses and typing introspection look the module up by name
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _age(ts: float, now: float) -> str:
+    s = max(0, int(now - ts))
+    if s < 3600:
+        return f"{s // 60}m ago"
+    if s < 86400:
+        return f"{s // 3600}h ago"
+    return f"{s // 86400}d ago"
+
+
+def _cut(text: object, n: int) -> str:
+    text = " ".join(str(text).split())
+    return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def _under(path: Path, main: Path) -> bool:
+    """True when ``path`` is the main checkout or one of its `.claude/worktrees/*` trees."""
+    try:
+        p = path.resolve()
+    except OSError:
+        return False
+    return p == main or p.parent == (main / ".claude" / "worktrees").resolve()
+
+
+def _now(cr: ModuleType, role: str, main: Path) -> dict | None:
+    best: dict | None = None
+    best_ts = 0.0
+    for path in cr._state_dir().glob("*.json"):
+        try:
+            rec = json.loads(path.read_text(encoding="utf-8"))
+            ts = float(rec.get("updated_ts") or 0) if isinstance(rec, dict) else 0.0
+        except (OSError, ValueError, TypeError):
+            continue  # an unreadable or corrupt record is skipped, never a crash
+        if not math.isfinite(ts):
+            continue  # "inf"/"nan" parse as floats but are no time (int(now - inf) raises)
+        if not isinstance(rec, dict) or rec.get("agent") != role or rec.get("state") != "running":
+            continue
+        if best is None or ts > best_ts:
+            best, best_ts = rec, ts
+    if best is None:
+        return None
+    root = str(best.get("repo_root") or "")
+    stack = best.get("stack")
+    first = stack[0] if isinstance(stack, list) and stack and isinstance(stack[0], dict) else {}
+    return {
+        "command": str(best.get("command") or ""),
+        "phase": best.get("phase"),
+        "phases": best.get("phases"),
+        "title": str(best.get("phase_title") or ""),
+        "surface": str(best.get("surface") or ""),
+        "updated_ts": best_ts,
+        "stale": time.time() - best_ts > STALE_H * 3600,
+        "repo": "" if root and _under(Path(root), main) else root,
+        "stack_root": str(first.get("command") or "") if first else "",
+        "session": str(best.get("session_id") or ""),
+    }
+
+
+def _merges(main: Path, base: str, roles: list[str], now: float) -> dict[str, dict]:
+    out: dict[str, dict[str, Any]] = {r: {"merges": [], "items_24h": 0} for r in roles}
+    seen: dict[str, set[str]] = {r: set() for r in roles}
+    try:
+        log = subprocess.run(
+            # filtered to merge subjects BEFORE the limit, so a quiet role's old merge stays in view
+            ["git", "-C", str(main), "log", base, "-E", "--grep=^merge\\(", "-n", "400",
+             "--format=%h%x09%ct%x09%s"],
+            capture_output=True, text=True, timeout=5, check=True,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return out
+    # anchored on the branch name, so a builder's back-merge ("merge(x): origin/master into worktree-x")
+    # never matches, and a request whose text quotes that phrase is not dropped
+    pats = {r: re.compile(rf"^merge\([a-z0-9-]+\): worktree-{re.escape(r)}(?:\s|$)") for r in roles}
+    for line in log.splitlines():
+        sha, _, rest = line.partition("\t")
+        ct, _, subject = rest.partition("\t")
+        for role, rx in pats.items():
+            if not rx.match(subject):
+                continue
+            m = _ITEM_RE.search(subject)
+            item = m.group(1) if m and m.group(1) != "none" else ""
+            ts = float(ct or 0)
+            if len(out[role]["merges"]) < MERGES_SHOWN:
+                out[role]["merges"].append({"sha": sha, "ts": ts, "item": item, "subject": subject})
+            if item and ts >= now - 86400:
+                seen[role].add(item)
+    for role in roles:
+        out[role]["items_24h"] = len(seen[role])
+    return out
+
+
+def collect(repo: Path) -> dict[str, Any]:
+    """The whole view as data: ``{"main", "distributor", "agents": [{role, live, now, claim, done, next}]}``."""
+    work, cr, mail = _load("work"), _load("command_run"), _load("mail")
+    main = work._worktrees(repo.resolve())[0].resolve()
+    if not work._has_store(main):
+        raise FileNotFoundError(f"no work store in {main}")
+    distributor = str(work._read_config(main).get("distributor") or "").strip()
+    roles = [r for r in mail.HUB_BEATS if r != distributor]
+    trees = {r: (main / ".claude" / "worktrees" / r) for r in roles}
+    trees = {r: (t.resolve() if t.is_dir() else main) for r, t in trees.items()}
+    present = work._present({r: t for r, t in trees.items() if t != main})
+    claims = work._live_claims(main)
+    items = {i["id"]: i for i in work._iter_items(main) if isinstance(i.get("id"), str)}
+    now = time.time()
+    done = _merges(main, work._base_branch(main), roles, now)
+    agents = []
+    for role in roles:
+        queue = work._worker_queues(main, {role: trees[role]}).get(role, [])
+        queue = sorted(queue, key=lambda i: (work._priority(i), str(i.get("created") or ""), i["id"]))
+        parked = sum(
+            1 for i in items.values()
+            if i.get("owner") == role and i.get("status") in ("open", "blocked") and work._is_parked(i)
+        )
+        held = [(iid, c) for iid, c in claims.items() if c.get("agent") == role]
+        claim = None
+        if held:
+            iid = sorted(held, key=lambda ic: float(ic[1].get("at") or 0))[-1][0]
+            claim = {"id": iid, "title": str(items.get(iid, {}).get("title") or "")}
+        agents.append({
+            "role": role,
+            "live": None if present is None else role in present,
+            "now": _now(cr, role, main),
+            "claim": claim,
+            "done": done[role],
+            "next": {
+                "queued": len(queue),
+                "parked": parked,
+                "top": [
+                    {"id": i["id"], "priority": work._priority(i), "title": str(i.get("title") or "")}
+                    for i in queue[:NEXT_SHOWN]
+                ],
+            },
+        })
+    return {"main": str(main), "distributor": distributor, "agents": agents}
+
+
+def render(data: dict[str, Any]) -> str:
+    now = time.time()
+    lines = [
+        "## AGENTS — NOW / DONE / NEXT (D-880; derived from run records, the work store and merges —"
+        " no record, or an old one, means ask the agent)"
+    ]
+    for a in data["agents"]:
+        live = {True: "window up", False: "no window", None: "liveness unknown"}[a["live"]]
+        block = [f"### {a['role']} — {live}"]
+        n = a["now"]
+        if n:
+            where = f" in {n['repo']}" if n["repo"] else ""
+            root = f" (under /{n['stack_root']})" if n["stack_root"] and n["stack_root"] != n["command"] else ""
+            block.append(
+                f"- NOW: /{n['command']}{root}{where} · phase {n['phase']}/{n['phases']} ({_cut(n['title'], 40)})"
+                f" · {_cut(n['surface'], TITLE_CUT)} · updated {_age(n['updated_ts'], now)}"
+                + (f" · STALE (>{STALE_H} h — likely a dead session; ask the agent)" if n["stale"] else "")
+            )
+        else:
+            block.append("- NOW: no running record")
+        if a["claim"]:
+            block.append(f"- HOLDS: {a['claim']['id']} — {_cut(a['claim']['title'], TITLE_CUT)}")
+        merges = a["done"]["merges"]
+        if merges:
+            for m in merges:
+                block.append(f"- DONE: {m['sha']} {_age(m['ts'], now)} · item {m['item'] or 'none'}")
+        else:
+            block.append("- DONE: no merges found")
+        block.append(f"- DONE 24h: {a['done']['items_24h']} item(s) merged")
+        nx = a["next"]
+        block.append(f"- NEXT: {nx['queued']} queued, {nx['parked']} parked")
+        for i in nx["top"]:
+            block.append(f"  - {i['id']} P{i['priority']} {_cut(i['title'], TITLE_CUT)}")
+        text, kept = "", 0
+        for line in block:
+            if len(text) + len(line) + 1 > ROLE_CUT:
+                break
+            text += line + "\n"
+            kept += 1
+        if kept < len(block):
+            text += f"  … {len(block) - kept} more line(s): python3 scripts/agent_status.py\n"
+        lines.append(text.rstrip("\n"))
+    out = "\n".join(lines)
+    if len(out) > TOTAL_CUT:
+        out = out[: TOTAL_CUT - 60].rsplit("\n", 1)[0] + "\n… cut: python3 scripts/agent_status.py"
+    return out
+
+
+def _session_start(repo: Path) -> int:
+    """The SessionStart hook: the table for the distributor only; every failure is one line, rc 0."""
+    try:
+        work = _load("work")
+        try:
+            raw = sys.stdin.read() if not sys.stdin.isatty() else ""
+            payload = json.loads(raw) if raw.strip() else {}
+        except ValueError:
+            payload = {}
+        sid = str(payload.get("session_id") or "") if isinstance(payload, dict) else ""
+        main = work._worktrees(repo.resolve())[0].resolve()
+        if not work._has_store(main) or work._print_mode():
+            return 0
+        distributor = str(work._read_config(main).get("distributor") or "").strip()
+        if not distributor:
+            return 0
+        agent = work._agent_name(session=sid)
+        if not agent:
+            print(
+                "agent status: identity unknown — bind this window with `python3 scripts/whoami_agent.py "
+                "--as <name>` to see every agent's NOW/DONE/NEXT"
+            )
+            return 0
+        if agent != distributor:
+            return 0
+        print(render(collect(main)))
+    except Exception as exc:  # a SessionStart hook never blocks a session
+        print(f"agent status unavailable: {type(exc).__name__}: {_cut(exc, 200)}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--repo", default=".", help="any tree of the repository (default: the cwd)")
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--json", action="store_true", help="the full data as one JSON document")
+    mode.add_argument("--session-start", action="store_true", help="the coordinator's SessionStart hook")
+    args = ap.parse_args(argv)
+    repo = Path(args.repo)
+    if args.session_start:
+        return _session_start(repo)
+    try:
+        data = collect(repo)
+    except FileNotFoundError as exc:
+        print(f"agent_status: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(data) if args.json else render(data))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

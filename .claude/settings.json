@@ -67,6 +67,12 @@
           },
           {
             "type": "command",
+            "command": "test -f \"${CLAUDE_PROJECT_DIR}/scripts/agent_status.py\" && python3 \"${CLAUDE_PROJECT_DIR}/scripts/agent_status.py\" --session-start || true",
+            "timeout": 20,
+            "statusMessage": "Loading every agent's now/done/next..."
+          },
+          {
+            "type": "command",
             "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mail_notify.py\"",
             "timeout": 10,
             "statusMessage": "Checking fabrik-mail inbox..."
