@@ -200,6 +200,40 @@ def test_rows_in_a_headerless_table_are_counted_as_ungraded(tmp_path):
     assert sweep.ungraded == 2
 
 
+_SPLIT = "| a | b |\n|---|---|\n| 1 | 2 |\n\n| 3 | 4 |\n| 5 | 6 |\n"
+
+
+def test_split_table_reports_the_orphan_run_once(tmp_path):
+    """W-b9c91cc5 (mail 01M3WZKG2S): a blank line between two rows ends the table, and the rows
+    after it render as headerless paragraphs. One hit per orphan run, at its first row."""
+    doc = tmp_path / "split.md"
+    doc.write_text(_SPLIT, encoding="utf-8")
+    sweep = crh.scan(surfaces=[doc])
+    assert _lines(sweep, "split-table") == [5]
+    assert sweep.ungraded == 2  # the orphan rows still have no header to be graded against
+
+
+def test_split_table_ignores_a_new_table_after_a_blank(tmp_path):
+    doc = tmp_path / "two-tables.md"
+    doc.write_text("| a | b |\n|---|---|\n| 1 | 2 |\n\n| c | d |\n|---|---|\n| 3 | 4 |\n", encoding="utf-8")
+    assert _lines(crh.scan(surfaces=[doc]), "split-table") == []
+
+
+def test_split_table_ignores_fenced_rows(tmp_path):
+    doc = tmp_path / "fenced.md"
+    doc.write_text("```text\n" + _SPLIT + "```\n", encoding="utf-8")
+    assert _lines(crh.scan(surfaces=[doc]), "split-table") == []
+
+
+def test_split_table_is_advisory_under_strict(tmp_path):
+    """A split loses the table's structure, not its text: the hit is advisory on a receipt too."""
+    receipt = tmp_path / "split-review.md"
+    receipt.write_text(_SPLIT.replace("| a | b |", "| a | Disposition |"), encoding="utf-8")
+    hits = [h for h in crh.scan(receipts=[receipt]).hits if h.cls == "split-table"]
+    assert [h.line for h in hits] == [5]
+    assert not any(h.blocking for h in hits)
+
+
 # ---------------------------------------------------------------- the surface classes
 
 
