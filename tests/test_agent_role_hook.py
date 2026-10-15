@@ -572,9 +572,9 @@ def test_every_charter_names_the_current_merge_owner() -> None:
     stale_shapes = (
         [
             re.compile(
-                rf"{name(o)}\s+(?:merges\s+(?:your\s+|the\s+|its\s+|every\s+|all\s+)?(?:branch(?:es)?|requests?|PRs?|it|them|work)\b|merges\s*[.;,)]|for\s+merges|(?:stays|is|remains)\s+(?:still\s+|now\s+)?(?:the\s+)?{mo}|"
+                rf"{name(o)}\s+(?:merges\s+(?:your\s+|the\s+|its\s+|every\s+|all\s+)?(?:branch(?:es)?|requests?|PRs?)\b|merges\s*[.;,)]|for\s+merges|(?:stays|is|remains)\s+(?:still\s+|now\s+)?(?:the\s+)?{mo}|"
                 rf"owns\s+(?:the\s+)?merges\b|\(the\s+{mo}\)|"
-                rf"(?:handles|does|takes|lands|runs)\s+(?:the\s+)?merges?\b)",
+                rf"(?:handles|does|takes|lands|runs)\s+(?:the\s+)?merges\b)",
                 re.I,
             )
             for o in others
@@ -585,10 +585,14 @@ def test_every_charter_names_the_current_merge_owner() -> None:
         + [re.compile(rf"{name(o)}\s+will\s+merge\b", re.I) for o in others]
         + [re.compile(rf"merge\s+requests?\s+(?:go(?:es)?\s+)?to\s+(?:the\s+)?{name(o)}", re.I) for o in others]
         + [
-            re.compile(rf"{mo}\s*(?:\(|=|:|,|\bis\b|\bremains\b|\bstays\b)\s*(?:still\s+)?(?:the\s+)?{name(o)}", re.I)
+            re.compile(rf"{mo}\s*(?:\(|=|:|\bis\b|\bremains\b|\bstays\b)\s*(?:still\s+)?(?:the\s+)?{name(o)}", re.I)
             for o in others
         ]
     )
+    # Accepted gaps (closing pass, measured): a table cell "| merges | infra |", "Merging is infra's job",
+    # a canonical sentence only in an indented code block, and "Ask kaizen for merges of feedback rows"
+    # (reads as stale - the price of catching "infra for merges"). Singular "merge" as a modifier
+    # ("runs the merge sync"), "merges it into" and comma lists stay legitimate.
     # no "every unit saying merge owner must name the owner" rule: it fired on coordinator.md's
     # legitimate "keep each charter true to ... the merge owner" (measured, D-891); the stale shapes
     # above catch the wrong forms it was meant for ("infra is the merge owner", "infra (the merge owner)").

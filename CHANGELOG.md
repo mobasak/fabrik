@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — every hub charter names the ledger's merge owner, and a test keeps them current (2026-10-15)
+
+- The five charters in `docs/reference/agents/` carry one canonical merge-owner sentence; kaizen.md no longer routes merges to infra and coordinator.md states the handover done. `tests/test_agent_role_hook.py::test_every_charter_names_the_current_merge_owner` reads the owner from `scripts/decisions.py --merge-owner` and fails on a charter that lacks the sentence or names another agent as merger. W-cfff98dd, D-891.
+
 ### Changed — the hub CLAUDE.md carries the coordinator's duties paragraph (2026-10-15)
 
 - `CLAUDE.md` § Orient now carries the template's "The coordinator role" paragraph byte-identical, plus one hub sentence on how the rulings D-874, D-880, D-882 and D-885 refine it, so the hub coordinator reloads its duties on every session start, compact and resume; the coordinator charter points at it; `tests/test_governance_template_split.py` keeps the copies identical. W-cfff98dd, D-888.
