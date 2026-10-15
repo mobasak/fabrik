@@ -1,6 +1,6 @@
 # Review — dashboard-agents-table
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = b2067a93cebf42756c832e8117ad623967723bdc; range tip b2067a93cebf42756c832e8117ad623967723bdc; `git diff 0d210ec76..b2067a93c -- scripts/agent_status.py scripts/sysadmin/quota_dashboard.py tests/test_agent_status.py tests/test_quota_dashboard.py` md5 b44685bbaa8b0c26f0e0c2e102af4783 (39211 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/agent_status.py`, `scripts/sysadmin/quota_dashboard.py`, `tests/test_agent_status.py`, `tests/test_quota_dashboard.py`
 
@@ -135,6 +135,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 |---|---|---|---|
 | Pass 1 | native sonnet×2 + haiku×2 (slice A: agent_status.py + its test; slice B: quota_dashboard.py + its test) | found: 18, new: 18, confirmed: 14, fixed: 14, unexecuted: 0 | method: execution — fake /proc trees with unreadable environ, records with future/NaN/huge stamps, hostile titles through the renderer, node runs of the refresh script, mutants on copies |
 | Pass 2 | native sonnet×2 + haiku×2 (the round-1 seats over b2067a93c..1e68a526f plus one hop) | found: 3, new: 2, confirmed: 2, fixed: 2, unexecuted: 0 | method: re-verification of every round-1 claim; mutant loops re-run on 1e68a526f; the frame guard in headless Chromium |
+| Pass 3 | native sonnet×1 + haiku×1 (slice A's own seats over 1e68a526f..7a2e855fe; slice B's files changed only by one test-line space since its confirmed-0 pass) | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — both round-2 claims re-executed, the OverflowError mutant seen red at test_agent_status.py:147, ruff and mypy clean, 11 tests pass at the pin; F21 recorded one hop out |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -174,7 +175,11 @@ checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the
 
 ## Per-phase verdicts
 
-### Phase 1 — W-7159f8e2 Agents table, live Repos page, operator bucket: CONVERGED (pending Pass 3)
+### Phase 1 — W-7159f8e2 Agents table, live Repos page, operator bucket: CONVERGED
+
+Pass 1 confirmed 14, Pass 2 confirmed 2, Pass 3 confirmed 0. Every class reads clean; 13 mutants seen
+killed in probe worktrees; the live run listed 43 repos with 8 windows named correctly. Residual: F17,
+F18 refuted, F19-F21 recorded.
 
 ## Gate
 
@@ -183,7 +188,242 @@ checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+  "status": "success",
+  "skipped_checks": [
+    "static tier"
+  ],
+  "checks": [
+    {
+      "name": "static tier (diff-sensed skip)",
+      "outcome": "skipped"
+    },
+    {
+      "name": "Convergence Evidence (plans + reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Coverage Checklist (reviews)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Vendored Drift (sync-excluded repos)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Review hygiene",
+      "outcome": "pass"
+    },
+    {
+      "name": "Routing Policy (operator deny + allowlist)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Governance Tables (rules must render)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Certification Coverage (advisory; board mix-up BLOCKS)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-lock release",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rivals dossier",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Spec convergence",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule grounding (plans)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Citations resolve (path:line lands)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Feedback duty",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Trigger routing (advertised phrase -> its own command)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Secrets (Zero Hardcoding)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hardcoded localhost/127.0.0.1 Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "Imports Resolvable (clean checkout)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Lint Ratchet (repo-wide, no new debt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Corpus Weight (byte ratchet)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Frozen Chain (contract pins)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Data Contract Backing Legend",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc Sync Matrix",
+      "outcome": "pass"
+    },
+    {
+      "name": "Subagent Flywheel (pool-or-declare \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mutation (opt-in FABRIK_MUTMUT)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc stub fill",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Script Coupling Header",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Doc-Script Links",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc-Script Coverage (ratchet)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Print/Console.log Ban",
+      "outcome": "pass"
+    },
+    {
+      "name": "No Host Ports on Traefik Services",
+      "outcome": "pass"
+    },
+    {
+      "name": "Full Traefik Label Set (\u00a77)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Spec <-> Project DB Name Match (Phase 1c)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Mail Ownership Map (beat-owners.json)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Undeclared Imports (requirements.txt)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Fabrik-Synced Files Unmodified",
+      "outcome": "pass"
+    },
+    {
+      "name": "Project Structure",
+      "outcome": "pass"
+    },
+    {
+      "name": "Hooks Index Fresh",
+      "outcome": "pass"
+    },
+    {
+      "name": "MCP Scope (.mcp.json \u2286 ruling)",
+      "outcome": "pass"
+    },
+    {
+      "name": "User-Level Hooks Registered",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Sync Trigger Coverage",
+      "outcome": "pass"
+    },
+    {
+      "name": "Doc Link Integrity (live tree)",
+      "outcome": "pass"
+    },
+    {
+      "name": "INDEX.md \u2194 docs tree drift",
+      "outcome": "pass"
+    },
+    {
+      "name": "Retired-Tech Tripwire",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Rule-pack reachability",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Behavior Contract Proposal",
+      "outcome": "pass"
+    },
+    {
+      "name": "Plan-Set Contract (Spine+Tickets)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Stage-Skip Artifact Gate (spec freshness + FROZEN header shape)",
+      "outcome": "pass"
+    },
+    {
+      "name": "README.md (Primary Entry Point)",
+      "outcome": "pass"
+    },
+    {
+      "name": ".env.example Completeness",
+      "outcome": "advisory"
+    },
+    {
+      "name": "User Guide Presence",
+      "outcome": "pass"
+    },
+    {
+      "name": "Phase Tests (plan-window)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Command Corpus (references resolve \u2014 BLOCKING)",
+      "outcome": "pass"
+    },
+    {
+      "name": "Ticket Breadth (plan sets)",
+      "outcome": "advisory"
+    },
+    {
+      "name": "Work items (sync)",
+      "outcome": "pass"
+    },
+    {
+      "name": "epic_order --check",
+      "outcome": "pass"
+    },
+    {
+      "name": "Kilo CLI Health Check",
+      "outcome": "pass"
+    }
+  ]
+}
 ```
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
