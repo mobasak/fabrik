@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — "operator-named work" routes up only for code, config or an explicit full-review ask (2026-10-15)
+
+- Lane row 1b in `CLAUDE.md` and `templates/governance/CLAUDE.md` scopes the trigger: an explicit ask for the full
+  `/fabrik-review` always routes up; naming alone routes up a code or config change, never a diff with no code
+  surface. § 1a in both contracts, `commands/_sources/fabrik-review-scoped.md` (classify step and
+  description) and `.windsurf/rules/core/50-code-review.md` point at row 1b instead of "anything an operator (or
+  owner) asked for by name". Pinned by `tests/test_governance_template_split.py`. D-892, W-2bc42fc3.
+
 ### Fixed — /fabrik-task: the durable-folder placeholder no longer reads as RUN-SCRATCH (2026-10-15)
 
 - `commands/_sources/fabrik-task.md` named the `SCRATCH:` folder (design.md, measure.md, commit.sha — durable)
