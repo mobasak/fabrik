@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T12:18:25.758109Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-e3f315c0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4XB7GPFFJKKW1CAKG63P1VM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-review feedback row 1791906916: the review loop keeps pins and briefs under /tmp, which a WSL shutdown wipes"
+}

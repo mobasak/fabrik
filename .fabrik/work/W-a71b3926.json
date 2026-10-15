@@ -3,7 +3,7 @@
   "created": "2026-10-15T07:51:18.609744Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ddd3b23ebd82575a3fce8d8e33229affcd8e0db6",
   "id": "W-a71b3926",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "Operator gate: fleet stays paused until this answers; one conformance pass over a one-day-old spec",
-  "status": "open",
+  "status": "done",
   "tags": [
     "conformance",
     "queued"

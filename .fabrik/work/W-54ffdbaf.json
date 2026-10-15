@@ -20,7 +20,8 @@
   "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "mail-01m4ynhvh2gajbz3w7xbcbjm9a"
+    "mail-01m4ynhvh2gajbz3w7xbcbjm9a",
+    "mail-01m4ynthkk1ja99eh7714xhe2s"
   ],
   "title": "Two windows on one session id fuse the transcript and the run record — the Stop hook blames the idle window for a sibling's work (with addendum 01M4YNTHKK1J) (mail 01M4YNHVH2GAJBZ3W7XBCBJM9A)"
 }

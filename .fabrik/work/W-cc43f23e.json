@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T10:51:25.832399Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "5727cf3ba1d7b4b5e3f72f5c84f97c1f7263531b",
+  "id": "W-cc43f23e",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: fold D-892 into docs/development/plans/2026-10-14-plan-2-one-door-lane.md before it executes",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "D-890: the one-door rewrite replaces the lane tables and would silently drop D-892's fix (a regression); one plan edit",
+  "status": "done",
+  "tags": [
+    "mail-01m4zhnmwprcbvh5nrsg9h2qeh",
+    "queued"
+  ],
+  "title": "One-door lane plan: carry D-892's scope for 'operator-named work' into the rule block that replaces the lane tables, so the rewrite does not undo it (mail 01M4ZHNMWPRCBVH5NRSG9H2QEH)"
+}

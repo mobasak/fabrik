@@ -3,7 +3,7 @@
   "created": "2026-10-15T07:57:06.986407Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "17fea6635c5c23c5b1e1cd9bf232caa59938dd18",
   "id": "W-2bc42fc3",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "Every agent over-escalates small doc edits to the multi-seat review, burning quota; one wording edit",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued",
     "wording"

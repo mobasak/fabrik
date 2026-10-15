@@ -472,7 +472,7 @@ def test_measure_lists_what_phase_1_executes_before_the_design() -> None:
     for needle in (
         "a failure reported with a command is replayed by that command, never a reconstruction",
         "before phase 2 and any edit, each command and its output goes to",
-        "`<run-scratch>/measure.md`, beside phase 2's `design.md`, never in it",
+        "`<durable>/measure.md`, beside phase 2's `design.md`, never in it",
         "that slice and never the whole suite (a red now is pre-existing)",
         "`git fetch` and the declared paths diffed against the remote branch the work merges into",
         "(`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote)",
@@ -840,20 +840,22 @@ def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
     raw = _source_text()
     text = _norm(raw)
     assert (
-        "`<run-scratch>` is the `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, so it survives a"
-        " WSL `/tmp` wipe and the worktree's removal)"
+        "`<durable>` is the `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, so it survives a"
+        " WSL `/tmp` wipe and the worktree's removal), never `RUN-SCRATCH:`"
     ) in text
-    assert "with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>`." in text
+    # mail 01M4Z8X2JE: `<run-scratch>` read as the disposable `RUN-SCRATCH:` folder the sweeper removes
+    assert "<run-scratch>" not in raw
+    assert "with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` (in /tmp)." in text
     assert "<scratchpad>/fabrik-task/<sid>/<started_at>" not in raw
-    assert raw.count("<run-scratch>") == 9
+    assert raw.count("<durable>") == 9
     for site in (
-        "`<run-scratch>/measure.md`, beside phase 2's `design.md`",
-        "`<run-scratch>/design.md`. A mechanism copied",
-        "--design <run-scratch>/design.md",
-        "mkdir -p <run-scratch> \\",
-        ">> <run-scratch>/commit.sha || exit 1",
-        "--commit $(cat <run-scratch>/commit.sha)",
-        "--resume <run-scratch>/design.md",
-        "`SCRATCH: <path>` — the second is `<run-scratch>`.",
+        "`<durable>/measure.md`, beside phase 2's `design.md`",
+        "`<durable>/design.md`. A mechanism copied",
+        "--design <durable>/design.md",
+        "mkdir -p <durable> \\",
+        ">> <durable>/commit.sha || exit 1",
+        "--commit $(cat <durable>/commit.sha)",
+        "--resume <durable>/design.md",
+        "`SCRATCH: <path>` — the second is `<durable>`.",
     ):
         assert site in raw, site

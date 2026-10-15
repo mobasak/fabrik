@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — close chain: a figure in a close input is printed by its producer, never recalled (2026-10-15)
+
+`commands/_fragments/close-chain.md` (the default close of 37 `/fabrik-*` commands) now says a measured figure an
+input states — a test total, a constant's size, a row count — is printed by its producing command, over the
+population the input names, when the input is written and copied from that output (pointing at CLAUDE.md § HARD
+STOPS' "prefer the PRODUCING tool's own total"); a red call's fix that moves a figure re-prints and rewrites that
+input first, a committed message corrected in the fix commit's own message, never by an amend. Answers
+/fabrik-review row 1792054246 ("I wrote 13 for a 37-entry tuple") and the five held near-synonyms before it.
+Pinned by `tests/test_producing_command_fragments.py::test_a_figure_in_a_close_input_is_printed_by_its_producer_not_recalled`.
+
+### Changed — /fabrik-review-scoped: a small pin rides in the brief; the escape ask also hunts false reds (2026-10-15)
+
+- `commands/_sources/fabrik-review-scoped.md` step 5's PIN rule: in a brief the lead writes, pinned files totalling
+  under 8 KB are also pasted whole beside their line counts, so a seat whose Read or `cat` of a copy is refused still
+  has the bytes (the copy stays the authority; a paste reader is judged on line counts, not re-dispatched for
+  lacking a hash). The ESCAPE-VARIANTS ask now carries the probe catalogue's "both directions — false green and
+  false red" rule verbatim. Rows 1792052465, 1792052358 and 1792059931 (the second sighting of HELD
+  guard-false-positives-negatives-against); 1792037763 and 1792057870 rejected as already stated; 1792048250 routed
+  to infra. Pinned by `tests/test_review_scoped_queue_pass.py`.
+
+### Changed — "operator-named work" routes up only for code, config or an explicit full-review ask (2026-10-15)
+
+- Lane row 1b in `CLAUDE.md` and `templates/governance/CLAUDE.md` scopes the trigger: an explicit ask for the full
+  `/fabrik-review` always routes up; naming alone routes up a code or config change, never a diff with no code
+  surface. § 1a in both contracts, `commands/_sources/fabrik-review-scoped.md` (classify step and
+  description) and `.windsurf/rules/core/50-code-review.md` point at row 1b instead of "anything an operator (or
+  owner) asked for by name". Pinned by `tests/test_governance_template_split.py`. D-892, W-2bc42fc3.
+
+### Fixed — /fabrik-task: the durable-folder placeholder no longer reads as RUN-SCRATCH (2026-10-15)
+
+- `commands/_sources/fabrik-task.md` named the `SCRATCH:` folder (design.md, measure.md, commit.sha — durable)
+  `<run-scratch>`, which reads as the `RUN-SCRATCH:` folder `start` now also prints and the sweeper removes once
+  the run is consumed. The placeholder is `<durable>` at all nine sites, its definition says "never
+  `RUN-SCRATCH:`", and the no-`SCRATCH:` fallback says it is in /tmp; the source stays under its D-856 byte cap
+  (20904 → 20900). Pinned in `tests/test_fabrik_task_source.py` (the old name must not return) and
+  `tests/test_command_run_lane_v2.py`. Mail 01M4Z8X2JEZFX4ACC5KCWW7C6P, W-a26c180b.
 ### Added — the coordinator sees every hub agent's NOW / DONE / NEXT at session start (2026-10-15)
 
 - `scripts/agent_status.py` derives, per hub worker, the live window, the newest running run record (stale past 12 h), the held claim, its last merges and 24 h item count, and its queue's top 3; `--json` for the dashboard. A guarded SessionStart entry in `.claude/settings.json` prints it for the store's distributor only (silent elsewhere, rc 0 always, 20 s timeout). Tests: `tests/test_agent_status.py` (7). W-cfff98dd (e), D-880, D-894.

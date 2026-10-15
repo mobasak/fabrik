@@ -1960,3 +1960,32 @@ def test_the_coordinator_role_paragraph_is_identical_in_both_contracts() -> None
     assert in_hub[0] == in_template[0], "the hub copy drifted from the template's coordinator paragraph"
     # the hub-only sentence that settles where the hub rulings outrank the paragraph (review O-6)
     assert hub.count("where a ruling differs from the paragraph, the ruling holds") == 1
+
+
+def test_operator_named_work_is_scoped_at_row_1b_and_pointed_at_elsewhere() -> None:
+    """W-2bc42fc3 (operator 2026-10-15: "why did you say this needs full fabrik-review for just editing an md file"):
+    the trigger read as ANY operator request. Row 1b now scopes it in both contracts; every other site points there.
+    Mutants: drop the clause from either row 1b; restore "anything an operator asked for by name" in either 1a;
+    restore the bare trigger in the scoped source or "anything the owner asked for by name" in the rules pack."""
+    clause = (
+        "operator-named work (the operator explicitly asked for the full `/fabrik-review`, or asked by name for a "
+        "code or config change — naming alone never routes up a diff with no code surface, the "
+        "\"No code surface at all\" paragraph's set)"
+    )
+    for rel, end in (("CLAUDE.md", _STEP0_END), (TEMPLATE_REL, _STEP0_END_TPL)):
+        path = FABRIK / rel
+        text = path.read_text(encoding="utf-8")
+        rows = {r[0]: r for r in _lane_table(text, end)[1:]}
+        assert clause in rows["1b"][1], path.name
+        assert "anything an operator asked for by name" not in text, path.name
+        assert ">5 files, or operator-named work, lane row 1b — never a no-code-surface diff on naming alone)" in text
+    scoped = (FABRIK / "commands/_sources/fabrik-review-scoped.md").read_text(encoding="utf-8")
+    assert (
+        "or operator-named work (`CLAUDE.md` lane row 1b — never a no-code-surface diff on naming alone)"
+        " → open NO record"
+        in scoped
+    )
+    assert ">5 files, operator-named work (lane row 1b), or" in scoped
+    pack = " ".join((FABRIK / ".windsurf/rules/core/50-code-review.md").read_text(encoding="utf-8").split())
+    assert "operator-named work (CLAUDE.md lane row 1b — never a no-code-surface diff on naming alone)" in pack
+    assert "anything the owner asked for by name" not in pack
