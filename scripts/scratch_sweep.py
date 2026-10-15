@@ -501,6 +501,11 @@ def classify_run_folder(f: RunFacts, now: float) -> tuple[str, str]:
 # ── run-bound scratch: gathering the facts and consuming (plan Phase B, D3 and D4) ─────────────
 RUN_LOCK_NAME = ".run-folders.lock"  # beside scratchpad/, never inside it (P3)
 GAP_CLOCK_MARGIN_S = 300.0  # WSL's clock can jump after a suspend — a margin on the safe side
+# A run folder's own mtime later than its close by more than this: an entry was created or removed in
+# it after the close — still in use (W-9f3f097c). The close's own marker write (tmp + os.replace)
+# lands 0.1 ms after `closed_at` (measured); never GAP_CLOCK_MARGIN_S, which would hide a write made
+# minutes after a close.
+WRITE_AFTER_CLOSE_MARGIN_S = 5.0
 
 
 def gap_starts(gaps: list[str], proc_root: Path | None = None) -> list[float | None]:
@@ -789,6 +794,31 @@ def _done_close_is_vouched(owner: dict, now: float) -> bool:
     return _close_is_vouched(owner.get("created"), float(closed), now)
 
 
+def _written_after_close(folder: Path, closed_at: float) -> float | None:
+    """When an entry was created or removed in ``folder`` after its close: the folder's own mtime
+    (its last top-level change), else None; an unreadable stat is doubt and answers ``closed_at``.
+    One stat, never a walk — so a write that only modifies an existing file, or lands inside an
+    existing subfolder, is not seen (W-9f3f097c, stated in docs/workstation/cleanup-automation.md)."""
+    try:
+        mtime = folder.stat().st_mtime
+    except OSError:
+        return closed_at
+    return mtime if mtime > closed_at + WRITE_AFTER_CLOSE_MARGIN_S else None
+
+
+def _in_use_since_close(folder: Path, owner: dict | None, now: float) -> bool:
+    """The removal-time re-check of the write-after-close rule: a `done` folder whose last top-level
+    change is still inside the long grace. Re-applies the rule, never compares two mtimes — a folder
+    consumed because its last write is itself past the grace still goes."""
+    raw = (owner or {}).get("closed_at")
+    if (owner or {}).get("state") != "done" or not isinstance(raw, int | float) or isinstance(raw, bool):
+        return False
+    if not math.isfinite(raw):
+        return False
+    written = _written_after_close(folder, float(raw))
+    return written is not None and now - max(float(raw), written) < _grace_ceiling_s()
+
+
 def judge_run_folder(
     folder: Path,
     sid: str,
@@ -841,9 +871,18 @@ def judge_run_folder(
         if state == "done" and closed_at is not None
         else None
     )
+    # W-9f3f097c: an entry made in the folder after its close is a folder still in use — the long
+    # grace, counted from that last top-level change rather than from the close
+    grace_from = closed_at
+    written = (
+        _written_after_close(folder, closed_at) if state == "done" and closed_at is not None else None
+    )
+    if written is not None and closed_at is not None:
+        seat = True
+        grace_from = max(closed_at, written)
     facts = RunFacts(
         state=state if isinstance(state, str) else None,
-        closed_at=closed_at,
+        closed_at=grace_from,
         heartbeat_age_s=heartbeat_age,
         session_dead=session_dead,
         held=is_held,
@@ -855,6 +894,8 @@ def judge_run_folder(
         seat_write_after_close=seat,
     )
     verdict, reason = classify_run_folder(facts, now)
+    if written is not None and closed_at is not None:
+        reason += "; written into after its close, so its grace runs from that write"
     evidence = _marker_fingerprint(folder)
     if verdict == "consumed":
         inside, regs, ok = _worktrees_under(folder, str((owner or {}).get("repo") or ""))
@@ -953,6 +994,9 @@ def apply_run_rows(rows: list[Row], out=None, proc_root: Path | None = None) -> 
             continue
         if (path / KEEP_FILE).exists():
             print(f"KEPT {r.path} — a {KEEP_FILE} appeared since classification", file=out)
+            continue
+        if _in_use_since_close(path, owner, _now()):
+            print(f"KEPT {r.path} — written into since its close (W-9f3f097c)", file=out)
             continue
         created = _created_for(path, owner)
         if gap_keeps(starts_now, created, _now()):

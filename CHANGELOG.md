@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a closed run folder still being written into is no longer swept after 30 minutes (2026-10-16)
+
+Kaizen lost an audit brief and a pin folder mid-run (mail 01M4ZVBX96). Its transcript shows the
+folder belonged to a run it had closed 41 minutes earlier and kept writing into: a `start | head -1`
+hid the new run's RUN-SCRATCH line. The sweep gave the closed folder the 30-minute fast grace, because
+only a seat transcript written after a close counted as use. Now `scratch_sweep.py` also reads the
+folder's own mtime: an entry created or removed in it more than 5 s after the close keeps it for the
+36 h grace, counted from that change, and the removal step re-checks it. A stacked parent's folder was
+never at risk (its marker stays `running`); a grader now pins that too. W-9f3f097c.
+
 ### Added — Accept / Reject / comment per work item and a tag filter on the dashboard's Repos tab (2026-10-15)
 
 Operator 2026-10-15: "i want a way to accept or reject them manually also add a comment next to them".

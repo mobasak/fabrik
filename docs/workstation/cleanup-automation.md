@@ -198,7 +198,11 @@ consumed will be done so"*. `classify_run_folder` is the ONE function that answe
 
 - **ACTIVE, never removed** (spec INV-1): `running` in a session with a live signal or no death signal,
   or with a heartbeat 7 days old or newer; `resumable`; `done` less than its grace ago — 30 minutes,
-  or 36 h when a seat of the session wrote after the close or that cannot be read; a holder (fd or cwd)
+  or 36 h when a seat of the session wrote after the close or that cannot be read, and 36 h counted
+  from the last change when an entry was created or removed in the folder itself more than 5 s after
+  its close (its own mtime, one stat: a folder still written into after its run closed, W-9f3f097c —
+  a write that only modifies an existing file, or lands inside an existing subfolder, is not seen, and
+  a cleanup inside the folder after its close keeps it 36 h); a holder (fd or cwd)
   inside; a same-uid `/proc` gap whose process started after the marker was written, or whose start is
   unknown (D-877 — this box always carries three such daemons that started at boot, so "any gap keeps"
   would keep everything; a zombie is no gap; that ruling is the operator's, interim until they rule);

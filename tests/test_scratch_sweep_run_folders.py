@@ -276,6 +276,9 @@ def _run_folder(
         }
         (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
         _age(folder / ".owner", heartbeat_ago)
+    # the folder's own mtime is a write-after-close signal (W-9f3f097c): a fixture leaves it at its
+    # close, or the real clock passing the seam's NOW would read every fixture as written into since
+    _age(folder, max(closed_ago or 0.0, heartbeat_ago))
     return folder
 
 
@@ -523,6 +526,35 @@ def test_a_closed_folder_written_into_after_its_close_keeps_the_long_grace(
     assert not idle.exists(), out
 
 
+def test_the_write_after_close_margin_and_the_removal_recheck(
+    harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The signal's edges: an entry just past the margin keeps and the close's own marker write alone
+    does not; the long grace runs from the LAST top-level change, not the close; an entry made between
+    classification and removal keeps the folder."""
+    margin = sw.WRITE_AFTER_CLOSE_MARGIN_S
+    assert 0 < margin <= 5  # never the 300-s clock margin: a write 2 min after a close must count
+    sdir = _session(harness)
+    past = _run_folder(sdir, "past", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    _age(past, 41 * 60 - margin - 1)  # one second past the margin
+    within = _run_folder(sdir, "within", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    _age(within, 41 * 60 - margin + 1)  # the close's own write lands inside the margin
+    recent = _run_folder(sdir, "recent", closed_ago=40 * HOUR, heartbeat_ago=40 * HOUR)
+    _age(recent, 35 * HOUR)  # written 5 h after a close 40 h ago: 35 h < 36 h from that write
+    stale = _run_folder(sdir, "stale", closed_ago=40 * HOUR, heartbeat_ago=40 * HOUR)
+    _age(stale, 37 * HOUR)  # its last write is itself past the long grace
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert past.exists() and recent.exists(), out
+    assert not within.exists() and not stale.exists(), out
+    late = _run_folder(sdir, "late", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    rows = sw.plan_run_folders([sdir], NOW)
+    assert [r.cls for r in rows if r.path == str(late)] == ["consumed"]
+    _age(late, 30)  # an entry made after the sweep judged it, before the removal
+    sw.apply_run_rows(rows, out=io.StringIO())
+    assert late.exists()
+
+
 def test_only_own_session(harness: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """B3: `--run-folders --session A` touches A's directory and nothing under B's."""
     mine = _run_folder(_session(harness, SID_A), "mine")
@@ -648,6 +680,7 @@ def test_session_mode_governs_run_folders_by_marker(
     past = _run_folder(sdir, "past", closed_ago=40 * HOUR)
     for f in (graced, resumable, past):
         _age_tree(f, 7 * HOUR)
+    _age(past, 40 * HOUR)  # the folder's own mtime stays at its close: nothing made in it since (W-9f3f097c)
     monkeypatch.setenv("CLAUDE_SESSION_ID", SID_A)
     rc, out = _main(capsys, "--session", SID_A, "--apply")
     assert rc == 0, out
