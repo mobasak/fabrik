@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docs: why WSL cannot resolve registry.npmjs.org, and the one-line resolver fix (2026-10-15)
+
+- New `docs/TROUBLESHOOTING.md` § DNS Issues entry (W-f0fd555a, recurrence of W-478049bc). Measured cause: the npm registry's 12 A + 12 AAAA answer exceeds 512 bytes, glibc queries without EDNS so the reply is truncated and retried over TCP, and outbound TCP/53 is blocked to every resolver. The fix is `edns0` on `/etc/resolv.conf`'s options line (the file is immutable, so `chattr -i`/`+i` around the `sed`), proven first with `RES_OPTIONS=edns0`. Applying it is an operator gate.
+
 ### Fixed — scratch_sweep: a NaN or bool `created` no longer slips past the gap and trash-time checks (2026-10-15)
 
 - `gap_keeps` kept on a missing or non-numeric `created` (D-878's keep-on-doubt) but not on NaN: it passed the type guard and every comparison with it read False, so a gap was dropped (W-a39d4c86, fleet 01M505J6KG). A `.trash-*` marker with a bool `created` passed `isinstance(int | float)` and skipped the folder-ctime fallback, so every permanent same-uid daemon's gap kept it (fleet 01M505VVEJ). One `_usable_time` guard (a number, not a bool, finite) now backs both, and the two duplicated trash fallbacks are one `_created_for`. The `gap_keeps` Cobra note now names the real attack — forward-dating `created` inside the clock margin, not backdating it (backdating keeps more). Tests: three new, red first (NaN through a gap; the trash fallback for bool, NaN, missing and text; the Cobra direction pinned).
