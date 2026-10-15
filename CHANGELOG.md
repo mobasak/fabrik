@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review: the test-quality checklist names a fixture that IS the code's own constant (2026-10-15)
+
+A test whose expected value is read from the very constant whose value is the behaviour under test stays green
+whatever that constant says; the finder mutates that constant on a copy and the test must go red. Answers row
+1792054051, a recurrence of the held watched-fail-first-real-fixture. Pinned by
+`tests/test_review_queue_pass.py::test_a_fixture_equal_to_the_codes_own_literal_is_a_test_quality_finding`.
+
 ### Changed — /fabrik-review: the round line defines `--slices <verified>/<claims>` with its closing example (2026-10-15)
 
 `<claims>` counts the claims in a slice's ledger and `<verified>` those its owning seats re-ran to `DEFECT_ABSENT`, so a
