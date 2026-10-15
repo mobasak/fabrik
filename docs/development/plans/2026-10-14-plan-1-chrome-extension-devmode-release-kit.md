@@ -1,6 +1,7 @@
 # Plan — chrome-extension scaffold emits the developer-mode release kit (W-e2af3303)
 
-Status: IN-PROGRESS
+Status: EXECUTED 2026-10-15
+Whole-plan review: docs/development/reviews/2026-10-15-plan-1-chrome-extension-devmode-release-kit-review.md
 Profile: small
 **Owner:** —
 **Surface:** `git rev-parse HEAD` = 12333be10 at authoring, 473ed4978 at the approval panel (only the two documents changed between); `src/fabrik/scaffold.py::_scaffold_chrome_extension` (`:5075-6136`)
@@ -229,7 +230,7 @@ B4 and B4b assert on the subprocess's stdout, where structlog writes.
 | B5 | the emitted `compose.yaml` and `.env.example`; `defaults.yaml`; `compose.yaml.j2` | read | no label containing `-cors` in the emitted compose or the template; the emitted compose and the template each carry the four `${VAR:-}` env lines and no `CORS_ORIGINS`; the four env names and the commented opt-in in `.env.example`; no `CORS_ORIGINS` in `defaults.yaml` |
 | B6 | the emitted `Makefile` | read the `dev` and `dev-server` recipes | both uvicorn lines carry `$(if $(wildcard .env),--env-file .env,)` |
 
-## Phase C — Finish
+## Phase C — Finish — ✅ EXECUTED 2026-10-15 (6b0047c27)
 
 Appetite: 60
 

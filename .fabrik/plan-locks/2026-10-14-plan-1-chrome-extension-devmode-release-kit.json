@@ -11,7 +11,12 @@
   ],
   "branch": "worktree-intel",
   "started_at": "2026-10-15T12:21:10+00:00",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "8d5bd5020b566dcf48d774abd261c3f79fccdffc",
-  "baseline_gate": {"status": "success", "red": []}
+  "baseline_gate": {
+    "status": "success",
+    "red": []
+  },
+  "completed_at": "2026-10-15T23:30:00+00:00",
+  "final_commit": "6b0047c27"
 }

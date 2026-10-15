@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — chrome-extension scaffold ships a developer-mode release kit (2026-10-15)
+
+- Every new chrome-extension project gets the kit of `docs/superpowers/specs/2026-10-14-chrome-extension-devmode-release-kit-design.md`
+  (W-e2af3303, plan `docs/development/plans/2026-10-14-plan-1-chrome-extension-devmode-release-kit.md`, approval D-893):
+  - `pnpm keygen` (`extension/scripts/keygen.mjs`, `node:crypto` only) mints the signing key once. The private key
+    goes to `.keys/` (0600, gitignored) and the `.pub` is committed. The pinned `manifest.key` gives a stable ID;
+    `STORE_BUILD=1` omits it. It never mints over a committed `.pub` and refuses a `.pub` that does not match the
+    `.pem`.
+  - `make release-ext` refuses unless:
+    - the `.pub` is committed and is a real public key;
+    - the tree is clean;
+    - the version is one Chrome accepts;
+    - the `VITE_PUBLIC_API_URL` the build will use is `https://`, resolved exactly as WXT's `loadEnv` resolves it.
+
+    It then zips, writes the SHA-256 beside the zip, copies `extension/INSTALL.md`, and prints the four backend
+    values. It publishes nothing.
+  - The extension asks `GET /extension/latest` at start, on install and update, and every 6 hours. It badges the action and
+    shows a banner when a newer version is published, clears it when the release is withdrawn (404), and validates
+    the response as untrusted input.
+  - The backend serves `/extension/latest` from `EXTENSION_LATEST_*` (404 until all three are set, `no-store`).
+  - The backend admits CORS from exactly `chrome-extension://<EXTENSION_ID>`, closed by default.
+    `CORS_ALLOW_ANY_EXTENSION=1` is a local-only opt-in. The Traefik CORS middleware is removed from both compose
+    paths, and the four values reach the container as `${VAR:-}` env lines.
+
 ### Changed — /fabrik-review-scoped: a small pin rides in the brief; the escape ask also hunts false reds (2026-10-15)
 
 - `commands/_sources/fabrik-review-scoped.md` step 5's PIN rule: in a brief the lead writes, pinned files totalling
