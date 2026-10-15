@@ -48,13 +48,18 @@ specs" — that is a finding, not an error.
    bookkeeping: a portfolio sweep is long enough that context loss mid-run is the expected case, and
    a ledger written at the END is a ledger you write twice.
 
-   It carries THREE things, and the file is read by `check_review_coverage.py` (via `final_gate` and
+   It carries FOUR things from the start (the Pass Ledger joins them with the first pass), and the
+   file is read by `check_review_coverage.py` (via `final_gate` and
    the Stop hook) — a review that exists only in chat does not exist:
    - a **`Surface:` line** — `git rev-parse HEAD` + a hash of the enumerated inventory. This surface
      is not a diff, so there is no `git diff | md5sum` to take; the inventory IS the surface, and
      re-running against an unchanged one is a re-adjudication, not a fresh sweep.
    - the **Inventory table** — one row per spec↔plan pair (and per spec-less plan), verdict
      `PENDING`.
+   - a **`## Per-phase verdicts` section** — one `### Phase <n> — <title>` heading per PHASE of this
+     command, its outcome written under it once that phase has run; `check_convergence.py` fails a
+     ledger whose Status or text claims a finished review and that has no heading of two or more `#` starting
+     `Phase` or `Step` ("no per-phase verdict").
    - the **Coverage Checklist** — one row per FAILURE CLASS, every row starting `UNCHECKED`. The
      Inventory answers "which artifacts"; the Checklist answers "which ways they can be wrong" — you
      need both, because a sweep can verify every row and still never have hunted for inertness.
@@ -194,7 +199,7 @@ round AND a fully adjudicated checklist. One pass over the inventory is a first 
 
 ## OUTPUT
 
-The ledger doc (Surface hash · Inventory table · Coverage Checklist · Pass Ledger), committed —
+The ledger doc (Surface hash · Inventory table · Per-phase verdicts · Coverage Checklist · Pass Ledger), committed —
 that FILE is the deliverable, not this chat. Then, in the reply: the verdict distribution across
 the five values; every non-CONFORMS row with its `path:line` gaps; the cluster lists — enumerated
 from PHASE 3's own list, never a literal restated here (counts drift) — each naming the command it

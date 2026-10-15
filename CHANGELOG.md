@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-conformance-review: the ledger lists its Per-phase verdicts section (2026-10-15)
+
+`commands/_sources/fabrik-conformance-review.md`: the ledger's contents list (now FOUR things from the start) and
+OUTPUT's ledger line name a `## Per-phase verdicts` section with one `### Phase <n> — <title>` heading per phase —
+a ledger written to the old list had no Phase/Step heading, and `check_convergence.py` fails a finished-claiming
+review without one ("no per-phase verdict"). Answers row 1792066693; pinned by
+`tests/test_conformance_review_queue_pass.py`, which runs the gate's own `PHASE` pattern on the heading the source
+prescribes.
+
 ### Changed — /fabrik-command-improve: whole-ts handles, cited specs' decisions, recipes pointed at by name (2026-10-15)
 
 `commands/_sources/fabrik-command-improve.md`: PHASE 5's mark step says a handle is the whole `ts` with its
