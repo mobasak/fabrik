@@ -1,6 +1,6 @@
 # Plan — the coordinator role: sort, prioritise, merge, keep the records; never build
 
-Status: IN-PROGRESS — approved D-871
+Status: EXECUTED — approved D-871; Phases A-C merged (0e19427e4), merge ownership handed to the coordinator (D-874)
 Profile: small
 **Owner:** infra
 
