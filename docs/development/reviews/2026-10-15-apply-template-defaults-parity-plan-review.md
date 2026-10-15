@@ -33,7 +33,24 @@ The merge closes every plan/apply difference; before the Phase B pins the pin gr
 
 ## Panel
 
-(design-approval panel — filled at the gate)
+Two author-blind critique seats read pin 4 cold (plan md5 4c84dbecd9e551a33ea3db827b34324b, spec md5
+a80160301ba90502eb1f34d4f1632ce4, commit d6ecb0ed2) in the operator's place (D-613).
+
+- opus: `VERDICT: sound-with-changes — docs/development/plans/2026-10-15-plan-2-apply-template-defaults-parity.md`
+- fable: `VERDICT: sound-with-changes — docs/development/plans/2026-10-15-plan-2-apply-template-defaults-parity.md`
+
+| Seat · # | Concern | Disposition |
+|---|---|---|
+| opus 1 | the kind-agreement assertion is never seen red | ACCEPTED — `_kind_disagrees` helper with a kept positive control (Phase B step 3) |
+| opus 2 | the plan's pin grader checks two registrars, not the spec's frozen set | ACCEPTED — frozen full set per spec, executed today's sets (Phase B row 3) |
+| opus 3 | `_shared_db_siblings` reads sibling specs raw (`infrastructure.py:600-609`) | ACCEPTED — executed the read; shape-merged in Phase A step 4, row 5, mutant (f) |
+| opus 4 | D2's validate() invariant worded universally; the positive control breaks it | ACCEPTED — "graded over every spec in specs/services/" |
+| opus 5 | shape readers outside the registrar decision unnamed | ACCEPTED — named in spec D2 and plan § Residual, with the template allow-list grader |
+| fable 1 | pins land one commit after the loader switch | ACCEPTED — pins are Phase A step 1, before the loader change |
+| fable 2 | non-registrar shape readers; add a template shape-key allow-list | ACCEPTED — named; allow-list grader over the nine keys executed today, mutant (g) |
+| fable 3 | Phase A commits with two graders never seen red | ACCEPTED — mutants (b), (c), (e), (f) run inside Phase A step 5 |
+| fable 4 | CHANGELOG / INDEX edited but outside File Scope | ACCEPTED — the seat's alternative: the inline executor writes both, stated in Phase A's Files line; governance files stay out of File Scope (`check_plan_tickets.py::GOVERNANCE_FILES`); the index is the root `INDEX.md` |
+| fable 5 | validate() vs Spec domain rule read different kinds (recorded by the seat) | ACCEPTED as recorded — plan § Residual unknowns, guarded by the kind-agreement grader |
 
 ## Ask ↔ spec comparison
 

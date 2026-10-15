@@ -1,7 +1,7 @@
 # fabrik apply loads specs the way fabrik plan does — design
 
 Status: DRAFT
-Size: small (≈45 code lines in 2 code files; besides them 4 spec YAML pins and 2 test files)
+Size: small (≈50 code lines in 3 code files; besides them 4 spec YAML pins and 3 test files)
 Profile: delta
 
 Work item: W-989653a7. Decisions: D-733 (the approach, Opus + Fable panel 2026-10-09), D-907 (this spec's
@@ -99,18 +99,27 @@ DIFF translator.yaml {'gatus': 'apply=False plan=True', 'prometheus': 'apply=Fal
   `keys` limiting which top-level default keys merge (all when `None`), and a defaults file that resolves outside
   `templates_dir` merging nothing (the escape `validator.py:250-258` already refuses for the template directory).
   `load_spec` calls it with all keys; its behaviour is unchanged except that an escaping template now merges nothing.
+  The apply path's other raw reader of spec files, `_shared_db_siblings` (`src/fabrik/orchestrator/infrastructure.py:600-609`,
+  the app-role cutover's shared-database scan), shape-merges each sibling the same way, so a sibling whose
+  `needs_database` comes from its template is counted.
 - **D2 — apply uses its shape half (D-908).** `SpecValidator.load_spec` (`validator.py:183-207`) returns
   `merge_template_defaults(spec, self.templates_dir, keys=("shape",))` after its mapping check. The registrar
   decision reads `shape`, `infra`, `domain`, `depends` and `watchdog` (`src/fabrik/orchestrator/infrastructure.py:225-453`),
   and the 11 template `defaults.yaml` files set only `shape` (11), `env` (11), `resources` (2) and `health` (1), so
   the shape merge alone gives registrar parity; `env`, `resources` and `health` stay as the file says, because the
-  deployer writes `env` into each app's `.env`. Invariant: `validate()` raises on the merged dict exactly when it
-  raises on the raw one.
+  deployer writes `env` into each app's `.env`. Invariant, graded over every spec in `specs/services/`: `validate()`
+  raises on the merged dict exactly when it raises on the raw one (a synthetic spec can break it — the positive
+  control in § Validation). The merged `shape` also reaches readers outside the registrar decision —
+  `src/fabrik/orchestrator/verifier.py:85` and `:141`, `src/fabrik/orchestrator/__init__.py:296`,
+  `src/fabrik/orchestrator/deployer_ssh.py:826`, `src/fabrik/orchestrator/infrastructure.py:525` — which change no live
+  service today (both panel seats' probes); a template allow-list grader keeps a new template `shape:` key from
+  reaching them unreviewed.
 - **D3 — pins, so nothing new is provisioned on a live spec.** `shape.exposes_metrics: false` in
   `specs/services/translator.yaml`, `longephedia-vault.yaml`, `fabrik-citation-verifier.yaml`,
   `fabrik-claim-validator.yaml`, each with a one-line comment naming the evidence and the opt-in; translator also
-  gets `infra: {gatus: false}` (D-907). Invariant: for those four specs the registrar set apply resolves after the
-  change equals the set it resolves before.
+  gets `infra: {gatus: false}` (D-907). The pins land BEFORE the loader change, in the same phase, because under the
+  raw loader they change nothing. Invariant: for those four specs the registrar set apply resolves after the change
+  equals the set it resolves before, graded against a frozen expectation of every registrar.
 - **Invariant (all specs):** `resolve_applicability(SpecValidator().load_spec(p)) ==
   resolve_applicability(destroyer._spec_to_dict(spec_loader.load_spec(p)))` for every `p` in `specs/services/`,
   reason strings included.
@@ -168,12 +177,17 @@ on this box can verify; C widens the blast radius to every key of every spec.
 - **Unit:** a shape-less spec loaded through `SpecValidator(templates_dir=<tmp with defaults.yaml>)` carries the
   defaults' `shape` and none of their `env`, the spec's own values win, and a template outside `templates_dir`
   merges nothing.
-- **Pin grader:** for the four live specs, the registrar set equals a frozen expectation (no gatus/prometheus for
-  translator; no prometheus for the other three).
+- **Pin grader:** for the four live specs, the full set of running registrars equals a frozen expectation (today's).
+- **Kind-agreement grader:** no spec's top-level `kind` differs from its template's `shape.kind` without its own.
+- **Template allow-list grader:** template `shape:` keys stay within the nine set today, with no `is_admin_dashboard:
+  true` and no `uses_claude_cli`.
+- **Sibling grader:** the shared-database scan counts a sibling whose `needs_database` comes from its template.
 - Each grader is watched red on a mutant (D2 reverted; `_deep_merge` arguments swapped; `keys=None`; a pin removed;
-  the containment check removed). The validate() parity grader cannot be reddened through the live specs (each
-  carries a domain or an explicit kind), so a kept positive control proves it can fail: a synthetic spec (`name: synth`,
-  top-level `kind: worker`, `template: python-api`, no `shape:`, no `domain:`) validates raw and fails shape-merged.
+  the containment check removed; the sibling merge removed; a template set to `is_admin_dashboard: true`). The
+  validate() parity and kind-agreement graders cannot be reddened through the live specs (each carries a domain or
+  an explicit kind, and none disagrees with its template), so kept positive controls prove they can fail: a synthetic spec (`name: synth`,
+  top-level `kind: worker`, `template: python-api`, no `shape:`, no `domain:`) validates raw and fails shape-merged,
+  and is reported as disagreeing with its template's kind.
 
 ## Decisions taken
 

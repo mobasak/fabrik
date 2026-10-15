@@ -43,13 +43,21 @@ as "nothing to violate" — adjudicated in the Coverage Checklist. core/40-docum
 - The apply path writes `spec["env"]` into the VPS `.env` (`src/fabrik/orchestrator/deployer_ssh.py:898-903`) — which is
   why apply merges the template's `shape:` block only (D-908).
 
-## Phase A — one merge helper, apply uses its shape half
+## Phase A — pins first, then one merge helper on the apply path
 
-Appetite: 40
+Appetite: 50
 
-**Files:** `src/fabrik/spec_loader.py` (the helper, `load_spec` calls it) · `src/fabrik/orchestrator/validator.py`
-(`SpecValidator.load_spec` returns the shape-merged dict) · `tests/orchestrator/test_validator.py` (unit graders) ·
-`CHANGELOG.md` (orchestrator-applied, outside File Scope).
+**Files:** `specs/services/translator.yaml`, `specs/services/longephedia-vault.yaml`,
+`specs/services/fabrik-citation-verifier.yaml`, `specs/services/fabrik-claim-validator.yaml` (pins — they land FIRST,
+in this phase, because under today's raw loader they change nothing on apply and only make `fabrik plan` honest; so no
+commit of this plan ever leaves a live spec unpinned behind the merging loader — D-733's "same change") ·
+`src/fabrik/spec_loader.py` (the helper, `load_spec` calls it) · `src/fabrik/orchestrator/validator.py`
+(`SpecValidator.load_spec` returns the shape-merged dict) · `src/fabrik/orchestrator/infrastructure.py`
+(`_shared_db_siblings`, the other raw reader of spec files on the apply path, `:575-612`) ·
+`tests/orchestrator/test_validator.py` (unit graders) · `tests/orchestrator/test_shared_db_siblings.py` (new). The
+inline executor (this plan is `Profile: small`, so the orchestrator codes it) also writes the `CHANGELOG.md` entry
+(step 6) and the root `INDEX.md` row (Finish step 1) — governance files, which `check_plan_tickets.py::GOVERNANCE_FILES`
+keeps out of File Scope.
 
 **Interfaces — Produces:** `fabrik.spec_loader.merge_template_defaults(raw: dict[str, Any], templates_dir: Path | None =
 None, keys: tuple[str, ...] | None = None) -> dict[str, Any]` — reads `<templates_dir>/<raw["template"]>/defaults.yaml`
@@ -58,44 +66,60 @@ when `raw["template"]` is a non-empty `str` and the resolved FILE path lies insi
 directory) and parses to a mapping; keeps only the top-level keys named in `keys` (all keys when `None`); returns
 `_deep_merge(defaults, raw)` (the spec wins), otherwise `raw` unchanged. `templates_dir` defaults to
 `FABRIK_ROOT / "templates"`. **Consumed by:** `spec_loader.load_spec` (`src/fabrik/spec_loader.py:1051-1066`, all
-keys — behaviour unchanged except that a template escaping `templates_dir` now merges nothing) and
+keys — behaviour unchanged except that a template escaping `templates_dir` now merges nothing),
 `SpecValidator.load_spec` (`src/fabrik/orchestrator/validator.py:183-207`, `keys=("shape",)`), whose production
 caller is `SpecValidator.load_and_validate` (`validator.py:340`) ← `Orchestrator`
-(`src/fabrik/orchestrator/__init__.py:137`, `:481`).
+(`src/fabrik/orchestrator/__init__.py:137`, `:481`), and `_shared_db_siblings`
+(`src/fabrik/orchestrator/infrastructure.py:600-609`, `keys=("shape",)` on each sibling's data before it reads
+`shape.needs_database`).
 
 **Behavior Contract (Phase A):**
 - **Given** a spec with `template: python-api` and no `shape:` block **When** `SpecValidator(templates_dir=<tmp>).load_spec` loads it and `<tmp>/python-api/defaults.yaml` sets `shape.exposes_metrics: true` **Then** the returned dict carries `shape.exposes_metrics: true`
 - **Given** a spec that sets `shape.exposes_metrics: false` **When** it is loaded through the validator over the same defaults **Then** the returned value is `false` (the spec wins)
 - **Given** `<tmp>/python-api/defaults.yaml` also sets `env.LOG_LEVEL: INFO` and the spec has no `env:` **When** the validator loads it **Then** the returned dict has no `env.LOG_LEVEL` (apply never writes a template env key)
 - **Given** a spec whose `template` resolves outside `templates_dir` (`../evil`) with a `defaults.yaml` there **When** `merge_template_defaults` runs **Then** the raw spec is returned unchanged
+- **Given** a sibling spec in the same directory whose `needs_database: true` comes only from its template, naming the same database **When** `_shared_db_siblings` scans for a shared database **Then** it reports that sibling
 
 Steps:
-1. Write the four graders first in `tests/orchestrator/test_validator.py`, each with its own `tmp_path` templates dir,
-   importing `merge_template_defaults` INSIDE the test body (a module-top import would fail collection for all four).
-   Run `.venv/bin/python -m pytest tests/orchestrator/test_validator.py -q -k "template_defaults"` → rows 1 and 4
-   FAIL (row 1: an assertion — the raw loader returns no `shape`; row 4: `ImportError`, no helper yet); rows 2 and 3
-   pass on the raw loader and are seen red only on their Phase B step 4 mutants.
-2. In `src/fabrik/spec_loader.py`, add `Any` to the `typing` import (line 10 imports only `Literal`), move the merge
+1. Pin the four live specs: inside each one's `shape:` block add `exposes_metrics: false` with a one-line comment
+   (`# no /metrics route in this repo's code (grep 2026-10-15, D-907) — delete this line to opt in once it serves
+   one`; translator's reads `# D-907: /metrics unverified, the repo is not on the hub — delete to opt in`, because no
+   grep of its code was possible); translator.yaml gets `infra:\n  gatus: false` with the comment `# D-907: no Gatus
+   check until the owner confirms translator.vps1.ocoron.com/health — delete to opt in`.
+2. Write the five graders first — rows 1-4 in `tests/orchestrator/test_validator.py`, each with its own `tmp_path`
+   templates dir, row 5 in `tests/orchestrator/test_shared_db_siblings.py` over a `tmp_path` spec directory —
+   importing `merge_template_defaults` INSIDE the test bodies (a module-top import would fail collection for all).
+   Run `.venv/bin/python -m pytest tests/orchestrator/test_validator.py tests/orchestrator/test_shared_db_siblings.py -q -k "template_defaults or shared_db"`
+   → rows 1, 4 and 5 FAIL (row 1: the raw loader returns no `shape`; row 4: `ImportError`, no helper yet; row 5: the
+   raw sibling read misses the template's `needs_database`); rows 2 and 3 pass on the raw loader and are seen red on
+   mutants (b) and (c) in step 5.
+3. In `src/fabrik/spec_loader.py`, add `Any` to the `typing` import (line 10 imports only `Literal`), move the merge
    block of `load_spec` (`:1051-1066`) into `merge_template_defaults` (typed, docstring citing G-B1a, D-733 and
    D-908), with the containment check and the `keys` filter, and make `load_spec` call `raw = merge_template_defaults(raw)`.
-3. In `src/fabrik/orchestrator/validator.py::SpecValidator.load_spec`, after the mapping check, `return
-   merge_template_defaults(spec, self.templates_dir, keys=("shape",))` (import from `fabrik.spec_loader`, which imports
-   only `fabrik.config` from the package — `spec_loader.py:8-15` — so no cycle; the step-4 pytest run is the import
-   proof, because a bare `.venv/bin/python -c` in this worktree imports `/opt/fabrik/src`, not the edit).
-4. Gate: `.venv/bin/python -m pytest tests/orchestrator tests/test_spec_loader.py tests/test_reconcile_all_deployed_set.py tests/test_state.py -q` → all pass.
-5. Add `### Fixed — fabrik apply resolves the same registrars as fabrik plan (2026-10-15)` atop `CHANGELOG.md`
+4. In `src/fabrik/orchestrator/validator.py::SpecValidator.load_spec`, after the mapping check, `return
+   merge_template_defaults(spec, self.templates_dir, keys=("shape",))`; in
+   `src/fabrik/orchestrator/infrastructure.py::_shared_db_siblings`, pass each sibling's `data` through
+   `merge_template_defaults(data, keys=("shape",))` before it reads `shape` (imports from `fabrik.spec_loader`, which
+   imports only `fabrik.config` from the package — `spec_loader.py:8-15` — so no cycle; the step-5 pytest run is the
+   import proof, because a bare `.venv/bin/python -c` in this worktree imports `/opt/fabrik/src`, not the edit).
+5. Gate: `.venv/bin/python -m pytest tests/orchestrator tests/test_spec_loader.py tests/test_reconcile_all_deployed_set.py tests/test_state.py -q` → all pass.
+   Then red-on-revert for this phase's graders, in a throwaway worktree (`git worktree add <run scratch>/probe-a HEAD`
+   after the step-7 commit is staged locally — or the working files copied in — every grader run from inside it), one
+   mutant at a time, restored after each: (b) `_deep_merge(raw, defaults)` (arguments swapped) → row 2 fails; (c)
+   `keys=None` in the validator → row 3 fails; (e) the containment check removed → row 4 fails (its
+   `../evil/defaults.yaml` now merges); (f) the sibling merge line removed → row 5 fails. Re-run green.
+6. Add `### Fixed — fabrik apply resolves the same registrars as fabrik plan (2026-10-15)` atop `CHANGELOG.md`
    `[Unreleased]`; stage Phase A's files with it; `python3 scripts/enforcement/check_doc_sync.py` → exit 0 (it reads the
    staged diff and refuses a staged `.py` change without `CHANGELOG.md`).
-6. `/fabrik-review-scoped` on Phase A's diff (the `Profile: small` per-phase review) → its coverage-adjudicated exit.
-7. Commit Phase A (explicit paths + trailers, `Agent-Phase: A`).
+7. `/fabrik-review-scoped` on Phase A's diff (the `Profile: small` per-phase review) → its coverage-adjudicated exit;
+   commit Phase A (explicit paths + trailers, `Agent-Phase: A`).
 
-## Phase B — pins, and the parity graders
+## Phase B — the parity graders
 
 Appetite: 30
 
-**Files:** `specs/services/translator.yaml`, `specs/services/longephedia-vault.yaml`,
-`specs/services/fabrik-citation-verifier.yaml`, `specs/services/fabrik-claim-validator.yaml` (pins) ·
-`tests/orchestrator/test_apply_plan_parity.py` (new: the parity, validate-parity and pin graders).
+**Files:** `tests/orchestrator/test_apply_plan_parity.py` (new: the parity, validate-parity, kind-agreement, frozen
+pin and template allow-list graders).
 
 **Interfaces — Consumes:** `merge_template_defaults` via `SpecValidator.load_spec` (Phase A);
 `resolve_applicability` (`src/fabrik/orchestrator/infrastructure.py:261`); `destroyer._spec_to_dict`
@@ -105,42 +129,35 @@ Appetite: 30
 **Behavior Contract (Phase B):**
 - **Given** every spec in `specs/services/` **When** its registrars are resolved from `SpecValidator().load_spec` and from `_spec_to_dict(spec_loader.load_spec)` **Then** the two resolutions are equal, reason strings included
 - **Given** every spec in `specs/services/` **When** `SpecValidator.validate` runs on the raw and on the shape-merged dict **Then** both raise the same error or neither raises
-- **Given** the four live specs translator, longephedia-vault, fabrik-citation-verifier and fabrik-claim-validator **When** apply resolves their registrars **Then** none runs prometheus and translator does not run gatus
+- **Given** the four live specs translator, longephedia-vault, fabrik-citation-verifier and fabrik-claim-validator **When** apply resolves their registrars **Then** each one's set of running registrars equals a frozen expectation (today's: translator glitchtip, grafana, postgres, watchdog; longephedia-vault gatus, glitchtip, grafana, watchdog; fabrik-citation-verifier backrest, gatus, glitchtip, grafana, postgres, watchdog; fabrik-claim-validator gatus, glitchtip, grafana, postgres, watchdog)
+- **Given** every spec in `specs/services/` **When** its top-level `kind` is compared with its template's `shape.kind` **Then** none differs without a `shape.kind` of its own
+- **Given** every `templates/*/defaults.yaml` **When** its `shape:` keys are read **Then** they are a subset of the allow-list of the nine keys templates set today (`exposes_metrics`, `has_bearer_api`, `has_persistent_data`, `has_search_feature`, `is_admin_dashboard`, `is_public`, `kind`, `needs_cache`, `needs_database`) and none sets `is_admin_dashboard: true` or `uses_claude_cli`
 
 Steps:
-1. Write `tests/orchestrator/test_apply_plan_parity.py` with the three graders, parametrized over
+1. Write `tests/orchestrator/test_apply_plan_parity.py` with the five graders, parametrized over
    `sorted((REPO / "specs" / "services").glob("*.yaml"))` where `REPO = Path(__file__).resolve().parents[2]` (cwd-proof),
    with a module-level assertion that the list is non-empty; a raise from either loader is a FAILURE, never a skip
-   (0 of 69 specs is refused today); plus one kind-agreement assertion — no spec has a top-level `kind` that differs
-   from its template's `shape.kind` without a `shape.kind` of its own (0 of 69 today), because apply would silently
-   give such a spec the template's kind. With Phase A landed but no pins, run
-   `.venv/bin/python -m pytest tests/orchestrator/test_apply_plan_parity.py -q` → the pin grader FAILS for the four
-   live specs (red), the parity and validate-parity graders pass.
-2. Pin: add to each of the four specs, inside its `shape:` block, `exposes_metrics: false` with a one-line comment
-   (`# no /metrics route in this repo's code (grep 2026-10-15, D-907) — delete this line to opt in once it serves
-   one`; translator's reads `# D-907: /metrics unverified, the repo is not on the hub — delete to opt in`, because
-   no grep of its code was possible); translator.yaml gets `infra:\n  gatus: false` with the comment `# D-907: no Gatus check until the owner
-   confirms translator.vps1.ocoron.com/health — delete to opt in`.
-3. Gate: `.venv/bin/python -m pytest tests/orchestrator -q` → all pass;
+   (0 of 69 specs is refused today). The validate-parity and kind-agreement checks are helpers (`_validate_mismatch`,
+   `_kind_disagrees`) so their positive controls can call them.
+2. Gate: `.venv/bin/python -m pytest tests/orchestrator -q` → all pass;
    `python3 scripts/enforcement/check_spec_db_match.py` → no new warning.
-4. Red-on-revert, in a throwaway worktree (`git worktree add <run scratch>/probe HEAD`, every grader run from inside
+3. Red-on-revert, in a throwaway worktree (`git worktree add <run scratch>/probe-b HEAD`, every grader run from inside
    it), one mutant at a time, restored after each: (a) Phase A's validator line reverted to `return spec` → the parity
-   grader fails on 12 specs (11 by booleans plus translator by reason string; measured on a pinned scratch copy);
-   (b) `_deep_merge(raw, defaults)` (arguments swapped) → Phase A row 2 fails; (c) `keys=None` in the validator →
-   Phase A row 3 fails; (d) one pin deleted → the pin grader fails for that spec; (e) the containment check removed
-   from `merge_template_defaults` → Phase A row 4 fails (its `../evil/defaults.yaml` now merges). Re-run green.
-   Positive control for the validate()-parity grader, which no mutant over the live specs can redden (every one of the
-   69 carries a domain or an explicit kind): the grader's comparison helper, called on a synthetic spec — `name: synth`, top-level
-   `kind: worker`, `template: python-api`, no `shape:`, no `domain:` — reports a mismatch (raw validates; shape-merged
-   raises `Missing required field: domain`); this control is a kept test case in the same file, asserting the
-   mismatch is reported.
-5. Stage Phase B's files; `python3 scripts/enforcement/check_doc_sync.py` → exit 0.
-6. `/fabrik-review-scoped` on Phase B's diff → its coverage-adjudicated exit.
-7. Commit Phase B (explicit paths + trailers, `Agent-Phase: B`).
+   grader fails on 12 specs (11 by booleans plus translator by reason string; measured on a pinned scratch copy) and
+   the frozen pin grader fails for all four; (d) one pin deleted → the frozen pin grader fails for that spec; (g)
+   `is_admin_dashboard: true` written into one template's defaults → the allow-list grader fails. Re-run green.
+   Kept positive controls for the two graders no live spec can redden (every one of the 69 carries a domain or an
+   explicit kind, and none disagrees with its template's kind): `_validate_mismatch` on a synthetic spec — `name:
+   synth`, top-level `kind: worker`, `template: python-api`, no `shape:`, no `domain:` — reports a mismatch (raw
+   validates; shape-merged raises `Missing required field: domain`); `_kind_disagrees` on the same spec reports a
+   disagreement. Both are test cases in the same file asserting the report.
+4. Stage Phase B's file; `python3 scripts/enforcement/check_doc_sync.py` → exit 0.
+5. `/fabrik-review-scoped` on Phase B's diff → its coverage-adjudicated exit; commit Phase B (explicit paths +
+   trailers, `Agent-Phase: B`).
 
 ## Finish
 
-1. INDEX row for `tests/orchestrator/test_apply_plan_parity.py`.
+1. Root `INDEX.md` rows for `tests/orchestrator/test_apply_plan_parity.py` and `tests/orchestrator/test_shared_db_siblings.py`.
 2. The ONE heavy round: `/fabrik-review` over the whole-plan diff (the `/fabrik-execute-plan` D7 floor: ≥1 Opus
    authoritative seat + one Sonnet and one Haiku seat per failure-class group, seats from
    `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <groups>`, stamped first), receipt
@@ -155,7 +172,9 @@ Steps:
 
 - src/fabrik/spec_loader.py
 - src/fabrik/orchestrator/validator.py
+- src/fabrik/orchestrator/infrastructure.py
 - tests/orchestrator/test_validator.py
+- tests/orchestrator/test_shared_db_siblings.py
 - tests/orchestrator/test_apply_plan_parity.py
 - specs/services/translator.yaml
 - specs/services/longephedia-vault.yaml
@@ -187,7 +206,7 @@ $ .venv/bin/python <run scratch>/proto_shape.py
 
 A FULL merge on apply would instead add template `env:` keys to all 69 specs (round-1 Opus seat, `gain.py`: e.g.
 `gmail-account-creator` gaining file-worker's `JOB_TYPES`), which `deployer_ssh.py:898-903` would write into each
-app's `.env`. Phase B step 4's revert count, measured on a pinned scratch copy (`revert_count.py`):
+app's `.env`. Phase B step 3's revert count, measured on a pinned scratch copy (`revert_count.py`):
 
 ```
 boolean 11 ['fabrik-e2e-test', 'fabrik-file-worker', 'fabrik-smoke-test', 'fabrik-test-node-api', 'fabrik-test-python-api', 'gate-saas', 'gate-test', 'test-no-db', 'test-pg-no-db', 'test-pg-with-db', 'test-with-db']
@@ -212,7 +231,7 @@ tests/test_reconcile_all_deployed_set.py
 tests/test_state.py
 ```
 
-All seven test files run in Phase A step 4 (`tests/orchestrator` covers five; the other two are named in its gate).
+All seven test files run in Phase A step 5 (`tests/orchestrator` covers five; the other two are named in its gate).
 External grounding (Prometheus `up`/scrape-status, Helm, Terraform, HashiCorp drift) is in the spec and its ledger
 `docs/reference/research/2026-10-15-apply-template-defaults-ledger.md`.
 
@@ -221,7 +240,7 @@ External grounding (Prometheus `up`/scrape-status, Helm, Terraform, HashiCorp dr
 | Class | Verdict |
 |---|---|
 | core/10-python.md — type hints on every signature | FIXED r1 (Phase A step 2 types the helper and adds the missing `Any` import, `spec_loader.py:10`) |
-| core/45-testing-strategy.md — one test per behaviour, seen red | FIXED r2 (rows 2 and 3 pass on the raw loader and go red on mutants (b) and (c); row 4 goes red on mutant (e), containment removed; the validate()-parity grader carries a kept positive control) |
+| core/45-testing-strategy.md — one test per behaviour, seen red | FIXED panel (Phase A's mutants (b), (c), (e), (f) run inside Phase A before its commit; Phase B's (a), (d), (g); the validate-parity and kind-agreement graders carry kept positive controls) |
 | core/40-documentation.md — the review receipt | CLEAN (heading levels unskipped in the receipt and this plan; fenced blocks only) |
 | core/60-watchdog.md, core/self-healing.md, ai/50-agentic.md — matched by glob on specs/ and orchestrator/; no watchdog or agentic surface changes | CLEAN (no `watchdog:` key, agent loop or healing ladder in the File Scope's edits) |
 | Recurrence: fail-open/fail-closed | FIXED r1 (a loader raise is a parity FAILURE, never a skip; an escaping template merges nothing and leaves the raw spec) |
@@ -426,9 +445,10 @@ External grounding (Prometheus `up`/scrape-status, Helm, Terraform, HashiCorp dr
 
 ## Self-audit
 
-- (a) Coverage — spec § The delta D1 → Phase A step 2; D2 → Phase A step 3; D3 → Phase B step 2; the all-specs
-  invariants (registrars, validate()) → Phase B's parity and validate-parity graders; § Validation's unit, env, pin and
-  red-on-revert graders → Phase A step 1, Phase B steps 1 and 4. No gap.
+- (a) Coverage — spec § The delta D1 → Phase A step 3; D2 (validator and sibling scan) → Phase A step 4; D3 → Phase A
+  step 1; the all-specs invariants (registrars, validate(), kind agreement) and the template allow-list → Phase B's
+  graders; § Validation's unit, env, sibling, frozen-pin and red-on-revert graders → Phase A steps 2 and 5, Phase B
+  steps 1 and 3. No gap.
 - (b) Signatures — `merge_template_defaults(raw, templates_dir=None, keys=None)` is named identically in the spec,
   Phase A's Produces and Phase B's Consumes; the validator passes `keys=("shape",)`.
 - Grounding passes: the parity probe, the full-merge and shape-only prototypes, the pinned revert count (executed);
@@ -439,7 +459,7 @@ External grounding (Prometheus `up`/scrape-status, Helm, Terraform, HashiCorp dr
 - Resolved: the four D-822 specs need no pin (spec I2); `compute_spec_hash` is stored, never compared
   (`src/fabrik/state.py:217`).
 - Resolved: `tests/test_spec_loader.py` and the other six `SpecValidator` test files pass with the merge patched in
-  (round 1, Sonnet seat: 893 passed, 1 skipped over Phase A step 4's gate set).
+  (round 1, Sonnet seat: 893 passed, 1 skipped over Phase A step 5's gate set).
 - Resolved: a full template merge on apply is rejected (D-908) — it would write template `env:` keys into all 69
   deployed `.env` files.
 - Resolved as guarded: a spec with a top-level `kind` that differs from its template's `shape.kind`, and no
@@ -447,5 +467,10 @@ External grounding (Prometheus `up`/scrape-status, Helm, Terraform, HashiCorp dr
   `validate()` for a missing `domain` (positive control above). None of the 69 specs is in that shape (round 3,
   Opus seat: `kind.py` → `guarded-shape 0`); the parity file's kind-agreement assertion (Phase B step 1) fails the
   build the day one is, whether or not `validate()` then refuses it.
+- Resolved (design-approval panel): the only other raw reader of spec files on the apply path,
+  `_shared_db_siblings` (`infrastructure.py:600-609`), shape-merges each sibling too (Phase A row 5); the shape
+  readers outside the registrar decision — `src/fabrik/orchestrator/verifier.py:85` and `:141`, `src/fabrik/orchestrator/__init__.py:296`, `src/fabrik/orchestrator/deployer_ssh.py:826`,
+  `infrastructure.py:525` — change no live service today, and the template allow-list grader stops a new template
+  key reaching them unreviewed.
 - Open, outside this plan: translator's `/health` and `/metrics` — resolution: the owner deletes the pins (spec
   § Open/blocking unknowns).
