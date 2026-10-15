@@ -100,8 +100,12 @@ the fabrik-lib **vendor→enhance→build verdict** and the **cited external fac
 Carry those **straight into the Context Ledger** as-is. Phase 1's job then narrows to **verification, not
 re-derivation**: (a) confirm the chosen module's *real API* at `path:line` (the spec grounded *which* module
 to vendor/enhance, not its exact signatures — that still needs grounding); (b) re-check each cited external
-source is **still fresh** (re-research only if the spec is stale or the dependency changed since its date).
-Only when there is **no** spec do you run the full intake below from scratch.
+source is **still fresh** (re-research only if the spec is stale or the dependency changed since its date);
+(c) execute each claim the spec makes about the repo this plan builds in before the plan or a grounder brief relies
+on it — verify a stated derivation, count or population by running it, and hold a claimed pin to a test named by
+`path:line` that goes red when the rule is neutered in a throwaway worktree (`CLAUDE.md` § Shared repo, its
+mutate-restore rule); a claim not executed is prose, never carried as fact. Only when there is **no** spec do you
+run the full intake below from scratch.
 
 {{include:delegated-reads}}
 

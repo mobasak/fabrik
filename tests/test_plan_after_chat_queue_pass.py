@@ -136,3 +136,22 @@ def test_a_behaviour_change_censuses_its_readers_in_both_plan_commands() -> None
         "A seat re-runs that census; a reader it finds that the plan does not name is a defect."
         in review
     )
+
+
+def test_a_spec_fed_plan_executes_the_specs_claims_about_this_repo() -> None:
+    """Row 1792013569, the third verdict on one subject (held as rerun-spec-derivations and
+    execute-spec-residual-populations): Phase 0.5 narrowed a spec-fed Phase 1 to the module's API and source
+    freshness, so a spec's claim that a test pins a rule rode into three grounder briefs and the pin did not exist.
+    Mutants: drop clause (c), its verify-by-running clause, or its definition of a pin."""
+    flat = _flat()
+    phase = flat[flat.index("## Phase 0.5") : flat.index("Only when there is **no** spec")]
+    assert (
+        "(c) execute each claim the spec makes about the repo this plan builds in before the plan or a grounder"
+        " brief relies on it" in phase
+    )
+    assert "verify a stated derivation, count or population by running it" in phase
+    assert (
+        "hold a claimed pin to a test named by `path:line` that goes red when the rule is neutered in a throwaway"
+        " worktree (`CLAUDE.md` § Shared repo, its mutate-restore rule); a claim not executed is prose, never"
+        " carried as fact" in phase
+    )
