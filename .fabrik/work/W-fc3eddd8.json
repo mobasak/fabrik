@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-15T16:37:30.749371Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-fc3eddd8",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide whether the watchdog builds on the spoke (wrap driver.provision in _target_vps_env after confirming no hub-side step), then make the refresh path keep an existing GlitchTip project on a failed verify and guard the fallback ssh; tests for each",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "a failed DSN verify on refresh deletes the EXISTING GlitchTip project (data loss) and spoke watchdog runs on the hub; one driver (drivers/watchdog.py) plus a guard, one session; owner: deploy registrars = fleet",
   "status": "open",
   "tags": [
     "fleet"
