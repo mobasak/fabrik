@@ -501,6 +501,28 @@ def test_the_dead_rule_consumes_a_stale_running_folder_the_own_session_keeps(
     assert sdir.exists(), out  # the run pass alone removed it
 
 
+def test_a_closed_folder_written_into_after_its_close_keeps_the_long_grace(
+    harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """W-9f3f097c (kaizen 01M4ZVBX96, measured): an agent kept writing into the folder of a run it
+    had CLOSED (a `start | head -1` hid the new run's RUN-SCRATCH line); 41 min after the close, with
+    no seat transcript written since, the fast 30-min grace consumed it with the files just made. An
+    entry created after the close (the folder's own mtime past it) is a folder still in use: the
+    long grace. The control — the same close with nothing made since — still goes."""
+    sdir = _session(harness)
+    used = _run_folder(sdir, "used", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    (used / "ep-audit.md").write_text("brief", encoding="utf-8")
+    _age(used / "ep-audit.md", 60)
+    _age(used, 60)  # the new entry moved the folder's mtime to a minute ago
+    idle = _run_folder(sdir, "idle", closed_ago=41 * 60, heartbeat_ago=41 * 60)
+    _age(idle / "f0", 41 * 60 + 5)
+    _age(idle, 41 * 60)  # nothing made since the close
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert used.exists() and (used / "ep-audit.md").exists(), out
+    assert not idle.exists(), out
+
+
 def test_only_own_session(harness: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """B3: `--run-folders --session A` touches A's directory and nothing under B's."""
     mine = _run_folder(_session(harness, SID_A), "mine")
