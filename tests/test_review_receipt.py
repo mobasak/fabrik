@@ -518,3 +518,53 @@ def test_restamp_refuses_range_and_names_the_real_remedy(repo: Path) -> None:
     )
     assert r.returncode == 1, r.stdout + r.stderr
     assert "pass --range instead" not in r.stderr and "--init --range" in r.stderr, r.stderr
+
+
+def test_skeleton_states_the_by_design_owner_only_grammar(repo: Path) -> None:
+    """kaizen 01M4YMKN78 (feedback rows 1791889053, 1791944414, 1792029250): the skeleton the receipt
+    writer has open must say what `/fabrik-review` § Phase 2 and V5 enforce — a by-design verdict's
+    parentheses hold owner ids only, and its reason follows them."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    flat = " ".join(out.read_text(encoding="utf-8").split())
+    assert "every RECORDED reason is PARENTHESISED" not in flat
+    assert "parentheses hold owner ids only" in flat
+    assert "Every OTHER RECORDED reason is PARENTHESISED" in flat
+    assert "| F19 | RECORDED — by design (F4, round 3; D-203) — <why> |" in flat
+    assert "each `;`-part of a by-design parenthetical is an owner" in flat
+
+
+def test_skeleton_grammar_text_passes_v5(repo: Path) -> None:
+    """The unfenced verdict-grammar paragraph is V5-graded in every receipt that keeps it, so it must
+    never spell a by-design parenthetical itself (the Fable critique: a literal there reds every
+    new receipt)."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    text = crc._strip_fences(out.read_text(encoding="utf-8"))
+    assert crc._residual_errors(text, []) == []
+
+
+def test_check_file_resolves_d_owners_against_its_own_ledger(repo: Path, tmp_path: Path) -> None:
+    """kaizen 01M4YMKN78 § SYSTEMIC (2), end to end through `check_file`: a by-design `D-nnn` owner
+    is refused when the receipt's own checkout has no such ledger row, passes once the row exists
+    (zero-padded, as ledgers write it), and a receipt outside any checkout keeps the shape check."""
+    (repo / "docs").mkdir()
+    ledger = repo / "docs" / "DECISIONS.md"
+    ledger.write_text("| id | when |\n|---|---|\n| D-001 | x |\n", encoding="utf-8")
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    done = _complete(out.read_text(encoding="utf-8")).replace(
+        "## Residual\n",
+        "## Residual\n\n| F1 | RECORDED — by design (D-7) — licensed by that decision |\n",
+        1,
+    )
+    out.write_text(done, encoding="utf-8")
+    assert any("`D-7` is not a row in" in e for e in crc.check_file(out)), crc.check_file(out)
+    ledger.write_text(ledger.read_text(encoding="utf-8") + "| D-007 | y |\n", encoding="utf-8")
+    assert crc.check_file(out) == [], crc.check_file(out)
+    loose = tmp_path / "loose"  # no `.git` at or above it: its ledger is never consulted
+    (loose / "docs" / "development" / "reviews").mkdir(parents=True)
+    (loose / "docs" / "DECISIONS.md").write_text("| D-001 | x |\n", encoding="utf-8")
+    stray = loose / "docs" / "development" / "reviews" / "r-review.md"
+    stray.write_text(done, encoding="utf-8")
+    assert not any("is not a row" in e for e in crc.check_file(stray)), crc.check_file(stray)

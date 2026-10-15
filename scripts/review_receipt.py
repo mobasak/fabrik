@@ -260,11 +260,13 @@ Rubric invocation (verbatim output — the gate reads the generated header, neve
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
-disproving line>)` · `RECORDED — unexecuted (<why>)` · `RECORDED — by design`, parenthesising the
-owning row's first-cell id and the EARLIER round that adjudicated it, or a `D-nnn` with no round
-(the § Residual block below shows the shape) · `RECORDED — measured (<why>)` ·
-`RECORDED — hygiene false positive (<why>)` — every RECORDED reason is PARENTHESISED, never
-colon-delimited (a colon would spell the `unexecuted: N` counter the ledger refuses). `UNCHECKED`
+disproving line>)` · `RECORDED — unexecuted (<why>)` · `RECORDED — measured (<why>)` ·
+`RECORDED — hygiene false positive (<why>)` · `RECORDED — by design`, whose parentheses hold owner ids
+only — each the owning row's first-cell id and the EARLIER round that adjudicated it, or a `D-nnn`
+row of this checkout's ledger with no round, `;`-joined — with its reason AFTER the closing
+parenthesis and an em dash (the § Residual block below shows the shape). Every OTHER RECORDED reason
+is PARENTHESISED, never colon-delimited (a colon would spell the `unexecuted: N` counter the ledger
+refuses). `UNCHECKED`
 may survive only under a `## BLOCKED` escalation (a finding + 3 failed attempts).
 
 ## Pass Ledger
@@ -299,13 +301,14 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 
 ```text
 | F12 | RECORDED — unexecuted (3 probe attempts timed out) |
-| F19 | RECORDED — by design (F4, round 3; D-203) |
+| F19 | RECORDED — by design (F4, round 3; D-203) — <why> |
 | F31 | RECORDED — measured (a prevalence figure; makes no code or doc claim) |
 ```
 
 `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that adjudicated
-it (or a `D-nnn` with no round); the gate refuses an absent owner and a round that is not below the
-closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
+it (or a `D-nnn` with no round); each `;`-part of a by-design parenthetical is an owner, never a
+reason — the reason follows the closing parenthesis. The gate refuses an absent owner, a `D-nnn` this
+checkout's `docs/DECISIONS.md` has no row for, and a round that is not below the closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
 `unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
 
 ## Per-phase verdicts

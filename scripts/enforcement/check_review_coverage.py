@@ -1093,7 +1093,8 @@ def check_file(p: Path) -> list[str]:
             )
     # V5 — the residual section's licences, whole-document and fence-stripped (never inside
     # `_checklist_section`'s scope: a by-design verdict lives in `## Residual`, not the checklist).
-    errs.extend(_residual_errors(text_s, ordered_rows))
+    known_ids, ledger = _ledger_ids(p)
+    errs.extend(_residual_errors(text_s, ordered_rows, known_ids=known_ids, ledger=ledger))
     # V11 — the closing round carried a finder seat. A delta round whose fix diff is the
     # orchestrator's own work cannot close on the orchestrator's own reading (core/62 § Role
     # separation), and the finders cell is where the receipt says who read it. Scoped to the NEW
@@ -2490,11 +2491,47 @@ def _line_ids(line: str) -> set[str]:
     return ids
 
 
-def _residual_errors(text_s: str, ordered: list[_Row]) -> list[str]:
+# `decisions.py::_ledger_ids`'s first-cell parse, exactly (no re.I there either)
+_LEDGER_ROW = re.compile(r"^\|\s*D-(\d+)\s*\|", re.M)
+
+
+def _ledger_ids(receipt: Path) -> tuple[frozenset[int] | None, str]:
+    """The D-ids, as INTEGERS (ledgers zero-pad: `D-001` is `D-1`), of the `docs/DECISIONS.md` of
+    the checkout holding `receipt` — the first ancestor carrying `.git` (a file in a linked
+    worktree), never beyond it, so a stray tree never borrows an outer repo's ledger.
+
+    Fails OPEN — `(None, "")`, shape-only — when there is no `.git` ancestor, no ledger, an
+    unreadable one, or one with zero rows (a different grammar is not a licence to refuse every
+    D-owner). Read fresh each call: a cached ledger would miss a row minted since. Measured before
+    it shipped (kaizen 01M4YMKN78): over 1651 tracked receipts in 9 repos, 485 by-design D-owners,
+    2 absent — both D-874, a row then held only on an unmerged plan branch.
+    COBRA (D-253): the cheapest way past this check is to cite any EXISTING D-id that does not
+    license the candidate — existence is not relevance; the reason written after the parentheses
+    is what a reviewer reads to catch that."""
+    for anc in receipt.resolve().parents:
+        if (anc / ".git").exists():
+            ledger = anc / "docs" / "DECISIONS.md"
+            try:
+                ids = frozenset(int(n) for n in _LEDGER_ROW.findall(ledger.read_text("utf-8")))
+            except (OSError, UnicodeDecodeError, ValueError):
+                return None, ""
+            return (ids or None), (str(ledger) if ids else "")
+    return None, ""
+
+
+def _residual_errors(
+    text_s: str,
+    ordered: list[_Row],
+    *,
+    known_ids: frozenset[int] | None = None,
+    ledger: str = "",
+) -> list[str]:
     """V5 — every `RECORDED — by design (…)` verdict names an EXISTING owner and an EARLIER round.
 
     Whole-document (it is a residual-section verdict, not a checklist one) and run over the
-    fence-stripped text, so the template's own fenced example is invisible to it.
+    fence-stripped text, so the template's own fenced example is invisible to it. A `D-nnn` owner
+    is checked against `known_ids` (the checkout's ledger, `_ledger_ids`) when that set is
+    non-empty; `None` or an empty set keeps the shape-only check.
     """
     verdicts = list(_BY_DESIGN.finditer(text_s))
     if not verdicts:
@@ -2529,6 +2566,13 @@ def _residual_errors(text_s: str, ordered: list[_Row]) -> list[str]:
                     out.append(
                         f"`RECORDED — by design ({entry})`: a `D-nnn` owner takes NO round token "
                         "— a D-row is earlier than any closing round by construction"
+                    )
+                elif known_ids and int(owner[2:]) not in known_ids:
+                    out.append(
+                        f"`RECORDED — by design ({entry})`: `{owner}` is not a row in "
+                        f"{ledger or 'docs/DECISIONS.md'} — cite a row this checkout's ledger holds "
+                        "(merge the integration branch first if the row was minted there), or the "
+                        "owning row's id"
                     )
                 continue
             if not _OWNER_ID.fullmatch(owner) or not (on_lines.get(owner, set()) - {at}):

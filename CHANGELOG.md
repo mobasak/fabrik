@@ -15,6 +15,11 @@ All notable changes to this project will be documented in this file.
   `tests/test_command_improve_queue_pass.py::test_phase_three_points_at_a_rule_stated_elsewhere_without_a_gloss`.
   Six first-sighting rows HELD; row 1792000873 (PHASE 2 Grounding reads the gate's code) left open for the next run.
 
+### Fixed — by-design verdicts: the receipt skeleton states the owner-only grammar, and the gate refuses a D-owner that is not a ledger row (2026-10-15)
+
+- `scripts/review_receipt.py`: the `--init` skeleton's verdict grammar says a by-design verdict's parentheses hold owner ids only and its reason follows them (`… (F4, round 3; D-203) — <why>`); every other RECORDED reason stays parenthesised. Three `/fabrik-review` feedback rows had copied the old "every reason is parenthesised" text.
+- `scripts/enforcement/check_review_coverage.py`: V5 refuses `RECORDED — by design (D-nnn)` when the receipt's own checkout's `docs/DECISIONS.md` has no such row (integer compare, `D-1` = `D-001`; bounded at the first `.git` ancestor; fail-open with no readable rows). Measured first: 2 of 485 by-design D-owners in 1651 receipts would fire (D-874, held on an unmerged branch). D-876; kaizen 01M4YMKN78.
+
 ### Changed — /fabrik-review: the receipt-time Residual sentence points at the owners-only by-design rule (2026-10-15)
 
 - `commands/_sources/fabrik-review.md` § Residual: the sentence a receipt-writer reads while rowing residuals now says a `RECORDED — by design` parenthetical holds the owner and nothing else, the reason following it, as Phase 2's `by design` bullet shows — a pointer in the rule's own words, never a third wording (term-edit already carries a second). Answers feedback row 1792029250, the third verdict on the by-design grammar after two rows were routed to the receipt skeleton (infra's code, re-routed with the three rows and a gate gap: a D-id is checked by shape, not existence). Pinned by `tests/test_review_queue_pass.py::test_the_receipt_sentence_says_owners_only_inside_the_by_design_parentheses`.

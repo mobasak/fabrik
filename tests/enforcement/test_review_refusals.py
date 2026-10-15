@@ -954,15 +954,41 @@ def test_the_commands_by_design_example_passes_and_its_counter_example_is_refuse
     source, through the gate, so the text cannot teach a form the gate refuses."""
     src = " ".join((REPO / "commands" / "_sources" / "fabrik-review.md").read_text().split())
     ok = re.search(r"`RECORDED — (by design \(D-\d+\)) — <why>`", src)
-    bad = re.search(r"a reason inside them, `(\(D-\d+: <why>\))`, is refused as an absent owner", src)
+    bad = re.search(
+        r"a reason inside them, `(\(D-\d+: <why>\))`, is refused as an absent owner", src
+    )
     assert ok and bad, "the by-design example and counter-example are missing from fabrik-review.md"
     assert _residual(f"{ok.group(1)} — kept on purpose") == []
-    assert _residual("by design (F342, round 2) — kept on purpose") == [], "a receipt-row owner keeps its round"
-    assert _residual("by design (F342) — round 2, kept on purpose"), "the round is inside the parentheses"
+    assert _residual("by design (F342, round 2) — kept on purpose") == [], (
+        "a receipt-row owner keeps its round"
+    )
+    assert _residual("by design (F342) — round 2, kept on purpose"), (
+        "the round is inside the parentheses"
+    )
     term_edit = " ".join((REPO / "commands" / "_fragments" / "term-edit.md").read_text().split())
-    assert "only the owner, with a receipt-row owner's round, sits inside the parentheses, the reason after them" in term_edit
+    assert (
+        "only the owner, with a receipt-row owner's round, sits inside the parentheses, the reason after them"
+        in term_edit
+    )
     assert "with its `, round N` for a receipt row, several owners `;`-joined" in src
     assert "owner alone" not in src and "owner alone" not in term_edit
-    assert "RECORDED — <kind> (<why>)" not in src, "the generic template puts a by-design reason inside"
+    assert "RECORDED — <kind> (<why>)" not in src, (
+        "the generic template puts a by-design reason inside"
+    )
     errs = _residual("by design " + bad.group(1).replace("<why>", "kept on purpose"))
     assert errs and "owning row is absent" in errs[0], errs
+
+
+def test_a_by_design_d_owner_must_be_a_ledger_row() -> None:
+    """kaizen 01M4YMKN78 § SYSTEMIC (2): a `D-nnn` owner is checked against the checkout's ledger,
+    by integer (ledgers zero-pad: `D-001`), and only when the ledger was read."""
+    text = crc._strip_fences("| F1 | RECORDED — by design (D-99999) — a reason |")
+    errs = crc._residual_errors(text, [], known_ids=frozenset({203}), ledger="docs/DECISIONS.md")
+    assert len(errs) == 1 and "D-99999" in errs[0] and "docs/DECISIONS.md" in errs[0], errs
+    ok = crc._strip_fences("| F1 | RECORDED — by design (D-203) — a reason |")
+    assert crc._residual_errors(ok, [], known_ids=frozenset({203})) == []
+    padded = crc._strip_fences("| F1 | RECORDED — by design (D-1) — a reason |")
+    assert crc._residual_errors(padded, [], known_ids=frozenset({1})) == []
+    assert crc._residual_errors(text, []) == []  # no ledger read: shape only, as today
+    assert crc._residual_errors(text, [], known_ids=None) == []
+    assert crc._residual_errors(text, [], known_ids=frozenset()) == []  # zero rows: open
