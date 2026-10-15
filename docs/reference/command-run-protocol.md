@@ -551,7 +551,7 @@ the command?", that moment is the Stop hook.
 | `COMMAND_RUN_DIR` | `~/.claude/state/command-runs` | where records live (read by both the script and the hook) |
 | `CLAUDE_SESSION_ID` | — | record filename (`--session` overrides; falls through to `CLAUDE_CODE_SESSION_ID`, then the repo-scoped `nosession-<repo>`) |
 | `COMMAND_RUN_STALE_H` | `12` | hours after which the hook treats a record as abandoned; **≤0 / non-finite disables the block entirely** (never "block forever") |
-| `FABRIK_SCRATCH_SWEEP` | unset | set to `0` to suppress the scratch advisory a top-level close prints |
+| `FABRIK_SCRATCH_SWEEP` | unset | set to `0` to suppress the scratch advisory a top-level close prints — and the run-folder sweep `start` launches, so consumed run folders then wait for the nightly run |
 | `FABRIK_SCRATCH_SWEEP_SCRIPT` | `/opt/fabrik/scripts/scratch_sweep.py` | the sweeper the advisory shells out to, and the run-folder sweep `start` launches; a missing path is silent |
 | `FABRIK_SCRATCH_SWEEP_LIB` | `/opt/fabrik/scripts` | the directory whose `scratch_sweep.py` the run-folder mint loads by file location (never a `sys.path` insert) |
 | `COMMAND_RUN_SEAT_WARN_BYTES` | `2147483648` | a seat folder over this many apparent bytes prints the advisory line at `round` |
@@ -630,7 +630,10 @@ run is consumed. The removal rules live in `docs/workstation/cleanup-automation.
   whole token) is refused — the successor is a new run and this folder goes after the grace.
 - **Adoption:** `start --resume-from` moves the seed's `resumable` folder into the new session as
   `run-<new key>` and rewrites its marker's `sid`/`key`; once the resumed record is saved the marker
-  reads `running` with an `adopted` time (until then a crash leaves it `resumable`, still adoptable).
+  reads `running` with an `adopted` time (until then a crash leaves it `resumable` at its new path,
+  which the seed no longer names: the 72 h alarm names it and `--run-folders --retire` ends it — unless
+  the crash fell between the rename and the marker's `sid` rewrite, when the marker still names the old
+  session, `--retire` refuses it and only a hand edit of `.owner` ends it).
 - **After the lock drops:** `start` launches `scratch_sweep.py --run-folders --session <sid> --cwd
   <repo_root> --apply` detached; `round` prints one line per `seat-*` folder over
   `COMMAND_RUN_SEAT_WARN_BYTES`. Neither runs under the record lock, neither changes an exit code.

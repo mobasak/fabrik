@@ -935,9 +935,32 @@ def _session_dead_for_runs(
     return tx_age is not None and tx_age > older_than_s
 
 
+def _resplit_survivors(rows: list[Row], out=None) -> list[Row]:
+    """After the run pass: a dead session row whose directory still holds a run folder (one the
+    apply-time re-check KEPT — a changed marker, a holder, a failed worktree removal) is split
+    rather than removed whole, so INV-1 holds past classification, not only at it."""
+    out = out or sys.stdout
+    result: list[Row] = []
+    for r in rows:
+        if (
+            r.kind == "session"
+            and r.cls in ("dead", "dead-holds-backups")
+            and run_entries(Path(r.path))
+        ):
+            print(
+                f"SPLIT {r.path} — a run folder survived the run pass; the directory stays",
+                file=out,
+            )
+            result.extend(_split_dead_session(r, Path(r.path)))
+        else:
+            result.append(r)
+    return result
+
+
 def _split_dead_session(row: Row, sid_dir: Path) -> list[Row]:
     """A dead session that still holds an ACTIVE run folder: the directory stays, every other entry
-    goes — `run-*`/`.trash-*` are never listed here, marked or not (plan B5)."""
+    goes — a keyed `run-<key>`/`.trash-<key>` is never listed here, marked or not (plan B5); an
+    agent's own `run-tests/` is an ordinary entry (P8)."""
     out = [Row(row.path, "session", "kept", "holds an active run folder", row.reason)]
 
     def _entry(e: Path) -> Row:
@@ -954,7 +977,7 @@ def _split_dead_session(row: Row, sid_dir: Path) -> list[Row]:
         for child in sorted(sid_dir.iterdir()):
             if child.name == "scratchpad" and child.is_dir() and not child.is_symlink():
                 for e in sorted(child.iterdir()):
-                    if not e.name.startswith((RUN_PREFIX, TRASH_PREFIX)):
+                    if not is_run_entry(e):  # the mint's keyed name only: `run-tests/` goes (P8)
                         out.append(_entry(e))
             else:
                 out.append(_entry(child))
@@ -2412,6 +2435,7 @@ def run_dead_mode(args: argparse.Namespace) -> int:
             print(REFUSAL_SET)
             print(render(rows, gaps=gaps, allowed=_allowed_classes(args)))
             apply_run_rows(run_rows, proc_root=_proc_root())  # consumed run folders go first
+            rows = _resplit_survivors(rows)  # a folder the apply-time re-check kept keeps its dir
             apply_rows(rows, _allowed_classes(args), proc_root=_proc_root())
             hub = _janitor_repo_root()
             if hub is not None:

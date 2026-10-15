@@ -1448,3 +1448,53 @@ def test_a_boolean_created_stays_an_unknown_age_beside_an_adopted_time(harness: 
     report = json.loads(Path(os.path.expanduser(sw.SIZE_REPORT_PATH)).read_text(encoding="utf-8"))
     flagged = {Path(r["path"]).name: r for r in report["run_folders"]}
     assert folder.name in flagged and "unknown" in flagged[folder.name]["why"], report
+
+
+def test_a_folder_kept_at_removal_time_keeps_its_dead_session(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """INV-1 (docs review, D-1): a consumed folder the apply-time re-check KEEPS (its marker rewritten
+    after classification) leaves its dead session split, never removed whole with the folder in it."""
+    dead = _session(harness, SID_A)
+    folder = _run_folder(dead, "late", closed_ago=40 * HOUR, heartbeat_ago=30 * DAY)
+    junk = dead / "scratchpad" / "junk"
+    junk.mkdir()
+    (junk / "f").write_text("x", encoding="utf-8")
+    _dead_record(tmp_path, SID_A)
+    _age_tree(dead, 30 * DAY)
+    real = sw.apply_run_rows
+
+    def _late_keep(rows, *a, **k):  # the marker changes between the plan and the removal
+        owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+        owner["state"] = "running"
+        (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+        return real(rows, *a, **k)
+
+    monkeypatch.setattr(sw, "apply_run_rows", _late_keep)
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    assert folder.exists() and dead.exists(), out
+    assert not junk.exists(), out
+
+
+def test_a_split_dead_session_removes_an_untagged_run_named_entry(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """P8 (docs review, D-4): only the mint's keyed name is marker-governed — an agent's own
+    `run-tests/` in a split dead session goes with the other entries, never kept for ever."""
+    dead = _session(harness, SID_A)
+    active = _run_folder(dead, "active", "resumable", heartbeat_ago=30 * DAY)
+    own = dead / "scratchpad" / "run-tests"
+    own.mkdir()
+    (own / "f").write_text("x", encoding="utf-8")
+    _dead_record(tmp_path, SID_A)
+    _age_tree(dead, 30 * DAY)
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    assert active.exists() and not own.exists(), out

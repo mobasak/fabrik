@@ -214,13 +214,14 @@ consumed will be done so"*. `classify_run_folder` is the ONE function that answe
   lock drops (D3; a per-session `flock` at `<session dir>/.run-folders.lock`, never the global lock, so
   the nightly run is never skipped). `--dead --apply` consumes every session's run folders first (D4)
   and keeps a dead session's directory while it holds an ACTIVE folder, removing everything else in
-  it. Session mode lists run folders as `kept`/`consumed` and never judges them by age; `--hook`
+  it — judged again after the run pass, so a folder the removal-time re-check kept keeps its directory
+  too. Session mode lists run folders as `kept`/`consumed` and never judges them by age; `--hook`
   leaves them out. Only the mint's keyed name is marker-governed — an agent's own `run-tests/` stays an
   ordinary entry.
 - **Adoption:** `start --resume-from` moves the wall run's `resumable` folder into the new session (one
   rename; `sid`/`key` rewritten; `running`, with an `adopted` time the report ages from, once the
-  resumed record is saved). A folder holding a worktree pointer, or no longer `resumable`, is not
-  moved and is marked `done`; `--retire run-<key>` ends a forgotten resume by hand (`resumable` only).
+  resumed record is saved). A folder holding a worktree pointer is not moved and is marked
+  `done`; one no longer `resumable` is left as it is; `--retire run-<key>` ends a forgotten resume by hand (`resumable` only).
 - **Advisory measures (D5, D6):** `round` prints `seat-<n>: <size> — copied a tree instead of
   archive/clone` for a seat folder over 2 GB (`COMMAND_RUN_SEAT_WARN_BYTES`); `--dead --apply` writes
   `~/.claude/state/scratch-size-report.json` (per-session apparent bytes outside running folders, run
@@ -287,7 +288,7 @@ SQLite WALs, `data/`, `.env` that differs from the main checkout, any authored f
 
 **Test seams** (env vars, all with production defaults): `SCRATCH_SWEEP_ROOT` · `SCRATCH_SWEEP_NOW`
 · `SCRATCH_SWEEP_SESSIONS_DIRS` · `SCRATCH_SWEEP_TRANSCRIPT_DIRS` · `SCRATCH_SWEEP_BTIME` ·
-`SCRATCH_SWEEP_HOOK_BUDGET` · `SCRATCH_SWEEP_JANITOR_REPO` · `FABRIK_PROC_ROOT` · `CLAUDE_SOUND_LOCKDIR` ·
+`SCRATCH_SWEEP_HOOK_BUDGET` · `SCRATCH_SWEEP_WALK_BUDGET` · `SCRATCH_SWEEP_JANITOR_REPO` · `FABRIK_PROC_ROOT` · `CLAUDE_SOUND_LOCKDIR` ·
 `SCRATCH_RUN_GRACE_S`
 (36 h) · `SCRATCH_RUN_HEARTBEAT_S` (7 d) · `SCRATCH_SWEEP_DISK_USED_PCT` · `SCRATCH_SWEEP_REPORT_BUDGET_S`
 (600 s), plus

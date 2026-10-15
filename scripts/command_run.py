@@ -1739,8 +1739,9 @@ def _adopt_run_scratch(
 ) -> tuple[Path | None, str]:
     """`start --resume-from`: move the wall seed's `resumable` folder into THIS session as
     `run-<key>` (one rename) and rewrite its marker's `sid`/`key` (plan P6). The marker is re-read
-    just before the rename; anything but `resumable` is not adopted. A refused or failed adoption
-    marks the old folder `done` — this start ended its resume (P12) — and the caller mints fresh."""
+    just before the rename; anything but `resumable` is not adopted and left as it is. Any other
+    refused or failed adoption marks the old folder `done` — this start ended its resume (P12) —
+    and the caller mints fresh."""
     old_s = str(seed.get("run_scratch") or "")
     if not old_s:
         return None, ""
