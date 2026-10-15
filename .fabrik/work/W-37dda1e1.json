@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-15T17:00:01.474511Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-37dda1e1",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "decide the spoke alert path (mesh-publish apprise or route via the hub) and add a provision-time test -d/test -f probe of the Claude home on the target host, warning when missing",
   "note": "W-fc3eddd8 review adds: a spoke app provisioned before the fix keeps a stale <id>-watchdog sidecar and overlay on vps1 (no cleanup); _rewrite_shared_infra_host matches only host:port, so a user-supplied redis_url/pg_dsn with no port stays unrewritten on a spoke; GlitchTip (vps1) posts error webhooks to http://<id>-watchdog:8889, which does not resolve for a spoke sidecar; create_project can POST then raise in _fetch_dsn, so the created project is never recorded or rolled back.",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
+  "score_reason": "spoke watchdog alerting and runtime gaps; no deploy break or data loss named; one driver; owner: monitoring/deploy = fleet",
   "status": "open",
   "tags": [
     "fleet"
