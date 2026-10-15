@@ -1,0 +1,26 @@
+{
+  "block_digest": "916aa43defeba1706b343aa69f0b5833e32f729045c223a9d29786a3e824613d",
+  "blocked_by": [],
+  "created": "2026-10-15T06:02:27.854665Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-90d6595b",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "0e5f80d231f55cceed33c2c4b254e1b9b7ce96dcb684d4b63d07c40ec3c93a95"
+  ],
+  "next": "",
+  "note": "if no agent is using them yes remove",
+  "owner": "",
+  "priority": 2,
+  "question": "May the old leftover scratch named in the legacy list (1428 entries, 32.84 GB, from sessions before this change) be removed?",
+  "status": "done",
+  "title": "May the old leftover scratch named in the legacy list (1428 entries, 32.84 GB, from sessions before this change) be removed?"
+}
