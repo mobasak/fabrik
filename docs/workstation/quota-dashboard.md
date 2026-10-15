@@ -207,6 +207,18 @@ over 12 h old · **no window**), NOW (command, phase, surface, age), HOLDS (the 
 next three queued items and "+N more") and LAST MERGE (or "merge owner" for the main checkout's current
 agent). Every item id is shown with its title. A failure reading the agents, or one malformed row, is a
 red banner in that block or that repo, never the page's.
+
+**Pause / Resume** (operator 2026-10-15: "i want a button to be added there to send pause command to
+running agent" + "also the resume button"; W-7159f8e2): a row whose agent can be paused — an agent
+name in a repo whose work store has `config.json` — carries a **Pause** button, or **Resume** with
+"paused by X, N ago" once paused (a pause by the agent's name or by the worktree its window sits in;
+D-910). A row whose repo's own `scripts/work.py` predates the verb also says "not honoured here until
+this repo's work.py syncs". The button asks `confirm()` like the board's other write buttons, then
+`POST /agent-pause`; the board runs the HUB's `work.py --repo <that repo> pause --by=dashboard` (or
+`resume` of the marker the row showed) as the OPERATOR — the child gets only PATH, HOME, LANG, LC_*
+and TZ, so neither the server's own agent identity nor a stray `GIT_DIR` reaches it — and every rule
+about who may pause or lift a pause stays `work.py`'s. A pause stops the agent starting new work at
+its next turn boundary; nothing is killed.
 Tab hash:
 none (the bare URL); every other tab has its own (`#quota`, `#usage`, `#commands`, `#external`).
 
@@ -332,6 +344,7 @@ the chain's liveness contract is "mtime ≤ 30 h", so a stale stamp here is the 
 | `/quota.json` | the raw `--status --json` payload behind the page |
 | `/health` | `ok` — liveness for the keepalive |
 | `/repos.html` | the Repos tab's page — every repo's remaining work, cached `QUOTA_DASH_REPOS_TTL_S`; `?fresh=1` re-reads the stores now |
+| `POST /agent-pause` | the Agents block's Pause/Resume: body `{repo, agent, action: pause\|resume}`, the `X-Quota-Dash` header required; only a (repo, agent) the board rendered with a button; runs `work.py pause/resume` as the operator — 200, 400 (unknown pair or action, nothing run) or 502 (work.py's own refusal or a timeout) |
 | `POST /switch` | body `{"account": "<slug>"}` + the `X-Quota-Dash` header → shells `claude_rotate.py --switch <slug>`, re-renders synchronously, answers `{ok, output}` (200); every outcome is one line in `~/.claude/quota-dashboard.log` (`POST /switch 'can' -> 200 in 3.2s: …`) — a click that "did not work" now leaves its trace · `{ok:false, error}` — 403 without the header, 400 for a slug the board's last payload does not list, 502 when the CLI refuses (its stderr is the error). The custom header is the CSRF story: a cross-origin page cannot add one without a preflight this server never answers |
 | `POST /park` | body `{"account": "<email>", "park": true|false}` + the same `X-Quota-Dash` header → shells `claude_rotate.py --park|--unpark <email>` and re-renders, with `/switch`'s contract: 403 without the header, 400 for an email the board's last payload does not list or a non-boolean `park`, 502 with the CLI's stderr on refusal. Same `QUOTA_DASH_SWITCH_TIMEOUT_S`, same log line (`POST /park …`) |
 

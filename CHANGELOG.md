@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — dashboard: Pause and Resume buttons per agent (2026-10-15)
+
+- Every agent row the board can act on (an agent name, in a repo with a work store) has **Pause**, or **Resume** with "paused by X, N ago" (W-7159f8e2 part 3, operator 2026-10-15).
+- The button confirms first, then calls `POST /agent-pause`. That runs the hub's `work.py pause/resume` against the row's repo as the operator: the child gets an allowlisted environment, because the live server was measured carrying an agent identity, and `GIT_DIR` would redirect `--repo`.
+- The endpoint takes only pairs the board rendered, behind the same custom-header guard as `/switch`.
+- A repo whose own `work.py` has not synced the verb yet is marked "not honoured here".
+
 ### Changed — /fabrik-command-improve: whole-ts handles, cited specs' decisions, recipes pointed at by name (2026-10-15)
 
 `commands/_sources/fabrik-command-improve.md`: PHASE 5's mark step says a handle is the whole `ts` with its
