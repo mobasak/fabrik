@@ -1071,6 +1071,34 @@ def test_a_proc_gap_keeps_only_a_process_the_run_could_own(
     assert folder.exists() is kept, out
 
 
+@pytest.mark.parametrize("created", [float("nan"), float("inf"), float("-inf"), True, None, "1000"])
+def test_an_unusable_created_always_keeps_through_a_gap(created: object) -> None:
+    """W-a39d4c86 (fleet 01M505J6KG): `gap_keeps` keeps on ANY unusable `created` (D-878's
+    keep-on-doubt). NaN passed the type guard and every `s >= NaN - margin` read False, so a NaN
+    kept nothing — the one unusable value that failed open."""
+    assert sw.gap_keeps([NOW - 100_000], created, NOW) is True
+
+
+def test_gap_keeps_is_defeated_by_forward_dating_not_backdating() -> None:
+    """The Cobra direction the docstring names (fleet 01M505J6KG): a backdated `created` makes every
+    gap read newer and KEEPS; forward-dating within the margin is what drops a real gap."""
+    assert sw.gap_keeps([NOW - 100], 0, NOW) is True  # backdated: keeps
+    assert sw.gap_keeps([NOW - 100_000], NOW + 200, NOW) is False  # forward-dated inside the margin
+
+
+@pytest.mark.parametrize("created", [True, False, float("nan"), None, "x"])
+def test_a_trash_folder_with_an_unusable_created_falls_back_to_its_rename_time(
+    created: object, tmp_path: Path
+) -> None:
+    """W-a39d4c86 (fleet 01M505VVEJ): a `.trash-*` marker whose `created` is not a usable time falls
+    back to the folder's ctime (the rename that made it). A bool passed `isinstance(int | float)`
+    and skipped the fallback, so the folder was kept by every permanent same-uid daemon's gap."""
+    trash = tmp_path / f".trash-x{KEY}"
+    trash.mkdir()
+    got = sw._created_for(trash, {"created": created})
+    assert got == trash.lstat().st_ctime, got
+
+
 def _one_pid_proc(tmp_path: Path) -> Path:
     """A /proc with one readable pid — no holders, no gaps, a probe that completes."""
     proc_root = tmp_path / "proc1"
