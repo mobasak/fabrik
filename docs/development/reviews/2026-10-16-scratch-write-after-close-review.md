@@ -98,15 +98,15 @@ $ python scripts/review_rubric.py --changed scripts/scratch_sweep.py tests/test_
 
 | Class | Status |
 |---|---|
-| Hunt: `scripts/scratch_sweep.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_scratch_sweep_run_folders.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_command_run_scratch.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `scripts/scratch_sweep.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (a future or non-finite folder mtime is doubt from the close, never a keep until that date; the removal re-check skips a `.trash-*` leftover; the reason says "last written" when the grace ran from a write; the margin comment states the measured tail) |
+| Hunt: `tests/test_scratch_sweep_run_folders.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (test_the_write_after_close_signal_stays_bounded added; the boundary test gains an entry exactly at the margin, one two minutes after the close and the judge's own row for a folder written 35 h ago) |
+| Hunt: `tests/test_command_run_scratch.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/test_command_run_scratch.py::test_a_nested_start_keeps_the_parents_run_folder reaches the real sweep — it asserts the sweep names the parent — and guards P11's nested-safety through its `running` assert) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (scripts/scratch_sweep.py _written_after_close answers doubt — the close — for an unreadable stat and an untrustworthy future mtime; both asserted) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (scripts/scratch_sweep.py's write-after-close check counts no pool units, seats or quota; it adds one stat per judged folder) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (the margin's `>` boundary had no fixture — an entry exactly at closed_at + 5 s is now asserted consumed in tests/test_scratch_sweep_run_folders.py) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (the mutants `>=`, grace left at the close, margin 300, done-only removed and stat-doubt removed survived round 1; each is now killed, executed in throwaway worktrees) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (docs/development/reviews/2026-10-16-scratch-write-after-close-review.md states its counts with their population: 10 candidates from 2 seats on 1 slice; 162 + 61 tests in 2 files; 200 measured closes) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (the cause was read from kaizen's transcript and replayed; tests/test_scratch_sweep_run_folders.py::test_a_closed_folder_written_into_after_its_close_keeps_the_long_grace executed red at 666a2cc3f) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -132,6 +132,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native sonnet×1 + haiku×1 | found: 10, new: 10, confirmed: 8, fixed: 8, unexecuted: 0 | method: one slice (scratch_sweep.py + both test files), shape: agent-tool; every candidate executed by the orchestrator; fixes b53159235 and 81a1befac; graders red on 4a2e01d7e and five surviving mutants now killed; seats: sonnet 4/5 · haiku 4/5; stop: confirmed 8 |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -144,6 +145,11 @@ Row shapes (quoted here, so the gate does not read them as passes):
 
 Every candidate that did not enter `confirmed:` is recorded here, one row each, in the verdict
 grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading is an EXAMPLE, never rows).
+
+| F-id | Verdict |
+|---|---|
+| S4 | REFUTED (tests/test_command_run_scratch.py::test_a_nested_start_keeps_the_parents_run_folder fails on a start that marks a parked parent `done` — its `state == "running"` assert — so it guards P11's nested-safety, the claim kaizen's mail made) |
+| HF | REFUTED (the fixture ageing in `_run_folder` is a no-op only while the real clock is before the seam's NOW; it is the defence against the day the clock passes it) |
 
 ### Verdict grammar — an EXAMPLE, never rows
 

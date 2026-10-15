@@ -200,7 +200,8 @@ consumed will be done so"*. `classify_run_folder` is the ONE function that answe
   or with a heartbeat 7 days old or newer; `resumable`; `done` less than its grace ago — 30 minutes,
   or 36 h when a seat of the session wrote after the close or that cannot be read, and 36 h counted
   from the last change when an entry was created or removed in the folder itself more than 5 s after
-  its close (its own mtime, one stat: a folder still written into after its run closed, W-9f3f097c —
+  its close (its own mtime, one stat: a folder still written into after its run closed, W-9f3f097c; an
+  unreadable or future time is doubt counted from the close, never a keep until that date —
   a write that only modifies an existing file, or lands inside an existing subfolder, is not seen, and
   a cleanup inside the folder after its close keeps it 36 h); a holder (fd or cwd)
   inside; a same-uid `/proc` gap whose process started after the marker was written, or whose start is
