@@ -909,20 +909,25 @@ def test_refusal_set_names_the_run_folder_rule() -> None:
     assert "judged only by its .owner marker and the holder probe" in flat
 
 
-def test_retire_stamps_a_missing_created_so_its_promise_holds(
-    harness: Path, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize("created", [None, NOW + 400 * DAY])
+def test_retire_tells_the_truth_about_an_unvouchable_folder(
+    created: float | None, harness: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """D-900 review: `--retire` prints "removed after its grace", but a marker with no `created`
-    would read as an unvouched close and be kept for ever. The operator's retire is a trustworthy
-    clock, so it stamps `created` (only when the marker has none)."""
+    """D-900 review: `--retire` used to print "removed after its grace" for a marker whose missing or
+    future `created` makes every sweep keep it. It invents no creation time (a `now` would strip
+    `gap_keeps`' protection from the run's writers) — it says the folder is kept and how to remove it."""
     folder = _run_folder(_session(harness), "nocreated", "resumable")
     owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
-    owner.pop("created")
+    if created is None:
+        owner.pop("created")
+    else:
+        owner["created"] = created
     (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
     rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--retire", folder.name)
     assert rc == 0, out
     after = json.loads((folder / ".owner").read_text(encoding="utf-8"))
-    assert after["created"] == NOW and after["closed_at"] == NOW, after
+    assert after.get("created") == created and after["state"] == "done", after
+    assert "every sweep keeps it" in out and "removed after its grace" not in out, out
 
 
 def test_retire_marks_one_folder_done(harness: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -1525,6 +1530,15 @@ def test_the_report_names_no_trash_and_flags_a_markerless_age(harness: Path) -> 
     assert trash.name not in named and nocreated.name in named, report
 
 
+def test_a_zero_close_time_reads_as_a_time_in_the_reason() -> None:
+    """Review of 2dd7ac9e6: a `closed_at` of 0.0 is a (very old) time, not a missing one — the old
+    `f.closed_at or now` read it as `now` and wrote "closed 0s ago" into a removal reason."""
+    facts = sw.RunFacts("done", 0.0, 0.0, False, False, False, True, False, False)
+    verdict, reason = sw.classify_run_folder(facts, NOW)
+    assert verdict == "consumed", reason
+    assert "closed 0s ago" not in reason, reason
+
+
 def test_the_report_names_a_done_folder_whose_close_cannot_be_vouched_for(harness: Path) -> None:
     """D-900's cost made visible (review of b5c1abd69): a `done` folder whose close the marker
     cannot vouch for is kept by every sweep, so the size report names it with its remedy; a sane
@@ -1534,11 +1548,16 @@ def test_the_report_names_a_done_folder_whose_close_cannot_be_vouched_for(harnes
     owner = json.loads((unvouched / ".owner").read_text(encoding="utf-8"))
     owner["closed_at"] = 0
     (unvouched / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    future = _run_folder(sdir, "future")
+    owner = json.loads((future / ".owner").read_text(encoding="utf-8"))
+    owner["closed_at"] = NOW + 400 * DAY  # inside its grace for ever, so kept — silently, before
+    (future / ".owner").write_text(json.dumps(owner), encoding="utf-8")
     sane = _run_folder(sdir, "sane")
     sw.write_size_report([sdir], [], NOW)
     report = json.loads(Path(os.path.expanduser(sw.SIZE_REPORT_PATH)).read_text(encoding="utf-8"))
     flagged = {Path(r["path"]).name: r for r in report["run_folders"]}
     assert unvouched.name in flagged and "vouch" in flagged[unvouched.name]["why"], report
+    assert future.name in flagged and "vouch" in flagged[future.name]["why"], report
     assert sane.name not in flagged, report
 
 

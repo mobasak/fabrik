@@ -1688,6 +1688,17 @@ def _mint_run_scratch(
     return folder, ""
 
 
+def _sane_epoch(value: object, now: float) -> bool:
+    """A numeric (not bool), finite epoch no later than `now` + 300 s — scratch_sweep's
+    GAP_CLOCK_MARGIN_S, the clock skew its D-900 rule tolerates."""
+    return (
+        isinstance(value, int | float)
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value <= now + 300
+    )
+
+
 def _mark_run_scratch(rec: dict[str, Any], state: str, sid: str) -> None:
     """Rewrite the run folder's marker at a close (spec D2): `state` and `closed_at`, plus `sid` and
     `key`, which heals an adoption whose own marker rewrite failed (plan P6). Silent when the record
@@ -1702,17 +1713,19 @@ def _mark_run_scratch(rec: dict[str, Any], state: str, sid: str) -> None:
         owner = _read_owner(folder) or {}
         now = time.time()
         created = owner.get("created")
-        if (
-            not isinstance(created, int | float)
-            or isinstance(created, bool)
-            or not math.isfinite(created)
-            or created > now + 300  # scratch_sweep.GAP_CLOCK_MARGIN_S: a creation in the future
-        ):
+        if not _sane_epoch(created, now):
             # a heal from an unreadable or `created`-less marker: the sweep believes a close only
-            # against a sane creation time (D-900), so without one this folder would be kept for
-            # ever. The runner's own close is the trustworthy clock; a real `created` (finite, not
-            # in the future) is never replaced.
-            owner["created"] = now
+            # against a sane creation time (D-900), so without one the folder is kept for ever. The
+            # stamp is the run's TRUE start (`started_epoch`), never `now`: `gap_keeps` protects a
+            # folder from a same-uid process that started after `created`, so a `now` would strip
+            # that protection from every writer the run had (review of 2dd7ac9e6, A1). A record
+            # with no usable start (an adoption's bare `{"run_scratch": …}`) leaves `created`
+            # unknown — kept, the safe side. A real, sane `created` is never replaced.
+            start = rec.get("started_epoch")
+            if _sane_epoch(start, now):
+                owner["created"] = float(start)
+            else:
+                owner.pop("created", None)
         owner.update(
             {
                 "state": state,

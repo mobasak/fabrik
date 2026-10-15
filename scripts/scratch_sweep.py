@@ -747,6 +747,8 @@ def _close_is_vouched(created: object, closed_at: float, now: float) -> bool:
         return False
     if created > now + GAP_CLOCK_MARGIN_S:
         return False
+    if closed_at > now + GAP_CLOCK_MARGIN_S:
+        return False  # a close in the future is no close; kept either way, but the report names it
     return closed_at >= created - GAP_CLOCK_MARGIN_S
 
 
@@ -1081,15 +1083,18 @@ def _retire(root: Path, sid: str, name: str, cwd: str | None) -> int:
         )
         return RC_REFUSED
     now = _now()
-    created = owner.get("created")
-    if not isinstance(created, int | float) or isinstance(created, bool):
-        # without a `created` the close reads as unvouched (D-900) and the folder is kept for ever,
-        # which would make the line below a lie; the operator's retire is a trustworthy clock
-        owner["created"] = now
     owner.update({"state": "done", "closed_at": now})
     if not write_owner(folder, owner):
         print(f"FAILED — cannot rewrite {folder / OWNER_NAME}")
         return RC_REFUSED
+    if not _done_close_is_vouched(owner, now):
+        # no `created` to vouch the close (D-900), and none is invented: a stamped `now` would strip
+        # `gap_keeps`' protection from the run's writers (review of 2dd7ac9e6, A1) — so say the truth
+        print(
+            f"RETIRED {folder} — marked done, but its creation time is unknown or bad, so every "
+            f"sweep keeps it (D-900); inspect, then remove it by hand: rm -rf {folder}"
+        )
+        return RC_OK
     print(f"RETIRED {folder} — marked done; it is removed after its grace")
     return RC_OK
 
