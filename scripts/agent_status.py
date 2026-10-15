@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: docs/workstation/hooks-index.md
-"""Every hub worker's NOW, DONE and NEXT, read from the records that already exist (W-cfff98dd e, D-880).
+"""Every hub worker's NOW, DONE and NEXT — or, with --json --all, every repo's agents — read from records that already exist.
 
 The coordinator must always know what each agent is doing, has finished and will do next, and
 recover it after losing context (operator 2026-10-15, D-880). Nothing here is stored: each run reads
@@ -17,8 +17,11 @@ recover it after losing context (operator 2026-10-15, D-880). Nothing here is st
          the queue's size and the role's parked items in the MAIN store (``work.py queue`` counts parked
          in the worker's own tree, so a park not yet merged shows there first).
 
-The rows are the WORKERS: ``mail.py`` HUB_BEATS minus the store's distributor (the reader itself).
-``--json`` prints the full data (the dashboard's Agents table, W-7159f8e2); ``--session-start`` is the
+(W-cfff98dd e, D-880.) The rows are the WORKERS: ``mail.py`` HUB_BEATS minus the store's distributor
+(the reader itself). ``--json`` prints the full data. ``--json --all`` is the BOX view instead
+(``collect_box``, W-7159f8e2 — the dashboard's Agents block): every repo under ``--opt`` (default
+FABRIK_OPT_DIR, else /opt) with a work store or an agent, its agents being the open windows (/proc),
+the run records of that repo in the last 7 days and the claim holders. ``--session-start`` is the
 coordinator's SessionStart hook (``.claude/settings.json``, its own entry, so its own 10,000-character
 output budget): it prints only for the distributor, never in a ``claude -p`` child, one line when the
 identity is unknown, one line on any error, and always exits 0. The three modules are the hub's own,
@@ -89,9 +92,7 @@ def _under(path: Path, main: Path) -> bool:
     return p == main or p.parent == (main / ".claude" / "worktrees").resolve()
 
 
-def _now(cr: ModuleType, role: str, main: Path, *, repo: Path | None = None) -> dict | None:
-    """The role's newest `running` record — from ANY repo, or only from ``repo`` (its main checkout
-    or one of its worktrees) when given, so one name used in two repos never crosses (W-7159f8e2)."""
+def _now(cr: ModuleType, role: str, main: Path) -> dict | None:
     best: dict | None = None
     best_ts = 0.0
     for path in cr._state_dir().glob("*.json"):
@@ -104,12 +105,13 @@ def _now(cr: ModuleType, role: str, main: Path, *, repo: Path | None = None) -> 
             continue  # "inf"/"nan" parse as floats but are no time (int(now - inf) raises)
         if not isinstance(rec, dict) or rec.get("agent") != role or rec.get("state") != "running":
             continue
-        if repo is not None and not _under(Path(str(rec.get("repo_root") or "/")), repo):
-            continue
         if best is None or ts > best_ts:
             best, best_ts = rec, ts
-    if best is None:
-        return None
+    return None if best is None else _now_view(best, best_ts, main)
+
+
+def _now_view(best: dict, best_ts: float, main: Path) -> dict:
+    """A running record as the NOW cell: shared by the hub view and the box view."""
     root = str(best.get("repo_root") or "")
     stack = best.get("stack")
     first = stack[0] if isinstance(stack, list) and stack and isinstance(stack[0], dict) else {}
@@ -235,9 +237,12 @@ def _windows(opt: Path, work: ModuleType) -> list[dict]:
             if argv and work._argv_prints(argv):
                 continue  # a `claude -p` child is no window (01M4PAJWV1)
             cwd = Path(os.readlink(entry / "cwd")).resolve()
-            env = (entry / "environ").read_bytes().split(b"\0") if (entry / "environ").is_file() else []
         except OSError:
             continue
+        try:  # its own try: an unreadable environ (another owner) only loses the NAME, never the window
+            env = (entry / "environ").read_bytes().split(b"\0")
+        except OSError:
+            env = []
         try:
             rel = cwd.relative_to(opt).parts
         except ValueError:
@@ -245,6 +250,8 @@ def _windows(opt: Path, work: ModuleType) -> list[dict]:
         if not rel:
             continue
         tree = rel[3] if len(rel) >= 4 and rel[1:3] == (".claude", "worktrees") else ""
+        if tree and (work._HARNESS_RE.fullmatch(tree) or not _NAME_RE.fullmatch(tree)):
+            continue  # a harness (subagent isolation) tree is no agent's window, as work._workers rules
         agent = ""
         for kv in env:
             if kv.startswith(b"CLAUDE_AGENT="):
@@ -254,37 +261,49 @@ def _windows(opt: Path, work: ModuleType) -> list[dict]:
     return out
 
 
-def _records(cr: ModuleType) -> list[dict]:
+def _records(cr: ModuleType, now: float) -> list[dict]:
+    """Run records naming an agent and a repo_root, with a usable time: finite and not in the future
+    (an hour of skew allowed) — a far-future stamp would otherwise read `working` for ever."""
     out = []
     for path in cr._state_dir().glob("*.json"):
         try:
             rec = json.loads(path.read_text(encoding="utf-8"))
             ts = float(rec.get("updated_ts") or 0) if isinstance(rec, dict) else 0.0
-        except (OSError, ValueError, TypeError):
+        except (OSError, ValueError, TypeError, OverflowError):
             continue
-        if isinstance(rec, dict) and math.isfinite(ts) and _NAME_RE.fullmatch(str(rec.get("agent") or "")):
+        if not isinstance(rec, dict) or not math.isfinite(ts) or ts > now + 3600:
+            continue
+        if _NAME_RE.fullmatch(str(rec.get("agent") or "")) and isinstance(rec.get("repo_root"), str) \
+                and rec["repo_root"]:
             out.append({**rec, "_ts": ts})
     return out
 
 
 def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: set[str],
-              work: ModuleType, cr: ModuleType, now: float) -> dict[str, Any]:
+              work: ModuleType, now: float) -> dict[str, Any]:
     # the Repos tab's own test for a store (quota_dashboard._collect_work), not work._has_store's
     # config file: the two views of one repo must agree on whether it has work
     store = (main / ".fabrik" / "work").is_dir()
-    mine =[r for r in recs if _under(Path(str(r.get("repo_root") or "/")), main)]
-    at_main = sorted((r for r in mine if Path(str(r.get("repo_root"))).resolve() == main), key=lambda r: r["_ts"])
+    mine = [r for r in recs if _under(Path(str(r["repo_root"])), main)]
+    recent_recs = [r for r in mine if now - r["_ts"] <= RECENT_D * 86400]
+    # who works in the MAIN checkout: the newest RECENT record there — an old one names nobody, so a
+    # main window with no recent record stays "(unnamed)" rather than wearing a months-old name
+    at_main = sorted((r for r in recent_recs if Path(r["repo_root"]).resolve() == main), key=lambda r: r["_ts"])
+    main_agent = str(at_main[-1]["agent"]) if at_main else ""
     windows: dict[str, str] = {}  # agent -> how the window was named
+    counts: dict[str, int] = {}  # agent -> open windows (two windows in one main checkout read as 2)
     for w in wins:
         if w["agent"]:
-            windows.setdefault(w["agent"], "env")
+            who, how = w["agent"], "env"
         elif w["tree"]:
-            windows.setdefault(w["tree"], "worktree")
-        elif at_main:
-            windows.setdefault(str(at_main[-1]["agent"]), "record")
+            who, how = w["tree"], "worktree"
+        elif main_agent:
+            who, how = main_agent, "record"
         else:
-            windows.setdefault("(unnamed)", "none")
-    recent = {str(r["agent"]) for r in mine if now - r["_ts"] <= RECENT_D * 86400}
+            who, how = "(unnamed)", "none"
+        windows.setdefault(who, how)
+        counts[who] = counts.get(who, 0) + 1
+    recent = {str(r["agent"]) for r in recent_recs}
     items: dict[str, dict] = {}
     claims: dict[str, dict] = {}
     if store:
@@ -307,7 +326,9 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
             done = {}
     agents = []
     for n in names:
-        rec_now = _now(cr, n, main, repo=main)
+        running = [r for r in mine if r["agent"] == n and r.get("state") == "running"]
+        best = max(running, key=lambda r: r["_ts"]) if running else None
+        rec_now = _now_view(best, best["_ts"], main) if best else None
         if rec_now and not rec_now["stale"]:
             state = "working"
         elif n in windows:
@@ -317,22 +338,24 @@ def _box_repo(name: str, main: Path, wins: list[dict], recs: list[dict], bound: 
         else:
             state = "away"
         queue = sorted(queues.get(n, []), key=lambda i: (work._priority(i), str(i.get("created") or ""), i["id"]))
-        iid = holders.get(n)
-        owns_main = trees[n] == main and any(str(r.get("agent")) == n for r in at_main)
+        held = holders.get(n)
         agents.append({
             "name": n,
             "window": n in windows,
+            "windows": counts.get(n, 0),
             "named_from": windows.get(n, ""),
             "state": state,
             "now": rec_now,
-            "claim": {"id": iid, "title": str(items.get(iid, {}).get("title") or "")} if iid else None,
+            "claim": {"id": held, "title": str(items.get(held, {}).get("title") or "")} if held else None,
             "next": {
                 "queued": len(queue),
                 "top": [{"id": i["id"], "priority": work._priority(i), "title": str(i.get("title") or "")}
                         for i in queue[:NEXT_SHOWN]],
             },
             "merges": (done.get(n) or {}).get("merges", []),
-            "merge_owner": owns_main,
+            # only the agent working the main checkout NOW (its newest recent record), never every agent
+            # that once ran a command there
+            "merge_owner": bool(main_agent) and n == main_agent,
         })
     return {"name": name, "main": str(main), "store": store, "agents": agents,
             "dormant": len(seen - set(names))}
@@ -345,7 +368,7 @@ def collect_box(opt: Path) -> dict[str, Any]:
     now = time.time()
     with work._hook_git_budget():
         wins = _windows(opt, work)
-        recs = _records(cr)
+        recs = _records(cr, now)
         bound: dict[str, set[str]] = {}
         for row in who._rows(who.store_path()):
             top = str(row.get("toplevel") or "").rstrip("/")
@@ -356,7 +379,7 @@ def collect_box(opt: Path) -> dict[str, Any]:
         names |= {w["repo"] for w in wins}
         for r in recs:
             try:
-                rel = Path(str(r.get("repo_root") or "")).resolve().relative_to(opt).parts
+                rel = Path(r["repo_root"]).resolve().relative_to(opt).parts  # never "": _records drops it
             except ValueError:
                 continue
             if rel and now - r["_ts"] <= RECENT_D * 86400:
@@ -368,7 +391,7 @@ def collect_box(opt: Path) -> dict[str, Any]:
                 continue
             try:
                 entry = _box_repo(name, main.resolve(), [w for w in wins if w["repo"] == name], recs,
-                                  bound.get(name, set()), work, cr, now)
+                                  bound.get(name, set()), work, now)
             except Exception as exc:  # noqa: BLE001 — one repo's failure is its own error row
                 entry = {"name": name, "main": str(main), "store": None, "agents": [], "dormant": 0,
                          "error": f"{type(exc).__name__}: {exc}"}

@@ -333,6 +333,56 @@ def test_box_state_comes_from_windows_and_records_not_bindings(tmp_path: Path) -
     assert agents["wef5"]["state"] == "away" and agents["wef5"]["window"] is False
 
 
+def test_box_edges_are_named_honestly(tmp_path: Path) -> None:
+    """The review's surviving mutants, each pinned: a headless `-p` child is no window; CLAUDE_AGENT
+    beats the worktree name; an unreadable environ loses only the name; a harness tree is no agent; a
+    stale running record reads stale; a future or non-finite stamp is no record; a main window with only
+    an old record stays unnamed; only the main checkout's current agent is its merge owner; a binding-only
+    name counts dormant; a symlinked alias is not a second repo."""
+    env = _env(tmp_path)
+    opt = tmp_path / "opt"
+    opt.mkdir()
+    shop = _box_repo(opt, env, "shop", worktrees=("wef1", "wef6", "wef7", "agent-0123456789abcdef"))
+    old = _box_repo(opt, env, "old")
+    os.symlink(shop, opt / "shop-alias")
+    proc = tmp_path / "proc"
+    wt = shop / ".claude" / "worktrees"
+    _window(proc, 101, wt / "wef7", argv="claude -p hello")  # headless: wef7 has no window
+    _window(proc, 102, wt / "wef1", agent="lead")  # named by its env, not its tree
+    _window(proc, 103, wt / "wef6")
+    (proc / "103" / "environ").chmod(0)  # unreadable: the window stays, named by its tree
+    _window(proc, 104, wt / "agent-0123456789abcdef")  # a harness tree: nobody's window
+    _window(proc, 105, old)  # a main window whose only record is 9 days old
+    _record(env, "st", agent="wef8", state="running", command="fabrik-task", repo_root=str(shop),
+            updated_ts=time.time() - 13 * 3600)
+    _record(env, "fu", agent="wef9", state="running", command="fabrik-task", repo_root=str(shop),
+            updated_ts=time.time() + 10 * 86400)
+    _record(env, "nf", agent="wef5", state="running", command="fabrik-task", repo_root=str(shop))
+    nf = Path(env["COMMAND_RUN_DIR"]) / "nf.json"
+    nf.write_text(nf.read_text(encoding="utf-8").replace(str(json.loads(nf.read_text())["updated_ts"]), "NaN"),
+                  encoding="utf-8")
+    _record(env, "o9", agent="ancient", state="done", command="fabrik-task", repo_root=str(old),
+            updated_ts=time.time() - 9 * 86400)
+    _record(env, "mo", agent="boss", state="done", command="fabrik-review", repo_root=str(shop))
+    _record(env, "mx", agent="former", state="done", command="fabrik-review", repo_root=str(shop),
+            updated_ts=time.time() - 3600)
+    Path(env["AGENT_IDENTITY_FILE"]).write_text(json.dumps({
+        "session_id": "b1", "name": "ghost", "pid": 1, "pid_start": 1, "toplevel": str(shop / ".git"),
+        "at": int(time.time())}) + "\n", encoding="utf-8")
+    repos = _box(opt, env)
+    assert "shop-alias" not in repos
+    shop_agents = _agents(repos["shop"])
+    assert "wef7" not in shop_agents and "agent-0123456789abcdef" not in shop_agents
+    assert shop_agents["lead"]["named_from"] == "env" and "wef1" not in shop_agents
+    assert shop_agents["wef6"]["window"] and shop_agents["wef6"]["named_from"] == "worktree"
+    assert shop_agents["wef8"]["state"] == "stale"
+    assert "wef9" not in shop_agents and "wef5" not in shop_agents
+    assert shop_agents["boss"]["merge_owner"] and not shop_agents["former"]["merge_owner"]
+    assert repos["shop"]["dormant"] == 1  # ghost: a binding with no record in reach
+    old_agents = _agents(repos["old"])
+    assert list(old_agents) == ["(unnamed)"] and repos["old"]["dormant"] == 1
+
+
 def test_box_now_is_keyed_by_repo(tmp_path: Path) -> None:
     """The same agent name in two repos never crosses: each repo's NOW is its own running record."""
     env = _env(tmp_path)

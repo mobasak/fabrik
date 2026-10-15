@@ -2552,8 +2552,13 @@ def _agent_row(a: dict) -> str:
         merge_cell = '<span class="ag-sub">merge owner (merges others)</span>'
     else:
         merge_cell = '<span class="ag-sub">—</span>'
+    who = f'<td class="ag-who">{escape(str(a.get("name", "")))}'
+    if a.get("named_from") == "record":  # a main-checkout window carries no name of its own
+        who += '<div class="ag-sub">named from its last run</div>'
+    if int(a.get("windows") or 0) > 1:
+        who += f'<div class="ag-sub">{int(a["windows"])} windows</div>'
     return (
-        f'<tr><td class="ag-who">{escape(str(a.get("name", "")))}</td><td>{chip}</td>'
+        f"<tr>{who}</td><td>{chip}</td>"
         f"<td>{now_cell}</td><td>{holds}</td><td>{next_cell}</td><td>{merge_cell}</td></tr>"
     )
 
@@ -2590,7 +2595,12 @@ def _agents_block() -> str:
         if r.get("error"):
             out.append(f'<div class="banner crit">{escape(str(r["error"]))}</div>')
             continue
-        rows = "".join(_agent_row(a) for a in r.get("agents", []))
+        try:  # a malformed row is that repo's banner, never the page's (the panes must still render)
+            rows = "".join(_agent_row(a) for a in r.get("agents", []))
+        except Exception as exc:
+            out.append(f'<div class="banner crit">agents unreadable — {escape(type(exc).__name__)}: '
+                       f"{escape(str(exc))}</div>")
+            continue
         out.append(
             '<table class="ag"><thead><tr><th>Agent</th><th>State</th><th>Now</th><th>Holds</th>'
             f"<th>Next</th><th>Last merge</th></tr></thead><tbody>{rows}</tbody></table>"
@@ -2688,9 +2698,12 @@ _OWNER_FILTER_JS = (
 # The repo picker, and the in-place refresh (operator 2026-10-15: "it must be uptodate all the time",
 # W-7159f8e2). Both scripts sit OUTSIDE #live, so a swap never removes or re-runs them; after each swap
 # initPicker() and initOwners() re-bind the new nodes and re-apply the stored choices (repo, owner chip,
-# opened sections — all in localStorage). It polls the CACHED page (REPOS_TTL_S), so one build serves
-# every open frame; it skips a hidden tab, an unchanged stamp, a focused picker and a live text selection,
-# and a failed fetch keeps the last content. Rejected: reloading the frame (it blinks every cycle).
+# opened sections — all in localStorage). It polls the CACHED page (REPOS_TTL_S): frames polling in the
+# same TTL window share one build, while a lone viewer polling at the TTL rebuilds about once per poll
+# (~5 s measured live, under _repos_lock). It skips a hidden browser tab AND a frame its parent page has
+# hidden (another dashboard tab shown: the frame's own document.hidden stays false then), an unchanged
+# stamp, a focused picker and a live text selection; a failed fetch keeps the last content.
+# Rejected: reloading the frame (it blinks every cycle).
 REPOS_REFRESH_S = float(os.getenv("QUOTA_DASH_REPOS_REFRESH_S", "20"))
 _REPOS_PICK_JS = (
     "function initPicker() {"
@@ -2706,6 +2719,7 @@ _REPOS_PICK_JS = (
     "} initPicker();"
     " function refreshRepos() {"
     "  if (document.hidden) { return; }"
+    "  try { var fe = window.frameElement; if (fe && fe.offsetParent === null) { return; } } catch (e) {}"
     '  var act = document.activeElement; if (act && act.id === "repo-pick") { return; }'
     "  var sel = window.getSelection ? String(window.getSelection()) : ''; if (sel) { return; }"
     '  fetch("/repos.html", {cache: "no-store"}).then(function (r) { return r.ok ? r.text() : null; })'
