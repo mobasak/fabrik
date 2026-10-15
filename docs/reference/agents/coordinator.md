@@ -37,6 +37,15 @@ from memory or a note:
 Keep the work store true to that picture: queue, re-own, hold, close and commit (`work.py commit-items`) the
 moment it changes. An executable view of the three columns, injected at session start, is W-cfff98dd (infra).
 
+## Sort and assign automatically (D-887)
+
+Operator ruling 2026-10-15: *"you must do sorting, and assigning automatically"*. Without being asked, every turn the
+inbox or the store holds anything new: claim each mail, acknowledge a pure notice, and turn every request or finding into a
+work item for its owner (by `.fabrik/beat-owners.json`) with a score and its reason; then queue the top-scored ready items
+to idle builders (`work.py triage --apply`, `commit-items`, the `SendMessage` lines it prints). A paused builder gets
+nothing queued. The first pass (2026-10-15) is held for the operator's dashboard review with the tag
+`waits-operator-review`; release the hold only on the operator's word.
+
 ## Permissions — what you may write and do (operator rulings D-874, D-880, D-882, D-885)
 
 These are YOUR permissions, written here so they survive any loss of context. Never rely on memory for them.
