@@ -133,11 +133,13 @@ Appetite: 120
 1. Write the Phase A graders (Behaviour Contract below) in `tests/test_scaffold.py`'s chrome-extension class; run them and
    see each red against today's emitter.
 2. Emit the keygen script, the `wxt.config.ts` change and the package script; update the two existing tests that pin
-   the exact permissions (`tests/test_scaffold_chrome_ext_wxt.py:138` and `:353`) to include `alarms`.
+   the exact permissions (`tests/test_scaffold_chrome_ext_wxt.py:138` and `:350`) to include `alarms`.
 3. Emit the update checker, the background wiring and the popup banner with its locale strings.
 4. Emit `INSTALL.md`, the onboarding link, the Makefile target and the `.gitignore` line.
 5. Run the Phase A graders green, then the whole chrome-extension class (`tests/test_scaffold.py -k chrome`) and
-   `tests/test_scaffold_chrome_ext_wxt.py`, green (the build test skips without node/pnpm and says so).
+   `tests/test_scaffold_chrome_ext_wxt.py`, green. The build test carries `needs_network`, which `pyproject.toml:106`
+   deselects by default, so run it explicitly — `pytest tests/test_scaffold_chrome_ext_wxt.py -m needs_network -k
+   builds` — and paste its result in Evidence (it skips without node/pnpm and says so).
 6. `/fabrik-review-scoped` on Phase A's surface; fix what it finds.
 
 **Behaviour Contract (Phase A)**
@@ -146,7 +148,7 @@ Appetite: 120
 |---|---|---|---|
 | A1 | a fresh chrome-extension scaffold | `node extension/scripts/keygen.mjs` runs in it | `.keys/extension-key.pem` exists with mode 0600, `extension-key.pub` holds 392 base64 chars, and the printed ID equals the SHA-256-first-16-bytes a–p derivation of the decoded `.pub` |
 | A2 | a key already present | keygen runs again | both files are byte-identical and the same ID prints |
-| A3 | the emitted `wxt.config.ts`; and, where node/pnpm exist, a real build | read; `pnpm keygen` then `wxt build` (the existing `test_wxt_scaffold_builds_and_manifest_has_permissions`, extended) | it sets `manifest.key` from `extension-key.pub` only when the file exists and `STORE_BUILD` is not `1`, lists `alarms`, and has no `host_permissions`; the built `manifest.json` carries `key` equal to the `.pub` and the permissions list with `alarms` |
+| A3 | the emitted `wxt.config.ts`; and a real build (run with `-m needs_network`, where node and pnpm exist) | read; `pnpm keygen` then `wxt build` (the existing `test_wxt_scaffold_builds_and_manifest_has_permissions`, extended) | it sets `manifest.key` from `extension-key.pub` only when the file exists and `STORE_BUILD` is not `1`, lists `alarms`, and has no `host_permissions`; the built `manifest.json` carries `key` equal to the `.pub` and the permissions list with `alarms` |
 | A4 | the emitted `update-check.ts` | read | it requests `/extension/latest` with a 10 s timeout and no credentials, validates version and https URL, compares integer by integer, and sets the badge only when newer |
 | A5 | the emitted background | read | `onStartup` and `onInstalled` schedule checks and `onAlarm` handles `update-check` |
 | A6 | the emitted `INSTALL.md` | read | it names `chrome://extensions`, Load unpacked, keep Developer mode on, Reload to update, and `ExtensionDeveloperModeSettings` |
@@ -239,14 +241,14 @@ Derived from the `review_rubric.py` run below (FLOOR + MATCHED) plus the four re
 
 | Row | Hunt | Verdict |
 |---|---|---|
-| FLOOR core/35-security-auth | CORS origins from env, never hardcoded; no secret in code; the public endpoint carries no secret | FIXED — origins come from `EXTENSION_ID` (Phase B CORS); the unset-ID dev regex is a recorded exception (spec § Decisions taken; review O-O4); hunted: Phase B, spec item 5 |
+| FLOOR core/35-security-auth | CORS origins from env, never hardcoded; no secret in code; the public endpoint carries no secret | FIXED — origins come from `EXTENSION_ID` (Phase B CORS); the unset-or-empty-ID dev regex is a recorded exception (spec § Decisions taken; review O-O4); hunted: Phase B, spec item 5 |
 | FLOOR core/25-data-postgres | no DB touch in this change (scaffold text only) | CLEAN — no database path in § File Scope; hunted: File Scope, Phase B |
 | FLOOR core/30-ops | health, logs and limits of the emitted server unchanged; the startup warning is structured | CLEAN — `/health` and the compose memory and cpu limits are untouched (`_write_canonical_compose` keeps them); the warning is a structured event; hunted: Phase B, `src/fabrik/scaffold.py:999-1012` |
 | FLOOR 12-FACTOR | config via env only (EXTENSION_ID, EXTENSION_LATEST_*); no grouped config | FIXED — the four env names reach the container through `extra_env_lines` (review O-O1); no grouped config; hunted: Phase B compose, `.env.example` |
 | MATCHED core/10-python | no deps-file edit; the emitter's Python stays string emission | CLEAN — no dependency file in § File Scope; hunted: File Scope, Global Constraints |
 | MATCHED core/40-documentation | one CHANGELOG entry; the decision row; INDEX untouched (no new hub file) | FIXED — digest row added (review Z4); CHANGELOG and the decision row are Phase C step 2; hunted: Constraints Digest, Phase C |
 | MATCHED core/45-testing-strategy | one grader per behaviour, each watched red | FIXED — every behaviour has a row, B1 parametrised, A3 extends the build test, B1-B4 name their mechanism (review O-O9, O-O11, O-O12); hunted: both Behaviour Contracts |
-| RECURRENCE fail-open vs fail-closed | EXTENSION_ID unset warns (fail-open by decision); update checker ignores bad payloads | FIXED — the endpoint 404s unless all three values are set (review S2-S3); no empty default forces the open CORS fallback (review O-O2); hunted: Phase B, spec items 4-5 |
+| RECURRENCE fail-open vs fail-closed | EXTENSION_ID unset or empty warns (fail-open by decision); update checker ignores bad payloads | FIXED — the endpoint 404s unless all three values are set (review S2-S3); `defaults.yaml` adds no empty default that would force the open fallback on the template path (review O-O2); hunted: Phase B, spec items 4-5 |
 | RECURRENCE cost/quota/limit accounting | check interval, timeout, request volume (spec § Lifecycle) | CLEAN — a 6-hour alarm and a 10-second timeout (Phase A checker; spec § Lifecycle sizes the load); hunted: Phase A, spec § Lifecycle |
 | RECURRENCE boundary/sentinel/prefix collisions | version regex, https prefix, isNewer missing-integer, exact-origin match | FIXED — empty and partial env values (review O-O11), the RSA-2048 length (review S1-S2), the version regex and https prefix (A4); hunted: A1, A4, B1 |
 | RECURRENCE behaviour-without-a-test | every spec § Validation item maps to an A/B row | FIXED — the built manifest's `key` (A3, review O-O12) and the compose env lines (B5) gained graders; hunted: both Behaviour Contracts, spec § Validation |
@@ -439,23 +441,10 @@ $ node keygen_probe.mjs
 {"node":"v24.18.0","keyLen":392,"keyPrefix":"MIIBIjANBgkq","id":"dadgdkoglfgidllpojoilgagpjdkjcli","idValid":true,"roundTrip":true}
 ```
 
-- WXT keeps `manifest.key` — read in the WXT 0.21.4 install under `/opt/job-agent/extension/node_modules` (the spec's
-  grounding copy; outside this repo, so no repo-relative citation), re-run at plan-review:
-
-```text
-$ grep -n "key?: string" <pnpm>/@wxt-dev+browser@0.2.7/node_modules/@wxt-dev/browser/src/gen/index.d.ts | head -1
-9595:            key?: string | undefined;
-$ grep -n "function stripKeys\|OnlyKeys = \[" <pnpm>/wxt@0.21.4_…/node_modules/wxt/dist/core/utils/manifest.mjs
-359:function stripKeys(manifest) {
-372:const mv2OnlyKeys = [
-390:const mv3OnlyKeys = [
-396:const chromeMv2OnlyKeys = ["page_action"];
-397:const firefoxMv3OnlyKeys = ["host_permissions"];
-$ grep -c '"key"' <same manifest.mjs>
-0
-```
-
-  A3's build leg asserts the built manifest's `key` directly wherever node and pnpm exist.
+- WXT keeps `manifest.key` — the executed read of the WXT 0.21.4 install is the spec's (`spec § Grounding`, "WXT
+  accepts and keeps `manifest.key`"); those files sit outside this repo, so the plan does not re-quote them. The
+  plan's own proof is executable: A3's build leg asserts the built `manifest.json` carries `key` equal to the `.pub`,
+  run explicitly with `-m needs_network` (Phase A step 5), whose result Phase A pastes here.
 
 ## Self-audit
 

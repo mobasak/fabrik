@@ -254,7 +254,7 @@ One seat's dissent is folded below: before the first release, dev builds have a 
   (ledger prac-8, prac-9), and notifications would add a permission and nag.
 - **Startup-only checks** without an alarm. A long-running browser would never see a release; every off-store example
   uses a periodic alarm.
-- **Fail closed when `EXTENSION_ID` is unset** (refuse to start). A brand-new project before its first key would refuse to
+- **Fail closed when `EXTENSION_ID` is unset or empty** (refuse to start). A brand-new project before its first key would refuse to
   run in dev. The visible startup warning plus the `89` § 7 checklist gate is the lighter control.
 - **An exact-origin Traefik label with compose interpolation** (`accesscontrolalloworiginlist=chrome-extension://${EXTENSION_ID}`).
   `_write_canonical_compose` writes literal Traefik label values (its invariant 4,
@@ -340,9 +340,9 @@ Graders in `tests/test_scaffold.py`, each watched red first:
   4. `wxt.config.ts` reads `extension-key.pub` and honours `STORE_BUILD`.
   5. The manifest permissions include `alarms`.
 - **The server:**
-  6. The emitted server answers `GET /extension/latest` with 404 unless all three values are set, and with the three fields when they are (FastAPI
+  6. The emitted server answers `GET /extension/latest` with 404 unless all three values are set and non-empty, and with the three fields when they are (FastAPI
      `TestClient`).
-  7. With `EXTENSION_ID` set, a preflight from another extension origin is refused.
+  7. With `EXTENSION_ID` set and non-empty, a preflight from another extension origin is refused.
 - **The rest of the emitted tree:**
   8. `.gitignore` names `extension/.keys/`.
   9. `INSTALL.md` carries the four steps, the keep-Developer-mode-on note and the `ExtensionDeveloperModeSettings` caveat.
@@ -354,7 +354,7 @@ Graders in `tests/test_scaffold.py`, each watched red first:
 
 - **The key's origin and timing:** approach A (in-project, on first need, Node built-in crypto), ranked first unanimously
   by the judge panel. The ledger row is minted at the approval gate (`/fabrik-plan-review`, this spec being `Size: small`).
-- **CORS when `EXTENSION_ID` is unset:** warn, don't refuse (§ Rejected alternatives). The dev regex fallback is a
+- **CORS when `EXTENSION_ID` is unset or empty:** warn, don't refuse (§ Rejected alternatives). The dev regex fallback is a
   recorded exception to `core/35-security-auth.md`'s "never hardcode origins": production sets `EXTENSION_ID`, and the
   approval row names the exception.
 - **No `host_permissions`:** the backend call is an ordinary CORS request, so the exact origin binds it.
