@@ -1071,6 +1071,57 @@ def test_a_proc_gap_keeps_only_a_process_the_run_could_own(
     assert folder.exists() is kept, out
 
 
+@pytest.mark.parametrize("created", [float("nan"), float("inf"), float("-inf"), True, None, "1000"])
+def test_an_unusable_created_always_keeps_through_a_gap(created: object) -> None:
+    """W-a39d4c86 (fleet 01M505J6KG): `gap_keeps` keeps on ANY unusable `created` (D-878's
+    keep-on-doubt). NaN passed the type guard and every `s >= NaN - margin` read False, so a NaN
+    kept nothing — the one unusable value that failed open."""
+    assert sw.gap_keeps([NOW - 100_000], created, NOW) is True
+
+
+def test_gap_keeps_is_defeated_by_a_later_created_not_an_earlier_one() -> None:
+    """The Cobra direction the docstring names (fleet 01M505J6KG; review of 46b409cc9): an EARLIER
+    `created` makes every gap read newer and KEEPS; any `created` LATER than the run's true start —
+    the present, or forward inside the margin — drops a real gap. Pinned as the residual."""
+    assert sw.gap_keeps([NOW - 100], 0, NOW) is True  # backdated: keeps
+    assert sw.gap_keeps([NOW - 100_000], NOW + 200, NOW) is False  # forward-dated inside the margin
+    assert sw.gap_keeps([NOW - 3600], NOW, NOW) is False  # re-stamped to now: the residual
+
+
+def test_a_bool_created_keeps_even_against_an_old_start() -> None:
+    """Review of 46b409cc9 (haiku T3): `True` reads as 1, so against a recent start a missing bool
+    guard still kept by accident; against a start older than 1 the guard is the only thing keeping."""
+    assert sw.gap_keeps([-1000.0], True, NOW) is True
+
+
+def test_a_nan_start_is_an_unknown_start_that_keeps() -> None:
+    """Review of 46b409cc9 (haiku C1): a gap whose start is NaN (a NaN `SCRATCH_SWEEP_BTIME` makes
+    every start NaN) is an unknown start like `None` — INV-1 doubt keeps — never a dropped gap."""
+    assert sw.gap_keeps([float("nan")], NOW - 100_000, NOW) is True
+
+
+@pytest.mark.parametrize("created", [10**400, -(10**400)])
+def test_a_huge_integer_created_is_compared_never_a_crash(created: int) -> None:
+    """Review of 46b409cc9: `math.isfinite` raises OverflowError on an int no float can hold; an int
+    always compares exactly, so it is usable — never a crash (both keep: one is future, one is old).
+    The D-900 vouch reads the same `created` and compares it the same way."""
+    assert sw.gap_keeps([NOW - 100_000], created, NOW) is True
+    assert sw._close_is_vouched(created, NOW - 100_000, NOW) is (created < 0)
+
+
+@pytest.mark.parametrize("created", [True, False, float("nan"), None, "x"])
+def test_a_trash_folder_with_an_unusable_created_falls_back_to_its_rename_time(
+    created: object, tmp_path: Path
+) -> None:
+    """W-a39d4c86 (fleet 01M505VVEJ): a `.trash-*` marker whose `created` is not a usable time falls
+    back to the folder's ctime (the rename that made it). A bool passed `isinstance(int | float)`
+    and skipped the fallback, so the folder was kept by every permanent same-uid daemon's gap."""
+    trash = tmp_path / f".trash-x{KEY}"
+    trash.mkdir()
+    got = sw._created_for(trash, {"created": created})
+    assert got == trash.lstat().st_ctime, got
+
+
 def _one_pid_proc(tmp_path: Path) -> Path:
     """A /proc with one readable pid — no holders, no gaps, a probe that completes."""
     proc_root = tmp_path / "proc1"

@@ -54,6 +54,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeGuard
 
 # ── the refusal set — printed verbatim by --help and by every apply run (constraint 2) ──────────
 REFUSAL_SET = """NEVER TOUCHES (hard-coded; this text is printed by --help and by every --apply run):
@@ -528,26 +529,52 @@ def gap_starts(gaps: list[str], proc_root: Path | None = None) -> list[float | N
     return out
 
 
+def _usable_time(value: object) -> TypeGuard[float]:
+    """A marker time a comparison can use: a number, not a bool (`True` is an int), and finite (NaN
+    passes a type guard and every comparison with it reads False) — W-a39d4c86. An int always compares
+    exactly, so it is usable at any size (`math.isfinite` raises OverflowError on one no float holds)."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return False
+    return isinstance(value, int) or math.isfinite(value)
+
+
+def _created_for(folder: Path, owner: dict | None) -> object:
+    """The `created` a gap is judged against. A `.trash-*` whose marker carries no usable one (an
+    interrupted rmtree may have taken it) falls back to the folder's ctime: its last entry change —
+    the rename that made it, or later if an interrupted rmtree unlinked entries since. Either way it
+    is at or after the moment the folder was judged CONSUMED, so a process that started before it
+    never owned the run (INV-2)."""
+    created = (owner or {}).get("created")
+    if folder.name.startswith(TRASH_PREFIX) and not _usable_time(created):
+        with contextlib.suppress(OSError):
+            created = folder.lstat().st_ctime
+    return created
+
+
 def gap_keeps(starts: list[float | None], created: object, now: float) -> bool:
     """Does a same-uid `/proc` gap keep a run folder? Only a gap process that STARTED at or after
     the folder's marker was written (less the clock margin): a process already running before the
     run began cannot be one of its writers, and this box carries three such daemons permanently
     (sd-pam, gpg-agent, a setuid fusermount3), which kept every folder for ever under the spec's
-    bare "a non-empty gaps list". Any unknown — a start, or a missing, non-numeric or future
-    `created` — keeps (the split panel's interim ruling; the decision row names both verdicts).
+    bare "a non-empty gaps list". Any unknown — a start, or a missing, non-numeric, non-finite or
+    future `created` — keeps (the split panel's interim ruling; the decision row names both verdicts).
 
-    Cobra (D-253): the cheap way to make this keep nothing is to backdate or drop `created`; a
-    missing or non-numeric `created` therefore KEEPS, and a test pins each case.
+    Cobra (D-253): an EARLIER `created` makes every gap read newer and so keeps more; the cheap way
+    to make this keep nothing is to move `created` LATER than the run's true start — to the present,
+    or forward inside the clock margin (further ahead is "future" and keeps). Residual: any `created`
+    in (true start, now + margin] is indistinguishable from a younger run or clock skew, so this rule
+    cannot see it; the writers that heal a marker therefore stamp the run's true start (D-902).
+    Dropping `created`, or making it NaN, a bool or text, KEEPS; a test pins each case (W-a39d4c86
+    corrected the direction this note first named).
     """
     if not starts:
         return False
-    if (
-        not isinstance(created, int | float)
-        or isinstance(created, bool)
-        or created > now + GAP_CLOCK_MARGIN_S
-    ):
+    if not _usable_time(created) or created > now + GAP_CLOCK_MARGIN_S:
         return True
-    return any(s is None or s >= created - GAP_CLOCK_MARGIN_S for s in starts)
+    # `s + margin >= created`, not `s >= created - margin`: a huge int `created` is only ever COMPARED
+    # (exact for any size), never converted to a float by arithmetic (OverflowError)
+    # an unusable start (None, or NaN from a NaN boot time) is an UNKNOWN start: INV-1 doubt keeps
+    return any(not _usable_time(s) or s + GAP_CLOCK_MARGIN_S >= created for s in starts)
 
 
 # the mint's key is `<command>-<started_at>-<6 hex>` (P4); `started_at` is `%Y-%m-%dT%H:%M:%S%z`
@@ -743,13 +770,15 @@ def _close_is_vouched(created: object, closed_at: float, now: float) -> bool:
     (`command_run._mark_run_scratch`, `_retire`) stamp a missing `created`, so a legitimate run
     is never kept for ever by this rule.
     """
-    if not isinstance(created, int | float) or isinstance(created, bool):
+    if not _usable_time(created):  # missing, text, a bool, or NaN/±inf (W-a39d4c86's one guard)
         return False
     if created > now + GAP_CLOCK_MARGIN_S:
         return False
     if closed_at > now + GAP_CLOCK_MARGIN_S:
         return False  # a close in the future is no close; kept either way, but the report names it
-    return closed_at >= created - GAP_CLOCK_MARGIN_S
+    return (
+        closed_at + GAP_CLOCK_MARGIN_S >= created
+    )  # compared, never converted: a huge int is exact
 
 
 def _done_close_is_vouched(owner: dict, now: float) -> bool:
@@ -780,12 +809,7 @@ def judge_run_folder(
     p = str(folder)
     is_held = p in held or os.path.realpath(p) in held
     owner = read_owner(folder)
-    created = (owner or {}).get("created")
-    if folder.name.startswith(TRASH_PREFIX) and not isinstance(created, int | float):
-        # a `.trash-*` whose marker an interrupted rmtree already took: the rename that made it set
-        # its ctime, the moment it was judged CONSUMED — a process older than that never owned it
-        with contextlib.suppress(OSError):
-            created = folder.lstat().st_ctime
+    created = _created_for(folder, owner)
     gap = gap_keeps(gaps, created, now)
     if folder.name.startswith(TRASH_PREFIX):
         # already judged CONSUMED before the crash that left it — only a holder can keep it now
@@ -930,10 +954,7 @@ def apply_run_rows(rows: list[Row], out=None, proc_root: Path | None = None) -> 
         if (path / KEEP_FILE).exists():
             print(f"KEPT {r.path} — a {KEEP_FILE} appeared since classification", file=out)
             continue
-        created = (owner or {}).get("created")
-        if path.name.startswith(TRASH_PREFIX) and not isinstance(created, int | float):
-            with contextlib.suppress(OSError):
-                created = path.lstat().st_ctime
+        created = _created_for(path, owner)
         if gap_keeps(starts_now, created, _now()):
             print(f"KEPT {r.path} — an unreadable process appeared since classification", file=out)
             continue
