@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-03T07:06:27.043677Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-84b5ba35",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,13 +15,12 @@
   },
   "next": "re-measure each component's LOC from src/fabrik/, drop or mark the moved rows, and recompute the totals in README.md:44-59 and Project Status",
   "note": "",
-  "owner": "",
+  "owner": "kaizen",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "docs",
-    "needs-owner",
-    "waits-operator-review"
+    "docs"
   ],
   "title": "README System Components table still lists WordPress Automation (2,500+) and Content Pipeline (~600) as current, and its 13,565-line total and Project Status counts are stale (WordPress moved to /opt/wpf)"
 }

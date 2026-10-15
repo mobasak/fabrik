@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T11:32:40.080922Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-84088533",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,11 +16,11 @@
   "next": "Re-run the census (scratchpad docindex_census2 shape: shared-basename docs per /opt repo); when it reads 0 outside the hub, mail the remaining repos, then move shared_problems into problems with a red-first grader",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "impact HIGH: names 'red'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "check-doc-index",
-    "waits-operator-review"
+    "check-doc-index"
   ],
   "title": "Flip check_doc_index's shared-basename advisory to blocking once the fleet has indexed (W-c256027a follow-up; 27 docs in 19 repos on 2026-10-08)"
 }

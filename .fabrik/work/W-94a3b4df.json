@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-12T04:22:58.465404Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-94a3b4df",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,13 +15,12 @@
   },
   "next": "Inside an owner consumer (a service loading .env.owner) a prisma/drizzle/django migrate line clears on the declaration alone; alembic's env.py is scanned for its connection source, schema.prisma / drizzle.config / settings.py are not (.prisma is not walkable). Add the walk + an owner-key check per tool so a migrate that reads the app DSN is found before cutover rather than at runtime (Phase B review, check-O2; D-754).",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort HIGH: names 'migrate' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "app-role-check",
-    "needs-owner",
-    "waits-operator-review"
+    "app-role-check"
   ],
   "title": "app-role-check: scan a prisma/drizzle/django owner consumer's connection source for DATABASE_URL_OWNER"
 }

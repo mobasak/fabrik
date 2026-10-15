@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-03T15:44:17.820052Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-fc1a2f48",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,9 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'fail'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
-  "tags": [
-    "waits-operator-review"
-  ],
   "title": "Reopened from W-c553a0c2 (closed in error by triage wave 1, overturned by the third check): The item's defect (the --commit requirement has no rollout cutover) is still unfixed. If it is to be closed, it should be closed as obsolete with a correct reason (for example, every pre-T01b record is now long past the 12h staleness fail-open), not as fixed on a misread of the code."
 }

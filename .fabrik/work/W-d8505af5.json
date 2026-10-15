@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-30T20:43:40.537386Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-d8505af5",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,13 +15,12 @@
   },
   "next": "when building docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md, apply its item-3 proname-then-signature two-step to grant_payments_role(lane='ingest'): name present + exact signature absent -> RAISE, never the legacy block; red-on-revert test with a (regrole, text DEFAULT '') function",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'block'; effort HIGH: names 'spec' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "needs-owner",
-    "security",
-    "waits-operator-review"
+    "security"
   ],
   "title": "ingest lane has no changed-signature guard: an additive change to payments_grant_ingest's signature makes to_regprocedure NULL, so the legacy DROP+CREATE block runs and re-widens the ingest role (review 2026-09-30 round 3, one hop out of the fulfilment spec)"
 }

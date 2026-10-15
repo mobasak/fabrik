@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-01T08:24:38.481337Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-cdf69863",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,11 +16,11 @@
   "next": "bump the template's Docusaurus pins with a real npm build test of a scaffolded site",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-operator-review"
+    "fleet"
   ],
   "title": "Docusaurus scaffold pins @docusaurus/core 3.7.0; current is 3.10.2 (2026-07-10)"
 }

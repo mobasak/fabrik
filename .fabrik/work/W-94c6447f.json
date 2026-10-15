@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-13T11:12:39.465607Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-94c6447f",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,10 +17,10 @@
   "note": "",
   "owner": "infra",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "infra",
-    "waits-operator-review"
+    "infra"
   ],
   "title": "work.py triage routes by count only; a beat-aware triage would read the mail router's owner_of map (.fabrik/beat-owners.json) to assign unowned items to the owning beat"
 }

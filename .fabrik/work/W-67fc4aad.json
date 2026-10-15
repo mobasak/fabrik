@@ -17,6 +17,7 @@
   "priority": 3,
   "status": "open",
   "tags": [
+    "maybe-done",
     "waits-operator-review"
   ],
   "title": "check_doc_sync: Tryton module data (.xml views/menus/access, tryton.cfg) owes no CHANGELOG entry — CODE_EXTENSIONS is still an allowlist"

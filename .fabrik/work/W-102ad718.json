@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-05T06:21:27.359663Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-102ad718",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,9 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'silently'; effort HIGH: names 'plan' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
-  "tags": [
-    "waits-operator-review"
-  ],
   "title": "check_convergence advisory sweep drops the closing-row refusal: _committed_claims_advisory's output filter admits only review-citation findings, so a settled EXECUTED monolith ending on a nonzero confirmed row (fabrik-lib plan-4) is computed and silently discarded; archived plans never reach the check"
 }

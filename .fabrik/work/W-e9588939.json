@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T02:32:04.905743Z",
   "creator": "kaizen",
+  "effort": "high",
   "evidence": "",
   "id": "W-e9588939",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,10 +17,10 @@
   "note": "",
   "owner": "kaizen",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'fail'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "kaizen",
-    "waits-operator-review"
+    "kaizen"
   ],
   "title": "term-coverage obligation 1's anchor (git rev-parse HEAD + git diff HEAD | md5sum) never matches the Surface line review_receipt.py --init writes (git diff <range> -- <paths> plus untracked bytes, or a RANGE), so a re-invoked /fabrik-review always takes the anchor-did-not-match full pass; fail-safe today, but the verification-and-delta path is unreachable for every --init receipt (persist-O1, review of 1e9e4250d)"
 }

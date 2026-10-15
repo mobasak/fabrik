@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-30T08:43:55.761290Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-46afa9c4",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,11 +16,11 @@
   "next": "move the system prompt server-side (a constant or server-only env), drop systemPrompt from the request body, grader = a request carrying systemPrompt reaches the model without it; saas-skeleton template change (fleet beat)",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "security",
-    "waits-operator-review"
+    "security"
   ],
   "title": "saas-skeleton chat route accepts a client-supplied systemPrompt (templates/saas-skeleton/app/api/chat/route.ts:13,32) and forwards it as the system message on the app's own OpenRouter key — any browser user can set the model's system prompt"
 }

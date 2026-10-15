@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "fleet",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "deployer_ssh._format_env/_parse_env lose a value holding a newline: the pair quotes the value but does not escape the newline, and the line-based parser truncates it (a\\nb -> \"a) on the NEXT read of a written .env — pre-existing, surfaced by the owner-split review (Phase A pass 2, deployer-H1); the first-write regression the split added is fixed, the pair is not"

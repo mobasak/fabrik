@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-05T22:14:16.282854Z",
   "creator": "intel",
+  "effort": "high",
   "evidence": "",
   "id": "W-19b57b9a",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,11 +16,11 @@
   "next": "decide whether the guards should key on (from, from-agent) under HUB_BEATS, then change should_auto_reply and _recent_from_count together with a test per beat pair",
   "note": "",
   "owner": "infra",
-  "priority": 3,
+  "priority": 2,
+  "score_reason": "impact HIGH: names 'fails'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "infra",
-    "waits-operator-review"
+    "infra"
   ],
   "title": "mail.py loop-safety guards key only on the repo 'from' (mail.py:622 rate count, :642 self-guard): inside the shared fabrik mailbox every beat (infra/fleet/intel, HUB_BEATS, D-462) is 'fabrik', so any intra-hub --auto reply always self-guard HOLDs and all beats share one rate bucket (fails closed; no live caller of --auto today) — found by the W-0cd0363f closing review"
 }

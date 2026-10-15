@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-06T01:23:34.581493Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-3f45b9d5",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,11 +16,11 @@
   "next": "for each templates/<type>/: add stop_grace_period: 30s to routed services AND verify the Dockerfile.j2 CMD execs (or init: true), grade it like tests/test_scaffold_compose_traefik.py::test_sigterm_reaches_the_app_process",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-operator-review"
+    "fleet"
   ],
   "title": "Template-source composes (templates/<type>/compose.yaml.j2, 8 files + templates/saas-skeleton/compose.yaml) set no stop_grace_period and their Dockerfile.j2 CMDs are unchecked for SIGTERM delivery — the scaffold half was fixed in 132c4613f+"
 }

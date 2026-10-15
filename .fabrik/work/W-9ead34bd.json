@@ -17,11 +17,10 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
-  "score_reason": "Registrar-injected env never reaches canonical-compose containers; a template-line fix with fleet-wide effect",
+  "score_reason": "impact HIGH: names 'never reaches'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-operator-review"
+    "fleet"
   ],
   "title": "Registrar-injected env (SENTRY_DSN, DATABASE_URL, REDIS_URL) never reaches canonical-compose containers: _write_canonical_compose and templates/scaffold/docker/compose.yaml.template emit no env_file: .env, so fabrik apply's /opt/<name>/.env only feeds ${VAR} interpolation (docker compose config proved it, W-4227a201 review)"
 }

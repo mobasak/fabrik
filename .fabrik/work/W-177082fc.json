@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-06T19:40:25.927936Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-177082fc",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,11 +16,11 @@
   "next": "normalise c.file through the same root strip as readsFile when unionSlice takes a candidate in; one harness test with two seats citing one defect in two shapes",
   "note": "",
   "owner": "intel",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "intel",
-    "waits-operator-review"
+    "intel"
   ],
   "title": "fabrik-review-loop.js sameDefect compares the candidate file field verbatim, so a pin-path cite and a repo-path cite of one defect never merge (overlap undercounted, Chapman estimate inflated, refuter runs it twice) — readsFile's normalisation applied to c.file"
 }

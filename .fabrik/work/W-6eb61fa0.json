@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-01T20:45:03.275690Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-6eb61fa0",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,10 +17,10 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'deploy'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "fleet",
-    "waits-operator-review"
+    "fleet"
   ],
   "title": "TemplateRenderer autoescapes every *.j2 template (select_autoescape on the j2 suffix, since 0db807b36), so env_escape's shell escaping is HTML-escaped again: a compose env value a\"b&c renders a\\&#34;b&amp;c in every template-source deploy (2026-10-01, owner: fleet)"
 }

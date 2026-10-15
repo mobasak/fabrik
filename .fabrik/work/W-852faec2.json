@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T11:23:15.227329Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-852faec2",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,10 +17,10 @@
   "note": "",
   "owner": "fleet",
   "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "i18n-kit",
-    "waits-operator-review"
+    "i18n-kit"
   ],
   "title": "i18n-kit validator: converge the hub's Kilo-based validate_i18n.py on fabrik-lib's i18n module, or keep it and track SB-098 (JSON-output requests)"
 }

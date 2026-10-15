@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "gate",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "check_convergence.py _closing_row_fail (the shared Pass-Ledger closing-row law, plan spines + design receipts) passes a nonzero last round in 10 of 16 spellings: two confirmed tokens on one row (it reads tokens[-1]), a bold value or label (confirmed: **2**), a list-form or blockquote row (_PASS_ROW needs a leading pipe), confirmed = 2, a column-only row"

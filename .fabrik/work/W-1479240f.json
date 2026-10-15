@@ -21,6 +21,7 @@
   "status": "open",
   "tags": [
     "mail-01m4xws6ctvngztf77vfpa1tm5",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "skill_router.py nudges toward /fabrik-spec and has no /fabrik-task trigger — biases the lane decision toward the heavy path (mail 01M4XWS6CTVNGZTF77VFPA1TM5)"

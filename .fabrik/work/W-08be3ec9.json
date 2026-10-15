@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "fleet",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "Wording residue inside the W-36571dff spec review's own fixes (D-355 scope-growth exit at round 3, 2026-10-14): any further own-fix defect the remainder round raises is recorded here, not re-reviewed"

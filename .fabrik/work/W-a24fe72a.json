@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "fleet",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "Retire .windsurf/hooks.json (and .windsurf/workflows) from scaffold, fix and the sync — Cascade-only, emitted in 50 /opt repos"

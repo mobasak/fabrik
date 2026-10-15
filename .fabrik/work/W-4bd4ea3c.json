@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T21:30:01.765887Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-4bd4ea3c",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,11 +16,11 @@
   "next": "decide whether --sweep should exit non-zero (or log loudly) when either module failed to import; weekly_catchup's test cannot tell a no-op sweep from a real one (review U-O2, 2026-10-05)",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "intel",
-    "waits-operator-review"
+    "intel"
   ],
   "title": "kaizen_coroner.py swallows a failed import of kaizen_events/command_run and still exits 0 under --sweep"
 }

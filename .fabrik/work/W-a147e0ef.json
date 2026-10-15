@@ -17,11 +17,10 @@
   "note": "",
   "owner": "intel",
   "priority": 3,
-  "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "mail-01m4xb7gpffjkkw1cakg63p1vm",
-    "waits-operator-review"
+    "mail-01m4xb7gpffjkkw1cakg63p1vm"
   ],
   "title": "Review loop keeps its pins and briefs under /tmp, which a WSL shutdown wipes mid-review (mail 01M4XB7GPFFJKKW1CAKG63P1VM)"
 }

@@ -17,6 +17,7 @@
   "priority": 3,
   "status": "open",
   "tags": [
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "docs/operations/credential-recovery.md does not know /opt/traefik/cf.env — a third copy of the Cloudflare token (as CF_DNS_API_TOKEN, root 600) outside the env mirror; a token reissue (credential-recovery.md:119) would leave traefik's DNS-01 resolver on the revoked token"

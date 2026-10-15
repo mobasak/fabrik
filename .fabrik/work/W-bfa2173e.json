@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "fleet",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "Hub compose.yaml HEALTHCHECK probes /health, a shallow liveness endpoint — a 58-resilience readiness probe would need a real dependency (found by the wave-1 review of plan 2026-10-14-plan-1-coolify-verb-retirement, F5; predates the wave)"

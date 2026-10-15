@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-08T19:41:26.168004Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-e8677c54",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,9 +17,7 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "impact HIGH: names 'blocked'; effort HIGH: names 'plan' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
-  "tags": [
-    "waits-operator-review"
-  ],
   "title": "work.py drift: an ARCHIVED plan whose Status is BLOCKED (or not EXECUTED/SUPERSEDED) is invisible to every class (W-fbdd17c8 critiques)"
 }

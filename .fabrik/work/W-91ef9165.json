@@ -17,11 +17,10 @@
   "note": "",
   "owner": "kaizen",
   "priority": 3,
-  "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
-    "mail-01m4ys0ezvxdm2yhskb3vm49dh",
-    "waits-operator-review"
+    "mail-01m4ys0ezvxdm2yhskb3vm49dh"
   ],
   "title": "Mark the feedback rows answered by infra's review_receipt.py fix (66ed34d47, D-876) (mail 01M4YS0EZVXDM2YHSKB3VM49DH)"
 }

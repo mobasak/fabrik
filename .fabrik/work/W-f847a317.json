@@ -17,6 +17,7 @@
   "priority": 2,
   "status": "open",
   "tags": [
+    "maybe-done",
     "waits-operator-review"
   ],
   "title": "Spec: whose committed review may the blocking check_review_coverage scan red (commit-then-gate bypass; final_gate's base...HEAD holds siblings' commits; push-first cobra) + the non-ASCII quotePath skip"

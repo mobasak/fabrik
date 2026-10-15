@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T21:12:22.423726Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-0ae9b7e1",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -14,12 +16,12 @@
   "next": "decide: add email-validator to the hub's dev/test extras (pyproject, needs the deps rule's authorisation) or have the test install/skip with a stated reason; measure which other scaffold tests import the generated app",
   "note": "",
   "owner": "fleet",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "impact HIGH: names 'red'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
   "tags": [
     "infra",
-    "scaffold",
-    "waits-operator-review"
+    "scaffold"
   ],
   "title": "tests/test_scaffold_saas_web_wiring.py CSRF tests are red in the hub venv: ImportError email-validator is not installed (pydantic EmailStr in the saas-skeleton backend) — the hub .venv lacks the dependency the scaffolded app declares"
 }

@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "fleet",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "scripts/sync-vps-sysadmin.sh rsyncs the main checkout's WORKING TREE to vps1/vps2/vps3, so a run ships any sibling's uncommitted edits under scripts/sysadmin, scripts/audit, docs/infrastructure or specs/services, and vps_script_drift.py then reports the host as running uncommitted code (mail 01M4BXBJ9A)"

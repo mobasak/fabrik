@@ -18,6 +18,7 @@
   "status": "open",
   "tags": [
     "fleet",
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "Gate S for the Promtail -> Alloy switch: read V9 daily (docker inspect alloy: OOMKilled=false, restarts 0) and V8 on vps1, vps2, vps3; after 14 green days author the cleanup change (promtail service, the classified promtail-positions volume, the .pre-alloy files, the two Promtail configs, the promtail 256 ceiling spec row first) for a second operator window"

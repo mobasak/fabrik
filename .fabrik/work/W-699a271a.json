@@ -17,6 +17,7 @@
   "priority": 2,
   "status": "open",
   "tags": [
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "check_convergence.py reads only git status --porcelain, so a plan/review committed before the gate escapes its CONVERGED-claim grading — the same commit-then-gate hole as check_review_coverage"

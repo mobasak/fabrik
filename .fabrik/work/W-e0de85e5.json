@@ -17,6 +17,7 @@
   "priority": 2,
   "status": "open",
   "tags": [
+    "proposed-drop",
     "waits-operator-review"
   ],
   "title": "audit-registrars --json omits recorded registrar_failures (table mode reports them, W-2013a22d)"
