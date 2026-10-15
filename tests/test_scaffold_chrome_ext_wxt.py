@@ -135,7 +135,8 @@ def test_wxt_config_declares_mv3_permissions_and_icons(ext: Path) -> None:
     won't match our icon16.png names, so they must be wired or Chrome shows no icon)."""
     cfg = (ext / "wxt.config.ts").read_text()
     # contextMenus is required or the background SW throws in onInstalled (GUI-loop finding).
-    assert "permissions: ['storage', 'activeTab', 'contextMenus']" in cfg
+    # alarms drives the developer-mode update check (W-e2af3303).
+    assert "permissions: ['storage', 'activeTab', 'contextMenus', 'alarms']" in cfg
     assert "icons: {" in cfg
     assert "/icon16.png" in cfg
 
@@ -342,12 +343,34 @@ def test_wxt_scaffold_builds_and_manifest_has_permissions(tmp_path: Path) -> Non
     ext = tmp_path / "cxbuildtest" / "extension"
     inst = subprocess.run(["pnpm", "install"], cwd=ext, capture_output=True, text=True, timeout=600)
     assert inst.returncode == 0, f"pnpm install failed:\n{inst.stderr[-2000:]}"
+    # A3 (W-e2af3303): the pinned key reaches the built manifest; a store build leaves it out.
+    keygen = subprocess.run(["pnpm", "keygen"], cwd=ext, capture_output=True, text=True, timeout=60)
+    assert keygen.returncode == 0, keygen.stderr
     build = subprocess.run(
         ["npx", "wxt", "build"], cwd=ext, capture_output=True, text=True, timeout=400
     )
     assert build.returncode == 0, f"wxt build failed:\n{build.stderr[-2000:]}"
     manifest = json.loads((ext / ".output" / "chrome-mv3" / "manifest.json").read_text())
-    assert manifest["permissions"] == ["storage", "activeTab", "contextMenus"]
+    assert manifest["key"] == (ext / "extension-key.pub").read_text().strip()
+    assert manifest["permissions"] == ["storage", "activeTab", "contextMenus", "alarms"]
+    assert "host_permissions" not in manifest
+    store = subprocess.run(
+        ["npx", "wxt", "build"],
+        cwd=ext,
+        capture_output=True,
+        text=True,
+        timeout=400,
+        env={**os.environ, "STORE_BUILD": "1"},
+    )
+    assert store.returncode == 0, f"store build failed:\n{store.stderr[-2000:]}"
+    store_manifest = json.loads((ext / ".output" / "chrome-mv3" / "manifest.json").read_text())
+    assert "key" not in store_manifest
+    # restore the dev build the assertions below read
+    build = subprocess.run(
+        ["npx", "wxt", "build"], cwd=ext, capture_output=True, text=True, timeout=400
+    )
+    assert build.returncode == 0, f"wxt build failed:\n{build.stderr[-2000:]}"
+    manifest = json.loads((ext / ".output" / "chrome-mv3" / "manifest.json").read_text())
     # The custom command seam is registered (not the reserved _execute_action).
     assert "open-settings" in manifest.get("commands", {})
     assert manifest["default_locale"] == "en"
