@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped: a fix that must carry a clause quotes it whole, never paraphrases it (2026-10-15)
+
+- `commands/_sources/fabrik-review-scoped.md` step 3: the fix step's rule for something already stated — pointed at,
+  never paraphrased — gains its quote branch, bounded: where the fix must carry its words, it is quoted whole,
+  verbatim, with no gloss and naming its source. Answers feedback row 1792025649 (every own-fix of a run was a
+  paraphrase drift of a spec clause the doc fix restated; a pointer could not stand there), the second verdict on
+  that sentence (D-711). Pinned by
+  `tests/test_review_scoped_queue_pass.py::test_a_doc_fix_that_must_carry_a_clause_quotes_it_whole_never_paraphrases`.
+  Three rows refused with reasons (a seat-per-slice delta cut as bar-lowering, re-proposed to the operator; an
+  include-only includer count as contradicting; the pin-after-ruff row as already stated) and four HELD.
+
 ### Changed — /fabrik-command-improve: PHASE 3 points at a rule stated elsewhere, never glosses it (2026-10-15)
 
 - `commands/_sources/fabrik-command-improve.md` PHASE 3: a new sentence after the mechanism-wiring sentence extends the
