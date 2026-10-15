@@ -1773,6 +1773,35 @@ def _adopt_run_scratch(
     return dest, f"adopted from {old}"
 
 
+def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> list[str]:
+    """D5: one advisory line per `seat-*` folder of the run larger than `threshold` apparent bytes
+    — a seat that copied a whole tree instead of an archive or a clone. Runs AFTER the record lock
+    drops; a `du` past the shared deadline says so. Never changes the exit code or the record."""
+    lines: list[str] = []
+    end = time.monotonic() + deadline_s
+    for seat in sorted(Path(run_scratch).glob("seat-*")):
+        if seat.is_symlink() or not seat.is_dir():
+            continue
+        try:  # a spent deadline (timeout <= 0) raises TimeoutExpired at once — the same line
+            out = subprocess.run(
+                ["du", "-s", "--apparent-size", "--block-size=1", str(seat)],
+                capture_output=True,
+                text=True,
+                timeout=end - time.monotonic(),
+            ).stdout
+            size = int(out.split()[0])
+        except subprocess.TimeoutExpired:
+            lines.append(f"{seat.name}: size unmeasured — over the deadline")
+            continue
+        except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+            continue
+        if size > threshold:
+            lines.append(
+                f"{seat.name}: {size / 1024**2:.1f} MB — copied a tree instead of archive/clone"
+            )
+    return lines
+
+
 def _launch_run_folder_sweep(sid: str, repo_root: str) -> None:
     """D3 (plan P3, P16): this session's run-folder sweep, launched DETACHED after the record lock
     drops — a start never waits on a multi-GB removal and never runs a subprocess under the lock.
@@ -3874,6 +3903,15 @@ def main(argv: list[str]) -> int:
         if run_sweep:
             with contextlib.suppress(Exception):
                 _launch_run_folder_sweep(*run_sweep)
+        seat_scan = outbox.get("seat_size")
+        if seat_scan:
+            with contextlib.suppress(Exception):
+                for line in _seat_size_lines(
+                    seat_scan,
+                    int(os.environ.get("COMMAND_RUN_SEAT_WARN_BYTES") or 2 * 1024**3),
+                    float(os.environ.get("COMMAND_RUN_SEAT_DU_DEADLINE_S") or 10),
+                ):
+                    print(line)
         return rc
     except Exception as e:  # fail-soft — a state bug must never wedge an agent
         sys.stderr.write(f"[command_run] error, continuing: {e}\n")
@@ -6541,6 +6579,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _heartbeat(rec)  # scratch lifecycle plan D1: the run folder's heartbeat
         fields["persisted"] = save(sid, rec)
         print(_round_report(rec))
+        if rec.get("run_scratch"):
+            outbox["seat_size"] = str(rec["run_scratch"])  # D5, measured after the lock drops
         return 0
 
     if args.cmd in ("done", "blocked", "handoff"):

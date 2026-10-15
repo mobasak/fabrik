@@ -1130,3 +1130,278 @@ def test_a_run_key_needs_the_started_at_segment(name: str, keyed: bool, tmp_path
     word (`facade`, `c0ffee`) is an agent's own entry, never marker-governed."""
     (tmp_path / name).mkdir()
     assert sw.is_run_entry(tmp_path / name) is keyed
+
+
+# ── Phase C: advisory measures (D5 seat size at round lives in test_command_run_scratch; D6) ──────
+def _report_path(tmp_path: Path) -> Path:
+    return tmp_path / "home" / ".claude" / "state" / "scratch-size-report.json"
+
+
+def _set_created(folder: Path, hours_ago: float) -> None:
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    owner["created"] = NOW - hours_ago * HOUR
+    (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    _age(folder / ".owner", 40 * HOUR)
+
+
+def test_size_report(harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """C2 / D6: `--dead --apply` writes `scratch-size-report.json` atomically — per-session apparent
+    bytes outside running run folders, every run folder older than 72 h not `done` (an adopted-then-
+    dead `resumable` one included) and every `done` folder past its grace a worktree keeps; a dry
+    `--dead` writes nothing (P10)."""
+    sdir = _session(harness)
+    (sdir / "scratchpad" / "big.bin").write_bytes(b"x" * 1_000_000)
+    running = _run_folder(sdir, "live", "running", closed_ago=None, heartbeat_ago=HOUR)
+    (running / "huge.bin").write_bytes(b"y" * 3_000_000)
+    old = _run_folder(sdir, "wall", "resumable")
+    _set_created(old, 80)
+    main = _repo(tmp_path)
+    kept = _run_folder(sdir, "wt", repo=str(main / ".git"))
+    _git(main, "worktree", "add", "-q", str(kept / "seat-1" / "tree"), "-b", "feat-dirty")
+    (kept / "seat-1" / "tree" / "wip.txt").write_text("in flight", encoding="utf-8")
+    _age(kept / ".owner", 40 * HOUR)
+
+    rc, out = _main(capsys, "--dead")
+    assert rc == 0 and not _report_path(tmp_path).exists(), "a dry --dead wrote the report"
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    report = json.loads(_report_path(tmp_path).read_text(encoding="utf-8"))
+    sess = report["sessions"][SID_A]
+    assert 1_000_000 <= sess["bytes"] < 3_000_000, sess  # the running folder is not counted
+    flagged = {Path(r["path"]).name: r for r in report["run_folders"]}
+    assert old.name in flagged and "--retire" in flagged[old.name]["action"], flagged
+    assert kept.name in flagged and "worktree" in flagged[kept.name]["why"], flagged
+    assert running.name not in flagged, flagged
+    assert not list(_report_path(tmp_path).parent.glob("*.tmp")), "a temp file was left behind"
+
+
+def _hook(capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> str:
+    payload = json.dumps({"session_id": SID_A, "cwd": "/opt/fabrik"})
+    monkeypatch.setattr(sys, "stdin", io.StringIO(payload))
+    rc = sw.main(["--hook"])
+    assert rc == 0
+    return capsys.readouterr().out
+
+
+def _write_report(tmp_path: Path, **over: object) -> None:
+    report: dict = {"generated": NOW, "sessions": {SID_A: {"bytes": 1000}}, "run_folders": []}
+    report.update(over)
+    path = _report_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report), encoding="utf-8")
+
+
+@pytest.mark.parametrize("trigger", ["disk", "session-bytes", "old-resumable", "none"])
+def test_hook_alarm_line(
+    trigger: str,
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """C3 / D6: at SessionStart one alarm line when disk use passes 85 %, the session holds more
+    than 5 GB outside running run folders, or it owns a run folder older than 72 h not `done` — the
+    line for a `resumable` one names `--retire`; otherwise nothing; it removes nothing, rc 0."""
+    _session(harness)
+    monkeypatch.setenv("SCRATCH_SWEEP_DISK_USED_PCT", "90" if trigger == "disk" else "40")
+    if trigger == "session-bytes":
+        _write_report(tmp_path, sessions={SID_A: {"bytes": 6 * 1024**3}})
+    elif trigger == "old-resumable":
+        _write_report(
+            tmp_path,
+            run_folders=[
+                {
+                    "path": "/x/run-w",
+                    "sid": SID_A,
+                    "state": "resumable",
+                    "why": "older than 72 h and not done",
+                    "action": f"scratch_sweep.py --run-folders --session {SID_A} --retire run-w",
+                }
+            ],
+        )
+    else:
+        _write_report(tmp_path)
+    out = _hook(capsys, monkeypatch)
+    alarm = [ln for ln in out.splitlines() if "SCRATCH ALARM" in ln]
+    if trigger == "none":
+        assert alarm == [], out
+        return
+    assert len(alarm) == 1, out
+    if trigger == "old-resumable":
+        assert "--retire run-w" in alarm[0], alarm
+
+
+def test_refusal_set_and_nag_name_the_report(
+    harness: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """C4 / P10: `--help` and the hook's nag line both name `scratch-size-report.json` beside the
+    lock as the only files written under `~/.claude/state`."""
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT), "--help"], capture_output=True, text=True, timeout=30
+    )
+    assert "scratch-size-report.json" in " ".join(proc.stdout.split())
+    stale = _session(harness) / "scratchpad" / "old-dir"
+    stale.mkdir()
+    (stale / "f").write_text("x", encoding="utf-8")
+    _age_tree(stale, 7 * HOUR)
+    monkeypatch.setenv("SCRATCH_SWEEP_DISK_USED_PCT", "10")
+    out = _hook(capsys, monkeypatch)
+    nag = [ln for ln in out.splitlines() if "stale entries" in ln]
+    assert nag and "scratch-size-report.json" in nag[0], out
+
+
+# ── Phase C review round 1: graders for the confirmed candidates ──────────────────────────────────
+KEY = "-2026-10-15T05-40-42-0300-0a1b2c"  # the mint's key suffix: <started_at>-<6 hex>
+
+
+def test_a_session_under_two_slugs_is_summed(harness: Path) -> None:
+    """RC-A: a sid with a directory under two slugs (main checkout + worktree) is ONE session — its
+    bytes are summed, never the last directory's alone."""
+    a = _session(harness)
+    b = harness / "-opt-other-slug" / SID_A
+    (b / "scratchpad").mkdir(parents=True)
+    (a / "scratchpad" / "a.bin").write_bytes(b"x" * 600_000)
+    (b / "scratchpad" / "b.bin").write_bytes(b"y" * 600_000)
+    sw.write_size_report([a, b], [], NOW)
+    report = json.loads(Path(os.path.expanduser(sw.SIZE_REPORT_PATH)).read_text(encoding="utf-8"))
+    assert report["sessions"][SID_A]["bytes"] >= 1_200_000, report
+
+
+@pytest.mark.parametrize(
+    "bad", [{"sessions": [1]}, {"sessions": "x"}, {"run_folders": 5}, {"sessions": {SID_A: 3}}]
+)
+def test_a_malformed_report_never_breaks_the_hook(
+    bad: dict,
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """RC-B: a dict of the wrong shape raises nothing — the alarm says nothing about it and the
+    stale-entries nag still prints."""
+    stale = _session(harness) / "scratchpad" / "old-dir"
+    stale.mkdir()
+    (stale / "f").write_text("x", encoding="utf-8")
+    _age_tree(stale, 7 * HOUR)
+    monkeypatch.setenv("SCRATCH_SWEEP_DISK_USED_PCT", "10")
+    _write_report(tmp_path, **bad)
+    out = _hook(capsys, monkeypatch)
+    assert "stale entries" in out, out
+    assert "SCRATCH ALARM" not in out, out
+
+
+def test_a_stale_report_is_named_never_read(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """RC-C: a report older than 48 h is not evidence about today — its rows are ignored and the
+    alarm says the nightly run has stopped writing it."""
+    _session(harness)
+    monkeypatch.setenv("SCRATCH_SWEEP_DISK_USED_PCT", "10")
+    _write_report(tmp_path, generated=NOW - 5 * DAY, sessions={SID_A: {"bytes": 9 * 1024**3}})
+    out = _hook(capsys, monkeypatch)
+    alarm = [ln for ln in out.splitlines() if "SCRATCH ALARM" in ln]
+    assert len(alarm) == 1 and "9.0 GB" not in alarm[0] and "old" in alarm[0], out
+
+
+def test_disk_percent_is_dfs_use_percent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """RC-D: `used / (used + free-to-users)` — df's Use%, never `used / total`, which hides the
+    reserved blocks and fires several points late."""
+    from collections import namedtuple
+
+    du = namedtuple("du", "total used free")
+    monkeypatch.delenv("SCRATCH_SWEEP_DISK_USED_PCT", raising=False)
+    monkeypatch.setattr(sw.shutil, "disk_usage", lambda _p: du(100, 80, 14))
+    assert sw._disk_used_pct(tmp_path) == pytest.approx(80 / 94 * 100)
+
+
+def test_an_unmeasured_session_alarms(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """RC-E: a session whose `du` missed its deadline is the large one the alarm exists for — it
+    says so, never silence."""
+    _session(harness)
+    monkeypatch.setenv("SCRATCH_SWEEP_DISK_USED_PCT", "10")
+    _write_report(tmp_path, sessions={SID_A: {"bytes": None, "unmeasured": True}})
+    out = _hook(capsys, monkeypatch)
+    alarm = [ln for ln in out.splitlines() if "SCRATCH ALARM" in ln]
+    assert len(alarm) == 1 and "could not be measured" in alarm[0], out
+
+
+def test_the_report_is_measured_outside_the_global_lock(
+    harness: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """RC-F: the report's `du` runs after the global lock is released — a manual `--apply` is never
+    told "another sweep holds the lock" for up to the report's 600 s budget."""
+    _session(harness)
+    seen: list[bool] = []
+
+    def _probe(*_a: object, **_k: object) -> None:
+        with sw._Lock() as got:
+            seen.append(got)
+
+    monkeypatch.setattr(sw, "write_size_report", _probe)
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0 and seen == [True], out
+
+
+def test_the_report_names_no_trash_and_flags_a_markerless_age(harness: Path) -> None:
+    """RC-G / RC-I: a `.trash-<key>` leftover is not a run folder to advise on, and a `running`
+    marker with no `created` is flagged (an unknown age is never "young")."""
+    sdir = _session(harness)
+    trash = sdir / "scratchpad" / f".trash-x{KEY}"
+    trash.mkdir()
+    (trash / ".owner").write_text(
+        json.dumps({"state": "resumable", "created": NOW - 90 * HOUR}), encoding="utf-8"
+    )
+    nocreated = _run_folder(sdir, "nc", "running", closed_ago=None, heartbeat_ago=HOUR)
+    owner = json.loads((nocreated / ".owner").read_text(encoding="utf-8"))
+    owner.pop("created")
+    (nocreated / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    sw.write_size_report([sdir], [], NOW)
+    report = json.loads(Path(os.path.expanduser(sw.SIZE_REPORT_PATH)).read_text(encoding="utf-8"))
+    named = {Path(r["path"]).name for r in report["run_folders"]}
+    assert trash.name not in named and nocreated.name in named, report
+
+
+@pytest.mark.parametrize("generated", [NOW + 1e9, float("nan"), "yesterday"])
+def test_a_future_or_undated_report_is_never_fresh(
+    generated: object,
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """RC-C2: freshness is `0 <= age <= 48 h` on a finite number — a report dated in the future
+    (clock skew, a test clock left set) or NaN is not evidence, and the line never claims an age
+    it cannot know."""
+    _session(harness)
+    monkeypatch.setenv("SCRATCH_SWEEP_DISK_USED_PCT", "10")
+    _write_report(tmp_path, generated=generated, sessions={SID_A: {"bytes": 9 * 1024**3}})
+    out = _hook(capsys, monkeypatch)
+    alarm = [ln for ln in out.splitlines() if "SCRATCH ALARM" in ln]
+    assert len(alarm) == 1 and "9.0 GB" not in alarm[0], out
+    assert "0s old" not in alarm[0], out
+
+
+def test_no_report_shape_costs_the_disk_reason(
+    harness: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """RC-B2: whatever the report holds — here an integer too large for a float — the report's
+    reasons are dropped and the disk reason, read live, still prints (the class RC-B began)."""
+    _session(harness)
+    monkeypatch.setenv("SCRATCH_SWEEP_DISK_USED_PCT", "90")
+    path = _report_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"generated": 1' + "0" * 400 + "}", encoding="utf-8")
+    out = _hook(capsys, monkeypatch)
+    alarm = [ln for ln in out.splitlines() if "SCRATCH ALARM" in ln]
+    assert len(alarm) == 1 and "disk 90% used" in alarm[0], out

@@ -1070,3 +1070,44 @@ def test_a_wall_folder_holding_a_plain_clone_is_adopted(tmp_path: Path) -> None:
     assert "(adopted from" in line, out.stdout + out.stderr
     new = Path(line.split(" (adopted")[0])
     assert (new / "seat-1" / "clone" / "work.txt").read_text(encoding="utf-8") == "uncommitted"
+
+
+# ── Phase C: D5 — an advisory seat-size line at `round` (row C1) ──────────────────────────────────
+def _round(run_dir: Path, harness: Path, repo: Path, **env: str):
+    return _cr_rs(
+        run_dir,
+        harness,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--seats",
+        "1",
+        cwd=repo,
+        extra_env=env,
+    )
+
+
+@pytest.mark.parametrize("case", ["over", "under", "deadline"])
+def test_round_reports_large_seat_folders(tmp_path: Path, case: str) -> None:
+    """C1 / D5: a seat folder over `COMMAND_RUN_SEAT_WARN_BYTES` prints one advisory line at
+    `round`; a `du` past its deadline says so; under the threshold nothing; the exit code and the
+    record's rounds are what they would have been."""
+    repo, harness, run_dir, folder = _minted(tmp_path)
+    (folder / "seat-1").mkdir()
+    (folder / "seat-1" / "copy.bin").write_bytes(b"x" * 3 * 1024 * 1024)
+    env = {"COMMAND_RUN_SEAT_WARN_BYTES": "1048576" if case != "under" else str(10 * 1024**2)}
+    if case == "deadline":
+        env["COMMAND_RUN_SEAT_DU_DEADLINE_S"] = "0"
+    out = _round(run_dir, harness, repo, **env)
+    assert out.returncode == 0, out.stdout + out.stderr
+    lines = [ln for ln in out.stdout.splitlines() if ln.startswith("seat-1:")]
+    if case == "over":
+        assert lines == ["seat-1: 3.0 MB — copied a tree instead of archive/clone"], out.stdout
+    elif case == "deadline":
+        assert lines == ["seat-1: size unmeasured — over the deadline"], out.stdout
+    else:
+        assert lines == [], out.stdout
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert len(rec["rounds"]) == 1, rec["rounds"]

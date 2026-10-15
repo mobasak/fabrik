@@ -44,6 +44,7 @@ import fcntl
 import glob as globmod
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -59,7 +60,9 @@ REFUSAL_SET = """NEVER TOUCHES (hard-coded; this text is printed by --help and b
   * /opt/<repo> tracked or untracked files — except a `git worktree remove` of a worktree this
     script classified removable
   * ~/.claude*/projects transcripts, and ~/.claude*/state EXCEPT the one file it creates and locks,
-    $HOME/.claude/state/scratch-sweep.lock — it reads, writes and deletes nothing else there
+    $HOME/.claude/state/scratch-sweep.lock, and the size report beside it,
+    $HOME/.claude/state/scratch-size-report.json (written only by --dead --apply) — it reads,
+    writes and deletes nothing else there
   * <repo>/.tmp/** as a scan root (the subagent spools; a worktree git itself reports under .tmp is
     classified like any other worktree and spared by the ordinary guards, never swept as a spool)
   * docker anything — volumes are DATA
@@ -1107,6 +1110,192 @@ def _du_kb(path: Path, deadline: float) -> int | None:
         return int(out[0]) if out else None
     except (OSError, ValueError, IndexError, subprocess.SubprocessError):
         return None
+
+
+SIZE_REPORT_PATH = "~/.claude/state/scratch-size-report.json"
+REPORT_STALE_S = 72 * 3600  # a run folder older than this and not `done` is named (spec D6)
+ALARM_DISK_PCT = 85.0
+ALARM_SESSION_BYTES = 5 * 1024**3
+
+
+def _du_apparent(path: Path, deadline_s: float, exclude: tuple[str, ...] = ()) -> int | None:
+    """Apparent bytes under `path` (`du -s --apparent-size --block-size=1`), `exclude` naming
+    basenames to skip; None past the deadline or on any failure — a size is advisory, never a class."""
+    if deadline_s <= 0:
+        return None
+    argv = ["du", "-s", "--apparent-size", "--block-size=1"]
+    argv += [f"--exclude={name}" for name in exclude] + [str(path)]
+    try:
+        out = subprocess.run(argv, capture_output=True, text=True, timeout=deadline_s).stdout
+        return int(out.split()[0])
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+        return None
+
+
+REPORT_FRESH_S = 48 * 3600  # an older report is not evidence about today
+
+
+def write_size_report(sid_dirs: list[Path], run_rows: list[Row], now: float) -> Path | None:
+    """D6: the nightly size report, written atomically by `--dead --apply` only (P10), AFTER the
+    global lock is released. Per session id — every directory of that sid summed, a worktree
+    session has two — apparent bytes outside `running` run folders (`unmeasured` when a `du` missed
+    its deadline); every run folder older than 72 h, or of unknown age, and not `done` (a
+    `resumable` one names `--retire`); every `done` folder past its grace a worktree keeps.
+    Cobra (D-253): it is advice — the cheap way to quiet it is to keep a run open, and a `running`
+    folder older than 72 h is itself named."""
+    budget_end = time.monotonic() + float(_env_int("SCRATCH_SWEEP_REPORT_BUDGET_S", 600))
+    sessions: dict[str, dict] = {}
+    flagged: list[dict] = []
+    worktree_kept = {
+        r.path: r.reason
+        for r in run_rows
+        if r.cls == "kept" and r.reason.startswith("holds a registered worktree")
+    }
+    for sdir in sid_dirs:
+        if not sdir.is_dir():
+            continue
+        running: list[str] = []
+        for folder in run_entries(sdir):
+            if not folder.name.startswith(RUN_PREFIX):
+                continue  # a `.trash-*` leftover is the next sweep's, never advice
+            owner = read_owner(folder) or {}
+            state = owner.get("state")
+            if state == "running":
+                running.append(folder.name)
+            created = owner.get("created")
+            known = isinstance(created, int | float) and not isinstance(created, bool)
+            if state != "done" and (not known or now - created > REPORT_STALE_S):
+                action = (
+                    f"python3 /opt/fabrik/scripts/scratch_sweep.py --run-folders --session "
+                    f"{sdir.name} --retire {folder.name}"
+                    if state == "resumable"
+                    else "close the run; a dead session's folder goes after a 7-day-stale heartbeat"
+                )
+                why = (
+                    "older than 72 h and not done" if known else "not done, and its age is unknown"
+                )
+                flagged.append(
+                    {
+                        "path": str(folder),
+                        "sid": sdir.name,
+                        "state": state,
+                        "why": why,
+                        "action": action,
+                    }
+                )
+            elif str(folder) in worktree_kept:
+                flagged.append(
+                    {
+                        "path": str(folder),
+                        "sid": sdir.name,
+                        "state": state,
+                        "why": f"done past its grace, kept: {worktree_kept[str(folder)]}",
+                        "action": "remove or merge that worktree; the next sweep then removes the folder",
+                    }
+                )
+        left = min(60.0, budget_end - time.monotonic())
+        size = _du_apparent(sdir, left, tuple(running))
+        entry = sessions.setdefault(sdir.name, {"dirs": [], "bytes": 0, "unmeasured": False})
+        entry["dirs"].append(str(sdir))
+        if size is None:
+            entry["unmeasured"] = True
+        else:
+            entry["bytes"] += size
+    target = Path(os.path.expanduser(SIZE_REPORT_PATH))
+    tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(
+            json.dumps({"generated": now, "sessions": sessions, "run_folders": flagged}, indent=1),
+            encoding="utf-8",
+        )
+        os.replace(tmp, target)
+    except OSError:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        return None
+    return target
+
+
+def _disk_used_pct(root: Path) -> float | None:
+    """df's Use%: used / (used + free to unprivileged users) — `used / total` hides the reserved
+    blocks and reads several points low. `SCRATCH_SWEEP_DISK_USED_PCT` is the test seam."""
+    raw = os.environ.get("SCRATCH_SWEEP_DISK_USED_PCT")
+    try:
+        if raw:
+            return float(raw)
+        du = shutil.disk_usage(root)
+        return 100.0 * du.used / (du.used + du.free) if (du.used + du.free) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _report_reasons(sid: str, now: float) -> list[str]:
+    """The nightly report's reasons for this session (stale, too big, unmeasured, an old run
+    folder). Any shape it cannot read yields no reason — never an exception (RC-B, RC-B2)."""
+    reasons: list[str] = []
+    try:
+        report = json.loads(Path(os.path.expanduser(SIZE_REPORT_PATH)).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        report = None
+    if isinstance(report, dict):
+        generated = report.get("generated")
+        dated = (
+            isinstance(generated, int | float)
+            and not isinstance(generated, bool)
+            and math.isfinite(generated)
+        )
+        # a future date (clock skew, a test clock left set) is no more evidence than an old one
+        fresh = dated and 0 <= now - generated <= REPORT_FRESH_S
+        if not fresh:
+            if not dated:
+                age = "undated"
+            elif generated > now:
+                age = "dated in the future"
+            else:
+                age = f"{_human(now - generated)} old"
+            reasons.append(
+                f"the nightly size report is {age} — has `scratch_sweep.py --dead --apply` stopped?"
+            )
+        else:
+            sessions = report.get("sessions")
+            mine = sessions.get(sid) if isinstance(sessions, dict) else None
+            if isinstance(mine, dict):
+                size = mine.get("bytes")
+                if isinstance(size, int) and size > ALARM_SESSION_BYTES:
+                    reasons.append(
+                        f"this session holds {size / 1024**3:.1f} GB outside running run folders"
+                    )
+                elif mine.get("unmeasured"):
+                    reasons.append(
+                        "this session's scratch could not be measured within its deadline"
+                    )
+            folders = report.get("run_folders")
+            for r in folders if isinstance(folders, list) else []:
+                if isinstance(r, dict) and r.get("sid") == sid:
+                    reasons.append(
+                        f"{Path(str(r.get('path'))).name} {r.get('why')} — {r.get('action')}"
+                    )
+    return reasons
+
+
+def _size_alarm_line(sid: str, root: Path, now: float | None = None) -> str:
+    """D6's SessionStart alarm — one line, advice only: disk use past 85 %, this session holding
+    more than 5 GB outside running run folders (or too much to measure in time), a run folder of
+    its own older than 72 h and not `done`, or a report too old to be evidence. "" when none
+    holds. A report of any wrong shape is treated as no report — it never raises."""
+    now = _now() if now is None else now
+    reasons: list[str] = []
+    pct = _disk_used_pct(root)
+    if pct is not None and pct > ALARM_DISK_PCT:
+        reasons.append(f"disk {pct:.0f}% used")
+    try:
+        reasons += _report_reasons(sid, now)
+    except Exception:  # noqa: BLE001 — a report of any shape never costs the live disk reason
+        pass
+    if not reasons:
+        return ""
+    return "## 🚨 SCRATCH ALARM: " + " · ".join(reasons)
 
 
 # ── session liveness ────────────────────────────────────────────────────────────────────────────
@@ -2215,6 +2404,9 @@ def run_dead_mode(args: argparse.Namespace) -> int:
             hub = _janitor_repo_root()
             if hub is not None:
                 janitor_worktrees(hub, _now(), _proc_root(), apply=True)
+        # measured AFTER the global lock drops: its `du` budget never holds the lock (review RC-F)
+        if write_size_report(sid_dirs, run_rows, now) is None:
+            print("size report not written (see ~/.claude/state)")
         return RC_OK
     out = render(
         rows,
@@ -3261,6 +3453,16 @@ def run_hook_mode(args: argparse.Namespace, sid_hint: str) -> int:
         ):
             return RC_OK
         root = _scratch_root()
+        try:
+            alarm = _size_alarm_line(sid, root)
+        except Exception as exc:  # noqa: BLE001 — the alarm never costs the session its other line
+            alarm = ""
+            print(
+                f"scratch_sweep --hook: alarm skipped — {type(exc).__name__}: {exc}",
+                file=sys.stderr,
+            )
+        if alarm:
+            print(alarm)
         older = parse_duration(args.older_than or DEFAULT_OLDER_THAN)
         # `SCRATCH_SWEEP_HOOK_BUDGET` is the test seam for the truncation path — the real budget is
         # a wall-clock deadline, which a grader cannot force deterministically.
@@ -3314,7 +3516,8 @@ def run_hook_mode(args: argparse.Namespace, sid_hint: str) -> int:
             f"## 🧹 SCRATCH: {len(candidates)} stale entries in this session's scratchpad "
             f"({oldest}) — dry-run: python3 /opt/fabrik/scripts/scratch_sweep.py · "
             "apply: python3 /opt/fabrik/scripts/scratch_sweep.py --apply · "
-            "never touches: /opt files, transcripts, ~/.claude/state (beyond its own lock), "
+            "never touches: /opt files, transcripts, ~/.claude/state (beyond its own lock and "
+            "scratch-size-report.json), "
             "another live session's scratch, or tasks/"
         )
     except Exception as exc:  # noqa: BLE001 — fail-open by contract, but never SILENT
