@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T13:30:31.920619Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-24c82f78",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4ZW3ATPE33P6955WZHP4HF9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: worktree-infra"
+}
