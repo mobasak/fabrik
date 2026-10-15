@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: PHASE 3 points at a rule stated elsewhere, never glosses it (2026-10-15)
+
+- `commands/_sources/fabrik-command-improve.md` PHASE 3: a new sentence after the mechanism-wiring sentence extends the
+  rule for a rule adapted from CLAUDE.md or a fragment (pointed at, or quoted in its own words) to a rule stated in
+  another command or another section of the target, and neither the pointer nor the quote carries a gloss: a gloss is a
+  new wording that drifts, and a fresh wording is written only where the rule's words do not fit the new subject, keeps
+  the words that do fit, and names its source. Answers feedback row 1792031068 (a ten-word gloss of the by-design rule
+  became a third wording and cost a round), a recurrence of the held one-fact-plus-pointer subject (D-711). Pinned by
+  `tests/test_command_improve_queue_pass.py::test_phase_three_points_at_a_rule_stated_elsewhere_without_a_gloss`.
+  Six first-sighting rows HELD; row 1792000873 (PHASE 2 Grounding reads the gate's code) left open for the next run.
+
 ### Fixed — by-design verdicts: the receipt skeleton states the owner-only grammar, and the gate refuses a D-owner that is not a ledger row (2026-10-15)
 
 - `scripts/review_receipt.py`: the `--init` skeleton's verdict grammar says a by-design verdict's parentheses hold owner ids only and its reason follows them (`… (F4, round 3; D-203) — <why>`); every other RECORDED reason stays parenthesised. Three `/fabrik-review` feedback rows had copied the old "every reason is parenthesised" text.

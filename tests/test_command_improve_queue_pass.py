@@ -282,3 +282,37 @@ def test_fabrik_task_third_queue_pass_lines() -> None:
         "before phase 4, MEASURE's test slice re-runs on the built tree.",
     ):
         assert needle in text, needle
+
+
+def test_phase_three_points_at_a_rule_stated_elsewhere_without_a_gloss() -> None:
+    """Row 1792031068 (kaizen, the fabrik-review Residual-sentence run): a ten-word gloss of Phase 2's by-design rule
+    became a THIRD wording beside the rule and term-edit's restatement, and cost a round. :249's clause covered a rule
+    adapted from CLAUDE.md or a fragment and forbade only narrowing; a rule stated in another command or another section
+    of the target, glossed without narrowing, was not covered. A recurrence of the held
+    other-tool-behaviour-one-fact-plus-pointer subject (D-711). Written as an EXTENSION of :249's rule (it points at
+    that rule by its own subject words, neither restating nor cutting a quote of it — the round-2 Opus seat caught a
+    quote cut mid-clause), placed between two pinned spans, so the drive test's
+    :247-252 pin and this file's :252-254 pin stay whole. Mutants, each run by the round-1 Opus seat on a copy: delete
+    the sentence; 'carries a gloss' → 'carries a long gloss'; drop 'another command or another section'; 'only where' →
+    'where'; drop 'names its source'; 'neither the pointer nor the quote' → 'the quote' (the raising case was a glossed
+    POINTER); move the sentence after the script-behaviour sentence; append a gloss-allowing sentence after it (the
+    seat's surviving mutant, killed by the follows-directly assertion)."""
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    head = "The rule above for a rule adapted from `CLAUDE.md` or a fragment holds"
+    assert p3.count(head) == 1, "the pointer rule left PHASE 3, or is stated twice"
+    tail = "keeps the words that do fit, and names its source."
+    sentence = p3[p3.index(head) :]
+    sentence = sentence[: sentence.index(tail) + len(tail)]
+    assert (
+        "holds for a rule stated in another command or another section of the target too, and neither the pointer nor"
+        " the quote carries a gloss: a gloss is a new wording that drifts, and a fresh wording is written only where the"
+        " rule's words do not fit the new subject, keeps the words that do fit, and names its source."
+    ) in sentence, "the extension, its gloss ban and its bounded allowance are one contiguous sentence"
+    for weakener in ("where practical", "where possible", "optionally"):
+        assert weakener not in sentence, weakener
+    # it sits between the two pinned spans — directly after the mechanism sentence and directly before the
+    # script-behaviour sentence, so nothing can be slipped in beside it
+    before = p3[: p3.index(head)]
+    assert before.rstrip().endswith("this edit wires it in."), before[-80:]
+    after = p3[p3.index(head) + len(sentence) :]
+    assert after.lstrip().startswith("A sentence that describes what a script, tool or another step DOES"), after[:80]
