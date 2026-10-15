@@ -1253,9 +1253,11 @@ def test_the_floor_and_triage_skip_a_paused_worker(tmp_path, monkeypatch):
 
 
 def test_a_pause_is_shown_and_fails_paused(tmp_path, monkeypatch):
-    """queue and the prompt block show who is paused; the PAUSED line names the pauser and offers
-    no resume command; an unreadable marker still pauses and a writer's .tmp file never does; a
-    paused caller's NEXT: line auto-claims nothing."""
+    """queue and the prompt block show who is paused; the PAUSED line names who may lift it, offers
+    no resume command and cannot be split by a newline in --why; an unreadable, oversize or FIFO
+    marker still pauses, while a writer's .tmp file and an invalid-name marker never do; a bool or
+    absurd stamp reads as an unknown time; --by is capped at 60; a paused caller's NEXT: line
+    auto-claims nothing."""
     env, repo, trees = _setup(tmp_path, workers=("w1", "w2", "w3"), present=("w1", "w2"))
     ready = _add(trees["w1"], env, "task", "ready in w1's tree")
     _assign(trees["w1"], env, ready, "w1")
@@ -1275,6 +1277,15 @@ def test_a_pause_is_shown_and_fails_paused(tmp_path, monkeypatch):
     assert "work.py resume" not in block and "ready —" not in block, block
     _paused_dir(repo).joinpath("w2.json").write_text('{"by": "x", "at": true}', encoding="utf-8")
     assert "an unknown time" in run(["pause"], env, repo).stdout  # a bool stamp is no time
+    _paused_dir(repo).joinpath("w2.json").write_text('{"by": "x", "at": 1e300}', encoding="utf-8")
+    assert "an unknown time" in run(["pause"], env, repo).stdout  # an absurd stamp is no time
+    big = json.dumps({"by": "huge", "why": "x" * 5000})  # over the 4 KiB cap: never parsed
+    _paused_dir(repo).joinpath("w2.json").write_text(big, encoding="utf-8")
+    listing = run(["pause"], env, repo).stdout
+    assert "w2 — by ? " in listing and "huge" not in listing, listing
+    op = run(["pause", "w3", "--by", "b" * 100], _operator(env), repo)
+    assert op.returncode == 0 and json.loads((_paused_dir(repo) / "w3.json").read_text())["by"] == "b" * 60
+    assert run(["resume", "w3"], _operator(env), repo).returncode == 0
     _paused_dir(repo).joinpath("w2.json").write_text("{not json", encoding="utf-8")
     _paused_dir(repo).joinpath("w3.json.abc123.tmp").write_text("{}", encoding="utf-8")
     _paused_dir(repo).joinpath("Up.json").write_text("{}", encoding="utf-8")  # no agent name: no pause
