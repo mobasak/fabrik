@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "infra: scripts/sysadmin/hub_up.sh \u2014 tmux session 'hub' with the FOUR builders only (infra, intel, fleet, kaizen); the coordinator runs in VS Code (operator 2026-10-15: 'i want to reach you via vs code and the rest via tmux'); per-pane labels: pane-border-status top + pane-border-format ' #{pane_index}: #{pane_title} '; refuse to launch an agent whose session id is already running elsewhere (two processes on one sid fuse hooks); docs/workstation section",
+  "next": "infra: a box-local launcher already exists (coordinator, 2026-10-15, at the operator's ask): ~/bin/hub-up + ~/.tmux.conf + Windows Terminal profile 'Fabrik Agents' (font 9) + desktop 'Fabrik Agents.bat'; builders only (coordinator stays in VS Code), even-horizontal, refuses a sid already running. Remaining: move it into the repo (scripts/sysadmin/, docs/workstation/), and resolve each agent's CURRENT session id instead of the hard-coded list",
   "note": "",
   "owner": "infra",
   "priority": 1,
