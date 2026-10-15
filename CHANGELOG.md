@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve: a claim about a gate is grounded in its code and run on the row's own case (2026-10-15)
+
+- `commands/_sources/fabrik-command-improve.md`, three amendments in place, one subject: § Drive's Grounding bullet
+  names the gate's CODE, read live, when an edit restates a gate's conditions (every condition and value copied,
+  never the prose describing them); PHASE 3's claim check reaches what a gate reads or refuses, every branch of that
+  function and every other path that filters or grades the same input, traced from the entry point that receives it;
+  a rule the edit adds is RUN before PHASE 4's first pin — applied to the row's case quoted as the row gives it (or
+  the artifact the row names, fetched and quoted), each verdict written beside its quote. Answers rows 1792038532, 1792033691 and 1792000873 (kaizen's own
+  closes: two misreadings that were a second code path, a quote ban drafted for a glossed pointer, a lane-gate
+  restatement that dropped three conditions); the last two are second sightings of held subjects (D-711). Pinned by
+  `tests/test_command_improve_queue_pass.py::test_a_claim_about_a_gate_is_grounded_in_its_code_and_run_on_the_rows_case`,
+  with the two existing pins on the amended sentences re-pinned. Row 1792036364 (the pins dir name) rejected as
+  misfiled — its sentence is `/fabrik-review-scoped` step 5's, carried to that queue's next run.
+
 ### Changed — /fabrik-plan-review: both the plan and its receipt carry the Pass Ledger; what the gate grades in each (2026-10-15)
 
 - `commands/_sources/fabrik-plan-review.md` Phase 1: the sentence that put the Pass Ledger in the review receipt alone

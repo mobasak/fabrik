@@ -43,7 +43,9 @@ five runs, each of which a reader can judge on its own.
   run remainder rounds that re-verify that fixed set alone. It bounds the loop; it never
   dispositions a defect.
 - **Grounding — before drafting, not after review.** For the group you pick: the command's current
-  text read WHOLE; the tool's own runtime output when a verdict is about a gate, a check or a tool;
+  text read WHOLE; the tool's own runtime output when a verdict is about a gate, a check or a tool, and its
+  code, read live, when the edit restates the gate's conditions — every condition and value copied, never
+  the prose describing them;
   `docs/DECISIONS.md` and `docs/STRATEGIC_BACKLOG.md` for the subject (a ruling already made is
   POINTED at, never restated here; a row already sized as spec work sends this run to PHASE 2's
   spec-chain shape with no edit); `/opt/fabrik-lib/README.md`'s module table and the
@@ -244,15 +246,17 @@ not its exit code, and if the surface grew say in the commit what the growth buy
 VERDICT**: every clause you add is a new surface the next round reviews, so a one-sentence row gets
 one sentence.
 
-**Check the claim, not the prose.** A sentence naming what a gate or script reads is checked against every
-branch of that function, for every shape the sentence covers; a rule adapted from `CLAUDE.md` or a fragment
+**Check the claim, not the prose.** A sentence naming what a gate or script reads or refuses is checked against
+every branch of that function and every other path that filters or grades the same input, traced from the entry
+point that receives it, for every shape the sentence covers; a rule adapted from `CLAUDE.md` or a fragment
 is pointed at, or quoted in its own words and routes, never narrowed in paraphrase; a `_fragments/` edit names each `{{include:}}`
 consumer with its bound placeholders, and each source or fragment that names it (`command grep -rlw <its file name
 without .md> commands/_sources commands/_fragments`, which lists the includers too;
 `test_a_fragment_edit_names_its_by_path_consumers_too` runs it), and must be obeyable in each. A rule the edit adds
-is checked before PHASE 4's pin on the edit's own grader and sentence, which obey it, and on the case that raised
-it, which it must flag. A mechanism the edit adds — a token, a field, a report shape, a panel's proposal
-included — is checked against the step or code that must consume it, and is written in only when that
+is RUN before PHASE 4's first pin — applied to the edit's own grader and sentence, which obey it, and to the row's
+case quoted as the row gives it (or, when the row only describes it, the artifact it names, fetched and quoted),
+which it must flag, each verdict written beside its quote. A mechanism the edit adds — a token, a field, a report
+shape, a panel's proposal included — is checked against the step or code that must consume it, and is written in only when that
 consumer reads it or this edit wires it in. The rule above for a rule adapted from `CLAUDE.md` or a fragment holds
 for a rule stated in another command or another section of the target too, and neither the pointer nor the quote
 carries a gloss: a gloss is a new wording that drifts, and a fresh wording is written only where the rule's words
