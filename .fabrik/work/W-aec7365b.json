@@ -4,8 +4,10 @@
   ],
   "created": "2026-03-02T00:00:00.000000Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-aec7365b",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -17,6 +19,7 @@
   "note": "migrated-digest:d6eed776e846",
   "owner": "fleet",
   "priority": 2,
+  "score_reason": "Promtail end-of-life; fleet-wide log-shipper switch across three VPSs, operator windows",
   "status": "open",
   "tags": [
     "waits-operator-resume",

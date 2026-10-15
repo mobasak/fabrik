@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-15T06:29:45.224699Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-a7bdd766",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "one-sentence edit in both contracts via /fabrik-task (governance-sync path → full /fabrik-review), keep the anchor phrase verbatim, then mail fabrik-lib",
   "note": "",
   "owner": "",
-  "priority": 1,
+  "priority": 3,
+  "score_reason": "One clause in two CLAUDE.md files",
   "status": "open",
   "title": "CLAUDE.md + templates/governance/CLAUDE.md: add the RUN-SCRATCH clause beside § EXIT 'CLEAN your own scratch' (run-bound scratch, 1da14fcd7; fleet-8e request; fabrik-lib told separately)"
 }

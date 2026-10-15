@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-03T20:31:25.183708Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-9ead34bd",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +17,7 @@
   "note": "",
   "owner": "",
   "priority": 1,
+  "score_reason": "Registrar-injected env never reaches canonical-compose containers; a template-line fix with fleet-wide effect",
   "status": "open",
   "tags": [
     "fleet"
