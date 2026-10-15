@@ -566,14 +566,14 @@ def test_every_charter_names_the_current_merge_owner() -> None:
     others = [r for r in roles if r != owner]
 
     def name(role: str) -> str:
-        return rf"`?\b{re.escape(role)}\b`?"
+        return rf"`?\b{re.escape(role)}\b`?(?:\s+agent)?"
 
     mo = r"merge[-\s]owner"
     stale_shapes = (
         [
             re.compile(
-                rf"{name(o)}\s+(?:merges\b|for\s+merges|(?:stays|is|remains)\s+(?:still\s+|now\s+)?(?:the\s+)?{mo}|"
-                rf"owns\s+(?:the\s+)?merges?|\(the\s+{mo}\)|"
+                rf"{name(o)}\s+(?:merges\s+(?:your\s+|the\s+|its\s+|every\s+|all\s+)?(?:branch(?:es)?|requests?|PRs?|it|them|work)\b|merges\s*[.;,)]|for\s+merges|(?:stays|is|remains)\s+(?:still\s+|now\s+)?(?:the\s+)?{mo}|"
+                rf"owns\s+(?:the\s+)?merges\b|\(the\s+{mo}\)|"
                 rf"(?:handles|does|takes|lands|runs)\s+(?:the\s+)?merges?\b)",
                 re.I,
             )
@@ -581,6 +581,8 @@ def test_every_charter_names_the_current_merge_owner() -> None:
         ]
         + [re.compile(rf"merges?\s+go(?:es)?\s+to\s+(?:the\s+)?{name(o)}", re.I) for o in others]
         + [re.compile(rf"{name(o)},\s+the\s+{mo}", re.I) for o in others]
+        + [re.compile(rf"(?:ask|asks|tell|tells)\s+{name(o)}\s+to\s+merge\b", re.I) for o in others]
+        + [re.compile(rf"{name(o)}\s+will\s+merge\b", re.I) for o in others]
         + [re.compile(rf"merge\s+requests?\s+(?:go(?:es)?\s+)?to\s+(?:the\s+)?{name(o)}", re.I) for o in others]
         + [
             re.compile(rf"{mo}\s*(?:\(|=|:|,|\bis\b|\bremains\b|\bstays\b)\s*(?:still\s+)?(?:the\s+)?{name(o)}", re.I)
