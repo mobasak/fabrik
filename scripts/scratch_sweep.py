@@ -275,8 +275,10 @@ def _holds_backup(entry: Path) -> bool | None:
         for dirpath, dirnames, filenames in os.walk(entry, followlinks=False, onerror=_boom):
             if os.path.basename(dirpath) == "scratchpad":
                 # a run folder is marker-governed: inside a CONSUMED one a backup shape is disposable
-                # by contract, and an ACTIVE one is kept whole anyway (plan P8, P10)
-                dirnames[:] = [d for d in dirnames if not d.startswith((RUN_PREFIX, TRASH_PREFIX))]
+                # by contract, and an ACTIVE one is kept whole anyway (plan P8, P10). Only the mint's
+                # KEYED name is one (`is_run_entry`): an agent's own `run-tests/` or `.trash-old/` is
+                # ordinary scratch, and pruning it by prefix hid its backups and removed them (F11)
+                dirnames[:] = [d for d in dirnames if not is_run_entry(Path(dirpath) / d)]
             for n in list(dirnames) + list(filenames):
                 if _is_backup_shape(n):
                     return True
@@ -392,10 +394,20 @@ def _dead_heartbeat_s() -> float:
     return float(_env_int("SCRATCH_RUN_HEARTBEAT_S", 604_800))
 
 
+def _refuse_constant(name: str) -> float:
+    raise ValueError(f"non-finite {name} in a run marker")
+
+
 def read_owner(folder: Path) -> dict | None:
-    """The parsed `.owner` marker; None when it is missing, unreadable or not a JSON object."""
+    """The parsed `.owner` marker; None when it is missing, unreadable or not a JSON object.
+
+    `NaN` / `Infinity` / `-Infinity` are refused (F10): `json.loads` accepts them, and a NaN or -inf
+    time read as a past close or creation made a clobbered marker CONSUMED at every reader of it
+    (`judge_run_folder`, `gap_keeps`, `write_size_report`). None is INV-1 doubt: kept, never removed.
+    """
     try:
-        data = json.loads((folder / OWNER_NAME).read_text(encoding="utf-8"))
+        text = (folder / OWNER_NAME).read_text(encoding="utf-8")
+        data = json.loads(text, parse_constant=_refuse_constant)
     except (OSError, ValueError):
         return None
     return data if isinstance(data, dict) else None

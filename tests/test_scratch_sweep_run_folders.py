@@ -677,6 +677,44 @@ def test_a_backup_inside_a_consumed_run_folder_is_disposable(
     assert not dead.exists(), out
 
 
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_a_non_finite_marker_time_is_doubt_never_consumed(
+    value: float, harness: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """F10 (W-6cdc86f3): a clobbered `.owner` whose time is NaN or ±Infinity (JSON `json.loads`
+    accepts) reads as NO marker — INV-1 doubt, kept — never as a past close that makes it consumed."""
+    sdir = _session(harness)
+    folder = _run_folder(sdir, "clobbered")
+    owner = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    owner["closed_at"] = value
+    owner["created"] = value
+    (folder / ".owner").write_text(json.dumps(owner), encoding="utf-8")
+    _age(folder / ".owner", 40 * HOUR)
+    assert sw.read_owner(folder) is None
+    rc, out = _main(capsys, "--run-folders", "--session", SID_A, "--apply")
+    assert rc == 0, out
+    assert folder.exists(), out
+
+
+@pytest.mark.parametrize("name", ["run-tests", ".trash-old"])
+def test_a_backup_inside_an_unminted_run_named_folder_keeps_its_dead_session(
+    name: str, harness: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """F11 (W-9f3dad31): only the mint's KEYED name is marker-governed (`is_run_entry`, P8). An
+    agent's own `run-tests/` or `.trash-old/` is ordinary scratch, so a backup inside it is the
+    dead session's backup: `dead-holds-backups`, kept whole — never pruned from the walk by name."""
+    dead = _session(harness)
+    own = dead / "scratchpad" / name
+    own.mkdir(parents=True)
+    (own / "main.py.bak").write_text("the only copy", encoding="utf-8")
+    _dead_record(tmp_path, SID_A)
+    _age_tree(dead, 30 * DAY)
+    rc, out = _main(capsys, "--dead", "--apply")
+    assert rc == 0, out
+    assert "dead-holds-backups" in out, out
+    assert (own / "main.py.bak").exists(), out
+
+
 def test_run_folders_respects_the_lock(harness: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """B9: a held per-session lock is one line, nothing removed, rc 0."""
     sdir = _session(harness)

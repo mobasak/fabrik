@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scratch_sweep: a dead session's backup in an agent's own `run-*` folder is kept; a NaN/inf run marker is doubt (2026-10-15)
+
+- `_holds_backup` pruned every `scratchpad/run-*` and `.trash-*` child from its walk by name, so a dead session whose only backup sat in an agent's own `run-tests/` read as plain `dead` and was removed whole (F11, W-9f3dad31); it now prunes only the mint's keyed folders (`is_run_entry`, P8). `read_owner` refuses `NaN`/`Infinity`/`-Infinity`, which `json.loads` accepts and which made a clobbered marker read as a past close — consumed — at all three readers (F10, W-6cdc86f3); such a marker is now no marker: kept. Tests: `tests/test_scratch_sweep_run_folders.py` (5 new cases, red first). Found by intel's scratch-lifecycle conformance review.
+
 ### Changed — close chain: a figure in a close input is printed by its producer, never recalled (2026-10-15)
 
 `commands/_fragments/close-chain.md` (the default close of 37 `/fabrik-*` commands) now says a measured figure an
