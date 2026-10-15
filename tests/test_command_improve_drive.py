@@ -136,8 +136,9 @@ def test_the_source_carries_d711_and_tells_a_worktree_run_the_truth(tmp_path, mo
         in text
     )
     assert (
-        "A sentence naming what a gate or script reads is checked against every branch of that function, for "
-        "every shape the sentence covers; a rule adapted from `CLAUDE.md` or a fragment is pointed at, or quoted in "
+        "A sentence naming what a gate or script reads or refuses is checked against every branch of that function "
+        "and every other path that filters or grades the same input, traced from the entry point that receives it, "
+        "for every shape the sentence covers; a rule adapted from `CLAUDE.md` or a fragment is pointed at, or quoted in "
         "its own words and routes, never narrowed in paraphrase; a `_fragments/` edit names each `{{include:}}` "
         "consumer with its bound placeholders, and each source or fragment that names it (`command grep -rlw "
         "<its file name without .md> commands/_sources commands/_fragments`, which lists the includers too; "

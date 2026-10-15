@@ -8,6 +8,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "commands" / "_sources" / "fabrik-command-improve.md"
+# the three sentences rows 1792038532 / 1792033691 / 1792000873 amended (one subject), pinned whole
+B_CLAIM_CHECK = 'A sentence naming what a gate or script reads or refuses is checked against every branch of that function and every other path that filters or grades the same input, traced from the entry point that receives it, for every shape the sentence covers;'
+C_RUN_RULE = "A rule the edit adds is RUN before PHASE 4's first pin — applied to the edit's own grader and sentence, which obey it, and to the row's case quoted as the row gives it (or, when the row only describes it, the artifact it names, fetched and quoted), which it must flag, each verdict written beside its quote."
+A_GROUNDING = "the tool's own runtime output when a verdict is about a gate, a check or a tool, and its code, read live, when the edit restates the gate's conditions — every condition and value copied, never the prose describing them;"
 
 
 def _phase(start: str, end: str) -> str:
@@ -144,8 +148,7 @@ def test_phase_three_checks_an_added_rule_on_the_edit_and_its_origin_case() -> N
     section, and an edit that cites the sentence without running the check — the review seats own that."""
     p3 = _phase("## PHASE 3", "## PHASE 4")
     assert (
-        "and must be obeyable in each. A rule the edit adds is checked before PHASE 4's pin on the edit's own grader and"
-        " sentence, which obey it, and on the case that raised it, which it must flag. A mechanism the edit adds"
+        "and must be obeyable in each. " + C_RUN_RULE + " A mechanism the edit adds"
         in p3
     )
 
@@ -316,3 +319,30 @@ def test_phase_three_points_at_a_rule_stated_elsewhere_without_a_gloss() -> None
     assert before.rstrip().endswith("this edit wires it in."), before[-80:]
     after = p3[p3.index(head) + len(sentence) :]
     assert after.lstrip().startswith("A sentence that describes what a script, tool or another step DOES"), after[:80]
+
+
+def test_a_claim_about_a_gate_is_grounded_in_its_code_and_run_on_the_rows_case() -> None:
+    """Rows 1792038532, 1792033691 and 1792000873 (kaizen, 2026-10-15) — one subject: a claim about a gate or script
+    is grounded in the real artifact, never a stand-in. (1) "every branch of that function" let two misreadings through
+    in one run, each a second code path the named function did not show (a sibling grader of the same plan text, a
+    COMMANDS tuple filtering `--init`'s input): the check now reaches every other path that filters or grades the same
+    input. (2) "checked … on the case that raised it" was satisfied by READING: a quote ban was drafted while the raising
+    case was a glossed pointer; the rule is now RUN on the row's case quoted as the row gives it. (3) an edit restating a
+    gate's conditions was drafted from the lane table's prose and dropped three of the gate's conditions: § Drive's
+    Grounding bullet now names the gate's code, every condition and value copied. Rows (2) and (3) are second sightings
+    of held subjects (apply-rule-to-origin-case, open-enforcing-code-before-restating; D-711). Mutants, each a failing
+    assertion: drop "or refuses"; drop "and every other path that filters or grades the same input"; RUN → checked;
+    drop "quoted as the row gives it"; drop the Grounding clause; "every condition and value" → "the conditions".
+    Round 1 bounded each rule with its method: the other paths are traced from the entry point that receives the
+    input (a grep of call sites is not a trace); the run names its route when the row only describes its case (the
+    artifact it names, fetched and quoted) and writes each verdict beside its quote; the code is read live."""
+    text = re.sub(r"\s+", " ", SRC.read_text())
+    p3 = _phase("## PHASE 3", "## PHASE 4")
+    assert B_CLAIM_CHECK in p3
+    assert C_RUN_RULE in p3
+    drive = text[text.index("- **Grounding — before drafting, not after review.**") : text.index("- **Time.**")]
+    assert A_GROUNDING in drive
+    # each rule is stated once — a restatement elsewhere in the file would drift
+    assert text.count("filters or grades the same input") == 1
+    assert text.count("quoted as the row gives it") == 1
+    assert text.count("every condition and value copied") == 1
