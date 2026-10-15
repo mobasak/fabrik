@@ -12,8 +12,10 @@ other's answer. The brief holds:
   absolute path and its md5 (its origin is the hub's `/opt/fabrik/<path>`), the md5 standing in for a commit wherever line
   numbers are cited;
 - the operator's ask in their own words;
-- the house rules every seat brief carries: read-only, no `$HOME/.claude*` reads, scratch only under the
-  absolute scratchpad, `timeout 120 /usr/bin/grep`.
+- the house rules every seat brief carries: read-only, no `$HOME/.claude*` reads, scratch only under
+  `<RUN-SCRATCH>/seat-critique-<model>-<k>/` (the run's `RUN-SCRATCH:` folder, the path after `RUN-SCRATCH: ` up to the next space;
+  `<k>` counts this run's critique dispatches, so a stand-in or a re-dispatch never shares a folder; the
+  absolute scratchpad when the line reads `none` or is absent), `timeout 120 /usr/bin/grep`.
 
 The brief never carries the author's review history or recommendation. Ask each seat to read the design
 COLD and return:
