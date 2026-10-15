@@ -344,6 +344,92 @@ def probe_holders(
     return held, gaps, True
 
 
+# ── run-bound scratch: the marker and the ONE classifier (scratch lifecycle plan, P2) ───────────
+# A run's bulky work lives in `<session dir>/scratchpad/run-<key>/`, which `command_run.py` mints at
+# `start` with a `.owner` marker and marks at every close. Removal reads ONLY that marker plus the
+# holder probe — never age, never a tree walk — so a multi-GB folder is judged in constant time.
+OWNER_NAME = ".owner"
+RUN_PREFIX = "run-"
+TRASH_PREFIX = ".trash-"
+RUN_STATES = ("running", "done", "resumable")
+GRACE_FAST_S = 30 * 60  # a `done` run with no seat write after its close (the operator's 30 min)
+
+
+def _grace_ceiling_s() -> float:
+    """P1: 36 h unless the test seam says otherwise — a seat wrote after the close, or we cannot tell."""
+    return float(_env_int("SCRATCH_RUN_GRACE_S", 129_600))
+
+
+def _dead_heartbeat_s() -> float:
+    """A `running` run in a session with a death signal is consumed only past this heartbeat age."""
+    return float(_env_int("SCRATCH_RUN_HEARTBEAT_S", 604_800))
+
+
+def read_owner(folder: Path) -> dict | None:
+    """The parsed `.owner` marker; None when it is missing, unreadable or not a JSON object."""
+    try:
+        data = json.loads((folder / OWNER_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+@dataclass(frozen=True)
+class RunFacts:
+    """Everything the classifier reads about one run folder — gathered by the caller, judged here."""
+
+    state: str | None
+    closed_at: float | None
+    heartbeat_age_s: float
+    session_dead: bool  # no live signal AND a death signal (the heartbeat age is judged below)
+    held: bool
+    gaps: bool
+    probe_ok: bool
+    worktree: bool
+    keep: bool
+    sid_matches: bool = True  # a D3 (own-session) input only; D4 passes True (plan P6)
+    seat_write_after_close: bool | None = None  # None = could not read → the 36 h ceiling (P13)
+
+
+def classify_run_folder(f: RunFacts, now: float) -> tuple[str, str]:
+    """`("active" | "consumed", reason)` — spec § Invariants, INV-1 first: any doubt is ACTIVE.
+
+    Cobra (D-253): the cheap way to make this "remove more" is to drop an INV-1 condition; the
+    partition test in tests/test_scratch_sweep_run_folders.py enumerates every state against an
+    independent restatement of INV-1, so a dropped condition reads red, not faster.
+    """
+    if f.state not in RUN_STATES:
+        return "active", "no readable marker, or an unknown state — never removed on doubt"
+    if f.state == "resumable":
+        return "active", "resumable — a quota-wall resume may still adopt it"
+    if f.state == "running":
+        if not f.session_dead:
+            return "active", "running in a session with a live signal or no death signal"
+        if f.heartbeat_age_s <= _dead_heartbeat_s():
+            return "active", "running; the session looks dead but the heartbeat is recent"
+    if f.state == "done":
+        if f.closed_at is None:
+            return "active", "done without a close time — never removed on doubt"
+        grace = GRACE_FAST_S if f.seat_write_after_close is False else _grace_ceiling_s()
+        if now - f.closed_at < grace:
+            return "active", f"closed {_human(now - f.closed_at)} ago, inside its grace"
+    if not f.probe_ok:
+        return "active", "the holder probe could not complete"
+    if f.held:
+        return "active", "held by a live process (fd or cwd inside)"
+    if f.gaps:
+        return "active", "a same-uid process's /fd could not be read"
+    if f.worktree:
+        return "active", "holds a registered git worktree"
+    if f.keep:
+        return "active", f"holds its own {KEEP_FILE}"
+    if not f.sid_matches:
+        return "active", "the marker's session differs from its directory"
+    if f.state == "running":
+        return "consumed", "running, but its session is dead and its heartbeat is stale"
+    return "consumed", f"done, closed {_human(now - (f.closed_at or now))} ago, past its grace"
+
+
 # ── the freshness walk ──────────────────────────────────────────────────────────────────────────
 class WalkBudget:
     """A TOTAL stat budget shared across entries, plus a wall-clock deadline.

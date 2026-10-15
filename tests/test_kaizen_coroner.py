@@ -1014,3 +1014,73 @@ def test_a_failed_record_close_is_counted_in_the_line(sources, tmp_path, monkeyp
     report = kc.sweep(src)
     assert any("record close" in e for e in report.errors)
     assert json.loads(src.sweeps_log.read_text().splitlines()[-1])["errors"] >= 1
+
+
+# ── run-bound scratch (scratch lifecycle plan P11, row A7) ───────────────────────────────────────
+
+
+def _run_folder(tmp_path: Path, name: str) -> Path:
+    folder = tmp_path / "harness" / "-opt-x" / SID / "scratchpad" / name
+    folder.mkdir(parents=True)
+    (folder / ".owner").write_text(json.dumps({"state": "running", "closed_at": None}))
+    return folder
+
+
+def _with_run_folders(sources: kc.Sources, tmp_path: Path, age_s: int = 3600) -> tuple[Path, Path]:
+    """A running record whose own run folder and a parked parent's folder are both `running`."""
+    path = _write_record(sources, SID, age_s=age_s)
+    rec = json.loads(path.read_text())
+    child, parent = (
+        _run_folder(tmp_path, "run-child-aaa111"),
+        _run_folder(tmp_path, "run-parent-bbb222"),
+    )
+    rec["run_scratch"] = str(child)
+    rec["stack"] = [
+        {"command": "fabrik-execute-plan", "state": "running", "run_scratch": str(parent)}
+    ]
+    path.write_text(json.dumps(rec, indent=2))
+    return child, parent
+
+
+def _state(folder: Path) -> str:
+    return json.loads((folder / ".owner").read_text())["state"]
+
+
+def test_coroner_marks_run_folders_done(sources, tmp_path):
+    """A7: a `died` close marks the record's folder AND every parked parent's folder `done`."""
+    child, parent = _with_run_folders(sources, tmp_path)
+    _write_marker(sources, SID, "rate_limit")
+    kc.sweep(sources)
+    assert _record(sources, SID)["state"] == "died"
+    assert _state(child) == "done" and _state(parent) == "done"
+
+
+def test_coroner_expired_marks_nothing(sources, tmp_path):
+    """A7 (P11): `expired` is no death evidence — a live operator away overnight keeps the folders."""
+    child, parent = _with_run_folders(sources, tmp_path, age_s=13 * 3600)
+    kc.sweep(sources)
+    assert _record(sources, SID)["state"] == "expired"
+    assert _state(child) == "running" and _state(parent) == "running"
+
+
+def test_coroner_tolerates_a_command_run_without_the_mark(sources, tmp_path, monkeypatch):
+    """A7: a synced command_run.py older than the plan (no `_mark_run_scratch`) still closes the
+    record `died`; the folders stay as they are and the sweep records no error."""
+    child, parent = _with_run_folders(sources, tmp_path)
+    _write_marker(sources, SID, "rate_limit")
+    monkeypatch.delattr(command_run, "_mark_run_scratch")
+    report = kc.sweep(sources)
+    assert _record(sources, SID)["state"] == "died"
+    assert _state(child) == "running" and _state(parent) == "running"
+    assert not any("run folder mark" in e or "record close" in e for e in report.errors), (
+        report.errors
+    )
+
+
+def test_coroner_marks_only_after_a_successful_save(sources, tmp_path, monkeypatch):
+    """A7: a `died` close whose save fails leaves both folders `running`."""
+    child, parent = _with_run_folders(sources, tmp_path)
+    _write_marker(sources, SID, "rate_limit")
+    monkeypatch.setattr(kc, "_command_run_save", lambda sid, rec: False)
+    kc.sweep(sources)
+    assert _state(child) == "running" and _state(parent) == "running"
