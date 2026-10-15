@@ -141,7 +141,8 @@ extension settings, and `remote.SSH` config for the VPS.
     `function pv(r){r&&(delete r.DEBUG,delete r.NODE_OPTIONS,…)}` in `~/.vscode-server/bin/<commit>/out/server-main.js`,
     applied to the extension host's environment right after "Starting extension host process..." and to the
     ptyHost, fileWatcher and agent-host forks — and gives the extension host the server's own `execArgv` (empty:
-    `bin/code-server` starts node with no flags) plus `--dns-result-order=ipv4first`. A probe forking the same way read 8,384 MiB in the parent and 4,288 MiB (node's default here)
+    `bin/code-server` starts node with no flags) plus `--dns-result-order=ipv4first`.
+    A probe forking the same way read 8,384 MiB in the parent and 4,288 MiB (node's default here)
     in the child. The extension host keeps that default whatever that file says.
   - What it costs: every Claude tab of one window shares that ONE host, and the extension parses a restored
     tab's transcript whole when its compact boundaries carry a preserved segment; the host died with
