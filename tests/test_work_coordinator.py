@@ -1124,3 +1124,129 @@ def test_a_malformed_hold_does_not_break_the_queue(tmp_path):
     assert r.returncode != 0 and "Traceback" not in r.stderr, r.stderr
     path.write_text(json.dumps({**data, "blocked_by": "W-00000000"}, indent=2) + "\n", "utf-8")
     assert item not in run(["ready", "--all"], env, repo).stdout  # a scalar id still holds
+
+
+# ── paused workers (W-da4bc702): a shared marker the floor, triage and every Stop rung honour ─────
+
+
+def _paused_dir(repo: Path) -> Path:
+    return repo / ".git" / "fabrik-work" / "paused"
+
+
+def _operator(env: dict) -> dict:
+    """The operator's shell or the dashboard: no agent name AND no Claude session id."""
+    return {k: v for k, v in env.items() if k not in ("CLAUDE_AGENT", "CLAUDE_CODE_SESSION_ID")}
+
+
+def test_pause_and_resume_mark_a_worker(tmp_path):
+    """pause writes the shared marker and resume removes it; only the pauser, the distributor or the
+    operator lifts a pause; an unnamed Claude session, another named agent and a bad name are
+    refused; an unknown name is warned about, never refused."""
+    env, repo, trees = _setup(tmp_path, workers=("w1", "w2"), present=("w1",))
+    r = run(["pause", "w1", "--why", "operator hold"], env, repo)
+    assert r.returncode == 0, r.stderr
+    rec = json.loads((_paused_dir(repo) / "w1.json").read_text(encoding="utf-8"))
+    assert rec["by"] == "coord" and rec["why"] == "operator hold" and rec["at"] > 0
+    listing = run(["pause"], env, repo)
+    assert listing.returncode == 0 and "w1" in listing.stdout and "coord" in listing.stdout
+    w1 = {**env, "CLAUDE_AGENT": "w1"}
+    self_resume = run(["resume", "w1"], w1, trees["w1"])
+    assert self_resume.returncode == 1 and "coord" in self_resume.stderr  # names the pauser
+    assert (_paused_dir(repo) / "w1.json").exists()
+    session_only = {**_operator(env), "CLAUDE_CODE_SESSION_ID": "s-unnamed"}
+    assert run(["pause", "w2"], session_only, repo).returncode == 1  # an unnamed Claude session
+    assert run(["pause", "w2"], w1, trees["w1"]).returncode == 1  # another named agent
+    assert run(["pause", "Bad Name"], env, repo).returncode == 1
+    op = run(["pause", "w2", "--by", "dashboard"], _operator(env), repo)
+    assert op.returncode == 0, op.stderr
+    assert json.loads((_paused_dir(repo) / "w2.json").read_text())["by"] == "dashboard"
+    ghost = run(["pause", "ghost"], env, repo)
+    assert ghost.returncode == 0 and "ghost" in ghost.stderr  # warned: matches no known agent
+    assert run(["resume", "w1"], env, repo).returncode == 0  # the distributor lifts it
+    assert not (_paused_dir(repo) / "w1.json").exists()
+    assert run(["resume", "w2"], _operator(env), repo).returncode == 0  # the operator lifts it
+    assert run(["pause", "w1"], w1, trees["w1"]).returncode == 0  # an agent may pause itself
+    assert run(["resume", "w1"], w1, trees["w1"]).returncode == 0  # and lift its own pause
+
+
+def test_a_paused_worker_is_never_pushed_to_start(tmp_path):
+    """A paused worker's Stop action is null on the classic path and under autonomy, its claim kept;
+    a window named unlike its tree is caught by either name."""
+    env, repo, trees = _setup(tmp_path, workers=("w1",), present=("w1",))
+    item = _add(trees["w1"], env, "task", "in my tree")
+    _assign(trees["w1"], env, item, "w1")
+    w1 = {**env, "CLAUDE_AGENT": "w1"}
+    assert _stop(trees["w1"], w1)["action"] == "claim"
+    assert run(["pause", "w1"], env, repo).returncode == 0
+    out = _stop(trees["w1"], w1)
+    assert out["action"] is None and out["role"] == "paused", out
+    alice = {**env, "CLAUDE_AGENT": "alice"}  # a window named unlike its tree: caught by the tree
+    assert _stop(trees["w1"], alice)["action"] is None
+    assert run(["resume", "w1"], env, repo).returncode == 0
+    assert run(["pause", "alice"], env, repo).returncode == 0  # ...and by its own name
+    assert _stop(trees["w1"], alice)["action"] is None
+    assert run(["resume", "alice"], env, repo).returncode == 0
+    held = _add(trees["w1"], env, "task", "held one")
+    _assign(trees["w1"], env, held, "w1")
+    assert run(["claim", held, "--session", SID], w1, trees["w1"]).returncode == 0
+    cfg = repo / ".fabrik" / "work" / "config.json"
+    cfg.write_text(json.dumps({**json.loads(cfg.read_text()), "autonomy": True}), encoding="utf-8")
+    assert _stop(trees["w1"], w1)["action"] == "continue"  # autonomy pushes the held claim on
+    assert run(["pause", "w1"], env, repo).returncode == 0
+    out = _stop(trees["w1"], w1)
+    assert out["action"] is None and not out.get("candidates"), out
+    assert (repo / ".git" / "fabrik-work" / "claims" / f"{held}.json").exists()  # nothing lost
+
+
+def test_the_floor_and_triage_skip_a_paused_worker(tmp_path, monkeypatch):
+    """The coordinator's floor rung and triage skip a paused worker; a worker's doorbell skips a
+    paused coordinator."""
+    env, repo, trees = _setup(tmp_path, workers=("w1",), present=("w1",))
+    _add(repo, env, "task", "free")
+    assert _stop(repo, env, session="sid-coord")["action"] == "triage"
+    assert run(["pause", "w1"], env, repo).returncode == 0
+    # no triage owed: the only worker is paused (the store's uncommitted item file may still be named)
+    assert _stop(repo, env, session="sid-coord")["action"] in (None, "commit-items")
+    plan = run(["triage"], env, repo)
+    assert plan.returncode == 0 and "plan: w1" not in plan.stdout and "paused: w1" in plan.stdout
+    applied = run(["triage", "--apply"], env, repo)
+    assert applied.returncode == 0
+    assert all(i.get("owner", "") != "w1" for i in _items(repo).values())
+    assert run(["resume", "w1"], env, repo).returncode == 0
+    _add(repo, env, "backlog", "strategic")
+    _git(repo, env, "add", ".fabrik")
+    _git(repo, env, "commit", "-q", "-m", "backlog")
+    w = _work()
+    monkeypatch.setenv("FABRIK_WORK_PROC", env["FABRIK_WORK_PROC"])
+    monkeypatch.setenv("CLAUDE_AGENT", "w1")
+    monkeypatch.setattr(w, "_sessions_of", lambda agent, main: ["coord-window"] if agent == "coord" else [])
+    rings = w._stop_action(trees["w1"], SID)
+    assert rings["action"] == "doorbell" and "coord-window" in rings["text"], rings
+    assert run(["pause", "coord"], env, repo).returncode == 0
+    quiet = w._stop_action(trees["w1"], SID)
+    assert quiet["action"] == "doorbell" and "coord-window" not in quiet["text"], quiet
+
+
+def test_a_pause_is_shown_and_fails_paused(tmp_path, monkeypatch):
+    """queue and the prompt block show who is paused; the PAUSED line names the pauser and offers
+    no resume command; an unreadable marker still pauses and a writer's .tmp file never does; a
+    paused caller's NEXT: line auto-claims nothing."""
+    env, repo, trees = _setup(tmp_path, workers=("w1", "w2", "w3"), present=("w1", "w2"))
+    _add(repo, env, "task", "free")
+    assert run(["pause", "w1", "--why", "operator hold"], env, repo).returncode == 0
+    agents = {a["agent"]: a for a in _queue(repo, env)["agents"]}
+    assert agents["w1"]["paused_by"] == "coord" and not agents["w2"].get("paused_by")
+    w = _work()
+    monkeypatch.setenv("FABRIK_WORK_PROC", env["FABRIK_WORK_PROC"])
+    monkeypatch.setenv("CLAUDE_AGENT", "w1")
+    block = w.prompt_block(trees["w1"], SID)
+    assert "PAUSED by coord" in block and "operator hold" in block, block
+    assert "work.py resume" not in block and "ready —" not in block, block
+    _paused_dir(repo).joinpath("w2.json").write_text("{not json", encoding="utf-8")
+    _paused_dir(repo).joinpath("w3.json.abc123.tmp").write_text("{}", encoding="utf-8")
+    assert _stop(trees["w2"], {**env, "CLAUDE_AGENT": "w2"})["role"] == "paused"
+    agents = {a["agent"]: a for a in _queue(repo, env)["agents"]}
+    assert agents["w2"]["paused_by"] and not agents["w3"].get("paused_by")
+    item = _add(trees["w1"], env, "task", "named in NEXT")
+    w.on_harvest(trees["w1"], session=SID, next_text=f"NEXT: {item} — named in NEXT")
+    assert not (repo / ".git" / "fabrik-work" / "claims" / f"{item}.json").exists()
