@@ -7,6 +7,7 @@ behaviors (b)-(d) are load-bearing: a project with no charters must see a silent
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -501,3 +502,89 @@ def test_every_charter_beat_points_at_the_mail_routing_map() -> None:
         lines = (AGENTS_DIR / name).read_text().splitlines()
         assert lines[first - 1].startswith(start), cite
         assert end in lines[last - 1], cite
+
+
+# ── Every charter names the current merge owner (W-cfff98dd d, D-889) ─────────────────────────────
+
+
+def _ledger_merge_owner() -> str:
+    """The owner the hooks and merge_request.py use: the highest-id MERGE OWNER row. Exit 3
+    (UNDECLARED) and exit 1 (unreadable ledger, empty stdout) both fail here, never pass."""
+    r = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "decisions.py"), "--merge-owner", str(REPO)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    owner = r.stdout.strip()
+    assert r.returncode == 0 and owner and owner != "UNDECLARED", (r.returncode, owner, r.stderr[-300:])
+    return owner
+
+
+def _charter_units(text: str) -> list[str]:
+    """Blank-line paragraphs split again at bullet and numbered-item starts, HTML comments and
+    code fences stripped, whitespace collapsed — a stale phrase wrapped across lines stays whole."""
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+    text = re.sub(r"^```.*?^```[^\n]*$", "", text, flags=re.S | re.M)
+    units = []
+    for para in re.split(r"\n\s*\n", text):
+        for part in re.split(r"\n(?=\s*(?:[-*]|\d+\.)\s)", para):
+            unit = " ".join(part.split())
+            if unit:
+                units.append(unit)
+    return units
+
+
+def test_every_charter_names_the_current_merge_owner() -> None:
+    """Operator 2026-10-15: agents must know their duties after any loss of context. D-874 moved
+    the merge owner from infra to the coordinator, yet kaizen.md still routed "infra for merges",
+    coordinator.md said "until it arrives infra is the merge owner" and fleet.md named no owner.
+    Every charter (all of HUB_BEATS, the owner's own included) carries one canonical sentence for
+    the ledger's owner, and no unit names another hub agent as merger — so when the MERGE OWNER
+    row moves, every charter fails until it is brought along (D-889)."""
+    import importlib.util
+
+    owner = _ledger_merge_owner()
+    spec = importlib.util.spec_from_file_location("_mail_for_roles", REPO / "scripts" / "mail.py")
+    assert spec is not None and spec.loader is not None
+    mail = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mail)
+    roles = tuple(mail.HUB_BEATS)
+    charters = {
+        p.stem: p.read_text(encoding="utf-8")
+        for p in REAL_AGENT_FILES
+        if p.read_text(encoding="utf-8").startswith("# Agent charter")
+    }
+    assert set(charters) == set(roles), (sorted(charters), roles)
+    canonical = (
+        f"**Merges:** the merge owner is `{owner}` (`scripts/decisions.py --merge-owner` reads it from the "
+        "ledger); a finished worktree branch reaches it with `scripts/merge_request.py request`."
+    )
+    others = [r for r in roles if r != owner]
+
+    def name(role: str) -> str:
+        return rf"`?\b{re.escape(role)}\b`?"
+
+    stale_shapes = (
+        [
+            re.compile(
+                rf"{name(o)}\s+(?:merges\b|for\s+merges|stays\s+(?:the\s+)?merge\s+owner|"
+                rf"is\s+(?:the\s+)?merge\s+owner|owns\s+(?:the\s+)?merges?|\(the\s+merge\s+owner\))",
+                re.I,
+            )
+            for o in others
+        ]
+        + [re.compile(rf"merges?\s+go(?:es)?\s+to\s+(?:the\s+)?{name(o)}", re.I) for o in others]
+        + [re.compile(rf"merge\s+owner(?:\s+is|,|:)\s+(?:the\s+)?{name(o)}", re.I) for o in others]
+    )
+    # no "every unit saying merge owner must name the owner" rule: it fired on coordinator.md's
+    # legitimate "keep each charter true to ... the merge owner" (measured, D-889); the stale shapes
+    # above catch the wrong forms it was meant for ("infra is the merge owner", "infra (the merge owner)").
+    problems = []
+    for role, text in sorted(charters.items()):
+        flat = " ".join(text.split())
+        if flat.count(canonical) != 1:
+            problems.append(f"{role}.md: the canonical merge-owner sentence appears {flat.count(canonical)} times, want 1")
+        for unit in _charter_units(text):
+            problems += [f"{role}.md names another agent as merger: {unit[:120]}" for rx in stale_shapes if rx.search(unit)]
+    assert not problems, "\n".join(problems)
