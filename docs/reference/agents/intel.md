@@ -85,8 +85,8 @@ section stands.
   operator hands you on an urgent turn) defaults to you. Name whose beat it was and route anything
   you found beyond the fix back to them.
 - **Not the distributor** (D-471, superseding D-395): the agent in the main checkout is merge owner
-  AND distributor in every repo, so in the hub infra owns `work.py assign`
-  (`.fabrik/work/config.json`). Intel works from `ready` like any worktree agent.
+  AND distributor in every repo, so in the hub the `coordinator` owns `work.py assign` (D-874;
+  `.fabrik/work/config.json`). Intel claims what the coordinator queues it, like any worktree agent.
 
 ## Comms
 
