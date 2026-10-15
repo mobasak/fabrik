@@ -2253,6 +2253,7 @@ NEXT_TIP_CAP = (
 )
 _repos_lock = threading.Lock()
 _repos_cache: tuple[float, str] | None = None
+_repos_gen = 0  # bumped by every board write; a build that saw it move is not cached
 _work_mod: tuple[float, object, list[str]] | None = None  # (work.py mtime, module, warnings sink)
 
 
@@ -2474,6 +2475,10 @@ _REPOS_STYLE = """
  .ag-chip.stale { color:var(--warn); border-color:var(--warn); }
  .ag-chip.away { color:var(--sub); }
  .ag-sub { color:var(--sub); font-size:12px; }
+ .ag-btn { font:inherit; font-size:12px; margin-top:4px; padding:2px 10px; border-radius:999px; cursor:pointer;
+   border:1px solid var(--line); background:var(--card); color:var(--fg); }
+ .ag-btn[data-action="resume"] { border-color:var(--accent); color:var(--accent); }
+ .ag-btn:disabled { opacity:.5; cursor:default; }
  table.ag ul { margin:0; padding-left:16px; }
 """
 
@@ -2521,9 +2526,31 @@ def _item_line(item: dict) -> str:
     return f"<code>{escape(str(item.get('id', '')))}</code> {escape(title)}"
 
 
-def _agent_row(a: dict) -> str:
+def _pause_cell(a: dict, repo: str) -> str:
+    """Who paused the agent, and its Pause/Resume button — only where `work.py pause` can succeed
+    (an agent name in a repo whose store has config.json; W-7159f8e2 part 3)."""
+    paused = a.get("paused") or None
+    out = ""
+    if paused:
+        some = " — only some of its windows" if paused.get("partial") else ""
+        out += (f'<div class="ag-sub">paused by {escape(str(paused.get("by") or "?"))}, '
+                f'{escape(_ago(paused.get("at")))}{some}</div>')
+        if not a.get("pause_honoured"):
+            out += '<div class="ag-sub">not honoured here until this repo\'s work.py syncs</div>'
+    if a.get("can_pause"):
+        action = "resume" if paused else "pause"
+        out += (
+            f'<button type="button" class="ag-btn" data-repo="{escape(repo)}" '
+            f'data-agent="{escape(str(a.get("name", "")))}" data-action="{action}">'
+            f'{"Resume" if paused else "Pause"}</button>'
+        )
+    return out
+
+
+def _agent_row(a: dict, repo: str = "") -> str:
     state = str(a.get("state") or "away")
     chip = f'<span class="ag-chip {escape(state)}" title="{escape(_AG_STATES.get(state, state))}">{escape(state)}</span>'
+    chip += _pause_cell(a, repo)
     now = a.get("now") or {}
     if now:
         phase = f" phase {now.get('phase')}/{now.get('phases')}" if now.get("phases") else ""
@@ -2563,17 +2590,85 @@ def _agent_row(a: dict) -> str:
     )
 
 
+# ── Pause / Resume from the board (operator 2026-10-15: "i want a button to be added there to send
+# pause command to running agent" + "also the resume button"; W-7159f8e2 part 3). The board acts
+# only on a (repo, agent) pair it rendered with a button, through the HUB's work.py (`--repo` the
+# recorded main checkout), as the OPERATOR: the child gets an ALLOWLISTED environment — no CLAUDE_*
+# identity (a server started from an agent shell carries one; measured), no GIT_* (GIT_DIR overrides
+# --repo; measured). This rests on work.py's identity being environment-only (whoami_agent.py "from
+# the environment ONLY"); a process-tree fallback there would have to revisit it. Every rule about
+# who may pause or resume stays work.py's (D-910): the board never writes a marker itself.
+# COBRA: the cheapest "working button" lets the server's own identity through — the test sets
+# CLAUDE_AGENT, CLAUDE_CODE_SESSION_ID and GIT_DIR on the server and asserts the operator's marker.
+_PAUSE_TARGETS: dict[tuple[str, str], dict] = {}  # REPLACED whole on each build, never mutated
+_PAUSE_ENV_KEEP = ("PATH", "HOME", "LANG", "TZ")
+PAUSE_TIMEOUT_S = 30
+
+
+def _publish_pause_targets(repos: list[dict]) -> None:
+    global _PAUSE_TARGETS
+    _PAUSE_TARGETS = {
+        (str(r.get("name")), str(a.get("name"))): {"main": str(r.get("main")), "paused": a.get("paused")}
+        for r in repos
+        for a in r.get("agents", [])
+        if a.get("can_pause") and not r.get("error")
+    }
+
+
+def pause_agent(repo: object, agent: object, action: object, why: object = "") -> tuple[int, dict]:
+    """Pause or resume one agent the board shows. (http_status, json_body): 400 for an unknown pair
+    or action (nothing runs), 502 when work.py refuses or times out (its message), 200 on success."""
+    if action not in ("pause", "resume") or not isinstance(repo, str) or not isinstance(agent, str):
+        return 400, {"ok": False, "error": "body needs repo, agent and action pause|resume"}
+    target = _PAUSE_TARGETS.get((repo, agent))
+    if target is None:  # a restarted server, or a frame older than the last build: rebuild once
+        _repos_page(fresh=True)
+        target = _PAUSE_TARGETS.get((repo, agent))
+    if target is None:
+        return 400, {"ok": False, "error": f"{agent!r} in {repo!r} has no pause button on the board"}
+    hub = _FABRIK_ROOT / "scripts" / "work.py"
+    base = [sys.executable, str(hub), "--repo", target["main"]]
+    if action == "pause":
+        # a NUL or a lone surrogate makes subprocess raise ValueError/UnicodeEncodeError: drop them
+        note = " ".join("".join(c for c in str(why or "") if c.isprintable() or c.isspace()).split())[:200]
+        argv = [*base, "pause", "--by=dashboard", f"--why={note}", "--", agent]
+    else:  # every marker the row showed — a pause keyed by a window's tree carries the tree's name
+        shown = target.get("paused") or {}
+        names = [str(n) for n in shown.get("names") or [shown.get("name") or agent]]
+    env = {k: v for k, v in os.environ.items() if k in _PAUSE_ENV_KEEP or k.startswith("LC_")}
+    runs = [argv] if action == "pause" else [[*base, "resume", "--", n] for n in names]
+    out: list[str] = []
+    try:
+        for cmd in runs:  # `resume` lifts one name; the first refusal stops the rest
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=PAUSE_TIMEOUT_S, env=env,
+                               cwd=target["main"])
+            if r.returncode:
+                _drop_repos_cache()
+                return 502, {"ok": False, "error": (r.stderr or r.stdout or "work.py failed").strip()[:400]}
+            out.append(r.stdout.strip())
+    except subprocess.TimeoutExpired:
+        _drop_repos_cache()
+        return 502, {"ok": False, "error": "work.py timed out — nothing confirmed; the next refresh "
+                                           "is authoritative"}
+    except (OSError, ValueError) as exc:
+        return 502, {"ok": False, "error": f"work.py could not run: {exc}"[:400]}
+    _drop_repos_cache()  # the next page build shows the change
+    return 200, {"ok": True, "output": "\n".join(out)[:400]}
+
+
 def _agents_block() -> str:
     """Every repo's agents: fabrik first, then repos with an agent working, then the others with one."""
     try:
         data = _status_module().collect_box(_opt_root())
     except Exception as exc:  # the Repos panes below never depend on this block
+        _publish_pause_targets([])  # no board, no buttons: an older frame's pair acts on nothing
         return (
             '<section class="agents"><h2>Agents — every repo</h2><div class="banner crit">Agents '
             f"unreadable — {escape(type(exc).__name__)}: {escape(str(exc))}</div></section>"
         )
     repos = [r for r in data.get("repos", []) if r.get("agents") or r.get("error")]
     quiet = len(data.get("repos", [])) - len(repos)
+    _publish_pause_targets(repos)
     repos.sort(key=lambda r: (r.get("name") != "fabrik",
                               not any(a.get("state") == "working" for a in r.get("agents", [])),
                               str(r.get("name"))))
@@ -2596,7 +2691,7 @@ def _agents_block() -> str:
             out.append(f'<div class="banner crit">{escape(str(r["error"]))}</div>')
             continue
         try:  # a malformed row is that repo's banner, never the page's (the panes must still render)
-            rows = "".join(_agent_row(a) for a in r.get("agents", []))
+            rows = "".join(_agent_row(a, str(r.get("name") or "")) for a in r.get("agents", []))
         except Exception as exc:
             out.append(f'<div class="banner crit">agents unreadable — {escape(type(exc).__name__)}: '
                        f"{escape(str(exc))}</div>")
@@ -2717,21 +2812,50 @@ _REPOS_PICK_JS = (
     ' pick.addEventListener("change", function () { show(pick.value);'
     '  try { localStorage.setItem("repo-pick", pick.value); } catch (e) {} });'
     "} initPicker();"
-    " function refreshRepos() {"
+    # force (after a Pause/Resume): a fresh build, past the focus, selection and same-stamp skips —
+    # never past a hidden tab or frame
+    " function refreshRepos(force) {"
+    "  force = force === true;"
     "  if (document.hidden) { return; }"
     "  try { var fe = window.frameElement; if (fe && fe.offsetParent === null) { return; } } catch (e) {}"
-    '  var act = document.activeElement; if (act && act.id === "repo-pick") { return; }'
-    "  var sel = window.getSelection ? String(window.getSelection()) : ''; if (sel) { return; }"
-    '  fetch("/repos.html", {cache: "no-store"}).then(function (r) { return r.ok ? r.text() : null; })'
+    '  var act = document.activeElement; if (!force && act && act.id === "repo-pick") { return; }'
+    "  var sel = window.getSelection ? String(window.getSelection()) : ''; if (!force && sel) { return; }"
+    '  fetch(force ? "/repos.html?fresh=1" : "/repos.html", {cache: "no-store"})'
+    "  .then(function (r) { return r.ok ? r.text() : null; })"
     "  .then(function (text) { if (!text) { return; }"
     '   var doc = new DOMParser().parseFromString(text, "text/html");'
     '   var nw = doc.getElementById("live"), cur = document.getElementById("live"); if (!nw || !cur) { return; }'
     '   var ns = nw.querySelector(".stamp"), cs = cur.querySelector(".stamp");'
-    "   if (ns && cs && ns.textContent === cs.textContent) { return; }"
+    "   if (!force && ns && cs && ns.textContent === cs.textContent) { return; }"
     "   var y = window.scrollY; cur.innerHTML = nw.innerHTML; initPicker();"
     '   if (typeof initOwners === "function") { initOwners(); } window.scrollTo(0, y);'
     "  }).catch(function () {}); }"
     f" setInterval(refreshRepos, {int(REPOS_REFRESH_S * 1000)});"
+    # Pause/Resume (W-7159f8e2 part 3): ONE delegated listener, here at the top level — outside #live
+    # and outside initPicker/initOwners, which re-run after every swap — so it binds once per load.
+    # confirm() like the board's other write buttons; the 20 s poll cannot fire while it is open.
+    ' document.addEventListener("click", function (ev) {'
+    '  var b = ev.target && ev.target.closest ? ev.target.closest("button.ag-btn") : null;'
+    "  if (!b || b.disabled) { return; }"
+    '  var repo = b.getAttribute("data-repo"), agent = b.getAttribute("data-agent"),'
+    '   action = b.getAttribute("data-action");'
+    '  if (!repo || !agent || (action !== "pause" && action !== "resume")) { return; }'
+    '  if (!confirm((action === "pause" ? "Pause " : "Resume ") + agent + " in " + repo + "?"'
+    '   + (action === "pause" ? " It stops starting new work at its next turn boundary." : ""))) { return; }'
+    "  b.disabled = true;"
+    '  fetch("/agent-pause", {method: "POST", cache: "no-store",'
+    f'   headers: {{"Content-Type": "application/json", "{SWITCH_HEADER}": "1"}},'
+    "   body: JSON.stringify({repo: repo, agent: agent, action: action})})"
+    # a non-JSON answer (a proxy's error page) is the server's answer, never "unreachable"
+    '  .then(function (r) { return r.json().catch(function () { return {error: "HTTP " + r.status}; })'
+    "   .then(function (j) { return [r.status, j]; }); })"
+    "  .then(function (sj) {"
+    '   if (sj[0] === 200 && sj[1].ok) { b.textContent = action === "pause" ? "paused" : "resumed";'
+    "    refreshRepos(true); return; }"
+    '   b.disabled = false; b.title = (sj[1] && sj[1].error) || "failed";'
+    '   b.textContent = "failed — retry " + action; })'
+    '  .catch(function () { b.disabled = false; b.textContent = "server unreachable — retry " + action; });'
+    " });"
 )
 
 
@@ -2748,6 +2872,7 @@ def _repos_page(fresh: bool = False) -> str:
         now = time.time()
         if not fresh and _repos_cache and now - _repos_cache[0] < REPOS_TTL_S:
             return _repos_cache[1]
+        gen = _repos_gen
         stamp = datetime.fromtimestamp(now).astimezone().strftime("%H:%M:%S")
         page = (
             '<!doctype html><html lang="en"><head><meta charset="utf-8">'
@@ -2762,8 +2887,17 @@ def _repos_page(fresh: bool = False) -> str:
             f"<script>{_REPOS_PICK_JS}</script>"
             f"<script>{_OWNER_FILTER_JS}</script></body></html>"
         )
-        _repos_cache = (now, page)
+        # a write that landed while this page was being built made it stale: serve it once, never cache it
+        _repos_cache = (now, page) if _repos_gen == gen else None
         return page
+
+
+def _drop_repos_cache() -> None:
+    """After a board write: the next page is rebuilt, and a build already running is not cached.
+    Lock-free on purpose — taking `_repos_lock` would wait out a 5 s build inside the POST."""
+    global _repos_cache, _repos_gen
+    _repos_gen += 1
+    _repos_cache = None
 
 
 def render(
@@ -3590,7 +3724,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 (stdlib interface)
         path = self.path.split("?", 1)[0]
-        if path not in ("/switch", "/park", "/cap", "/threshold"):
+        if path not in ("/switch", "/park", "/cap", "/threshold", "/agent-pause"):
             self.send_error(404)
             return
         if not self.headers.get(SWITCH_HEADER):
@@ -3614,6 +3748,15 @@ class _Handler(BaseHTTPRequestHandler):
             return
         slug = (body or {}).get("account") if isinstance(body, dict) else None
         t0 = time.time()
+        if path == "/agent-pause":
+            b = body if isinstance(body, dict) else {}
+            status, out = pause_agent(b.get("repo"), b.get("agent"), b.get("action"), b.get("why") or "")
+            sys.stderr.write(
+                f"quota_dashboard: POST {path} {b.get('repo')!r}/{b.get('agent')!r} {b.get('action')!r}"
+                f" -> {status} in {time.time() - t0:.1f}s: {out.get('output') or out.get('error') or ''}\n"
+            )
+            self._json(status, out)
+            return
         if path == "/threshold":
             if not isinstance(body, dict) or "threshold" not in body:
                 self._json(
