@@ -12,7 +12,8 @@ recover it after losing context (operator 2026-10-15, D-880). Nothing here is st
          (``merge(infra): worktree-<role>`` before D-874, ``merge(coordinator): ...`` after), never a
          builder's back-merge of master; and the distinct items those subjects name in the last 24 h
          (a closed item carries no close time);
-- NEXT — the role's queue exactly as ``work.py queue`` counts it (``_worker_queues``), top 3, with
+- NEXT — the role's queue as ``work.py queue`` counts a pool worker's (``_worker_queues``; ``queue``
+         lists no row for the feedback owner, which is shown here all the same), top 3, with
          the queue's size and the role's parked items in the MAIN store (``work.py queue`` counts parked
          in the worker's own tree, so a park not yet merged shows there first).
 
@@ -47,6 +48,7 @@ ROLE_CUT = 1400  # characters of one role's block before "… N more"
 TOTAL_CUT = 7000  # whole text output — inside the 10,000-character hook cap with the header
 MERGES_SHOWN = 3
 NEXT_SHOWN = 3
+STALE_H = 12  # the Stop hook's bound (final_gate_stop.py COMMAND_RUN_STALE_H): older = likely a dead session
 _ITEM_RE = re.compile(r"\bitem (W-[0-9a-f]{8}|none)\b")
 
 
@@ -69,7 +71,7 @@ def _age(ts: float, now: float) -> str:
     return f"{s // 86400}d ago"
 
 
-def _cut(text: str, n: int) -> str:
+def _cut(text: object, n: int) -> str:
     text = " ".join(str(text).split())
     return text if len(text) <= n else text[: n - 1] + "…"
 
@@ -85,15 +87,17 @@ def _under(path: Path, main: Path) -> bool:
 
 def _now(cr: ModuleType, role: str, main: Path) -> dict | None:
     best: dict | None = None
+    best_ts = 0.0
     for path in cr._state_dir().glob("*.json"):
         try:
             rec = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
+            ts = float(rec.get("updated_ts") or 0) if isinstance(rec, dict) else 0.0
+        except (OSError, ValueError, TypeError):
+            continue  # an unreadable or corrupt record is skipped, never a crash
         if not isinstance(rec, dict) or rec.get("agent") != role or rec.get("state") != "running":
             continue
-        if best is None or float(rec.get("updated_ts") or 0) > float(best.get("updated_ts") or 0):
-            best = rec
+        if best is None or ts > best_ts:
+            best, best_ts = rec, ts
     if best is None:
         return None
     root = str(best.get("repo_root") or "")
@@ -105,7 +109,8 @@ def _now(cr: ModuleType, role: str, main: Path) -> dict | None:
         "phases": best.get("phases"),
         "title": str(best.get("phase_title") or ""),
         "surface": str(best.get("surface") or ""),
-        "updated_ts": float(best.get("updated_ts") or 0),
+        "updated_ts": best_ts,
+        "stale": time.time() - best_ts > STALE_H * 3600,
         "repo": "" if root and _under(Path(root), main) else root,
         "stack_root": str(first.get("command") or "") if first else "",
         "session": str(best.get("session_id") or ""),
@@ -113,7 +118,7 @@ def _now(cr: ModuleType, role: str, main: Path) -> dict | None:
 
 
 def _merges(main: Path, base: str, roles: list[str], now: float) -> dict[str, dict]:
-    out = {r: {"merges": [], "items_24h": 0} for r in roles}
+    out: dict[str, dict[str, Any]] = {r: {"merges": [], "items_24h": 0} for r in roles}
     seen: dict[str, set[str]] = {r: set() for r in roles}
     try:
         log = subprocess.run(
@@ -207,6 +212,7 @@ def render(data: dict[str, Any]) -> str:
             block.append(
                 f"- NOW: /{n['command']}{root}{where} · phase {n['phase']}/{n['phases']} ({_cut(n['title'], 40)})"
                 f" · {_cut(n['surface'], TITLE_CUT)} · updated {_age(n['updated_ts'], now)}"
+                + (f" · STALE (>{STALE_H} h — likely a dead session; ask the agent)" if n["stale"] else "")
             )
         else:
             block.append("- NOW: no running record")

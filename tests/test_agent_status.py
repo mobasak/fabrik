@@ -129,6 +129,21 @@ def test_now_shows_the_roles_running_record_and_claim(tmp_path: Path) -> None:
     assert rows["intel"]["now"] is None
 
 
+def test_now_flags_a_stale_record_and_skips_a_corrupt_one(tmp_path: Path) -> None:
+    """A running record older than the Stop hook's 12 h bound is flagged stale (its session is
+    likely gone), and a record whose updated_ts is not a number is skipped, never a crash."""
+    env, repo, trees = _setup(tmp_path)
+    _record(env, "old", agent="infra", state="running", command="fabrik-deploy", surface="x",
+            repo_root=str(trees["infra"]), updated_ts=time.time() - 13 * 3600)
+    _record(env, "bad", agent="fleet", state="running", command="fabrik-spec", surface="y",
+            repo_root=str(trees["fleet"]), updated_ts="abc")
+    rows = _rows(repo, env)
+    assert rows["infra"]["now"]["stale"] is True
+    assert rows["fleet"]["now"] is None
+    text = _status(repo, env)
+    assert text.returncode == 0 and "STALE" in text.stdout, text.stdout + text.stderr
+
+
 def test_done_lists_the_roles_merges_of_both_eras(tmp_path: Path) -> None:
     """DONE reads the base branch's merge subjects of BOTH merge-owner eras and skips a builder's
     back-merge of master; the 24 h count is the distinct items those subjects name."""
