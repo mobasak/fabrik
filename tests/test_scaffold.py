@@ -1073,10 +1073,28 @@ def _run_server(project: Path, env: dict[str, str], program: str) -> tuple[dict,
     return json.loads(line[len("RESULT ") :]), r.stdout
 
 
+def _log_events(stdout: str) -> list[tuple[str, str]]:
+    """(event, level) for every JSON log line the emitted structlog wrote."""
+    import json
+
+    events = []
+    for line in stdout.splitlines():
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(rec, dict) and "event" in rec:
+            events.append((rec["event"], str(rec.get("level", "")).lower()))
+    return events
+
+
 _PREFLIGHT = f"""
 for name, origin in (("other", "chrome-extension://{_OTHER_ID}"), ("pinned", "chrome-extension://{_EXT_ID}")):
     r = client.options("/health", headers={{"Origin": origin, "Access-Control-Request-Method": "GET"}})
     out[name] = r.headers.get("access-control-allow-origin")
+    g = client.get("/health", headers={{"Origin": origin}})
+    out[name + "_get"] = g.headers.get("access-control-allow-origin")
+    out[name + "_cred"] = r.headers.get("access-control-allow-credentials")
 """
 
 
@@ -1101,6 +1119,16 @@ class TestChromeExtensionBackendRelease:
                 "EXTENSION_LATEST_VERSION": "1.2.0",
                 "EXTENSION_LATEST_URL": "https://x.invalid/a.zip",
             },
+            {"EXTENSION_LATEST_VERSION": "1.2.0", "EXTENSION_LATEST_SHA256": "ab" * 32},
+            {
+                "EXTENSION_LATEST_URL": "https://x.invalid/a.zip",
+                "EXTENSION_LATEST_SHA256": "ab" * 32,
+            },
+            {
+                "EXTENSION_LATEST_VERSION": "1.2.0",
+                "EXTENSION_LATEST_URL": "   ",
+                "EXTENSION_LATEST_SHA256": "ab" * 32,
+            },
         ],
     )
     def test_b1_latest_is_404_until_all_three_are_set(self, project, env):
@@ -1122,7 +1150,8 @@ class TestChromeExtensionBackendRelease:
         out, _ = _run_server(
             project,
             env,
-            "r = client.get('/extension/latest')\nout['status'] = r.status_code\nout['body'] = r.json()",
+            "r = client.get('/extension/latest')\nout['status'] = r.status_code\nout['body'] = r.json()\n"
+            "out['cache'] = r.headers.get('cache-control')",
         )
         assert out["status"] == 200
         assert out["body"] == {
@@ -1130,13 +1159,30 @@ class TestChromeExtensionBackendRelease:
             "download_url": "https://x.invalid/a.zip",
             "sha256": "ab" * 32,
         }
+        assert out["cache"] == "no-store"
+
+    def test_b2b_latest_is_read_per_request(self, project):
+        """B2: a new value set after import (a redeploy's .env) is served without a code change."""
+        out, _ = _run_server(
+            project,
+            {},
+            "import os\n"
+            "os.environ.update(EXTENSION_LATEST_VERSION='2.0', EXTENSION_LATEST_URL='https://x.invalid/b.zip', "
+            "EXTENSION_LATEST_SHA256='cd' * 32)\n"
+            "out['body'] = client.get('/extension/latest').json()",
+        )
+        assert out["body"]["version"] == "2.0"
 
     @pytest.mark.parametrize("raw", [_EXT_ID, _EXT_ID + "\r"])
     def test_b3_exact_extension_origin_only(self, project, raw):
         """B3: a valid EXTENSION_ID (even with a trailing CR) admits that origin and no other."""
         out, _ = _run_server(project, {"EXTENSION_ID": raw}, _PREFLIGHT)
-        assert out["other"] is None
+        assert out["other"] is None and out["other_get"] is None
         assert out["pinned"] == f"chrome-extension://{_EXT_ID}"
+        assert out["pinned_get"] == f"chrome-extension://{_EXT_ID}"
+        assert (
+            out["pinned_cred"] == "true"
+        )  # the Bearer-carrying requests (70-chrome-ext.md § Auth)
 
     @pytest.mark.parametrize(
         ("env", "invalid"),
@@ -1150,16 +1196,28 @@ class TestChromeExtensionBackendRelease:
         """B4: no valid ID → cors_no_extension_id (and cors_extension_id_invalid for a bad value),
         no allow-origin header for any extension."""
         out, stdout = _run_server(project, env, _PREFLIGHT)
-        assert out == {"other": None, "pinned": None}
-        assert "cors_no_extension_id" in stdout
-        assert ("cors_extension_id_invalid" in stdout) is invalid
+        assert out["other"] is None and out["pinned"] is None
+        assert out["other_get"] is None and out["pinned_get"] is None
+        events = _log_events(stdout)
+        assert events.index(("service_starting", "info")) < events.index(
+            ("cors_no_extension_id", "warning")
+        )  # logged in lifespan, after startup — not at import
+        assert (("cors_extension_id_invalid", "error") in events) is invalid
+
+    def test_b4c_a_valid_id_beats_the_local_opt_in(self, project):
+        """B4 edge: EXTENSION_ID valid AND CORS_ALLOW_ANY_EXTENSION=1 → the exact ID only, no warning."""
+        out, stdout = _run_server(
+            project, {"EXTENSION_ID": _EXT_ID, "CORS_ALLOW_ANY_EXTENSION": "1"}, _PREFLIGHT
+        )
+        assert out["other"] is None and out["pinned"] == f"chrome-extension://{_EXT_ID}"
+        assert "cors_any_extension_origin" not in stdout and "cors_no_extension_id" not in stdout
 
     def test_b4b_local_opt_in_admits_any_extension(self, project):
         """B4b: CORS_ALLOW_ANY_EXTENSION=1 (local only) → the dev regex and its own warning."""
         out, stdout = _run_server(project, {"CORS_ALLOW_ANY_EXTENSION": "1"}, _PREFLIGHT)
         assert out["other"] == f"chrome-extension://{_OTHER_ID}"
         assert out["pinned"] == f"chrome-extension://{_EXT_ID}"
-        assert "cors_any_extension_origin" in stdout
+        assert ("cors_any_extension_origin", "warning") in _log_events(stdout)
         assert "cors_no_extension_id" not in stdout
 
     def test_b5_compose_template_defaults_and_env_example(self, project):
@@ -1180,12 +1238,27 @@ class TestChromeExtensionBackendRelease:
         assert re.search(r"^# CORS_ALLOW_ANY_EXTENSION=1", example, re.M)
         assert "never in a deploy" in example
 
+    def test_b5b_template_renders_each_extension_value_once(self, project, tmp_path):
+        """B5 (review round 1): the generated spec copies the four values into its env:, so the
+        template must not render them a second time from its env loop."""
+        from fabrik.spec_loader import load_spec
+        from fabrik.template_renderer import TemplateRenderer
+
+        templates = Path(__file__).resolve().parents[1] / "templates"
+        spec = load_spec(project.parent / "specs" / "services" / "test-ext.yaml")
+        rendered = TemplateRenderer(templates_dir=templates, output_dir=tmp_path).render(
+            spec, dry_run=True
+        )
+        compose = rendered["compose.yaml"]
+        for var in _SERVER_ENV_KEYS[:4]:
+            assert compose.count(f"- {var}=") == 1, var
+
     def test_b6_dev_targets_load_the_local_env(self, project):
         """B6: `make dev` and `make dev-server` pass .env to uvicorn when it exists."""
         makefile = (project / "Makefile").read_text()
         for target in ("dev", "dev-server"):
             recipe = _make_target(makefile, target)
-            uvicorn = [ln for ln in recipe.splitlines() if "uvicorn" in ln]
+            uvicorn = [ln for ln in recipe.splitlines() if ln.startswith("\t") and "uvicorn" in ln]
             assert uvicorn, target
             assert all("$(if $(wildcard .env),--env-file .env,)" in ln for ln in uvicorn), target
 

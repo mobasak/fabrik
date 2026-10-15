@@ -6417,9 +6417,16 @@ ephemeral — never register in a bare global).
         f'    version = os.getenv("EXTENSION_LATEST_VERSION", "").strip()\n'
         f'    download_url = os.getenv("EXTENSION_LATEST_URL", "").strip()\n'
         f'    sha256 = os.getenv("EXTENSION_LATEST_SHA256", "").strip()\n'
+        f"    # no-store: a cached answer would hide a new release (or keep serving a withdrawn one)\n"
+        f'    headers = {{"Cache-Control": "no-store"}}\n'
         f"    if not (version and download_url and sha256):\n"
-        f'        return JSONResponse(status_code=404, content={{"detail": "no release published"}})\n'
-        f'    return {{"version": version, "download_url": download_url, "sha256": sha256}}\n'
+        f"        return JSONResponse(\n"
+        f'            status_code=404, content={{"detail": "no release published"}}, headers=headers\n'
+        f"        )\n"
+        f"    return JSONResponse(\n"
+        f'        content={{"version": version, "download_url": download_url, "sha256": sha256}},\n'
+        f"        headers=headers,\n"
+        f"    )\n"
     )
 
     # requirements.txt (at root, for server)

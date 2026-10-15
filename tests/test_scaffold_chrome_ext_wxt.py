@@ -110,7 +110,13 @@ def test_compose_has_no_traefik_cors_and_passes_the_extension_env(tmp_path: Path
     compose = (tmp_path / "cxcompose" / "compose.yaml").read_text()
     assert "-cors" not in compose
     assert "accesscontrolalloworigin" not in compose
-    assert "- EXTENSION_ID=${EXTENSION_ID:-}" in compose
+    for var in (
+        "EXTENSION_ID",
+        "EXTENSION_LATEST_VERSION",
+        "EXTENSION_LATEST_URL",
+        "EXTENSION_LATEST_SHA256",
+    ):
+        assert f"- {var}=${{{var}:-}}" in compose, var
 
 
 def test_tailwind_v4_wired(ext: Path) -> None:

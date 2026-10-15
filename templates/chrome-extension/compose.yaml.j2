@@ -23,7 +23,8 @@ services:
       - EXTENSION_LATEST_VERSION=${EXTENSION_LATEST_VERSION:-}
       - EXTENSION_LATEST_URL=${EXTENSION_LATEST_URL:-}
       - EXTENSION_LATEST_SHA256=${EXTENSION_LATEST_SHA256:-}
-      {% for key, value in env.items() %}
+      {# the four values above are the template's own; a spec env: copy of them is skipped #}
+      {% for key, value in env.items() if key not in ('EXTENSION_ID', 'EXTENSION_LATEST_VERSION', 'EXTENSION_LATEST_URL', 'EXTENSION_LATEST_SHA256') %}
       - {{ key }}={{ value | env_escape }}
       {% endfor %}
       {% if depends.postgres %}
