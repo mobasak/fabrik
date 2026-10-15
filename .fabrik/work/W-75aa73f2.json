@@ -13,8 +13,11 @@
   },
   "next": "make start refuse (or warn) when a new record's repo_root differs from the live parent's, and add the env -u CLAUDE_CODE_SESSION_ID isolation line to the review fragments' seat-brief lessons",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "a /fabrik-review seat's probe opened a run record on the DISPATCHING session's live stack (fabrik-task, files x.py, a scratch repo's switch commit) during the D-LANEV2 review; command_run.py start stacks a record whose repo_root differs from its live parent's without a word"
 }

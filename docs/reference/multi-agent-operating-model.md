@@ -132,7 +132,9 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   branch AND sets who owns which work item (`work.py assign`). `work.py init` records it in the repo's
   own `.fabrik/work/config.json`, defaulting to `python3 scripts/decisions.py --merge-owner .`;
   never pass a different `--distributor`. The two are still two fields, so a changed merge owner
-  means changing `distributor` with it (the hub moved it from intel to infra under D-471).
+  means changing `distributor` with it (the hub moved it from intel to infra under D-471, then to the
+  `coordinator` under D-874). In a multi-window repo that agent coordinates and does nothing else (D-872):
+  `templates/governance/CLAUDE.md` § The coordinator role.
 - **Ledgers and ids across branches** (D-448) — each agent writes its own ledger rows
   (`CHANGELOG.md`, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`) on its own branch; two
   branches that both prepend a row to the same table always conflict at merge — `rerere` only
@@ -263,7 +265,9 @@ waits idle if there is work to be done") the distributor also keeps every presen
 of queued work (`work.py triage --apply`), a worker whose queue runs empty rings it, and the Stop hook
 holds both sides to it (`docs/reference/work-tracking.md` § Ownership and the distributor). Between
 top-ups, **self-service** still holds: an idle agent runs `work.py ready`, claims what it will do, and
-says so. The
+says so — except in a repo whose committed config sets `coordinator_mode: true`, where a builder (a pool
+worker, not the feedback owner) claims what the coordinator queued it: `next` and `ready`'s claimable list
+show its own items only (D-873). The
 distributor **assigns** where self-service would go wrong: items tagged for a serialising act
 (above), items that must not run concurrently with another, and a queue the distributor has not
 yet triaged (a migrated or polluted one) — say so to the other agents while it lasts, so they know
@@ -307,12 +311,14 @@ Agent-1 runs the pipeline from `5-certify` once every branch is merged: `/fabrik
 
 Projects adopted first; the hub runs the same model now, cut over by
 `docs/superpowers/specs/2026-09-29-hub-worktree-cutover-design.md` (D-447) once its two hub-only
-hazards were closed. **infra is agent-1**, the merge owner, alone in `/opt/fabrik` — recorded as a
-`MERGE OWNER: infra` ledger row (D-453) by the cut-over plan's own last ticket (T07), so
-`python3 scripts/decisions.py --merge-owner .` reads `infra`. Fleet and intel work in
-`.claude/worktrees/fleet` and `.claude/worktrees/intel`; infra is also the distributor
-(`.fabrik/work/config.json`, D-471, superseding D-395's intel), so one agent holds both roles
-here as in every repo (§ Ownership surfaces, above). A fourth hub agent, **kaizen**, works in
+hazards were closed. **The `coordinator` is agent-1** since 2026-10-15, the merge owner, alone in
+`/opt/fabrik` — the `supersedes D-453: MERGE OWNER: coordinator` row (D-874), so
+`python3 scripts/decisions.py --merge-owner .` reads `coordinator`; it is also the distributor
+(`.fabrik/work/config.json`), so one agent holds both roles here as in every repo (§ Ownership surfaces,
+above), and it builds nothing (D-872; charter `docs/reference/agents/coordinator.md`, launch
+`CLAUDE_AGENT=coordinator claude -n coordinator-fabrik --model sonnet`). Infra (agent-1 from D-453 until
+D-874), fleet and intel work in `.claude/worktrees/infra`, `.claude/worktrees/fleet` and
+`.claude/worktrees/intel`. A fourth hub agent, **kaizen**, works in
 `.claude/worktrees/kaizen` since 2026-10-06 and owns the feedback loop — every command-feedback
 queue, a command's or rule's wording, ways-of-working mail — through the store's `feedback_owner`
 key rather than by being the distributor; it is not a pool worker (`work.py::_workers` drops it),

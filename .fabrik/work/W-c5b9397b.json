@@ -13,8 +13,11 @@
   },
   "next": "resolve target_vps in refresh_infrastructure the way deploy() does (CLI flag > state file > spec > vps1) and grade it",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "refresh_infrastructure never sets ctx.target_vps (only deploy() resolves it, src/fabrik/orchestrator/__init__.py:147), so a registrar refresh of a spoke-targeted service runs every target-routed call against vps1 — latent while every spec targets vps1 (found by the plan-3 backrest-coverage plan-review, pass 2)"
 }

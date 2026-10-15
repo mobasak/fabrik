@@ -13,11 +13,12 @@
   },
   "next": "say 'when a successor has headroom and the flip is not withheld', checked against _fleet_flip_leg's withheld branch",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
   "tags": [
-    "intel"
+    "intel",
+    "waits-operator-review"
   ],
   "title": "docs/workstation/claude-account-rotation.md § Parking: the broken-parked.json parenthetical says an ACTIVE account is flipped away 'when a successor has headroom', but _flip_active can still withhold that flip (pause, flip guard) and then sends no flip alert — routed at the docs-review scope-growth stop"
 }

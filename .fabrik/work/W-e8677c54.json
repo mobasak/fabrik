@@ -13,8 +13,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "work.py drift: an ARCHIVED plan whose Status is BLOCKED (or not EXECUTED/SUPERSEDED) is invisible to every class (W-fbdd17c8 critiques)"
 }

@@ -13,15 +13,33 @@ All notable changes to this project will be documented in this file.
   `<run scratch>/seat-<n>/` under the path `command_run.py start` printed as `RUN-SCRATCH:`, never the session
   scratchpad root; nothing durable goes there; the pins dir sits under the same root; a tree is staged there only as
   the probe catalogue's § Seat isolation says (an archive of the pinned SHA, or a `clone --shared --no-checkout`),
-  never a copy of the live checkout. `review-probe-catalogue.md` § Seat isolation, `fabrik-review.md` (the
-  `git archive` pin block and the seat-dir sentence), `fabrik-review-scoped.md` (the workflow's `scratch_dir`) and
-  `fabrik-execute-plan.md` (the brief and report files) point at it and name `<run scratch>` in place of the bare
-  scratchpad (the three that do not render the fragment point by its hub path, so the pointer resolves where it
-  is read); `fabrik-execute-plan.md` adds that a review in a later run re-derives the brief from the plan and
-  the ticket, never from another run's folder, and its durable-salvage sentence stays as it was. Pinned by
-  `tests/test_run_scratch_brief_wording.py` (7 tests); `tests/test_review_loop_workflow.py` re-pins the archive
-  line.
+  never a copy of the live checkout. `review-probe-catalogue.md` § Seat isolation and `fabrik-execute-plan.md`
+  (the brief and report files) point at it by its hub path and name `<run scratch>` in place of the bare
+  scratchpad; `fabrik-execute-plan.md` adds that a review in a later run re-derives the brief from the plan and
+  the ticket, never from another run's folder, and its durable-salvage sentence stays as it was.
+  `fabrik-review.md` and `fabrik-review-scoped.md` keep infra's `scratch_dir` wording (D-886). Pinned by
+  `tests/test_run_scratch_brief_wording.py` (5 tests).
 
+### Fixed — review and critique seats write under the run's RUN-SCRATCH folder (2026-10-15)
+
+- `.claude/workflows/fabrik-review-loop.js` names every seat folder `<scratch_dir>/seat-p<pass>-<digest8>-…/`, so `round`'s size line sees it and no pass reuses another's; the four partitioned review commands say `scratch_dir` is the run's `RUN-SCRATCH:` folder; design-critique seats use `<RUN-SCRATCH>/seat-critique-<model>-<k>/`; the clean-own-scratch gloss matches cleanup-automation.md § F. Mail 01M4Z8X09Y, D-886.
+
+### Changed — both CLAUDE.md contracts: a run's disposable bulk goes in its RUN-SCRATCH folder (2026-10-15)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § EXIT gain one identical sentence group beside "CLEAN your own scratch": seat copies, pins and probes go in the run's `RUN-SCRATCH:` folder (seats under `seat-<n>/`), every seat brief names that folder, durable artifacts stay under `SCRATCH:`, and a missing or `none` line falls back to the scratchpad. Pinned by three T6 spans in `tests/test_governance_template_split.py`. D-883.
+
+### Fixed — work.py triage: a major held behind the in-flight one is no longer counted as in flight (2026-10-15)
+
+- `scripts/work.py` `cmd_triage`: a high/high item the coordinator holds behind the in-flight major with `assign --blocked-by` now prints as `major held: <id> behind <id>` instead of a second `major in flight` line; a major waiting on its own prerequisite still holds the slot, and an all-held store fails closed. The live hub store read 7 in flight (6 held); it now reads 1 in flight and 6 held, with the same plan. D-881.
+
+### Changed — the hub hands merge ownership and work distribution to the coordinator (2026-10-15)
+
+`supersedes D-453: MERGE OWNER: coordinator` (D-874); `.fabrik/work/config.json` sets `distributor: coordinator`,
+`queue_floor: 1` and `coordinator_mode: true`; `.fabrik/beat-owners.json` maps the `merge request` and `work item`
+topics to the coordinator. `CLAUDE.md` § Shared repo, § EXIT and § Autonomy, `docs/reference/agents/infra.md` and
+`docs/reference/multi-agent-operating-model.md` name the coordinator as agent-1 and put infra in
+`.claude/worktrees/infra`; the phrase graders in `tests/test_governance_template_split.py` follow. Plan
+`2026-10-15-plan-1-coordinator-role` Phase C — lands on master only when the coordinator window is live.
 ### Changed — /fabrik-review: the probe catalogue gains a Deletions hunt row (2026-10-15)
 
 - `commands/_fragments/review-probe-catalogue.md` § The brief's hunt lines: a Deletions row (a change that deletes a

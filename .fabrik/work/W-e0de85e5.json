@@ -13,8 +13,11 @@
   },
   "next": "add a non-registrar key (e.g. _last_apply) or a --failures flag to the --json output of audit-registrars in src/fabrik/cli.py, with a test; check jq consumers first",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "audit-registrars --json omits recorded registrar_failures (table mode reports them, W-2013a22d)"
 }

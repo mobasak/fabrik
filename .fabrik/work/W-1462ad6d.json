@@ -17,7 +17,9 @@
   "priority": 3,
   "status": "open",
   "tags": [
-    "vps"
+    "needs-owner",
+    "vps",
+    "waits-operator-review"
   ],
   "title": "vps_script_drift cron_paths: quotes inside $(...) within double quotes are not tracked, and env names with characters outside [A-Za-z0-9_] read as jobs"
 }

@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484"
+  ],
   "created": "2026-05-25T00:00:00.000000Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-fd1c7f7a",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +19,7 @@
   "note": "migrated-digest:1f6d760e62b0",
   "owner": "fleet",
   "priority": 2,
+  "score_reason": "PostgreSQL 16 to 18 on WSL and hub; plan ready, two operator windows",
   "status": "open",
   "tags": [
     "waits-operator-resume",

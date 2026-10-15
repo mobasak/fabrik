@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T08:40:55.188335Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-85328d6a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: write ~/.tmux.conf + scripts/sysadmin/hub_up.sh + the workstation doc row",
+  "note": "Done by the coordinator on the operator's direct order (2026-10-15): ~/.tmux.conf, ~/bin/hub-up and Desktop\\Agents.bat (box-local, not repo files); build path tested on a throwaway session",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "Operator asked for it by name; the grid must survive WSL restarts without hand-rebuilding",
+  "status": "dropped",
+  "tags": [
+    "queued",
+    "workstation"
+  ],
+  "title": "Agents moved from VS Code to Windows Terminal + tmux (operator 2026-10-15, after the extension-host OOM): make it durable — ~/.tmux.conf with mouse on and pane-border-status top showing each pane's agent, and a hub-up launcher that creates session 'hub' with one tiled window, one pane per hub agent (coordinator, infra, intel, fleet, kaizen) running CLAUDE_AGENT=<agent> claude --resume <that agent's session id> from /opt/fabrik, idempotent when 'hub' exists; document it in docs/workstation/ — PLUS a clickable Windows desktop shortcut (operator 2026-10-15: 'a clickable file on my desktop when i open it i want to see all my 5 windows side by side with most possible experience as like vs code'): target wt.exe -p Ubuntu-24.04 running wsl -d Ubuntu-24.04 -- hub_up.sh (attach if 'hub' exists, else build it), Windows Terminal full screen, mouse on, labelled panes"
+}

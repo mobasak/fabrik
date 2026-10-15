@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "rules-currency"
+    "needs-owner",
+    "rules-currency",
+    "waits-operator-review"
   ],
   "title": "No rule pack owns the EU AI Act's transparency duties (chatbot disclosure, AI-generated-content marking, applying from 2026-08-02) or its Annex III standalone high-risk classes (applying from 2027-12-02)"
 }

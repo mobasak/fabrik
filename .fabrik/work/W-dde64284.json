@@ -13,8 +13,11 @@
   },
   "next": "decide whether V5 should read only | rows (measure prose occurrences over the 619 receipts first), then fix or record why not",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "check_review_coverage: a RECORDED — by design phrase in PROSE (not a table row) is graded like a residual verdict and can license itself — the V5 scan is whole-document by its docstring (found by the W-528f123e review, A-S3)"
 }

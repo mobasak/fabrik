@@ -13,11 +13,12 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
   "tags": [
-    "infra"
+    "infra",
+    "waits-operator-review"
   ],
   "title": "work.py triage routes by count only; a beat-aware triage would read the mail router's owner_of map (.fabrik/beat-owners.json) to assign unowned items to the owning beat"
 }

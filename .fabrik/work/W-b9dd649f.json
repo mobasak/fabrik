@@ -18,7 +18,9 @@
   "status": "open",
   "tags": [
     "gpu",
-    "money-guard"
+    "money-guard",
+    "needs-owner",
+    "waits-operator-review"
   ],
   "title": "gpu_rent: concurrent rentals are invisible to the daily envelope — today_total counts only finished sessions, so two live rentals can each pass the $50 cap"
 }

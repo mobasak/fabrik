@@ -13,11 +13,12 @@
   },
   "next": "when root's git-dir differs from its common dir, age root's tracked receipts by _committed_at like a sibling's; red-first with a test whose old main-checkout receipt passes from E(linked_wt) today",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
   "tags": [
-    "command-run"
+    "command-run",
+    "waits-operator-review"
   ],
   "title": "command_run.py phase-review gate: a run rooted INSIDE a linked worktree ages root's own tracked receipts by mtime, which worktree add re-stamped (W-9fca9008 review r1 #6, pre-existing)"
 }

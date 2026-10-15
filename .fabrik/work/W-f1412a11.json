@@ -13,8 +13,11 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "work.py _open_plans: the outer except Exception returns [] on any error, hiding every open plan when one file breaks parse_plan_status (review B-S1, receipt 2026-10-08-docs-updater-plan-status-review.md)"
 }

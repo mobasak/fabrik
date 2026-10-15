@@ -13,12 +13,13 @@
   },
   "next": "read the alert expression: does it compare usage (cache included) instead of the working set against the limit; fix the expression or the limit",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
   "status": "open",
   "tags": [
     "fleet",
-    "monitoring"
+    "monitoring",
+    "waits-operator-review"
   ],
   "title": "ContainerHighMemory fires on Prometheus while its working set is 46% of its limit (kaizen 2026-10-02)"
 }

@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484"
+  ],
   "created": "2026-08-11T00:00:00.000000Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-ba5d39c7",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +19,7 @@
   "note": "migrated-digest:03918597d05f",
   "owner": "fleet",
   "priority": 2,
+  "score_reason": "Fleet-wide container-name reconciliation check; waits on the multiservice deploy plan",
   "status": "open",
   "tags": [
     "waits-multiservice-deploy-plan",

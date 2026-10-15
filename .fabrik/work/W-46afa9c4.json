@@ -13,11 +13,12 @@
   },
   "next": "move the system prompt server-side (a constant or server-only env), drop systemPrompt from the request body, grader = a request carrying systemPrompt reaches the model without it; saas-skeleton template change (fleet beat)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
   "tags": [
-    "security"
+    "security",
+    "waits-operator-review"
   ],
   "title": "saas-skeleton chat route accepts a client-supplied systemPrompt (templates/saas-skeleton/app/api/chat/route.ts:13,32) and forwards it as the system message on the app's own OpenRouter key — any browser user can set the model's system prompt"
 }

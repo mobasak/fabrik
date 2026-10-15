@@ -13,8 +13,11 @@
   },
   "next": "Do the remaining work: The item is a deferral that waits on recurrence, so nothing was 'fixed'. The mitigation it relies on (a 'class-8 doc-truth' check in the deploy-plan review) does not exist at HEAD. Closing the item drops the only watch on the spec-comment class: a doc-truth/spec-comment check still needs to be added, or the recurrence watch kept open.",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "Reopened from W-e98a82f6 (closed in error by triage wave 1, overturned by the third check): The item is a deferral that waits on recurrence, so nothing was 'fixed'. The mitigation it relies on (a 'class-8 doc-truth' check in the deploy-plan review) does not exist at HEAD. Closing the item drops the only watch on the spec-comment class: a doc-truth/spec-comment check still needs to be added, or the recurrence watch kept open."
 }

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-14T00:40:42.251994Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-729416b3",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "Rename the enum at fabrik-review-loop.js:96 and its brief :232 plus every reader (:404, closable logic), keeping STILL_TRUE/NOW_FALSE accepted as legacy input; grader: a Haiku-shaped ledger row pasting passing output under DEFECT_PRESENT is flagged",
   "note": "",
   "owner": "intel",
-  "priority": 1,
+  "priority": 3,
+  "score_reason": "Label rename in one review-loop script",
   "status": "open",
   "tags": [
     "mail-01m48mq2hs"

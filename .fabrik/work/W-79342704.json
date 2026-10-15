@@ -13,8 +13,11 @@
   },
   "next": "reword the template line to '`--kind reply --re` replies are exempt', full review (sync path), one commit",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "templates/governance/CLAUDE.md:433 says threaded --re replies are exempt from --to-agent; mail.py:1042 exempts only --kind reply with --re — reword to match (tryton-crm 01M3PJXN)"
 }

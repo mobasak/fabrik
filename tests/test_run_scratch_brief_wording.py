@@ -3,9 +3,11 @@
 `command_run.py start` prints `RUN-SCRATCH: <path>`, the run's disposable folder, removed once the run is consumed
 (`docs/reference/command-run-protocol.md` § A run's disposable folder). Until the briefs named it, seats wrote their
 copies, pins and probes to the bare session scratchpad, which no run owns and nothing removes (73 GB measured
-2026-10-14). The rule is stated ONCE, in `subagents-core.md` (the fragment 21 command sources include); the four other
-sites point at it and name `<run scratch>` where they used to name `<scratchpad>`. Each test pins one site, so a
-revert of any one, or a second statement of the rule, fails here.
+2026-10-14). The rule is stated ONCE, in `subagents-core.md` (the fragment 21 command sources include); the probe
+catalogue and fabrik-execute-plan point at it and name `<run scratch>` where they used to name `<scratchpad>`
+(fabrik-review and fabrik-review-scoped carry infra's `scratch_dir` wording, D-886, pinned in
+test_review_loop_workflow.py). Each test pins one site, so a revert of any one, or a second statement of the
+rule, fails here.
 """
 
 import re
@@ -14,8 +16,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "commands" / "_fragments" / "subagents-core.md"
 CAT = ROOT / "commands" / "_fragments" / "review-probe-catalogue.md"
-REVIEW = ROOT / "commands" / "_sources" / "fabrik-review.md"
-SCOPED = ROOT / "commands" / "_sources" / "fabrik-review-scoped.md"
 EXEC = ROOT / "commands" / "_sources" / "fabrik-execute-plan.md"
 
 RULE = (
@@ -77,33 +77,6 @@ def test_seat_isolation_names_the_seat_folder_and_the_only_staging() -> None:
     assert "git -C <scratch> clone --shared --no-checkout" in iso
 
 
-def test_fabrik_review_materialises_the_sha_under_the_run_scratch() -> None:
-    """The archive block and the seat-dir sentence name `<run scratch>`; no `<scratchpad>` placeholder is left."""
-    review = REVIEW.read_text()
-    assert "$ git archive -o <run scratch>/review-<sha>.tar <sha>\n" in review
-    assert "$ mkdir -p <run scratch>/review-<sha>\n" in review
-    assert "$ tar -xf <run scratch>/review-<sha>.tar -C <run scratch>/review-<sha>\n" in review
-    norm = re.sub(r"\s+", " ", review)
-    assert (
-        "and brief the finder against that path (`<run scratch>` is the path this run's `start` printed as"
-        " `RUN-SCRATCH:`, never the session scratchpad root — § Subagents, the D8 paragraph)." in norm
-    )
-    assert (
-        "(`<run scratch>/seat-<slice>-<model>/` under the run's `RUN-SCRATCH:` path; under the workflow, `scratch_dir`"
-        " IS that path and the script names the folders), never the dispatcher's scratchpad root" in norm
-    )
-    assert "<scratchpad>" not in review
-
-
-def test_review_scoped_passes_the_run_scratch_as_the_workflow_scratch_dir() -> None:
-    """The workflow writes every seat folder under `scratch_dir`; the lead passes the run's folder, not the root."""
-    scoped = _norm(SCOPED)
-    assert (
-        "(`scratch_dir` the path this run's `start` printed as `RUN-SCRATCH:` — `/opt/fabrik/commands/_fragments/"
-        "subagents-core.md`, the D8 paragraph;"
-        " `pins_dir`, `pin_manifest` and `digest` as step 5's `pin` printed them;" in scoped
-    )
-    assert "<scratchpad>" not in SCOPED.read_text()
 
 
 def test_execute_plan_brief_and_report_files_live_under_the_run_scratch() -> None:
@@ -127,11 +100,9 @@ def test_execute_plan_brief_and_report_files_live_under_the_run_scratch() -> Non
 def test_the_d8_pointer_resolves_wherever_it_is_read() -> None:
     """Wave 2 of the review: `§ Subagents, the D8 paragraph` resolves only in a command that renders the fragment.
     A source that does not include `subagents-core` (or the catalogue, read by hub path) points by the hub path."""
-    for path in (CAT, SCOPED, EXEC):
+    for path in (CAT, EXEC):
         text = _norm(path)
         if path != CAT:
             assert "{{include:subagents-core" not in path.read_text(), f"{path.name} now includes the fragment"
         assert "§ Subagents, the D8 paragraph" not in text, f"{path.name} cites a section it does not render"
         assert "`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph" in text
-    assert "{{include:subagents-core" in REVIEW.read_text()
-    assert "§ Subagents, the D8 paragraph" in _norm(REVIEW)

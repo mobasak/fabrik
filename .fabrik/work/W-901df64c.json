@@ -16,5 +16,9 @@
   "owner": "",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-owner",
+    "waits-operator-review"
+  ],
   "title": "command-pin graders: a bare-substring phrase pin passes on the inverted rule (inside/outside, never/always, must/may) — measure the polarity-word pins first, then a shared ordered-pair + inversion-control helper adopted as each grader is touched (precedent tests/test_execute_plan_d7.py; intel 01M4DSHQYN, W-b95f5c5e item 2)"
 }

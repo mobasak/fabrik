@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "kaizen"
+    "kaizen",
+    "needs-owner",
+    "waits-operator-review"
   ],
   "title": "term-coverage scope-growth paragraph: 'Only work that is genuinely OWN-FIX takes the backlog exit above' names only the backlog route; when the stop routes to /fabrik-spec the sentence reads as excluding it (recorded in the scope-growth remainder of the 669d88798 review, 2026-10-08)"
 }

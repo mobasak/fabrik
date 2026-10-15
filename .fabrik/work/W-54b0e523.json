@@ -13,8 +13,11 @@
   },
   "next": "one clause at 45-testing-strategy.md:48 naming the seat override (synced pack: full /fabrik-review); follow-up of W-a8b671ad item 2",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 3,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "45-testing-strategy.md:48/:190/:228 and 10-python.md:27 mandate 'uv run pytest' with no seat exception; subagents-core D8 now overrides it for seats — mirror the exception from the pack side"
 }

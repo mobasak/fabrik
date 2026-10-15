@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:27.938537Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-b2c539d0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4W3KNGVDZRE50ZDKRVFVZRW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "request: 01M4W2KRRTPNF6QGGWQN81QEET"
+}

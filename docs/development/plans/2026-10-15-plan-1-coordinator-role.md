@@ -1,6 +1,6 @@
 # Plan — the coordinator role: sort, prioritise, merge, keep the records; never build
 
-Status: IN-PROGRESS — approved D-871
+Status: EXECUTED — approved D-871; Phases A-C merged (0e19427e4), merge ownership handed to the coordinator (D-874)
 Profile: small
 **Owner:** infra
 
@@ -268,6 +268,14 @@ Surface: `scripts/mail.py`, `.claude/hooks/mail_notify.py`, `scripts/command_run
 | B4 | the new `docs/reference/agents/coordinator.md` | the agents-directory contract runs | its first line carries the `# Agent charter` marker `agent_role.py` keys on | `tests/test_agent_role_hook.py` (parametrised over every file in `docs/reference/agents/`) |
 
 ## Phase C — Finish, then the hub handover
+
+⏸ 2026-10-15 — steps 1-5 done, step 6 waiting on the launch. Step 5: the Finish `/fabrik-review` closed 10 → 3 → 0
+(`docs/development/reviews/2026-10-15-plan-1-coordinator-role-review.md`) and Phases A-B merged to master at
+300d803ed (fleet sync ran). Step 4 (after that merge): fabrik-lib 01M4YN9HNE and the seven multi-window repos mailed
+(`_workers` measured: 8 of 42 stores, the hub and those seven); fleet, intel and kaizen told by `SendMessage`.
+Steps 1-3 are committed on this branch only, with the CHANGELOG entry — merging the branch into master IS the flip,
+done by infra once `mail.py who coordinator` shows the live session; then infra tells the coordinator and moves to
+`.claude/worktrees/infra`.
 
 Appetite: 75
 

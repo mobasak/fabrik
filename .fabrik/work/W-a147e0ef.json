@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:04.608837Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a147e0ef",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "intel: read mail 01M4XB7GPFFJKKW1CAKG63P1VM, claim it, act on it",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
+  "status": "open",
+  "tags": [
+    "mail-01m4xb7gpffjkkw1cakg63p1vm",
+    "waits-operator-review"
+  ],
+  "title": "Review loop keeps its pins and briefs under /tmp, which a WSL shutdown wipes mid-review (mail 01M4XB7GPFFJKKW1CAKG63P1VM)"
+}

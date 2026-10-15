@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T08:51:53.727048Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-41c1ec56",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Z8X09Y4WDS7VN2W92BV5SV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Seat briefs still send seats to the bare scratchpad — they should name the run's RUN-SCRATCH folder"
+}

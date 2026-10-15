@@ -200,12 +200,17 @@ T6_CLAIMS = (
     "committing by PATHSPEC",
     "`git diff --cached --name-only` for a STAGED commit, `git diff HEAD -- <paths>` for a PATHSPEC "
     "commit",
+    # W-a7bdd766 (2026-10-15) — run-bound scratch shipped at 1da14fcd7 but neither contract told an
+    # agent to use it, so seat copies kept landing loose in the session scratchpad (D-879's residue).
+    "**A `/fabrik-*` run's disposable bulk goes in its `RUN-SCRATCH:` folder**",
+    "never loose in the scratchpad",
+    "a seat reads its brief, not this file",
 )
 
 
 def test_the_shared_tree_commit_rules_are_identical_in_both_contracts() -> None:
-    """T6 Behavior Contract: the hub's CLAUDE.md and the fleet template carry the same three
-    sentences, byte for byte.
+    """T6 Behavior Contract: the hub's CLAUDE.md and the fleet template carry every T6_CLAIMS
+    span exactly once each, byte for byte.
 
     The two files are deliberately NOT byte-identical overall — the hub's is the hub agents' own
     contract — so nothing binds a shared rule across them except a grader like this one. A rule
@@ -800,8 +805,16 @@ def test_the_templates_mirrored_prose_matches_the_hubs() -> None:
         # the closing verdict too — a round-1 seat deleted it from BOTH contracts and the mirror
         # check (h == t) passed, so the mirror alone pins nothing about what the paragraph says
         assert "feature-sized included, starts here." in s
-        assert s.index("| 6 |") < s.index("**Under doubt the lane is") < s.index("**No code surface at all**")
-    for lead in ("**Under doubt the lane is `/fabrik-task`.**", "**No code surface at all**", "**Tripwire:**"):
+        assert (
+            s.index("| 6 |")
+            < s.index("**Under doubt the lane is")
+            < s.index("**No code surface at all**")
+        )
+    for lead in (
+        "**Under doubt the lane is `/fabrik-task`.**",
+        "**No code surface at all**",
+        "**Tripwire:**",
+    ):
         assert lead in tpl_s, f"the template lost a mirrored paragraph: {lead}"
         h = hub_s[hub_s.index(lead) :].split("\n", 1)[0]
         t = tpl_s[tpl_s.index(lead) :].split("\n", 1)[0]
@@ -1611,6 +1624,7 @@ def _check_hub_shared_repo(text: str) -> None:
         assert needle in opening, f"§ Shared repo's opening does not name {needle!r}: {opening!r}"
     head = item[:900]
     for wt in (
+        "`.claude/worktrees/infra`",
         "`.claude/worktrees/fleet`",
         "`.claude/worktrees/intel`",
         "`.claude/worktrees/kaizen`",
@@ -1683,18 +1697,19 @@ _HUB_MUTANTS = (
     ),
     (
         "shared-old-opening",
-        "- **Shared repo — the MAIN CHECKOUT's writers are agent-1 (infra, the merge owner) and "
-        "the daily pipeline.**",
+        "- **Shared repo — the MAIN CHECKOUT's writers are agent-1 (the coordinator, the merge "
+        "owner, D-874) and the daily pipeline.**",
         "- **Shared repo — you are ONE of THREE concurrent Claude sessions here (plus the daily "
         "pipeline).**",
         _check_hub_shared_repo,
     ),
     (
         "shared-fleet-intel-edit-main",
-        "Fleet, intel and kaizen work in `.claude/worktrees/fleet`, `.claude/worktrees/intel` and "
-        "`.claude/worktrees/kaizen` and never edit the main checkout, yet",
-        "Fleet, intel and kaizen also edit the main checkout; `.claude/worktrees/fleet`, "
-        "`.claude/worktrees/intel` and `.claude/worktrees/kaizen` stay unused, yet",
+        "Infra, fleet, intel and kaizen work in `.claude/worktrees/infra`, `.claude/worktrees/fleet`, "
+        "`.claude/worktrees/intel` and `.claude/worktrees/kaizen` and never edit the main checkout, yet",
+        "Infra, fleet, intel and kaizen also edit the main checkout; `.claude/worktrees/infra`, "
+        "`.claude/worktrees/fleet`, `.claude/worktrees/intel` and `.claude/worktrees/kaizen` stay "
+        "unused, yet",
         _check_hub_shared_repo,
     ),
     (
@@ -1835,7 +1850,9 @@ def _check_hub_exit_finish_duty(text: str) -> None:
     assert "[--item <W-id>]" in flat, "the --item option is not named"
     assert "send the `SendMessage` lines it prints" in flat, "the doorbell duty is missing"
     assert "a pushed branch without a request is unfinished" in flat, "finish != push lost"
-    assert "infra (the merge owner) merges it" in flat, "the hub's merge owner is not named"
+    assert "the coordinator (the merge owner) merges it" in flat, (
+        "the hub's merge owner is not named"
+    )
     assert "never re-run" in flat, "the exit-4 partial-send rule is missing"
     adhoc = flat.split("**Ad-hoc branch/worktree work**", 1)
     assert len(adhoc) == 2, "the ad-hoc clause moved"
@@ -1852,7 +1869,7 @@ def test_the_hubs_exit_names_the_merge_request_as_the_worktree_finish() -> None:
 
 _T05B_MUTANTS = (
     ("verb-dropped", "python3 scripts/merge_request.py request --review", "python3 scripts/x.py"),
-    ("owner-dropped", "infra (the merge owner) merges it", "someone merges it"),
+    ("owner-dropped", "the coordinator (the merge owner) merges it", "someone merges it"),
     (
         "lead-in-broadened",
         "In a linked worktree, finished work is a merge request:",

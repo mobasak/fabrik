@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "rules"
+    "needs-owner",
+    "rules",
+    "waits-operator-review"
   ],
   "title": "Reach map's video-factory recipe routes the script step to 'Claude via OpenRouter', against ai/00's subscription-first rule"
 }

@@ -342,7 +342,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-07T22:42 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-10-15T09:46 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -391,7 +391,42 @@ docs/
 │   │   │   ├── T05-upgrade-runbook.md
 │   │   │   └── T06-integration.md
 │   │   ├── 2026-10-06-plan-1-worktree-venv-isolation.md
+│   │   ├── 2026-10-08-plan-1-promtail-to-alloy
+│   │   │   ├── 2026-10-08-plan-1-promtail-to-alloy.md
+│   │   │   ├── T01-alloy-configs.md
+│   │   │   ├── T02-hub-compose-and-ceilings.md
+│   │   │   ├── T03-spoke-stack-and-bootstrap.md
+│   │   │   ├── T04a-watchers.md
+│   │   │   ├── T04b-repo-consumers.md
+│   │   │   ├── T05a-audit-prompts-and-setup-docs.md
+│   │   │   ├── T05b-inventory-and-sysadmin-docs.md
+│   │   │   ├── T05c-status-and-architecture-docs.md
+│   │   │   ├── T05d-operations-docs-and-scaffold-template.md
+│   │   │   ├── T05e-rebuild-and-reference-docs.md
+│   │   │   ├── T06-window-runbook.md
+│   │   │   └── T07-integration.md
+│   │   ├── 2026-10-08-plan-2-payments-fulfilment-role.md
+│   │   ├── 2026-10-08-plan-3-review-coverage-commit-scope.md
+│   │   ├── 2026-10-12-plan-1-owner-dsn-split.md
 │   │   ├── 2026-10-13-plan-1-mail-routing.md
+│   │   ├── 2026-10-14-plan-1-coolify-verb-retirement
+│   │   │   ├── 2026-10-14-plan-1-coolify-verb-retirement.md
+│   │   │   ├── T01-deployer-helpers.md
+│   │   │   ├── T02-status-rebase.md
+│   │   │   ├── T03-reconcile-all-rebase.md
+│   │   │   ├── T04-projects-sync-rebase.md
+│   │   │   ├── T05-apply-legacy-retired.md
+│   │   │   ├── T06-portability-coolify-section.md
+│   │   │   ├── T07a-rollback-branch-retired.md
+│   │   │   ├── T07b-health-app-and-state-words.md
+│   │   │   ├── T08-script-rebases.md
+│   │   │   ├── T09-module-deletions.md
+│   │   │   ├── T10a-reference-docs.md
+│   │   │   ├── T10b-root-docs.md
+│   │   │   └── T11-integration.md
+│   │   ├── 2026-10-14-plan-2-one-door-lane.md
+│   │   ├── 2026-10-15-plan-1-coordinator-role.md
+│   │   ├── 2026-10-15-plan-1-scratch-lifecycle.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -642,6 +677,9 @@ docs/
 │       ├── 2026-09-05-windowed-cost-sidecar-phase-C-review.md
 │       ├── 2026-09-06-d159-routing-allowlist-review.md
 │       ├── 2026-09-06-daily-chain-review.md
+│       ├── 2026-09-06-plan-1-session-history-retention-phase-2-c1-review.md
+│       ├── 2026-09-06-plan-1-session-history-retention-phase-3-c2-c3-review.md
+│       ├── 2026-09-06-plan-1-session-history-retention-phase-5-c4-review.md
 │       ├── 2026-09-06-plan-2-multi-agent-adoption-T01-review.md
 │       ├── 2026-09-06-plan-2-multi-agent-adoption-T02a-review.md
 │       ├── 2026-09-06-plan-2-multi-agent-adoption-T02b-review.md
@@ -954,8 +992,10 @@ docs/
 │       ├── 2026-10-06-mint-once-secrets-review.md
 │       ├── 2026-10-06-observability-matrix-node-drain-review.md
 │       ├── 2026-10-06-pgvector-version-key-review.md
+│       ├── 2026-10-06-plan-1-postgresql-18-upgrade-T01a-review.md
 │       ├── 2026-10-06-plan-1-postgresql-18-upgrade-T02-review.md
 │       ├── 2026-10-06-plan-1-postgresql-18-upgrade-T04b-review.md
+│       ├── 2026-10-06-plan-1-postgresql-18-upgrade-review.md
 │       ├── 2026-10-06-plan-2-rotation-capability-probe-review.md
 │       ├── 2026-10-06-plan-tickets-gate-cd-review.md
 │       ├── 2026-10-06-python-pack-mypy-target-review.md
@@ -979,16 +1019,146 @@ docs/
 │       ├── 2026-10-07-doc-links-worktree-lock-review.md
 │       ├── 2026-10-07-glitchtip-env-rows-review.md
 │       ├── 2026-10-07-heredoc-guard-docs-review.md
+│       ├── 2026-10-07-kaizen-stood-down-exclusion-review.md
 │       ├── 2026-10-07-kilo-model-sync-archive-review.md
 │       ├── 2026-10-07-mcp-resume-report-and-credential-chain-review.md
 │       ├── 2026-10-07-mcp-scope-and-orphan-reaper-review.md
 │       ├── 2026-10-07-mcp-scope-fabrik-lib-correction-review.md
 │       ├── 2026-10-07-phantom-relief-wakes-pytest-guard-review.md
+│       ├── 2026-10-07-plan-archive-hygiene-review.md
 │       ├── 2026-10-07-review-loop-worktree-seat-recipe-review.md
+│       ├── 2026-10-07-seat-isolation-review.md
 │       ├── 2026-10-07-stale-pack-sentences-grace-and-pollpath-review.md
 │       ├── 2026-10-07-state-registrar-failures-review.md
 │       ├── 2026-10-07-urgent-relief-promise-review.md
 │       ├── 2026-10-07-watchdog-llm-actions-packs-review.md
+│       ├── 2026-10-08-charter-hook-whoami-fallback-review.md
+│       ├── 2026-10-08-check-plan-tickets-ancestor-gate-review.md
+│       ├── 2026-10-08-citations-bare-basenames-review.md
+│       ├── 2026-10-08-command-run-handoff-seed-review.md
+│       ├── 2026-10-08-command-run-zero-slice-review.md
+│       ├── 2026-10-08-contract-cite-drift-review.md
+│       ├── 2026-10-08-convergence-in-progress-citation-review.md
+│       ├── 2026-10-08-d355-scope-growth-close-review.md
+│       ├── 2026-10-08-doc-index-shared-basename-review.md
+│       ├── 2026-10-08-docs-updater-plan-status-review.md
+│       ├── 2026-10-08-docusaurus-nginx-404-review.md
+│       ├── 2026-10-08-docusaurus-pack-serve-stage-review.md
+│       ├── 2026-10-08-final-gate-missing-checker-skip-review.md
+│       ├── 2026-10-08-frozen-chain-split-header-review.md
+│       ├── 2026-10-08-llms-txt-hub-wording-review.md
+│       ├── 2026-10-08-local-source-env-merge-review.md
+│       ├── 2026-10-08-merge-request-fabrik-lib-blocker-review.md
+│       ├── 2026-10-08-model-tok-cobra-note-review.md
+│       ├── 2026-10-08-pass-row-shape-agreement-review.md
+│       ├── 2026-10-08-pin-refusal-wording-review.md
+│       ├── 2026-10-08-pin-verb-launchers-review.md
+│       ├── 2026-10-08-plan-3-review-coverage-commit-scope-review.md
+│       ├── 2026-10-08-print-ban-call-boundary-review.md
+│       ├── 2026-10-08-probe-worktree-copy-in-review.md
+│       ├── 2026-10-08-rearm-sweep-wall-time-review.md
+│       ├── 2026-10-08-refusal-rule-writable-copy-review.md
+│       ├── 2026-10-08-review-coverage-loop-owner-ids-review.md
+│       ├── 2026-10-08-review-hygiene-strict-review.md
+│       ├── 2026-10-08-review-loop-empty-slices-review.md
+│       ├── 2026-10-08-review-loop-mandatory-pin-manifest-review.md
+│       ├── 2026-10-08-review-loop-pin-enforcement-review.md
+│       ├── 2026-10-08-review-loop-pin-recipe-review.md
+│       ├── 2026-10-08-review-loop-refuter-retry-review.md
+│       ├── 2026-10-08-review-loop-stray-writes-review.md
+│       ├── 2026-10-08-review-receipt-header-status-claim-review.md
+│       ├── 2026-10-08-rotation-stamp-tier-hygiene-review.md
+│       ├── 2026-10-08-rule-grounding-table-reading-review.md
+│       ├── 2026-10-08-seat-guard-review.md
+│       ├── 2026-10-08-seat-refusal-rule-review.md
+│       ├── 2026-10-08-seat-write-scope-review.md
+│       ├── 2026-10-08-seats-seen-rglob-review.md
+│       ├── 2026-10-08-slice-restatement-and-filed-template-review.md
+│       ├── 2026-10-08-spec-closing-row-grader-review.md
+│       ├── 2026-10-08-spec-convergence-all-and-scoped-review.md
+│       ├── 2026-10-08-subagents-pack-hold-tier-review.md
+│       ├── 2026-10-08-terminal-amend-review.md
+│       ├── 2026-10-08-trend-series-corrupt-slot-review.md
+│       ├── 2026-10-08-urgent-tier-checkpoint-review.md
+│       ├── 2026-10-08-w-3860ebf6-base-image-codename-review.md
+│       ├── 2026-10-08-work-blocked-plan-drift-review.md
+│       ├── 2026-10-08-worker-queue-from-main-review.md
+│       ├── 2026-10-08-zero-read-seat-and-large-output-redirect-review.md
+│       ├── 2026-10-09-command-run-no-closing-pass-review.md
+│       ├── 2026-10-09-review-receipt-gate-close-order-review.md
+│       ├── 2026-10-09-stop-hook-gate-before-push-review.md
+│       ├── 2026-10-09-stop-hook-mismatched-upstream-review.md
+│       ├── 2026-10-09-w-24ae7ecf-surface-add-review.md
+│       ├── 2026-10-09-w-b63ffe1a-gate-scope-wording-review.md
+│       ├── 2026-10-09-w-fe6e0ed3-phase-e-rereview-review.md
+│       ├── 2026-10-11-adopt-id-reservation-review.md
+│       ├── 2026-10-11-coordinator-amber-standdown-review.md
+│       ├── 2026-10-11-pre-push-install-race-review.md
+│       ├── 2026-10-11-repos-owner-filter-review.md
+│       ├── 2026-10-12-adopt-refuses-linked-worktree-review.md
+│       ├── 2026-10-12-close-friction-working-tree-receipt-review.md
+│       ├── 2026-10-12-corpus-weight-surfaces-wording-review.md
+│       ├── 2026-10-12-merge-request-unreachable-defers-review.md
+│       ├── 2026-10-12-owner-dsn-pack-sentences-review.md
+│       ├── 2026-10-12-pins-manifest-any-cwd-review.md
+│       ├── 2026-10-12-plan-1-owner-dsn-split-review.md
+│       ├── 2026-10-12-whoami-clear-predecessor-review.md
+│       ├── 2026-10-13-added-file-ruff-scope-review.md
+│       ├── 2026-10-13-data-contract-backing-legend-review.md
+│       ├── 2026-10-13-design-time-naming-check-review.md
+│       ├── 2026-10-13-final-gate-git-names-review.md
+│       ├── 2026-10-13-floor-execute-plan-opus-review.md
+│       ├── 2026-10-13-gate-fixer-scope-unicode-review.md
+│       ├── 2026-10-13-plan-1-mail-routing-review.md
+│       ├── 2026-10-13-print-mode-no-work-review.md
+│       ├── 2026-10-13-red-clause-template-mirror-review.md
+│       ├── 2026-10-13-review-loop-ledger-run-state-review.md
+│       ├── 2026-10-13-review-loop-next-args-review.md
+│       ├── 2026-10-13-review-loop-seat-prompt-scoring-review.md
+│       ├── 2026-10-13-rule-grounding-numbered-digest-review.md
+│       ├── 2026-10-13-schema-sync-content-trigger-review.md
+│       ├── 2026-10-13-seat-dotenv-off-review.md
+│       ├── 2026-10-13-spec-db-contradiction-warn-review.md
+│       ├── 2026-10-13-spec-db-whole-name-review.md
+│       ├── 2026-10-13-synced-wording-fixes-review.md
+│       ├── 2026-10-13-task-close-receipt-exempt-review.md
+│       ├── 2026-10-13-throwaway-scope-and-routing-seams-review.md
+│       ├── 2026-10-13-w-28f260c3-wall-resume-review.md
+│       ├── 2026-10-13-w-2e6c1b0b-never-route-family-review.md
+│       ├── 2026-10-13-w800579be-published-refresh-review.md
+│       ├── 2026-10-13-wip-backup-no-verify-review.md
+│       ├── 2026-10-14-checkpoint-arm-review.md
+│       ├── 2026-10-14-coordinator-role-spec-review.md
+│       ├── 2026-10-14-design-receipt-route-review.md
+│       ├── 2026-10-14-flip-after-panel-review.md
+│       ├── 2026-10-14-gate-row-cites-review.md
+│       ├── 2026-10-14-harness-janitor-review.md
+│       ├── 2026-10-14-lane-default-sentence-review.md
+│       ├── 2026-10-14-one-door-lane-plan-review.md
+│       ├── 2026-10-14-phase-receipt-worktrees-review.md
+│       ├── 2026-10-14-plan-1-coolify-verb-retirement-T01-review.md
+│       ├── 2026-10-14-plan-1-coolify-verb-retirement-T02-review.md
+│       ├── 2026-10-14-plan-1-coolify-verb-retirement-T03-review.md
+│       ├── 2026-10-14-plan-1-coolify-verb-retirement-T04-review.md
+│       ├── 2026-10-14-plan-1-coolify-verb-retirement-T05-review.md
+│       ├── 2026-10-14-plan-tickets-doubled-slash-review.md
+│       ├── 2026-10-14-research-tier-order-review.md
+│       ├── 2026-10-14-resilience-counts-at-lists-review.md
+│       ├── 2026-10-14-review-loop-later-pass-reads-clone-push-review.md
+│       ├── 2026-10-14-review-loop-ledger-labels-name-the-defect-review.md
+│       ├── 2026-10-14-review-loop-pin-stdout-git-history-review.md
+│       ├── 2026-10-14-review-loop-seats-never-execute-destructive-scripts-review.md
+│       ├── 2026-10-14-reviewed-surfaces-review.md
+│       ├── 2026-10-14-rotation-threshold-99-review.md
+│       ├── 2026-10-14-run-scratch-root-review.md
+│       ├── 2026-10-14-schema-sync-migration-governance-review.md
+│       ├── 2026-10-14-two-sided-lane-gate-review.md
+│       ├── 2026-10-14-w-c687ce60-lib-routing-review.md
+│       ├── 2026-10-15-by-design-ledger-owner-review.md
+│       ├── 2026-10-15-plan-1-coordinator-role-review.md
+│       ├── 2026-10-15-plan-1-scratch-lifecycle-legacy-list.md
+│       ├── 2026-10-15-plan-1-scratch-lifecycle-review.md
+│       ├── 2026-10-15-scratch-lifecycle-spec-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1022,6 +1192,7 @@ docs/
 │   │   ├── fleet-doc-audit-2026-09-23.md
 │   │   ├── fleet-doc-audit-2026-09-30.md
 │   │   ├── fleet-doc-audit-2026-10-07.md
+│   │   ├── fleet-doc-audit-2026-10-14.md
 │   │   ├── fleet-doc-audit-latest.md
 │   │   ├── infra-probe-2026-05-31T15-49Z.yaml
 │   │   ├── infra-probe-2026-05-31T22-36Z.yaml
@@ -1100,6 +1271,7 @@ docs/
 │   │   └── markdown-cheatsheet.md
 │   ├── agent-machinery-map.md
 │   ├── agents
+│   │   ├── coordinator.md
 │   │   ├── fleet.md
 │   │   ├── infra.md
 │   │   ├── intel.md
@@ -1187,7 +1359,6 @@ docs/
 │   │   │   ├── verdict-context.json
 │   │   │   └── verdict-opdec.json
 │   │   ├── 2026-09-24-audit-log-everywhere-ledger.md
-│   │   ├── 2026-10-14-one-door-lane-ledger.md
 │   │   ├── 2026-09-24-cost-budget-currency-ledger.md
 │   │   ├── 2026-09-24-design-system-split-currency-ledger.md
 │   │   ├── 2026-09-24-multi-tenant-saas-currency-ledger.md
@@ -1225,6 +1396,12 @@ docs/
 │   │   ├── 2026-10-04-bootstrap-scripts-currency-ledger.md
 │   │   ├── 2026-10-05-promtail-to-alloy-ledger.md
 │   │   ├── 2026-10-06-postgresql-18-upgrade-ledger.md
+│   │   ├── 2026-10-08-review-coverage-commit-scope-ledger.md
+│   │   ├── 2026-10-12-owner-dsn-split-ledger.md
+│   │   ├── 2026-10-13-mail-routing-ledger.md
+│   │   ├── 2026-10-14-coolify-verb-retirement-ledger.md
+│   │   ├── 2026-10-14-coordinator-role-ledger.md
+│   │   ├── 2026-10-14-one-door-lane-ledger.md
 │   │   ├── AI for Autonomous System Administration.md
 │   │   ├── Document Text Replacement Libraries.md
 │   │   ├── Electron Desktop App Best Practices.md
@@ -1327,8 +1504,13 @@ docs/
 │       ├── 2026-10-06-postgresql-18-fleet-upgrade-design.md
 │       ├── 2026-10-06-rotation-capability-probe-design.md
 │       ├── 2026-10-06-worktree-venv-isolation-design.md
+│       ├── 2026-10-08-review-coverage-commit-scope-design.md
+│       ├── 2026-10-12-owner-dsn-split-design.md
 │       ├── 2026-10-13-mail-routing-design.md
+│       ├── 2026-10-14-coolify-verb-retirement-design.md
+│       ├── 2026-10-14-coordinator-role-design.md
 │       ├── 2026-10-14-one-door-lane-design.md
+│       ├── 2026-10-15-scratch-lifecycle-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
@@ -1359,6 +1541,7 @@ docs/
 │   ├── claude-configuration-inventory.md
 │   ├── cleanup-automation.md
 │   ├── cleanup-maintenance-backlog.md
+│   ├── cloud-dispatch.md
 │   ├── fabrik-mail.md
 │   ├── hooks-index.md
 │   ├── kaizen-event-stream.md
@@ -1810,7 +1993,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [agents-fabrik-core.md](agents-fabrik-core.md) | High-frequency platform core, `@import`-ed into `CLAUDE.md` (fleet-synced); the full map stays `agents-fabrik.md`; `AGENTS.md` = stub (spec 2026-07-18 option b) |
 | [test_review_rubric.py](tests/test_review_rubric.py) | 3 hermetic Behavior-Contract tests for the rubric extractor (glob-matched mandates · mandatory-core floor always · `--workflow`-gated checklists) |
 | [test_review_receipt.py](tests/test_review_receipt.py) | 6 tests for the receipt skeleton in a throwaway git repo — only the Status line exempts the skeleton (the bare flip fails naming UNCHECKED), a mechanically completed one passes with zero findings, the anchor covers untracked files, an empty surface is refused, no overwrite, a dated scope is not double-dated |
-| [test_run_scratch_brief_wording.py](tests/test_run_scratch_brief_wording.py) | 7 pins for D7 of the scratch-lifecycle spec — the seat-folder rule (`<run scratch>/seat-<n>/` under `RUN-SCRATCH:`) stated once in `subagents-core.md`, the pins dir under the same root, the catalogue's copy rule as the only staging, and `<run scratch>` in place of `<scratchpad>` in fabrik-review, fabrik-review-scoped and fabrik-execute-plan |
+| [test_run_scratch_brief_wording.py](tests/test_run_scratch_brief_wording.py) | 5 pins for D7 of the scratch-lifecycle spec — the seat-folder rule (`<run scratch>/seat-<n>/` under `RUN-SCRATCH:`) stated once in `subagents-core.md`, the pins dir under the same root, the catalogue's copy rule as the only staging, `<run scratch>` in fabrik-execute-plan, and a D8 pointer that resolves where it is read |
 | [test_review_loop_ledger.py](tests/test_review_loop_ledger.py) | Graders for `review_loop_ledger.py` over fabricated run dirs: seats timed and flagged, orphan/unreadable/duplicate rows kept, `next` refusing an unraised, ambiguous or prefix-less id |
 | [test_feedback_stages.py](tests/test_feedback_stages.py) | Graders for `command_feedback_report.py --stages`: review runs grouped per change in the ledger's real shape (per-round `confirmed` lists), receipts keyed to their plan, negative figures ignored, the repo printed, the coverage line |
 | [test_dispatch_headroom_force.py](tests/test_dispatch_headroom_force.py) | Graders for `dispatch_headroom.py`'s refusal while `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is set (a whitespace value included; empty is unset) |

@@ -16,5 +16,9 @@
   "owner": "",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "needs-owner",
+    "waits-operator-review"
+  ],
   "title": "infrastructure.py::_database_url_pin has no test; D-626 changed it (an interpolated DATABASE_URL now counts as unpinned)"
 }

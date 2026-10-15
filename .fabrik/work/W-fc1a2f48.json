@@ -13,8 +13,11 @@
   },
   "next": "Do the remaining work: The item's defect (the --commit requirement has no rollout cutover) is still unfixed. If it is to be closed, it should be closed as obsolete with a correct reason (for example, every pre-T01b record is now long past the 12h staleness fail-open), not as fixed on a misread of the code.",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "Reopened from W-c553a0c2 (closed in error by triage wave 1, overturned by the third check): The item's defect (the --commit requirement has no rollout cutover) is still unfixed. If it is to be closed, it should be closed as obsolete with a correct reason (for example, every pre-T01b record is now long past the 12h staleness fail-open), not as fixed on a misread of the code."
 }

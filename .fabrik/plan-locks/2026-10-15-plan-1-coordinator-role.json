@@ -26,7 +26,9 @@
   ],
   "branch": "plan-coordinator-role",
   "started_at": "2026-10-15T02:34:00+03:00",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "fe95cfb054e1b8b42d3543f1a30c849412963b3a",
-  "baseline_gate": "final_gate --check success at fe95cfb05 (skipped: ruff-format, ruff, bandit, semgrep, pytest)"
+  "baseline_gate": "final_gate --check success at fe95cfb05 (skipped: ruff-format, ruff, bandit, semgrep, pytest)",
+  "completed_at": "2026-10-15T07:40:00+00:00",
+  "final_commit": "0e19427e4"
 }

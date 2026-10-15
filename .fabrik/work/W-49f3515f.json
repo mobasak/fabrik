@@ -13,11 +13,12 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "kaizen",
   "priority": 2,
   "status": "open",
   "tags": [
-    "corpus"
+    "corpus",
+    "waits-operator-review"
   ],
   "title": "command_run.py's in-lane SCOPE GROWTH message says 'STOP the loop … close on the last round that swept the ORIGINAL surface' while /fabrik-review-scoped step 5 says fix the confirmed set, run remainder rounds over it, close at confirmed 0 — the printed line read literally would have closed sp1's run at round 1 with 9 confirmed defects open (mail 01M493NNJ3, sp1). Align the message to the command text + a test asserting the message carries the fix-then-re-verify order (scripts/command_run.py:544-556 vs commands/_sources/fabrik-review-scoped.md:93-100)."
 }

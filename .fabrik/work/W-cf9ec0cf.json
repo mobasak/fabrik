@@ -13,8 +13,11 @@
   },
   "next": "Do the remaining work: Nothing yet extracts and grades the exit-row examples in commands/_sources (fabrik-review.md:514-516, fabrik-epics-review.md:435-436), so a drift between those rows and the graders would not be caught.",
   "note": "",
-  "owner": "",
+  "owner": "kaizen",
   "priority": 2,
   "status": "open",
+  "tags": [
+    "waits-operator-review"
+  ],
   "title": "Reopened from W-2b944b8e (closed in error by triage wave 1, overturned by the third check): Nothing yet extracts and grades the exit-row examples in commands/_sources (fabrik-review.md:514-516, fabrik-epics-review.md:435-436), so a drift between those rows and the graders would not be caught."
 }

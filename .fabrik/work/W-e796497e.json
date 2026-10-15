@@ -17,7 +17,9 @@
   "priority": 2,
   "status": "open",
   "tags": [
-    "rules"
+    "needs-owner",
+    "rules",
+    "waits-operator-review"
   ],
   "title": "Reach map's 3D rows are stale: Higgsfield's REST API exposes no 3D (Meshy/Tripo are app/agent-only, Hunyuan3D not offered), and CSM's API shut down 2026-01-05 after Google's acquisition; and Rodin, Meshy and Tripo are reachable through fal and WaveSpeed (keys held), so the map's 'Rodin add-key' is wrong too"
 }

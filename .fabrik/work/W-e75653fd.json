@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "tests/test_hub_write_root.py is red on master — src/fabrik/orchestrator/deployer_ssh.py hard-codes a hub write root (since e7057ec0a, deployer T01)"
 }
